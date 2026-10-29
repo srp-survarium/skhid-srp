@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Zeit zum Sammeln der Artefakte
 st_artefact_activated_message	Artefakt ist aktiviert
 st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.
 st_artefact_booster_name	Artefakten-Master
-st_artefact_container_full	Kein freier Artefaktbehälter
-st_artefact_no_container	Kein Artefaktbehälter
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden
 st_artefact_search_success	Sie haben das Artefakt erreicht!
-st_artefact_take_teammate	{USE}: Artefakt nehmen
+st_artefact_take_teammate	Artefakt nehmen ({USE})
 st_ash12_description	Description is not ready!!!
 st_ash12_name	ASh-12
 st_attention	Es ist ein Fehler beim Starten des Laders Survarium geschehen. Bitte, wiederholen Sie den Versuch später.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x30, hier in der Version MP7A1 mit Schalldämpfer. Von Heckler & Koch zusammen mit einer eigenen panzerbrechenden Patrone entwickelt und bei der Bundeswehr und Spezialeinheiten der Polizei im Einsatz. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legende"
+st_hold_artifact_action	Artefakt halten
 st_hour_short	st.
 st_hud_tutorial_frame_0_text_1	Kamera Lenkung
 st_hud_tutorial_frame_0_text_2	Verwenden Sie die Maus um sich umzuschauen

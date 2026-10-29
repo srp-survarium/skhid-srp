@@ -2,7 +2,7 @@
 use artefact_carry::{Artefact, ArtefactId, Refused};
 use artefact_carry::carry::Time;
 use artefact_carry::ground::Drop;
-use super::{Context, Lock, Reg, Thread};
+use super::{Context, Lock, Thread};
 use super::world::{Player, read};
 use super::inventory::{ContainerSpace, Inventory};
 use crate::raw;
@@ -66,16 +66,24 @@ impl<'t> Player<'t> {
             (view.key.world == world.address() && view.id() == id).then_some(view)
         }
     }
+    /// Drops stay where they fall for the rest of the match, so one is only
+    /// made where it can be reached: on this side of a wall in front of the
+    /// palm, above level collision. Otherwise the native death keeps it.
     pub fn drop_carried(&self, artefact: Artefact) -> bool {
         let Some(physics) = self.physics_world() else { return false };
         let (eye, forward) = self.carry_eye();
-        let origin = [eye[0] + forward[0] * 0.34, eye[1] - 0.14 + forward[1] * 0.34, eye[2] + forward[2] * 0.34];
+        let reach = 0.367_695_5; // |(0.34, 0.14)|
+        let palm = [forward[0] * 0.34, forward[1] * 0.34 - 0.14, forward[2] * 0.34];
+        let ray = palm.map(|v| v / reach);
+        // Pulled back 5 cm from a wall between the eye and the palm.
+        let along = physics.ray_test(eye, ray, reach, 0x24, 2)
+            .map_or(reach, |h| (0..3).map(|n| (h.point[n] - eye[n]) * ray[n]).sum::<f32>() - 0.05).max(0.);
+        let origin: [f32; 3] = core::array::from_fn(|n| eye[n] + ray[n] * along);
         // Include a small clearance above the palm; the ray lands on actual
         // level collision, including stairs. No visual-frame data enters sim.
         let start = [origin[0], origin[1] + 0.1, origin[2]];
-        let floor = physics.ray_test(start, [0., -1., 0.], 200., 0x24, 2)
-            .map(|h| h.point[1].min(origin[1])).unwrap_or(origin[1] - 200.);
-        let Some(drop) = Drop::new(origin, floor, self.carry_time()) else { return false };
+        let Some(floor) = physics.ray_test(start, [0., -1., 0.], 200., 0x24, 2) else { return false };
+        let Some(drop) = Drop::new(origin, floor.point[1].min(origin[1]), self.carry_time()) else { return false };
         self.inventory().is_some_and(|mut i| i.drop_carried(artefact, drop))
     }
     pub fn container_space(&self) -> ContainerSpace {
@@ -83,10 +91,18 @@ impl<'t> Player<'t> {
     }
 }
 
+/// The record of a state-6 item without a release (none should be): the
+/// load reads it as no release, and the stream stays the same length.
+const NO_RELEASE: [u8; 20] = [0xFF; 20];
+
 pub fn save(ctx: &Context<'_>) {
-    let Some(item) = (unsafe { raw::site::carry_ground_save::item(ctx) }).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
-    // Only state 6 has an extension; the native state byte is its tag.
-    if let Some(drop) = item.release() { super::carry_runtime::write_bytes(ctx, Reg::Edi, &drop.snapshot()); }
+    // SAFETY: artefact_base::serialize after its state-dependent fields.
+    let (Some(item), Some(writer)) = (unsafe { raw::site::carry_ground_save::item(ctx) }, unsafe { raw::site::carry_ground_save::writer(ctx) }) else { return };
+    // SAFETY: the live artefact being serialized.
+    if unsafe { read(item.state()) } != DROPPED { return; }
+    // State 6 always has the extension; the native state byte is its tag.
+    let record = GroundItem::of_item(item, ctx.thread()).and_then(|i| i.release()).map_or(NO_RELEASE, |d| d.snapshot());
+    super::carry_runtime::write_bytes(writer, &record);
 }
 pub fn load(ctx: &Context<'_>) {
     let Some(item) = (unsafe { raw::site::carry_ground_load::item(ctx) }).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };

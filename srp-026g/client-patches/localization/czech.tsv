@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Čas sběru
 st_artefact_activated_message	Artefakt aktivován
 st_artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.
 st_artefact_booster_name	Mistr artefaktů
-st_artefact_container_full	Žádný volný kontejner na artefakty
-st_artefact_no_container	Chybí kontejner na artefakty
 st_artefact_no_free_slots	Na artefakt není volný slot!
 st_artefact_search_failed	Artefakt nenalezen
 st_artefact_search_success	Získal jsi artefakt! 
-st_artefact_take_teammate	{USE}: Vzít artefakt
+st_artefact_take_teammate	Vzít artefakt ({USE})
 st_ash12_description	Popis zatím není k dispozici.
 st_ash12_name	Ash-12
 st_attention	Při spouštění launcheru Survarium došlo k chybě. Zkus to později.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Německá zbraň osobní obrany na náboje 4.6x30
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Německá zbraň osobní obrany na náboje 4.6x30, verze MP7A1 s tlumičem. Heckler & Koch ji vyvinul s vlastním průbojným nábojem. Slouží u Bundeswehru a policejních speciálních jednotek. Zásobník na 20 nábojů. Jednotlivá i automatická střelba. Prémiová verze se zvláštní kamufláží.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Držet artefakt
 st_hour_short	h.
 st_hud_tutorial_frame_0_text_1	Ovládání kamery
 st_hud_tutorial_frame_0_text_2	Rozhlížej se myší

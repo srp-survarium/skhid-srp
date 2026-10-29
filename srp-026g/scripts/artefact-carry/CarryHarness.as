@@ -19,7 +19,7 @@ package {
   private function loaded(e:Event):void {
    try {
     var hud:Object = loader.content;
-    hud.set_localization_data({st_artefact_take_teammate:"Use: take artefact", st_artefact_no_container:"No artefact container", st_artefact_container_full:"No free artefact container"});
+    hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)"});
     // These native HUD methods set their state before touching game-only
     // view objects, which need not exist in this headless fixture.
     try { hud.show_profiles_selector(false); } catch(nativeProfile:Error) {}
@@ -31,22 +31,20 @@ package {
     hud.set_context("Native collection",37);
     hud.show_artefact_offer("st_artefact_take_teammate");
     var prompt:Object = hud.contextInfo;
-    if(!prompt.visible || prompt.contextText.text != "Use: take artefact" || prompt.currentFrame != 1) throw new Error("native collection widget did not show localized take action");
+    if(!prompt.visible || prompt.contextText.text != "Take artifact (E)" || prompt.currentFrame != 1) throw new Error("native collection widget did not show localized take action");
     hud.hide_context();
     hud.show_context(false);
-    if(!prompt.visible || prompt.contextText.text != "Use: take artefact") throw new Error("native hide erased take action");
+    if(!prompt.visible || prompt.contextText.text != "Take artifact (E)") throw new Error("native hide erased take action");
     hud.set_context("Native collection",37);
-    if(prompt.contextText.text != "Use: take artefact" || prompt.currentFrame != 1) throw new Error("native collection overwrote take action");
+    if(prompt.contextText.text != "Take artifact (E)" || prompt.currentFrame != 1) throw new Error("native collection overwrote take action");
     hud.show_artefact_offer("");
     if(!prompt.visible || prompt.contextText.text != "Native collection" || prompt.currentFrame != 2) throw new Error("native collection was not restored");
     hud.hide_context();
     hud.show_context(true);
     if(!prompt.visible || prompt.contextText.text != "Native collection") throw new Error("native show did not retain text");
     hud.hide_context();
-    hud.show_artefact_offer("st_artefact_no_container");
-    if(!prompt.visible || prompt.contextText.text != "No artefact container") throw new Error("missing-container message wrong");
-    hud.show_artefact_offer("st_artefact_container_full");
-    if(!prompt.visible || prompt.contextText.text != "No free artefact container") throw new Error("full-container message wrong");
+    hud.show_artefact_offer("st_artefact_take_teammate");
+    if(!prompt.visible || prompt.contextText.text != "Take artifact (E)") throw new Error("take message wrong");
     hud.show_artefact_offer("");
     if(prompt.visible) throw new Error("lost target left prompt visible");
     hud.show_artefact_offer("st_artefact_take_teammate");

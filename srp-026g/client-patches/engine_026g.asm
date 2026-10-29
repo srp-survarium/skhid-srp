@@ -69,7 +69,6 @@ global engine_add_model
 global engine_remove_model
 global engine_update_model
 global engine_static_model_bounds
-global engine_input_alt_held
 global engine_release_item
 global engine_release_model
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
@@ -966,21 +965,6 @@ engine_static_model_bounds:
     push dword [esp + 24]   ; bounds -> 4
     mov ecx, [esp + 24]   ; instance
     call 0x16e420
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_input_alt_held:
-    ; 0x241200 survarium::player_input_handler::alt_is_held: handler EAX; pops 0; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov eax, [esp + 20]   ; handler
-    call 0x241200
     pop edi
     pop esi
     pop ebx

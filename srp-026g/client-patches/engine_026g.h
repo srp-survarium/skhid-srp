@@ -10,6 +10,7 @@
 
 struct artefact;
 struct buffer_string;
+struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_string;
@@ -48,7 +49,7 @@ void *engine_malloc(void *allocator, unsigned int size, const void *where);
 void *engine_match_rule_base(void *rule, unsigned int type);
 
 /* 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
-void engine_write_u8(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5da0 vostok::network_core::buffer_writer::w<unsigned short>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
 void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
@@ -229,9 +230,6 @@ void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref
 
 /* 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4 */
 void engine_static_model_bounds(struct static_model_instance *instance, float *bounds);
-
-/* 0x241200 survarium::player_input_handler::alt_is_held: handler EAX; pops 0; EAX */
-unsigned int engine_input_alt_held(struct player_input_handler *handler);
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_item(struct artefact *object, unsigned int *count);

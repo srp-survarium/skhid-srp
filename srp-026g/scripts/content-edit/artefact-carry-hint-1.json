@@ -1,5 +1,5 @@
 {
-  "_about": "Map the existing collection widget to the take/container hints. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
+  "_about": "Map the existing collection widget to the take hint, shown only when Use would take. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
   "append_rows": [
     {
       "file": "localization/flash_movies_localizations.options",
@@ -8,14 +8,6 @@
         [
           "st_artefact_take_teammate",
           "st_artefact_take_teammate"
-        ],
-        [
-          "st_artefact_no_container",
-          "st_artefact_no_container"
-        ],
-        [
-          "st_artefact_container_full",
-          "st_artefact_container_full"
         ]
       ]
     }

@@ -113,8 +113,6 @@ unsafe extern "C" {
     pub fn engine_update_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void, first: *const f32, second: *const f32);
     /// 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4
     pub fn engine_static_model_bounds(instance: *mut c_void, bounds: *mut f32);
-    /// 0x241200 survarium::player_input_handler::alt_is_held: handler EAX; pops 0; EAX
-    pub fn engine_input_alt_held(handler: *mut c_void) -> u32;
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0

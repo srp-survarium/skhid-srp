@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Час пошуку
 st_artefact_activated_message	Артефакт активовано
 st_artefact_booster_description	Друга версія приладу, винайденого умільцями, для вилучення артефактів. Завдяки вбудованому гаснику аномальної активності артефакту дозволяє прискорити процес екстракції.
 st_artefact_booster_name	Артефакт-майстер
-st_artefact_container_full	Немає вільного контейнера для артефакту
-st_artefact_no_container	Немає контейнера для артефакту
 st_artefact_no_free_slots	Немає вільних слотів для артефакта!
 st_artefact_search_failed	Артефакт не знайдено
 st_artefact_search_success	Ви дістали артефакт!
-st_artefact_take_teammate	{USE}: Взяти артефакт
+st_artefact_take_teammate	Взяти артефакт ({USE})
 st_ash12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ash12_name	АШ-12
 st_attention	Сталася помилка при запуску завантажувача Survarium. Будь ласка, повторіть спробу запуску пізніше.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Німецька зброя самооборон�
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Німецька зброя самооборони під боєприпас 4.6х30, версія MP7A1 з глушником. Розробка Heckler & Koch під власний бронебійний патрон; служить у бундесвері й поліції. Магазин на 20 набоїв. Вогонь: одиничний і автоматичний. Преміум-версія в особливому камуфляжі.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Легенда"
+st_hold_artifact_action	Тримати артефакт
 st_hour_short	год.
 st_hud_tutorial_frame_0_text_1	Керування камерою
 st_hud_tutorial_frame_0_text_2	Використовуйте мишку, щоб озирнутися

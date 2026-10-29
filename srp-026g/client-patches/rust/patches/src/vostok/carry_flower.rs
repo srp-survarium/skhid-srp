@@ -1,9 +1,8 @@
 //! Held-only Lifebone model. The native cook loads a fourth resource for
 //! this class; an owned reference lives until the exact item's destructor.
 //! Its normal model, inventory state and ground collision are untouched.
-use core::ffi::c_void;
 use core::sync::atomic::{AtomicU32, Ordering};
-use super::{Context, Lock, Reg, Thread};
+use super::{Context, Lock, Thread};
 use super::world::{read};
 use super::carry_runtime::Scene;
 use crate::raw;
@@ -37,20 +36,21 @@ pub fn query(ctx: &Context<'_>) -> bool {
     // call site stack has the five arguments, but no call return address.
     unsafe {
         let Some(frame) = raw::site::carry_flower_query::frame(ctx) else { return false };
-        let requests = frame.requests().cast::<[[u32; 2]; 3]>().read();
-        let path = requests[0][0] as *const u8;
-        if path.is_null() { return false; }
-        if requests[0][1] != 15 { return false; }
+        let first = frame.requests();
+        let path = first.path();
+        if path.is_null() || read(first.class()) != 15 { return false; }
         for (i, byte) in b"item/artefacts/artefact_givokost_single\0".iter().enumerate() {
             if path.add(i).read_volatile() != *byte { return false; }
         }
-        let extra = [c"item/artefacts/artefact_givokost_single_held".as_ptr() as u32, 15];
-        let extended = [requests[0], requests[1], requests[2], extra];
-        let args = frame.arguments().cast::<[u32; 5]>().read();
+        // The native three as they are, then the held model: {path, class}.
+        let request = |n| { let r = first.at(n); [r.path() as usize as u32, read(r.class())] };
+        let extended = [request(0), request(1), request(2),
+            [c"item/artefacts/artefact_givokost_single_held".as_ptr() as usize as u32, 15]];
         // Query copies requests synchronously, just as it copies the native
         // cook's stack-local array. Callback and parent ownership stay native.
-        raw::engine_query_resources(extended.as_ptr().cast(), 4, args[0] as *mut c_void,
-            args[1] as *mut c_void, args[2] as *mut c_void, args[3] as *mut c_void, args[4]);
+        raw::engine_query_resources(extended.as_ptr().cast(), 4, frame.callback().cast(),
+            frame.allocator().cast(), frame.user_data().cast(), frame.parent().cast(),
+            read(frame.flag()));
     }
     true
 }
@@ -61,12 +61,13 @@ pub fn ready(ctx: &Context<'_>) {
     // before reading the appended query (header 50h, stride 2E0h).
     unsafe {
         let Some(result) = raw::site::carry_flower_ready::result(ctx) else { return };
+        let Some(item) = raw::site::carry_flower_ready::item(ctx).map(|i| i.address()) else { return };
         if read(result.count()) != 4 { return; }
         let Some(model) = result.flower() else { return };
         FLOWERS.with(ctx.thread(), |slots| {
-            if slots.iter().flatten().any(|f| f.item == ctx.reg(Reg::Edi)) { return; }
+            if slots.iter().flatten().any(|f| f.item == item) { return; }
             if let Some(slot) = slots.iter_mut().find(|s| s.is_none()) {
-                *slot = Some(Flower { item: ctx.reg(Reg::Edi), model: Model::retain(model) });
+                *slot = Some(Flower { item, model: Model::retain(model) });
             }
         });
     }

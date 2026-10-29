@@ -17,6 +17,10 @@ impl Action {
     pub const COMMIT_SUICIDE: Action = Action(0x1F);
     /// spot.
     pub const SPOT: Action = Action(0x22);
+    /// artefact (action table entry 0xA74D5C): unused by the game; patch 78
+    /// gives it the default key H and a controls row (patch 62's table), and
+    /// holding it makes a quick-use key offer that slot's artefact.
+    pub const ARTEFACT: Action = Action(0x23);
 }
 
 /// What the input handler holds of an action: its last key event.
@@ -108,11 +112,6 @@ impl<'t> Handle<'t> for InputHandler<'t> {
 }
 
 impl<'t> InputHandler<'t> {
-    pub fn alt_held(&self) -> bool {
-        // SAFETY: native handler alive at the input-builder epilogue.
-        unsafe { raw::engine_input_alt_held(Some(self.this)) != 0 }
-    }
-
     /// At `input_builder.end` (process_first_person_mode's epilogue).
     pub fn at_builder_end(ctx: &'t super::Context<'_>) -> Option<InputHandler<'t>> {
         // SAFETY: the context is this site's: the handler building the input,
@@ -125,6 +124,12 @@ impl<'t> InputHandler<'t> {
 impl InputHandler<'_> {
     pub(in crate::vostok) fn raw(&self) -> raw::PlayerInputHandler {
         self.this
+    }
+
+    /// Whether a held key is bound to `action` (kinds 5): its key sends an
+    /// event every tick while down, as the builder reads sprint (0x241F91).
+    pub fn held(&self, action: Action) -> bool {
+        matches!(self.action_state(action), Some(ActionState::Down | ActionState::Repeat))
     }
 
     /// The state of `action`: `None` when the handler has none, or when it

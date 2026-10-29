@@ -1,11 +1,10 @@
 //! Native boundaries for carry mode. IDs kept by the patch are comparison
 //! values; every dereference starts with a live hook argument or world lookup.
 
-use core::ffi::c_void;
 use core::sync::atomic::{AtomicU32, Ordering};
 use artefact_carry::{Artefact, Place};
 use artefact_carry::carry::{Carry, Time};
-use super::{Context, Reg};
+use super::Context;
 use super::world::{Player, floats, read};
 use crate::raw;
 
@@ -33,10 +32,6 @@ impl Player<'_> {
         unsafe { self.this.held_item().is_some_and(|held| {
             [raw::image::WEAPON_VTABLE, raw::image::WEAPON_CORE_VTABLE].contains(&read(held.vtable()))
         }) }
-    }
-    pub fn carry_dirty(&self) {
-        // SAFETY: snapshot dirtiness belongs to this live native player.
-        unsafe { self.this.modified().write_volatile(1) }
     }
     pub fn carry_filter(&self, actions: u32) {
         // SAFETY: set_input has copied the packet to the player's own input.
@@ -116,14 +111,14 @@ pub fn constructed(ctx: &Context<'_>) -> u32 {
 }
 
 pub fn write_snapshot(ctx: &Context<'_>, carry: Carry) {
-    write_bytes(ctx, Reg::Edi, &carry.snapshot());
+    // SAFETY: base_player::serialize's epilogue, its live writer.
+    if let Some(writer) = unsafe { raw::site::carry_save::writer(ctx) } { write_bytes(writer, &carry.snapshot()); }
 }
-pub(super) fn write_bytes(ctx: &Context<'_>, register: Reg, bytes: &[u8]) {
-    let writer = ctx.reg(register) as *mut c_void;
+pub(super) fn write_bytes(writer: raw::BufferWriter, bytes: &[u8]) {
     for &byte in bytes {
-        // SAFETY: base_player::serialize's live writer, same native write
-        // helper as the adjacent fields. It grows the packet as necessary.
-        unsafe { raw::engine_write_u8((&raw const byte).cast(), writer,
+        // SAFETY: a serialize's live writer, same native write helper as
+        // the adjacent fields. It grows the packet as necessary.
+        unsafe { raw::engine_write_u8((&raw const byte).cast(), Some(writer),
             c"artefact_carry".as_ptr().cast(), 1, c"serialize".as_ptr().cast(), c"carry".as_ptr().cast()) }
     }
 }
@@ -221,10 +216,33 @@ impl Scene {
     }
 }
 
+/// The client weapons whose models carry took out of the scene, by weapon
+/// identity (compared, never dereferenced): each one's removed models
+/// (bit n of [`weapon_models`]). A record leaves only when they go back.
+pub struct HiddenWeapons([Option<Hidden>; 64]);
 #[derive(Clone, Copy)]
-pub enum WeaponVisibility {
-    Native,
-    Hidden { weapon: u32, models: u8 },
+struct Hidden { weapon: u32, models: u8 }
+impl HiddenWeapons {
+    pub const NEW: Self = Self([None; 64]);
+    fn find(&mut self, weapon: u32) -> Option<&mut Option<Hidden>> {
+        self.0.iter_mut().find(|h| h.is_some_and(|h| h.weapon == weapon))
+    }
+    /// Its record, or a new one; None when all are taken (then nothing is hidden).
+    fn entry(&mut self, weapon: u32) -> Option<&mut Option<Hidden>> {
+        if self.find(weapon).is_none() {
+            *self.0.iter_mut().find(|h| h.is_none())? = Some(Hidden { weapon, models: 0 });
+        }
+        self.find(weapon)
+    }
+}
+
+/// A client weapon's models: the weapon's, its optics' and aimed optics'.
+unsafe fn weapon_models(weapon: raw::Weapon) -> [Option<raw::SceneModel>; 3] {
+    // SAFETY: a live client weapon (caller).
+    unsafe {
+        let optics = weapon.optics();
+        [weapon.model(), optics.and_then(|o| o.model()), optics.and_then(|o| o.aim_model())]
+    }
 }
 
 /// A live native on_hide argument, which remains valid even if the player
@@ -238,63 +256,54 @@ impl WeaponHiding {
             Some(Self { weapon: raw::site::carry_weapon_hide::weapon(ctx)? })
         }
     }
-    pub fn restore(&self, state: &mut WeaponVisibility) {
-        let WeaponVisibility::Hidden { weapon, models: removed } = *state else { return };
-        if weapon != self.weapon.address() { return; }
+    pub fn restore(&self, hidden: &mut HiddenWeapons) {
+        let Some(record) = hidden.find(self.weapon.address()) else { return };
+        let Some(Hidden { models: removed, .. }) = *record else { return };
         // SAFETY: on_hide owns this weapon, its models and client world.
         // Restore the original native model set; on_hide immediately removes
         // it through its normal queue. Both commands precede rendering.
         unsafe {
             let Some(world) = self.weapon.world() else { return };
             let Some(scene) = Scene::of_world(world) else { return };
-            let optics = self.weapon.optics();
-            let models = [self.weapon.model(),
-                optics.and_then(|o| o.model()),
-                optics.and_then(|o| o.aim_model())];
             let matrix = floats(self.weapon.transform());
-            for (n, model) in models.into_iter().enumerate() {
+            for (n, model) in weapon_models(self.weapon).into_iter().enumerate() {
                 if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
             }
-            *state = WeaponVisibility::Native;
         }
+        *record = None;
     }
 }
 
-/// Sole owner of the temporary render removal. Store identities only; on
-/// restoration resolve the currently held weapon again before touching it.
-pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, state: &mut WeaponVisibility) {
-    let Some(player) = player(ctx, PlayerSite::Weapon) else { return };
+/// Sole owner of the temporary render removal: `hide` takes the held
+/// weapon's models out, otherwise any it took go back, at this frame's
+/// transform. True when they are out (the native draw must be skipped).
+pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapons) -> bool {
+    let Some(player) = player(ctx, PlayerSite::Weapon) else { return false };
     // SAFETY: player_draw's live player, client weapon parsed by exact vtable.
     unsafe {
-        let Some(weapon) = player.this.held_item() else { return };
-        if read(weapon.vtable()) != raw::image::WEAPON_VTABLE { *state = WeaponVisibility::Native; return; }
+        let Some(weapon) = player.this.held_item() else { return false };
+        if read(weapon.vtable()) != raw::image::WEAPON_VTABLE { return false; }
         let weapon = weapon.weapon();
-        let Some(world) = player.this.game_world() else { return };
-        let Some(scene) = Scene::of_world(world) else { return };
-        let optics = weapon.optics();
-        let models = [weapon.model(),
-            optics.and_then(|o| o.model()),
-            optics.and_then(|o| o.aim_model())];
-        match (*state, hide) {
-            (previous, true) => {
-                let mut removed = match previous {
-                    WeaponVisibility::Hidden { weapon: previous, models } if previous == weapon.address() => models,
-                    _ => 0,
-                };
-                for (n, model) in models.into_iter().enumerate() {
-                    if model.is_some_and(|model| scene.remove(model)) { removed |= 1 << n; }
-                }
-                *state = WeaponVisibility::Hidden { weapon: weapon.address(), models: removed };
+        let Some(world) = player.this.game_world() else { return false };
+        let Some(scene) = Scene::of_world(world) else { return false };
+        let models = weapon_models(weapon);
+        if hide {
+            let Some(record) = hidden.entry(weapon.address()) else { return false };
+            let Some(Hidden { models: removed, .. }) = record else { return false };
+            for (n, model) in models.into_iter().enumerate() {
+                if model.is_some_and(|model| scene.remove(model)) { *removed |= 1 << n; }
             }
-            (WeaponVisibility::Hidden { weapon: previous, models: removed }, false) if previous == weapon.address() => {
-                let matrix = (ctx.reg(Reg::Eax) as *const [f32; 16]).read_unaligned();
-                for (n, model) in models.into_iter().enumerate() {
-                    if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
-                }
-                *state = WeaponVisibility::Native;
-            }
-            (_, false) => *state = WeaponVisibility::Native,
+            return true;
         }
+        let Some(record) = hidden.find(weapon.address()) else { return false };
+        let Some(Hidden { models: removed, .. }) = *record else { return false };
+        let Some(transform) = raw::site::carry_weapon::transform(ctx) else { return false };
+        let matrix = floats(transform.value());
+        for (n, model) in models.into_iter().enumerate() {
+            if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
+        }
+        *record = None;
+        false
     }
 }
 

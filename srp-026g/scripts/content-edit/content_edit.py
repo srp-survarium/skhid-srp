@@ -104,7 +104,8 @@ Edits (edits.json):
                     animations/ path without an extension; start/end map bone names to local XYZ
                     rotations in radians on the shortest continuous branch. Other channels keep
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
-                    velocity; no events, no edits to stock clips. See artefact-carry-pose-1.json.
+                    velocity; no events, no edits to stock clips. Not shipped: the carry's pose
+                    source (scripts/artefact-carry/pose.json) runs it to compile its curves.
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks

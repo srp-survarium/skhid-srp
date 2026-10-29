@@ -14,23 +14,34 @@ pub const LOWER_WEAPON_MS: u32 = 200;
 pub const RAISE_MS: u32 = 600;
 pub const LOWER_HAND_MS: u32 = 500;
 pub const RESTORE_MS: u32 = 200;
-pub const COMMAND_MASK: u32 = 7 << 29;
+/// The carry chord's marker (bit 29, unused natively): with exactly one
+/// QUICK bit it offers that slot's artefact. Bits 30 and 31 stay clear: the
+/// relay readers (0x31847B, 0x27C509) and replays (0x1EE2A1) strip bit 31
+/// as the input's own wire flag.
+pub const CHORD: u32 = 1 << 29;
 pub const USE: u32 = 1 << 21;
 pub const QUICK: u32 = 63 << 14;
+pub const MELEE: u32 = 1 << 27;
 /// Fire, reload, aim, sprint, weapon selection, quick use, breath, drop,
 /// grenade and melee. Looking, movement, crouch, jump and suicide survive.
 pub const BLOCKED: u32 = 0xe0 | (1 << 9) | (3 << 12) | QUICK | (1 << 20)
-    | (3 << 22) | (3 << 25) | (1 << 27);
+    | (3 << 22) | (3 << 25) | MELEE;
+/// Presses that put the artefact away: fire, reload, aim, weapon selection,
+/// the wheel, grenade, melee, and a quick use without the chord. Each
+/// stays blocked until the hand is stowed, then reaches the game.
+const CANCEL: u32 = 0xe0 | (3 << 12) | (3 << 25) | (1 << 23) | MELEE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QuickSlot(u8);
 impl QuickSlot {
     pub const fn parse(n: u8) -> Option<Self> { if n < 6 { Some(Self(n)) } else { None } }
     pub const fn get(self) -> u8 { self.0 }
-    pub const fn command(self) -> u32 { (self.0 as u32 + 1) << 29 }
+    pub const fn command(self) -> u32 { CHORD | 1 << (14 + self.0 as u32) }
+    /// The marker with exactly one QUICK bit; anything else (two inputs
+    /// OR-merged in one node, 0x2C5B60) is no command.
     pub const fn from_actions(actions: u32) -> Option<Self> {
-        let n = actions >> 29;
-        if n >= 1 && n <= 6 { Some(Self(n as u8 - 1)) } else { None }
+        let quick = (actions & QUICK) >> 14;
+        if actions & CHORD != 0 && quick.count_ones() == 1 { Some(Self(quick.trailing_zeros() as u8)) } else { None }
     }
 }
 
@@ -38,11 +49,10 @@ impl QuickSlot {
 /// are consumed without offering or activating an artefact.
 pub fn encode_chord(actions: u32, modifier_down: bool) -> u32 {
     let quick = (actions & QUICK) >> 14;
-    let clean = actions & !COMMAND_MASK;
+    let clean = actions & !CHORD;
     if !modifier_down || quick == 0 { return clean; }
-    let clean = clean & !QUICK;
-    if quick.count_ones() != 1 { return clean; }
-    clean | QuickSlot(quick.trailing_zeros() as u8).command()
+    if quick.count_ones() != 1 { return clean & !QUICK; }
+    clean | CHORD
 }
 
 /// Client input latch: releasing the modifier before the quick key must
@@ -57,7 +67,7 @@ impl Chord {
         let keys = ((actions & QUICK) >> 14) as u8;
         if let Self::Held { keys: held, command } = *self {
             if keys & held != 0 {
-                return (actions & !(COMMAND_MASK | (u32::from(held) << 14)))
+                return (actions & !(CHORD | (u32::from(held) << 14)))
                     | command.map_or(0, QuickSlot::command);
             }
             *self = Self::Idle;
@@ -80,8 +90,8 @@ pub struct Token {
 pub enum Phase {
     Stowed,
     Switching { current: Option<Token>, next: Token, start: Time, from: u16 },
-    LoweringWeapon { token: Token, start: Time },
-    Raising { token: Token, start: Time },
+    LoweringWeapon { token: Token, start: Time, from: u16 },
+    Raising { token: Token, start: Time, from: u16 },
     Offering(Token),
     LoweringHand { token: Token, start: Time, from: u16 },
     LoweringEmptyHand { start: Time, from: u16 },
@@ -114,6 +124,9 @@ pub struct Presentation {
     pub raised: f32,
     pub hide_weapon: bool,
 }
+
+/// A presentation fraction (0..=1) as the snapshot keeps it.
+fn unit(value: f32) -> u16 { (value * 65535.0) as u16 }
 
 impl Default for Carry { fn default() -> Self { Self::NEW } }
 impl Carry {
@@ -172,7 +185,7 @@ impl Carry {
                 if self.artefact().is_some() && !owned {
                     self.phase = match self.phase {
                         Phase::Switching { next, start, from, .. } => Phase::Switching { current: None, next, start, from },
-                        _ => Phase::LoweringEmptyHand { start: now, from: (self.presentation(now).raised * 65535.0) as u16 },
+                        _ => Phase::LoweringEmptyHand { start: now, from: self.height(now) },
                     };
                 }
                 // A late tick can cross multiple boundaries. Times are absolute
@@ -180,10 +193,10 @@ impl Carry {
                 for _ in 0..4 {
                     self.phase = match self.phase {
                         Phase::Switching { next, start, .. } if now.elapsed(start) >= LOWER_HAND_MS =>
-                            Phase::Raising { token: next, start: Time(start.0.wrapping_add(LOWER_HAND_MS)) },
-                        Phase::LoweringWeapon { token, start } if now.elapsed(start) >= LOWER_WEAPON_MS =>
-                            Phase::Raising { token, start: Time(start.0.wrapping_add(LOWER_WEAPON_MS)) },
-                        Phase::Raising { token, start } if now.elapsed(start) >= RAISE_MS => Phase::Offering(token),
+                            Phase::Raising { token: next, start: Time(start.0.wrapping_add(LOWER_HAND_MS)), from: 0 },
+                        Phase::LoweringWeapon { token, start, .. } if now.elapsed(start) >= LOWER_WEAPON_MS =>
+                            Phase::Raising { token, start: Time(start.0.wrapping_add(LOWER_WEAPON_MS)), from: 0 },
+                        Phase::Raising { token, start, .. } if now.elapsed(start) >= RAISE_MS => Phase::Offering(token),
                         Phase::LoweringHand { start, .. } | Phase::LoweringEmptyHand { start, .. } if now.elapsed(start) >= LOWER_HAND_MS =>
                             Phase::RestoringWeapon { start: Time(start.0.wrapping_add(LOWER_HAND_MS)), from: u16::MAX },
                         Phase::RestoringWeapon { start, .. } if now.elapsed(start) >= RESTORE_MS => Phase::Stowed,
@@ -195,31 +208,36 @@ impl Carry {
                 let command = QuickSlot::from_actions(raw);
                 if command.is_some() && command != QuickSlot::from_actions(self.last_raw) {
                     if let Some(artefact) = artefact {
-                        if self.pending().or(self.artefact()) == Some(artefact) {
+                        if let Phase::LoweringHand { token, .. } = self.phase && token.artefact == artefact {
+                            // Pressed again while it goes down: back up from here.
+                            self.phase = Phase::Raising { token, start: now, from: self.height(now) };
+                        } else if self.pending().or(self.artefact()) == Some(artefact) {
                             self.cancel(now);
                         } else {
                             self.generation = self.generation.wrapping_add(1);
                             let token = Token { artefact, generation: self.generation };
                             self.phase = match self.phase {
-                                Phase::LoweringWeapon { start, .. } => Phase::LoweringWeapon { token, start },
+                                Phase::LoweringWeapon { start, from, .. } => Phase::LoweringWeapon { token, start, from },
                                 Phase::Raising { token: old, .. } | Phase::Offering(old) => Phase::Switching {
-                                    current: Some(old), next: token, start: now, from: (self.presentation(now).raised * 65535.0) as u16,
+                                    current: Some(old), next: token, start: now, from: self.height(now),
                                 },
                                 Phase::LoweringHand { token: old, start, from } => Phase::Switching { current: Some(old), next: token, start, from },
                                 Phase::LoweringEmptyHand { start, from } => Phase::Switching { current: None, next: token, start, from },
                                 Phase::Switching { current, start, from, .. } => Phase::Switching { current, next: token, start, from },
-                                Phase::RestoringWeapon { .. } | Phase::Stowed => Phase::LoweringWeapon { token, start: now },
+                                Phase::RestoringWeapon { .. } | Phase::Stowed =>
+                                    Phase::LoweringWeapon { token, start: now, from: unit(self.presentation(now).arms) },
                             };
                         }
                     }
-                } else if self.active() && raw & (0xe0 | (3 << 12) | (3 << 25) | (1 << 23)) != 0 {
+                } else if self.active() && (raw & CANCEL != 0 || (raw & CHORD == 0 && raw & QUICK != 0)) {
                     self.cancel(now);
                 }
                 let consumed_use = self.last_raw & USE != 0 && self.last_passed & USE == 0;
                 self.last_raw = raw;
-                self.last_passed = raw & !COMMAND_MASK;
+                self.last_passed = raw & !CHORD;
                 if self.active() { self.last_passed &= !BLOCKED; }
-                if command.is_some() { self.last_passed &= !QUICK; }
+                // A chord's quick keys never reach the game, even an ambiguous one.
+                if raw & CHORD != 0 { self.last_passed &= !QUICK; }
                 if consumed_use { self.last_passed &= !USE; }
             }
         }
@@ -231,18 +249,24 @@ impl Carry {
                 Some(token) => Phase::LoweringHand { token, start, from },
                 None => Phase::LoweringEmptyHand { start, from },
             },
-            Phase::LoweringWeapon { .. } => Phase::RestoringWeapon { start: now, from: (self.presentation(now).arms * 65535.0) as u16 },
+            Phase::LoweringWeapon { .. } => Phase::RestoringWeapon { start: now, from: unit(self.presentation(now).arms) },
             Phase::Raising { token, .. } | Phase::Offering(token) => Phase::LoweringHand {
-                token, start: now, from: (self.presentation(now).raised * 65535.0) as u16,
+                token, start: now, from: self.height(now),
             },
             other => other,
         };
     }
 
+    fn height(self, now: Time) -> u16 { unit(self.presentation(now).raised) }
+
     pub fn presentation(self, now: Time) -> Presentation {
         let blend = |start, duration| {
             let t = (now.elapsed(start) as f32 / duration as f32).min(1.0);
             t * t * (3.0 - 2.0 * t)
+        };
+        let rise = |from: u16, start, duration| {
+            let from = f32::from(from) / 65535.0;
+            from + (1.0 - from) * blend(start, duration)
         };
         match self.phase {
             Phase::Switching { current, start, from, .. } => Presentation {
@@ -250,8 +274,8 @@ impl Carry {
                 raised: f32::from(from) / 65535.0 * (1.0 - blend(start, LOWER_HAND_MS)), hide_weapon: true,
             },
             Phase::Stowed => Presentation { artefact: None, arms: 0.0, raised: 0.0, hide_weapon: false },
-            Phase::LoweringWeapon { start, .. } => Presentation { artefact: None, arms: blend(start, LOWER_WEAPON_MS), raised: 0.0, hide_weapon: false },
-            Phase::Raising { token, start } => Presentation { artefact: Some(token.artefact), arms: 1.0, raised: blend(start, RAISE_MS), hide_weapon: true },
+            Phase::LoweringWeapon { start, from, .. } => Presentation { artefact: None, arms: rise(from, start, LOWER_WEAPON_MS), raised: 0.0, hide_weapon: false },
+            Phase::Raising { token, start, from } => Presentation { artefact: Some(token.artefact), arms: 1.0, raised: rise(from, start, RAISE_MS), hide_weapon: true },
             Phase::Offering(token) => Presentation { artefact: Some(token.artefact), arms: 1.0, raised: 1.0, hide_weapon: true },
             Phase::LoweringHand { token, start, from } => Presentation { artefact: Some(token.artefact), arms: 1.0, raised: f32::from(from) / 65535.0 * (1.0 - blend(start, LOWER_HAND_MS)), hide_weapon: true },
             Phase::LoweringEmptyHand { start, from } => Presentation { artefact: None, arms: 1.0, raised: f32::from(from) / 65535.0 * (1.0 - blend(start, LOWER_HAND_MS)), hide_weapon: true },
@@ -273,8 +297,8 @@ impl Carry {
                 (if current.is_some() { 7 } else { 8 }, current, start, from)
             },
             Phase::Stowed => (0, None, Time(0), 0),
-            Phase::LoweringWeapon { token, start } => (1, Some(token), start, 0),
-            Phase::Raising { token, start } => (2, Some(token), start, 0),
+            Phase::LoweringWeapon { token, start, from } => (1, Some(token), start, from),
+            Phase::Raising { token, start, from } => (2, Some(token), start, from),
             Phase::Offering(token) => (3, Some(token), Time(0), 0),
             Phase::LoweringHand { token, start, from } => (4, Some(token), start, from),
             Phase::RestoringWeapon { start, from } => (5, None, start, from),
@@ -295,6 +319,7 @@ impl Carry {
         let word = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
         let generation = word(1);
         let start = Time(word(20));
+        let from = u16::from_le_bytes([bytes[24], bytes[25]]);
         let token = || Some(Token { artefact: Artefact {
             id: ArtefactId::parse(bytes[14])?, slot: ContainerIndex::parse(bytes[15])?,
         }, generation: word(16) });
@@ -302,15 +327,15 @@ impl Carry {
             7 | 8 => Phase::Switching {
                 current: if bytes[13] == 7 { Some(token()?) } else { None },
                 next: Token { artefact: Artefact { id: ArtefactId::parse(bytes[26])?, slot: ContainerIndex::parse(bytes[27])? }, generation: word(28) },
-                start, from: u16::from_le_bytes([bytes[24], bytes[25]]),
+                start, from,
             },
             0 => Phase::Stowed,
-            1 => Phase::LoweringWeapon { token: token()?, start },
-            2 => Phase::Raising { token: token()?, start },
+            1 => Phase::LoweringWeapon { token: token()?, start, from },
+            2 => Phase::Raising { token: token()?, start, from },
             3 => Phase::Offering(token()?),
-            4 => Phase::LoweringHand { token: token()?, start, from: u16::from_le_bytes([bytes[24], bytes[25]]) },
-            5 => Phase::RestoringWeapon { start, from: u16::from_le_bytes([bytes[24], bytes[25]]) },
-            6 => Phase::LoweringEmptyHand { start, from: u16::from_le_bytes([bytes[24], bytes[25]]) },
+            4 => Phase::LoweringHand { token: token()?, start, from },
+            5 => Phase::RestoringWeapon { start, from },
+            6 => Phase::LoweringEmptyHand { start, from },
             _ => return None,
         };
         let carry = Self { phase, generation, last_raw: word(5), last_passed: word(9) };
@@ -480,7 +505,7 @@ mod tests {
             let actions = (1 << 9) | (1 << (14 + slot)) | 1;
             let encoded = encode_chord(actions, true);
             assert_eq!(QuickSlot::from_actions(encoded), Some(QuickSlot(slot)));
-            assert_eq!(encoded & QUICK, 0);
+            assert_eq!(encoded & QUICK, 1 << (14 + slot));
             assert_ne!(encoded & (1 << 9), 0);
             assert_eq!(encoded & 1, 1);
         }
@@ -496,6 +521,82 @@ mod tests {
         input(&mut c, 1, BLOCKED | 0x11 | (1 << 24));
         assert_eq!(c.filtered() & BLOCKED, 0);
         assert_eq!(c.filtered() & (0x11 | (1 << 24)), 0x11 | (1 << 24));
+    }
+
+    /// The relays and replays keep 31 bits of an input (0x31847B, 0x27C509,
+    /// 0x1EE2A1), and a node may OR two inputs together (0x2C5B60).
+    #[test]
+    fn commands_survive_the_wire_and_merged_inputs_are_no_command() {
+        for slot in 0..6 {
+            let command = QuickSlot(slot).command();
+            assert_eq!(command & 0x7FFF_FFFF, command);
+            assert_eq!(QuickSlot::from_actions(command & 0x7FFF_FFFF), Some(QuickSlot(slot)));
+            for other in (0..6).filter(|&o| o != slot) {
+                assert_eq!(QuickSlot::from_actions(command | QuickSlot(other).command()), None);
+                assert_eq!(QuickSlot::from_actions(command | 1 << (14 + other)), None);
+            }
+        }
+        assert_eq!(QuickSlot::from_actions(QUICK & (1 << 15)), None);
+        assert_eq!(QuickSlot::from_actions(CHORD), None);
+        // A merged chord never reaches the game as quick use.
+        let mut c = Carry::NEW;
+        input(&mut c, 0, QuickSlot(0).command() | QuickSlot(3).command());
+        assert!(!c.active());
+        assert_eq!(c.filtered() & (QUICK | CHORD), 0);
+    }
+
+    #[test]
+    fn quick_use_and_melee_put_the_artefact_away_then_reach_the_game() {
+        for press in [1 << 16, MELEE] {
+            let mut c = equip(0);
+            tick(&mut c, 800); input(&mut c, 800, 0);
+            input(&mut c, 810, press);
+            assert!(matches!(c.phase(), Phase::LoweringHand { .. }), "{press:#x}");
+            assert_eq!(c.filtered() & press, 0);
+            tick(&mut c, 1600);
+            assert!(!c.active());
+            input(&mut c, 1600, press);
+            assert_eq!(c.filtered() & press, press);
+        }
+    }
+
+    /// The owner, 2026-10-29: no sprint while carrying, and sprint does not
+    /// put the artefact away.
+    #[test]
+    fn sprint_does_nothing_while_carrying() {
+        let sprint = 1 << 9;
+        let mut c = equip(0);
+        tick(&mut c, 800); input(&mut c, 800, sprint);
+        assert!(c.offer().is_some());
+        assert_eq!(c.filtered() & sprint, 0);
+    }
+
+    #[test]
+    fn pressing_again_while_lowering_or_restoring_does_not_pop() {
+        let mut c = equip(0);
+        tick(&mut c, 800); input(&mut c, 800, 0);
+        input(&mut c, 810, QuickSlot(1).command());
+        input(&mut c, 900, 0);
+        tick(&mut c, 1000);
+        let before = c.presentation(Time(1000));
+        assert!(before.raised > 0.1 && before.raised < 0.9);
+        input(&mut c, 1000, QuickSlot(1).command());
+        assert!(matches!(c.phase(), Phase::Raising { .. }));
+        assert!((c.presentation(Time(1000)).raised - before.raised).abs() < 0.0001);
+        roundtrip(c);
+        tick(&mut c, 1600);
+        assert_eq!(c.offer().unwrap().artefact, artefact());
+        // Put away, and pressed again while the weapon comes back.
+        input(&mut c, 1600, 0); input(&mut c, 1610, QuickSlot(1).command());
+        input(&mut c, 1620, 0);
+        tick(&mut c, 2210);
+        assert!(matches!(c.phase(), Phase::RestoringWeapon { .. }));
+        let before = c.presentation(Time(2210));
+        assert!(before.arms > 0.1 && before.arms < 0.9);
+        input(&mut c, 2210, QuickSlot(1).command());
+        assert!(matches!(c.phase(), Phase::LoweringWeapon { .. }));
+        assert!((c.presentation(Time(2210)).arms - before.arms).abs() < 0.0001);
+        roundtrip(c);
     }
 
     #[test]

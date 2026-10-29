@@ -43,7 +43,7 @@ its accessor `handle.<field>()` by its type: a plain value's place, a
 the kind's size (an array's stride, `<Kind>Storage`: room of ours for one).
 A prototype's `struct <kind> *` is that kind's handle in `raw`, and a lohook
 site's `holds` in sites_026g.tsv (`name=REGISTER:kind`, ESP the site's
-own) its typed register, `raw::site::<site>::<name>` (rust_patches.md). An offset may be
+own; or `name=REGISTER:u32`, a plain value) its typed register, `raw::site::<site>::<name>` (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
 itself: its rows are VAs of the game's data, up to the end of .data: a
@@ -376,7 +376,8 @@ def kinds(fields_):
 
 def site_holds(kinds_, path=None):
     """sites_026g.tsv's `holds`, what each site's registers hold: [(site, va, what, [(name, location,
-    module)])], a location a register (EAX..EBP) or ESP (the site's own), each `name=LOCATION:kind`."""
+    module)])], a location a register (EAX..EBP) or ESP (the site's own), each `name=LOCATION:kind`, or
+    `name=REGISTER:u32` (module None: the register's value itself)."""
     out = []
     for row in read_tsv(SITES if path is None else path):
         text = (row.get("holds") or "").strip()
@@ -384,13 +385,15 @@ def site_holds(kinds_, path=None):
             continue
         holds = []
         for token in text.split():
-            match = re.fullmatch(rf"([a-z][a-z0-9_]*)=(EAX|ECX|EDX|EBX|ESP|EBP|ESI|EDI):({KIND})", token)
-            if not match or module_of(match.group(3)) not in kinds_ \
-                    or kinds_[module_of(match.group(3))]["kind"] != match.group(3) \
+            match = re.fullmatch(rf"([a-z][a-z0-9_]*)=(EAX|ECX|EDX|EBX|ESP|EBP|ESI|EDI):({KIND}|u32)", token)
+            value = match is not None and match.group(3) == "u32"
+            if not match or (value and match.group(2) == "ESP") \
+                    or (not value and (module_of(match.group(3)) not in kinds_
+                                       or kinds_[module_of(match.group(3))]["kind"] != match.group(3))) \
                     or match.group(1) in [h[0] for h in holds]:
                 raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
-                              "fields_026g.tsv, each name once")
-            holds.append((match.group(1), match.group(2), module_of(match.group(3))))
+                              "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
+            holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
         out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), holds))
     return out
 
@@ -694,6 +697,13 @@ def raw_text(fs, fields_, sites=None):
         lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
+            if module is None:
+                lines += ["", f"        /// {location}: a u32 value.",
+                          "        ///", "        /// # Safety", "        /// `machine` is at this site.",
+                          "        #[inline(always)]",
+                          f"        pub unsafe fn {name}(machine: &impl Machine) -> u32 {{",
+                          f"            machine.register(Register::{location.title()})", "        }"]
+                continue
             t = kinds_[module]["type"]
             value = "machine.site_esp()" if location == "ESP" else f"machine.register(Register::{location.title()})"
             lines += ["", f"        /// {'the site' + chr(39) + 's ESP' if location == 'ESP' else location}: "

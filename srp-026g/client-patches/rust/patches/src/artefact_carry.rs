@@ -5,8 +5,9 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, Event, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
-use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, Key, WeaponVisibility};
+use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
+use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
+use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::world::Player;
 
@@ -15,9 +16,9 @@ mod pose;
 #[derive(Clone, Copy)]
 struct Attachment { item: u32, token: Token }
 #[derive(Clone, Copy)]
-struct Owner { key: Key, carry: Carry, weapon: WeaponVisibility, attachment: Option<Attachment> }
+struct Owner { key: Key, carry: Carry, attachment: Option<Attachment> }
 impl Owner {
-    const fn new(key: Key) -> Self { Self { key, carry: Carry::NEW, weapon: WeaponVisibility::Native, attachment: None } }
+    const fn new(key: Key) -> Self { Self { key, carry: Carry::NEW, attachment: None } }
 }
 struct Owners([Option<Owner>; 60]);
 impl Owners {
@@ -28,6 +29,9 @@ impl Owners {
     }
 }
 static OWNERS: Lock<Owners> = Lock::new(Owners([None; 60]));
+/// By weapon, not by owner: a respawn or a new kit replaces the owner, and
+/// the models it took out must still go back before anything draws them.
+static HIDDEN: Lock<HiddenWeapons> = Lock::new(HiddenWeapons::NEW);
 static CHORD: GameCell<carry::Chord> = GameCell::new(carry::Chord::Idle);
 static HINT: GameCell<Option<(usize, bool)>> = GameCell::new(None);
 
@@ -37,14 +41,12 @@ fn machine(player: &Player<'_>, ctx: &Context<'_>) -> Carry {
 
 fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
     let Some(key) = player.carry_key() else { return };
-    let changed = OWNERS.with(ctx.thread(), |owners| {
+    OWNERS.with(ctx.thread(), |owners| {
         let owner = owners.get_mut(key);
         let before = owner.carry;
         owner.carry.step(event);
         if owner.carry.artefact() != before.artefact() { owner.attachment = None; }
-        before != owner.carry
     });
-    if changed { player.carry_dirty(); }
 }
 
 /// Called on every set_input, including inputs for which native early-out
@@ -60,32 +62,28 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
         .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
     event(&player, ctx, Event::Input { now, actions, artefact });
-    if before.use_pressed(actions) && target(&player, ctx).is_none()
-        && let Some(item) = ground_target(&player)
-        && let Some(mut inventory) = player.inventory() {
-            let _ = item.take(&mut inventory);
-            consume_use(&player, ctx);
-        }
-    if before.use_pressed(actions)
-        && let Some((donor, token)) = target(&player, ctx) {
+    // Use is ours only when a take happens; otherwise the game has it
+    // (a battery, a trap, a native pickup).
+    if before.use_pressed(actions) {
+        let taken = match target(&player, ctx) {
             // Resolve once more at commit: native world owns the current kit,
             // and the exact generation must still be offered.
-            if machine(&donor, ctx).offer() == Some(token) && reachable(&player, &donor) {
-                let result = match (donor.inventory(), player.inventory()) {
+            Some((donor, token)) => machine(&donor, ctx).offer() == Some(token) && reachable(&player, &donor)
+                && match (donor.inventory(), player.inventory()) {
                     (Some(mut from), Some(mut to)) => from.transfer_artefact(&mut to, token.artefact),
                     _ => Err(Refused::OwnershipChanged),
-                };
-                if result.is_ok() { event(&donor, ctx, Event::Taken { now, token }); }
-                consume_use(&player, ctx);
-            }
-        }
+                }.inspect(|()| event(&donor, ctx, Event::Taken { now, token })).is_ok(),
+            None => ground_target(&player).zip(player.inventory())
+                .is_some_and(|(item, mut inventory)| item.take(&mut inventory).is_ok()),
+        };
+        if taken { consume_use(&player, ctx); }
+    }
     Flow::Continue
 }
 
 fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
     if let Some(key) = player.carry_key() {
         OWNERS.with(ctx.thread(), |owners| owners.get_mut(key).carry.consume_use());
-        player.carry_dirty();
     }
 }
 
@@ -153,7 +151,7 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut handler) = InputHandler::at_builder_end(ctx) {
         let actions = handler.actions().bits();
         let mut chord = CHORD.get(ctx.thread());
-        let encoded = chord.step(actions, handler.alt_held());
+        let encoded = chord.step(actions, handler.held(Action::ARTEFACT));
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
     }
@@ -161,14 +159,9 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_hud(ctx: &Context<'_>) {
-    use crate::vostok::inventory::ContainerSpace;
-    let text = native::local_player(ctx).filter(|p| p.alive() && (target(p, ctx).is_some() || ground_target(p).is_some())).map(|p| {
-        match p.container_space() {
-            ContainerSpace::Available => c"st_artefact_take_teammate",
-            ContainerSpace::Missing => c"st_artefact_no_container",
-            ContainerSpace::Full => c"st_artefact_container_full",
-        }
-    });
+    // Shown only when Use would take: otherwise the native hint stays.
+    let text = native::local_player(ctx).filter(|p| target(p, ctx).is_some() || ground_target(p).is_some())
+        .map(|_| c"st_artefact_take_teammate");
     let visible = text.is_some();
     if let Some(movie) = crate::vostok::GameWorldUi::at_update_icons(ctx).and_then(|ui| ui.hud_movie()) {
         let previous = HINT.get(ctx.thread());
@@ -197,7 +190,9 @@ fn reachable(recipient: &Player<'_>, donor: &Player<'_>) -> bool {
     physics.ray_test(eye, [ray.x, ray.y, ray.z], distance, 0x24, 2).is_none()
 }
 
+/// The offer Use would take: none without a free container.
 fn target<'a>(recipient: &'a Player<'_>, ctx: &Context<'_>) -> Option<(Player<'a>, Token)> {
+    if recipient.container_space() != ContainerSpace::Available { return None; }
     let mut best = None;
     let (eye, _) = recipient.carry_eye();
     let mut nearest = 2.2;
@@ -212,8 +207,9 @@ fn target<'a>(recipient: &'a Player<'_>, ctx: &Context<'_>) -> Option<(Player<'a
     best
 }
 
+/// The dropped artefact Use would pick up: none without a free container.
 fn ground_target<'t>(recipient: &Player<'t>) -> Option<crate::vostok::carry_ground::GroundItem<'t>> {
-    if !recipient.alive() || !recipient.inserted() { return None; }
+    if !recipient.alive() || !recipient.inserted() || recipient.container_space() != ContainerSpace::Available { return None; }
     let physics = recipient.physics_world()?;
     let (eye, forward) = recipient.carry_eye();
     let mut nearest = 2.2;
@@ -264,22 +260,18 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWeaponExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Weapon) else { return Flow::Continue };
-    let Some(key) = player.carry_key() else { return Flow::Continue };
-    if !player.alive() {
-        return Flow::Continue;
-    }
+    // A dead body's weapon is drawn natively (its optics update their
+    // models): the models go back here before it, never left out.
     let hide = player.alive() && machine(&player, ctx).presentation(player.carry_time()).hide_weapon;
-    OWNERS.with(ctx.thread(), |owners| native::weapon_visibility(ctx, hide, &mut owners.get_mut(key).weapon));
-    if hide { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }
+    let hidden = HIDDEN.with(ctx.thread(), |weapons| native::weapon_visibility(ctx, hide, weapons));
+    if hidden { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }
 }
 
 /// Hand the temporarily removed models back before native on_hide removes
 /// them. Its renderer asserts if asked to remove a model absent from scene.
 pub fn on_weapon_hide(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(weapon) = native::WeaponHiding::at(ctx) {
-        OWNERS.with(ctx.thread(), |owners| {
-            for owner in owners.0.iter_mut().flatten() { weapon.restore(&mut owner.weapon); }
-        });
+        HIDDEN.with(ctx.thread(), |weapons| weapon.restore(weapons));
     }
     Flow::Continue
 }

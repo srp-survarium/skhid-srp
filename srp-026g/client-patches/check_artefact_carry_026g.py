@@ -23,7 +23,9 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_ESP, UC
 REGISTER = {**REGISTER, 'ebp': UC_X86_REG_EBP}
 
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
-COMMAND, USE = 1 << 29, 1 << 21
+# The carry chord's marker (bit 29) with quick slot 0's bit; slot n's is n bits on.
+COMMAND, USE = (1 << 29) | (1 << 14), 1 << 21
+def slot(n): return (1 << 29) | (1 << (14 + n))
 
 
 class Run(InventoryGame):
@@ -272,21 +274,34 @@ def main():
     death_drop(bytes(built))
     death_drop(bytes(built), (0x498, 0x25F100, 0x25F106))
     moving_draw(bytes(built))
+    death_with_optics_hidden(bytes(built))
     recipient_hud(bytes(built))
     builder = InputBuilder(bytes(built))
     quick, sprint = 1 << 14, 1 << 9
     assert builder.input(quick) == (quick, True)
     assert builder.input(sprint | quick) == (sprint | quick, True), 'sprint still triggers carry'
     builder.input(0)
-    for alt in (0x38, 0xB8):
-        assert builder.input(quick, alt=alt) == (COMMAND, True)
-        assert builder.input(quick) == (COMMAND, True), 'Alt release activated the held quick key'
+    for state in (0, 1):  # H down, H repeated (held)
+        assert builder.input(quick, held=state) == (COMMAND, True)
+        assert builder.input(quick, held=2) == (COMMAND, True), 'H release activated the held quick key'
         assert builder.input(0) == (0, True)
         assert builder.input(quick) == (quick, True)
         builder.input(0)
-    assert builder.input(sprint | quick, alt=0x38) == (sprint | COMMAND, True)
+    assert builder.input(quick | 1 << 15, held=0) == (0, True), 'two quick keys with H offered or used one'
+    builder.input(0)
+    assert builder.input(sprint | quick, held=1) == (sprint | COMMAND, True)
     assert builder.input(sprint) == (sprint, True)
-    print('ok: native left/right Alt trigger carry, Shift does not, and modifier release cannot activate the item')
+    print('ok: the artefact action (H) held triggers carry, Shift does not, and its release cannot activate the item')
+    # The relays and replays keep 31 bits (0x31847B); a node ORs two inputs
+    # together (0x2C5B60): both arrive here as the game reads them.
+    g = Run(bytes(built)); p = g.players[0]
+    for n in range(6):
+        assert slot(n) & 0x7FFFFFFF == slot(n)
+    assert g.input(p, 0, slot(0) | slot(3)) == 0, 'a merged chord offered or used an item'
+    assert g.save(p)[13] == 0
+    assert g.input(p, 10, 0) == 0
+    assert g.input(p, 20, slot(0) & 0x7FFFFFFF) == 0 and g.save(p)[13] == 1
+    print('ok: chord commands survive the 31-bit wire; merged chords are no command and use nothing')
     g = Run(bytes(built)); donor, recipient = g.players
     assert g.input(donor, 0, COMMAND) == 0
     # Sprint remains suppressed during carry even though it is no longer
@@ -371,7 +386,7 @@ def main():
     recipient_slot = g.read(g.inventories[1] + 0x168)
     g.word(recipient_slot, occupied)
     before_events = list(g.events)
-    assert g.input(recipient, 932, USE) & USE == 0
+    assert g.input(recipient, 932, USE) & USE == USE, 'a full container took Use from the game'
     assert g.contents(g.inventories[0], 1) == [g.item_ptr]
     assert g.contents(g.inventories[1], 1) == [occupied] and g.events == before_events
     g.word(recipient_slot, 0); g.input(recipient, 934, 0)
@@ -408,7 +423,8 @@ def main():
         other.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=other.matrix)
         other.site(other.draw_entry, [other.draw_past, STOP], ecx=other.callback)
         assert other.save(p)[13] == 0
-        assert [(op, model) for op, model, _ in other.rendered] == [('remove', artifact)]
+        # The dead body's weapon is back in the scene before its native draw.
+        assert [(op, model) for op, model, _ in other.rendered] == [('add', weapon), ('remove', artifact)]
         other.rendered.clear()
         native_weapon = other.read(p + 0x128)
         other.site(0x243FA0, [STOP], (0,), ecx=native_weapon)
@@ -416,10 +432,43 @@ def main():
         # Native lifecycle owns its live old weapon even after held changes.
         other.word(p + 0x128, 0)
         other.site(0x243FA0, [STOP], (1,), ecx=native_weapon)
-        assert [(op, model) for op, model, _ in other.rendered] == [('add', weapon), ('remove', weapon)]
+        assert [(op, model) for op, model, _ in other.rendered] == [('remove', weapon)]
         assert other.emu.mem_read(weapon + 0x10D, 1) == b'\0'
         print(f'ok: {name} attachment/death cleanup and native on_hide handoff after held-item change')
 
+
+
+def death_with_optics_hidden(built):
+    """A carrier killed with the gun and its optics out of the scene: the
+    native draw of the body updates the optics' models (0x245012) and the
+    renderer asserts on one not in the scene. Likewise a new owner of the
+    place (a respawn, a new kit) must still put back what the old one took."""
+    for case in ('death', 'new owner'):
+        g = Run(built); p = g.players[0]
+        _, weapon = g.renderer()
+        gun = g.read(p + 0x128)
+        optics, models = g.block(0x120), []
+        for at in (0x108, 0x10C):
+            holder, instance = g.block(0x120), g.block(0x120)
+            g.word(holder + 0x108, instance); g.emu.mem_write(instance + 0x10D, b'\1')
+            g.word(optics + at, holder); models.append(instance)
+        g.word(gun + 0x1808, optics)
+        g.input(p, 0, COMMAND); g.tick(p, 800); g.draw()
+        hidden = [weapon] + models
+        assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
+        if case == 'death':
+            g.emu.mem_write(p + 0x33C, b'\0')
+        else:
+            g.site(0x2D6990, [0x2D6995], (p,))
+        g.rendered.clear()
+        g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the native weapon draw was skipped'
+        assert sorted((op, m) for op, m, _ in g.rendered) == sorted(('add', m) for m in hidden), (case, g.rendered)
+        assert all(g.emu.mem_read(m + 0x10D, 1) == b'\1' for m in hidden), case
+        g.rendered.clear()
+        g.site(0x243FA0, [STOP], (1,), ecx=gun)
+        assert ('add', weapon) not in [(op, m) for op, m, _ in g.rendered], f'{case}: restored twice'
+    print('ok: a death or a new owner with the gun and optics hidden puts all three back before the native draw')
 
 
 def moving_draw(built):
@@ -466,7 +515,7 @@ def switch_items(built):
         g.draw()
         g.site(g.draw_entry, [g.draw_past, STOP], ecx=callback)
     g.input(donor, 0, COMMAND); g.tick(donor, 800); draw()
-    g.input(donor, 810, 0); g.input(donor, 820, 2 * COMMAND)
+    g.input(donor, 810, 0); g.input(donor, 820, slot(1))
     g.tick(donor, 1000); saved = g.save(donor)
     assert saved[13] == 7 and saved[14] == 7 and saved[26] == 8
     g.load(donor, saved); assert g.save(donor) == saved
@@ -554,7 +603,8 @@ def death_drop(built, callback=(0x340, 0x25FB80, 0x25FB86), death=0x1F28E0):
         occupied = g.item() if count else 0
         g.word(slot, occupied)
         before = list(g.events)
-        assert g.input(recipient, 1810, USE) & USE == 0
+        # Nothing to take into: Use is the game's (a battery, a trap, a pickup).
+        assert g.input(recipient, 1810, USE) & USE == USE
         assert g.events == before and g.read(g.item_ptr+0x280) == 6
         g.input(recipient, 1820, 0)
     g.word(slot, 0)
@@ -598,11 +648,13 @@ def recipient_hud(built):
         g.site(0x23AA10,[0x23AA16],(ui,))
         assert seen[-1] == expected, (seen,expected)
     hint('st_artefact_take_teammate')
-    g.emu.mem_write(g.inventories[1]+0x16C,b'\0'); hint('st_artefact_no_container')
+    # Without a free container the native hint stays: nothing would be taken.
+    g.emu.mem_write(g.inventories[1]+0x16C,b'\0'); hint('')
     g.emu.mem_write(g.inventories[1]+0x16C,b'\1')
-    slot=g.read(g.inventories[1]+0x168); g.word(slot,g.item()); hint('st_artefact_container_full')
-    g.word(slot,0); hint('st_artefact_take_teammate')
+    hint('st_artefact_take_teammate')
+    container=g.read(g.inventories[1]+0x168); g.word(container,g.item()); hint('')
+    g.word(container,0); hint('st_artefact_take_teammate')
     g.wall=True; hint('')
-    print('ok: real HUD hook passes receiving player take/missing/full/localized keys and hides blocked target')
+    print('ok: real HUD hook shows the take hint only when Use would take, and hides a blocked target')
 
 if __name__ == '__main__': main()

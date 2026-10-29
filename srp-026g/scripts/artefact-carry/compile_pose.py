@@ -18,7 +18,7 @@ import content_edit as content
 OUTPUT = HERE.parents[1] / 'client-patches/rust/patches/src/artefact_carry/curves.rs'
 
 def compile_curves(source, names):
-    spec = json.loads((HERE.parent / 'content-edit/artefact-carry-pose-1.json').read_text())['make_pose_clip'][0]
+    spec = json.loads((HERE / 'pose.json').read_text())['make_pose_clip'][0]
     # This validates hashes, rig, full-pose kind and every authored track.
     clip = content.make_pose_clip(source, names, spec)
     rig = [content.name_at(names, content.rec(names, at)[0]).decode()

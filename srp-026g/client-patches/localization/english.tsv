@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Collection time
 st_artefact_activated_message	Artifact activated
 st_artefact_booster_description	The second version of the device invented by craftsmen to retrieve artifacts. The built-in suppressor of the abnormal activity from the artifact allows you to accelerate the extraction process.
 st_artefact_booster_name	Artifact-master
-st_artefact_container_full	No free artefact container
-st_artefact_no_container	No artefact container
 st_artefact_no_free_slots	No empty slots to pick up the artifact!
 st_artefact_search_failed	Artifact not found
 st_artefact_search_success	You got an artifact! 
-st_artefact_take_teammate	{USE}: Take artefact
+st_artefact_take_teammate	Take artifact ({USE})
 st_ash12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ash12_name	Ash-12
 st_attention	An error occurred upon starting Survarium launcher. Please, try again later.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	German personal defence weapon, ammo: 4.6x30, her
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	German personal defence weapon, ammo: 4.6x30, here in the MP7A1 version with a sound suppressor. Developed by Heckler & Koch together with its own armour-piercing cartridge and used by the Bundeswehr and police special units. Equipped with a 20-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Hold artifact
 st_hour_short	h.
 st_hud_tutorial_frame_0_text_1	Camera controls
 st_hud_tutorial_frame_0_text_2	Use mouse to look around

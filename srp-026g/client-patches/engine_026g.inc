@@ -14,7 +14,7 @@ extern engine_malloc
 ; void *engine_match_rule_base(void *rule, unsigned int type)
 ; 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
 extern engine_match_rule_base
-; void engine_write_u8(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
+; void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
 extern engine_write_u8
 ; void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
@@ -211,9 +211,6 @@ extern engine_update_model
 ; void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)
 ; 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4
 extern engine_static_model_bounds
-; unsigned int engine_input_alt_held(struct player_input_handler *handler)
-; 0x241200 survarium::player_input_handler::alt_is_held: handler EAX; pops 0; EAX
-extern engine_input_alt_held
 ; void engine_release_item(struct artefact *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_item

@@ -115,9 +115,11 @@ impl<'t> DrawnBones<'t> {
     pub fn at_damage(ctx: &'t Context<'_>) -> Option<Self> {
         // SAFETY: documented live player at the hit-model update site.
         let player = Player::of(ctx, unsafe { raw::site::carry_damage_bones::player(ctx) })?;
-        let bones = ctx.reg(Reg::Esi);
-        (bones != 0).then_some(Self { pass: BonePass::Damage, skeleton: player.core_skeleton()?,
-            player, bones: bones as *mut [f32; 16], count: ctx.reg(Reg::Ebx) })
+        // SAFETY: the same site's typed registers: the bones and their count.
+        let (bones, count) = unsafe { (raw::site::carry_damage_bones::bones(ctx)?, raw::site::carry_damage_bones::count(ctx)) };
+        // SAFETY: a bone matrix's 16 f32 start at its value.
+        Some(Self { pass: BonePass::Damage, skeleton: player.core_skeleton()?,
+            player, bones: unsafe { bones.value() }.cast(), count })
     }
     pub fn computed(&self, index: u32) -> bool { self.skeleton.bone_computed(index + 1, self.pass.layer()) }
     pub fn skeleton(&self) -> &Skeleton<'t> { &self.skeleton }

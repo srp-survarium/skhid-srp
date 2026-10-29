@@ -173,7 +173,7 @@ def main():
             subprocess.run([str(args.porter), 'extract', '--db', str(args.db), '--path', path, '--output', str(target)], check=True, stdout=subprocess.DEVNULL)
         return target.read_bytes()
 
-    specs = json.loads((HERE.parent / 'content-edit/artefact-carry-pose-1.json').read_text())['make_pose_clip']
+    specs = json.loads((HERE / 'pose.json').read_text())['make_pose_clip']
     source, names_data = [extract(p) for p in specs[0]['files']]
     names = [content.name_at(names_data, content.rec(names_data, at)[0]).decode()
              for at in content.children(names_data, content.find(names_data, 'bones_names'))]

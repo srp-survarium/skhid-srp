@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Czas zbierania artefaktów
 st_artefact_activated_message	Artefakt aktywowany
 st_artefact_booster_description	Druga wersja skonstruowanego przez wykwalifikowanych rzemieślników urządzenia do zbierania artefaktów. Wbudowany tłumik anormalnej aktywności artefaktów pozwala na skrócenie czasu ekstrakcji.
 st_artefact_booster_name	Władca artefaktów
-st_artefact_container_full	Brak wolnego pojemnika na artefakty
-st_artefact_no_container	Brak pojemnika na artefakty
 st_artefact_no_free_slots	Brak wolnego miejsca na zabranie artefaktu!
 st_artefact_search_failed	Nie znaleziono artefaktu
 st_artefact_search_success	Znaleziono artefakt!
-st_artefact_take_teammate	{USE}: Weź artefakt
+st_artefact_take_teammate	Weź artefakt ({USE})
 st_ash12_description	OPIS NIE JEST GOTOWY!!!
 st_ash12_name	ASh-12
 st_attention	Błąd uruchomienia instalatora Survarium. Spróbuj ponownie za chwilę.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Niemiecka broń osobista typu PDW, amunicja: 4,6x
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Niemiecka broń osobista typu PDW, amunicja: 4,6x30, tutaj w wersji MP7A1 z tłumikiem. Opracowana przez Heckler & Koch razem z własnym nabojem przeciwpancernym, używana przez Bundeswehrę i jednostki specjalne policji. Wyposażona w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legenda"
+st_hold_artifact_action	Trzymaj artefakt
 st_hour_short	godz.
 st_hud_tutorial_frame_0_text_1	Sterowanie kamerą
 st_hud_tutorial_frame_0_text_2	Użyj myszki, aby się rozejrzeć

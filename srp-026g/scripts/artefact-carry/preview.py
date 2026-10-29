@@ -58,7 +58,7 @@ def main():
     for name in ('clip', 'names', 'skeleton', 'out'):
         parser.add_argument('--' + name, required=True, type=Path)
     args = parser.parse_args()
-    edits = json.loads((HERE.parent / 'content-edit/artefact-carry-pose-1.json').read_text())['make_pose_clip']
+    edits = json.loads((HERE / 'pose.json').read_text())['make_pose_clip']
     source, rig = args.clip.read_bytes(), args.names.read_bytes()
     names = [content.name_at(rig, content.rec(rig, at)[0]).decode()
              for at in content.children(rig, content.find(rig, 'bones_names'))]

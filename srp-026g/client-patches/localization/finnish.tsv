@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Keräysaika
 st_artefact_activated_message	Artefakti aktivoitu
 st_artefact_booster_description	Artefaktien keräämiseen nikkaroidun laitteen toinen versio. Sisäinen vaimennin hillitsee artefaktin anomaliaa ja nopeuttaa keräystä.
 st_artefact_booster_name	Artefaktimestari
-st_artefact_container_full	Ei vapaata artefaktisäiliötä
-st_artefact_no_container	Ei artefaktisäiliötä
 st_artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
 st_artefact_search_failed	Artefaktia ei löytynyt
 st_artefact_search_success	Sait artefaktin! 
-st_artefact_take_teammate	{USE}: Ota artefakti
+st_artefact_take_teammate	Ota artefakti ({USE})
 st_ash12_description	Kuvausta ei vielä ole.
 st_ash12_name	Ash-12
 st_attention	Survariumin käynnistimen avaaminen epäonnistui. Yritä myöhemmin uudelleen.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Saksalainen lähisuojeluase, kaliiperi 4.6x30. MP
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Saksalainen lähisuojeluase, kaliiperi 4.6x30. MP7A1 äänenvaimentimella. Heckler & Kochin oman panssarinläpäisevän patruunansa kanssa kehittämä. Bundeswehrin ja poliisin erikoisyksiköiden käytössä. 20 patruunan lipas, kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Pidä artefaktia
 st_hour_short	t
 st_hud_tutorial_frame_0_text_1	Kameran hallinta
 st_hud_tutorial_frame_0_text_2	Katsele ympärillesi hiirellä

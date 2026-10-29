@@ -1,24 +1,34 @@
 # Held artefact transfer (patch 78)
 
-Alt + an artefact quick key lowers the weapon, then raises an open right
-palm with the owned artefact hovering above it. Both the carrier and other
-players see the same pose. A plain quick key retains native activation;
-Shift remains sprint. Releasing Alt before the quick key cannot activate
-the item accidentally.
+## Rules (the owner, 2026-10-29)
 
-Use takes a teammate's offered passive artefact into a free container,
-without a recipient pickup animation. The existing collection widget shows
-`{USE}: Take artefact`, `No artefact container`, or `No free artefact
-container`, based on the receiving player's inventory. The three strings
-live in every language of the unified TSV catalog; the hint edit list adds
-only their HUD mappings.
-
-Choosing a different artefact lowers the old one for 500 ms before raising
-the next for 600 ms. The weapon stays hidden between them. There is no offer
-during either motion. Repeating the selected chord or using a weapon action
-cancels presentation; an invalid/empty quick slot leaves it alone. Death
-drops the currently carried item, which either team can take from the ground.
-Stowed artefacts retain their native behavior.
+- **The key:** hold H and press an artefact's quick-use key: the weapon goes
+  down and an open right palm comes up with that artefact over it; everyone
+  sees the same pose. H is the game's own unused action `artefact` (23h), a
+  row of Options, Controls ("Hold artifact"), rebound there like any other
+  key. Alt only shows names again. A quick-use key without H uses the item as
+  before; letting go of H before the quick key never uses it.
+- **Taking:** Use takes a teammate's offered artefact into a free container
+  (within 2.2 m, looked at, nothing in between), with no pickup animation.
+  The hint "Take artifact (E)" shows only when Use would take; without a
+  free container nothing is shown or taken and Use does what the game does
+  there (a battery, a trap, a pickup).
+- **Switching:** another artefact's key lowers the one in hand (500 ms), then
+  raises the new one (600 ms); no offer during either. The same key again
+  puts it away, or, while it goes down, brings it back up from where it is.
+- **Putting away:** fire, reload, aim, a weapon key or the wheel, grenade,
+  melee, or a quick-use key without H puts it away; each acts once the
+  weapon is back if still held. An empty quick slot does nothing.
+- **No sprint while carrying:** the sprint key does nothing while an artefact
+  is in hand (it does not put it away); a carrier who was sprinting stops.
+- **Hit while carrying:** the raised arm takes hits where it is drawn (the
+  damage pose is the drawn one), as now.
+- **Dropping:** only on death, including mid-raise or mid-lower; never by a
+  key. It falls from the palm (pulled back from a wall in front) to the
+  ground below, and stays there for the rest of the match: no return to its
+  anomaly. Either team takes it with Use. With no ground below the palm it
+  is not dropped: the game's own death handling keeps it.
+- Stowed artefacts behave as in the game.
 
 ## Ownership and synchronization
 
@@ -39,8 +49,12 @@ resource reference bridges native remove/take, preserving cooldown, passive
 modifier bookkeeping and the same world-registry ID. Full containers cannot
 reach the engine's eviction path.
 
-Input bits 29..31 encode a bounded quick-slot command in the existing input
-stream. Input building composes with Blackout; apply_input observes edges
+The command rides in the existing input stream: bit 29 (unused by the game)
+marks the chord, with exactly one quick-use bit (14..19) its slot. Bits 30
+and 31 stay clear, since the relays (0x31847B, 0x27C509) and replays
+(0x1EE2A1) strip bit 31 as the input's own flag; bit 29 with no or several
+quick bits (two inputs OR-merged in one node, 0x2C5B60) is no command, and
+its quick bits never reach the game. Input building composes with Blackout; apply_input observes edges
 before the native early-out and filters only the player's copied action mask.
 A consumed Use stays consumed until release. Teammate transfer checks same
 team, life, nearest target within 2.2 m, gaze cone 0.9 and static line of sight.
@@ -49,7 +63,9 @@ same reach/cone/LOS rule without the team restriction. A teammate offer takes
 priority over a ground item so one press cannot take both.
 
 Each player appends a canonical version-2, 32-byte carry snapshot inside the
-existing length-prefixed player state. It includes both sides of a queued
+existing length-prefixed player state, after its last native field; the
+server's `Motion::read` drops it before reading the tail from the end
+(`snapshot_rules.md` 7.4). It includes both sides of a queued
 switch and the button-edge state even while stowed. Native pointers and
 renderer state are excluded. The `next` simulation-change row gates older
 replays at release; all clients in a match must use a compatible build.
@@ -69,7 +85,8 @@ the currently displayed item, leaving the queued inventory item stowed.
 The anomaly/world retains the exact resource after native inventory removal.
 Native state 6 marks a dropped item; native states are 0..5, and the anomaly
 respawns only state 0. An immutable 20-byte release record contains position,
-static-collision floor and release time. It extends `artefact_base::serialize`
+static-collision floor and release time; every state-6 item writes one (all
+0xFF, read back as none, if it had no release), so save and load agree. It extends `artefact_base::serialize`
 at 0x313735 and deserialize at 0x3137EC, before the native active-start time.
 Falling is an analytical gravity step clamped to the floor, reproducible
 across different tick sizes and rollback. Ground pickup calls native take,
@@ -84,9 +101,10 @@ the deterministic release/fall position and native static collision.
 
 ## Pose and rendering
 
-The content manifest builds raise/hold/lower clips from the pinned stock
-battery idle rig via `make_pose_clip`. `scripts/artefact-carry/compile_pose.py`
-emits the runtime arm/finger curves from the same source. The pose layer
+The pose source, `scripts/artefact-carry/pose.json`, describes raise/hold/lower
+clips over the pinned stock battery idle rig (`make_pose_clip`); it is not
+shipped: `scripts/artefact-carry/compile_pose.py` compiles it into the
+runtime arm/finger curves (`artefact_carry/curves.rs`). The pose layer
 preserves locomotion and native camera bones. An eye-relative two-bone solve
 targets the right wrist at `(0.10, -0.14, 0.34)` m, preserves limb lengths,
 and limits reach to 96 percent extension. Authored curves provide relaxed
@@ -107,8 +125,10 @@ Normal ground rendering keeps the original resource and stem.
 
 The native weapon remains owned and serialized by the engine. A single
 visibility owner temporarily removes its model/optics, remembers exactly
-which models were removed, and restores those models before native on_hide
-or return-to-weapon handling. The feature does not register a fake weapon or
+which models were removed (by weapon, so a respawn or a new kit never
+forgets them), and restores those models before native on_hide, the weapon's
+return, or a dead body's draw (its optics update their models, and the
+renderer asserts on a model out of the scene). The feature does not register a fake weapon or
 assign the player's active-item pointer.
 
 Held model transforms are submitted in the same `on_bones` pass as the hand.
@@ -152,7 +172,8 @@ No unfinished weapon transport or cross-worktree dependency is included.
 inventory routines in Unicorn, with renderer/physics results as fixtures.
 It covers both death entries; actual artefact save/load around the extension;
 removal/take with retained cooldown/references; missing/full containers and
-enemy ground pickup; switching models and snapshots across both phases;
+enemy ground pickup; Use left to the game without a free container; a death
+with the weapon and optics hidden; commands through the relay's 31-bit read; switching models and snapshots across both phases;
 held-Use consumption; all four callback layouts; weapon on_hide ownership;
 Larkspur ground restoration; and matching render/damage output through pitch.
 The pure carry/drop tests cover cancellation, missing items, clock wrap and

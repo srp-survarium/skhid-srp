@@ -259,12 +259,10 @@ st_artcontainer_time_corr_perc_name	Vreme sakupljanja
 st_artefact_activated_message	Artefakt je aktiviran
 st_artefact_booster_description	Druga verzija zanatskog uređaja za vađenje artefakata. Ugrađeni prigušivač anomalne aktivnosti ubrzava postupak izvlačenja.
 st_artefact_booster_name	Majstor za artefakte
-st_artefact_container_full	Nema slobodnog kontejnera za artefakt
-st_artefact_no_container	Nema kontejnera za artefakt
 st_artefact_no_free_slots	Nema slobodnog mesta za artefakt!
 st_artefact_search_failed	Artefakt nije pronađen
 st_artefact_search_success	Pronašli ste artefakt!
-st_artefact_take_teammate	{USE}: Uzmi artefakt
+st_artefact_take_teammate	Uzmi artefakt ({USE})
 st_ash12_description	Opis još nije dostupan.
 st_ash12_name	Ash-12
 st_attention	Došlo je do greške pri pokretanju programa Survarium. Pokušajte ponovo kasnije.
@@ -1220,6 +1218,7 @@ st_hk_mp7_silencer_description	Nemačko oružje za ličnu odbranu kalibra 4,6x30
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Nemačko oružje za ličnu odbranu MP7A1 kalibra 4,6x30 sa prigušivačem i probojnom municijom. Koriste ga Bundesver i policijske specijalne jedinice. Okvir prima 20 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Drži artefakt
 st_hour_short	č.
 st_hud_tutorial_frame_0_text_1	Upravljanje kamerom
 st_hud_tutorial_frame_0_text_2	Pomerajte miš da pogledate oko sebe
