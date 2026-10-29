@@ -3112,3 +3112,4 @@ va	status	ref_021d	name
 0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
 0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
 0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list
+0x00426ae1	inferred-high		setlocale

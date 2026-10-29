@@ -21,6 +21,8 @@ package survarium.constants
       public static const HU:int = 7;
 
       public static const FI:int = 8;
+
+      public static const BE:int = 9;
       
       public function Language()
       {

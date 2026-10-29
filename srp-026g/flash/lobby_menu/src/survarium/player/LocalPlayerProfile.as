@@ -162,22 +162,22 @@ package survarium.player
       // A choice shown before the server's answer, at most this long (ms).
       private static const PRESET_PENDING_MS:int = 5000;
       
-      // The words, in the lobby's nine languages (RoomsText.language: en, uk,
-      // ru, de, pl, sr, cs, hu, fi). Players see "Loadout", never "preset" (the owner's of
+      // The words, in the lobby's ten languages (RoomsText.language: en, uk,
+      // ru, de, pl, sr, cs, hu, fi, be). Players see "Loadout", never "preset" (the owner's of
       // 2026-10-23; presets.md has the table). The level's word is the kit
       // tabs' own ("Lvl."), this one if it is missing. A sale's question:
       // "one" for one loadout ({n}), "many" for more ({list}: each "item",
       // the last after "and").
       private static const PRESET_WORDS:Object = {
-         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw", "Komplet", "Výbava", "Összeállítás", "Varustesetti"],
-         "level":["Lvl.","Рів.","Ур.","Stufe","Poz.", "Niv.", "Úr.", "Szint", "Taso"],
-         "empty":["empty","порожній","пустой","leer","pusty", "prazno", "prázdná", "üres", "tyhjä"],
-         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry", "nije spreman", "nelze hrát", "nem használható", "ei pelikelpoinen"],
-         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu.", "Nije moguće izabrati komplet.", "Výbavu se nepodařilo vybrat.", "Nem sikerült kiválasztani az összeállítást.", "Varustesetin valinta epäonnistui."],
-         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?", "Koristi se u kompletu {n}. Ipak prodati?", "Používá se ve výbavě {n}. Přesto prodat?", "A(z) {n}. összeállításban használod. Így is eladod?", "Käytössä varustesetissä {n}. Myydäänkö silti?"],
-         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?", "Koristi se u: {list}. Ipak prodati?", "Použito v: {list}. Přesto prodat?", "Ezekben használod: {list}. Így is eladod?", "Käytössä: {list}. Myydäänkö silti?"],
-         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}", "Komplet {n}", "Výbava {n}", "{n}. összeállítás", "Varustesetti {n}"],
-         "sellAnd":[" and "," і "," и "," und "," i ", " i ", " a ", " és ", " ja "]
+         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw", "Komplet", "Výbava", "Összeállítás", "Varustesetti", "Камплект"],
+         "level":["Lvl.","Рів.","Ур.","Stufe","Poz.", "Niv.", "Úr.", "Szint", "Taso", "Узр."],
+         "empty":["empty","порожній","пустой","leer","pusty", "prazno", "prázdná", "üres", "tyhjä", "пусты"],
+         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry", "nije spreman", "nelze hrát", "nem használható", "ei pelikelpoinen", "не для бою"],
+         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu.", "Nije moguće izabrati komplet.", "Výbavu se nepodařilo vybrat.", "Nem sikerült kiválasztani az összeállítást.", "Varustesetin valinta epäonnistui.", "Не ўдалося выбраць камплект."],
+         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?", "Koristi se u kompletu {n}. Ipak prodati?", "Používá se ve výbavě {n}. Přesto prodat?", "A(z) {n}. összeállításban használod. Így is eladod?", "Käytössä varustesetissä {n}. Myydäänkö silti?", "Выкарыстоўваецца ў камплекце {n}. Прадаць?"],
+         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?", "Koristi se u: {list}. Ipak prodati?", "Použito v: {list}. Přesto prodat?", "Ezekben használod: {list}. Így is eladod?", "Käytössä: {list}. Myydäänkö silti?", "Выкарыстоўваецца ў камплектах {list}. Прадаць?"],
+         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}", "Komplet {n}", "Výbava {n}", "{n}. összeállítás", "Varustesetti {n}", "{n}"],
+         "sellAnd":[" and "," і "," и "," und "," i ", " i ", " a ", " és ", " ja ", " і "]
       };
       
       // The title bar's press area and its hover / open look (below the
@@ -752,16 +752,16 @@ package survarium.player
       
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
       // each with its text: the game's own key where it has one ("#key"
-      // when it is missing), else ours, in the lobby's nine languages.
+      // when it is missing), else ours, in the lobby's ten languages.
       private static const BLOCK_MAINTENANCE:int = 32;
       
       private static const REASONS:Array = [
-         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany", "Ovaj profil je zaključan", "Tento profil je zamčený", "Ez a profil zárolva van", "Tämä profiili on lukittu"]},
-         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu", "Dva predmeta zauzimaju isto mesto", "Dva předměty ve stejném slotu", "Két tárgy ugyanabban a rekeszben", "Kaksi esinettä samassa paikassa"]},
-         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach", "Isti tip predmeta u dva džepa", "Stejný typ předmětu ve dvou kapsách", "Azonos tárgytípus két zsebben", "Sama esinetyyppi kahdessa taskussa"]},
-         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni", "Premalo municije za oružje", "Málo munice pro jednu ze zbraní", "Kevés lőszer az egyik fegyverhez", "Liian vähän ammuksia aseelle"]},
-         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni", "Nema oružja", "Chybí zbraň", "Nincs fegyver", "Ei asetta"]},
-         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min", "Održavanje servera za {n} min", "Údržba serveru za {n} min", "Szerverkarbantartás {n} perc múlva", "Palvelinhuolto alkaa {n} min kuluttua"]}
+         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany", "Ovaj profil je zaključan", "Tento profil je zamčený", "Ez a profil zárolva van", "Tämä profiili on lukittu", "Гэты профіль закрыты"]},
+         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu", "Dva predmeta zauzimaju isto mesto", "Dva předměty ve stejném slotu", "Két tárgy ugyanabban a rekeszben", "Kaksi esinettä samassa paikassa", "Два прадметы ў адным слоце"]},
+         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach", "Isti tip predmeta u dva džepa", "Stejný typ předmětu ve dvou kapsách", "Azonos tárgytípus két zsebben", "Sama esinetyyppi kahdessa taskussa", "Адзін тып прадмета ў дзвюх кішэнях"]},
+         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni", "Premalo municije za oružje", "Málo munice pro jednu ze zbraní", "Kevés lőszer az egyik fegyverhez", "Liian vähän ammuksia aseelle", "Мала патронаў да зброі"]},
+         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni", "Nema oružja", "Chybí zbraň", "Nincs fegyver", "Ei asetta", "Няма зброі"]},
+         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min", "Održavanje servera za {n} min", "Údržba serveru za {n} min", "Szerverkarbantartás {n} perc múlva", "Palvelinhuolto alkaa {n} min kuluttua", "Хутка тэхнічныя работы: праз {n} хв"]}
       ];
       
       // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or

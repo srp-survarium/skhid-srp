@@ -107,7 +107,7 @@ class ReleaseTests(unittest.TestCase):
         return patcher.call_args, messages.getvalue()
 
     def test_added_languages_reach_windows_and_linux_game_scripts(self):
-        for language in ('serbian', 'czech', 'hungarian', 'finnish'):
+        for language in ('serbian', 'czech', 'hungarian', 'finnish', 'belarusian'):
             with self.subTest(language=language):
                 output = self.root / language
                 self.build(output, '--localization=' + language)

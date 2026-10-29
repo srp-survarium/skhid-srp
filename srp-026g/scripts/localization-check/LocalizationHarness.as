@@ -40,20 +40,20 @@ package
                 var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                 var data:* = domain.getDefinition("survarium.data.LocalizationData");
                 var words:* = domain.getDefinition("survarium.rooms.RoomsText");
-                var friends:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi", "Prijatelji", "Přátelé", "Barátok", "Kaverit"];
+                var friends:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi", "Prijatelji", "Přátelé", "Barátok", "Kaverit", "Сябры"];
                 for (var i:int = 0; i < friends.length; ++i)
                 {
                     data.setData({btn_friends: friends[i]});
                     require(words.language() == i, "language detection " + i);
                     require(words.sayFirst("startMatch") != "undefined", "start label " + i);
                 }
-                var roomTitles:Array = ["Sobe", "Místnosti", "Szobák", "Huoneet"];
-                var starts:Array = ["Pokreni", "Spustit", "Indítás", "Aloita"];
-                var schools:Array = ["Škola", "Škola", "Iskola", "Koulu"];
-                var nights:Array = ["noć", "noc", "éjszaka", "yö"];
-                var research:Array = ["Istraživanje", "Výzkum", "Kutatás", "Tutkimus"];
-                var joined:Array = ["se pridružio sobi", "se připojuje do místnosti", "belépett a szobába", "liittyi huoneeseen"];
-                var letters:Array = ["ČĆŠŽĐčćšžđ", "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž", "ÁÉÍÓÖŐÚÜŰáéíóöőúüű", "ÅÄÖåäö"];
+                var roomTitles:Array = ["Sobe", "Místnosti", "Szobák", "Huoneet", "Пакоі"];
+                var starts:Array = ["Pokreni", "Spustit", "Indítás", "Aloita", "Пачаць"];
+                var schools:Array = ["Škola", "Škola", "Iskola", "Koulu", "Школа"];
+                var nights:Array = ["noć", "noc", "éjszaka", "yö", "ноч"];
+                var research:Array = ["Istraživanje", "Výzkum", "Kutatás", "Tutkimus", "Даследаванне"];
+                var joined:Array = ["se pridružio sobi", "se připojuje do místnosti", "belépett a szobába", "liittyi huoneeseen", "увайшоў у пакой"];
+                var letters:Array = ["ČĆŠŽĐčćšžđ", "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž", "ÁÉÍÓÖŐÚÜŰáéíóöőúüű", "ÅÄÖåäö", "ЎўІіЁёЫыЭэ'"];
                 var fontClass:Class = domain.getDefinition("Fonts_CB_Bold") as Class;
                 var font:Font = new fontClass() as Font;
                 var label:TextField = new TextField();
@@ -73,7 +73,7 @@ package
                     label.text = words.sayFirst("roomChat");
                     require(label.textWidth <= 104, "room chat tab exceeds 108 px including padding: " + i);
                 }
-                trace("LOCALIZATION nine-language detection, added menu texts, tab widths and Calibri glyphs pass");
+                trace("LOCALIZATION ten-language detection, added menu texts, tab widths and Calibri glyphs pass");
                 trace("LOCALIZATION RESULT pass");
             }
             catch (error:Error)

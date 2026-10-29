@@ -1,7 +1,8 @@
 # Game localization (0.26g)
 
-All nine native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
-Russian, German, Polish, Serbian Latin, Czech, Hungarian and Finnish. Every file
+All ten native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
+Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish and Belarusian
+(Cyrillic, standard orthography). Every file
 has the same 2,313 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
@@ -25,16 +26,17 @@ and `\\` (literal backslash). Do not trim leading/trailing spaces in text.
 Quotes are literal text, not TSV quoting. Empty text is permitted only for the
 four unused `st_turn_*_action` control labels. Duplicate keys, unregistered or
 missing languages, missing/extra keys, empty translations, malformed UTF-8,
-NULs, changed placeholders/markup, and text exceeding the native 511-byte limit
-fail the check. Every dictionary is also compiled and decoded to verify it
-round-trips exactly. Unchanged text is informational: model names and keycaps
-can legitimately match English.
+NULs, changed placeholders/markup, Cyrillic in a Latin language, Russian or
+Ukrainian letters (и, щ, ъ, ї, є, ґ) in Belarusian, and text exceeding the native
+511-byte limit fail the check. Every dictionary is also compiled and decoded to
+verify it round-trips exactly. Unchanged text is informational: model names and
+keycaps can legitimately match English.
 
 The same command checks the custom Flash language tables, language constants,
 native label detectors, content edit key references, and the final catalog build step.
 Custom menu sentences still live in ActionScript; those are separate from native
 item dictionaries. Their existing column order is English, Ukrainian, Russian,
-German, Polish, Serbian, Czech, Hungarian, Finnish. Extend those tables when
+German, Polish, Serbian, Czech, Hungarian, Finnish, Belarusian. Extend those tables when
 adding a language. Some menus detect the language from the localized Friends,
 Cancel or registration labels, so changes to those labels must also update the
 Flash detectors. Regression tests for the checker and build integration run with:
@@ -91,13 +93,14 @@ use the game script for the added languages. Website and launcher UI translation
 are separate.
 
 To add a language, register its resource name and Flash constant in `LANGUAGES`
-in `localization_026g.py`, add its complete TSV here, and extend custom Flash
-language tables/detectors and their runtime checks. The content compiler
+in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), add its
+complete TSV here, and extend custom Flash language tables/detectors and their
+runtime checks. The content compiler
 creates its resource directory automatically. Existing languages retain their
 support files; new languages inherit English EULA and profanity data, which
 are support resources, not translated text.
 
-The rebuilt lobby's runtime check exercises language detection, the four added
+The rebuilt lobby's runtime check exercises language detection, the five added
 languages' room/map/mode labels, chat tab widths and embedded Calibri glyphs:
 
 ```sh
@@ -110,3 +113,13 @@ subsets have fewer glyphs; this does not verify every game screen. Native-speake
 review and an in-game layout pass remain useful. Nickname/clan character
 restrictions and numeric chat/tutorial language codes are separate from dictionary
 selection and are unchanged.
+
+Text encoding: the dictionaries are UTF-8 (the stock Russian and Ukrainian ones
+too), read by the engine as bytes and drawn by Scaleform, so Belarusian ў/Ў
+(U+045E/U+040E) needs nothing special. Every embedded font of the lobby, login,
+main menu, HUD and replay movies that has Cyrillic also has ў/Ў and і/І. At
+start-up (0xE3C10) the exe sets the C runtime's collation to the system code page
+(`setlocale(LC_COLLATE, ".ACP")`), then the whole C locale only for
+original/russian (1251), english (1252) and polish (1250). Belarusian, like
+Ukrainian and the added languages, keeps the "C" character types, which leave
+UTF-8 bytes alone.
