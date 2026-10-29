@@ -6,6 +6,7 @@ switches ON feel: band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing
 switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops
 switches ON hazard: artefact_know escort_dry_post hurt_by_shape live_zones price_way_out
 switches ON heal: bandages interrupt on
+switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6

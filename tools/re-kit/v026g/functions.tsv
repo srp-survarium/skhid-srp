@@ -1156,9 +1156,12 @@ va	status	ref_021d	name
 0x002fcaa0	reviewed	0x001fad25	survarium::inventory::action
 0x002fcb70	reviewed	0x001fadb6	survarium::inventory::setup_from_profile
 0x002fd2d0	reviewed	0x001faf4c	survarium::inventory::unload_to_profile
+0x002fdc10	observed		survarium::inventory::resupply
+0x002fdf50	observed		survarium::inventory::resupply_check
 0x002fe360	reviewed	0x001fb09e	survarium::inventory::serialize
 0x002fe550	reviewed	0x001fb246	survarium::inventory::deserialize
 0x002ffb80	reviewed	0x001e6ee8	survarium::inventory_item::inventory_item
+0x002ffce0	observed		survarium::inventory_item::restock
 0x002ffdf0	reviewed	0x001e6f9f	survarium::inventory_item::serialize
 0x002fff10	reviewed	0x001e703d	survarium::inventory_item::deserialize
 0x00300710	reviewed	0x001e739d	survarium::victory_item_core::can_use

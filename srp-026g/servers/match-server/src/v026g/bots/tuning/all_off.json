@@ -61,6 +61,9 @@
   "kin": {
     "jump_snap": "any"
   },
+  "kit": {
+    "pocket_store": false
+  },
   "sense": {
     "bush_notice": 0.0,
     "grass_notice": 0.0,
