@@ -113,11 +113,22 @@ targets the right wrist at `(0.10, -0.14, 0.34)` m, preserves limb lengths,
 and limits reach to 96 percent extension. Authored curves provide relaxed
 finger curl and lower/raise motion.
 
+The held hand is never still (`Life` in `pose.rs`): the wrist target breathes
+5 mm up and down every 4.2 s and drifts a few millimetres on slower,
+unrelated periods; the palm tips about 2 degrees a quarter breath behind;
+the fingers flex up to 0.07 rad, index first, the pinky half a second
+later. Walking adds a stride sway (8 mm sideways, a 6 mm dip, a little
+roll) from the native feet's separation along the look, so it is in step
+with the legs and vanishes when they stop. The clock is the simulation's,
+shifted by the place, so players do not breathe in step; the render and
+damage passes read the same inputs and draw the same arm.
+
 The same solver runs in the render and damage-bone passes. It respects each
 bone's computed-layer mask, so uncomputed collision matrices cannot invalidate
 the arm pose. The artefact follows the hand's orientation, including camera
 pitch. Its resource bottom-centre is anchored 12 cm along the palm normal,
-with a 1.2 cm, four-second bob. The largest held dimension is capped at 14 cm
+with a 1.2 cm, four-second bob, and turns up to 0.15 rad about that normal
+every 6.7 s. The largest held dimension is capped at 14 cm
 and scale at 0.65; damage shapes and ground geometry are not scaled.
 
 The separate held-only Larkspur resource crops triangles below source
