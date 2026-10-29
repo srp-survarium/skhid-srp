@@ -34,6 +34,7 @@ use mapdata::{Vec3, World};
 use super::arc::{self, Flight, Grenade, Mesh};
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
+use super::objective::ObjectiveMap;
 use super::live_grenades::{
     LiveGrenade, LAUNCH_MS, Phase, Player, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts, Throws, Whose,
 };
@@ -152,57 +153,7 @@ pub fn still_eye(feet: Vec3, crouched: bool) -> Vec3 {
 /// The chest, where a shot is aimed.
 pub const CHEST: f32 = 1.3;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    Batteries,
-    TimedBatteries,
-    TeamDeathmatch,
-}
-
-impl Mode {
-    pub fn from_id(mode: u8) -> Self {
-        use survarium::v026g::maps::mode;
-        match mode {
-            mode::TIMED_BATTERIES => Self::TimedBatteries,
-            mode::TEAM_DEATHMATCH => Self::TeamDeathmatch,
-            _ => Self::Batteries,
-        }
-    }
-
-    pub fn has_batteries(self) -> bool {
-        self != Self::TeamDeathmatch
-    }
-
-    /// Team Deathmatch: tickets and a fight to the last body, no batteries.
-    pub fn is_deathmatch(self) -> bool {
-        self == Self::TeamDeathmatch
-    }
-
-    /// The key of a play's weight for this mode (`weight_tdm`,
-    /// `weight_batteries`, `weight_timed`), for the plays that weigh the
-    /// timed batteries apart from the plain ones (Cut, HoldExit, Crossfire,
-    /// Flank).
-    pub fn weight_key(self) -> &'static str {
-        match self {
-            Self::TeamDeathmatch => "weight_tdm",
-            Self::Batteries => "weight_batteries",
-            Self::TimedBatteries => "weight_timed",
-        }
-    }
-
-    /// Timed batteries: the batteries come on a clock to charging stations
-    /// (Station), and are not lying about to be found.
-    pub fn has_stations(self) -> bool {
-        self == Self::TimedBatteries
-    }
-
-    /// Whether a spawner's spot seen empty is worth looking at again after
-    /// a time (`spawner_recheck_ms`): only where the batteries come on a
-    /// clock, not where they once spawned.
-    pub fn rechecks_spawners(self) -> bool {
-        self == Self::TimedBatteries
-    }
-}
+pub use super::objective::Mode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SoundKind {
@@ -355,18 +306,9 @@ impl MatchView {
         self.places.get(place)
     }
 
-    /// Our points minus theirs, for `team` (tickets count a tenth).
-    pub fn score_gap(&self, team: u8) -> f32 {
-        let (ours, theirs) = (
-            self.points[usize::from(team & 1)],
-            self.points[usize::from(!team & 1)],
-        );
-        let gap = ours as f32 - theirs as f32;
-        if self.mode.is_deathmatch() {
-            gap / 10.0
-        } else {
-            gap
-        }
+    /// The questions about what this match is won by.
+    pub fn objective(&self) -> ObjectiveMap {
+        self.mode.objective()
     }
 
     /// The living players of `team` (or not of it).
@@ -617,7 +559,7 @@ pub const JITTER_STEP_MS: i32 = 14;
 
 impl Tracker {
     /// `teams[place]`, `bots[place]`; `containers[id]` = (team, place).
-    pub fn new(mode: u8, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
+    pub fn new(mode: Mode, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
         Self {
             places: teams
                 .iter()
@@ -630,7 +572,7 @@ impl Tracker {
                     ..PlaceState::default()
                 })
                 .collect(),
-            mode: Mode::from_id(mode),
+            mode,
             container_counts: vec![0; containers.len()],
             containers,
             batteries: Vec::new(),
@@ -1732,7 +1674,7 @@ mod tests {
     /// made in all.
     fn sprint_sounds(keys: u32, ms: u32, by_body: Option<f32>) -> usize {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         assert!(tracker.fixed(1, fix(1_000, Vec3::new(5.0, 0.0, 5.0)), Some(0.8), &kin, None));
         let mut now = 1_000;
@@ -1765,7 +1707,7 @@ mod tests {
     #[test]
     fn a_humans_body_is_reckoned_to_the_clock_and_its_keys_are_heard() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         assert!(tracker.fixed(
             1,
@@ -1809,7 +1751,7 @@ mod tests {
     fn a_death_in_the_statistics_is_an_event_and_the_user_near_a_battery_carries_it() {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(
-            2,
+            Mode::Batteries,
             &[0, 1],
             &[false, false],
             vec![(0, Vec3::ZERO), (1, Vec3::new(50.0, 0.0, 0.0))],
@@ -1860,7 +1802,7 @@ mod tests {
     #[test]
     fn a_death_the_world_shows_without_feet_is_in_the_feed_where_the_body_fell() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 0, 1], &[true, true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 0, 1], &[true, true, false], vec![]);
         for place in 0..3 {
             tracker.entered(place, true);
         }
@@ -1966,7 +1908,7 @@ mod tests {
         fn new() -> Self {
             let kin = Kinematics::default();
             let mut tracker = Tracker::new(
-                2,
+                Mode::Batteries,
                 &[1, 1, 0],
                 &[true, true, true],
                 vec![(0, Vec3::new(12.0, 0.0, 30.0)), (1, CONTAINER)],
@@ -2219,14 +2161,14 @@ mod tests {
     #[test]
     fn the_bench_jitter_is_a_seeded_bounded_walk_with_small_steps() {
         let tracker = |seed| {
-            let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+            let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, true], vec![]);
             tracker.seen_jitter = (150, seed);
             tracker
         };
         let walk = |tracker: &Tracker, place| -> Vec<i32> {
             (0..2_000).map(|k| tracker.jitter(place, 1_000 + k * 50)).collect()
         };
-        let mut off = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        let mut off = Tracker::new(Mode::Batteries, &[0, 1], &[true, true], vec![]);
         assert_eq!(off.jitter(0, 1_000), 0);
         off.seen_jitter = (0, 7);
         assert_eq!(off.jitter(0, 2_000), 0);
@@ -2249,7 +2191,7 @@ mod tests {
     #[test]
     fn a_players_lateness_is_the_running_mean_of_his_inputs() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         tracker.fixed(1, fix(1_000, Vec3::ZERO), None, &kin, None);
         let clock = Clock {

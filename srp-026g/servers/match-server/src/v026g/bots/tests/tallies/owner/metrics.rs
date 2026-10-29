@@ -237,7 +237,7 @@ impl Metrics {
     fn reads_part(&self) -> Part {
         let now = fairness::counts();
         let before = self.start.map_or(now, |start| start.reads);
-        const SITES: [&str; fairness::SITES] = ["place", "near", "threats"];
+        const SITES: [&str; fairness::SITES] = ["place", "near", "threats", "push", "glance"];
         const BASES: [&str; fairness::BASES] = ["fresh", "stale", "hud", "cheat"];
         let delta = |team: usize, site: usize, basis: usize| now[team][site][basis] - before[team][site][basis];
         let mut json = serde_json::Map::new();

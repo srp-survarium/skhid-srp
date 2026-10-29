@@ -259,7 +259,7 @@ impl Task {
     pub fn of(cx: &Ctx) -> Self {
         use crate::v026g::bots::view::BatteryState;
         let batteries = &cx.view.batteries;
-        if !cx.view.mode.has_batteries() || batteries.is_empty() {
+        if !cx.view.objective().has_homes() || batteries.is_empty() {
             return Self {
                 fight: 1.0,
                 battery: 0.0,

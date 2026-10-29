@@ -49,6 +49,7 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::objective::Mode;
 use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
@@ -100,6 +101,13 @@ impl Walkers {
             return None;
         }
         let id = formed.match_id;
+        let mode = match Mode::parse(formed.map.mode) {
+            Ok(mode) => mode,
+            Err(error) => {
+                log::warn!("Match {id:#x}: no bots: {error}");
+                return None;
+            }
+        };
         let tuning = settings.bot_tuning.tuning().clone();
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
@@ -178,14 +186,14 @@ impl Walkers {
             .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
             .collect();
         Some(Self {
-            bots: Bots::new(
+            bots: Bots::new_with(
                 id,
-                formed.map.mode,
+                mode,
                 formed.map.level,
                 &teams,
                 &driven,
                 &roles,
-                tuning,
+                crate::v026g::bots::tuning::TeamTunings::new(tuning),
                 trace,
             )
             .with_container_teams(formed.map.container_teams)
@@ -616,6 +624,7 @@ impl Game {
                 if let Some(pools) = Pools::of_world(&damage.part_health) {
                     walkers.bots.pools(place, pools);
                 }
+                walkers.bots.bullet_hit(place, damage.last_hit_time_ms);
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);

@@ -115,6 +115,31 @@ fn shot_from_afar(cx: &Ctx, at: Vec3, time: u32) -> bool {
             .any(|t| t.at.distance_xz(at) <= killer_m)
 }
 
+/// A held spot with at least this many kills is a line no trade goes into
+/// (K3): his second kill from one spot proves the lane. One kill keeps the
+/// trade on the spot, the fast trade behind 46 % of the live humans' stops
+/// of a holder (`an-anticamper.md` §2.5).
+pub const PROVEN_KILLS: usize = 2;
+
+/// A bot this near the partner's death still trades it in a held line, m:
+/// the fast trade from close by (the live humans' stopping killer was within
+/// 25 m of the 2nd victim in 45-46 % of stops, `an-anticamper.md` §2.5,
+/// §8.1). Refusing those too cut the trades that killed the holder by 35 %
+/// (p1-bench 631feece, 108 -> 70).
+pub const NEAR_TRADE_M: f32 = 25.0;
+
+/// Whether the trade to `at` is refused for a held line
+/// (`ThreatTuning::trade_out_of_lines`): `at` lies in the lanes of a held
+/// spot that killed twice or more, and the bot is farther than
+/// [`NEAR_TRADE_M`] from it, so it would walk into his lane to get there:
+/// the 3 s pair the owner kills (18 % of his kills against 3.5-3.9 % live,
+/// `an-anticamper.md` §8.2).
+fn in_held_line(cx: &Ctx, at: Vec3) -> bool {
+    cx.tuning.threat.trade_out_of_lines
+        && at.distance_xz(cx.me.feet) > NEAR_TRADE_M
+        && cx.team.threat.held.iter().any(|l| l.kills >= PROVEN_KILLS && l.covers(at))
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
@@ -124,11 +149,18 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         && at.distance_xz(cx.me.feet) <= reach
         && !shot_from_afar(cx, at, time)
     {
-        out.extend(cx.candidate(PlayKind::Trade, TargetRef::Point(at), None));
-        return;
+        if in_held_line(cx, at) {
+            crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeRefused);
+        } else {
+            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Point(at), None));
+            return;
+        }
     }
-    // The running trade stays a candidate until its step ends it.
-    if let Some((PlayKind::Trade, target, _)) = cx.bot.current {
+    // The running trade stays a candidate until its step ends it, or its
+    // spot turns out to be in a held line.
+    if let Some((PlayKind::Trade, target, _)) = cx.bot.current
+        && cx.point_of(target).is_none_or(|at| !in_held_line(cx, at))
+    {
         out.extend(cx.candidate(PlayKind::Trade, target, None));
     }
 }

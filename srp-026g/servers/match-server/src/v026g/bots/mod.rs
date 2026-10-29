@@ -56,6 +56,8 @@ pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
 pub mod motor;
+pub mod objective;
+pub mod objective_actor;
 pub mod path;
 pub mod plays;
 pub mod pockets;
@@ -84,6 +86,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod worth;
 pub mod zone_cost;
 pub mod zone_search;
 
@@ -147,6 +150,7 @@ use motor::Motor;
 use motor::Pose;
 use motor::RoutePress;
 use motor::Walked;
+use objective::Mode;
 use path::Route;
 use plays::BotFacts;
 use plays::Ctx;
@@ -748,8 +752,7 @@ thread_local! {
 /// A match's bots.
 pub struct Bots {
     level: u8,
-    /// The mode's id (2 batteries, 3 timed batteries, 4 TDM).
-    mode: u8,
+    mode: Mode,
     /// Whose the battery containers are, by id, as the server's game
     /// data has the map (`MapMode::container_teams`); without it, as the
     /// built map has them ([`Self::with_container_teams`]).
@@ -796,13 +799,16 @@ pub struct Bots {
     layers: MapLayers,
     /// What each feature keeps of the match ([`features`]).
     features: MatchFeatures,
+    /// By place, the time of the last bullet hit its worlds showed, to see a new one ([`Self::bullet_hit`]).
+    seen_hits: Vec<u32>,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
 
 impl Bots {
     /// `teams[place]`, `driven[place]` (a bot's place), `roles[place]` (a
-    /// bot's role by its gear); `mode` and `level` the map's.
+    /// bot's role by its gear); `mode` and `level` the map's. For tests that name the mode by its id.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
@@ -814,6 +820,7 @@ impl Bots {
         tuning: Arc<Tuning>,
         trace: Trace,
     ) -> Self {
+        let mode = Mode::parse(mode).expect("a test names a mode the bots play");
         Self::new_with(match_id, mode, level, teams, driven, roles, tuning::TeamTunings::new(tuning), trace)
     }
 
@@ -821,7 +828,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with(
         match_id: u32,
-        mode: u8,
+        mode: Mode,
         level: u8,
         teams: &[u8],
         driven: &[bool],
@@ -856,7 +863,7 @@ impl Bots {
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
             #[cfg(feature = "client-test")]
-            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode, teams)),
+            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode.id(), teams)),
             #[cfg(all(test, not(feature = "client-test")))]
             client_tests: None,
             polls: Default::default(),
@@ -876,6 +883,7 @@ impl Bots {
             bench_camper: None,
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
+            seen_hits: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -1074,9 +1082,9 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.layers.routes = table.for_map(self.level, self.mode);
+        self.layers.routes = table.for_map(self.level, self.mode.id());
         self.layers.perches = table.perches_for(self.level);
-        self.layers.perch_share = table.perch_share(self.level, self.mode);
+        self.layers.perch_share = table.perch_share(self.level, self.mode.id());
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
@@ -1212,6 +1220,42 @@ impl Bots {
             && let Some(link) = self.client_tests.as_mut()
         {
             link.note_pools(pools);
+        }
+    }
+
+    /// A trusted world's word on one place's last bullet hit, made at the world's time `hit_ms` (`m_last_hit_time_ms`;
+    /// 0: none). A new one on an enemy of a team is a hit its bot saw land if the bot fired at him within that team's
+    /// `worth.credit_ms` before it: a hit marker and a puff of blood, not a read of his pools (a zone, a fall or
+    /// bleeding is no bullet; a teammate human's bullet is not its bot's). The weapon's nominal damage is the share
+    /// ([`worth::Wounds::landed`]); the bot that fired last before the hit gets it.
+    pub fn bullet_hit(&mut self, victim: Place, hit_ms: u32) {
+        if self.seen_hits.len() <= victim {
+            self.seen_hits.resize(victim + 1, 0);
+        }
+        if hit_ms == 0 || hit_ms <= self.seen_hits[victim] {
+            return;
+        }
+        self.seen_hits[victim] = hit_ms;
+        let life = self
+            .tracker
+            .body(victim)
+            .and_then(|body| body.fix())
+            .map_or(0, |fix| fix.inserted);
+        // Per enemy team: the bot that fired at him last, within its tuning's window, and the weapon's nominal damage.
+        let mut best: [Option<(u32, Place, f32)>; 2] = [None, None];
+        for bot in self.bots.iter().flatten() {
+            let team = usize::from(bot.team & 1);
+            let window = self.tunings.of(bot.team & 1).aim.combat.worth.credit_ms;
+            if let Some((at, share)) = bot.reflex.shot_landed(victim, hit_ms, window)
+                && best[team].is_none_or(|(last, ..)| at > last)
+            {
+                best[team] = Some((at, bot.place, share));
+            }
+        }
+        for (team, shot) in self.teams.iter_mut().zip(best) {
+            if let Some((_, by, share)) = shot {
+                team.knowledge.wounds.landed(victim, life, share, by, hit_ms);
+            }
         }
     }
 

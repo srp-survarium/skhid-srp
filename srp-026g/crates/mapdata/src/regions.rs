@@ -448,7 +448,7 @@ impl Regions {
             Ok(mut search) => {
                 let mut iters = usize::MAX;
                 search
-                    .step(self, grid, &allowed, &region_ok, &mut iters)
+                    .step(self, grid, &allowed, &region_ok, |_| 1.0, &mut iters)
                     .expect("an unbounded step ends the search")
             }
             Err(done) => done,
@@ -545,13 +545,16 @@ impl RouteSearch {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// answer and the stage that gave it once the search ends, `None`
     /// while it goes on. `allowed` and `region_ok` must be the ones it was
-    /// started with.
+    /// started with, and `weight` too: each stage's floors are searched
+    /// with it ([`SlicedSearch::step`]; the regions' corridor is the coarse
+    /// pass, the floors' search inside it the fine one, as HPA*'s).
     pub fn step(
         &mut self,
         regions: &Regions,
         grid: &WalkGrid,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
+        weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<(Search, Stage)> {
         loop {
@@ -559,7 +562,7 @@ impl RouteSearch {
                 return Some((Search::NoWay, self.stage));
             };
             let found = if self.stage == Stage::Whole {
-                search.step(grid, &allowed, iters)?
+                search.step(grid, &allowed, &weight, iters)?
             } else {
                 let inside = &self.inside;
                 search.step(
@@ -568,6 +571,7 @@ impl RouteSearch {
                         let r = regions.of(v) as usize;
                         inside[r / 64] & (1 << (r % 64)) != 0 && allowed(v)
                     },
+                    &weight,
                     iters,
                 )?
             };
@@ -670,7 +674,7 @@ mod tests {
                 .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, Some(STANDING_JUMP_M))
                 .unwrap();
             let mut iters = usize::MAX;
-            let (found, _) = search.step(&regions, &grid, |_| true, |_| true, &mut iters).unwrap();
+            let (found, _) = search.step(&regions, &grid, |_| true, |_| true, |_| 1.0, &mut iters).unwrap();
             let walker = regions.route_search(&grid, from, to, |_| true, |_| true, usize::MAX).0;
             (matches!(walker, Search::Found(_)), matches!(found, Search::Found(_)))
         };
@@ -768,7 +772,7 @@ mod tests {
             let mut slices = 0;
             let found = loop {
                 let mut iters = 7;
-                if let Some(found) = sliced.step(&regions, &grid, allowed, |_| true, &mut iters) {
+                if let Some(found) = sliced.step(&regions, &grid, allowed, |_| true, |_| 1.0, &mut iters) {
                     break found;
                 }
                 slices += 1;

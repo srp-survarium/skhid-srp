@@ -5,6 +5,7 @@
 //! (`Ctx::tuning`, `Reflex::think_with`), so the think and the commander are their inputs here.
 
 use super::*;
+use crate::v026g::bots::objective::Mode;
 
 use crate::v026g::bots::tuning::TeamTunings;
 
@@ -19,7 +20,7 @@ fn after_one_poll(team0: Tuning, team1: Tuning) -> (Bots, u32) {
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         0x7EA3,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],
@@ -92,7 +93,7 @@ fn the_bots_of_team_1_are_made_of_team_1s_tuning() {
     let teams = [0u8, 1];
     let bots = Bots::new_with(
         0x7EA4,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 2],
@@ -261,7 +262,7 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
         team1.cheats.batteries = cheat1;
         let mut bots = Bots::new_with(
             0x7EA5,
-            survarium::v026g::maps::mode::BATTERIES,
+            Mode::Batteries,
             0,
             &[0, 1],
             &[true, true],
@@ -331,7 +332,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         0x7EA6,
-        survarium::v026g::maps::mode::BATTERIES,
+        Mode::Batteries,
         0,
         &teams,
         &[true; 4],
@@ -454,7 +455,7 @@ fn facing_bots(team0: Tuning, team1: Tuning, seed: u32) -> Bots {
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         seed,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],
@@ -651,4 +652,60 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
         }
     }
     assert!(carried > 0, "team 1's kits carry a smoke");
+}
+
+/// The team jobs on held spots (K2, `commander.rs` `threat_tick`) open by their own team's `threat.job_kills`: one enemy's two
+/// kills from one spot are a hold to team 1 (2, the default) and not to team 0 (3).
+#[test]
+fn the_team_jobs_open_by_their_teams_job_kills() {
+    let mut team0 = Tuning::default();
+    team0.threat.job_kills = 3;
+    let (mut bots, now) = after_one_poll(team0, Tuning::default());
+    // Each team's two deaths to one enemy on a spot south of it, out of its bots' sight of it (42 m and more off) and its
+    // lanes (the bots stand 40 degrees and more off them).
+    let spot = Vec3::new(40.0, 0.0, 0.0);
+    for (team, shooter) in [(0usize, 2), (1, 0)] {
+        let rules = crate::v026g::bots::threat::SpotRules::of(&bots.tuning_of(team as u8).threat);
+        for (i, victim) in [Vec3::new(40.0, 0.0, 20.0), Vec3::new(43.0, 0.0, 20.0)].into_iter().enumerate() {
+            bots.teams[team].features.threat.spots.died(victim, shooter, spot, now, now + i as u32, rules);
+        }
+    }
+    for clock in (now + 100..=now + 1_500).step_by(100) {
+        bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+    }
+    assert!(bots.teams[0].features.threat.jobs.is_empty(), "team 0: two kills are no hold by its job_kills 3");
+    assert_eq!(bots.teams[1].features.threat.jobs.len(), 1, "team 1: a hold by its job_kills 2");
+}
+
+/// The worth of a seen enemy (`worth.rs`): a hit is the team's by its own tuning's `worth.credit_ms`. A bot of each team fired at the
+/// other 500 ms before the world that shows the pools down; team 1's window is 1 ms, team 0's the default. (The target choice, the
+/// push and the flank glance take the `&AimTuning` the think hands the reflex, as the probes above.)
+#[test]
+fn a_hit_is_a_teams_own_by_its_own_credit_window() {
+    let mut other = Tuning::default();
+    other.aim.combat.worth.credit_ms = 1;
+    let mut bots = Bots::new_with(
+        0x7EA6,
+        Mode::Batteries,
+        6,
+        &[0, 1],
+        &[true, true],
+        &[None, None],
+        tunings(Tuning::default(), other),
+        Trace::none(0),
+    );
+    // Each bot fired at the other 500 ms before the bullet hit that the world shows.
+    bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 9_500);
+    bots.bots[1].as_mut().unwrap().reflex.fired_on(0, 9_500);
+    for place in [0, 1] {
+        bots.bullet_hit(place, 10_000);
+    }
+    // Team 0 (the default window) saw the hit on bot 1; team 1 (1 ms) did not see the one on bot 0.
+    assert!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_000, 0, 400) > 0.0);
+    assert_eq!(bots.teams[1].knowledge.wounds.hurt(0, 0, 10_000, 1, 400), 0.0);
+    // A bullet that left long after the hit is not the hit's: no credit for a second one.
+    let one = bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400);
+    bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 12_000);
+    bots.bullet_hit(1, 10_500);
+    assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400), one);
 }

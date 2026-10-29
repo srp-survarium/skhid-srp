@@ -49,7 +49,7 @@ impl MatchSignals {
         Self {
             team,
             mode: Some(view.mode),
-            score_gap: view.score_gap(team),
+            score_gap: view.objective().score_gap(view, team),
             time_left_s: view.time_left_s,
             progress: if view.total_s > 0.0 {
                 (1.0 - view.time_left_s / view.total_s).clamp(0.0, 1.0)

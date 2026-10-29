@@ -1199,7 +1199,7 @@ pub(super) fn drive(
     let tick = Tick {
         now,
         err_rad: view_error(me.eye(), me.yaw, me.pitch, centre),
-        calm: calm && me.carrying.is_none() && !hit,
+        calm: calm && !view.objective().is_actor(me) && !hit,
         ready: weapon_ready(bot, now),
         mate_firing: mate_firing(&view.sounds, &mates, me.place, at, me.feet, now, t)
             || (by_hand && mate_beside(&mates, at, t)),

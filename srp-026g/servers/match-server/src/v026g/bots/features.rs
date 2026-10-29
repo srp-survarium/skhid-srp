@@ -73,6 +73,8 @@ features! {
         memory: plays::memory::BotState,
         /// The drugs it carries and its health pools (`stock`).
         stock: stock::BotState,
+        /// The cover its route was planned against (`threat`).
+        threat: threat::BotThreat,
         /// The bear-trap habit and the notice of the traps of others (`traps`).
         traps: traps::BotState,
         /// What the weapon mods did to its reloads, from the lives gone (`guns`).

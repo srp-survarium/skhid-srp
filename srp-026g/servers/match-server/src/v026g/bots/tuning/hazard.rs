@@ -57,6 +57,13 @@ pub struct HazardTuning {
     /// carrier's own feet in a zone ("no way to its goal" 18 and 54 times in a match). Off: the line, then the
     /// carrier's feet.
     pub escort_dry_post: bool,
+    /// An escort's post is a floor the escort's walk reaches (`Tactics::past_fixed_zones`), not only a floor that is no
+    /// zone's: a battery's stand or a dry island inside zones on all match is a goal no route leads to (the bench's
+    /// Vostok Radar Station: a carrier of a zone battery gave 32 escort "no way to its goal" ends against 3, six bots in turn
+    /// in 4 s on one battery, each play living a median 875 ms). A post that is none is pulled to the dry floor on the zone's
+    /// edge that sees the carrier (`ring_post`), and no escort is offered a carrier no such floor sees, nor to a bot that
+    /// stands inside such a pocket itself. Off: the post on his line is any goal, as it was.
+    pub escort_reach: bool,
     /// A zone's hit falls off towards its rim: the client scales it by the zone's hit curve at the body's normalised
     /// distance from the zone's centre (`damage_zone_core::damage_of_body` 0x31A410, PROVEN; the shipped curves, Vector
     /// Laboratory's radiation zones `(0, 1)` to `(1, 0)`, levels 3 to 6 at the rim), and live bots lose exactly that (the
@@ -148,6 +155,7 @@ impl Default for HazardTuning {
             band_drift_m: Metres::of(0.2),
             price_way_out: true,
             escort_dry_post: true,
+            escort_reach: true,
             zone_intensity: true,
         }
     }

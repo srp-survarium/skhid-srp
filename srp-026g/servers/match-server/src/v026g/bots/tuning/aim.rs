@@ -174,6 +174,7 @@ impl Check for AimTuning {
                 && (0.0..=c.recoil_pull).contains(&c.recoil_pull_low),
             "aim.combat.recoil_pull",
         )?;
+        check(c.worth.valid(), "aim.combat.worth")?;
         Ok(())
     }
 }

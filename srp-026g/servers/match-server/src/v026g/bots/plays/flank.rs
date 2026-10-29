@@ -19,7 +19,14 @@ use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::kin;
 use crate::v026g::bots::tactics::SpotQuery;
+use crate::v026g::bots::threat::Role;
 use crate::v026g::drive::key;
+
+/// The slot keys of the team job's flanks (K2) start here: one flanker a
+/// held spot, apart from the flanks of a seen holder (keyed by his place).
+pub const JOB_KEY: u32 = 1_000_000;
+/// A flanker of a job goes above this health: the play's own gate.
+const JOB_HEALTH: f32 = 0.4;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // He counts as still under this, m/s.
@@ -80,7 +87,7 @@ pub fn tuning() -> PlayTuning {
 /// `weight_batteries`, `weight_timed`): the players' research favours the
 /// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = cx.num(kind, cx.view.mode.weight_key());
+    let weight = cx.num(kind, cx.view.objective().weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
@@ -106,6 +113,17 @@ fn holding(cx: &Ctx, who: Place) -> bool {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    // [K2] The team's job on a held spot gives this bot the flank: the
+    // kills tell where he is and which way he faces, not his keys (a human
+    // camper stands and peeks, RC1). The gate below stays a second trigger.
+    if cx.tuning.threat.job
+        && let Some((job, Role::Flanker, line)) = cx.team.threat.job_of(cx.me.place)
+        && (matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || !job_flank_spots(cx, line).is_empty())
+        && let Some(c) = cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH)
+    {
+        out.push(c);
+    }
     for track in cx.memory.tracks() {
         let target = TargetRef::Place(track.who);
         let running = matches!(cx.bot.current, Some((PlayKind::Flank, t, _)) if t == target);
@@ -136,6 +154,11 @@ pub enum State {
     Wait {
         until: u32,
     },
+    /// A job's flank with no flank spot round the held spot: it fails at
+    /// once, so the play is set aside and the role goes to another bot
+    /// (waiting in place, re-taken at once, was 157 of the job's flank ends
+    /// and the bench's idle +41 %, p1-bench 631feece).
+    NoSpot,
 }
 
 /// The degrees between two ground directions.
@@ -160,8 +183,23 @@ fn wait(cx: &Ctx, rng: &mut Rng) -> State {
     }
 }
 
+/// The held spot a job's flank is on (K2), by its number.
+fn job_line<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<&'a crate::v026g::bots::threat::HeldLine> {
+    let TargetRef::ThreatSpot(id) = target else {
+        return None;
+    };
+    cx.team.threat.line(id)
+}
+
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    let num = |name| cx.num(PlayKind::Flank, name);
+    // The team's job (K2): him at the spot, facing down his death lanes.
+    if let Some(line) = job_line(cx, target) {
+        let spots = job_flank_spots(cx, line);
+        return match round(cx, line.at, line.facing_dir(), &spots, rng) {
+            State::Wait { .. } => State::NoSpot,
+            state => state,
+        };
+    }
     let TargetRef::Place(who) = target else {
         return wait(cx, rng);
     };
@@ -172,8 +210,16 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     ) else {
         return wait(cx, rng);
     };
-    let him = seen.at();
     let facing = kin::forward(p.yaw);
+    let spots = flank_spots(cx, seen.at(), facing, p.yaw, rng);
+    round(cx, seen.at(), facing, &spots, rng)
+}
+
+/// The flank spots round him at `him`, facing `facing` (yaw `yaw`): in
+/// sight of him, `spot_min_m`-`spot_max_m` from him, at least
+/// `off_facing_deg` off his facing, fine goals out of the spawn areas.
+fn flank_spots(cx: &Ctx, him: Vec3, facing: [f32; 2], yaw: f32, rng: &mut Rng) -> Vec<Vec3> {
+    let num = |name| cx.num(PlayKind::Flank, name);
     // Looked for on both flanks: round a point off his facing by
     // `off_facing_deg` and a bit more, at the band's middle distance (the
     // spot query samples a full ring; centred on a flank, few samples fall
@@ -182,7 +228,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let bearing = (num("off_facing_deg") + num("flank_extra_deg")).min(170.0);
     let mut found: Vec<Vec3> = Vec::new();
     for sign in [1.0_f32, -1.0] {
-        let yaw = p.yaw + sign * bearing.to_radians();
+        let yaw = yaw + sign * bearing.to_radians();
         let dir = kin::forward(yaw);
         let mid = (lo + hi) * 0.5;
         let centre = Vec3::new(him.x + dir[0] * mid, him.y, him.z + dir[1] * mid);
@@ -199,7 +245,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
                 .map(|s| s.at),
         );
     }
-    let spot = found
+    found
         .into_iter()
         .filter(|at| {
             let d = at.distance_xz(him);
@@ -208,11 +254,40 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
                 && cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && !cx.tactics.in_spawn_area(*at, None)
         })
-        // The nearest of the good ones: a flank is quick.
-        .min_by(|a, b| {
-            a.distance_xz(cx.me.feet)
-                .total_cmp(&b.distance_xz(cx.me.feet))
-        });
+        .collect()
+}
+
+/// A job's flank spots round its held spot (K2), found once for the side and
+/// kept `JOB_SPOTS_KEEP_MS` (Crossfire's `spots_by` pattern): the job's
+/// flanker is offered the play only where there is one. Offered everywhere,
+/// a held spot with none sent every flanker in turn to fail at once (1,244
+/// "no flank spot" ends, quick ends +129 %, p1-bench fd89b84f).
+fn job_flank_spots(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> std::sync::Arc<Vec<Vec3>> {
+    use crate::v026g::bots::tactics::Tactics;
+    let key = Tactics::spot_key(PlayKind::Flank as u32 + 1_000, cx.bot.side, line.at);
+    cx.tactics.spots_kept(key, cx.now, JOB_SPOTS_KEEP_MS, || {
+        let facing = line.facing_dir();
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        // Never in a held line, his own lanes too (as the pinner's,
+        // `crossfire.rs`): with victims far apart a flank spot can sit in one.
+        let mut spots = flank_spots(cx, line.at, facing, kin::yaw_of(facing), &mut rng);
+        spots.retain(|&at| cx.team.threat.line_at(at).is_none());
+        spots
+    })
+}
+
+/// How long a job's flank spots are kept, ms (as Crossfire's `spots_keep_s`).
+const JOB_SPOTS_KEEP_MS: u32 = 15_000;
+
+/// The way round him at `him` from the flank spots `spots`: the nearest,
+/// reached by a way point hidden from him; none, a wait.
+fn round(cx: &Ctx, him: Vec3, facing: [f32; 2], spots: &[Vec3], rng: &mut Rng) -> State {
+    let num = |name| cx.num(PlayKind::Flank, name);
+    // The nearest of the good ones: a flank is quick.
+    let spot = spots
+        .iter()
+        .copied()
+        .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)));
     let Some(spot) = spot else {
         return wait(cx, rng);
     };
@@ -255,6 +330,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let Some(him) = cx.point_of(target) else {
         return Step::Done("he is gone from the memory");
     };
+    // The team's job ended: the spot is no longer held.
+    if matches!(target, TargetRef::ThreatSpot(_)) && job_line(cx, target).is_none() {
+        return Step::Done("the spot is no longer held");
+    }
     // Seen up and moving: he no longer holds the angle.
     if let TargetRef::Place(who) = target
         && cx.memory.seen(who, cx.now, cx.view.clock).is_some()
@@ -265,6 +344,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     }
     let reach = num("reach_m");
     match state {
+        State::NoSpot => Step::Failed("no flank spot round the held spot"),
         State::Via { via, spot } => {
             let (via, spot) = (*via, *spot);
             if cx.me.feet.distance_xz(via) < reach * 1.5 {

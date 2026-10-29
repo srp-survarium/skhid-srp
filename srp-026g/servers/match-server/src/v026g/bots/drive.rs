@@ -705,6 +705,62 @@ fn drive_tick_inner(
                 bot.end_route(RouteEnd::ZoneShut, time);
             }
             let replan = replan || shut;
+            // [K1 A3] The team's cover changed since its route was planned
+            // (a lane held or cast after it set off): planned again when more
+            // than `threat::EXPOSED_M` of its way ahead is in the lanes now.
+            // Looked at once a change.
+            // `planned_with` moves only when a search runs (the K1 block
+            // below), so a replan starved by the poll's budget is asked again
+            // the next tick; a way found clear is not looked at again until
+            // the cover changes.
+            let changed = |was: &Option<Arc<threat::Covered>>| was.as_ref().is_none_or(|was| !Arc::ptr_eq(was, &bot.threat));
+            // The bench's judgment of an A3 replan: its next route against the
+            // way ahead it replaced (a new way or the same, less exposed, out
+            // of the lanes), once the new route is in place.
+            #[cfg(test)]
+            if let Some(asked) = bot.features.threat.asked {
+                let grid = &tactics.world.grid;
+                let (covered, heights) = (&bot.threat, bot.motor.heights());
+                if bot.route_born != asked.born
+                    && let Some((route, _)) = bot.route.as_mut()
+                {
+                    let (walked, _) = route.progress(me.feet);
+                    let now_m = threat::exposure_from(route, walked, heights, |p| covered.exposed_at(grid, p), &[me.feet, at]).metres;
+                    let left_m = route.length() - walked;
+                    threat::judged(asked, now_m, left_m);
+                    bot.features.threat.asked = None;
+                } else if time >= asked.time + threat::JUDGE_MS {
+                    threat::count(threat::Count::ReplanNoRoute);
+                    bot.features.threat.asked = None;
+                }
+            }
+            #[cfg(test)]
+            let mut ahead = None;
+            let threat_ahead = !replan
+                && tuning.threat.spots
+                && tuning.threat.replan
+                && !bot.threat.is_empty()
+                && changed(&bot.features.threat.planned_with)
+                && changed(&bot.features.threat.clear_with)
+                && {
+                    let grid = &tactics.world.grid;
+                    let (covered, heights) = (&bot.threat, bot.motor.heights());
+                    let exposed = bot.route.as_mut().is_some_and(|(route, _)| {
+                        let (walked, _) = route.progress(me.feet);
+                        let m = threat::exposure_from(route, walked, heights, |p| covered.exposed_at(grid, p), &[me.feet, at]).metres;
+                        #[cfg(test)]
+                        {
+                            ahead = Some((m, route.length() - walked));
+                        }
+                        m > threat::EXPOSED_M
+                    });
+                    if !exposed {
+                        threat::count(threat::Count::ReplanClear);
+                        bot.features.threat.clear_with = Some(bot.threat.clone());
+                    }
+                    exposed
+                };
+            let replan = replan || threat_ahead;
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {
                 time < until && goal.distance_xz(at) <= REPLAN_MOVED_M
@@ -811,6 +867,30 @@ fn drive_tick_inner(
                         bot.bench_starved_polls = 0;
                     }
                 }
+                // The bench's tag of this search (and of its resumed part).
+                #[cfg(test)]
+                let _tag = {
+                    let job = bot.assignment.as_ref().is_some_and(|a| matches!(a.target, plays::TargetRef::ThreatSpot(_)));
+                    let tag = if threat_ahead {
+                        path::tag::REPLAN
+                    } else if job {
+                        path::tag::JOB
+                    } else {
+                        path::tag::OTHER
+                    };
+                    bot.features.threat.search_tag = tag;
+                    path::tag::Scope::new(tag)
+                };
+                // A search starts: its route is planned against the cover of
+                // now (A3 asks again only when the cover changes after this).
+                if threat_ahead {
+                    threat::count(threat::Count::ReplanAsked);
+                    #[cfg(test)]
+                    if let Some((exposed_m, left_m)) = ahead {
+                        bot.features.threat.asked = Some(threat::Asked { exposed_m, left_m, born: bot.route_born, time });
+                    }
+                }
+                bot.features.threat.planned_with = Some(bot.threat.clone());
                 let grid = &tactics.world.grid;
                 #[cfg(test)]
                 {
@@ -959,6 +1039,80 @@ fn drive_tick_inner(
                     threat::checked(&seen);
                     if seen.metres > threat::EXPOSED_M
                         && tuning.threat.detour
+                        && tuning.threat.whole_route
+                        && let Some((n0, n1)) = ends
+                        && n0 != n1
+                    {
+                        // [K1 A2] The way weighed round his lanes on the whole
+                        // route (the regions' search, a covered region's walk
+                        // costing `lane_cost` more), the floors searched in that
+                        // room only: kept when not much longer than the plain
+                        // route and less exposed.
+                        let regions = tactics.regions();
+                        let free = threat::free_regions(&bot.threat, tactics, n0, n1);
+                        let start = grid.position(n0);
+                        let room = threat::costed_corridor(
+                            grid,
+                            regions,
+                            regions.of(n0),
+                            regions.of(n1),
+                            &bot.threat,
+                            &free,
+                            tuning.threat.lane_cost,
+                            |r| tactics.region_allowed_from(r, time, side, objective, start),
+                        );
+                        if let Some(room) = room {
+                            // The plain route's soft rules (the stuck spots, the
+                            // traps it noticed), kept to the room; with
+                            // `lane_weighted` the fine search weighs the lanes
+                            // and the soft rules as costs, else shuts them.
+                            let soft = traps::soften(
+                                bot,
+                                hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
+                                Some(n0),
+                            )
+                            .keeping_to(Arc::new(room), tactics.region_lookup());
+                            let avoid = if tuning.threat.lane_weighted {
+                                soft.weighing_threat(bot.threat.clone(), start, grid.position(n1), tuning.threat.lane_cost)
+                            } else {
+                                soft
+                            };
+                            // Its own floors (`whole_route_floors`), not what the
+                            // poll's other searches left: with the remainder it ran
+                            // out in 29 of 30 searches at about 1,900 floors (p1-bench,
+                            // 2026-10-29). Taken off the poll's all the same, so the
+                            // searches after it in this poll wait.
+                            let cap = tuning.threat.whole_route_floors as usize;
+                            let mut mine = cap;
+                            #[cfg(test)]
+                            let _k1 = path::tag::Scope::new(path::tag::K1);
+                            let way = tactics.start_route(n0, n1, time, side, objective, &avoid, &mut mine);
+                            *floors = floors.saturating_sub(cap - mine);
+                            let mut kept_m = seen.metres;
+                            match way {
+                                Ok(Some(round)) if stuck::worth_round(round.length(), plain.length()) => {
+                                    let less = threat::exposure(&round, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
+                                    if less.metres < seen.metres {
+                                        threat::searched(threat::Searched::Round);
+                                        threat::rounded(bot.place, time);
+                                        kept_m = less.metres;
+                                        detour = Some(round);
+                                    } else {
+                                        // No less exposed than the way through: counted with the long ones.
+                                        threat::searched(threat::Searched::TooLong);
+                                    }
+                                }
+                                Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
+                                Ok(None) => threat::searched(threat::Searched::NoWay),
+                                Err(_) => threat::searched(threat::Searched::Budget),
+                            }
+                            threat::spent(cap - mine, seen.metres, kept_m);
+                        } else {
+                            threat::searched(threat::Searched::NoWay);
+                        }
+                    } else if seen.metres > threat::EXPOSED_M
+                        && tuning.threat.detour
+                        && !tuning.threat.whole_route
                         && let Some(&(first, last)) = seen.spans.first()
                     {
                         let s0 = (first - threat::DETOUR_MARGIN_M).max(0.0);
@@ -992,6 +1146,13 @@ fn drive_tick_inner(
                                 Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
                                 Ok(None) => threat::searched(threat::Searched::NoWay),
                                 Err(_) => threat::searched(threat::Searched::Budget),
+                            }
+                            #[cfg(test)]
+                            {
+                                let kept = detour.as_ref().map_or(seen.metres, |d| {
+                                    threat::exposure(d, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]).metres
+                                });
+                                threat::spent(cap - mine, seen.metres, kept);
                             }
                         }
                     }

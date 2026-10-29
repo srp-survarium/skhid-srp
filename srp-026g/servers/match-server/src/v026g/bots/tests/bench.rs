@@ -705,7 +705,7 @@ pub(crate) fn real_bot_cost() {
             let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
-                mode,
+                crate::v026g::bots::objective::Mode::parse(mode).unwrap(),
                 level,
                 &teams,
                 &driven,
@@ -983,8 +983,10 @@ pub(crate) fn real_bot_cost() {
             let mut threat_changes = 0u32;
             let mut detour_deaths = 0u32;
             let (mut bot_deaths, mut bot_ticks, mut detour_ticks) = (0u32, 0u64, 0u64);
+            threat::new_match();
             let threat_searches_before = threat::searches();
             let threat_checks_before = threat::checks();
+            let threat_spent_before = threat::spents();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             events.containers(&game);
@@ -1771,7 +1773,7 @@ pub(crate) fn real_bot_cost() {
             );
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
-                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
+                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {} search_floors {} exposed_asked_m {:.1} exposed_kept_m {:.1}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
                 detour_ticks as f64 * f64::from(TICK_MS) / 1000.0,
                 threat::checks()[0] - threat_checks_before[0],
@@ -1779,7 +1781,10 @@ pub(crate) fn real_bot_cost() {
                 threat::searches()[0] - threat_searches_before[0],
                 threat::searches()[1] - threat_searches_before[1],
                 threat::searches()[2] - threat_searches_before[2],
-                threat::searches()[3] - threat_searches_before[3]
+                threat::searches()[3] - threat_searches_before[3],
+                threat::spents()[0] - threat_spent_before[0],
+                (threat::spents()[1] - threat_spent_before[1]) as f64 / 10.0,
+                (threat::spents()[2] - threat_spent_before[2]) as f64 / 10.0
             );
             let perched = super::plays::goals::perch_counts();
             eprintln!(

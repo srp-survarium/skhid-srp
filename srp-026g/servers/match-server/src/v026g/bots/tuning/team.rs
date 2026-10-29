@@ -62,6 +62,82 @@ pub struct ThreatTuning {
     /// Floors of a poll's search budget one search round the covered
     /// regions may take (the poll's is `ThinkTuning::search_floors_per_poll`).
     pub search_floors: u32,
+    /// A2 (`an-anticamper.md` §3b): the way round a lane is planned on the
+    /// whole route, the regions' search costing a covered region's walk
+    /// `lane_cost` times more, and the floors searched inside that corridor
+    /// (off: a local detour round the first lane with the lane shut, which
+    /// ran out of floors in 79-81 % of exposed routes in the bench).
+    pub whole_route: bool,
+    /// What a metre walked in a covered region costs more than a plain one
+    /// (the whole-route search): 3 makes a lane metre cost 4. GUESS, the order
+    /// of Killzone's links under fire and Valve's danger cost; the length cap
+    /// (`stuck::worth_round`) bounds what any detour may add.
+    pub lane_cost: f32,
+    /// Floors the whole-route search round the lanes may expand, its own
+    /// (not what the poll's other searches left; taken off the poll's after).
+    /// The local detour's `search_floors` (3,000) was sized for a stretch of
+    /// 30-40 m; the whole route is 100-200 m on a 0.25 m grid. Default a
+    /// poll's budget (`SEARCH_FLOORS_PER_POLL`): it runs only on an exposed
+    /// route, 1-5 % of the routes planned; the bench's poll tail decides.
+    pub whole_route_floors: u32,
+    /// A2's fine pass: inside the costed corridor's room the floors are
+    /// searched with the same cost (a covered floor's link costs
+    /// `1 + lane_cost` times its length, the route's ends free; Detour's area
+    /// costs), not with the covered floors shut (off: shut, the room's
+    /// uncovered regions only, `RouteFilter::keeping_to`).
+    pub lane_weighted: bool,
+    /// A3: a route walked is planned again when the covered regions change
+    /// and more than `threat::EXPOSED_M` of its way ahead is in them (off: a
+    /// route kept to its end whatever was held after it was planned).
+    /// OFF by default: its head-to-head (96 pairs, p1m 2026-10-29) cost
+    /// +17.5 % floors a match-second for the team (z +6.9) and the package
+    /// with it scored -2.0 % (z -1.4), while the package without it scored
+    /// +0.7 % (z +0.5) at the floors of OFF: CPU for no score.
+    pub replan: bool,
+    /// A4: a held spot casts its lanes again when a kill comes from a
+    /// bearing outside every lane cast (or the reach grows, or its centre
+    /// moves), keeping the old cover until the new cast ends (off: cast
+    /// again only when the reach grows, covering nothing meanwhile).
+    pub recast: bool,
+    /// §8.4: a spot is the shooter's area, kills within `threat::AREA_M`
+    /// merged and its centre their middle, and he is on it while sensed in
+    /// it (off: the first kill's point and `threat::MERGE_M`).
+    pub area: bool,
+    /// K2: a held spot starts a team job: a flanker (Flank from the side
+    /// off his death lanes) and a pinner (Crossfire at the edge of his
+    /// reach, out of his lanes); the crouch-and-aim gate stays a second
+    /// trigger of Flank.
+    pub job: bool,
+    /// The job's plays compete in the objective band (off: the fight band,
+    /// where any objective cuts them, RC3).
+    pub job_objective: bool,
+    /// A job play's score: the team gave the role, so it is scored by the
+    /// role (this, times the play's health gate), not by the bot's
+    /// personality, push or cooldown, which kept 80 of 129 roles from being
+    /// taken (p1-bench, 2026-10-29). GUESS: 0.7, about a battery take next
+    /// to the bot (Collect 0.54-0.66 by Vector Laboratory's battery 0).
+    pub job_score: f32,
+    /// A job opens only on a spot with this many kills or more (K2): a hold.
+    /// One kill and a sighting already hold a spot for the routes (K1), and
+    /// a job on each of those sent bots to every fight: a job began a median
+    /// 0.6 s after its spot was made and ended 10 s later, unheld (1,273 of
+    /// 1,457 jobs, 30 a match), with flips +38 %, U-turns +22 % and floors
+    /// +27 % (p1-bench 5504b7a4). PROVEN: a hold is a run of 2+ kills
+    /// within 10 m in one life (`an-anticamper.md` §8.4, 8,474 live holds).
+    pub job_kills: u32,
+    /// K1: a held spot's lanes are cast by the team's bullets (#705's cover
+    /// rule, `threat::FireEyes`): a crate, a car or a thin wall the bullets
+    /// pierce does not hide a lane (off: by sight, as it was).
+    pub lanes_pierce: bool,
+    /// K3: Trade does not go to a partner's death in a held spot's lanes.
+    pub trade_out_of_lines: bool,
+    /// K3: PairUp does not join a teammate standing in a held spot's lanes,
+    /// and its join and wait spots are out of the top player's sight and the
+    /// held lanes (F3).
+    pub pair_up_hidden: bool,
+    /// K3's other half (`an-anticamper.md` §4.1): a Crossfire spot is never
+    /// in a held spot's lanes.
+    pub crossfire_out_of_lines: bool,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -105,8 +181,27 @@ impl Default for CommitTuning {
 
 impl Default for ThreatTuning {
     fn default() -> Self {
-        Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
-
+        Self {
+            spots: true,
+            sprint: true,
+            detour: true,
+            search_floors: 3_000,
+            whole_route: true,
+            lane_cost: 3.0,
+            whole_route_floors: SEARCH_FLOORS_PER_POLL,
+            lane_weighted: true,
+            replan: false,
+            recast: true,
+            area: true,
+            job: true,
+            job_objective: true,
+            job_score: 0.7,
+            job_kills: 2,
+            lanes_pierce: true,
+            trade_out_of_lines: true,
+            pair_up_hidden: true,
+            crossfire_out_of_lines: true,
+        }
     }
 }
 

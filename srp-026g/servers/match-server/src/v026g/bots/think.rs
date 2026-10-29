@@ -446,7 +446,7 @@ pub(super) fn sense_batteries(
     } = *due;
     // With the battery cheat off, the batteries and spawners' spots it
     // sees become its team's knowledge.
-    if !tuning.cheats.batteries && view.mode.has_batteries() {
+    if !tuning.cheats.batteries && view.objective().has_homes() {
         // Spawners only while some battery is missing.
         let missing = plays::batteries_unaccounted(view, bot.team, &state.knowledge) > 0;
         let worth: Vec<bool> = (0..tactics.world.map.battery_spawners.len())
@@ -721,6 +721,8 @@ pub(super) fn react(
         }),
         cover: tuning.cover.rule(),
     };
+    // A bullet that hit it, a limb's too (the hit marker and the stagger), as the world last showed.
+    bot.reflex.bullet_hit(bot.hurt.last_hit_ms);
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
@@ -730,6 +732,14 @@ pub(super) fn react(
         bot.note(notes, now, text);
     }
     smoke_react(due, bot, notes);
+    for text in bot.reflex.take_worth_notes() {
+        bot.note(notes, now, text);
+    }
+    // A push on a hurt enemy: the team's cap on it counts this bot while it goes on, and not after.
+    match bot.reflex.pushing() {
+        Some((victim, until)) => state.knowledge.wounds.push_claim(victim, bot.place, until),
+        None => state.knowledge.wounds.push_release(bot.place),
+    }
     smoke_uses(due, bot, notes);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
@@ -775,7 +785,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         life_ms: now.saturating_sub(me.spawned),
         match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
         carrying: me.carrying.is_some(),
-        tickets: view.mode.is_deathmatch().then(|| view.points[usize::from(bot.team & 1)]),
+        tickets: view.objective().tickets(view, bot.team),
         since_last_ms: bot.self_killed_at.map(|at| now.saturating_sub(at)),
         team_last_minute: state.features.stuck.self_kills.len() as u32,
     };
