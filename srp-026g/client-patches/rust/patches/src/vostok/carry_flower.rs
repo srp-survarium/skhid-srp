@@ -8,9 +8,9 @@ use super::world::{read};
 use super::carry_runtime::Scene;
 use crate::raw;
 
-struct Model(raw::PlayerModel);
+struct Model(raw::SceneModel);
 impl Model {
-    unsafe fn retain(object: raw::PlayerModel) -> Self {
+    unsafe fn retain(object: raw::SceneModel) -> Self {
         // SAFETY: live query result retains the model through this increment.
         unsafe { AtomicU32::from_ptr(object.references()).fetch_add(1, Ordering::AcqRel); }
         Self(object)
@@ -91,7 +91,7 @@ pub fn destroy(ctx: &Context<'_>) {
     });
 }
 
-pub(super) fn with_model<R>(thread: &Thread, item: u32, original: raw::PlayerModel, f: impl FnOnce(raw::PlayerModel) -> R) -> R {
+pub(super) fn with_model<R>(thread: &Thread, item: u32, original: raw::SceneModel, f: impl FnOnce(raw::SceneModel) -> R) -> R {
     FLOWERS.with(thread, |slots| {
         let model = slots.iter().flatten().find(|f| f.item == item).map_or(original, |f| f.model.0);
         f(model)

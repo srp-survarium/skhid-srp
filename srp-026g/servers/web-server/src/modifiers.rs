@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 use survarium::v026g::dictionary::{Dictionary, Item};
 use survarium::v026g::item_params::{self, ItemParams};
 use survarium::v026g::localization::{self, Language};
-use survarium::v026g::modifications::{self, Modification, Modifications};
+use survarium::v026g::modifications::{Modification, Modifications};
 use survarium::v026g::ui_properties::{Change, UiProperties, UiProperty};
 
 use crate::icons::{self, IconSet};
@@ -44,7 +44,7 @@ fn script_url() -> &'static str {
 /// The lobby's kinds of item that take modifications: its shop filters,
 /// weapons first, then the kit slots.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Group {
+pub(crate) enum Group {
     AssaultRifle,
     SubmachineGun,
     MachineGun,
@@ -62,7 +62,7 @@ enum Group {
 
 impl Group {
     /// The group of an item of `category` (`items_dict`'s `item_category`).
-    fn of(category: u8) -> Option<Self> {
+    pub(crate) fn of(category: u8) -> Option<Self> {
         Some(match category {
             8 => Self::AssaultRifle,
             15 => Self::SubmachineGun,
@@ -82,7 +82,7 @@ impl Group {
     }
 
     /// Its `item_category`, which names its icon.
-    fn category(self) -> u8 {
+    pub(crate) fn category(self) -> u8 {
         match self {
             Self::AssaultRifle => 8,
             Self::SubmachineGun => 15,
@@ -100,12 +100,12 @@ impl Group {
         }
     }
 
-    fn is_weapon(self) -> bool {
+    pub(crate) fn is_weapon(self) -> bool {
         self <= Self::Pistol
     }
 
     /// The localization key of the lobby's name for it.
-    fn name_key(self) -> &'static str {
+    pub(crate) fn name_key(self) -> &'static str {
         match self {
             Self::AssaultRifle => "st_filter_assault_rifle",
             Self::SubmachineGun => "st_filter_submachine_gun",
@@ -229,8 +229,12 @@ fn kinds() -> &'static [Kind] {
                 let kind = rows[0].kind;
                 let ids: Vec<u32> = rows.iter().map(|row| row.id).collect();
                 let takes = |params: &ItemParams| match source {
-                    Source::Rolled => modifications::item_mods(params.dict_id)
-                        .is_some_and(|mods| mods.modifications & (1 << kind) != 0),
+                    // What a roll may give the item: the server's own candidates,
+                    // which leave out a kind the item already comes with.
+                    Source::Rolled => Modifications::shared()
+                        .candidates(params.dict_id, &[])
+                        .iter()
+                        .any(|row| row.kind == kind),
                     Source::BuiltIn => params
                         .default_modifications
                         .iter()
@@ -288,7 +292,7 @@ pub(crate) fn chosen(query: &str) -> Option<u16> {
         .map(|choice| choice.item.dict_id)
 }
 
-fn language(lang: Lang) -> Language {
+pub(crate) fn language(lang: Lang) -> Language {
     match lang {
         Lang::En => Language::English,
         Lang::Uk => Language::Ukrainian,
@@ -296,7 +300,7 @@ fn language(lang: Lang) -> Language {
 }
 
 /// The game's text of `key`, else the key.
-fn text(lang: Lang, key: &str) -> String {
+pub(crate) fn text(lang: Lang, key: &str) -> String {
     localization::text(language(lang), key)
         .unwrap_or(key)
         .trim()
@@ -312,7 +316,7 @@ fn number(value: f32) -> String {
 
 /// One strength as the lobby prints it: a signed percentage for a change
 /// that multiplies, a signed amount with its unit for one that adds.
-fn strength(lang: Lang, property: &UiProperty, value: f32) -> String {
+pub(crate) fn strength(lang: Lang, property: &UiProperty, value: f32) -> String {
     let sign = if value > 0.0 { "+" } else { "" };
     match property.change {
         Some(Change::Multiplies) => format!("{sign}{}%", number(value * 100.0)),
@@ -324,7 +328,7 @@ fn strength(lang: Lang, property: &UiProperty, value: f32) -> String {
 }
 
 /// The name the lobby prints for `property`.
-fn property_name(lang: Lang, property: &UiProperty) -> String {
+pub(crate) fn property_name(lang: Lang, property: &UiProperty) -> String {
     text(
         lang,
         property
@@ -335,7 +339,7 @@ fn property_name(lang: Lang, property: &UiProperty) -> String {
 }
 
 /// An item's name for the lists.
-fn item_name(lang: Lang, dict_id: u16) -> String {
+pub(crate) fn item_name(lang: Lang, dict_id: u16) -> String {
     let item = Dictionary::shared()
         .item(dict_id)
         .expect("an item of the dictionary");
@@ -351,7 +355,7 @@ fn item_name(lang: Lang, dict_id: u16) -> String {
 
 /// A lobby glyph drawn in the text's colour (a CSS mask), or nothing if the
 /// build made no icon for it.
-fn glyph(set: IconSet, key: &str) -> String {
+pub(crate) fn glyph(set: IconSet, key: &str) -> String {
     icons::url(set, key).map_or_else(String::new, |url| {
         format!(
             "<span class=glyph style=\"--icon:url('{}')\" aria-hidden=true></span>",
@@ -361,7 +365,7 @@ fn glyph(set: IconSet, key: &str) -> String {
 }
 
 /// An item's lobby picture, or nothing.
-fn picture(dict_id: u16) -> String {
+pub(crate) fn picture(dict_id: u16) -> String {
     let item = Dictionary::shared()
         .item(dict_id)
         .expect("an item of the dictionary");
@@ -375,7 +379,7 @@ fn picture(dict_id: u16) -> String {
 
 /// A group's icon with its name for the reader and as a tip; its name as
 /// text if the build made no icon.
-fn group_label(lang: Lang, group: Group) -> String {
+pub(crate) fn group_label(lang: Lang, group: Group) -> String {
     let name = escape(&text(lang, group.name_key()));
     match icons::url(IconSet::Group, &group.category().to_string()) {
         Some(_) => format!(
@@ -500,12 +504,43 @@ fn item_html(lang: Lang, item: Option<u16>) -> String {
         );
     };
     let params = item_params::item_params(dict_id).expect("an offered item has its parameters");
+    format!(
+        "<section class=item-modifiers id=item><h2>{}</h2>{chooser}\
+         <div class=item-card><div class=item-head>{}<div><strong>{}</strong><span>{} · {}</span></div></div>{}</div></section>",
+        lang.tr("By item", "За предметом"),
+        picture(dict_id),
+        escape(&item_name(lang, dict_id)),
+        group_label(
+            lang,
+            Group::of(
+                Dictionary::shared()
+                    .item(dict_id)
+                    .expect("an item")
+                    .category
+            )
+            .expect("an offered item has a group")
+        ),
+        lang.tr(
+            &format!("level {}", params.item_level),
+            &format!("рівень {}", params.item_level)
+        ),
+        item_lists(lang, dict_id, ""),
+    )
+}
+
+/// What `dict_id` can roll (each kind linked to its row of this page,
+/// `page` before the `#`: "" here, the page's address elsewhere) and what
+/// it comes with: the "By item" view's lists, also the equipment's cards'.
+pub(crate) fn item_lists(lang: Lang, dict_id: u16, page: &str) -> String {
+    let Some(params) = item_params::item_params(dict_id) else {
+        return String::new();
+    };
     let rolls: Vec<String> = kinds()
         .iter()
         .filter(|kind| kind.source == Source::Rolled && kind.takes(dict_id))
         .map(|kind| {
             format!(
-                "<li><a class=kind href=\"#kind-{}\">{}</a>{}</li>",
+                "<li><a class=kind href=\"{page}#kind-{}\">{}</a>{}</li>",
                 kind.id,
                 kind_title(lang, kind),
                 strengths_html(lang, kind)
@@ -540,25 +575,7 @@ fn item_html(lang: Lang, item: Option<u16>) -> String {
         }
     };
     format!(
-        "<section class=item-modifiers id=item><h2>{}</h2>{chooser}\
-         <div class=item-card><div class=item-head>{}<div><strong>{}</strong><span>{} · {}</span></div></div>{}{}</div></section>",
-        lang.tr("By item", "За предметом"),
-        picture(dict_id),
-        escape(&item_name(lang, dict_id)),
-        group_label(
-            lang,
-            Group::of(
-                Dictionary::shared()
-                    .item(dict_id)
-                    .expect("an item")
-                    .category
-            )
-            .expect("an offered item has a group")
-        ),
-        lang.tr(
-            &format!("level {}", params.item_level),
-            &format!("рівень {}", params.item_level)
-        ),
+        "{}{}",
         list(lang.tr("Can roll", "Може отримати"), rolls),
         list(lang.tr("Comes with", "Має від початку"), built_in),
     )
@@ -627,6 +644,28 @@ mod tests {
 
     fn dict_id(name: &str) -> u16 {
         Dictionary::shared().item_named(name).unwrap().dict_id
+    }
+
+    #[test]
+    fn a_kind_an_item_comes_with_is_not_one_it_can_roll() {
+        let data = Modifications::shared();
+        for choice in grouped() {
+            let built_in: Vec<u8> = choice
+                .params
+                .default_modifications
+                .iter()
+                .filter_map(|&id| data.modification(id))
+                .map(|modification| modification.kind)
+                .collect();
+            for kind in kinds().iter().filter(|kind| kind.source == Source::Rolled) {
+                assert!(
+                    !(kind.takes(choice.item.dict_id) && built_in.contains(&kind.id)),
+                    "{} comes with kind {} and is listed as rolling it",
+                    choice.item.name,
+                    kind.id
+                );
+            }
+        }
     }
 
     #[test]

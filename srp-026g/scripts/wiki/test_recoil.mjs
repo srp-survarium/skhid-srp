@@ -33,7 +33,9 @@ assert.deepEqual(aimed.frames.map(frame=>[frame.vertical,frame.horizontal]), Wea
 assert.ok(aimed.events.every(event=>event.spread===.2), 'aimed: the base spread only');
 assert.ok(aimed.frames.every(frame=>frame.shake.side===0&&frame.shake.up===0), 'aimed: no shake');
 assert.equal(hip.events[0].spread, 5.2, 'hip: the stance spread on the first shot');
-assert.ok(Math.abs(hip.events[1].spread-(5.2+2-10*(hip.events[1].time-hip.events[0].time)))<1e-9, 'hip: a shot adds its amount, then it falls');
+// The fall runs per 50 ms tick: between one and two ticks before the second shot.
+assert.ok(hip.events[1].spread >= 5.2+2-10*.1-1e-9 && hip.events[1].spread <= 5.2+2-10*.05+1e-9, 'hip: a shot adds its amount, then it falls');
+assert.ok(Math.abs(hip.events[1].time-full.interval/1000)<1e-9, 'a shot at its own moment, 60/rpm after the last');
 assert.ok(hip.events.every(event=>Math.hypot(event.bullet.side,event.bullet.up)<=event.spread/2+1e-9), 'a bullet stays inside the cone');
 assert.ok(hip.frames.some(frame=>frame.shake.up!==0), 'hip: the shake plays');
 assert.ok(hip.frames.at(-1).shake.up===0||Math.abs(hip.frames.at(-1).shake.up)<1e-3, 'the shake dies out');

@@ -68,6 +68,11 @@ cargo test -p web-server serve_wiki_preview -- --ignored --nocapture
 
 Open `http://127.0.0.1:24583/wiki`. This uses isolated in-memory accounts and
 does not start or connect to the game servers. Stop the command to close it.
+The modifiers and equipment pages come from the tests' game data (an old fixed
+copy) unless `SRP_GAME_DATA` names a server data file, e.g. the one
+`release/build-content <revision>` makes: then they show that release's items.
+Item icons are the site build's (`release/build-site --tree . --with <patch>`
+for a patch not released yet).
 
 `check_browser.mjs` exercises the real HTTP preview in an isolated Firefox
 WebDriver BiDi session (port 9457 by default), including filtering, sorting,
@@ -98,3 +103,20 @@ brightness as alpha (their baked drop shadow drops out), for the page to
 tint in its ink with CSS masks. The build fails if an item of those
 categories has no lobby icon, a modification's icon is an empty cell, or a
 filter frame does not hold exactly one bitmap.
+
+## Equipment
+
+`/wiki/equipment` is the web server's (`servers/web-server/src/equipment.rs`),
+like the modifiers page: every armour piece from the server's own game data
+(`crates/survarium/src/v026g/armour.rs`, read at srp's start) with its icon,
+protection per body part (Armour and Isolation when a part's physical types
+and its anomaly types each share one value, as in every config so far; else a
+column per type), the slots its model takes, an oxygen tank's time and gas
+filter (`data.amount_time_sec`, `influences`), level, matchmaking level when it
+differs, faction (`factions_dict`), and the modifiers page's "Can roll" /
+"Comes with" (`modifiers::item_lists`). What it shows and skips follows
+`docs/notes/armour-params.md`. A helmet "flies off" when the headwear edit list
+(`scripts/content-edit/headwear-1.json`, compiled in) rebinds its model.
+`equipment.js` (copied by `build.py`) filters by slot and faction (both kept
+in the address: `?slot=helmet&faction=3`), level and name, sorts, and groups
+by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.

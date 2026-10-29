@@ -1447,13 +1447,13 @@ va	name	source	ret_cleanup	result
 0x0033e3a0	survarium::oxygen_tank::action	manual	8	
 0x0033e400	survarium::oxygen_tank::set_active	manual	0	
 0x0033e5d0	survarium::oxygen_tank::tick	manual	12	
-0x0033e6f0	survarium::oxygen_tank::reduce_damage	manual	12	
+0x0033e6f0	survarium::oxygen_tank::reduce_damage	manual	12	the damage at stack+8 in place: 0 below the matching influence's threshold (+88h), else (damage - threshold) x hit_coeff (+84h); unchanged without a match (observed)
 0x0033e740	survarium::oxygen_tank::get_item_props	manual	4	
 0x0033e790	survarium::oxygen_tank::serialize	manual	8	
 0x0033e7f0	survarium::oxygen_tank::deserialize	manual	12	
 0x0033eaa0	survarium::armor::armor	manual	8	
 0x0033efc0	survarium::armor::`scalar deleting destructor'	manual	4	
-0x0033f0c0	survarium::armor::on_holder_assigned	manual	0	
+0x0033f0c0	survarium::armor::on_holder_assigned	manual	0	adds the item's per-type armour of each covered part into the body part's total (0x33F2DD) and its health/regeneration_speed (+9Ch/+A4h, 0x33F297) (observed)
 0x0033f3a0	survarium::armor::add_modifiers	manual	0	
 0x0033fde0	survarium::player_history_item::serialize	manual	0	
 0x0033fee0	survarium::player_history_item::deserialize	manual	4	
@@ -2001,6 +2001,7 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
+0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	manual	0	void
 0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
 0x000e3c10	vostok::core::preinitialize	manual		
 0x000ddeb0	vostok::command_line::key<string>::is_set	manual	0	AL: 1 when the key is on the command line (its value then copied into EAX's buffer_string), 0 when not
@@ -2047,6 +2048,8 @@ va	name	source	ret_cleanup	result
 0x002fbf90	survarium::base_player::look_time_factor_calculator	manual	24	ST0 = min((look_pitch + 1) * 0.5 (0x927A44), 0.99999 (0xA2D9D8)) * entry ESP+4 (clip length); look_pitch: [ECX+128h]'s vtable +8 (weapon_core::look_pitch 0x2E0F60). Drives the look clips; the first-person camera is bone Item (computed_head_transform 0x2DA4B0, Item's parent is Root), turned only by on_site_camera_look: +67.5 deg at time 0, 0 at the middle, -60.0 deg at the end, linear on each side (decoded from 0.26g's clip, 2026-10-29): 60 deg of view per pitch unit up, 67.5 down
 0x002e39b0	survarium::weapon_core::computed_vertical_recoil_time	manual	4	ST0 = [ECX+47Ch] (recoil object +14h: the camera-shake weight z, 0..1) if [ECX+8] (the user) and byte [user+33Ch] are set, else 0. One stack argument: the camerashake lexeme's weight calculator (lexeme +0Ch delegate, built by 0x2E13A0), not a time calculator; the name is the 0.21d match's.
 0x002e13a0	survarium::weapon_core::get_camera_shake_lexeme	manual	4	Builds the lexeme of recoil_animations[2] (camerashake_v2) into ECX: weight calculator 0x2E39B0 (+0Ch), animated object the user (+2Ch), time scale (+44h) = weapon +450h (shake_time_scale) when [[weapon+330h]+124h] == 5 (fire state; 0.10b order inactive, show, hide, idle, reload, fire, aim, aim_fire, chamber, chamber_aimed) else 0, time-sync group 1 (+4Ch), additivity priority 5 (+54h). Called last by get_recoil_expression (0x2E1369). Lexeme offsets: 0.10b animation_lexeme_parameters plus 0Ch before animated_object.
+0x00329ff0	survarium::body_part_parameters::hit_by_type	manual	20	the hit's damage in place: D x (1 - clamp(A - P, 0, 1)), A the part's summed armour for the hit type (its type list at +18h, value +8), P the penetration (0x32A07E..0x32A0AC; observed)
 0x00331a50	survarium::weapon_recoil_calculator::tick	manual	4	Recoil object in ESI (weapon_core+468h): until 60/rpm after the last shot moves side x (+0Ch), top y (+10h) and shake z (+14h) at their speeds (+18h, +1Ch, +20h); for the rest of the tick the PID 0x3321E0 pulls all three to 0. Clamps x and y to -1..1, z to 0..1.
 0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each times apply_modifier (0x2D5AE0, index 12h); x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
 0x003321e0	survarium::weapon_recoil_calculator::compensation_pid	manual	4	One PID over the three axes (x, y, z at EDX, state at ECX = recoil object +24h: integrals +18h..+20h, previous errors +0Ch..+14h, gains Kp/Ki/Kd +24h/+28h/+2Ch); XMM4 = dt. Writes the three outputs at [EAX] (the tick negates them into the speeds).
+0x0033e680	survarium::oxygen_tank::find_influence	manual	8	EAX the influence row {body_part at +70h, hit_type, hit_coeff +84h, threshold +88h} matching the hit's body part and type, or 0 (observed)

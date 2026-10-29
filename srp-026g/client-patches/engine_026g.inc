@@ -199,13 +199,13 @@ extern engine_quick_inventory_slot
 ; void *engine_core_active_player(struct core_world *world, unsigned int place, struct player **out)
 ; 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX
 extern engine_core_active_player
-; void engine_add_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second)
+; void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)
 ; 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
 extern engine_add_model
-; void engine_remove_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene)
+; void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene)
 ; 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
 extern engine_remove_model
-; void engine_update_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second)
+; void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)
 ; 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
 extern engine_update_model
 ; void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)
@@ -217,6 +217,6 @@ extern engine_input_alt_held
 ; void engine_release_item(struct artefact *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_item
-; void engine_release_model(struct player_model *object, unsigned int *count)
+; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model

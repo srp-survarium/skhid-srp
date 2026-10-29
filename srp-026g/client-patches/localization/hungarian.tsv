@@ -2145,6 +2145,165 @@ st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Szerelékek
+st_srp_equipment029_bm_back_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_6_name	Őrszem hátizsák
+st_srp_equipment029_bm_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_8_name	M-1 életfenntartó rendszer
+st_srp_equipment029_bm_back_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_9_name	Fátyol antiradar
+st_srp_equipment029_bm_boots_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_5_name	Vipera csizma
+st_srp_equipment029_bm_boots_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_8_name	Omikron csizma
+st_srp_equipment029_bm_boots_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_9_name	Zsoldoscsizma
+st_srp_equipment029_bm_gloves_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_6_name	Őrszemkesztyű
+st_srp_equipment029_bm_gloves_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_8_name	Omikron kesztyű
+st_srp_equipment029_bm_gloves_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_9_name	Zsoldoskesztyű
+st_srp_equipment029_bm_helmet_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_6_name	Vipera sisak
+st_srp_equipment029_bm_helmet_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_8_name	Omikron sisak
+st_srp_equipment029_bm_helmet_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_9_name	Zsoldossisak
+st_srp_equipment029_bm_legs_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_5_premium_name	Marodeur MKII nadrág
+st_srp_equipment029_bm_legs_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_6_name	Vipera nadrág
+st_srp_equipment029_bm_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_7_name	Őrszemnadrág
+st_srp_equipment029_bm_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_8_name	Omikron nadrág
+st_srp_equipment029_bm_legs_8_premium_name	Omikron MKII nadrág
+st_srp_equipment029_bm_legs_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_9_name	Zsoldosnadrág
+st_srp_equipment029_bm_mask_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_mask_8_name	Omikron maszk
+st_srp_equipment029_bm_torso_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_5_premium_name	Marodeur MKII kabát
+st_srp_equipment029_bm_torso_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_6_name	Vipera golyóálló mellény
+st_srp_equipment029_bm_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_7_name	Őrszemkabát
+st_srp_equipment029_bm_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_8_name	Omikron golyóálló mellény
+st_srp_equipment029_bm_torso_8_premium_name	Omikron MKII golyóálló mellény
+st_srp_equipment029_bm_torso_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_9_name	Zsoldoskabát
+st_srp_equipment029_edge_boots_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_boots_0_name	Mokaszin
+st_srp_equipment029_edge_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_helmet_7_name	Harcos sisak
+st_srp_equipment029_edge_legs_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_0_name	Állatbőr nadrág
+st_srp_equipment029_edge_legs_1_desc	Vastag mutánsbőrből készült nadrág, amely jól véd az anomáliáktól és a kis kaliberű lövedékektől. A mozgási sebességet 3%-kal növeli.
+st_srp_equipment029_edge_legs_1_name	Vadásznadrág
+st_srp_equipment029_edge_legs_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_4_name	Ljesij nadrág
+st_srp_equipment029_edge_legs_5_special_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_5_special_name	A Nap Őrzője nadrág
+st_srp_equipment029_edge_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_7_name	Harcos nadrág
+st_srp_equipment029_edge_legs_7_premium_name	Berzerker nadrág
+st_srp_equipment029_edge_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_8_premium_name	Követő nadrág
+st_srp_equipment029_edge_torso_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_0_name	Állatbőr mellény
+st_srp_equipment029_edge_torso_1_desc	Bőr vadászkabát védőamulettekkel a természet haragja ellen. A farkasbőr elriasztja a ragadozókat és félelmet kelt az ellenségben. Praktikus táskájában különleges felszerelést is vihetsz.
+st_srp_equipment029_edge_torso_1_name	Vadászkabát  
+st_srp_equipment029_edge_torso_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_4_name	Ljesij mellény
+st_srp_equipment029_edge_torso_5_special_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_5_special_name	A Nap Őrzője mellény
+st_srp_equipment029_edge_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_7_name	Harcos kabát
+st_srp_equipment029_edge_torso_7_premium_name	Berzerker kabát
+st_srp_equipment029_edge_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_8_premium_name	Követő kabát
+st_srp_equipment029_ren_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_back_8_name	Ejtőernyős hátizsák
+st_srp_equipment029_ren_boots_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_boots_0_name	Közlegény csizma
+st_srp_equipment029_ren_legs_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_0_name	Közlegény nadrág
+st_srp_equipment029_ren_legs_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_3_premium_name	Sokol-M nadrág
+st_srp_equipment029_ren_legs_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_4_premium_name	Molot UM-2A nadrág
+st_srp_equipment029_ren_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_8_name	Ejtőernyős nadrág
+st_srp_equipment029_ren_legs_8_premium_name	Gárda nadrág
+st_srp_equipment029_ren_torso_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_0_name	Közlegény kabát
+st_srp_equipment029_ren_torso_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_3_premium_name	Sokol-M golyóálló mellény
+st_srp_equipment029_ren_torso_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_4_premium_name	Molot UM-2A golyóálló mellény
+st_srp_equipment029_ren_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_8_name	Ejtőernyős golyóálló mellény
+st_srp_equipment029_ren_torso_8_premium_name	Gárda golyóálló mellény
+st_srp_equipment029_scav_back_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_7_name	Tábori rádió
+st_srp_equipment029_scav_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_8_name	Nagy hátizsák
+st_srp_equipment029_scav_back_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_9_name	Dupla palack
+st_srp_equipment029_scav_boots_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_10_name	Nomád csizma
+st_srp_equipment029_scav_boots_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_8_name	Harci csizma
+st_srp_equipment029_scav_boots_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_9_name	Tűzoltócsizma
+st_srp_equipment029_scav_gloves_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_10_name	Nomád kesztyű
+st_srp_equipment029_scav_gloves_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_6_name	Szabotőrkesztyű
+st_srp_equipment029_scav_gloves_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_7_name	Nyomkereső kesztyű
+st_srp_equipment029_scav_gloves_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_8_name	Harci kesztyű
+st_srp_equipment029_scav_gloves_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_9_name	Tűzoltókesztyű
+st_srp_equipment029_scav_helmet_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_10_name	Nomád sisak
+st_srp_equipment029_scav_helmet_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_3_name	Guberáló csuklya
+st_srp_equipment029_scav_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_7_name	Nyomkereső sisak
+st_srp_equipment029_scav_helmet_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_8_name	Harci sisak
+st_srp_equipment029_scav_helmet_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_9_name	Fémsisak
+st_srp_equipment029_scav_legs_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_10_name	Nomád nadrág
+st_srp_equipment029_scav_legs_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_6_name	Szabotőrnadrág
+st_srp_equipment029_scav_legs_6_premium_name	Gerillanadrág
+st_srp_equipment029_scav_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_7_name	Nyomkereső nadrág
+st_srp_equipment029_scav_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_8_name	Harci nadrág
+st_srp_equipment029_scav_legs_8_premium_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_8_premium_name	Veterán nadrág
+st_srp_equipment029_scav_legs_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_9_name	Tűzoltónadrág
+st_srp_equipment029_scav_mask_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_mask_9_name	Barrier gázálarc
+st_srp_equipment029_scav_torso_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_10_name	Nomád golyóálló mellény
+st_srp_equipment029_scav_torso_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_6_name	Szabotőrkabát
+st_srp_equipment029_scav_torso_6_premium_name	Gerillakabát
+st_srp_equipment029_scav_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_7_name	Nyomkereső golyóálló mellény
+st_srp_equipment029_scav_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_8_name	Harci golyóálló mellény
+st_srp_equipment029_scav_torso_8_premium_name	Veterán golyóálló mellény
+st_srp_equipment029_scav_torso_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_9_name	Tűzoltó golyóálló mellény
 st_srp_exchange_balance	Egyenleg
 st_srp_exchange_button	Átváltás
 st_srp_exchange_gold	Arany

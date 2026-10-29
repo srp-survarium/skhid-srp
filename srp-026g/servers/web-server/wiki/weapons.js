@@ -110,15 +110,18 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
         const spread = spreadNow(), n = normal(.5), tilt = .5 * spread * (n - Math.trunc(n)), angle = 2 * Math.PI * extra();
         if (model.spread) shotSpread = Math.min(model.spread.max, shotSpread + model.spread.perShot);
         state = {kind: 'shot', time}; fired++;
-        events.push({time: now / 1000, shot: fired, spread, bullet: {side: tilt * Math.cos(angle), up: tilt * Math.sin(angle)}});
+        // At the shot's own moment (60/rpm apart), not the tick that ran it.
+        events.push({time: time / 1000, shot: fired, spread, bullet: {side: tilt * Math.cos(angle), up: tilt * Math.sin(angle)}});
       }
       const [shakeSide, shakeUp] = hip ? shakeAt(shakeFrame).map(value => value * at[2]) : [0, 0];
-      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired,
+      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired, z: at[2],
         spread: spreadNow(), shake: {side: shakeSide, up: shakeUp}});
     }
-    return {frames, events, shots, duration: end / 1000};
+    // The clip's run (seconds, frames a second), for the shake at any moment.
+    const shake = hip && model.shake ? {start: 0, stop: (lastShot + model.interval) / 1000, rate: model.shake.timeScale * 30} : null;
+    return {frames, events, shots, shake, duration: end / 1000};
   }
-  globalThis.WeaponRecoil = Object.freeze({parse, simulate});
+  globalThis.WeaponRecoil = Object.freeze({parse, simulate, shakeAt});
 })();
 
 // Calculator-style chooser: lobby icons, class groups, level ordering,
@@ -335,9 +338,12 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   // Degrees of view in one plotted unit of kick, from the exe
   // (servers/match-server/src/v026g/bots/recoil.rs, "the pitch's unit"): a
   // pitch unit turns the view 60° up and 67.5° down, and the configs' kick is
-  // 63.735 to a pitch unit (PROVEN); the side about 2.33° of yaw per pitch
-  // unit at 21.48 to one (LIKELY).
-  const UP_DEG = 60 / 63.735, DOWN_DEG = 67.5 / 63.735, SIDE_DEG = 2.33 / 21.48;
+  // 63.735 to a pitch unit (PROVEN): 63.735 is the vertical clip's half range,
+  // so the configs' kick is in degrees. The side's 21.48 taken the same way:
+  // a degree a unit. LIKELY, against the clip decode's ±2.3° (which made it
+  // 0.108°, so small the H&K 416A5's random side kick and the KRISS Vector's
+  // none looked alike; the owner's play: the 416 jerky, the Vector smooth).
+  const UP_DEG = 60 / 63.735, DOWN_DEG = 67.5 / 63.735, SIDE_DEG = 1;
   const viewUp = v => v * (v >= 0 ? UP_DEG : DOWN_DEG), viewSide = h => h * SIDE_DEG;
   // A target's figure: the game's HUD doll, 1.8 m tall, aimed at the chest
   // (a quarter of its height below the top of the head).
@@ -345,6 +351,19 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   let dollBox = null;
   function bodyDegrees(distance) {
     return 2 * Math.atan(BODY_HEIGHT / 2 / distance) * 180 / Math.PI;
+  }
+  // The aim at `time`: the kick between its 50 ms frames, and the shake at its
+  // own moment (its clip runs ~240 frames a second, far finer than the frames).
+  function viewAt(series, time) {
+    const at = Math.max(0, time / .05), i = Math.min(series.frames.length - 1, Math.floor(at + 1e-6));
+    const a = series.frames[i], b = series.frames[Math.min(series.frames.length - 1, i + 1)], f = Math.min(1, at - i);
+    const lerp = key => a[key] + (b[key] - a[key]) * f;
+    let side = 0, up = 0;
+    if (series.shake) {
+      const [clipSide, clipUp] = WeaponRecoil.shakeAt(series.shake.rate * (Math.min(Math.max(time, series.shake.start), series.shake.stop) - series.shake.start));
+      side = clipSide * lerp('z'); up = clipUp * lerp('z');
+    }
+    return {side: viewSide(lerp('horizontal')) + side, up: viewUp(lerp('vertical')) + up};
   }
   function sample(series, time) {
     return series.frames[Math.max(0, Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6)))];
@@ -356,21 +375,19 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const find = selector => root.querySelector(selector);
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
     let simulation = {kind: 'empty'}, sides = [], playing = null;
-    function nextShot() {
-      if (simulation.kind !== 'ready') return undefined;
-      return simulation.series.flatMap(series => series.events).map(event => event.time)
-        .sort((a, b) => a - b).find(time => time > simulation.time + .001);
+    function lastShot() {
+      return Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
     }
     function draw() {
       if (simulation.kind !== 'ready') return;
       const time = simulation.time;
-      find('.sim-step').disabled = find('.sim-last').disabled = nextShot() === undefined;
+      find('.sim-last').disabled = time >= lastShot() - .001;
       timeInput.value = time;
       find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
+        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -411,12 +428,13 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
-      const aim = frame => ({side: viewSide(frame.horizontal) + frame.shake.side, up: viewUp(frame.vertical) + frame.shake.up});
       const hit = (series, event) => {
-        const point = aim(sample(series, event.time));
+        const point = viewAt(series, event.time);
         return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
       };
-      const points = [...frames.map(frame => ({...aim(frame), r: frame.spread / 2})),
+      // The path drawn every 1/120 s, fine enough for the shake.
+      const steps = series => Array.from({length: Math.floor(series.duration * 120) + 1}, (_, i) => i / 120);
+      const points = [...simulation.series.flatMap(series => steps(series).map(t => ({...viewAt(series, t), r: sample(series, t).spread / 2}))),
         ...simulation.series.flatMap(series => series.events.map(event => ({...hit(series, event), r: 0})))];
       const up = Math.max(0, ...points.map(point => point.up + point.r));
       const down = Math.max(0, ...points.map(point => point.r - point.up));
@@ -446,15 +464,18 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
             transform:`translate(${(150 - (dollBox.x + dollBox.width / 2) * size).toFixed(2)} ${(oy - body * CHEST * scale - dollBox.y * size).toFixed(2)}) scale(${size.toFixed(5)})`}));
         }
         svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
-        const past = series.frames.filter(frame => frame.time <= time);
-        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(aim(frame).side).toFixed(2)},${y(aim(frame).up).toFixed(2)}`).join(' '),
+        // Each weapon's view holds at its own last shot: with two, the faster
+        // finishes first, and its settling is the plots' only (as for one).
+        const last = Math.max(...series.events.map(event => event.time)), held = Math.min(time, last);
+        const past = [...steps(series).filter(t => t < held), held].map(t => viewAt(series, t));
+        svg.append(svgNode('path', {d:past.map((point, i) => `${i ? 'L' : 'M'}${x(point.side).toFixed(2)},${y(point.up).toFixed(2)}`).join(' '),
           class:`sim-trail series-${series.side}`}));
-        for (const event of series.events.filter(event => event.time <= time)) {
-          const point = aim(sample(series, event.time)), [hx, hy] = hitAt(series, event);
+        for (const event of series.events.filter(event => event.time <= held)) {
+          const point = viewAt(series, event.time), [hx, hy] = hitAt(series, event);
           svg.append(svgNode('circle', {cx:x(point.side), cy:y(point.up), r:2, class:`sim-shot series-${series.side}`}));
           svg.append(svgNode('circle', {cx:hx, cy:hy, r:2.6, class:`sim-hit series-${series.side}`}));
         }
-        const frame = sample(series, time), point = aim(frame), cx = x(point.side), cy = y(point.up);
+        const frame = sample(series, held), point = viewAt(series, held), cx = x(point.side), cy = y(point.up);
         // The spread: the cone's half angle around the aim.
         const radius = frame.spread / 2;
         if (radius > 0) svg.append(svgNode('circle', {cx, cy, r:radius * scale, class:`sim-spread series-${series.side}`}));
@@ -508,8 +529,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
         result.events.forEach(event => {event.time += .05;});
-        result.frames.unshift({...result.frames[0], time:0, vertical:0, horizontal:0, shots:0, shake:{side:0, up:0}});
-        return {...result, id, side, duration: result.duration + .05};
+        result.frames.unshift({...result.frames[0], time:0, vertical:0, horizontal:0, shots:0, z:0, shake:{side:0, up:0}});
+        const shake = result.shake && {...result.shake, start: result.shake.start + .05, stop: result.shake.stop + .05};
+        return {...result, id, side, shake, duration: result.duration + .05};
       });
       const duration = Math.max(...series.map(series => series.duration));
       simulation = {kind:'ready', series, time:Math.min(time, duration), duration};
@@ -523,14 +545,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     // Last shot: the whole pattern at once.
     find('.sim-last').addEventListener('click', () => {
       if (simulation.kind !== 'ready') return;
-      seek(Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time)));
+      seek(lastShot());
     });
     find('.sim-target').addEventListener('change', draw);
-    // Next shot stops at the last one: the settling after it is the timeline's.
-    find('.sim-step').addEventListener('click', () => {
-      const next = nextShot();
-      if (next !== undefined) seek(next);
-    });
     timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
     return {show(chosen) { sides = chosen; rebuild(); }};
   }

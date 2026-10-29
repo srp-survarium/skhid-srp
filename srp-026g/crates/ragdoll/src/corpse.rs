@@ -24,8 +24,8 @@
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, Knock, Level, Motion, Ragdoll, Skeleton, Start, StartReport,
-    driver_bones,
+    Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, Motion, Ragdoll, Skeleton, Start,
+    StartReport, driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
@@ -69,6 +69,7 @@ pub struct Death {
     pub cause: Cause,
     /// The gun the player held, if it drops.
     pub gun: Option<GunShape>,
+    pub headwear: Option<HeadwearShape>,
     /// The ground the player stood on (its transform's place, up).
     pub stood_on: Option<(Vec3, Vec3)>,
     /// The bullets that hit the player just before its death, the killing
@@ -93,6 +94,7 @@ impl Death {
             key,
             cause,
             gun,
+            headwear: None,
             stood_on,
             hits: [Hit {
                 point: Vec3::ZERO,
@@ -535,6 +537,7 @@ impl Corpses {
                     up: frame.up,
                     cause: death.cause,
                     gun: death.gun,
+                    headwear: death.headwear,
                     stood_on: death.stood_on,
                     hits: &death.hits[..death.hit_count.min(RECENT)],
                     load: death.load,

@@ -172,12 +172,13 @@ impl HeldShape {
         }
         result
     }
-    unsafe fn for_model(model: raw::PlayerModel) -> Option<Self> {
+    unsafe fn for_model(model: raw::SceneModel) -> Option<Self> {
         // SAFETY: all four native artefact cooks produce static model holders.
         // The retained held flower has the same type. get_aabb copies the
         // original resource's local bounds, not last frame's world bounds.
         unsafe {
-            let instance = model.render_instance().instance()?;
+            // Static: the artefact cooks' and the held flower's models.
+            let instance = model.render_instance().instance()?.static_model();
             let mut bounds = [0.0; 6];
             raw::engine_static_model_bounds(Some(instance), bounds.as_mut_ptr());
             Self::parse(bounds)
@@ -196,7 +197,7 @@ impl Scene {
             Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
-    unsafe fn present(&self, model: raw::PlayerModel, matrix: &[f32; 16]) {
+    unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
             let reference = model.render_instance();
@@ -208,7 +209,7 @@ impl Scene {
             }
         }
     }
-    pub(super) unsafe fn remove(&self, model: raw::PlayerModel) -> bool {
+    pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {
         // SAFETY: as present; guard native remove with its own in-scene bit.
         unsafe {
             let reference = model.render_instance();
@@ -341,7 +342,7 @@ impl ArtefactDraw {
             if read(cached) == 5 {
                 super::carry_flower::with_model(ctx.thread(), self.item.address(), model, |held| { scene.remove(held); });
             }
-            let Some(instance) = model.render_instance().instance() else { return false };
+            let Some(instance) = model.render_instance().instance().map(|instance| instance.static_model()) else { return false };
             let mut bounds = [0.; 6];
             raw::engine_static_model_bounds(Some(instance), bounds.as_mut_ptr());
             if !bounds.iter().all(|v| v.is_finite()) { return false; }

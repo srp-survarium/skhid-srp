@@ -261,6 +261,18 @@ impl GunShape {
     };
 }
 
+/// A cosmetic render channel, present only with the headwear content installed.
+/// Assets choose which surfaces use it; no inventory or simulation item is moved.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeadwearShape;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Headwear {
+    body: Body,
+    /// The Head-equivalent render bone relative to the body's centre.
+    bone: Pose,
+}
+
 /// The unit axis of `frame` (one of its six) nearest `toward`.
 fn nearest_axis(frame: Quat, toward: Vec3) -> Vec3 {
     let mut best = frame.rotate(Vec3::X);
@@ -353,6 +365,8 @@ pub struct Start<'a> {
     pub cause: Cause,
     /// The held gun's shape, if a gun is held and drops.
     pub gun: Option<GunShape>,
+    /// The optional dedicated render channel supplied by the content.
+    pub headwear: Option<HeadwearShape>,
     /// The ground the player stood on (a point and its unit normal): every
     /// body's plane until its first query finds its own.
     pub stood_on: Option<(Vec3, Vec3)>,
@@ -382,7 +396,7 @@ enum Rest {
     Slow {
         slow: f32,
         since: f32,
-        anchor: (PartPoses, Option<Pose>),
+        anchor: (PartPoses, Option<Pose>, Option<Pose>),
     },
 }
 
@@ -435,6 +449,7 @@ pub enum Motion {
 pub struct Ragdoll {
     bodies: [Body; PARTS],
     gun: Option<Body>,
+    headwear: Option<Headwear>,
     joints: [Joint; JOINTS],
     rig: Rig,
     cause: Cause,
@@ -462,7 +477,7 @@ pub struct Ragdoll {
     rest: Rest,
     report: StartReport,
     /// The last poses a step left finite (what a broken step falls back to).
-    last_good: (PartPoses, Option<Pose>),
+    last_good: (PartPoses, Option<Pose>, Option<Pose>),
 }
 
 /// The pose of a body along `from` -> `to`: its X axis the segment, its Y
@@ -673,6 +688,21 @@ impl Ragdoll {
         let mut ragdoll = Ragdoll {
             bodies,
             gun,
+            headwear: start.headwear.map(|_| {
+                let head = now[HEAD.index()];
+                let pose = Pose::new(head.rotation, head.position + up * 0.10);
+                Headwear {
+                    body: Body::new(
+                        pose,
+                        Capsule {
+                            half: 0.04,
+                            radius: 0.10,
+                        },
+                        1.0,
+                    ),
+                    bone: pose.inverse().then(head),
+                }
+            }),
             joints,
             at_death: [Pose::IDENTITY; PARTS],
             rig,
@@ -713,7 +743,7 @@ impl Ragdoll {
                 peak_speed: 0.0,
                 capped: false,
             },
-            last_good: ([Pose::IDENTITY; PARTS], None),
+            last_good: ([Pose::IDENTITY; PARTS], None, None),
         };
         if let Some(gun) = ragdoll.gun.as_mut() {
             let hand = &ragdoll.bodies[Part::RightForearm.index()];
@@ -722,7 +752,12 @@ impl Ragdoll {
         if let Some((point, normal)) = start.stood_on.and_then(|(p, n)| Some((p, n.direction()?)))
             && point.is_finite()
         {
-            for body in ragdoll.bodies.iter_mut().chain(ragdoll.gun.iter_mut()) {
+            for body in ragdoll
+                .bodies
+                .iter_mut()
+                .chain(ragdoll.gun.iter_mut())
+                .chain(ragdoll.headwear.iter_mut().map(|h| &mut h.body))
+            {
                 body.contacts = [Contact::Plane { point, normal }; 2];
             }
         }
@@ -761,7 +796,17 @@ impl Ragdoll {
             }
         }
         ragdoll.report.mass = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
-        ragdoll.last_good = ragdoll.poses();
+        if let Some(hat) = &mut ragdoll.headwear {
+            let head = &ragdoll.bodies[Part::Head.index()];
+            hat.body.velocity = limit_length(
+                head.point_velocity(hat.body.pose.position - head.pose.position)
+                    + up * 0.8
+                    + left * 0.5,
+                START_SPEED,
+            );
+            hat.body.spin = limit_length(head.spin + forward * 3.0, START_SPIN);
+        }
+        ragdoll.last_good = ragdoll.all_poses();
         Some(ragdoll)
     }
 
@@ -803,6 +848,16 @@ impl Ragdoll {
             *o = b.pose;
         }
         (out, self.gun.map(|g| g.pose))
+    }
+
+    /// The dedicated render bone, in world space, if the content supplies it.
+    pub fn headwear_pose(&self) -> Option<Pose> {
+        self.headwear.map(|h| h.body.pose.then(h.bone))
+    }
+
+    fn all_poses(&self) -> (PartPoses, Option<Pose>, Option<Pose>) {
+        let (parts, gun) = self.poses();
+        (parts, gun, self.headwear.map(|h| h.body.pose))
     }
 
     /// The plane the head lies on, if it touches one.
@@ -856,9 +911,14 @@ impl Ragdoll {
         self.query(dt, gravity, level);
         let h = SUBSTEP;
         let alpha_h = JOINT_COMPLIANCE / (h * h);
-        let mut contacts = [[0.0f32; 2]; PARTS + 1];
+        let mut contacts = [[0.0f32; 2]; PARTS + 2];
         for _ in 0..substeps {
-            for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+            for body in self
+                .bodies
+                .iter_mut()
+                .chain(self.gun.iter_mut())
+                .chain(self.headwear.iter_mut().map(|h| &mut h.body))
+            {
                 body.integrate(h, gravity, LINEAR_DAMPING, ANGULAR_DAMPING);
             }
             self.solve_joints(alpha_h);
@@ -874,17 +934,24 @@ impl Ragdoll {
                 .bodies
                 .iter_mut()
                 .chain(self.gun.iter_mut())
+                .chain(self.headwear.iter_mut().map(|h| &mut h.body))
                 .enumerate()
             {
                 contacts[i] = solve_contact(body);
             }
-            for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+            for body in self
+                .bodies
+                .iter_mut()
+                .chain(self.gun.iter_mut())
+                .chain(self.headwear.iter_mut().map(|h| &mut h.body))
+            {
                 body.update_velocity(h);
             }
             for (i, body) in self
                 .bodies
                 .iter_mut()
                 .chain(self.gun.iter_mut())
+                .chain(self.headwear.iter_mut().map(|h| &mut h.body))
                 .enumerate()
             {
                 friction(body, contacts[i], h);
@@ -893,13 +960,16 @@ impl Ragdoll {
         }
         self.age += dt;
         self.moving_for += dt;
-        let (poses, gun) = self.poses();
-        if !poses.iter().all(|p| p.is_finite()) || !gun.is_none_or(|g| g.is_finite()) {
+        let (poses, gun, headwear) = self.all_poses();
+        if !poses.iter().all(|p| p.is_finite())
+            || !gun.is_none_or(|g| g.is_finite())
+            || !headwear.is_none_or(|h| h.is_finite())
+        {
             // a broken step: back to the last good poses, at rest
             self.set_poses(self.last_good);
             return Motion::Settled;
         }
-        self.last_good = (poses, gun);
+        self.last_good = (poses, gun, headwear);
         // near rest on the ground, every body slowed toward rest (what is left
         // is the solver's creep, not a fall): it settles instead of crawling
         let resting = |b: &Body| {
@@ -914,16 +984,22 @@ impl Ragdoll {
             && self.bodies.iter().any(resting)
         {
             let keep = exp_neg(REST_DAMPING * dt);
-            for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+            for body in self
+                .bodies
+                .iter_mut()
+                .chain(self.gun.iter_mut())
+                .chain(self.headwear.iter_mut().map(|h| &mut h.body))
+            {
                 body.velocity = body.velocity * keep;
                 body.spin = body.spin * keep;
             }
         }
-        let now = self.poses();
+        let now = self.all_poses();
         let slow = self
             .bodies
             .iter()
             .chain(self.gun.iter())
+            .chain(self.headwear.iter().map(|h| &h.body))
             .all(|b| b.end_speed() < SLOW);
         self.rest = match self.rest {
             _ if !slow => Rest::Moving,
@@ -964,7 +1040,12 @@ impl Ragdoll {
     pub fn bounds(&self) -> (Vec3, Vec3) {
         let mut lo = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
         let mut hi = -lo;
-        for body in self.bodies.iter().chain(self.gun.iter()) {
+        for body in self
+            .bodies
+            .iter()
+            .chain(self.gun.iter())
+            .chain(self.headwear.iter().map(|h| &h.body))
+        {
             let (a, b) = body.shape.ends(body.pose);
             let r = body.shape.radius;
             for p in [a, b] {
@@ -1027,7 +1108,12 @@ impl Ragdoll {
 
     /// A settled ragdoll made to move again: at rest where it lay, limp.
     pub fn wake(&mut self) {
-        for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+        for body in self
+            .bodies
+            .iter_mut()
+            .chain(self.gun.iter_mut())
+            .chain(self.headwear.iter_mut().map(|h| &mut h.body))
+        {
             body.velocity = Vec3::ZERO;
             body.spin = Vec3::ZERO;
         }
@@ -1041,12 +1127,13 @@ impl Ragdoll {
         self.bodies
             .iter()
             .chain(self.gun.iter())
+            .chain(self.headwear.iter().map(|h| &h.body))
             .all(|b| b.velocity.length() < CREEP)
     }
 
     /// Whether every capsule end (and the gun's) is within STILL_REACH of
     /// where it was at `anchor`.
-    fn within(&self, (parts, gun): &(PartPoses, Option<Pose>)) -> bool {
+    fn within(&self, (parts, gun, headwear): &(PartPoses, Option<Pose>, Option<Pose>)) -> bool {
         let near = |body: &Body, then: Pose| {
             let (a, b) = body.shape.ends(body.pose);
             let (c, d) = body.shape.ends(then);
@@ -1060,9 +1147,13 @@ impl Ragdoll {
                 (Some(b), Some(p)) => near(b, *p),
                 _ => true,
             }
+            && match (self.headwear.as_ref(), headwear) {
+                (Some(h), Some(p)) => near(&h.body, *p),
+                _ => true,
+            }
     }
 
-    fn set_poses(&mut self, (poses, gun): (PartPoses, Option<Pose>)) {
+    fn set_poses(&mut self, (poses, gun, headwear): (PartPoses, Option<Pose>, Option<Pose>)) {
         for (b, p) in self.bodies.iter_mut().zip(poses.iter()) {
             b.pose = *p;
             b.velocity = Vec3::ZERO;
@@ -1070,6 +1161,11 @@ impl Ragdoll {
         }
         if let (Some(b), Some(p)) = (self.gun.as_mut(), gun) {
             b.pose = p;
+        }
+        if let (Some(h), Some(p)) = (self.headwear.as_mut(), headwear) {
+            h.body.pose = p;
+            h.body.velocity = Vec3::ZERO;
+            h.body.spin = Vec3::ZERO;
         }
     }
 
@@ -1079,7 +1175,12 @@ impl Ragdoll {
     /// plane is its own, kept for the substeps.
     fn query(&mut self, dt: f32, gravity: Vec3, level: &mut impl Level) {
         let down = -self.up;
-        for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+        for body in self
+            .bodies
+            .iter_mut()
+            .chain(self.gun.iter_mut())
+            .chain(self.headwear.iter_mut().map(|h| &mut h.body))
+        {
             let (a, b) = body.shape.ends(body.pose);
             let radius = body.shape.radius;
             let mut clear = [false; 2];

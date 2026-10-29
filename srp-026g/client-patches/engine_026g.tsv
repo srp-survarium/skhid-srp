@@ -60,10 +60,10 @@ engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_re
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk
 engine_core_active_player	0x2d0ab0	ESI:world CL:place EDI:out	void *engine_core_active_player(struct core_world *world, unsigned int place, struct player **out)	thunk
-engine_add_model	0x21cd0	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_add_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second)	thunk
-engine_remove_model	0x21f40	ESP+4:renderer EAX:model ESP+8:scene	void engine_remove_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene)	thunk
-engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_update_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second)	thunk
+engine_add_model	0x21cd0	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)	thunk
+engine_remove_model	0x21f40	ESP+4:renderer EAX:model ESP+8:scene	void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene)	thunk
+engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)	thunk
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_input_alt_held	0x241200	EAX:handler	unsigned int engine_input_alt_held(struct player_input_handler *handler)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
-engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct player_model *object, unsigned int *count)	thunk
+engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk

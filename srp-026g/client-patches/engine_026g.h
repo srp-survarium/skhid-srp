@@ -25,10 +25,11 @@ struct network_client;
 struct particle_slot;
 struct player;
 struct player_input_handler;
-struct player_model;
 struct player_params_modifiers_container;
 struct ray_result;
 struct render_model_instance;
+struct scene_model;
+struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
 struct static_model_instance;
@@ -218,13 +219,13 @@ unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned i
 void *engine_core_active_player(struct core_world *world, unsigned int place, struct player **out);
 
 /* 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
-void engine_add_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second);
+void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second);
 
 /* 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8 */
-void engine_remove_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene);
+void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene);
 
 /* 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
-void engine_update_model(struct scene_renderer *renderer, struct render_model_instance *model, struct scene_reference *scene, const float *first, const float *second);
+void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second);
 
 /* 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4 */
 void engine_static_model_bounds(struct static_model_instance *instance, float *bounds);
@@ -236,6 +237,6 @@ unsigned int engine_input_alt_held(struct player_input_handler *handler);
 void engine_release_item(struct artefact *object, unsigned int *count);
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
-void engine_release_model(struct player_model *object, unsigned int *count);
+void engine_release_model(struct scene_model *object, unsigned int *count);
 
 #endif

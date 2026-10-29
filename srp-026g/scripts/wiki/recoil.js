@@ -109,13 +109,16 @@
         const spread = spreadNow(), n = normal(.5), tilt = .5 * spread * (n - Math.trunc(n)), angle = 2 * Math.PI * extra();
         if (model.spread) shotSpread = Math.min(model.spread.max, shotSpread + model.spread.perShot);
         state = {kind: 'shot', time}; fired++;
-        events.push({time: now / 1000, shot: fired, spread, bullet: {side: tilt * Math.cos(angle), up: tilt * Math.sin(angle)}});
+        // At the shot's own moment (60/rpm apart), not the tick that ran it.
+        events.push({time: time / 1000, shot: fired, spread, bullet: {side: tilt * Math.cos(angle), up: tilt * Math.sin(angle)}});
       }
       const [shakeSide, shakeUp] = hip ? shakeAt(shakeFrame).map(value => value * at[2]) : [0, 0];
-      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired,
+      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired, z: at[2],
         spread: spreadNow(), shake: {side: shakeSide, up: shakeUp}});
     }
-    return {frames, events, shots, duration: end / 1000};
+    // The clip's run (seconds, frames a second), for the shake at any moment.
+    const shake = hip && model.shake ? {start: 0, stop: (lastShot + model.interval) / 1000, rate: model.shake.timeScale * 30} : null;
+    return {frames, events, shots, shake, duration: end / 1000};
   }
-  globalThis.WeaponRecoil = Object.freeze({parse, simulate});
+  globalThis.WeaponRecoil = Object.freeze({parse, simulate, shakeAt});
 })();

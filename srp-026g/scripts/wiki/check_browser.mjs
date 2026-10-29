@@ -123,14 +123,22 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
   await evaluate("document.querySelector('#compare-colors').click();document.querySelector('#only-differences').click()");
   assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
-  await evaluate("document.querySelector('#recoil-sim .sim-step').click()");
+  assert.equal(await evaluate("document.querySelectorAll('.sim-step').length"), 0, 'no step-by-step mode');
+  await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
   assert.equal(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)"), .05);
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).match(/shots 1\/\d+/));
   assert.equal(await evaluate("document.querySelectorAll('#sim-single,.sim-single').length"), 0, 'no single-shot mode');
   assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-sight .sim-cross').length"), 2, 'a crosshair per weapon');
   assert.equal(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-view')].map(view => view.querySelectorAll('.sim-cross').length).join()"), '1,1', 'a view per weapon');
-  await evaluate("document.querySelector('#recoil-sim .sim-step').click()");
-  assert.ok(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)") > .05, 'next shot advances timeline');
+  // The faster weapon's view holds at its last shot while the other still fires.
+  {
+    const held = await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');document.querySelector('#recoil-sim .sim-last').click();[...document.querySelectorAll('#recoil-sim .sim-view .sim-cross circle')].map(c=>c.getAttribute('cy')).join()}");
+    await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))}");
+    assert.equal(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-view .sim-cross circle')].map(c=>c.getAttribute('cy')).join()"), held, 'the views hold at their last shots');
+    // Back to the first shot, where the checks below go on from.
+    await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
+  }
+  await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.3';t.dispatchEvent(new Event('input'))}");
   const position = await evaluate("document.querySelector('#recoil-sim .sim-time').value");
   await evaluate('new Promise(r=>setTimeout(r,150))');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), position, 'manual position stays fixed');
@@ -147,8 +155,8 @@ try {
   await screenshot('comparison-crosshair');
   // Next shot and Play stop at the last shot: the settling is the plots' only.
   assert.equal(await evaluate("document.querySelectorAll('#sim-shots,.sim-shots').length"), 0, 'the burst is the smaller magazine, not a setting');
-  await evaluate("for (let i = 0; i < 400 && !document.querySelector('#recoil-sim .sim-step').disabled; i++) document.querySelector('#recoil-sim .sim-step').click()");
-  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-step').disabled"), true, 'no step past the last shot');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-last').disabled"), true, 'at the last shot');
   const lastShot = await evaluate("document.querySelector('#recoil-sim .sim-time').value");
   assert.ok(Number(lastShot) < Number(await evaluate("document.querySelector('#recoil-sim .sim-time').max")), 'the settling stays on the timeline');
   await evaluate("document.querySelector('#recoil-sim .sim-reset').click();document.querySelector('#recoil-sim .sim-play').click()");
@@ -233,6 +241,36 @@ try {
     assert.ok(Number(await evaluate("document.querySelector('#wpn_pkp_pecheneg .sim-time').value")) > 0, `card play ${i}`);
     assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]');
   }
+  // The equipment: a link straight to the helmets, one-click slots, search,
+  // grouping by set, a card's protection, an icon on every row, EN/UK, mobile.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki/equipment?lang=en&slot=helmet');
+  assert.equal(await evaluate("document.querySelector('.gear-tools').hidden"), false, 'equipment script works under the real CSP');
+  assert.equal(await evaluate("document.querySelector('.slot-filter [aria-pressed=true]').dataset.slot"), 'helmet', 'the address picks the slot');
+  const helmets = (await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).map(e=>e.dataset.slot).join()")).split(',');
+  assert.ok(helmets.length > 5 && helmets.every(slotName => slotName === 'helmet'), 'only helmets');
+  assert.equal(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.querySelector('summary img.weapon-image')).map(e=>e.id).join()"), '', 'every piece has its icon');
+  assert.ok(await evaluate("document.querySelectorAll('.gear[data-slot=helmet][data-flies=\"1\"] .flies-off').length") >= 8, 'the helmets that fly off are marked');
+  await screenshot('equipment-helmets');
+  await evaluate("document.querySelector('.slot-filter [data-slot=mask]').click()");
+  assert.ok((await evaluate("location.search")).includes('slot=mask'), 'the slot kept in the address');
+  assert.ok(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).every(e=>e.dataset.slot==='mask')"));
+  await evaluate("document.querySelector('.slot-filter [data-slot=\"\"]').click();{const g=document.getElementById('gear-group');g.value='set';g.dispatchEvent(new Event('change'))}");
+  assert.ok(await evaluate("document.querySelectorAll('#gear-list h2.gear-group').length") > 10, 'grouped by set');
+  await evaluate("{const q=document.getElementById('gear-search');q.value=document.querySelector('.gear .weapon-title strong').textContent.slice(0,6);q.dispatchEvent(new Event('input'))}");
+  assert.ok(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).length") >= 1, 'search finds');
+  await evaluate("{const q=document.getElementById('gear-search');q.value='';q.dispatchEvent(new Event('input'));const g=document.getElementById('gear-group');g.value='';g.dispatchEvent(new Event('change'))}");
+  await evaluate("{const card=[...document.querySelectorAll('.gear')].find(e=>e.dataset.slot==='body');card.open=true;card.scrollIntoView()}");
+  assert.equal(await evaluate("!![...document.querySelectorAll('.gear')].find(e=>e.open).querySelector('table.protection')"), true, 'a card shows its protection');
+  await screenshot('equipment-card');
+  await navigate('/wiki/equipment?lang=en&faction=1');
+  assert.equal(await evaluate("document.getElementById('gear-faction').value"), '1', 'the address picks the faction');
+  assert.equal(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).every(e=>e.dataset.faction==='1')"), true, 'only that faction');
+  await navigate('/wiki/equipment?lang=uk&slot=boots');
+  assert.equal(await evaluate("document.documentElement.lang"), 'uk');
+  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
+  await screenshot('equipment-mobile-uk');
   console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
   await send('session.end');
 } finally {

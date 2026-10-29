@@ -56,7 +56,7 @@ def simulation(tr):
         + "".join(f'<option value="{1 / n:g}">{tr(f"Click, {n} a second", f"Клацати, {n} на секунду")}</option>' for n in (4, 2, 1))
         + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
-        f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
+        f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
         f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><div class="sim-sight-views"></div>'
@@ -169,6 +169,8 @@ def build(calculator, out):
     # The modifiers page is the web server's (servers/web-server/src/modifiers.rs);
     # its script is the same chooser and its own part.
     (out / "modifiers.js").write_bytes(b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "modifiers.js")))
+    # The equipment page is the web server's too (src/equipment.rs).
+    (out / "equipment.js").write_bytes((HERE / "equipment.js").read_bytes())
     (out / "source.sha256").write_text(hashlib.sha256(blob).hexdigest() + "\n")
     print(f"{out}: {len(data['weapons'])} weapons, EN/UK, from {calculator}")
 

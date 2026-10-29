@@ -111,6 +111,7 @@ fn start<'a>(
         up: Vec3::Y,
         cause,
         gun,
+        headwear: None,
         stood_on: Some((Vec3::ZERO, Vec3::Y)),
         hits: &[],
         load: [0.0; PARTS],
@@ -124,6 +125,38 @@ const SHOT: Cause = Cause::Body {
     heavy: false,
 };
 const GUN: GunShape = GunShape::RIFLE;
+
+#[test]
+fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, Cause::Unknown, None);
+    assert!(Ragdoll::new(&input).unwrap().headwear_pose().is_none());
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    assert!((body.headwear_pose().unwrap().position - now[HEAD.index()].position).length() < 1e-5);
+    let mut ground = Ground::flat();
+    run(&mut body, &mut ground, None, |r| {
+        let hat = r.headwear.unwrap();
+        assert!(hat.body.pose.is_finite());
+        for end in [
+            hat.body.shape.ends(hat.body.pose).0,
+            hat.body.shape.ends(hat.body.pose).1,
+        ] {
+            assert!(
+                end.y >= hat.body.shape.radius - 0.02,
+                "helmet penetrated the floor"
+            );
+        }
+    });
+    let mut drawn = now;
+    let (parts, gun) = body.poses();
+    body.rig().draw(&parts, gun, &mut drawn);
+    assert!(
+        (body.headwear_pose().unwrap().position - drawn[HEAD.index()].position).length() > 0.15
+    );
+    assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
+}
 
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(

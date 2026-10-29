@@ -31,6 +31,7 @@ mod cell;
 pub mod clock;
 mod context;
 pub mod draw;
+pub mod headwear;
 mod hook;
 mod input;
 pub mod inventory;
