@@ -17,7 +17,7 @@ from localization_026g import CATALOG, LANGUAGES, flash_rows, read_translations 
 
 def main():
     out = Path(sys.argv[1])
-    languages = sys.argv[2:] or [name for name, _ in LANGUAGES]
+    languages = sys.argv[2:] or [name for name, *_ in LANGUAGES]
     data = {}
     for language in languages:
         strings = read_translations(CATALOG / f'{language}.tsv')

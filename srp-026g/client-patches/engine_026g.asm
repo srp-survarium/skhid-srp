@@ -60,9 +60,7 @@ global engine_cc_string
 global engine_setlocale
 global engine_save_user_config
 global engine_translate_text
-global engine_reg_open_key_ex_w
-global engine_reg_query_value_ex_w
-global engine_reg_close_key
+global engine_get_user_default_lcid
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -76,9 +74,7 @@ engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (an import, 
 engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly
 engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
 engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
-engine_reg_open_key_ex_w equ 0xaefddc   ; the IAT slot 0xaefddc (an import, stdcall)
-engine_reg_query_value_ex_w equ 0xaefde4   ; the IAT slot 0xaefde4 (an import, stdcall)
-engine_reg_close_key equ 0xaefde0   ; the IAT slot 0xaefde0 (an import, stdcall)
+engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

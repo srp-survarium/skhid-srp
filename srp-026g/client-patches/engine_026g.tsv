@@ -55,6 +55,4 @@ engine_cc_string	0x0ec860	EAX:object ESP+4:name ESP+8:buffer ESP+12:size ESP+16:
 engine_setlocale	0x426ae1	ESP+4:category ESP+8:locale	char *engine_setlocale(unsigned int category, const char *locale)	cdecl	
 engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl	
 engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(void *translator, const char *key, char *out)	thiscall	
-engine_reg_open_key_ex_w	0xaefddc	-	unsigned int engine_reg_open_key_ex_w(void *key, const void *sub_key, unsigned int options, unsigned int access, void **result)	import	
-engine_reg_query_value_ex_w	0xaefde4	-	unsigned int engine_reg_query_value_ex_w(void *key, const void *name, unsigned int *reserved, unsigned int *kind, void *data, unsigned int *size)	import	
-engine_reg_close_key	0xaefde0	-	unsigned int engine_reg_close_key(void *key)	import	
+engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	

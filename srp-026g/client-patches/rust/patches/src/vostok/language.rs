@@ -2,7 +2,7 @@
 //! docs/notes/language-option.md): the name every dictionary reader takes
 //! (`raw::image::LOCALIZATION`), the console variable that user.cfg keeps a
 //! choice in, the C locale the engine's start-up sets from the name, the
-//! launcher's own choice in the registry, and the Settings' call
+//! Windows user locale's language, and the Settings' call
 //! (`game_options::scaleform_callback`) with the movie it answers.
 
 use core::cell::UnsafeCell;
@@ -107,42 +107,30 @@ fn apply_locale(name: &CStr) {
     set(LC_NUMERIC, c"C");
 }
 
-/// UTF-16 of an ASCII text, at compile time.
-const fn wide<const N: usize>(text: &[u8; N]) -> [u16; N] {
-    let mut out = [0u16; N];
-    let mut i = 0;
-    while i < N {
-        out[i] = text[i] as u16;
-        i += 1;
+/// A Windows language id (LANGID): the primary language in its low ten bits,
+/// the sublanguage (country, script) in the high six.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LangId(pub u16);
+
+/// A Windows primary language id (LANG_RUSSIAN 0x19, ...): a LANGID without
+/// its sublanguage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrimaryLanguage(pub u16);
+
+impl LangId {
+    pub const fn primary(self) -> PrimaryLanguage {
+        PrimaryLanguage(self.0 & 0x3FF)
     }
-    out
 }
 
-/// The launcher's language (`HKCU\Software\Vostok Games\Survarium`, the
-/// DWORD `language`, its menu's index: docs/notes/launcher.md section 10),
-/// when it has one.
-pub fn launcher_language(_: &Thread) -> Option<u32> {
-    // HKEY_CURRENT_USER (winreg.h), a predefined key: no address of the game.
-    const CURRENT_USER: usize = (1 << 31) | 1;
-    const KEY_QUERY_VALUE: u32 = 1;
-    const REG_DWORD: u32 = 4;
-    static PATH: [u16; 32] = wide(b"Software\\Vostok Games\\Survarium\0");
-    static VALUE: [u16; 9] = wide(b"language\0");
-    let mut key: *mut c_void = core::ptr::null_mut();
-    let (mut kind, mut value, mut size) = (0u32, 0u32, 4u32);
-    // SAFETY: advapi32's RegOpenKeyExW, RegQueryValueExW and RegCloseKey
-    // through the exe's delay-load slots (the first call loads advapi32);
-    // zero-terminated UTF-16 names, a DWORD and its size for the value.
-    unsafe {
-        if (raw::engine_reg_open_key_ex_w)(CURRENT_USER as *mut c_void, PATH.as_ptr().cast(), 0, KEY_QUERY_VALUE,
-                                            &mut key) != 0 {
-            return None;
-        }
-        let read = (raw::engine_reg_query_value_ex_w)(key, VALUE.as_ptr().cast(), core::ptr::null_mut(), &mut kind,
-                                                      (&raw mut value).cast(), &mut size);
-        (raw::engine_reg_close_key)(key);
-        (read == 0 && kind == REG_DWORD && size == 4).then_some(value)
-    }
+/// The language of the player's Windows user locale (kernel32's
+/// GetUserDefaultLCID, the game's import; under Wine the Unix locale's
+/// LC_MESSAGES, which Wine's UI language is too).
+pub fn user_locale(_: &Thread) -> LangId {
+    // SAFETY: kernel32's GetUserDefaultLCID through the exe's import slot:
+    // no arguments, an LCID whose low word is its LANGID.
+    let lcid = unsafe { (raw::engine_get_user_default_lcid)() };
+    LangId(lcid as u16)
 }
 
 /// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does

@@ -93,7 +93,7 @@ class ReleaseTests(unittest.TestCase):
 
     def build(self, output, *options):
         args = ['make_client_026g.py', str(self.game), str(output),
-                '--server=release.example:2234', '--localization=polish',
+                '--server=release.example:2234',
                 '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater), *options]
         # Binary patching has its own disassembly suite. Exercise every other
         # part of the real release builder, including source reads and ZIP I/O.
@@ -106,30 +106,18 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
         return patcher.call_args, messages.getvalue()
 
-    def test_added_languages_reach_windows_and_linux_game_scripts(self):
-        for language in ('serbian', 'czech', 'hungarian', 'finnish', 'belarusian'):
-            with self.subTest(language=language):
-                output = self.root / language
-                self.build(output, '--localization=' + language)
-                windows = (output / 'game/binaries/x86/play_skhid.bat').read_bytes()
-                linux = (output / overlay.LINUX_LAUNCHER).read_bytes()
-                self.assertIn(f'set LANGUAGE={language}\r\n'.encode(), windows)
-                self.assertIn(f'localization={language}\n'.encode(), linux)
-
-    def test_scripts_pass_no_language_by_default(self):
+    def test_scripts_pass_no_language(self):
         output = self.root / 'default'
-        args = ['make_client_026g.py', str(self.game), str(output), '--server=release.example:2234',
-                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater)]
-        launcher = mock.patch.object(overlay.L, 'build', return_value=(b'patched launcher fixture', 'test launcher'))
-        with mock.patch.object(overlay.P, 'build', return_value=(b'patched fixture', 'test patch')), launcher, \
-                mock.patch('sys.argv', args), contextlib.redirect_stdout(io.StringIO()):
-            overlay.main()
+        self.build(output)
         windows = (output / 'game/binaries/x86/play_skhid.bat').read_bytes()
         linux = (output / overlay.LINUX_LAUNCHER).read_bytes()
-        self.assertIn(b'set LANGUAGE=\r\n', windows)
-        self.assertIn(b'if defined LANGUAGE set LANGUAGE_OPTION=-localization=%LANGUAGE%\r\n', windows)
-        self.assertIn(b'start "" survarium_skhid.exe %LANGUAGE_OPTION% ', windows)
-        self.assertIn(b'\nlocalization=\n', linux)
+        self.assertNotIn(b'LANGUAGE', windows)
+        self.assertNotIn(b'localization', windows)
+        self.assertNotIn(b'localization', linux)
+        self.assertRegex(windows, rb'start "" survarium_skhid\.exe -(server|mt_allocator)=')
+        refused = self.root / 'refused'
+        with self.assertRaises(SystemExit):
+            self.build(refused, '--localization=polish')
 
     def test_folder_and_zip_ship_identical_player_files(self):
         folder, archive = self.root / 'overlay', self.root / 'release.zip'
@@ -150,7 +138,7 @@ class ReleaseTests(unittest.TestCase):
         if os.name != 'nt':
             self.assertEqual(stat.S_IMODE(script.stat().st_mode), 0o755)
         self.assertNotIn(b'\r', script.read_bytes())
-        self.assertIn(b'localization=polish\nserver=\n', script.read_bytes())
+        self.assertIn(b'\nserver=\n', script.read_bytes())
         self.assertIn(b'LINUX.txt', paths['README.txt'].read_bytes())
         # The launcher is built from the game folder's own, for the server's
         # page, and starts the game with what play_skhid.bat starts it with.
@@ -312,10 +300,10 @@ class ReleaseTests(unittest.TestCase):
         with mock.patch.object(overlay, 'HERE', str(self.root)):
             for embedded in (False, True):
                 with self.subTest(embedded=embedded):
-                    script = overlay.sh('release.example:2234', 'polish', embedded)
+                    script = overlay.sh('release.example:2234', embedded)
                     self.assertNotIn(b'\r', script)
                     server = b'' if embedded else b'release.example:2234'
-                    self.assertIn(b'localization=polish\nserver=' + server + b'\n', script)
+                    self.assertIn(b'\nserver=' + server + b'\n', script)
 
     def test_check_writes_neither_folder_nor_archive(self):
         for options in ((), ('--pack-zip',)):

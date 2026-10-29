@@ -28,8 +28,8 @@ global symbol of its own, which the link resolves for every caller):
                that convention, which the re-kit's rows must be: the symbol
                is the real VA, no thunk), "import" (va is the exe's IAT slot
                of an imported function, stdcall: kernel32's, or a
-               delay-loaded one's slot (advapi32's registry functions),
-               whose first call loads it; the symbol is the slot;
+               delay-loaded one's slot, whose first call loads it; the
+               symbol is the slot;
                arguments "-", no re-kit row)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
