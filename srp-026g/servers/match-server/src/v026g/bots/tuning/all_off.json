@@ -94,6 +94,7 @@
   "threat": {
     "area": false,
     "crossfire_out_of_lines": false,
+    "gang_up": null,
     "job": false,
     "job_line_by_id": false,
     "job_objective": false,

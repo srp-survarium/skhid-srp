@@ -125,6 +125,8 @@ pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
+pub use team::GangRule;
+pub use team::GangUp;
 pub use team::ModTuning;
 pub use team::PerchTuning;
 pub use team::Personalities;

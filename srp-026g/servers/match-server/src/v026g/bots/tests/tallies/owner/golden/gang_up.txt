@@ -1,0 +1,9 @@
+owner-test gang up: 0 passes, 0 enemies aimed at, 0 with 3+ bots; 0 new plays scored down, 0 bots redirected
+{
+  "gang_up": {
+    "by_play": {},
+    "enemies_aimed": 0,
+    "enemies_with_3plus": 0,
+    "passes": 0
+  }
+}
