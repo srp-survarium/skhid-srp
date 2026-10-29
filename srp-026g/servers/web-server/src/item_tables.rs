@@ -13,11 +13,13 @@
 //! class, level and name.
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
 
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::game_data::GameDataError;
 use survarium::v026g::item_params;
 use survarium::v026g::weapon::{self, Weapon};
 
@@ -165,62 +167,69 @@ fn range((low, high): (f32, f32)) -> String {
     }
 }
 
-/// `weapons.tsv`.
-pub fn weapons() -> String {
+/// A value the config may leave out: empty when it does.
+fn maybe<T>(value: Option<T>, show: impl FnOnce(T) -> String) -> String {
+    value.map_or_else(String::new, show)
+}
+
+/// `weapons.tsv`; an error when a weapon's config does not read.
+pub fn weapons() -> Result<String, GameDataError> {
     let dictionary = Dictionary::shared();
-    let mut rows: Vec<(Group, u8, String, &Weapon)> = Vec::new();
-    let all = weapon_table();
+    let all = weapon::derive(survarium::v026g::game_data::shared(), dictionary)?;
+    let mut rows: Vec<(Group, u8, String, Weapon)> = Vec::new();
     for weapon in all {
-        let item = dictionary
-            .item(weapon.dict_id)
-            .expect("an item of the dictionary");
-        let (Some(group), Some(params)) = (
-            Group::of(item.category),
+        let (Some(item), Some(params)) = (
+            dictionary.item(weapon.dict_id),
             item_params::item_params(weapon.dict_id),
         ) else {
+            continue;
+        };
+        let Some(group) = Group::of(item.category) else {
             continue;
         };
         rows.push((group, params.item_level, item.name.clone(), weapon));
     }
     rows.sort_by(|a, b| (a.0, a.1, &a.2).cmp(&(b.0, b.1, &b.2)));
+    let percent = |value: Option<f32>| maybe(value, |value| number(value * 100.0));
+    let plain = |value: Option<f32>| maybe(value, number);
     let rows = rows
         .into_iter()
         .map(|(group, level, dict_name, w)| {
             let recoil = &w.recoil;
             // The side kick a shot gives: right minus left.
-            let side = (
-                recoil.right.0 - recoil.left.1,
-                recoil.right.1 - recoil.left.0,
-            );
+            let side = recoil
+                .right
+                .zip(recoil.left)
+                .map(|(right, left)| (right.0 - left.1, right.1 - left.0));
             vec![
                 dict_name,
                 name(w.dict_id),
                 modifiers::text(Lang::En, group.name_key()),
                 level.to_string(),
                 yes(dictionary.item(w.dict_id).is_some_and(|row| row.is_premium)).to_owned(),
-                number(w.damage * 100.0),
-                number(w.pierce * 100.0),
-                number(w.max_damage_distance),
-                number(w.min_damage_distance),
-                number(w.min_damage_amount * 100.0),
-                number(w.rounds_per_minute),
-                w.magazine.to_string(),
-                number(w.reload_time),
-                w.aim_time.map_or_else(String::new, number),
-                number(w.weight),
-                range(recoil.top),
-                range(side),
-                number(recoil.power),
-                number(w.spread.base),
-                number(w.spread.per_shot),
-                number(w.spread.max),
-                number(w.spread.recovery),
+                percent(w.damage),
+                percent(w.pierce),
+                plain(w.max_damage_distance),
+                plain(w.min_damage_distance),
+                percent(w.min_damage_amount),
+                plain(w.rounds_per_minute),
+                maybe(w.magazine, |count| count.to_string()),
+                plain(w.reload_time),
+                plain(w.aim_time),
+                plain(w.weight),
+                maybe(recoil.top, range),
+                maybe(side, range),
+                plain(recoil.power),
+                plain(w.spread.base),
+                plain(w.spread.per_shot),
+                plain(w.spread.max),
+                plain(w.spread.recovery),
                 built_in(w.dict_id),
                 modifiers::can_roll(Lang::En, w.dict_id).join(", "),
             ]
         })
         .collect();
-    table(
+    Ok(table(
         &[
             "item",
             "name",
@@ -248,16 +257,25 @@ pub fn weapons() -> String {
             "can_roll",
         ],
         rows,
-    )
+    ))
 }
 
-/// Every weapon of this process's game data.
-fn weapon_table() -> &'static [Weapon] {
-    static WEAPONS: std::sync::OnceLock<Vec<Weapon>> = std::sync::OnceLock::new();
-    WEAPONS.get_or_init(|| {
-        weapon::derive(survarium::v026g::game_data::shared(), Dictionary::shared())
-            .expect("the weapon configs read")
-    })
+/// Why the tables could not be written.
+#[derive(Debug)]
+pub enum Error {
+    /// A config of the game data does not read.
+    Data(GameDataError),
+    /// A table could not be read or written.
+    Io(io::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Data(error) => error.fmt(f),
+            Self::Io(error) => error.fmt(f),
+        }
+    }
 }
 
 /// The rows of a table's text by their key (the first column), and its
@@ -332,16 +350,21 @@ fn shown(value: &str) -> &str {
 
 /// Writes the tables of this process's game data into `dir` where they
 /// differ from what is there, and says, a table at a time, `unchanged` or
-/// what changed (a line per change).
-pub fn update(dir: &Path) -> io::Result<Vec<String>> {
-    fs::create_dir_all(dir)?;
+/// what changed (a line per change). Nothing is written when a config does
+/// not read.
+pub fn update(dir: &Path) -> Result<Vec<String>, Error> {
+    let tables = [
+        (EQUIPMENT, equipment()),
+        (WEAPONS, weapons().map_err(Error::Data)?),
+    ];
+    fs::create_dir_all(dir).map_err(Error::Io)?;
     let mut report = Vec::new();
-    for (file, text) in [(EQUIPMENT, equipment()), (WEAPONS, weapons())] {
+    for (file, text) in tables {
         let path = dir.join(file);
         let was = match fs::read_to_string(&path) {
             Ok(text) => text,
             Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-            Err(error) => return Err(error),
+            Err(error) => return Err(Error::Io(error)),
         };
         if was == text {
             report.push(format!("{file}: unchanged"));
@@ -350,7 +373,7 @@ pub fn update(dir: &Path) -> io::Result<Vec<String>> {
         let changes = diff(&was, &text);
         report.push(format!("{file}: {} change(s)", changes.len()));
         report.extend(changes.into_iter().map(|line| format!("  {line}")));
-        fs::write(&path, text)?;
+        fs::write(&path, text).map_err(Error::Io)?;
     }
     Ok(report)
 }
@@ -362,7 +385,7 @@ mod tests {
     #[test]
     fn the_tables_have_every_piece_and_weapon_once() {
         let equipment = equipment();
-        let weapons = weapons();
+        let weapons = weapons().unwrap();
         let (_, rows) = parse(&equipment);
         assert_eq!(rows.len(), equipment::pieces().len());
         assert_eq!(rows.len(), equipment.lines().count() - 1, "keys are unique");

@@ -3,8 +3,9 @@
 //! that game data, written into `<dir>` where they differ from what is
 //! there. Says `unchanged` for a table that is the same, else what changed
 //! (an item's column `old -> new`, an item new or gone). Exit status 1 when
-//! the data does not read (as `srp` would refuse it) or a file cannot be
-//! written.
+//! the data does not read (as `srp` would refuse it, or a weapon config
+//! with a value of the wrong kind; nothing is written then) or a file
+//! cannot be written.
 
 use std::path::PathBuf;
 
@@ -31,7 +32,11 @@ fn main() {
             }
         }
         Err(error) => {
-            eprintln!("{dir}: {error}");
+            let at = match error {
+                web_server::item_tables::Error::Data(_) => data,
+                web_server::item_tables::Error::Io(_) => dir,
+            };
+            eprintln!("{at}: {error}");
             std::process::exit(1);
         }
     }
