@@ -77,16 +77,22 @@ lamp hook and both old C/NASM source files.
 The stateful equivalence gate passed 1,692 comparisons, including 400 seeded
 shots and all 92 map variants. Native tests also verify atomic rejection of
 bad metadata, a successful retry, unconfigured scenery, history failures,
-removal, destructor fallback and new-match reset. The Rust suite passed 24
-tests. All 44 client Unicorn checks and the launcher check passed; ragdoll's
+removal, destructor fallback and new-match reset. The Rust suite passed 26
+tests. All 46 client Unicorn checks and the launcher check passed; ragdoll's
 entry assertions now recognize shared hook chains. The full content build
-verified all 4,807 manifest files, and workspace clippy introduced no warnings.
+verified all 4,811 manifest files, and workspace clippy introduced no warnings.
 The full client self-test passed every build variant, including the Windows
 checksum/certificate checks through Wine and the complete installation audit.
 The final staged sources also reproduce the arena lock without changes.
 
-The linked arena grows from 459,124 to 467,316 bytes (+8 KiB) relative to the
-C reference. Its lock records SHA-256
-`e22938595051b2a00acd6fc636d8d0e0ea3006ef7ec118919e0357a0685ff6c9`.
+The initial Rust conversion grows the arena from 459,124 to 467,316 bytes
+(+8 KiB) relative to the C reference. After integrating main's artefact carry
+and pickup scoring, the combined arena is 512,096 bytes. Its lock records
+SHA-256 `9ed47f158bdc0e832c9fbce4bcbeacd6126585d5ec45e7c7c03dfff0130a010f`.
+The shared Rust statics use 202,464 bytes, within a 256 KiB test budget; the
+whole arena keeps its existing 1 MiB limit. Lamps use patch ID 81 because
+pickup scoring now occupies 80. The shared reader layout has one definition,
+and the carry flower's private retained-resource owner explicitly satisfies
+the lock's `Send` requirement without making raw engine handles transferable.
 Release revision 37 is unchanged; the content and simulation compatibility
 entries remain part of PR #764.

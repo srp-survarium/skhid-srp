@@ -4871,7 +4871,11 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+    # These blocks now contain every Rust patch's statics: the corpse pool,
+    # lamp bindings and carry snapshots/resource owners. Keep a shared
+    # 256 KiB budget (202,464 bytes with all three); test_arena separately
+    # enforces the whole arena's limit and exact linked layout.
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
           f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
@@ -6433,6 +6437,7 @@ def test_late_join(original, without, server, source):
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
     ranges.append((image.offset(P.MATCH_KEYS_POLL_SLOT[0]), 4))
+    ranges.append((image.offset(P.ARTEFACT_KEY_DEFAULT[0]), len(P.ARTEFACT_KEY_DEFAULT[1])))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
