@@ -52,6 +52,7 @@
   "hazard": {
     "artefact_know": false,
     "escort_dry_post": false,
+    "escort_reach": false,
     "hurt_by_shape": false,
     "live_zones": false,
     "price_way_out": false,

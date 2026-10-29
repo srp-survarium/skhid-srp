@@ -799,6 +799,9 @@ pub mod damage_zone_fixes {
         /// A crossing found whose price at the zones' intensity (`HazardTuning::zone_intensity`) is under 99 % of its price
         /// at the full hit: the fix changed the price (counted by pricing it both ways).
         CrossingCheaper,
+        /// An escort offered for a carrier by the old rule and refused by `escort_reach` (the post on his line is a goal no
+        /// walk of the escort reaches, or the escort stands in such a pocket), once a carrier and a bot a 2 s.
+        EscortUnreachable,
     }
 
     /// The events' key suffixes, in order.
@@ -816,15 +819,17 @@ pub mod damage_zone_fixes {
         "out_priced",
         "out_none",
         "cross_cheaper",
+        "esc_unreachable",
     ];
 
-    pub const N: usize = 13;
+    pub const N: usize = 14;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
     thread_local! {
         static COUNTS: RefCell<Counts> = const { RefCell::new([[0; N]; 2]) };
         static TEAM: Cell<u8> = const { Cell::new(0) };
+        static ONCE: RefCell<std::collections::HashSet<(u8, usize, u32, u32)>> = RefCell::new(std::collections::HashSet::new());
     }
 
     /// `ask` with the events it counts filed under `team`.
@@ -841,6 +846,14 @@ pub mod damage_zone_fixes {
         let out = ask();
         COUNTS.with_borrow_mut(|counts| *counts = before);
         out
+    }
+
+    /// [`count`] once for a team's bot and subject (a carrier) in each 2 s: a refusal asked at every think counts as one.
+    pub fn count_once(ev: Ev, subject: u32, now: u32) {
+        let key = (TEAM.get(), ev as usize, subject, now / 2_000);
+        if ONCE.with_borrow_mut(|seen| seen.insert(key)) {
+            count(ev);
+        }
     }
 
     pub fn count(ev: Ev) {

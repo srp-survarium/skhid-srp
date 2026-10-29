@@ -49,6 +49,8 @@ const HOLD_APART_MS: u32 = RUN_APART_MS;
 const FLANK_DEG: f32 = OFF_LANE_DEG;
 /// Two kills of one shooter this close are a quick second kill, ms (an-anticamper §8.2).
 const QUICK_MS: u32 = 3_000;
+/// An escort play that ended after less than this, ms, is a short end (the churn of A157: median 875 ms).
+const ESCORT_SHORT_MS: u32 = 1_500;
 /// A carrier counts as in sight within this of an enemy, m.
 const CARRIER_SIGHT_M: f32 = 40.0;
 /// The carrier and sight samples are taken every this many ticks.
@@ -143,6 +145,10 @@ struct Counts {
     zone_take_died: u32,
     escort_no_way: u32,
     collect_no_way: u32,
+    /// Escort plays that ended (any reason), the sum of their lives, ms, and those that lived under [`ESCORT_SHORT_MS`].
+    escort_ended: u32,
+    escort_life_ms: u64,
+    escort_short: u32,
     /// By stance [standing, crouched]: placed, and caught [enemy, mate, own].
     placed: [u32; 2],
     caught: [[u32; 3]; 2],
@@ -176,6 +182,9 @@ impl Counts {
         self.zone_take_died += o.zone_take_died;
         self.escort_no_way += o.escort_no_way;
         self.collect_no_way += o.collect_no_way;
+        self.escort_ended += o.escort_ended;
+        self.escort_life_ms += o.escort_life_ms;
+        self.escort_short += o.escort_short;
         self.flip_moments += o.flip_moments;
         self.flip_pairs += o.flip_pairs;
         self
@@ -210,6 +219,9 @@ impl Counts {
             "zone_take_died_10s": self.zone_take_died,
             "escort_no_way_ends": self.escort_no_way,
             "collect_no_way_ends": self.collect_no_way,
+            "escort_plays_ended": self.escort_ended,
+            "escort_life_s": self.escort_life_ms as f64 / 1000.0,
+            "escort_short_ends": self.escort_short,
             "trap_placed_by_stance": self.placed,
             "trap_caught_by_stance": self.caught,
             "view_flip": {
@@ -248,6 +260,8 @@ pub(super) struct OutcomeCounts {
     /// By place: the stance at the last placement.
     stance: BTreeMap<Place, Stance>,
     estimates: Vec<Option<Vec3>>,
+    /// By place: the tick its running Escort play began.
+    escort_started: BTreeMap<Place, u32>,
 }
 
 impl OutcomeCounts {
@@ -522,6 +536,21 @@ impl Topic for OutcomeCounts {
 
     fn note(&mut self, _run: &Run, note: &Note, _kind: &NoteKind<'_>, game: &Game) {
         let team = side(game.bodies.get(note.place).map_or(0, |b| b.team));
+        if note.text.starts_with("takes ") {
+            if note.text.starts_with("takes Escort ") {
+                self.escort_started.insert(note.place, game.tick);
+            } else {
+                self.escort_started.remove(&note.place);
+            }
+        }
+        if note.text.starts_with("ends Escort:")
+            && let Some(began) = self.escort_started.remove(&note.place)
+        {
+            let life = game.tick.saturating_sub(began);
+            self.by[team].escort_ended += 1;
+            self.by[team].escort_life_ms += u64::from(life);
+            self.by[team].escort_short += u32::from(life < ESCORT_SHORT_MS);
+        }
         if note.text.starts_with("ends Escort:") && note.text.contains("no way") {
             self.by[team].escort_no_way += 1;
         }
@@ -812,4 +841,33 @@ pub(crate) fn the_sight_flips_are_counted_by_pairs_and_by_the_looking_bots_team(
     counts.flip_sample(&game);
     assert_eq!(counts.by[0].flips[0..2], [1, 1], "team 0: truly visible, the picture says hidden");
     assert_eq!(counts.by[0].flip_pairs, 2);
+}
+
+/// Escort plays are counted by the team of the bot: those that ended, the sum of their lives, and those under 1.5 s. A play
+/// replaced by another (a `takes` of another kind) is not counted; its later `ends` has no start.
+#[test]
+pub(crate) fn escort_plays_are_counted_with_their_lives_by_team() {
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    kills_and_notes(
+        &mut game,
+        &mut tally,
+        200,
+        &[(20.0, 35.0), (30.0, 30.0)],
+        &[],
+        &[
+            (10, 0, "takes Escort Battery(1) (score 0.5: the best play)"),
+            (14, 0, "ends Escort: no way to its goal"),
+            (20, 1, "takes Escort Place(0) (score 0.4: the best play)"),
+            (120, 1, "ends Escort: he is home"),
+            (130, 1, "takes Escort Place(0) (score 0.4: the best play)"),
+            (135, 1, "takes Collect Battery(2) (score 0.4: a better play)"),
+            (140, 1, "ends Escort: he is home"),
+        ],
+    );
+    let counts = tally.topic::<OutcomeCounts>();
+    assert_eq!((counts.by[0].escort_ended, counts.by[0].escort_short, counts.by[0].escort_no_way), (1, 1, 1));
+    assert_eq!((counts.by[1].escort_ended, counts.by[1].escort_short, counts.by[1].escort_no_way), (1, 0, 0));
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["by_team"]["0"]["escort_plays_ended"], 1, "{json}");
+    assert!((json["by_team"]["1"]["escort_life_s"].as_f64().unwrap() - 5.0).abs() < 0.01, "{json}");
 }
