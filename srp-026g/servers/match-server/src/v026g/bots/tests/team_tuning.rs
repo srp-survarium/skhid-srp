@@ -167,6 +167,107 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
     assert!(!hud_of_team_1(false, true), "team 1's cheat is on: no HUD, whatever team 0's is");
 }
 
+/// The plays' reads of the hazard switches (`Ctx::tuning`, `plays/collect.rs`): a battery lies in a zone so wide that no straight
+/// walk crosses to it, which only the motor's own route over the zone offers (`route_crossing` `total`). Team 0's switch is on,
+/// team 1's off, so only team 0's bots go for the battery: the same situation, two answers by tuning. Swapped, the answers
+/// swap.
+#[test]
+fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
+    use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+    use crate::v026g::bots::tuning::RouteCrossing;
+    let at = Vec3::new(25.0, 0.0, 32.0);
+    let goes_for_it = |route0: RouteCrossing, route1: RouteCrossing| -> [usize; 2] {
+        let world = super::tactics::tests::field_with(|map| {
+            for (id, team, x) in [(0, 0, 12.0), (1, 1, 68.0)] {
+                let position = Vec3::new(x, 0.0, 30.0);
+                map.containers.push(mapdata::Container {
+                    position,
+                    team,
+                    id,
+                    use_shapes: vec![Shape {
+                        kind: ShapeKind::Box,
+                        center: position + Vec3::new(0.0, 1.0, 0.0),
+                        rotation: Rotation::IDENTITY,
+                        half: Vec3::new(1.0, 0.85, 0.65),
+                    }],
+                });
+            }
+            map.battery_spawners = vec![mapdata::BatterySpawner { position: at, item: at, layer: "default".into() }];
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "toxic".into(),
+                team: -1,
+                position: Vec3::new(25.0, 0.0, 32.0),
+                damage_type: "toxic".into(),
+                damage: Some(Damage { max_hit: 0.01, interval_ms: 1000, parts: 2, ..Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: Vec3::new(25.0, 1.0, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(26.0, 26.0, 26.0),
+                }],
+            });
+        });
+        let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        // The HUD shows the lying battery (the cheat off).
+        team0.cheats.batteries = false;
+        team1.cheats.batteries = false;
+        team0.hazard.route_crossing = route0;
+        team1.hazard.route_crossing = route1;
+        // Only the routed crossing differs: the way out is not priced (a walk of 26 m through the zone would be).
+        team0.hazard.price_way_out = false;
+        team1.hazard.price_way_out = false;
+        let teams = [0u8, 0, 1, 1];
+        let mut bots = Bots::new_with(
+            0x7EA6,
+            survarium::v026g::maps::mode::BATTERIES,
+            0,
+            &teams,
+            &[true; 4],
+            &[None; 4],
+            tunings(team0, team1),
+            Trace::none(0),
+        );
+        bots.map_ready(world);
+        let spots = [(10.0, 10.0), (10.0, 14.0), (10.0, 26.0), (10.0, 30.0)];
+        for place in 0..4 {
+            bots.entered(place, true, 0);
+        }
+        let mut count = [0usize; 2];
+        for clock in (100..=20_000u32).step_by(100) {
+            if clock % 1_000 == 0 {
+                for (place, (x, z)) in spots.into_iter().enumerate() {
+                    let fix = Fix {
+                        time: clock,
+                        alive: true,
+                        inserted: 100,
+                        feet: Some(Vec3::new(x, 0.0, z)),
+                        yaw: 0.0,
+                        pitch: 0.0,
+                        keys: 0,
+                        speed: Some(0.0),
+                    };
+                    bots.fixed(place, fix, Some(1.0));
+                }
+                bots.facts(WorldFacts { time: clock, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() });
+            }
+            bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+        }
+        for (place, team) in teams.iter().enumerate() {
+            let collects = bots.bots[place]
+                .as_ref()
+                .and_then(|bot| bot.assignment.as_ref())
+                .is_some_and(|a| a.kind == PlayKind::Collect);
+            count[usize::from(*team)] += usize::from(collects);
+        }
+        count
+    };
+    let [t0, t1] = goes_for_it(RouteCrossing::Total, RouteCrossing::Off);
+    assert!(t0 > 0 && t1 == 0, "team 0 (routes) {t0} collect, team 1 (off) {t1}");
+    let [t0, t1] = goes_for_it(RouteCrossing::Off, RouteCrossing::Total);
+    assert!(t0 == 0 && t1 > 0, "swapped: team 0 (off) {t0} collect, team 1 (routes) {t1}");
+}
+
 /// The cover rule (`cover.pierce`) is a team's: team 1 tests cover as bullets (a crate is no cover from them) when team 1's
 /// tuning says so, whatever team 0's is, and the other way round. The rule reaches the plays and the reflex through
 /// `Bots::think`'s one `tuning_of(team)` (`Due::tuning`, `Situation::cover`), the same place the probes above exercise; no

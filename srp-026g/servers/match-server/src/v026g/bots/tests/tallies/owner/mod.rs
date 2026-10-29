@@ -46,6 +46,7 @@ use crate::v026g::bots::Bot;
 use crate::v026g::drive::key;
 
 mod campers;
+mod damage_zones;
 mod fight;
 mod golden;
 mod grenades;
@@ -67,6 +68,7 @@ mod stock;
 mod topic;
 
 use campers::*;
+use damage_zones::*;
 use fight::*;
 use grenades::*;
 use heal::*;

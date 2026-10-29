@@ -79,8 +79,9 @@ pub struct Second {
 /// across them at their thinnest (the marks' margin each side) leaves it at
 /// least [`CROSS_ABORT_LEFT`], the walk out of a ring's test. Zones that kill
 /// in a few metres (Vostok Radar Station's and Cologne's 1.2 a second) stay
-/// shut; whether a route over the floors let through is taken is
-/// [`choose`]'s.
+/// shut, and so does the margin's band round them (the gate is the zone's full hit, not what a body there loses,
+/// `Hazards::hurt_per_s`: a drift into a lethal zone is not crossed for); whether a route over the floors let through
+/// is taken is [`choose`]'s.
 pub fn crossable(tactics: &Tactics, node: NodeId, health: f32) -> bool {
     let hazards = &tactics.hazards;
     hazards.only_fixed_at(node) && {
@@ -143,6 +144,10 @@ fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, health: f32) -> bool {
 /// The health a body loses walking `route` from `from_m` to `to_m` along it,
 /// at [`CROSS_MPS`]: the zones on all match on its floors, looked at every
 /// [`CROSS_STEP_M`] (a zone that switches is crossed only while off).
+/// At the zones' full hit on every floor they mark, the margin's band included: the motor's own crossings of any goal
+/// are weighed pool-blind (the body's health), so a band priced at the drift's share let the bench's bots into zones
+/// they died in (Vector Laboratory, zone deaths 10 -> 15, `hurt_by_shape` alone); only a battery's crossing
+/// (`collect`) takes the shape's pricing.
 pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32) -> f32 {
     let grid = &tactics.world.grid;
     let d = (to_m - from_m).max(0.0);

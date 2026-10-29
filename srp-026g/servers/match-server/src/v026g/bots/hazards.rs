@@ -156,6 +156,17 @@ pub(super) fn standing_heights(grid: &WalkGrid) -> (f32, Vec<f32>) {
     (top, heights)
 }
 
+/// The centres of the spheres a standing body's capsule is made of (`radius` apart from the ends, ≤ 0.25 m apart): what
+/// [`near_floor`] tests a floor at for [`HazardMarks::hurt_set`] with `margin` the radius. Returns the capsule's height.
+pub(super) fn capsule_heights(grid: &WalkGrid) -> (f32, Vec<f32>) {
+    let body = grid.body();
+    let top = body.stand_height.max(0.1);
+    let (low, high) = (body.radius, (top - body.radius).max(body.radius));
+    let steps = ((high - low) / 0.25).ceil().max(1.0) as usize;
+    let heights = (0..=steps).map(|i| low + (high - low) * i as f32 / steps as f32).collect();
+    (top, heights)
+}
+
 /// Whether a standing body on the floor at `feet` comes within `margin` of `shape` (whose bounds are `bounds`): the
 /// test that marks a floor, for the baked zones ([`HazardMarks::build`]) and the live fields alike.
 pub(super) fn near_floor(
@@ -182,21 +193,43 @@ pub(super) fn near_floor(
 pub struct HazardMarks {
     /// By floor: 0 none, else an index + 1 into `sets`.
     floor_set: Vec<u16>,
+    /// By floor, the zones that hurt a body standing there: those its capsule (the grid body's width and height)
+    /// overlaps, where `floor_set` is the floors within the margin of a zone. The same indices as `floor_set`. The
+    /// floors of `floor_set` are where routes keep off ([`Hazards::allowed`]); these are where a body loses
+    /// health ([`Hazards::hurt_per_s`]).
+    hurt_set: Vec<u16>,
     /// Sets of zone indices marking a floor.
     sets: Vec<Vec<u16>>,
 }
 
 impl HazardMarks {
     /// Each floor of `world` within `margin` metres of one of `zones`
-    /// marked. Each shape visits only the floors under its bounds: a few
-    /// ms to a few tens on the largest maps.
+    /// marked, and each floor a body standing there overlaps one of them
+    /// with its capsule marked as hurt. Each shape visits only the floors under its
+    /// bounds: a few ms to a few tens on the largest maps.
     pub fn build(world: &World, zones: &[Hazard], margin: f32) -> Self {
-        let map = &world.map;
-        let grid = &world.grid;
-        let (top, heights) = standing_heights(grid);
-        let mut floor_set = vec![0u16; grid.len()];
         let mut sets: Vec<Vec<u16>> = Vec::new();
         let mut known: HashMap<Vec<u16>, u16> = HashMap::new();
+        let steering = standing_heights(&world.grid);
+        let floor_set = Self::mark(world, zones, margin, steering, &mut sets, &mut known);
+        let hurt = capsule_heights(&world.grid);
+        let hurt_set = Self::mark(world, zones, world.grid.body().radius, hurt, &mut sets, &mut known);
+        Self { floor_set, hurt_set, sets }
+    }
+
+    /// The floors within `margin` of the zones from the body points `(top, heights)` ([`near_floor`]), as indices
+    /// into `sets` (made as it goes).
+    fn mark(
+        world: &World,
+        zones: &[Hazard],
+        margin: f32,
+        (top, heights): (f32, Vec<f32>),
+        sets: &mut Vec<Vec<u16>>,
+        known: &mut HashMap<Vec<u16>, u16>,
+    ) -> Vec<u16> {
+        let map = &world.map;
+        let grid = &world.grid;
+        let mut floor_set = vec![0u16; grid.len()];
         for (h, hazard) in zones.iter().enumerate() {
             let h = h as u16;
             for shape in &map.zones[hazard.zone].shapes {
@@ -224,12 +257,13 @@ impl HazardMarks {
                 }
             }
         }
-        Self { floor_set, sets }
+        floor_set
     }
 
     /// Into a built file (`mapdata::built`).
     pub fn write_body(&self, out: &mut mapdata::built::Out) -> std::io::Result<()> {
         out.plain(&self.floor_set, |v| v.to_le_bytes())?;
+        out.plain(&self.hurt_set, |v| v.to_le_bytes())?;
         out.plain(&self.sets, |set| (set.len() as u32).to_le_bytes())?;
         let flat: Vec<u16> = self.sets.iter().flatten().copied().collect();
         out.plain(&flat, |v| v.to_le_bytes())
@@ -243,13 +277,16 @@ impl HazardMarks {
         zones: usize,
     ) -> Result<Self, String> {
         let floor_set: Vec<u16> = input.plain(u16::from_le_bytes)?;
+        let hurt_set: Vec<u16> = input.plain(u16::from_le_bytes)?;
         let lengths: Vec<u32> = input.plain(u32::from_le_bytes)?;
         let flat: Vec<u16> = input.plain(u16::from_le_bytes)?;
         let total: u64 = lengths.iter().map(|&len| u64::from(len)).sum();
         if floor_set.len() != floors
+            || hurt_set.len() != floors
             || total != flat.len() as u64
             || floor_set
                 .iter()
+                .chain(&hurt_set)
                 .any(|&set| usize::from(set) > lengths.len())
             || flat.iter().any(|&zone| usize::from(zone) >= zones)
         {
@@ -264,12 +301,12 @@ impl HazardMarks {
                 set.to_vec()
             })
             .collect();
-        Ok(Self { floor_set, sets })
+        Ok(Self { floor_set, hurt_set, sets })
     }
 
     /// Bytes held.
     pub fn memory_bytes(&self) -> usize {
-        self.floor_set.len() * 2
+        self.floor_set.len() * 4
             + self
                 .sets
                 .iter()
@@ -282,11 +319,49 @@ impl HazardMarks {
         digest.len(self.floor_set.len());
         self.floor_set
             .iter()
+            .chain(&self.hurt_set)
             .for_each(|&set| digest.u32(u32::from(set)));
         digest.len(self.sets.len());
         for set in &self.sets {
             digest.len(set.len());
             set.iter().for_each(|&h| digest.u32(u32::from(h)));
+        }
+    }
+}
+
+/// What a body on a floor loses to the zones there ([`Hazards::hurt_per_s`]). The rule is a team's (its tuning,
+/// `HazardTuning::hurt_by_shape`), so it is an argument of the question, not a field of the shared zones.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum HurtTest {
+    /// The zone's full hit on every floor routes keep off, the margin's marks, as it was (`HazardTuning::hurt_by_shape`
+    /// off; what a test with the all-off tuning has).
+    #[default]
+    Margin,
+    /// The full hit on the floors a standing body's capsule overlaps the zone's shape from
+    /// ([`HazardMarks::hurt_set`]); on the margin's band round them `band_permille` thousandths of it, the share of the
+    /// time the motor's drift puts a body walking there inside.
+    Shape { band_permille: u16 },
+}
+
+impl HurtTest {
+    /// The rule of `tuning` for a body of `radius` metres: the band is the margin less the radius wide, a body in it
+    /// drifts `band_drift_m * sqrt(2/pi)` on average (half-normal), so it is inside that share of the band's width of
+    /// the time (at most all of it).
+    pub fn of(tuning: &super::tuning::HazardTuning, radius: f32) -> Self {
+        if !tuning.hurt_by_shape {
+            return Self::Margin;
+        }
+        let band = tuning.margin_m.get() - radius;
+        let mean_drift = tuning.band_drift_m.get() * (2.0 / std::f32::consts::PI).sqrt();
+        let share = if band > 0.0 { (mean_drift / band).min(1.0) } else { 1.0 };
+        Self::Shape { band_permille: (share * 1000.0).round() as u16 }
+    }
+
+    /// The share of a zone's hit a body on a floor only the margin marks loses.
+    pub fn band_share(self) -> f32 {
+        match self {
+            Self::Margin => 1.0,
+            Self::Shape { band_permille } => f32::from(band_permille) / 1000.0,
         }
     }
 }
@@ -371,6 +446,30 @@ impl Hazards {
         set.iter().map(|&h| &self.zones[usize::from(h)])
     }
 
+    /// The zones that hurt a body standing on `node` ([`HurtTest`]): the zones whose shape it overlaps, or all that mark
+    /// it.
+    pub fn hurt_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = &Hazard> + '_ {
+        let floor_set = match rule {
+            HurtTest::Shape { .. } => &self.marks.hurt_set,
+            HurtTest::Margin => &self.marks.floor_set,
+        };
+        let set = match floor_set.get(node as usize) {
+            Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
+            _ => &[],
+        };
+        set.iter().map(|&h| &self.zones[usize::from(h)])
+    }
+
+    /// The zones marking `node` and how much of their hit a body there loses: all of it where the body is hurt
+    /// ([`Self::hurt_zones_at`]), the band's share ([`HurtTest::Shape`]) where only the margin marks it.
+    fn weighted_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = (&Hazard, f32)> + '_ {
+        let band = rule.band_share();
+        self.zones_at(node).map(move |zone| {
+            let hurts = self.hurt_zones_at(node, rule).any(|hurt| hurt.zone == zone.zone);
+            (zone, if hurts { 1.0 } else { band })
+        })
+    }
+
     /// A zone marking `node`, if any (the first).
     pub fn zone_of(&self, node: NodeId) -> Option<&Hazard> {
         self.zones_at(node).next()
@@ -407,6 +506,25 @@ impl Hazards {
     /// ([`Hazard::hit_per_s`]); 0 on a floor no zone marks.
     pub fn hit_per_s(&self, node: NodeId) -> f32 {
         self.zones_at(node).map(Hazard::hit_per_s).sum::<f32>() + self.live.hit_per_s(node)
+    }
+
+    /// What a body standing on `node` loses a second while the zones are on, summed ([`Hazard::hit_per_s`]): the full
+    /// hit of the zones that hurt there, the band's share of the others' that only mark it ([`Self::weighted_zones_at`]),
+    /// where [`Self::hit_per_s`] counts every floor routes keep off at the full hit (the gate of what may be crossed,
+    /// `crossing::crossable`). A floor over a cylinder's top, in its margin only, costs the band's share.
+    pub fn hurt_per_s(&self, node: NodeId, rule: HurtTest) -> f32 {
+        self.weighted_zones_at(node, rule).map(|(zone, w)| zone.hit_per_s() * w).sum::<f32>() + self.live.hit_per_s(node)
+    }
+
+    /// [`Self::hurt_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body pool).
+    pub fn hurt_cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>, rule: HurtTest) -> Cost {
+        match armour {
+            None => Cost::body(self.hurt_per_s(node, rule)),
+            Some(armour) => {
+                self.weighted_zones_at(node, rule).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
+                    + Cost::body(self.live.hit_per_s(node))
+            }
+        }
     }
 
     /// [`Self::hit_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body
@@ -575,6 +693,83 @@ impl Hazards {
     }
 }
 
+/// What the damage-zone fixes of the crossings and the escort posts did (the owner tally's `damage_zone_fixes` topic,
+/// `tests/tallies/owner/damage_zones.rs`): each event once, where it is decided, filed under the team that asked. These are
+/// the plays of the battery modes (a crossing to a battery, an escort post for its carrier), so their counts are of the
+/// objective kind [`KIND`]; a mode with other plays over damage zones gets its own kind and keys. They have nothing to do
+/// with a research mode's capture zones.
+#[cfg(test)]
+pub mod damage_zone_fixes {
+    use std::cell::{Cell, RefCell};
+
+    /// The objective kind these counts are of (the key prefix `dzf_<kind>_`).
+    pub const KIND: &str = "bat";
+
+    #[derive(Clone, Copy)]
+    pub enum Ev {
+        /// A battery's crossing asked (a memo miss), found, found at no cost (the fix of the hurt test), none.
+        CrossingAsked,
+        CrossingFound,
+        CrossingFree,
+        CrossingNone,
+        /// The motor's route searched for a crossing: no route, a route meeting a zone floor before the stop, a route
+        /// only `RouteCrossing::Total` offers (the fix).
+        RoutedNoRoute,
+        RoutedStrict,
+        RoutedTotalOnly,
+        /// An escort play begun: its post on the line, pulled to a dry floor that sees him, none (a failed start).
+        PostLine,
+        PostPulled,
+        PostNone,
+        /// A routed crossing's way out searched: found (priced), none (priced as the way in).
+        OutPriced,
+        OutNone,
+    }
+
+    /// The events' key suffixes, in order.
+    pub const NAMES: [&str; N] = [
+        "cross_asked",
+        "cross_found",
+        "cross_free",
+        "cross_none",
+        "routed_noroute",
+        "routed_strict",
+        "routed_total_only",
+        "post_line",
+        "post_pulled",
+        "post_none",
+        "out_priced",
+        "out_none",
+    ];
+
+    pub const N: usize = 12;
+    pub type Counts = [[u64; N]; 2];
+
+    // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
+    thread_local! {
+        static COUNTS: RefCell<Counts> = const { RefCell::new([[0; N]; 2]) };
+        static TEAM: Cell<u8> = const { Cell::new(0) };
+    }
+
+    /// `ask` with the events it counts filed under `team`.
+    pub fn asked_by<R>(team: u8, ask: impl FnOnce() -> R) -> R {
+        let before = TEAM.replace(team.min(1));
+        let out = ask();
+        TEAM.set(before);
+        out
+    }
+
+    pub fn count(ev: Ev) {
+        let team = usize::from(TEAM.get());
+        COUNTS.with_borrow_mut(|counts| counts[team][ev as usize] += 1);
+    }
+
+    /// This thread's counts so far, by team.
+    pub fn counts() -> Counts {
+        COUNTS.with_borrow(|counts| *counts)
+    }
+}
+
 /// The soonest match time a body `d_m` metres off gets there from `time`
 /// ([`ARRIVE_MPS`]).
 pub fn arrival(time: u32, d_m: f32) -> u32 {
@@ -642,6 +837,55 @@ mod tests {
         let b = grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.0).unwrap();
         let path = grid.path_where(a, b, |n| hazards.allowed(n, 0)).unwrap();
         assert!(path.nodes.iter().all(|&n| hazards.allowed(n, 0)));
+    }
+
+    /// A floor over a box's top, inside the margin only, is shut to routes and hurts nobody: the shape's own test
+    /// ([`HurtTest::Shape`]) prices it at the band's share of the zone's hit, the margin's ([`HurtTest::Margin`]) at all
+    /// of it; a floor the capsule overlaps the zone from costs all of it either way.
+    #[test]
+    fn a_floor_over_a_zones_top_is_shut_to_routes_and_priced_as_a_band() {
+        let mut map = electric_map();
+        map.zones.clear();
+        let slab = Shape {
+            kind: ShapeKind::Box,
+            center: Vec3::new(20.0, -0.27 - 1.0, 20.0),
+            rotation: Rotation::IDENTITY,
+            half: Vec3::new(4.0, 1.0, 4.0),
+        };
+        map.zones.push(zone("slab", slab, 0.1));
+        let world = world_of(map);
+        let hazards = Hazards::build(&world, 1.0);
+        let grid = &world.grid;
+        let over = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        assert!(!hazards.allowed(over, 0) && hazards.zone_of(over).is_some(), "shut to routes");
+        let full = hazards.hit_per_s(over);
+        assert!(full > 0.0);
+        assert_eq!(hazards.hurt_per_s(over, HurtTest::default()), full, "the margin's marks hurt, as they did");
+        let shape = HurtTest::Shape { band_permille: 250 };
+        assert_eq!(hazards.hurt_zones_at(over, shape).count(), 0, "the capsule does not reach it");
+        assert!((hazards.hurt_per_s(over, shape) - 0.25 * full).abs() < 1e-6, "the band's share");
+        assert_eq!(hazards.hit_per_s(over), full, "the gate of what may be crossed is the full hit");
+        // A box whose top reaches the floor does hurt there, whichever test.
+        let mut map = electric_map();
+        map.zones.clear();
+        let deep = Shape { center: Vec3::new(20.0, 0.5, 20.0), ..slab };
+        map.zones.push(zone("deep", deep, 0.1));
+        let world = world_of(map);
+        let hazards = Hazards::build(&world, 1.0);
+        let on = world.grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        assert_eq!(hazards.hurt_per_s(on, HurtTest::Shape { band_permille: 250 }), hazards.hit_per_s(on));
+    }
+
+    /// The band's share from the tuning: the margin less the body's radius wide, the drift's mean over it.
+    #[test]
+    fn the_bands_share_is_the_drifts_mean_over_its_width() {
+        let tuning = super::super::tuning::Tuning::default().hazard;
+        let HurtTest::Shape { band_permille } = HurtTest::of(&tuning, 0.38) else {
+            panic!("on by default");
+        };
+        assert_eq!(band_permille, (1000.0 * 0.2 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
+        let off = super::super::tuning::Tuning::all_off().hazard;
+        assert_eq!(HurtTest::of(&off, 0.38), HurtTest::Margin);
     }
 
     #[test]
@@ -734,6 +978,43 @@ mod tests {
             .path_where(from, to, |n| hazards.allowed(n, time))
             .unwrap();
         assert!(path.nodes.iter().all(|&n| hazards.allowed(n, time)));
+    }
+
+    /// Per zone of each level's day projects on the real maps (`SRP_MAPDATA_DIR`), the floors routes keep off and those
+    /// a body's capsule overlaps the zone from: the margin ring is the difference. Prints only.
+    #[test]
+    #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
+    fn hurt_floors_against_marked_floors_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        for level in 1..=8 {
+            for mode in [2, 4] {
+                let project = format!("level_{level:02}/day_{mode}");
+                let Ok(map) = MapData::read(&dir.join(mapdata::format::file_name(&project))) else {
+                    continue;
+                };
+                let world = World::build(map, mapdata::CELL, mapdata::Body::default());
+                let hazards = Hazards::build(&world, 1.0);
+                for (h, zone) in hazards.zones.iter().enumerate() {
+                    let (mut marked, mut hurt) = (0, 0);
+                    for node in 0..world.grid.len() as NodeId {
+                        marked += usize::from(hazards.zones_at(node).any(|z| z.zone == zone.zone));
+                        hurt += usize::from(hazards.hurt_zones_at(node, HurtTest::Shape { band_permille: 0 }).any(|z| z.zone == zone.zone));
+                    }
+                    let shapes = &world.map.zones[zone.zone].shapes;
+                    let tops = shapes.iter().map(|s| s.bounds()).map(|(lo, hi)| (lo.y, hi.y)).collect::<Vec<_>>();
+                    eprintln!(
+                        "hurt_vs_marked {project} zone {h} {} ({} {:.3}/s): marked {marked}, hurt {hurt}; shapes y {:?}",
+                        zone.name,
+                        zone.damage_type,
+                        zone.hit_per_s(),
+                        tops
+                    );
+                }
+            }
+        }
     }
 
     /// The zones of each level's day project on the real maps, only with

@@ -284,7 +284,7 @@ const SPAWN_BITS: u32 = 8;
 /// the spawn areas, the regions, the exits and the searches
 /// they come from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 3;
+pub const TACTICS_ALGO: u32 = 4;
 
 /// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
 /// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
@@ -2601,10 +2601,10 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 3);
+        assert_eq!(TACTICS_ALGO, 4);
     }
 
-    const PINNED_FIELD: u64 = 8_340_154_445_228_000_430;
+    const PINNED_FIELD: u64 = 13_582_078_593_300_033_124;
 
     #[test]
     fn a_written_base_reads_back_the_same_and_a_damaged_one_is_refused() {
