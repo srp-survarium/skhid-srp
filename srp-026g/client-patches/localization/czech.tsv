@@ -2509,7 +2509,6 @@ st_srp_rooms_teams_owner	Přesouvej hráče mezi týmy pomocí « a ».
 st_srp_rooms_unfit_gear	Vybavení přesahuje maximální úroveň. Sniž ji, jinak při startu opustíš místnost.
 st_srp_rooms_unfit_kit	Výbava není připravená (chybí zbraň nebo munice). Uprav ji, jinak při startu opustíš místnost.
 st_srp_rooms_vote	Hlasuj pro další mapu
-st_srp_rooms_vote_hint	3 mapy z výběru. Vyhrává nejvíc hlasů, remízu rozhodne náhoda. Kliknutím změníš svůj hlas.
 st_srp_rooms_vote_now	Hlasuj pro další mapu kliknutím na kartu. Po vypršení času začne zápas na vítězné mapě.
 st_srp_rooms_voting	Hlasování
 st_srp_rooms_waiting	Čekání na hráče

@@ -2509,7 +2509,6 @@ st_srp_rooms_teams_owner	Premesti igrače između timova pomoću « i ».
 st_srp_rooms_unfit_gear	Tvoja oprema prelazi najviši nivo: smanji ga ili ćeš napustiti sobu na početku meča.
 st_srp_rooms_unfit_kit	Komplet nije spreman (nema oružja ili dovoljno municije): popravi ga ili ćeš napustiti sobu na početku meča.
 st_srp_rooms_vote	Glasaj za sledeću mapu
-st_srp_rooms_vote_hint	3 mape iz izbora. Pobeđuje mapa sa najviše glasova; nerešen ishod se bira nasumično. Klikni da promeniš glas.
 st_srp_rooms_vote_now	Glasaj za sledeću mapu klikom na karticu. Po isteku vremena meč počinje na pobedničkoj mapi.
 st_srp_rooms_voting	Glasanje
 st_srp_rooms_waiting	Čekanje igrača

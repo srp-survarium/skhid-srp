@@ -108,6 +108,7 @@ package
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
          checkSideStable();
+         checkRoomView();
          checkQueueButton();
          checkCreate();
          checkWindowOrder();
@@ -421,6 +422,55 @@ package
          {
             failures.push(what + ": the facts' Max level " + (factsMax ? "missing" : "shown"));
          }
+      }
+
+      // The room's own view (the owner's of 2026-10-29): a vote card's mode tag as wide as its name,
+      // also after the same card showed a longer one; no vote hint line; in its match, the map and
+      // mode it is played on (the `L` row) under the banner's hint, whole.
+      private function checkRoomView() : void
+      {
+         var tagOf:Function = function(text:String):Object
+         {
+            var found:Array = [];
+            walk(win,[],found,0,0,[]);
+            for each(var t:Object in found)
+               if(t.text == text)
+               {
+                  var cell:* = t.parent;
+                  var tag:* = cell.getChildAt(cell.getChildIndex(t.field) - 1);
+                  return {"tag": tag.width, "text": t.field.textWidth};
+               }
+            return null;
+         };
+         // Card 1 (map 62): Blackout first, then the plain protective device.
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;6;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var long:Object = tagOf("PROTECTIVE DEVICE: BLACKOUT");
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;2;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var short:Object = tagOf("PROTECTIVE DEVICE");
+         trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
+            + ", then short " + (short != null ? short.tag + " for " + short.text : "none"));
+         if(long == null || short == null)
+            failures.push("vote card tags not found");
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20)
+            failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+            if(String(t.text).indexOf("Most votes wins") >= 0)
+               failures.push("the vote hint line is still shown");
+         // In its match on map 62: the map and mode line, not cut.
+         tellRoom(1003, false, false, 2, null, 0, ["L;62"]);
+         var line:String = null;
+         texts = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var u:Object in texts)
+            if(String(u.text).indexOf(" · Protective device") > 0)
+               line = u.text;
+         trace("ROOMS in its match, the banner's map line: " + line);
+         if(line == null || line.indexOf("…") >= 0)
+            failures.push("in its match: no whole map and mode line in the banner (" + line + ")");
       }
 
       // The chosen room beside the list keeps one layout through its vote: with no card ahead

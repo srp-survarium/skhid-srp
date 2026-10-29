@@ -2509,7 +2509,6 @@ st_srp_rooms_teams_owner	Siirrä pelaajia joukkueesta toiseen painikkeilla « ja
 st_srp_rooms_unfit_gear	Varusteesi ylittävät enimmäistason. Laske tasoa tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_unfit_kit	Varustesettisi ei kelpaa peliin (ase puuttuu tai ammuksia on liian vähän). Korjaa se tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_vote	Äänestä seuraavaa karttaa
-st_srp_rooms_vote_hint	3 korttia valikoimasta. Eniten ääniä saanut voittaa, tasatilanne arvotaan. Vaihda ääntäsi klikkaamalla.
 st_srp_rooms_vote_now	Äänestä seuraavaa karttaa klikkaamalla korttia. Ajan loputtua ottelu alkaa voittajakartalla.
 st_srp_rooms_voting	Äänestys
 st_srp_rooms_waiting	Odotetaan pelaajia

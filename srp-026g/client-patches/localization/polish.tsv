@@ -2509,7 +2509,6 @@ st_srp_rooms_teams_owner	Przenoś graczy między drużynami przyciskami « i ».
 st_srp_rooms_unfit_gear	Twój ekwipunek przekracza maks. poziom: obniż go, inaczej na starcie opuścisz pokój.
 st_srp_rooms_unfit_kit	Twój zestaw nie może grać (brak broni lub za mało amunicji): popraw, inaczej na starcie opuścisz pokój.
 st_srp_rooms_vote	Głosuj na następną mapę
-st_srp_rooms_vote_hint	3 karty z puli. Wygrywa większość; remis losowo. Kliknij, aby zmienić głos.
 st_srp_rooms_vote_now	Zagłosuj na następną mapę: kliknij kartę. Gdy czas minie, mecz zacznie się na zwycięskiej.
 st_srp_rooms_voting	Głosowanie
 st_srp_rooms_waiting	Czekamy na graczy

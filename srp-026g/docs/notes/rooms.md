@@ -193,6 +193,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   one layout through the vote. Before the vote, and while no card leads alone (the server then
   sends map 0), the map's render keeps its place empty and "Map chosen by vote" takes the map's
   line; its members are always in two columns.
+- **The room's own view** (the owner's of 2026-10-29): a vote card's mode tag is as wide as its
+  name; no hint line beside "Vote for the next map"; while its match is played, the bar says
+  the map and mode it is played on (the state's `L` row) under the join hint.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
