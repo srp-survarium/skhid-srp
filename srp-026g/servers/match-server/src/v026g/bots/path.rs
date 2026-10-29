@@ -252,20 +252,32 @@ pub enum NoRoute {
 #[cfg(test)]
 thread_local! {
     static NO_ROUTE: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
+    static NO_ROUTE_BY_TEAM: std::cell::Cell<[[u64; 6]; 2]> = const { std::cell::Cell::new([[0; 6]; 2]) };
 }
 
 /// A tick of a bot with a goal and no route, counted by why.
 #[cfg(test)]
-pub fn no_route(why: NoRoute) {
+pub fn no_route(team: u8, why: NoRoute) {
     NO_ROUTE.with(|c| {
         let mut n = c.get();
         n[why as usize] += 1;
         c.set(n);
     });
+    NO_ROUTE_BY_TEAM.with(|c| {
+        let mut n = c.get();
+        n[usize::from(team & 1)][why as usize] += 1;
+        c.set(n);
+    });
 }
 
 #[cfg(not(test))]
-pub fn no_route(_: NoRoute) {}
+pub fn no_route(_: u8, _: NoRoute) {}
+
+/// The ticks counted by [`no_route`] so far, by team and [`NoRoute`] in order.
+#[cfg(test)]
+pub fn no_routes_by_team() -> [[u64; 6]; 2] {
+    NO_ROUTE_BY_TEAM.with(|c| c.get())
+}
 
 /// The ticks counted by [`no_route`] so far, by [`NoRoute`] in order.
 #[cfg(test)]

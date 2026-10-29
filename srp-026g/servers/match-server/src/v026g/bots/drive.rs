@@ -715,16 +715,16 @@ fn drive_tick_inner(
                 .filter(|(goal, _, _)| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // Its own search under way: for this goal, else no longer
             // wanted.
-            let waiting = match searching.pending.as_ref() {
-                Some(pending) if pending.place == bot.place => {
-                    let still = pending.goal.distance_xz(at) <= REPLAN_MOVED_M;
+            let waiting = match searching.own_under_way(bot.team, bot.place) {
+                Some(goal) => {
+                    let still = goal.distance_xz(at) <= REPLAN_MOVED_M;
                     if !still {
-                        bot.dropped.dropped(time, pending.goal, at);
-                        searching.pending = None;
+                        bot.dropped.dropped(time, goal, at);
+                        searching.drop_own(bot.team);
                     }
                     still
                 }
-                _ => false,
+                None => false,
             };
             // Given up in its pocket, its goal outside it: no search (the grid
             // has no way, and the next goal is no different): the bot stays, the
@@ -783,12 +783,13 @@ fn drive_tick_inner(
                 } else {
                     path::NoRoute::NoWay
                 };
-            } else if waiting
-                || (replan
-                    && (searching.left == 0
-                        || searching.floors == 0
-                        || searching.pending.is_some()))
-            {
+            } else if waiting || (replan && !searching.may_start(bot.team)) {
+                #[cfg(test)]
+                if !waiting {
+                    search::queue::add(bot.team, search::queue::STARVED, 1);
+                    searching.starved(bot.team);
+                    bot.bench_starved_polls += 1;
+                }
                 // Its search goes on, or none left to this poll: the old
                 // route meanwhile.
                 no_route = if waiting {
@@ -796,8 +797,18 @@ fn drive_tick_inner(
                 } else {
                     path::NoRoute::Starved
                 };
-            } else if replan {
-                searching.left -= 1;
+            } else if let Some(mut grant) = replan.then(|| searching.grant(bot.team, bot.place)).flatten() {
+                // A search granted (`Searching`, the one owner of the drive's
+                // budget): the floors it may spend, booked when it drops.
+                #[cfg(test)]
+                {
+                    search::queue::add(bot.team, search::queue::GRANTED, 1);
+                    if bot.bench_starved_polls > 0 {
+                        search::queue::add(bot.team, search::queue::WAITED_POLLS, u64::from(bot.bench_starved_polls));
+                        search::queue::add(bot.team, search::queue::WAITED, 1);
+                        bot.bench_starved_polls = 0;
+                    }
+                }
                 let grid = &tactics.world.grid;
                 #[cfg(test)]
                 {
@@ -843,7 +854,7 @@ fn drive_tick_inner(
                     !tactics.allowed(from, time, side, objective)
                         && !(crossing && tactics.hazards.only_fixed_at(from))
                 });
-                let floors = &mut searching.floors;
+                let floors = &mut grant.floors;
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
@@ -1049,7 +1060,7 @@ fn drive_tick_inner(
                         bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
-                    searching.pending = Some(Pending {
+                    grant.leave_under_way(Pending {
                         place: bot.place,
                         goal: at,
                         time,
@@ -1075,9 +1086,13 @@ fn drive_tick_inner(
                             bot.bench_route = why::PLAIN;
                         }
                         bot.set_route(Some((partial, at)), time);
+                        #[cfg(test)]
+                        {
+                            bot.bench_on_partial = true;
+                        }
                     }
                     no_route = path::NoRoute::Searching;
-                    searching.pending = Some(Pending {
+                    grant.leave_under_way(Pending {
                         place: bot.place,
                         goal: at,
                         time,
@@ -1126,6 +1141,12 @@ fn drive_tick_inner(
                     bot.set_route(route.map(|route| (route, at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
+            }
+            // The bench's: a drive tick walked on a search's way so far.
+            #[cfg(test)]
+            if bot.bench_on_partial && bot.route.is_some() {
+                search::queue::add(bot.team, search::queue::PARTIAL_TICKS, 1);
+                bot.bench_partial_at = Some(time);
             }
             #[cfg(test)]
             {
@@ -1205,12 +1226,12 @@ fn drive_tick_inner(
                             },
                             time,
                         );
-                        path::no_route(path::NoRoute::Ended);
+                        path::no_route(bot.team, path::NoRoute::Ended);
                     }
                     decision
                 }
                 None => {
-                    path::no_route(no_route);
+                    path::no_route(bot.team, no_route);
                     match aim {
                         Some(aim) => {
                             aiming_still = true;

@@ -169,8 +169,7 @@ fn drive(run: Run) -> Seen {
             playing: true,
         };
         let view = bots.tracker.view(&now, &bots.match_wide_tuning().kin, Some(&world));
-        bots.features.searching.left = SEARCHES_PER_POLL;
-        bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
+        bots.features.searching.new_poll(bots.match_wide_tuning().think.search_queue, bots.match_wide_tuning().think.search_floors_per_poll as usize, crate::v026g::bots::search::living(&bots.bots, &view));
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = match run.goal {
