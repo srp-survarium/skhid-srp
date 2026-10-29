@@ -281,6 +281,7 @@ mod tests {
             batteries: vec![BatteryState::Carried(carried.then_some(0))],
             heard: Vec::new(),
             sight: None,
+            exits: Default::default(),
         }
     }
 

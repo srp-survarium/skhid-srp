@@ -7,8 +7,8 @@
 //! (the measure of `an-anticamper.md` 8.1). The runner places no bot, so the bots are the match's own (no scripting): the numbers
 //! say how many came.
 //!
-//! Not here: CT-P1-5 (a camper outside a spawn exit on Tarakanovsky Fort) needs the exit point the server prints from
-//! `Tactics::exits`, which a step cannot read; its place is not in the notes. It waits for the runner to hand a step that point.
+//! CT-P1-5 (a camper outside a spawn exit on Tarakanovsky Fort) starts when the owner stands within 5 m of one of team 1's exits, which the frame
+//! carries (`Frame::exits`, from `Tactics::exits`): the owner finds the way out of the enemy spawn and holds it.
 
 use super::*;
 use crate::v026g::bots::view::{BatteryState, Place};
@@ -33,6 +33,9 @@ const LANE_M: f32 = 40.0;
 const SPOT_AREA_M: f32 = 10.0;
 /// Quick second kills: a kill within this of the one before, ms.
 const QUICK_MS: u32 = 3_000;
+/// CT-P1-5: the owner holds within this of one of team 1's exits, and a death counts at the exit within this of it, m.
+const EXIT_HOLD_M: f32 = 5.0;
+const EXIT_DEATH_M: f32 = 30.0;
 
 fn flat_bearing_deg(from: Vec3, to: Vec3) -> f32 {
     (to.z - from.z).atan2(to.x - from.x).to_degrees()
@@ -378,6 +381,68 @@ fn bait_measure() -> Measure {
     Measure::Custom { names: &["bots_at_battery", "deaths_by_battery", "first_arrival_s"], make: BaitMeter::make }
 }
 
+/// The owner is alive within 5 m of one of team 1's exits.
+fn near_enemy_exit(frame: &Frame, _since: Span) -> bool {
+    frame.owner.as_ref().is_some_and(|o| o.body.alive && frame.exits[1].iter().any(|e| e.distance_xz(o.body.feet) <= EXIT_HOLD_M))
+}
+
+/// CT-P1-5: team 1's bots dying at the exit he holds. Names: `exit_deaths` (enemy bots that fell within 30 m of an exit of theirs while
+/// he held it), `pair_deaths` (of them, the ones within 3 s of the one before: bots coming out one after another),
+/// `deaths_per_10s_after_2nd` (the deaths after his 2nd kill per 10 s of the try after it; the bar is at most one), `flank_notes`
+/// (notes `takes Flank ThreatSpot` in the try).
+#[derive(Debug, Default)]
+struct ExitMeter {
+    hold: Hold,
+    deaths: Vec<At>,
+    after_second: u32,
+    last: Option<At>,
+    flank_notes: u32,
+}
+
+impl ExitMeter {
+    fn make(_start: &TryStart) -> Box<dyn CustomMeter> {
+        Box::new(Self::default())
+    }
+}
+
+impl CustomMeter for ExitMeter {
+    fn sample(&mut self, frame: &Frame) {
+        if !self.hold.read(frame) {
+            return;
+        }
+        for at in fallen(&self.hold.before, frame) {
+            if frame.exits[1].iter().any(|e| e.distance_xz(at) <= EXIT_DEATH_M) {
+                self.deaths.push(frame.clock);
+                if self.hold.second_kill.is_some_and(|second| frame.clock.0 > second.0) {
+                    self.after_second += 1;
+                }
+            }
+        }
+        self.flank_notes += frame.heard.iter().filter(|h| h.text.contains("takes Flank ThreatSpot")).count() as u32;
+        self.last = Some(frame.clock);
+        self.hold.finish(frame);
+    }
+
+    fn value(&self, n: usize) -> Option<f64> {
+        self.hold.kills_at_start?;
+        match n {
+            0 => Some(self.deaths.len() as f64),
+            1 => Some(self.deaths.windows(2).filter(|w| w[1].0.saturating_sub(w[0].0) <= QUICK_MS).count() as f64),
+            2 => {
+                let second = self.hold.second_kill?;
+                let seconds = f64::from(self.last?.0.saturating_sub(second.0)) / 1_000.0;
+                (seconds > 0.0).then(|| f64::from(self.after_second) / (seconds / 10.0).max(1.0))
+            }
+            3 => Some(f64::from(self.flank_notes)),
+            _ => None,
+        }
+    }
+}
+
+fn exit_measure() -> Measure {
+    Measure::Custom { names: &["exit_deaths", "pair_deaths", "deaths_per_10s_after_2nd", "flank_notes"], make: ExitMeter::make }
+}
+
 fn picked_up(frame: &Frame, _progress: &Progress) -> bool {
     frame.batteries.iter().any(|b| matches!(b, BatteryState::Carried(Some(_))))
 }
@@ -516,6 +581,22 @@ pub fn steps() -> Vec<Step> {
         .budget_s(120)
         .arm_s(180)
         .tries(1),
+        // CT-P1-5: a camper outside the enemy spawn exit (the owner's question). The step starts within 5 m of one of team 1's exits.
+        Step::new(
+            "threat-spawn-exit",
+            Group::new(TARAKANOVSKY_FORT, BATTERIES).of_size(10),
+            "Walk out to team 1's spawn exit (the way out of their base) and hold just outside it, facing in; kill what comes out.",
+        )
+        .start(&[Cond::Custom(WaitFor { describe: "you are within 5 m of an enemy spawn exit", holds: near_enemy_exit })])
+        .end(&[End::OwnerDied])
+        .measure(exit_measure())
+        .measure(Measure::OwnerKills)
+        .measure(Measure::OwnerDeaths)
+        // After his 2nd kill at most one more team-1 death per 10 s at that exit (the bots leave by another exit or wait out of his lanes).
+        .bar("deaths_per_10s_after_2nd", Test::AtMost(1.0))
+        .budget_s(180)
+        .arm_s(180)
+        .tries(1),
         // Z5 / an-objective 6.4: the contested battery in Cologne's middle (the match gives the bots; the runner places none).
         Step::new(
             "threat-contested-battery",
@@ -565,6 +646,7 @@ mod tests {
             batteries,
             heard,
             sight: None,
+            exits: Default::default(),
         }
     }
 
@@ -659,6 +741,30 @@ mod tests {
         meter.sample(&frame(4_000, 0, vec![bot(10, false, Vec3::new(19.0, 0.0, 0.0))], Vec::new(), lying()));
         let v = |n| meter.value(n).unwrap();
         assert_eq!((v(0), v(1), v(2)), (1.0, 1.0, 2.0));
+    }
+
+    /// The exit meter counts the bots that fall at an exit of team 1's, the pairs within 3 s, and the rate after his 2nd kill.
+    #[test]
+    fn the_exit_meter_counts_deaths_at_the_exit_and_the_rate_after_the_second_kill() {
+        let exit = Vec3::new(40.0, 0.0, 0.0);
+        let mut meter = ExitMeter::make(&start());
+        let f = |ms, kills, bots: Vec<BotView>| {
+            let mut f = frame(ms, kills, bots, Vec::new(), Vec::new());
+            f.exits[1] = vec![exit];
+            f
+        };
+        let at_exit = |place, alive| bot(place, alive, exit + Vec3::new(5.0, 0.0, 0.0));
+        meter.sample(&f(0, 0, vec![at_exit(10, true), at_exit(11, true), at_exit(12, true), bot(13, true, Vec3::new(0.0, 0.0, 90.0))]));
+        meter.sample(&f(1_000, 1, vec![at_exit(10, false), at_exit(11, true), at_exit(12, true), bot(13, true, Vec3::new(0.0, 0.0, 90.0))]));
+        meter.sample(&f(2_000, 2, vec![at_exit(10, false), at_exit(11, false), at_exit(12, true), bot(13, true, Vec3::new(0.0, 0.0, 90.0))]));
+        // One more at the exit 8 s later, 20 s into the try; a bot far from the exit falls too (not counted).
+        meter.sample(&f(10_000, 2, vec![at_exit(10, false), at_exit(11, false), at_exit(12, false), bot(13, false, Vec3::new(0.0, 0.0, 90.0))]));
+        meter.sample(&f(22_000, 2, vec![at_exit(10, false), at_exit(11, false), at_exit(12, false), bot(13, false, Vec3::new(0.0, 0.0, 90.0))]));
+        let v = |n| meter.value(n).unwrap();
+        assert_eq!((v(0), v(1)), (3.0, 1.0), "three at the exit, one pair (1 s and 2 s)");
+        assert!((v(2) - 0.5).abs() < 1e-9, "one after the 2nd kill, in 20 s: {}", v(2));
+        assert!(near_enemy_exit(&{ let mut g = frame(0, 0, Vec::new(), Vec::new(), Vec::new()); g.exits[1] = vec![Vec3::new(3.0, 0.0, 0.0)]; g }, Span(0)));
+        assert!(!near_enemy_exit(&frame(0, 0, Vec::new(), Vec::new(), Vec::new()), Span(0)), "no exits known");
     }
 
     /// The contest meter counts the mates' takes, the notes of the scored-out candidates and the first moment a battery is carried.
@@ -785,6 +891,21 @@ mod tests {
         });
         assert!(results.contains("threat-bait-battery") && results.contains("PASS"), "{results}");
         assert!(results.contains("bots_at_battery=1") && results.contains("deaths_by_battery=1"), "{results}");
+    }
+
+    /// The exit hold: the step starts within 5 m of team 1's exit; two bots fall at it in the first minute; the owner dies at the end.
+    #[test]
+    fn dry_run_the_spawn_exit_hold_reads_the_deaths() {
+        let exit = Vec3::new(60.0, 0.0, 0.0);
+        let (results, _) = super::super::dry::run(named("threat-spawn-exit"), 120, |ms| {
+            let mut owner = owner_at(exit + Vec3::new(3.0, 0.0, 0.0), u32::from(ms >= 5_000) + u32::from(ms >= 8_000), false);
+            owner.alive = ms < 100_000;
+            let mut f = dry_frame(ms, owner);
+            f.exits[1] = vec![exit];
+            f.bots = vec![bot(10, ms < 5_000, exit + Vec3::new(8.0, 0.0, 0.0)), bot(11, ms < 8_000, exit + Vec3::new(8.0, 0.0, 0.0))];
+            f
+        });
+        assert!(results.contains("threat-spawn-exit") && results.contains("PASS") && results.contains("exit_deaths=2"), "{results}");
     }
 
     /// The contested battery: after 20 s two mates say they take it, someone has it at 45 s: PASS, ended by the pick-up.
