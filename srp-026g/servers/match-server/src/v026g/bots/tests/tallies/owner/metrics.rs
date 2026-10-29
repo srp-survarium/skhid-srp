@@ -102,6 +102,11 @@ pub(super) struct Metrics {
     died: [u32; 2],
     /// By place: the health at the last tick while it lived.
     health: Vec<Option<f32>>,
+    /// By team: bodies' ticks spent dead, waiting to respawn (or out of tickets).
+    dead_ticks: [u64; 2],
+    /// By team and by whether the kit the body died in carries the radio (0 with, 1 without): ticks dead and deaths.
+    dead_by_radio: [[u64; 2]; 2],
+    deaths_by_radio: [[u32; 2]; 2],
     /// By team: damage dealt, taken and other (in lives).
     dealt: [f64; 2],
     taken: [f64; 2],
@@ -189,7 +194,13 @@ impl Topic for Metrics {
                     }
                 }
             }
+            let radio = usize::from(!body.radio.get(body.heal.kit()).copied().unwrap_or(true));
+            if self.health[place].is_some() && !body.alive {
+                self.deaths_by_radio[team][radio] += 1;
+            }
             self.health[place] = body.alive.then_some(body.health);
+            self.dead_ticks[team] += u64::from(!body.alive);
+            self.dead_by_radio[team][radio] += u64::from(!body.alive);
         }
     }
 
@@ -201,6 +212,7 @@ impl Topic for Metrics {
             ("trades", self.trades_part(run, game)),
             ("damage", self.damage_part()),
             ("work", self.work_part(seconds)),
+            ("respawn", self.respawn_part(game)),
         ]
     }
 }
@@ -309,6 +321,37 @@ impl Metrics {
         )
     }
 
+    /// Seconds the team's bodies spent dead, and per death (their wait for the respawn: the radio's -20 % is in it for a kit that carries
+    /// one, `Game::respawn_ms_of_body`).
+    fn respawn_part(&self, game: &Game) -> Part {
+        let dead_s = self.dead_ticks.map(|ticks| round1(ticks as f64 * f64::from(TICK_MS) / 1000.0));
+        let mut deaths = [0u32; 2];
+        for (place, body) in game.bodies.iter().enumerate() {
+            deaths[usize::from(body.team & 1)] += game.stats.get(place).map_or(0, |s| s.1);
+        }
+        let per_death: Vec<f64> = (0..2).map(|t| if deaths[t] > 0 { round1(dead_s[t] / f64::from(deaths[t])) } else { 0.0 }).collect();
+        // By the radio of the kit the body died in: its deaths and the seconds it was dead, per team.
+        let by_radio = |radio: usize| {
+            let dead: Vec<f64> = (0..2).map(|t| round1(self.dead_by_radio[t][radio] as f64 * f64::from(TICK_MS) / 1000.0)).collect();
+            let n: Vec<u32> = (0..2).map(|t| self.deaths_by_radio[t][radio]).collect();
+            let per: Vec<f64> = (0..2).map(|t| if n[t] > 0 { round1(dead[t] / f64::from(n[t])) } else { 0.0 }).collect();
+            (dead, n, per)
+        };
+        let (with, without) = (by_radio(0), by_radio(1));
+        let text = format!(
+            "owner-test respawn (by team): seconds dead {dead_s:?}, deaths {deaths:?}, seconds dead a death {per_death:?}; by the kit's radio: with {:?} deaths, {:?} s a death; without {:?} deaths, {:?} s a death",
+            with.1, with.2, without.1, without.2
+        );
+        Part::new(
+            serde_json::json!({ "respawn": {
+                "dead_s": dead_s, "deaths": deaths, "dead_s_per_death": per_death,
+                "with_radio": { "deaths": with.1, "dead_s": with.0, "dead_s_per_death": with.2 },
+                "without_radio": { "deaths": without.1, "dead_s": without.0, "dead_s_per_death": without.2 },
+            } }),
+            text,
+        )
+    }
+
     fn work_part(&self, seconds: f64) -> Part {
         let now = bench_work::totals();
         let before = self.start.map_or(now, |start| start.work);
@@ -403,5 +446,24 @@ mod tests {
         assert!(near(m.dealt, [0.5, 0.0]), "{:?}", m.dealt);
         assert!(near(m.taken, [0.25, 0.5]), "{:?}", m.taken);
         assert!(near(m.other, [0.25, 0.0]), "{:?}", m.other);
+    }
+
+    /// A death is counted by the radio of the kit the body died in, and its dead seconds with it.
+    #[test]
+    fn deaths_and_dead_seconds_are_counted_by_the_kits_radio() {
+        let (mut game, mut tally) = made_up(&[0, 1]);
+        game.bodies[1].radio = [false; 3];
+        game.tick = 1_000;
+        tally.step_with(&mut game, &[None, None]);
+        for place in 0..2 {
+            game.bodies[place].alive = false;
+        }
+        for k in 1..=4u32 {
+            game.tick = 1_000 + k * TICK_MS;
+            tally.step_with(&mut game, &[None, None]);
+        }
+        let m = tally.topic::<Metrics>();
+        assert_eq!((m.deaths_by_radio[0], m.deaths_by_radio[1]), ([1, 0], [0, 1]));
+        assert_eq!((m.dead_by_radio[0], m.dead_by_radio[1]), ([4, 0], [0, 4]));
     }
 }
