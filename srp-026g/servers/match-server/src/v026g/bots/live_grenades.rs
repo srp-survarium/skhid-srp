@@ -160,8 +160,8 @@ pub enum Store {
 
 /// A player's pockets, in slot order: what the throw keys throw (`loadouts::POCKET_SLOTS`,
 /// `QUICK_USE_ORDER`, PROVEN): the throw key the first pocket that holds a grenade with units left, quick use
-/// `n` the `n`-th pocket that holds an item with units left (the pockets come first in the client's order),
-/// and a grenade only if that item is one.
+/// `n` the `n`-th pocket present in the kit (the pockets come first in the client's order; a pocket whose units are
+/// spent keeps its number, `pockets::quick_use_order`), and a grenade with units left only if that item is one.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Pockets {
     slots: [Option<Pocket>; 6],
@@ -235,32 +235,35 @@ impl Pockets {
             .sum()
     }
 
-    /// The index of the pocket the keys `pressed` throw from, if they throw a grenade.
+    /// The index of the pocket the keys `pressed` throw from, if they throw a grenade. The throw key takes the first pocket
+    /// with a grenade that has units (`inventory::first_grenade_pocket` 0x2FE8B0); quick use `n` names the `n`-th pocket
+    /// present (the numbering rule: [`quick_use_order`]), and that pocket throws only if it holds a grenade with units left
+    /// (`grenade_set_core::want_throw` 0x309DC0: a spent stack wants nothing).
     fn throws_from(&self, pressed: u32) -> Option<usize> {
-        let held = |slot: &Option<Pocket>| slot.is_some_and(|pocket| pocket.left > 0);
+        let with_units = |slot: &Option<Pocket>| slot.is_some_and(|pocket| pocket.left > 0);
         if pressed & key::GRENADE != 0 {
             return self
                 .slots
                 .iter()
-                .position(|slot| held(slot) && slot.is_some_and(|pocket| pocket.item.is_grenade()));
+                .position(|slot| with_units(slot) && slot.is_some_and(|pocket| pocket.item.is_grenade()));
         }
         let n = key::QUICK.iter().position(|&bit| pressed & bit != 0)?;
-        let i = quick_use_order(|i| held(&self.slots[i])).nth(n)?;
+        let i = quick_use_order(|i| self.slots[i].is_some()).nth(n)?;
         self.slots[i]
-            .is_some_and(|pocket| pocket.item.is_grenade())
+            .is_some_and(|pocket| pocket.left > 0 && pocket.item.is_grenade())
             .then_some(i)
     }
 
-    /// Whether the two rules for which pockets the quick-use keys number pick different pockets for `pressed` (a quick-use key):
-    /// the units left now (what the list goes by) and the pockets the kit filled at the spawn (what the heal count goes by,
-    /// [`quick_use_order`]). Counted, until the client steps P6-1..P6-3 settle which is the client's.
+    /// Whether numbering the pockets by the units left now (what the list did before the numbering followed the client's
+    /// present pockets) would pick another pocket than the present-pocket rule for `pressed`: the presses the fix changes, counted
+    /// so the live match-end line says how many there were.
     fn quick_rules_differ(&self, pressed: u32) -> bool {
         let Some(n) = key::QUICK.iter().position(|&bit| pressed & bit != 0) else {
             return false;
         };
-        let now = quick_use_order(|i| self.slots[i].is_some_and(|pocket| pocket.left > 0)).nth(n);
-        let at_spawn = quick_use_order(|i| self.slots[i].is_some()).nth(n);
-        now != at_spawn
+        let by_units = quick_use_order(|i| self.slots[i].is_some_and(|pocket| pocket.left > 0)).nth(n);
+        let by_present = quick_use_order(|i| self.slots[i].is_some()).nth(n);
+        by_units != by_present
     }
 
     /// The grenade the keys `pressed` (just gone down) throw, if any: one unit is taken.
@@ -486,7 +489,8 @@ pub struct ThrowCounts {
     /// A human's throw key (or a quick-use key) that found no grenade in the kit in use, and one while the kit is
     /// not known to the profile.
     pub human_empty: u32,
-    /// A quick-use key pressed where the units-left rule and the filled-at-spawn rule pick different pockets.
+    /// A quick-use key pressed where numbering by the units left (the list's rule before) picks another pocket than the present
+    /// pockets (the client's): the presses the numbering fix changes.
     pub quick_rules_differ: u32,
     /// A world named a kit the profile does not have (`Supplies::kit` out of range): kept the kit it had.
     pub unknown_kit: u32,
@@ -655,7 +659,7 @@ mod tests {
     }
 
     #[test]
-    fn spent_pockets_close_the_gap_for_quick_use_and_a_new_life_fills_them() {
+    fn spent_pockets_keep_their_quick_number_and_a_new_life_fills_them() {
         let mut p = Pockets::new([
             Some((Pocketed::Frag, 1)),
             Some((Pocketed::Smoke, 1)),
@@ -665,8 +669,9 @@ mod tests {
             None,
         ]);
         assert_eq!(p.throw(key::QUICK[0]), Some(Pocketed::Frag));
-        // The frag is gone: the smoke is now the first pocket held.
-        assert_eq!(p.throw(key::QUICK[0]), Some(Pocketed::Smoke));
+        // The frag is gone: its pocket is still quick 1 and throws nothing; the smoke is still quick 2.
+        assert_eq!(p.throw(key::QUICK[0]), None);
+        assert_eq!(p.throw(key::QUICK[1]), Some(Pocketed::Smoke));
         assert_eq!(p.throw(key::GRENADE), None);
         p.refill();
         assert_eq!(p.throw(key::GRENADE), Some(Pocketed::Frag));
@@ -798,9 +803,11 @@ mod tests {
         let presses: Vec<u32> = tracker.live_grenades().iter().map(|g| g.press).collect();
         assert_eq!(presses, [2_000, 4_000]);
         assert!(tracker.live_grenades().iter().all(|g| g.by == 1 && g.team == 1));
-        // The frags are spent: the smoke is the second pocket held, quick 2 now.
+        // The frags are spent: their pocket is still quick 2 and throws nothing, the smoke stays quick 3.
         press(&mut tracker, 1, 6_000, key::QUICK[1]);
         assert_eq!(tracker.live_grenades().len(), 2);
+        press(&mut tracker, 1, 6_100, 0);
+        press(&mut tracker, 1, 8_000, key::QUICK[2]);
         let counts = tracker.throw_counts();
         assert_eq!((counts.frag, counts.smoke, counts.no_pockets), (2, 1, 0));
     }
@@ -1075,19 +1082,29 @@ mod tests {
         assert_eq!(Throws::Bot(frag_first.into()).frags_left(), Some(2), "the frag behind the smoke is not counted");
     }
 
-    /// The two rules for numbering the quick-use pockets agree until a pocket is spent, then the presses where they pick another
-    /// pocket are counted.
+    /// The quick-use keys number the pockets present, not the units left (`inventory::quick_use_slot` 0x2FE7F0): a pocket
+    /// before the smoke that is spent (the frag thrown) leaves the smoke's number where it was, so its key still throws the smoke
+    /// and the spent pocket's key throws nothing. Kit: frag (quick 1), smoke (quick 2). A human's and a server bot's
+    /// pockets alike.
     #[test]
-    fn a_quick_use_press_where_the_two_numbering_rules_differ_is_counted() {
-        let pockets = Pockets::new([Some((Pocketed::Frag, 1)), Some((Pocketed::Frag, 1)), None, None, None, None]);
-        let mut tracker = stand_pockets(Some(pockets), None);
-        press(&mut tracker, 0, 1_000, key::QUICK[0]);
-        press(&mut tracker, 0, 1_050, 0);
-        assert_eq!((tracker.throw_counts().quick_rules_differ, tracker.throw_counts().frag), (0, 1), "nothing spent: the rules agree");
-        // The first pocket is spent: by the units left, key 0 is the second pocket; by the pockets filled at the spawn it is still
-        // the first.
-        press(&mut tracker, 0, 3_000, key::QUICK[0]);
-        assert_eq!((tracker.throw_counts().quick_rules_differ, tracker.throw_counts().frag), (1, 2));
+    fn a_spent_earlier_pocket_leaves_the_smokes_quick_key_where_it_was() {
+        for (place, bot) in [(1usize, false), (0, true)] {
+            let kit = Pockets::new([Some((Pocketed::Frag, 1)), Some((Pocketed::Smoke, 1)), None, None, None, None]);
+            let mut tracker = if bot { stand_pockets(Some(kit), None) } else { stand_pockets(None, Some(kit.into())) };
+            // The frag, by its key.
+            press(&mut tracker, place, 1_000, key::QUICK[0]);
+            press(&mut tracker, place, 1_050, 0);
+            assert_eq!(tracker.throw_counts().quick_rules_differ, 0, "nothing spent yet: both rules agree");
+            // The frag pocket is spent. Its key now throws nothing; the smoke is still quick 2.
+            press(&mut tracker, place, 3_000, key::QUICK[0]);
+            press(&mut tracker, place, 3_050, 0);
+            assert_eq!(tracker.live_grenades().len(), 1, "bot {bot}: a spent pocket's key lists nothing");
+            press(&mut tracker, place, 5_000, key::QUICK[1]);
+            assert_eq!(tracker.throw_counts().smoke, 1, "bot {bot}: the smoke is still quick 2 and is thrown");
+            // The two presses where numbering by the units left would have picked another pocket are counted: the spent frag's
+            // key (it would have been the smoke's) and the smoke's own (it would have been nothing).
+            assert_eq!(tracker.throw_counts().quick_rules_differ, 2, "bot {bot}");
+        }
     }
 
     /// The storage rule (a stack's slot filled from the item's storage) comes with `kit_in_use` (`all_kits`): off, a life
