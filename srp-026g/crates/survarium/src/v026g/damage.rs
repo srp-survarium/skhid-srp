@@ -17,7 +17,10 @@
 //! 1. A bullet starts with `bullet_damage × k_damage` and
 //!    `bullet_pierce × k_arp` (bullet ctor 0x32BB38..0x32BB7B; weapon
 //!    fields `weapon_damage_params` ctor 0x332330, ammo fields
-//!    `weapon_ammunition` ctor 0x332440). PROVEN.
+//!    `weapon_ammunition_params` ctor 0x332440: PROVEN that it builds a
+//!    0x54-byte plain struct, a member of `weapon_core` (0x2DF3D4) at +0x268
+//!    of the ammunition item; the class name is LIKELY, from its RTTI type
+//!    descriptor, twin of `weapon_damage_params` at 0x332330). PROVEN.
 //! 2. Both fall by one factor with the bullet's speed: full up to
 //!    `max_damage_distance × k_max_damage_distance`, down to
 //!    `min_damage_amount × k_min_damage_amount` of it at `min_damage_distance
@@ -76,8 +79,8 @@ pub const HUMAN_HIT_PARAMS: &str = "gameplay/hit_params/human_hit_params.options
 /// The prefix of the armour items' configs.
 const ARMOUR_PATH: &str = "gameplay/items/armour/";
 
-/// An ammunition's multipliers and flight (`weapon_ammunition`, ctor
-/// 0x332440: `distance` +0, `k_damage` +8, `k_max_damage_distance` +0x18,
+/// An ammunition's multipliers and flight (`weapon_ammunition_params`, ctor
+/// 0x332440, its class name LIKELY: `distance` +0, `k_damage` +8, `k_max_damage_distance` +0x18,
 /// `k_min_damage_distance` +0x1C, `k_min_damage_amount` +0x20, `k_arp`
 /// +0x24, `air_resistance` +0x28, `muzzle_speed` +0x3C, `buck_shot` +0x44:
 /// PROVEN). The lobby's `parameters/damage` and `parameters/arp` are not
