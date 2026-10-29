@@ -784,6 +784,7 @@ va	status	ref_021d	name
 0x0011fb00	inferred-medium	0x000d9b82	vostok::buffer_vector<unsigned short>::push_back
 0x0011fb80	inferred-medium	0x000d9bf0	stlp_std::priv::_Rb_tree<vostok::render::render_model_instance *,stlp_std::less<vostok::render::render_model_instance *>,stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects>,stlp_std::priv::_Select1st<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,vostok::render::std_allocator<stlp_std::pair<vostok::render::render_model_instance *,vostok::render::material_effects> > >::_M_erase
 0x0011fbf0	inferred-medium	0x000d9c7d	vostok::buffer_vector<vostok::render::vertex_colored>::push_back
+0x00120560	inferred-medium		vostok::math::modf
 0x001206a0	inferred-medium	0x000da281	vostok::render::fill_dds_header
 0x00120780	inferred-medium	0x000da37a	vostok::render::surfaces_cache::get_rt
 0x00120930	inferred-medium	0x000da4df	vostok::render::surfaces_cache::get_tex
@@ -1945,6 +1946,8 @@ va	status	ref_021d	name
 0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_vertical_recoil_time
 0x002e3c10	inferred-medium	0x001e4a4b	survarium::weapon_core::chamber_a_round_pred
 0x002e3cb0	inferred-medium	0x001e4ac4	survarium::weapon_core::fire_pred
+0x002e4850	inferred-high		boost::random::normal_distribution<float>::operator()<boost::random::minstd_rand>
+0x002e49f0	inferred-high		boost::random::uniform_real_distribution<float>::operator()<boost::random::minstd_rand>
 0x002e5bb0	inferred-medium		survarium::game_effect_ptr_wrapper::serialize_root_emitter
 0x002e5c90	inferred-medium		survarium::game_effect_ptr_wrapper::serialize
 0x002e5d70	inferred-medium	0x00200dd3	survarium::loose_ptr<survarium::game_effect,survarium::loose_ptr_data,vostok::threading::single_threading_policy>::c_ptr
@@ -2265,7 +2268,14 @@ va	status	ref_021d	name
 0x0032d300	inferred-medium	0x0020244f	survarium::bullet::compute_max_error
 0x0032f190	inferred-medium	0x00203bbd	vostok::network_core::buffer_writer::w<signed char>
 0x0032fc40	inferred-medium	0x002043f7	vostok::buffer_vector<survarium::player_shootmarks_storage::sm>::push_back
+0x0032fe40	inferred-medium		survarium::linear_interpolator::tick
 0x003309b0	inferred-medium		survarium::hit_animations_selector::hit_body_part::serialize
+0x00331150	inferred-medium		survarium::dispersion_calculator::fire
+0x00331220	inferred-medium		survarium::dispersion_calculator::get_static_dispersion
+0x00331330	inferred-medium		survarium::dispersion_calculator::tick
+0x00331480	inferred-medium		survarium::character_dispersion_calculator::get_skill_influence
+0x00331560	inferred-medium		survarium::character_dispersion_calculator::get_target_koef
+0x003317c0	inferred-medium		survarium::character_dispersion_calculator::get_broken_hands_penalty
 0x00333580	inferred-medium		survarium::composite_game_effect::on_event
 0x003340c0	inferred-medium		survarium::composite_game_effect::activate_effect
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
@@ -3114,3 +3124,8 @@ va	status	ref_021d	name
 0x0025f640	inferred-high		survarium::artefact<artefact_onyx_core>::update_client_state
 0x0025fb80	inferred-high		survarium::artefact<artefact_rattle_core>::update_client_state
 0x002fec10	inferred-high		survarium::portable_interactive_object_core::selected_user_animations
+0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
+0x002e13a0	inferred-medium		survarium::weapon_core::get_camera_shake_lexeme
+0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
+0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
+0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid

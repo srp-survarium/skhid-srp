@@ -1,6 +1,6 @@
 # Damage calculator
 
-A single-page shooter-vs-target damage calculator for 0.26g, in English and Ukrainian. The website serves it at `/damage` (`srp-026g/servers/web-server/src/damage.rs`, spec in `docs/notes/damage_calculator.md`). It covers:
+A single-page shooter-vs-target damage calculator for 0.26g, in English and Ukrainian. The website serves it at `/wiki/calculator`, a section of the wiki (`srp-026g/servers/web-server/src/damage.rs`, spec in `docs/notes/damage_calculator.md`). It covers:
 
 - every weapon, ammo and armour piece, and every body part and distance
 - weapon and armour modifications (bonuses only)

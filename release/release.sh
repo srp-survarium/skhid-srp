@@ -1020,14 +1020,15 @@ if [[ -n $rev ]] && ((rev >= MENUS_PATCH)) && [[ -z $(list_row "resources.db.pat
     ${resources##*/} != "resources.db.patch_$MENUS_PATCH" ]]; then
     problem "revision $rev needs resources.db.patch_$MENUS_PATCH (the menus) offered, and $PATCH_LIST has no row of it: release it (--resources) first"
 fi
-# The site's pages built from the game (the Maps tab, the calculator): each
+# The site's pages built from the game (the Maps tab, the calculator, and the
+# wiki's weapons and icons the calculator's build makes): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
 # with new content always is): rebuilt below, at the end of the preflight
 # (release/build-site, in a worktree of the commit), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
-SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage)
+SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/wiki)
 site_tree='' site_stale=0 want=''
 if ((!test_server)) && [[ -n $main_commit ]]; then
     site_with=''

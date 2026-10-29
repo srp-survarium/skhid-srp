@@ -740,7 +740,8 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
             )
         })
         .collect();
-    assert_eq!(premium.len(), 4, "{premium:?}");
+    // Silver, experience and the four factions' reputation.
+    assert_eq!(premium.len(), 6, "{premium:?}");
 
     let data = Modifications::shared();
     let taken = all_item_mods()

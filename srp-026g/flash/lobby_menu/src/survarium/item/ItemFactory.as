@@ -15,6 +15,7 @@ package survarium.item
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemDefaults;
    import survarium.constants.ItemDictId;
+   import survarium.constants.Equipment029;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
@@ -163,7 +164,7 @@ package survarium.item
       // A golden item: a golden weapon or a premium armour piece (golden::is_golden).
       public static function isGolden(dictId:int) : Boolean
       {
-         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1;
+         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1 || Equipment029.premium(dictId) != null;
       }
       
       // A golden item's plain item; anything else itself.
@@ -175,7 +176,9 @@ package survarium.item
             return int(ItemDictId.GOLDEN_PLAIN[index]);
          }
          index = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
-         return index == -1 ? dictId : int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
+         if(index != -1) return int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
+         var extra:Array = Equipment029.premium(dictId);
+         return extra == null ? dictId : int(extra[1]);
       }
       
       // The bonuses srp gives a new golden item as its own first modifications
@@ -186,7 +189,9 @@ package survarium.item
          [1230,66,126,"0.10"], // +10 % silver
          [1240,65,127,"0.05"], // +5 % experience
          [1250,67,128,"0.05"], // +5 % reputation with the Scavengers
-         [1260,68,129,"0.05"] // +5 % reputation with the Black Market
+         [1260,68,129,"0.05"], // +5 % reputation with the Black Market
+         [1270,69,130,"0.05"], // +5 % reputation with the Renaissance Army
+         [1280,70,131,"0.05"] // +5 % reputation with the Fringe Settlers
       ];
       
       public static const SILVER_BONUS:int = 1230;
@@ -228,9 +233,14 @@ package survarium.item
             var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
             if(index == -1)
             {
-               return [];
+               var extra:Array = Equipment029.premium(dictId);
+               if(extra == null) return [];
+               ids = extra[2];
             }
-            ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
+            else
+            {
+               ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
+            }
          }
          var modifiers:Array = [];
          var id:int;
