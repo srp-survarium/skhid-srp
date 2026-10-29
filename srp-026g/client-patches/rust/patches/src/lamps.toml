@@ -1,0 +1,52 @@
+name = "lamps"
+patch = 80
+
+[[hook]]
+site = "project.insert"
+handler = "on_bind"
+[[hook]]
+site = "project.removed"
+handler = "on_remove"
+[[hook]]
+site = "project.destroy"
+handler = "on_destroy"
+[[hook]]
+site = "game_world.after_move"
+handler = "on_present"
+order = 1
+[[hook]]
+site = "bullet.ray_traced"
+handler = "on_ray"
+order = 1
+[[hook]]
+site = "bullet_history.saved"
+handler = "on_save"
+[[hook]]
+site = "bullet_history.loaded"
+handler = "on_load"
+
+[[vtable]]
+name = "visual"
+source = "visual_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "light"
+source = "light_methods"
+check = "check_lamps_026g.py"
+
+[[hook]]
+site = "visual.insert"
+handler = "on_visual_insert"
+proof = "visual insert through project loop"
+[[hook]]
+site = "visual.remove"
+handler = "on_visual_remove"
+proof = "visual remove through project loop"
+[[hook]]
+site = "light.insert"
+handler = "on_light_insert"
+proof = "light insert through project loop"
+[[hook]]
+site = "light.remove"
+handler = "on_light_remove"
+proof = "light remove through project loop"

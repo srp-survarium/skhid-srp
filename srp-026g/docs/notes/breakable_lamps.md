@@ -47,52 +47,59 @@ Build this resource-porter pack into
 `$SKHID_PACKS_DIR/breakable-lamps-1`, then use `release/build-content` normally.
 No release patch is assembled by the authoring tools.
 
-## Engine integration
+## Rust implementation and ownership
 
-`client-patches/lamps_026g.c` and `.asm` are the arena's `lamps.code` and
-`lamps.state`. The C owner is either Empty or Loaded with one project's
-typed lamps and presentation bindings. Each lamp is Intact or Broken.
-Bullet workers atomically compare/exchange Intact to Broken. Only the winner
-queues a break's effects. The native simulation
-joins its workers before history capture/restore and frame presentation.
+`client-patches/rust/patches/src/lamps.rs` and `lamps/model.rs` implement the
+feature in the shared `patches` crate, with `forbid(unsafe_code)`. The hook
+declarations are `lamps.toml`; entries, native continuations, convention
+shims and runtime vtable copies are generated. There is no lamp C/NASM
+implementation or separate lamp arena block.
 
-The bind hook runs at `simple_game_project::insert` (0x285750), before its
-native `insert_static` call. Its first stack argument supplies the physics
-world; its second is the game-world core, and ECX is the project.
-The project owns its config (+17Ch), scene (+180h), objects (+184h/+188h),
-and 48h-byte render visuals (+1E8h/+1ECh). These are 0.26g offsets; the older
-engine source's layouts differ. A visual's matrix is +4, its model +44h.
-A light's transform is +110h, translation +140h, props +158h, light id +250h.
-The scene's +98h is its **camera director**, never the physics world.
-These accesses and the functions' calling conventions were checked against
-the original build 2777 executable; function/ABI findings are in the re-kit.
+The patch operates on `LampId`, `LampCount`, `MaterialId`, `VisualIndex`,
+finite `WorldPoint`, `RayDirection`, `Distance`, `Bounds` and a clipped
+`BulletSegment`. Configuration records are decoded into `ConfigValue`
+once by `vostok::config`; authored rows are then resolved into a complete
+project plan. `Snapshot` bounds the fixture count and reads the complete
+suffix before committing. Renderer membership has one total transition
+function over `Detached`, `Hidden` and `Shown`. Lamp transitions distinguish
+first hits from repeated hits and restoration, which never emits effects.
 
-Only configured objects receive replacement vtables. Their native RTTI and
-other slots are retained. The insert/remove slots have the native calling
-conventions, declared in `INSTALLED_VTABLES`. One transition function manages
-Detached, Hidden and Shown, emitting only the required renderer add/remove.
-The engine library calls the original visual methods (0x285FA0/0x285FE0) and
-light methods (0x291790/0x2917D0); no renderer container or model refcount is
-edited directly. Project removal (0x285614) restores the original vtables.
-The destructor hook (0x285330) also detaches before resource members die.
+`vostok::project::ProjectRegistry` is the sole owner of the registration:
+`Empty` or `Bound` with project identity, physics identity, scene, patch data
+and presentation bindings. An uninstalled `ProjectPlan` borrows the insertion
+hook. Every visual index, exact light position, native type, unique owner
+and capacity is checked before committing any vtable change. Scenery without
+metadata requires none of the lamp-specific scene or physics inputs.
 
-The bullet hook at 0x32D631 reads the native ray's origin, unit direction,
-length and closest hit, and intersects the segment with each intact lamp's
-authored box. A hit stops the tested segment: lamps behind walls or players
-do not break. The original bullet, result, registers, flags and FP state are
-preserved. The hook is immediately after ragdoll's separate 0x32D627 hook.
-The frame hook at 0x1F7C41 applies the settled simulation's states to the
-renderer, after ragdoll's separate 0x1F7C3C hook, preserving both original
-branches. Rendering never runs on a bullet worker.
+The native insertion hook is `simple_game_project::insert` (0x285750): ECX
+is the project, its first stack argument the physics world. Scene +98h is
+the camera director. Project config, arrays, scene and light fields are
+named in `fields_026g.tsv`; wrappers contain no literal game addresses or
+field offsets. The engine functions and their ABIs remain in the engine
+library and re-kit. Native handles stay behind the registry's interface;
+workers can reach only the patch's simulation data.
 
-The first hit queues the bullet/glass material pair's particle and sound
-through `engine_play_particle` (0x3223E0) and `engine_play_sound` (0x3222F0).
-The native bullet manager owns their resource references, accepts worker
-calls and drains its effects queue after joining. The effect is placed at
-the fixture's bounds centre, independently of its original collision
-material. Native bullet impacts remain unchanged. Repeated hits on a broken
-fixture queue nothing; quiet bullets change state without effects, and
-loading a historical lamp state never replays its break sound or shards.
+Bullet and frame handlers share the existing `bullet.ray_traced` (0x32D627)
+and `game_world.after_move` (0x1F7C3C) sites with ragdolls, in explicit order.
+One generated entry saves/restores the machine and replays the native span.
+The ray is clipped at the nearest native hit before testing fixtures; the
+original bullet and collision result remain unchanged.
+
+`Lock` serializes worker transitions: a fixture breaks once, and only that
+transition emits feedback. The parsed material-pair capability queues native
+particles and sound, with neither available to a quiet bullet. The game joins
+workers before presentation/history operations. Renderer methods run only
+from the scene lifecycle/frame callbacks, through the original engine calls;
+the patch never edits a renderer container or model reference count.
+
+Generated copies of the visual and light vtables retain RTTI and untouched
+slots. Their typed `NativeVtable<T>` handles cannot be interchanged. Both
+native removal (0x285614) and destructor fallback (0x285330) remove only
+shown objects and restore every original table before native members die.
+The same owner coordinates these paths; a later match starts intact.
+The framework's lock requires `Send` data and releases ownership through a
+guard, including host-test unwinding. The registry's private native handles
+are transferred only as stored identities; scene callbacks alone use them.
 
 ## History and compatibility
 
@@ -101,14 +108,16 @@ The epilogues of `bullet_manager::serialize` (0x321C3B) and `deserialize`
 `u32 0x31504D4C` (LMP1), `u32 fixture_count`, then `ceil(count/32)` u32 words,
 low bit first, 1 meaning Broken. The limit is 256 lamps and 1,024 presentation
 bindings per project. The suffix is at most 40 bytes. Maps without metadata
-keep the original bullet format. The bound physics world selects the owner.
+keep the original bullet format. The typed physics identity selects the owner. Bits beyond the fixture count
+are ignored and serialized as zero, matching the C reference.
 
 The native snapshot envelope, hashing and server forwarding already preserve
 the bullet blob. This keeps lamp state through rollback, late joins, resyncs
 and replay snapshots without a new server packet or server-side map table.
 The reader's `{begin, cursor, byte_count}` is bounded before reading the suffix;
 wrong magic/count or truncated data is rejected before changing any lamp.
-Invalid project metadata is also rejected rather than partially activated.
+Invalid project metadata is rejected before any native vtable changes.
+History errors are reported after releasing the registry lock.
 
 `simulation_changes.tsv` has a `next` row: older recordings must be refused by
 the release that ships this. Release revision and minimum-client gating remain
@@ -116,29 +125,49 @@ the release workflow's responsibility; this feature does not change `REVISION`.
 
 ## Verification
 
-`check_lamps_026g.py <original exe>` builds the client and executes its native
-config lookup, project iteration/vtable dispatch, visual/light methods,
-empty-bullet history functions and installed hooks in Unicorn. It checks
-hits, misses, occlusion, repeated hits, glow removal, rollback/resimulation,
-late-join/replay snapshot loading, malformed suffixes, removal, destructor
-fallback and next-match reset. Every authored map variant also runs through
-native binding, insertion and removal. The bullet test enters through the
-adjacent ragdoll hook; both frame continuations preserve registers and flags.
-Renderer/effect queue endpoints, the writer's byte sink and `GetCurrentThreadId`
-are stubbed. The native material-pair lookup executes normally. The check
-also asserts one shard/sound event per break, no miss/repeated-hit effects,
-and silent quiet bullets and snapshot loads.
+`check_lamps_026g.py <original exe>` runs native config lookup, project
+iteration/vtable dispatch, visual/light methods, bullet history and installed
+hooks in Unicorn. It covers all 92 authored variants, hits, occlusion,
+repeated hits, quiet bullets, effects, history loading, malformed suffixes,
+rollback/resimulation, ordinary removal, destructor fallback and reset.
+Additional cases verify atomic binding failures and unconfigured scenery.
+Renderer/effect queue endpoints, the writer's byte sink and OS services are
+stubbed; the native material-pair lookup runs normally.
+
+The stateful port gate is:
+
+```
+python port/check_lamps_equivalence_026g.py ORIGINAL OLD_PATCHED NEW_PATCHED
+```
+
+It compares C and Rust after every operation: renderer/effect call traces,
+complete history bytes, native object fields and normalized vtable ownership.
+It includes 400 seeded shots, all 92 variants, restoration, teardown and
+malformed history. Private state layouts differ, and frame/ray hooks now
+share generated entries, so the single-hook byte-write gate is not the
+appropriate comparison. The C reference is commit `a4f05203`; the saved
+reference exe's SHA-256 is
+`571b6864669cdc6e69312a5e2583036cb6db9e6d0197571348171f91d766f5a5`.
+Stronger atomic metadata rejection is tested separately, not claimed as
+byte-for-byte equivalence with the C implementation's partial installation.
+
+Rust tests cover geometry, total state transitions, every supported snapshot
+capacity, truncation, padding, restoration, owned bounded storage and
+multithreaded lock behavior. Generator tests cover ordered chains, early
+exits, native slot checks, RTTI and unmodified slots, and invalid/ambiguous
+vtable declarations. They are included in the full self-test.
 
 `python -m unittest discover -s scripts/breakable-lamps` checks transformed
 bounds, mesh cropping and every source binding's ownership/limits.
-`content_edit.py ... --check` checks all 92 projects against the authoring
-base, and `release/build-content` validates composition through the manifest.
+`release/build-content` validates composition through the full manifest.
 
-The local game tests confirmed model replacement, light removal and breaking
+The local game tests of the C reference confirmed model replacement, light removal and breaking
 on Chemical Plant and Vostok v0.11. The initial owner-identity regression
 now enters through the native insertion ABI with different camera and
 physics objects: scene +98h is a camera director, while insertion supplies
-the physics world used by bullets and history. No release was run.
+the physics world used by bullets and history. The Rust port has native
+emulation coverage; it has not yet been played in the client. No release
+was run.
 
 ## Imported cone alignment
 

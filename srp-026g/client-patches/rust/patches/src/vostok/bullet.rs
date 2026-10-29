@@ -9,6 +9,8 @@
 use super::context::Context;
 use super::world::{BodyId, floats, read};
 use crate::raw;
+use super::geometry::{WorldPoint, RayDirection};
+use super::project::PhysicsId;
 
 /// The material a living player's hit model is to bullets: every hit body's
 /// +38h is 10, `actor` (bt_animated_rigid_body's ctor 0x70E70); the pair
@@ -16,6 +18,13 @@ use crate::raw;
 const ACTOR: u32 = 10;
 /// The material pairs' table is 128 by 128 (material_pair 0x306D50).
 const MATERIALS: u32 = 128;
+
+/// A valid material-pair index, parsed from authored content once.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MaterialId(u32);
+impl MaterialId {
+    pub fn parse(value: u32) -> Option<Self> { (value < MATERIALS).then_some(Self(value)) }
+}
 
 /// A bullet's ray just traced, its result not yet read.
 pub struct BulletRay<'t> {
@@ -33,6 +42,30 @@ impl<'t> BulletRay<'t> {
         // check_collision's frame, alive while it runs, on its thread.
         let (bullet, result, frame) = unsafe { (site::bullet(ctx)?, site::result(ctx)?, site::frame(ctx)?) };
         Some(BulletRay { bullet, result, frame, _thread: ctx.thread() })
+    }
+
+    pub fn physics(&self) -> Option<PhysicsId> {
+        // SAFETY: the manager and its physics world live for the bullet job.
+        unsafe { Some(PhysicsId::of(self.bullet.manager()?.physics()?)) }
+    }
+
+    /// Parse feedback once for this bullet/material pair. A quiet bullet
+    /// has no feedback capability; simulation can still change lamp state.
+    pub fn surface_break_effects(&self, material: MaterialId) -> Option<SurfaceBreakEffects<'t>> {
+        // SAFETY: the manager and the material table own these resources
+        // until the worker joins. The result borrows this hook's thread.
+        unsafe {
+            if read(self.bullet.quiet()) != 0 { return None; }
+            let manager = self.bullet.manager()?;
+            if read(manager.renderer()) == 0 { return None; }
+            let materials = manager.materials()?;
+            let source = MaterialId::parse(u32::from(read(self.bullet.material()?.id())))?;
+            let pair = raw::engine_material_pair(Some(materials), source.0, material.0)?;
+            let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
+                .map(|slot| ParticleEffect { slot, parameter: read(pair.parameter()) });
+            let sound = (read(pair.sound()) != 0).then(|| SoundEffect { slot: pair.sound() });
+            Some(SurfaceBreakEffects { manager, particle, sound, _thread: self._thread })
+        }
     }
 
     /// The bullet's id.
@@ -143,6 +176,35 @@ impl<'t> BulletRay<'t> {
             if read(pair.sound()) != 0 && read(bullet.quiet()) == 0 && self.segment() <= 1 {
                 raw::engine_play_sound(Some(manager), pair.sound(), point.as_ptr());
             }
+        }
+    }
+}
+
+struct ParticleEffect { slot: raw::ParticleSlot, parameter: u32 }
+struct SoundEffect { slot: *mut u32 }
+
+/// A parsed native material pair's worker-safe feedback queues. Optional
+/// particle/sound resources carry only the arguments valid for that effect.
+pub struct SurfaceBreakEffects<'t> {
+    manager: raw::BulletManager,
+    particle: Option<ParticleEffect>,
+    sound: Option<SoundEffect>,
+    _thread: &'t super::Thread,
+}
+impl SurfaceBreakEffects<'_> {
+    pub fn play(&self, point: WorldPoint, direction: RayDirection) {
+        let point = point.coordinates();
+        let direction = direction.coordinates();
+        let normal = direction.map(|v| -v);
+        // SAFETY: the constructor parsed the resources from this worker's
+        // live manager. Native queues synchronize writes and copy the local
+        // float3s; the thread borrow prevents retaining this capability.
+        unsafe {
+            if let Some(particle) = &self.particle {
+                raw::engine_play_particle(point.as_ptr(), Some(self.manager), Some(particle.slot),
+                                          direction.as_ptr(), normal.as_ptr(), particle.parameter);
+            }
+            if let Some(sound) = &self.sound { raw::engine_play_sound(Some(self.manager), sound.slot, point.as_ptr()); }
         }
     }
 }

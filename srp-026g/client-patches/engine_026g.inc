@@ -20,7 +20,7 @@ extern engine_write_u8
 ; void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x2f5da0 vostok::network_core::buffer_writer::w<unsigned short>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
 extern engine_write_u16
-; void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
+; void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
 extern engine_write_u32
 ; void engine_statistics_notify(void *listener, unsigned int place, unsigned int event, unsigned int amount)
@@ -187,15 +187,19 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
-; void engine_visual_insert(void *visual, void *scene)
-; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4
+; void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)
+; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_visual_insert
-; void engine_visual_remove(void *visual, void *scene)
-; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4
+; void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)
+; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_visual_remove
-; void engine_light_insert(void *light)
-; 0x291790 survarium::object_light::insert: light ECX; pops 0
+; void engine_light_insert(struct object_light *light)
+; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_light_insert
-; void engine_light_remove(void *light)
-; 0x2917d0 survarium::object_light::remove: light ECX; pops 0
+; void engine_light_remove(struct object_light *light)
+; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_light_remove

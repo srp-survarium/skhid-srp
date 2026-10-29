@@ -1554,7 +1554,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
-        [(va, len(old)) for va, old, _, _ in P.LAMPS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
@@ -4754,17 +4753,25 @@ def test_bake_cache(original, image, before):
 
 
 def test_lamps(original, image, before):
-    """Lamp hooks: original bytes, linked targets, and no interior entry.
-    Runtime transitions and native vtable dispatch run in check_lamps_026g.py.
-    """
-    stock, linked = Image(original), P.arena()
-    for va, old, symbol, opcode in P.LAMPS_HOOKS:
-        expected = P.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old))
-              and image.read(va, len(old)) == expected,
-              f"lamp hook {symbol}: native without the arena, linked target with it")
-        check(not branches_into(original, va + 1, va + len(old)),
-              f"lamp hook {symbol}: no original branch enters the displaced instructions")
+    """The lamp's generated detours and its shared frame/ray chains."""
+    import hooks_026g
+    linked = P.arena()
+    stock = Image(original)
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "lamps" not in owners or hook["kind"] != "lohook":
+            continue
+        va, old = hook["site"], hook["original"]
+        expected = P.hook_bytes(linked.symbols[hook["entry"]], va, old, 0, 0xE9)
+        check(before.read(va, len(old)) == old and image.read(va, len(old)) == expected,
+              f"lamp hook {hook['site_name']}: native without the arena, generated target with it")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3
+                 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"lamp hook {hook['site_name']}: no branch enters the displaced instructions or relocation overlaps them"
+              + "".join(f", {h:#x}" for h in hits + under))
 
 
 def test_ragdoll(original, image, before):
@@ -4825,9 +4832,11 @@ def test_ragdoll(original, image, before):
     block = linked.blocks["patches.code"]
     data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
     sym = linked.symbols
-    hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
-                                  0x2477DF, 0x15A950, 0x2DA3DF],
+    declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
+                    if any(m["patch"] == "ragdoll" for m in h.get("chain", [h]))}
+    hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
+    check(len(hooks) == 9 and {h[0] for h in hooks} == {0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
+                                                       0x2477DF, 0x15A950, 0x2DA3DF},
           "the Rust patch ragdoll's nine lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
     check(rows(stock, 0x2477DF, 9) == ["mov ecx,[ebp-0x1c]", "mov edx,[ebx+0xf290]"]
           and rows(stock, 0x15A94D, 10) == ["mov edx,[ebp+0x14]", "cmp byte [edi+0x62d8],0x0"],
@@ -4859,7 +4868,7 @@ def test_ragdoll(original, image, before):
     # called, its Flow taken), its replay the site's own bytes, then back
     for va, old, symbol, _ in hooks:
         texts = [text for _, _, text in ndisasm(image.read(sym[symbol], 0x60), sym[symbol])]
-        shim = sym["hook_" + symbol]
+        shim = sym[declarations[symbol]["shim"]]
         check(texts[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
               and f"call {shim:#x}" in texts,
               f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
@@ -6245,7 +6254,7 @@ def test_hook_kinds(original):
     import io
     import unittest
     output = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "port.test_equiv_026g"])
+    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "test_runtime_hooks_026g", "port.test_equiv_026g"])
     result = unittest.TextTestRunner(stream=output).run(suite)
     check(result.wasSuccessful(), f"the hook generator and equivalence build paths: {result.testsRun} tests"
           + ("" if result.wasSuccessful() else "\n" + output.getvalue()))

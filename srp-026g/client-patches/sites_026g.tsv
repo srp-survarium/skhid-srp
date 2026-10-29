@@ -20,3 +20,12 @@ quick_slots.activity	0x23B7A0	lohook	-	7	-	ui=ESI:survarium::game_world_ui playe
 configs.start	0x1EA210	lohook	-	6	-	-	game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)
 configs.texts	0x1EA306	lohook	-	6	-	-	on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded
 options.callback	0x1FF5D0	lohook	-	6	done@0x1FF971	options=ECX:survarium::game_options_interface frame=ESP:survarium::options_callback_frame	game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`
+project.insert	0x285750	lohook	-	6	-	project=ECX:survarium::simple_game_project frame=ESP:survarium::project_insert_frame	before insert_static, ECX project and ESP+4 physics
+project.removed	0x285614	lohook	-	5	-	project=ESI:survarium::simple_game_project	remove_static epilogue, after native object removals
+project.destroy	0x285330	lohook	-	10	-	project=ECX:survarium::simple_game_project	destructor before any member is released
+bullet_history.saved	0x321C3B	lohook	-	5	-	manager=EDI:survarium::bullet_manager frame=EBP:survarium::history_save_frame	serialize epilogue, after native bullet history
+bullet_history.loaded	0x321D01	lohook	-	7	-	manager=EDI:survarium::bullet_manager reader=EBX:vostok::buffer_reader	deserialize epilogue, after native bullet history
+visual.insert	0xA029B4	vtable	engine_visual_insert	-	-	-	render visual insert slot
+visual.remove	0xA029B8	vtable	engine_visual_remove	-	-	-	render visual remove slot
+light.insert	0xA0AE0C	vtable	engine_light_insert	-	-	-	object_light insert slot 8
+light.remove	0xA0AE10	vtable	engine_light_remove	-	-	-	object_light remove slot 9

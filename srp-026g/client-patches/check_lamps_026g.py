@@ -108,6 +108,16 @@ class Game:
         # Ragdoll's neighboring hook uses this import for its own lock.
         self.w(0x870118, RET + 0x100)
         u.mem_write(RET + 0x100, b'\xb8\x01\x00\x00\x00\xc3')
+        # The shared frame hook also runs ragdolls. Supply a deterministic
+        # clock, and let rejected-history panics reach their real UD2 after
+        # the logger's file-open failure (no filesystem in the emulator).
+        for slot, stub, value in ((0x870158, RET + 0x120, 0), (0x870150, RET + 0x160, 6_000_000)):
+            self.w(slot, stub)
+            code = bytes.fromhex('8b442404c700') + struct.pack('<I', value)
+            code += bytes.fromhex('c7400400000000b801000000c20400')
+            u.mem_write(stub, code)
+        self.w(0x870048, RET + 0x1a0)
+        u.mem_write(RET + 0x1a0, bytes.fromhex('b8ffffffffc21c00'))
 
     def map_metadata(self, metadata):
         assert not self.active
@@ -200,7 +210,8 @@ class Game:
         assert self.run(0x2855b0, regs={UC_X86_REG_ESI: PROJECT}) == STACK + 4
 
     def present(self):
-        self.run(0x1f7c41, 0x1f7c6c, flags=0x42)
+        self.u.mem_write(STACK + 0xf, bytes([0]))
+        self.run(0x1f7c3c, 0x1f7c6c)
 
     def shoot(self, start=(-1., 0., 0.), length=2., hit=None, direction=(1., 0., 0.)):
         self.f(STACK + 0x90, start); self.f(STACK + 0x20, direction); self.f(STACK + 0x14, (length,))
@@ -228,6 +239,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('original', type=Path)
     parser.add_argument('--patched', type=Path, help='Exercise an already-built client, without relinking')
+    parser.add_argument('--save-built', type=Path, help='Save the exact tested executable')
     args = parser.parse_args()
     original = args.original.read_bytes()
     if args.patched:
@@ -235,8 +247,8 @@ def main():
     else:
         built, _ = base.build(original, 'section', Path(base.default_bin('section')).read_bytes(), None,
                               Path(base.late_join_bin()).read_bytes())
-    for va, old, _, _ in base.LAMPS_HOOKS:
-        assert original[base.file_offset(va):base.file_offset(va) + len(old)] == old
+    if args.save_built:
+        args.save_built.write_bytes(built)
     g = Game(built)
     g.insert()
     intact = {('model', i) for i in (0, 2, 4)} | {('light', 0), ('light', 1)}
@@ -244,8 +256,9 @@ def main():
     print('ok: visual insert through project loop; light insert through project loop')
     # Exercise both displaced branches; the fallthrough must still execute
     # its native fld, and neither path may disturb the frame's registers.
-    for flags, stop in ((0x42, 0x1f7c6c), (2, 0x1f7c4a)):
-        assert g.run(0x1f7c41, stop, flags=flags) == STACK
+    for flag_byte, flags, stop in ((0, 0x46, 0x1f7c6c), (1, 2, 0x1f7c4a)):
+        g.u.mem_write(STACK + 0xf, bytes([flag_byte]))
+        assert g.run(0x1f7c3c, stop) == STACK
         assert g.u.reg_read(UC_X86_REG_EFLAGS) == flags
         assert all(g.u.reg_read(reg) == HEAP + 0x100000 + i * 0x100 for i, reg in enumerate(REGS))
     print('ok: both frame continuations preserve registers and flags')
@@ -311,6 +324,49 @@ def main():
     g.insert(); assert len(g.save()) == 16
     g.remove()
     print('ok: new match resets lamps; maps without lamp metadata retain native history')
+    # Invalid metadata must fail before any native binding changes. Repairing
+    # the input after the refused bind must work without a leaked owner/lock.
+    cases = []
+    duplicate = config_tree()
+    rows = list(duplicate['srp_lamps']['lamps'].values())
+    second_visual = next(iter(rows[1]['visuals'].values()))
+    second_visual['index'] = 0
+    cases.append(duplicate)
+    missing_light = config_tree()
+    light = next(iter(list(missing_light['srp_lamps']['lamps'].values())[-1]['lights'].values()))
+    light['x'] = 999.0
+    cases.append(missing_light)
+    invalid_bounds = config_tree()
+    last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
+    last['max_x'] = last['min_x']
+    cases.append(invalid_bounds)
+    for tree in cases:
+        refused = Game(built)
+        refused.u.mem_write(CFG, bytes(relocated_config(tree)))
+        try:
+            refused.insert()
+        except UcError:
+            pass
+        else:
+            raise AssertionError('invalid metadata accepted')
+        assert not refused.active and not refused.events
+        assert all(refused.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
+        assert all(refused.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
+        refused.u.mem_write(CFG, bytes(relocated_config(config_tree())))
+        refused.insert(); assert refused.active == intact
+        refused.remove(); assert not refused.active
+    print('ok: binding is atomic on duplicate visuals, missing lights and late malformed bounds; retry has no leaked owner')
+    # A native scenery project without metadata does not require lamp-only
+    # physics/scene inputs, and must not disturb another bound project.
+    scenery_only = Game(built)
+    scenery_only.u.mem_write(CFG, bytes(relocated_config({})))
+    scenery_only.w(PROJECT + 0x180, 0)
+    scenery_only.w(PROJECT + 0x1ec, 0)
+    scenery_only.w(PROJECT + 0x188, OBJECTS)
+    scenery_only.run(0x285750, 0x285793, args=(0, 0), regs={UC_X86_REG_ECX: PROJECT})
+    scenery_only.remove()
+    print('ok: unconfigured scenery needs no lamp physics or scene')
+
     # Every shipped metadata row is accepted by the actual client parser and
     # dispatches its intended model/light instances. Unrelated visuals are
     # empty native models; the renderer endpoints remain the only stubs.

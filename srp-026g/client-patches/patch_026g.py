@@ -1189,14 +1189,14 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "lamps")
 
 
 def rust_hooks(original):
     """The Rust hooks' installs (site VA, the bytes replaced, the entry's
     arena symbol, the opcode): a span hook's bytes read from `original`, the
     exe being built from."""
-    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n])
+    read = hooks_026g.original_reader(original)
     return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
 
 
@@ -2397,21 +2397,6 @@ WEIGHT_UI_HOOKS = (
 INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
 INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
 
-# Breakable lamps: disjoint from the ragdoll ray/frame hooks.
-LAMPS_HOOKS = (
-    (0x285750, bytes.fromhex("558bec83e4f8"), "lamps_bind", 0xE9),
-    (0x285614, bytes.fromhex("5f5bc3cccc"), "lamps_remove", 0xE9),
-    (0x285330, bytes.fromhex("568bf183bee801000000"), "lamps_destroy", 0xE9),
-    (0x1F7C41, bytes.fromhex("7429d984248c000000"), "lamps_present", 0xE9),
-    (0x32D631, bytes.fromhex("f30f7e4008660fd6442440"), "lamps_ray", 0xE9),
-    (0x321C3B, bytes.fromhex("5e5b8be55d"), "lamps_save", 0xE9),
-    (0x321D01, bytes.fromhex("5f5e5d5bc20400"), "lamps_load", 0xE9),
-)
-for _va, _old, _symbol, _opcode in LAMPS_HOOKS:
-    INSTALLS[_va] = (ENTRY if _symbol in ("lamps_bind", "lamps_destroy") else JUMP,
-                     "breakable lamps: " + _symbol + "; preserves the machine and replays the displaced code",
-                     None, None)
-
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2454,15 +2439,8 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
-    ("lamps' visuals", "lamps.code", "bl_visual_vtable", 0xA029B4, 2, 2, {
-        0: ("check_lamps_026g.py", "visual insert through project loop"),
-        1: ("check_lamps_026g.py", "visual remove through project loop"),
-    }),
-    ("lamps' lights", "lamps.code", "bl_light_vtable", 0xA0ADEC, 10, 2, {
-        8: ("check_lamps_026g.py", "light insert through project loop"),
-        9: ("check_lamps_026g.py", "light remove through project loop"),
-    }),
-)
+
+) + hooks_026g.installed_vtables()
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
 # is declared with the instruction that hands it over and the game's own
@@ -2606,8 +2584,6 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
-    ArenaBlock("lamps.code", "code", 0x1000, ("lamps_026g.asm", "lamps_026g.c")),
-    ArenaBlock("lamps.state", "state", 0x1000, ("lamps_026g.c",)),
     ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
     ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
@@ -3679,7 +3655,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + LAMPS_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

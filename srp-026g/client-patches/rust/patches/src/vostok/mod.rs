@@ -57,6 +57,8 @@ mod generated {
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
     use crate::raw;
+    #[allow(unused_imports)]
+    use super::{RenderVisual, ObjectLight, GameScene};
     include!("../../../../hooks_026g.rs");
 }
 
@@ -73,3 +75,14 @@ pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 mod consumable;
 pub use consumable::QuickSlotActivity;
+
+pub mod config;
+pub mod collection;
+
+pub mod geometry;
+pub mod presentation;
+
+pub mod project;
+pub use project::{RenderVisual, ObjectLight, GameScene};
+
+pub mod history;

@@ -3684,14 +3684,17 @@ skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
 executes the original and redirected callbacks for every game language.
 
-## Breakable lamps
+## Breakable lamps (patch 80)
 
-Bullets break configured lamps on levels 02–08 and the v0.11/v0.21 imported
-maps: the broken model replaces the intact one, its lights and glow cones
-disappear, and the first hit queues glass sound and shards. Lamp state travels in the
-native bullet-history blob, so rollback, late joins and replays preserve it;
-a new match resets it. `lamps_026g.c`/`.asm` own the arena hooks and renderer
-bindings; `check_lamps_026g.py` exercises the native loops in Unicorn.
-Map bindings and broken models ship through `release/content.tsv`.
-See [breakable_lamps.md](../docs/notes/breakable_lamps.md) for coverage,
-content authoring, ABI evidence and validation limits.
+Shooting a configured lamp replaces its model, removes linked lights and
+cones, and queues glass shards and sound once. State survives rollback,
+late joins and replay snapshots; a new match restores the lamps. The content
+covers 92 variants, including the v0.11/v0.21 imports. Legacy Vostok cones
+are bound to their fixtures and aligned to their emitters.
+
+The safe Rust `lamps` module uses typed config, geometry, history and project
+views. One project registry owns renderer membership and native bindings.
+`lamps.toml` declares generated hooks and runtime vtable copies; frame and
+bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
+code. The stateful C/Rust equivalence gate and native tests cover all authored
+maps. Details and test limits: `../docs/notes/breakable_lamps.md`.
