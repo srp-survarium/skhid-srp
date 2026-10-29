@@ -530,7 +530,7 @@ mod tests {
         counts.through(&game);
         assert_eq!(counts.fire_through, [1, 0]);
         // A look that showed him 100 ms before (he stood clear of the cloud then): fire continued, not counted.
-        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(30.0, 0.0, 30.0), crouched: false };
+        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(10.0, 0.0, 40.0), crouched: false };
         smoke::tally::looked_seen(0, 1, clear);
         counts.through(&game);
         assert_eq!((counts.fire_through, counts.fire_through_margin), ([1, 0], [2, 0]), "a clear look 100 ms before");
