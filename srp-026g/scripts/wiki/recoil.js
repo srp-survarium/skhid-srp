@@ -17,7 +17,7 @@
       gains: [raw.compensation_proportional_gain, raw.compensation_integral_gain, raw.compensation_derivational_gain]});
   }
   function simulate(model, requestedShots, seed = 1) {
-    const shots = Math.min(model.magazine, clamp(Math.floor(requestedShots), 1, 60));
+    const shots = Math.min(model.magazine, Math.max(1, Math.floor(requestedShots)));
     let randomState = seed >>> 0 || 1;
     function random() {
       randomState ^= randomState << 13; randomState ^= randomState >>> 17; randomState ^= randomState << 5;

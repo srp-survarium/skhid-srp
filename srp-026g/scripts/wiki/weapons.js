@@ -90,7 +90,7 @@
   }
 
   const sim = document.querySelector('#recoil-sim'), timeInput = document.querySelector('#sim-time');
-  const shotInput = document.querySelector('#sim-shots'), seedInput = document.querySelector('#sim-seed');
+  const seedInput = document.querySelector('#sim-seed');
   let simulation = {kind: 'empty'};
   const svgNS = 'http://www.w3.org/2000/svg';
   function svgNode(tag, attrs, text) {
@@ -102,13 +102,19 @@
   function sample(series, time) {
     return series.frames[Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6))];
   }
+  function nextShot() {
+    if (simulation.kind !== 'ready') return undefined;
+    return simulation.series.flatMap(series => series.events).map(event => event.time)
+      .sort((a, b) => a - b).find(time => time > simulation.time + .001);
+  }
   function drawSimulation() {
     if (simulation.kind !== 'ready') return;
     const time = simulation.time;
+    document.querySelector('#sim-step').disabled = nextShot() === undefined;
     timeInput.value = time;
     document.querySelector('#sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
     const legend = document.querySelector('#sim-legend'); legend.replaceChildren();
-    for (const [index, series] of simulation.series.entries()) {
+    for (const [index, series] of simulation.series.map(series => [series.side, series])) {
       const point = sample(series, time);
       legend.append(node('p', `${index ? 'B' : 'A'} · ${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)}`, `series-${index}`));
     }
@@ -126,7 +132,7 @@
         svg.append(svgNode('text', {x:x(t), y:241, 'text-anchor':'middle'}, `${t.toFixed(1)}s`));
       }
       svg.append(svgNode('line', {x1:54, x2:584, y1:y(0), y2:y(0), class:'sim-zero'}));
-      for (const [index, series] of simulation.series.entries()) {
+      for (const [index, series] of simulation.series.map(series => [series.side, series])) {
         const path = frames => frames.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.time).toFixed(2)},${y(frame[axis]).toFixed(2)}`).join(' ');
         svg.append(svgNode('path', {d:path(series.frames), class:`sim-curve series-${index} future`}));
         svg.append(svgNode('path', {d:path(series.frames.filter(frame => frame.time <= time)), class:`sim-curve series-${index}`}));
@@ -158,7 +164,7 @@
     svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
     svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
     svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
-    for (const [index, series] of simulation.series.entries()) {
+    for (const [index, series] of simulation.series.map(series => [series.side, series])) {
       const past = series.frames.filter(frame => frame.time <= time);
       svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
         class:`sim-trail series-${index}`}));
@@ -175,7 +181,8 @@
       svg.append(cross);
     }
   }
-  // Play: the burst in real time, from where the timeline is (or the start).
+  // Play: the burst in real time, from where the timeline is (or the start),
+  // to the last shot; the settling after it stays on the plots.
   const playButton = document.querySelector('#sim-play');
   let playing = null;
   function stop() {
@@ -184,12 +191,13 @@
   }
   function play() {
     if (simulation.kind !== 'ready') return;
-    const from = simulation.time >= simulation.duration - .001 ? 0 : simulation.time, start = performance.now();
+    const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
+    const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
     playButton.textContent = tr('Pause', 'Пауза');
     const tick = now => {
       if (simulation.kind !== 'ready') { stop(); return; }
-      simulation.time = Math.min(simulation.duration, from + (now - start) / 1000); drawSimulation();
-      if (simulation.time >= simulation.duration) stop(); else playing.frame = requestAnimationFrame(tick);
+      simulation.time = Math.min(last, from + (now - start) / 1000); drawSimulation();
+      if (simulation.time >= last) stop(); else playing.frame = requestAnimationFrame(tick);
     };
     playing = {frame: requestAnimationFrame(tick)};
   }
@@ -200,7 +208,9 @@
     simulation.time = time; drawSimulation();
   }
   function rebuildSimulation(time = 0) {
-    const ids = [pickerA.value, pickerB.value]; sim.hidden = !ids.every(Boolean);
+    // One weapon chosen (A or B) or both: each keeps its side's colour.
+    const sides = [pickerA.value, pickerB.value].map((id, side) => ({id, side})).filter(({id}) => id);
+    const ids = sides.map(({id}) => id); sim.hidden = ids.length === 0;
     stop(); simulation = {kind:'empty'};
     if (sim.hidden) return;
     const valid = ids.every(id => models.get(id));
@@ -209,15 +219,16 @@
     document.querySelector('.sim-sight').hidden = !valid;
     document.querySelector('#sim-unavailable').hidden = valid;
     if (!valid) { document.querySelector('#sim-legend').replaceChildren(); return; }
-    shotInput.value = Math.max(1, Math.min(60, Math.floor(Number(shotInput.value) || 1)));
     seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
-    const series = ids.map(id => {
-      const result = WeaponRecoil.simulate(models.get(id), Number(shotInput.value), Number(seedInput.value));
+    // A burst of the smaller magazine: the same number of shots from each.
+    const shots = Math.min(...ids.map(id => models.get(id).magazine));
+    const series = sides.map(({id, side}) => {
+      const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value));
       // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
       result.frames.forEach(frame => {frame.time += .05;});
       result.events.forEach(event => {event.time += .05;});
       result.frames.unshift({time:0, vertical:0, horizontal:0, shots:0});
-      return {...result, id, duration: result.duration + .05};
+      return {...result, id, side, duration: result.duration + .05};
     });
     const duration = Math.max(...series.map(series => series.duration));
     simulation = {kind:'ready', series, time:Math.min(time, duration), duration};
@@ -250,13 +261,12 @@
       selectionChanged(); comparison.scrollIntoView({block:'start'});
     });
   }
-  shotInput.addEventListener('change', () => rebuildSimulation());
   seedInput.addEventListener('change', () => rebuildSimulation(simulation.kind === 'ready' ? simulation.time : 0));
   document.querySelector('#sim-reset').addEventListener('click', () => seek(0));
+  // Next shot stops at the last one: the settling after it is the timeline's.
   document.querySelector('#sim-step').addEventListener('click', () => {
-    if (simulation.kind !== 'ready') return;
-    const events = simulation.series.flatMap(series => series.events).map(event => event.time).sort((a,b)=>a-b);
-    seek(events.find(time => time > simulation.time + .001) ?? simulation.duration);
+    const next = nextShot();
+    if (next !== undefined) seek(next);
   });
   timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
   const query = new URLSearchParams(location.search);

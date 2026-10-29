@@ -193,12 +193,12 @@
 <option value="wpn_vz58">vz. 58 P</option>
 </select></div>
 </div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">Only differences</label><label class="check"><input type="checkbox" id="compare-colors" checked>Color better / worse values</label><button type="button" id="clear-comparison">Clear</button><a href="#recoil-sim">Recoil simulation ↓</a></div>
-<p id="compare-empty">Choose two weapons to compare. Equal values and neutral traits keep their normal color.</p>
+<p id="compare-empty">Choose two weapons to compare; one is enough for its recoil simulation. Equal values and neutral traits keep their normal color.</p>
 <p id="compare-same" hidden>No differences in the displayed stats.</p><div id="compare-table"></div>
 <section id="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">Recoil simulation</h2>
 <p class="stat-note">Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.</p>
-<div class="sim-inputs"><label>Shots per weapon<input id="sim-shots" type="number" min="1" max="60" value="10"></label><label>Sample seed<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
-<p class="stat-note">Shots follow each weapon’s fire rate and stop at its magazine capacity. Random samples use the same seed for comparison; they are not recorded game shots.</p>
+<div class="sim-inputs"><label>Sample seed<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
+<p class="stat-note">Both weapons fire as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.</p>
 <div class="sim-buttons"><button id="sim-play" type="button">Play</button><button id="sim-step" type="button">Next shot</button><button id="sim-reset" type="button">Reset</button></div>
 <label for="sim-time">Timeline <output id="sim-time-label">0 s</output></label><input id="sim-time" type="range" min="0" max="1" step="0.01" value="0">
 <div id="sim-legend" aria-live="polite"></div>
@@ -5190,4 +5190,4 @@
 </div></details>
 </div><p id="weapons-empty" hidden>No weapons match. Try another name or class.</p>
 <p class="wiki-stamp">Skhid revision 37</p>
-<script src="/wiki/weapons.js?v=25fed16b202b" defer></script>
+<script src="/wiki/weapons.js?v=23c2c7683e7e" defer></script>

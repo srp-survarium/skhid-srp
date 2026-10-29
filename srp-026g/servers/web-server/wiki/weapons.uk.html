@@ -193,12 +193,12 @@
 <option value="wpn_fort_17">Форт 17</option>
 </select></div>
 </div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">Лише відмінності</label><label class="check"><input type="checkbox" id="compare-colors" checked>Позначати кращі / гірші значення</label><button type="button" id="clear-comparison">Очистити</button><a href="#recoil-sim">Моделювання відбою ↓</a></div>
-<p id="compare-empty">Виберіть дві одиниці зброї. Однакові значення та нейтральні властивості зберігають звичайний колір.</p>
+<p id="compare-empty">Виберіть дві одиниці зброї для порівняння; для моделювання відбою досить однієї. Однакові значення та нейтральні властивості зберігають звичайний колір.</p>
 <p id="compare-same" hidden>Відмінностей у показаних характеристиках немає.</p><div id="compare-table"></div>
 <section id="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">Моделювання відбою</h2>
 <p class="stat-note">Модель поштовху та відновлення без компенсації мишею. Розкид і тремтіння камери не враховано. Бічний поштовх — внутрішнє значення, а не підтверджений кут на екрані.</p>
-<div class="sim-inputs"><label>Пострілів на зброю<input id="sim-shots" type="number" min="1" max="60" value="10"></label><label>Зерно вибірки<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
-<p class="stat-note">Постріли відповідають темпу кожної зброї та обмежені місткістю магазину. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.</p>
+<div class="sim-inputs"><label>Зерно вибірки<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
+<p class="stat-note">Обидві одиниці зброї роблять стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.</p>
 <div class="sim-buttons"><button id="sim-play" type="button">Відтворити</button><button id="sim-step" type="button">Наступний постріл</button><button id="sim-reset" type="button">Скинути</button></div>
 <label for="sim-time">Шкала часу <output id="sim-time-label">0 s</output></label><input id="sim-time" type="range" min="0" max="1" step="0.01" value="0">
 <div id="sim-legend" aria-live="polite"></div>
@@ -5190,4 +5190,4 @@
 </div></details>
 </div><p id="weapons-empty" hidden>Зброю не знайдено. Спробуйте іншу назву або клас.</p>
 <p class="wiki-stamp">Схід, ревізія 37</p>
-<script src="/wiki/weapons.js?v=25fed16b202b" defer></script>
+<script src="/wiki/weapons.js?v=23c2c7683e7e" defer></script>

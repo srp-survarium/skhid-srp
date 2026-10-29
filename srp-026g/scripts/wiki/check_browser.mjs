@@ -124,7 +124,7 @@ try {
   assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
   await evaluate("document.querySelector('#sim-step').click()");
   assert.equal(await evaluate("Number(document.querySelector('#sim-time').value)"), .05);
-  assert.ok((await evaluate("document.querySelector('#sim-legend').textContent")).includes('1/10'));
+  assert.ok((await evaluate("document.querySelector('#sim-legend').textContent")).match(/shots 1\/\d+/));
   assert.equal(await evaluate("document.querySelectorAll('#sim-single').length"), 0, 'no single-shot mode');
   assert.equal(await evaluate("document.querySelectorAll('#sim-sight .sim-cross').length"), 2, 'a crosshair per weapon');
   await evaluate("document.querySelector('#sim-step').click()");
@@ -143,6 +143,15 @@ try {
   assert.equal(await evaluate("document.querySelector('#sim-time').value"), played, 'pause holds the position');
   assert.equal(await evaluate("document.querySelector('#sim-sight .sim-cross circle').getAttribute('cy')"), crossAt);
   await screenshot('comparison-crosshair');
+  // Next shot and Play stop at the last shot: the settling is the plots' only.
+  assert.equal(await evaluate("document.querySelectorAll('#sim-shots').length"), 0, 'the burst is the smaller magazine, not a setting');
+  await evaluate("for (let i = 0; i < 400 && !document.querySelector('#sim-step').disabled; i++) document.querySelector('#sim-step').click()");
+  assert.equal(await evaluate("document.querySelector('#sim-step').disabled"), true, 'no step past the last shot');
+  const lastShot = await evaluate("document.querySelector('#sim-time').value");
+  assert.ok(Number(lastShot) < Number(await evaluate("document.querySelector('#sim-time').max")), 'the settling stays on the timeline');
+  await evaluate("document.querySelector('#sim-reset').click();document.querySelector('#sim-play').click()");
+  await evaluate(`new Promise(r=>setTimeout(r,(Number(${lastShot})+.4)*1000))`);
+  assert.equal(await evaluate("document.querySelector('#sim-time').value"), lastShot, 'play ends at the last shot');
   await evaluate("document.querySelector('#sim-time').value='1.5';document.querySelector('#sim-time').dispatchEvent(new Event('input'));document.querySelector('#recoil-sim').scrollIntoView()");
   assert.equal(await evaluate("!!document.querySelector('#sim-variation')"), false, 'average kick option removed');
   const beforeSeed = await evaluate("document.querySelector('#sim-vertical path').getAttribute('d')");
@@ -168,6 +177,12 @@ try {
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true);
   assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
   assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
+  // One weapon is enough for the recoil simulation.
+  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'a single weapon gets its simulation');
+  assert.equal(await evaluate("document.querySelectorAll('#sim-sight .sim-cross').length"), 1);
+  assert.equal(await evaluate("document.querySelector('#sim-sight .sim-cross').classList.contains('series-1')"), true, 'B keeps its colour');
+  assert.ok((await evaluate("document.querySelector('#sim-legend').textContent")).includes('/30'), 'its own magazine');
   console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
   await send('session.end');
 } finally {
