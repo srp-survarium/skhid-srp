@@ -404,14 +404,14 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
-    bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
     bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
     let view = bots
         .tracker
-        .view(&clock, &bots.tuning.kin, world.as_deref());
+        .view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
     let viewed = Instant::now();
     super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
@@ -423,10 +423,10 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     }
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
-    let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
+    let mut rays = RayBudget::new(bots.match_wide_tuning().think.rays_per_poll);
     rays.thinks_left = bots.thinks_due(&view);
     bots.features.searching.left = SEARCHES_PER_POLL;
-    bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
     let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
     let a = Instant::now();
     bots.go_on_searching();
@@ -580,25 +580,26 @@ pub(crate) fn real_bot_cost() {
             // match server does.
             let roster = bench_roster(&teams, bench_equipment());
             let roles = &roster.roles;
-            let mut bots = Bots::new(
+            // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
+            // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
+            // alone shows in its K/D.
+            let mut tunings = super::tuning::TeamTunings::new(Arc::new(bench_tuning()));
+            if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
+                tunings.give_team1(Arc::new(bench_tuning_of(true)));
+            }
+            let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
                 mode,
                 level,
                 &teams,
                 &driven,
                 roles,
-                Arc::new(bench_tuning()),
+                tunings,
                 Trace::none(0),
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
             bots = bots.with_tiers(&roster.equipments);
-            // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
-            // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
-            // alone shows in its K/D.
-            if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
-                bots.side1_tuning = Some(Arc::new(bench_tuning_of(true)));
-            }
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
             // ms): known to the clock less a ping drawn for each place, and
             // reckoned on from there (`Tracker::seen_late`). Off, the
@@ -655,7 +656,7 @@ pub(crate) fn real_bot_cost() {
                     .iter()
                     .map(|bot| {
                         let bot = bot.as_ref()?;
-                        super::reflex::WeaponKind::of_role(&bot.personality(&bots.tuning).name)
+                        super::reflex::WeaponKind::of_role(&bot.personality(bots.tunings.of(bot.team)).name)
                     })
                     .collect();
                 bots.set_weapons(weapons);
@@ -873,12 +874,17 @@ pub(crate) fn real_bot_cost() {
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             owner.set_pings(ping_ms);
-            owner.set_carried(roster.grenades.clone());
-            bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
-                .map(|place| (place, None));
-            owner.set_camper(bots.bench_camper.map(|(place, _)| place));
-            if let Some((place, _)) = bots.bench_camper
-                && camper::CamperOptions::from_env().long_gun
+            game.set_grenade_kits(&roster.grenades);
+            // The stand-in camper plays by the build's defaults whatever his team's tuning is, so that the two runs of a head-to-head
+            // bench face the same opponent.
+            let camper_options = camper::CamperOptions::from_env();
+            bots.bench_camper = bench_settings()
+                .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
+                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(Tuning::default())));
+            let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
+            owner.set_camper(camper_place);
+            if let Some(place) = camper_place
+                && camper_options.long_gun
             {
                 bots.arm_camper_long(place, bench_tier());
             }
@@ -888,7 +894,7 @@ pub(crate) fn real_bot_cost() {
             // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
             // owner's CG-20 test): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
-            game.zone_routed = bots.tuning.hazard.zone_pools == super::tuning::ZonePools::Routed;
+            game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -1573,8 +1579,8 @@ pub(crate) fn real_bot_cost() {
             if let Some(error) = view_error.as_ref() {
                 eprintln!("  {}", error.line());
             }
-            if let Some((place, spot)) = bots.bench_camper {
-                eprintln!("  camper: place {place} spot {spot:?}");
+            if let Some(camper) = &bots.bench_camper {
+                eprintln!("  {}", camper.line());
             }
             // The bots' bear traps: the habit's counts (activity: placed; harm: the team's own catches, lives
             // that ended while placing) and the response to the traps of others, one line each, always.
@@ -1774,7 +1780,7 @@ pub(crate) fn real_bot_cost() {
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0
             );
-            if bots.tuning.aim.combat.fire.weapon_class_by_data {
+            if (0..2).any(|team| bots.tunings.of(team).aim.combat.fire.weapon_class_by_data) {
                 // The switch's activity and harm (the held weapons whose class,
                 // bursts' table, range floor or band the data's class changes).
                 let c = bots.class_counts();
@@ -1852,7 +1858,7 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
 
 /// The bots' rusher kit as the run has it, in a line (like the game data's):
 /// the setting and what the data lets the tier's rusher wear.
-/// Once per run, before the matches (`switches ON:`, `switches OFF:`, `switch values:`, `changed numbers:`, `data files:`,
+/// Once per run, before the matches (`switches ON <section>:`, `switches OFF <section>:`, `switch values <section>:`, `changed numbers <section>:`, `data files:`,
 /// `env switches:`, `bench models:`): what the bots of this run have on and off, the data they read and the stand-in's
 /// models, so a switch left off, or a model nobody set, shows in the log at once. Team 1's block (`side1 ...`) follows when
 /// `SRP_BENCH_ONE_SIDE` makes its tuning differ. Logging only.
@@ -1943,8 +1949,9 @@ pub(crate) struct BenchRoster {
     pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
     /// What each bot's profile carries of upgrades ([`Upgrades`]).
     pub(crate) upgrades: Vec<Upgrades>,
-    /// The grenades each of a bot's three kits holds (`loadouts::grenades_in`), by place; zeros for a place of no role.
-    pub(crate) grenades: Vec<[u32; 3]>,
+    /// The frag grenades each of a bot's three kits holds and has in store (the profile's `count` and `stored` of its grenade pockets),
+    /// by place; none for a place of no role.
+    pub(crate) grenades: Vec<[standin_grenade::KitGrenades; 3]>,
 }
 
 /// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
@@ -1984,6 +1991,20 @@ pub(crate) fn upgrades_summary(upgrades: &[Upgrades]) -> serde_json::Value {
     })
 }
 
+/// The frag grenades a kit starts a life with and has in store: the units and the store of its pocket items that are a frag by the
+/// game data (a smoke is no blast; the stand-in explodes frags only).
+fn frag_pockets(kit: &survarium::v026g::loadouts::Loadout) -> standin_grenade::KitGrenades {
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    kit.items
+        .iter()
+        .filter(|item| survarium::v026g::loadouts::POCKET_SLOTS.contains(&item.slot))
+        .filter(|item| dictionary.item(item.dict_id).is_some_and(|i| super::arc::Grenade::named(&i.name).is_some()))
+        .fold(standin_grenade::KitGrenades::default(), |sum, item| standin_grenade::KitGrenades {
+            count: sum.count + item.count,
+            stored: sum.stored + item.stored,
+        })
+}
+
 pub(crate) fn bench_roster(
     teams: &[u8],
     equipment: survarium::v026g::loadouts::BotEquipment,
@@ -2000,9 +2021,9 @@ pub(crate) fn bench_roster(
         grenades: bots
             .iter()
             .map(|bot| {
-                bot.map_or([0; 3], |(equipment, role)| {
+                bot.map_or([standin_grenade::KitGrenades::default(); 3], |(equipment, role)| {
                     let kits = survarium::v026g::loadouts::bot_kits(equipment, role);
-                    std::array::from_fn(|k| survarium::v026g::loadouts::grenades_in(kits[k]))
+                    std::array::from_fn(|k| frag_pockets(kits[k]))
                 })
             })
             .collect(),

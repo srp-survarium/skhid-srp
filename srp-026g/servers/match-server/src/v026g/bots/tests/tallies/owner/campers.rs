@@ -20,8 +20,9 @@ pub(super) struct CamperCounts {
     /// Shooters killed while holding their kill spot: who, and whether the
     /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
     pub(super) held_kills: Vec<(Place, bool)>,
-    /// Seconds a shooter's spot was held, summed over the holders (counted once a second), for the lane entries a 10 s.
-    pub(super) held_s: u32,
+    /// Seconds a shooter's spot was held with two kills or more made, summed over the holders (counted once a second), for the
+    /// outcomes' lane entries a 10 s (an-anticamper §8.1: per 10 s of holds of two kills or more).
+    pub(super) held2_s: u32,
     /// The stand-in camper's place, if the run has one: his holds are scored with [`CAMPER_HOLD_M`].
     pub(super) camper: Option<Place>,
 }
@@ -146,11 +147,12 @@ impl Topic for CamperCounts {
         vec![("campers", self.part(run, game))]
     }
 
-    /// The entries into held lines and the seconds held, for the outcomes' lane entries a 10 s.
+    /// The entries into the killed lanes (the cone of [`LANE_DEG`]) and the seconds held with two kills or more, for the
+    /// outcomes' lane entries a 10 s.
     fn publish(&self) -> Vec<(&'static str, serde_json::Value)> {
         vec![
-            ("camper_entries", serde_json::json!(self.entries.len())),
-            ("camper_held_s", serde_json::json!(self.held_s)),
+            ("camper_lane_entries", serde_json::json!(self.entries.iter().filter(|e| e.lane).count())),
+            ("camper_held2_s", serde_json::json!(self.held2_s)),
         ]
     }
 }
@@ -256,7 +258,7 @@ impl CamperCounts {
             }
             true
         });
-        self.held_s += spots.len() as u32;
+        self.held2_s += spots.iter().filter(|held| held.bearings.len() >= 2).count() as u32;
         self.spots = spots;
     }
 }

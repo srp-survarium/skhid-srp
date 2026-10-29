@@ -122,12 +122,6 @@ impl OwnerTally {
         }
     }
 
-    /// What each bot's kits carry of grenades, by place and kit: the stand-in blasts only the throws of a thrower whose kit has a
-    /// grenade left this life (`grenades.rs`).
-    pub(crate) fn set_carried(&mut self, carried: Vec<[u32; 3]>) {
-        self.topic::<GrenadeCounts>().carried = Some(carried);
-    }
-
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
     pub(crate) fn set_camper(&mut self, camper: Option<Place>) {
         self.run.camper = camper;

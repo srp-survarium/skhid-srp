@@ -166,7 +166,7 @@ impl Bots {
             playing: true,
         };
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        let view = self.tracker.view(&clock, &self.tuning.kin, world.as_deref());
+        let view = self.tracker.view(&clock, &self.tunings.match_wide().kin, world.as_deref());
         view.place(place).cloned().map(|body| {
             let band = ping_band(&body);
             (body, self.tracker.last_input(place), band)

@@ -38,7 +38,7 @@ pub(crate) fn a_bot_that_left_is_forgotten() {
                     total_s: 0.0,
                     playing: true,
                 },
-                &bots.tuning.kin,
+                &bots.match_wide_tuning().kin,
                 None
             )
             .places[3]
@@ -70,7 +70,7 @@ pub(crate) fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
         Arc::new(Tuning::default()),
         Trace::none(0),
     );
-    assert!(!bots.tuning.cheats.batteries);
+    assert!(!bots.match_wide_tuning().cheats.batteries);
     for place in 0..2 {
         bots.entered(place, true, 100);
     }
@@ -182,7 +182,7 @@ pub(crate) fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_te
         stats,
         ..WorldFacts::default()
     });
-    let view = bots.tracker().view(&clock(2_000), &bots.tuning.kin, None);
+    let view = bots.tracker().view(&clock(2_000), &bots.match_wide_tuning().kin, None);
     assert_eq!(view.deaths.len(), 1, "{:?}", view.deaths);
     assert_eq!(view.deaths[0].place, 1);
     assert!(

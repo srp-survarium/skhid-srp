@@ -117,9 +117,9 @@ fn drive_on(world: Arc<World>, level: u8, start: Vec3, goal: Vec3, until: u32) -
             total_s: 900.0,
             playing: true,
         };
-        let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
+        let view = bots.tracker.view(&now, &bots.match_wide_tuning().kin, Some(&world));
         bots.features.searching.left = SEARCHES_PER_POLL;
-        bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = Intent::to(goal, Pace::Run).within(1.0);
@@ -358,16 +358,16 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
             total_s: 900.0,
             playing: true,
         };
-        let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
+        let view = bots.tracker.view(&now, &bots.match_wide_tuning().kin, Some(&world));
         bots.features.searching.left = SEARCHES_PER_POLL;
-        bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = Intent::to(goal, Pace::Run).within(1.0);
         }
         if clock >= next_think {
             next_think += 100;
-            let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
+            let mut rays = RayBudget::new(bots.match_wide_tuning().think.rays_per_poll);
             bots.think(0, &view, &mut rays, &mut notes);
             // The test's goal stands in for the plays': think's own intent is put back.
             if let Some(bot) = bots.bots[0].as_mut() {

@@ -4,7 +4,11 @@
 //! game the picture is reckoned from a world fix that is never under 0.5 s old (median 1.16 s) with the bots' movement model
 //! on a body the client moves by its own physics, and is 0.2-0.4 m off (median) and 1-3 m at the tails (stairs, drops, jumps,
 //! stops). That makes the bots' picture say "hidden" in 22 % of the moments a body is truly visible and "visible" in 20 % of
-//! the moments it is truly hidden (the flip test, LIKELY: an-sight §8.1, 16,365 pairs of the owner's 8 matches).
+//! the moments it is truly hidden (the flip test, LIKELY: an-sight §8.1, 16,365 pairs of the owner's 8 matches, "15-25 %", chest
+//! and head; the bench samples the chest only and each bot's 2 nearest enemies, so the target and so the scale are LIKELY, not
+//! PROVEN). The model's tails are drawn for every fix of a still body; the table's "just after a stop or start" tail (p90 1.05 m,
+//! p99 2.9 m) is therefore over-drawn for a body still for minutes, which the scale absorbs (LIKELY): a recalibration should draw
+//! near zero after about a second still.
 //!
 //! The model: every world fix a bot is given is moved by an error drawn once for the fix from the measured tables, by what the
 //! body was doing and how old the fix will be when the next one replaces it; the reckoning then carries the error along until
@@ -18,13 +22,13 @@
 //!
 //! | arm | missed sight | fire into cover |
 //! |---|---|---|
-//! | no error (the pings alone) | 8.6 % | 9.1 % |
+//! | no error (the pings alone) | 8.6 % | 9.1 % (seeds 1-3; 9.3 % / 8.8 % on seeds 4-6) |
 //! | scale 1.0 | 24.6 % | 23.6 % |
 //! | scale 0.75 | 23.0 % | 21.7 % |
 //! | scale 0.6 | 21.5 % | 19.0 % |
 //!
 //! The bench's pings already give it a ninth of those; the tables' errors include the lateness, so the whole table over-counts.
-//! The default is [`DEFAULT_SCALE`] (0.7).
+//! The default is [`DEFAULT_SCALE`] (0.7), checked on seeds 4-6 (not used to set it): 21.9 % / 20.8 %.
 
 use mapdata::Vec3;
 
@@ -97,9 +101,14 @@ impl ViewError {
     /// On with `SRP_BENCH_VIEW_ERROR=1`; none otherwise.
     pub(crate) fn from_env(places: usize, seed: u32) -> Option<Self> {
         let settings = bench_settings();
-        settings.var("SRP_BENCH_VIEW_ERROR").is_ok_and(|v| v == "1").then(|| Self {
+        let on = match settings.var("SRP_BENCH_VIEW_ERROR").ok().as_deref() {
+            None | Some("0") => false,
+            Some("1") => true,
+            Some(other) => panic!("SRP_BENCH_VIEW_ERROR={other:?}: 1 or unset"),
+        };
+        on.then(|| Self {
             rng: Rng::new(0x71E3_0000 + u64::from(seed)),
-            scale: settings.number("SRP_BENCH_VIEW_ERROR_SCALE").unwrap_or(DEFAULT_SCALE),
+            scale: settings.number_or_refuse("SRP_BENCH_VIEW_ERROR_SCALE").unwrap_or(DEFAULT_SCALE),
             last_y: vec![None; places],
             fixes: 0,
             metres: 0.0,
