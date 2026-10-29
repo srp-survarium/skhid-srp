@@ -198,9 +198,14 @@ try {
   await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
   assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('30/30'), 'last shot');
   assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-last').disabled"), true);
-  await evaluate("const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='10';s.dispatchEvent(new Event('change'))");
+  const trail = await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')");
+  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='10';s.dispatchEvent(new Event('change'))}");
   assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-target-body').length"), 1, 'a target at 10 m');
-  assert.equal(await evaluate("!!document.querySelector('#wpn_ak_74m .sim-note')"), false, 'no magnification with a target');
+  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail, 'a target leaves the pattern as it is');
+  const near = await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')");
+  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='25';s.dispatchEvent(new Event('change'))}");
+  assert.notEqual(await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
+  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail);
   await evaluate("document.querySelector('#wpn_ak_74m .sim-sight').scrollIntoView()");
   await screenshot('card-target');
   // A rifle with no side kick: its crosshair stays in view, unmagnified.

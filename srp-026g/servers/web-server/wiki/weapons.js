@@ -350,16 +350,17 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     function drawSight(time) {
       const svg = find('.sim-sight svg'); svg.replaceChildren();
       const frames = simulation.series.flatMap(series => series.frames);
-      // A target at a distance: drawn to scale, so the side is not magnified.
+      // In degrees of view: the kick as the camera turns. The pattern is the
+      // weapon's: a target changes nothing of it, only its own size shows the
+      // distance (cut by the view's edge when it is the larger).
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
-      // In degrees of view: the kick as the camera turns.
-      const up = Math.max(0, body * CHEST, ...frames.map(frame => viewUp(frame.vertical)));
-      const down = Math.max(0, body * (1 - CHEST), ...frames.map(frame => -viewUp(frame.vertical)));
+      const up = Math.max(0, ...frames.map(frame => viewUp(frame.vertical)));
+      const down = Math.max(0, ...frames.map(frame => -viewUp(frame.vertical)));
       const side = Math.max(0, ...frames.map(frame => Math.abs(viewSide(frame.horizontal))));
       const scale = 250 / Math.max(.1, up + down);
       // A weapon with no side kick (bolt-action rifles) keeps one scale: its
       // side values are rounding noise, not drift to magnify.
-      const sideScale = !distance && side > 1e-4 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
+      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
       const x = h => 150 + viewSide(h) * sideScale, y = v => oy - viewUp(v) * scale;
       const magnified = Math.round(sideScale / scale);
