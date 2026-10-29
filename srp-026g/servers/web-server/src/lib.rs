@@ -676,6 +676,22 @@ impl Web {
                 return;
             }
         }
+        // A page's address from before it was the wiki's: the page where it
+        // is now, in the same language (the browser keeps a `#` itself).
+        if self.game.is_some()
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(path) = wiki::moved(&request.path)
+        {
+            let head = format!(
+                "HTTP/1.0 301 Moved Permanently\r\nLocation: {path}?lang={}\r\n\
+                 Content-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                request.lang.code()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.flush();
+            let _ = stream.shutdown(Shutdown::Write);
+            return;
+        }
         let response = self.route(&request, &peer);
         let policy = if self.game.is_some() && launcher::serves(&request.path) {
             launcher::policy()
@@ -1589,12 +1605,15 @@ fn page(lang: Lang, form: Form, message: &str) -> Response {
 
 /// The calculator: its page under the site's header.
 fn damage_page(lang: Lang) -> Response {
-    damage::page(lang, &tool_header(lang, damage::PATH))
+    damage::page(
+        lang,
+        &tool_header(lang, &lang.tr("Damage calculator", "Калькулятор шкоди")),
+    )
 }
 
-/// The Maps tab: its page under the site's header.
+/// The maps: their page under the site's header.
 fn maps_page(lang: Lang) -> Response {
-    maps::page(lang, &tool_header(lang, maps::PATH))
+    maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
 fn wiki_page(path: &str, lang: Lang) -> Response {
@@ -1605,16 +1624,21 @@ fn wiki_page(path: &str, lang: Lang) -> Response {
     wiki::page(path, lang, &format!("{header}{notice}"))
 }
 
-/// The site's header over a page of its own look (the calculator's, the
-/// Maps tab's), `path` the page shown.
-fn tool_header(lang: Lang, path: &str) -> String {
+/// The site's header over a wiki page of its own look (the calculator's, the
+/// maps'), and the way back to the wiki; `name` the page shown.
+fn tool_header(lang: Lang, name: &str) -> String {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, test_notice) = site_header(lang, true, test, other_url, path);
+    let (header, test_notice) = site_header(lang, true, test, other_url, wiki::PATH);
     format!(
-        "<div class=site><style>{}</style>{header}{test_notice}</div>",
-        damage::HEADER_STYLE
+        "<div class=site><style>{}</style>{header}{test_notice}\
+         <p class=breadcrumb><a href=\"{}?lang={}\">{}</a> / {}</p></div>",
+        damage::HEADER_STYLE,
+        wiki::PATH,
+        lang.code(),
+        lang.tr("Wiki", "Вікі"),
+        escape(name),
     )
 }
 
@@ -1648,7 +1672,7 @@ fn site_header(
             String::new(),
         )
     };
-    // The calculator and the maps are the 0.26g game's.
+    // The wiki (the calculator and the maps are in it) is the 0.26g game's.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1660,17 +1684,15 @@ fn site_header(
         )
     };
     let home_link = tab("/", &lang.tr("Home", "Головна"));
-    let damage_link = if v026g {
-        tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
-            + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
-            + &tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
+    let wiki_link = if v026g {
+        tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
     let header = format!(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
-         <nav>{home_link}{damage_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
+         <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
         page_tag(lang, version, test),
     );
     (header, test_notice)
@@ -3020,9 +3042,9 @@ mod tests {
     #[test]
     fn the_damage_calculator_is_the_026g_sites_only() {
         let web = web(None);
-        assert_eq!(web.route(&get("/damage"), "t").status, "404 Not Found");
+        assert_eq!(web.route(&get(damage::PATH), "t").status, "404 Not Found");
         let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("href=\"/damage"));
+        assert!(!home.contains("href=\"/wiki"));
         // The site's fonts are the calculator's, served on both servers.
         assert!(home.contains("src: url(\"/damage/fonts/pt-sans-regular.woff2?v="));
         assert!(crate::damage::file("/damage/fonts/pt-sans-regular.woff2").is_some());
@@ -3031,8 +3053,9 @@ mod tests {
     #[test]
     fn the_maps_are_the_026g_sites_only() {
         let web = web(None);
+        assert_eq!(web.route(&get(maps::PATH), "t").status, "404 Not Found");
+        // The old address leads nowhere either.
         assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
-        assert!(!web.route(&get("/"), "t").body.contains("href=\"/maps"));
     }
 
     #[test]

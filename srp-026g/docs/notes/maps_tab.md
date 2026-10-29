@@ -1,6 +1,7 @@
-# Maps tab (`/maps`)
+# Maps (`/wiki/maps`)
 
-The 0.26g site's tab "Maps" / "Мапи". Built by `srp-026g/scripts/maps-tab/` (its README),
+The 0.26g wiki's section "Maps" / "Мапи" (until 2026-10-29 the site's tab `/maps`, which now sends
+to it with a `301`). Built by `srp-026g/scripts/maps-tab/` (its README),
 served by `servers/web-server/src/maps.rs`.
 
 ## Owner's rules
@@ -17,8 +18,9 @@ served by `servers/web-server/src/maps.rs`.
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
   (players, containers, ammo stashes: no discs). The battery is the game's electrobox drawn flat (the game has no
   flat icon of it). Artefacts are their lobby icons alone, no circle.
-- The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Calculator |
-  Maps, the page shown in the accent colour (Home too). The calculator's tab is "Calculator"; its page says
+- The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Wiki,
+  the page shown in the accent colour (Home too). The calculator and the maps are sections of the wiki (the owner,
+  2026-10-29): listed on its index, each page under a "Wiki / <page>" line; the calculator's page says
   "Damage calculator".
 - Containers and stashes stand where their collision zone is, never at the object's pivot.
 - Each kind is toggled on its own; one toggle per artefact.

@@ -1,12 +1,33 @@
-//! First wiki section: a weapons catalogue generated from the same released
+//! The wiki: its index and a weapons catalogue generated from the same released
 //! dataset and images as the damage calculator. No separately maintained stats.
+//! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
+//! sections too, each a page of its own look.
 
-use crate::{ContentType, Lang, Response, damage, escape};
+use crate::{ContentType, Lang, Response, damage, escape, maps};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
 const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
 const STYLE: &str = include_str!("../wiki/style.css");
+
+/// Where a page that moved into the wiki is now, for its old address.
+pub(crate) fn moved(path: &str) -> Option<&'static str> {
+    match path {
+        "/damage" => Some(damage::PATH),
+        "/maps" => Some(maps::PATH),
+        _ => None,
+    }
+}
+
+/// A section's link on the wiki's index: its address, name and one line.
+fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
+    format!(
+        "<a class=wiki-link href=\"{path}?lang={}\"><h2>{} →</h2><p>{}</p></a>",
+        lang.code(),
+        escape(name),
+        escape(line),
+    )
+}
 
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
     (path == "/wiki/weapons.js").then_some(("text/javascript; charset=utf-8", SCRIPT))
@@ -23,13 +44,29 @@ pub(crate) fn page(path: &str, lang: Lang, header: &str) -> Response {
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div>\
-                 <a class=wiki-link href=\"/wiki/weapons?lang={}\"><h2>{} →</h2><p>{}</p></a>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
-                lang.code(),
-                lang.tr("Weapons", "Зброя"),
-                lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
-                    "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                section(
+                    lang,
+                    WEAPONS,
+                    &lang.tr("Weapons", "Зброя"),
+                    &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
+                        "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                ),
+                section(
+                    lang,
+                    damage::PATH,
+                    &lang.tr("Damage calculator", "Калькулятор шкоди"),
+                    &lang.tr("Shots to kill a target in any armour, at any distance.",
+                        "Скільки влучань треба, щоб убити ціль у будь-якій броні на будь-якій відстані."),
+                ),
+                section(
+                    lang,
+                    maps::PATH,
+                    &lang.tr("Maps", "Мапи"),
+                    &lang.tr("Spawns, batteries, chargers, containers and artefacts on every map.",
+                        "Точки появи, батареї, зарядні пристрої, контейнери й артефакти на кожній мапі."),
+                ),
             ),
         )
     };

@@ -1,7 +1,12 @@
 # Wiki: weapons
 
-This first step contains `/wiki` and `/wiki/weapons` only: a searchable weapon
-catalogue with class filters, sorting and expandable weapon stats, in EN/UK.
+The wiki is `/wiki` (its index) and three sections: `/wiki/weapons`, built here,
+and the damage calculator (`/wiki/calculator`, `scripts/damage-calc/`) and the
+maps (`/wiki/maps`, `scripts/maps-tab/`), each a page of its own look under a
+"Wiki / <page>" line. Their old addresses `/damage` and `/maps` send to them.
+
+The weapons section is a searchable weapon catalogue with class filters,
+sorting and expandable weapon stats, in EN/UK.
 Two selected weapons share a stat comparison and recoil simulation. Comparison
 colors follow each stat's direction, stay neutral for equal displayed values,
 unknown values and neutral traits, and can be turned off. Range comparisons

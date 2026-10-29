@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the website's calculator (`/damage`) from the game as Skhid's players have it.
+"""Builds the website's calculator (`/wiki/calculator`) from the game as Skhid's players have it.
 
     python3 -I build_site.py --stock <resources.db> --patches <dir> --dbgrab <dbgrab> --ffdec <ffdec-cli.jar>
                              [--with <resources.db.patch_n>] [--list release/patches.tsv] [--work <dir>]

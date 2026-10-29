@@ -35,7 +35,8 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-details dd { margin:0; text-align:right; font:.85rem var(--data) }
 .weapon-details dd small { font:.75rem var(--body) }
 .wiki-stamp { margin:28px 0; font:.75rem var(--data); color:var(--ink-3) }
-.wiki-link { display:block; max-width:440px; text-decoration:none; border:1px solid var(--rule); background:var(--panel); padding:24px; margin:24px 0 }
+.wiki-sections { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:16px; margin:24px 0 }
+.wiki-link { display:block; text-decoration:none; border:1px solid var(--rule); background:var(--panel); padding:24px }
 .wiki-link:hover { border-color:var(--accent) }
 .wiki-link h2 { color:var(--accent); font-size:1.5rem }
 .wiki-link p { color:var(--ink-2); margin-bottom:0 }
