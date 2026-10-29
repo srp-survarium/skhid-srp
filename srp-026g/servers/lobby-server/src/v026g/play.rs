@@ -1635,6 +1635,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
+            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
