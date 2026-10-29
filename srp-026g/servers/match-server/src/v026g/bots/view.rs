@@ -988,7 +988,19 @@ impl Tracker {
             let team = usize::from(throw.team & 1);
             match self.launch_of(throw.by, throw.grenade.flight, world) {
                 Launch::Lands(landing) => {
-                    self.clouds.push(throw.cloud_at(landing.rest));
+                    let cloud = throw.cloud_at(landing.rest);
+                    let c = cloud.centre;
+                    self.notes.push(format!(
+                        "smoke cloud by player {} (team {}) at ({:.1}, {:.1}, {:.1}), pours at {} ms, gone at {} ms",
+                        cloud.by,
+                        cloud.team,
+                        c.x,
+                        c.y,
+                        c.z,
+                        cloud.pours.0,
+                        cloud.ends().0
+                    ));
+                    self.clouds.push(cloud);
                     self.smoke_counts.clouds[team] += 1;
                 }
                 Launch::Dead | Launch::NoLanding => self.smoke_counts.dropped[team] += 1,
