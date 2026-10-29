@@ -35,12 +35,13 @@ type RegionRule = Arc<dyn Fn(u32) -> bool + Send + Sync>;
 pub struct RouteFilter {
     /// Landings of jumps the body gave up: floors on them are shut (hard).
     landings: Vec<Vec3>,
-    /// Spots the body got stuck at: floors near them are shut (soft).
+    /// Spots the body got stuck at: floors near them are kept out (soft, as
+    /// `soft` says).
     spots: Vec<Vec3>,
     /// A rule over floors, true for open (hard).
     floors: Option<FloorRule>,
-    /// A rule over floors, true for open (soft): the floors of the traps the
-    /// body noticed ([`super::trap_react`]).
+    /// A rule over floors, true for open (soft, as `soft` says): the floors
+    /// of the traps the body noticed ([`super::trap_react`]).
     soft_floors: Option<FloorRule>,
     /// A rule over regions, true for open (hard).
     regions: Option<RegionRule>,
@@ -50,8 +51,20 @@ pub struct RouteFilter {
     /// The regions a held threat spot sees (soft, K1): kept out but near
     /// the route's ends.
     threat: Option<Arc<Threat>>,
-    /// A cost on floors in place of the soft closures ([`Self::weighing_threat`]).
-    cost: Option<Arc<Weights>>,
+    /// What the soft part (`spots`, `soft_floors`) does to a floor: shuts it,
+    /// or costs it in a weighed search ([`Self::weighing_threat`]).
+    soft: Soft,
+}
+
+/// What a filter's soft part does to the floors it keeps out.
+#[derive(Clone, Debug, Default)]
+enum Soft {
+    /// Shut (a second search without the soft part goes through them).
+    #[default]
+    Shut,
+    /// Costed [`SOFT_COST`] times, with a covered region's floor costed by
+    /// the weights' lane cost (K1 A2's fine pass).
+    Costed(Arc<Weights>),
 }
 
 /// What a weighed search costs a floor ([`RouteFilter::weight`]): a covered
@@ -106,7 +119,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("regions", &self.regions.is_some())
             .field("max_jump_rise", &self.max_jump_rise)
             .field("threat", &self.threat.is_some())
-            .field("cost", &self.cost.is_some())
+            .field("soft", &self.soft)
             .finish()
     }
 }
@@ -166,19 +179,19 @@ impl RouteFilter {
     /// ([`Self::keeping_to`]), and this is the fine pass in it (HPA*'s
     /// abstract path, then the refined one).
     pub fn weighing_threat(mut self, covered: Arc<Covered>, from: Vec3, to: Vec3, lane_cost: f32) -> Self {
-        self.cost = Some(Arc::new(Weights { covered, ends: [from, to], lane: 1.0 + lane_cost.max(0.0) }));
+        self.soft = Soft::Costed(Arc::new(Weights { covered, ends: [from, to], lane: 1.0 + lane_cost.max(0.0) }));
         self
     }
 
     /// Whether the search weighs its floors ([`Self::weighing_threat`]).
     pub fn weighs(&self) -> bool {
-        self.cost.is_some()
+        matches!(self.soft, Soft::Costed(_))
     }
 
     /// What a link into floor `node` costs times its length, at least 1:
     /// 1 unless the filter weighs ([`Self::weighing_threat`]).
     pub fn weight(&self, grid: &WalkGrid, node: NodeId) -> f32 {
-        let Some(w) = self.cost.as_ref() else {
+        let Soft::Costed(w) = &self.soft else {
             return 1.0;
         };
         let at = || grid.position(node);
@@ -257,7 +270,7 @@ impl RouteFilter {
         RouteFilter {
             spots: Vec::new(),
             threat: None,
-            cost: None,
+            soft: Soft::Shut,
             soft_floors: None,
             ..self.clone()
         }
@@ -266,7 +279,7 @@ impl RouteFilter {
     /// Whether floor `node` is open to a search (hard and soft; a weighed
     /// search costs the soft part instead, [`Self::weight`]).
     pub fn floor_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
-        if self.cost.is_some() {
+        if let Soft::Costed(_) = self.soft {
             return self.hard_open(grid, node) && self.threat.as_ref().is_none_or(|t| t.floor_open(grid, node));
         }
         self.hard_open(grid, node)
@@ -310,8 +323,8 @@ impl RouteFilter {
         if self.threat.is_none() {
             self.threat = other.threat.clone();
         }
-        if self.cost.is_none() {
-            self.cost = other.cost.clone();
+        if let Soft::Shut = self.soft {
+            self.soft = other.soft.clone();
         }
         if let Some(theirs) = other.soft_floors.clone() {
             let mine = self.soft_floors.take();

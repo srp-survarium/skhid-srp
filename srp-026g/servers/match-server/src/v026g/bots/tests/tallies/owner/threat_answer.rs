@@ -21,7 +21,7 @@ use crate::v026g::bots::threat;
 
 /// The threat answer's counts at the start of the match, for the difference at its end.
 pub(super) struct ThreatAnswerCounts {
-    counted: [u64; 21],
+    counted: [u64; 23],
     searches: [u64; 4],
     checks: [u64; 2],
     spent: [u64; 3],
@@ -118,7 +118,7 @@ impl ThreatAnswerCounts {
         }
         let n = |key: &str| json.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
         let text = format!(
-            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}; grid searches by why: {}",
+            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}, holds left without a job for no free bot {} spot-ticks; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}, chokes on a held spot not theirs {}; grid searches by why: {}",
             n("k1_checked"),
             n("k1_exposed"),
             runs,
@@ -144,6 +144,7 @@ impl ThreatAnswerCounts {
             n("job_ended_time"),
             n("job_ended_nobody"),
             n("job_ended_down"),
+            n("job_not_opened"),
             by_team.join("; "),
             n("trade_refused"),
             n("pair_up_mate_refused"),
@@ -151,6 +152,7 @@ impl ThreatAnswerCounts {
             n("pair_up_join_none"),
             n("pair_up_wait_hidden"),
             n("crossfire_spot_refused"),
+            n("crossfire_choke_on_spot"),
             work.join(", "),
         );
         Part::new(serde_json::Value::Object(json), text)

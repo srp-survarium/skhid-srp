@@ -104,7 +104,9 @@ enum Going {
 ///   end while the team had a starved bot or a search under way;
 /// - searches under way dropped: their goal moved, the hazards changed, their bot left;
 /// - drive ticks walked on a search's way so far (a partial route); unstick jumps, and those within 5 s of walking a
-///   partial route.
+///   partial route;
+/// - floors overdrawn: spent past a grant by a search with floors of its own (K1's whole-route search,
+///   `ThreatTuning::whole_route_floors`), booked to the poll; and those past both teams' floors (past the poll's cap).
 #[cfg(test)]
 pub mod queue {
     use std::cell::Cell;
@@ -122,7 +124,9 @@ pub mod queue {
     pub const PARTIAL_TICKS: usize = 10;
     pub const UNSTICKS: usize = 11;
     pub const UNSTICKS_PARTIAL: usize = 12;
-    pub const NAMES: [&str; 13] = [
+    pub const OVERDRAWN: usize = 13;
+    pub const OVER_POLL: usize = 14;
+    pub const NAMES: [&str; 15] = [
         "granted",
         "starved",
         "floors",
@@ -136,12 +140,14 @@ pub mod queue {
         "partial_ticks",
         "unsticks",
         "unsticks_partial",
+        "overdrawn",
+        "over_poll",
     ];
     /// An unstick jump within this of walking a partial route counts as on one, ms.
     pub const PARTIAL_RECENT_MS: u32 = 5_000;
 
     thread_local! {
-        static COUNTS: Cell<[[u64; 13]; 2]> = const { Cell::new([[0; 13]; 2]) };
+        static COUNTS: Cell<[[u64; 15]; 2]> = const { Cell::new([[0; 15]; 2]) };
     }
 
     /// `n` of count `what` for team `team`.
@@ -154,7 +160,7 @@ pub mod queue {
     }
 
     /// The counts so far, by team.
-    pub fn counted() -> [[u64; 13]; 2] {
+    pub fn counted() -> [[u64; 15]; 2] {
         COUNTS.with(Cell::get)
     }
 }
@@ -174,6 +180,23 @@ pub(super) struct Grant<'a> {
     team: u8,
     lent: usize,
     pub(super) floors: usize,
+    /// Floors spent past `floors` by a search with a budget of its own
+    /// ([`Overdraft::spend`]), booked when it drops with the rest.
+    pub(super) overdraft: Overdraft,
+}
+
+/// Floors a grant's search spent past what the grant lent it.
+#[derive(Default)]
+pub(super) struct Overdraft(usize);
+
+impl Overdraft {
+    /// `spent` floors of a search with its own budget: off `floors` first,
+    /// the rest past the grant.
+    pub(super) fn spend(&mut self, floors: &mut usize, spent: usize) {
+        let own = spent.min(*floors);
+        *floors -= own;
+        self.0 += spent - own;
+    }
 }
 
 impl Grant<'_> {
@@ -185,21 +208,35 @@ impl Grant<'_> {
 
 impl Drop for Grant<'_> {
     fn drop(&mut self) {
-        let spent = self.lent - self.floors.min(self.lent);
+        let spent = self.lent - self.floors.min(self.lent) + self.overdraft.0;
         #[cfg(test)]
-        queue::add(self.team, queue::FLOORS, spent as u64);
-        match &mut self.searching.queue {
-            Queue::FirstCome { floors, .. } => *floors -= spent.min(*floors),
+        {
+            queue::add(self.team, queue::FLOORS, spent as u64);
+            queue::add(self.team, queue::OVERDRAWN, self.overdraft.0 as u64);
+        }
+        let past = match &mut self.searching.queue {
+            Queue::FirstCome { floors, .. } => {
+                let taken = spent.min(*floors);
+                *floors -= taken;
+                spent - taken
+            }
             Queue::Fair { teams, .. } => {
                 let own = usize::from(self.team & 1);
                 let from_own = spent.min(teams[own].floors);
                 teams[own].floors -= from_own;
                 let rest = spent - from_own;
-                teams[1 - own].floors -= rest.min(teams[1 - own].floors);
+                let from_other = rest.min(teams[1 - own].floors);
+                teams[1 - own].floors -= from_other;
                 #[cfg(test)]
-                queue::add(self.team, queue::HANDED_OVER, rest as u64);
+                queue::add(self.team, queue::HANDED_OVER, from_other as u64);
+                rest - from_other
             }
-        }
+        };
+        // Past both teams' floors: past the poll's cap (the bench's count).
+        #[cfg(test)]
+        queue::add(self.team, queue::OVER_POLL, past as u64);
+        #[cfg(not(test))]
+        let _ = past;
     }
 }
 
@@ -335,7 +372,7 @@ impl Searching {
             *first = !team & 1;
         }
         let lent = self.available(team);
-        Some(Grant { searching: self, team, lent, floors: lent })
+        Some(Grant { searching: self, team, lent, floors: lent, overdraft: Overdraft::default() })
     }
 
     /// The search under way in slot `slot`, taken out to go on (`None`: none).
@@ -354,7 +391,7 @@ impl Searching {
         }
         *self.left_mut() -= 1;
         let lent = self.available(team);
-        Some((pending, Grant { searching: self, team, lent, floors: lent }))
+        Some((pending, Grant { searching: self, team, lent, floors: lent, overdraft: Overdraft::default() }))
     }
 
     /// Team `team`'s search under way for the bot at `place`, if that bot's: its goal.

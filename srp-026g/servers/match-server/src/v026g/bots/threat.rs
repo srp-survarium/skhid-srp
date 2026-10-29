@@ -338,6 +338,9 @@ pub enum Count {
     JobEndedTime,
     JobEndedNobody,
     JobEndedDown,
+    /// K2: a held spot (a hold) given no job at a tick because no free bot
+    /// could take a role of it (spot-ticks): its slot went to the next spot.
+    JobNotOpened,
     /// A3's replans judged (the bench): the next route a new way (its
     /// length ahead or exposure off the old by over [`JUDGE_SAME_M`]) or
     /// the same; of the new ways, less exposed, and out of the lanes (at
@@ -357,10 +360,14 @@ pub enum Count {
     PairUpWaitHidden,
     /// K3: Crossfire spots left out for lying in a held line (at its picks).
     CrossfireSpotRefused,
+    /// K2: a Crossfire choke (an offer, a pick, a step) whose point is a held
+    /// spot's centre while its target is not that spot: the by-point lookup
+    /// took it for a job's pin (`job_line_by_id` off), the id does not.
+    CrossfireChokeOnSpot,
 }
 
 /// The [`Count`]s, in order, and their names in the tally.
-pub const COUNTS: [(Count, &str); 21] = [
+pub const COUNTS: [(Count, &str); 23] = [
     (Count::ReplanAsked, "replan_asked"),
     (Count::ReplanClear, "replan_clear"),
     (Count::Recast, "recast"),
@@ -371,6 +378,7 @@ pub const COUNTS: [(Count, &str); 21] = [
     (Count::JobEndedTime, "job_ended_time"),
     (Count::JobEndedNobody, "job_ended_nobody"),
     (Count::JobEndedDown, "job_ended_down"),
+    (Count::JobNotOpened, "job_not_opened"),
     (Count::ReplanNew, "replan_new"),
     (Count::ReplanSame, "replan_same"),
     (Count::ReplanLess, "replan_less"),
@@ -382,11 +390,12 @@ pub const COUNTS: [(Count, &str); 21] = [
     (Count::PairUpJoinNone, "pair_up_join_none"),
     (Count::PairUpWaitHidden, "pair_up_wait_hidden"),
     (Count::CrossfireSpotRefused, "crossfire_spot_refused"),
+    (Count::CrossfireChokeOnSpot, "crossfire_choke_on_spot"),
 ];
 
 #[cfg(test)]
 thread_local! {
-    static COUNTED: std::cell::Cell<[u64; 21]> = const { std::cell::Cell::new([0; 21]) };
+    static COUNTED: std::cell::Cell<[u64; 23]> = const { std::cell::Cell::new([0; 23]) };
     static JOB_COUNTED: std::cell::Cell<[[u64; 11]; 2]> = const { std::cell::Cell::new([[0; 11]; 2]) };
     static JOB_LIVES: std::cell::RefCell<Vec<(u8, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -495,7 +504,7 @@ pub fn count(c: Count) {
 
 /// The [`Count`]s so far, by [`COUNTS`] order.
 #[cfg(test)]
-pub fn counted() -> [u64; 21] {
+pub fn counted() -> [u64; 23] {
     COUNTED.with(|cell| cell.get())
 }
 
@@ -536,8 +545,8 @@ pub fn judged(asked: Asked, exposed_m: f32, left_m: f32) {
 pub fn count_job(event: JobEvent) {
     count(match event {
         JobEvent::Given { .. } => Count::JobGiven,
-        JobEvent::Passed { why, .. } if why == PASSED_NOT_FREE => Count::JobPassedNotFree,
-        JobEvent::Passed { .. } => Count::JobPassedNoPlay,
+        JobEvent::Passed { why: PassedWhy::NotFree, .. } => Count::JobPassedNotFree,
+        JobEvent::Passed { why: PassedWhy::NoPlay, .. } => Count::JobPassedNoPlay,
         JobEvent::Ended { end: JobEnd::Time, .. } => Count::JobEndedTime,
         JobEvent::Ended { end: JobEnd::Nobody, .. } => Count::JobEndedNobody,
         JobEvent::Ended { end: JobEnd::HolderDown { .. }, .. } => Count::JobEndedDown,
@@ -1365,9 +1374,23 @@ pub struct JobTeam<'a> {
     pub objective_areas: &'a [Vec3],
 }
 
-/// Why a role went ([`JobEvent`]).
-pub const PASSED_NOT_FREE: &str = "not free: carrying or dry";
-pub const PASSED_NO_PLAY: &str = "did not take the play";
+/// Why a role went ([`JobEvent::Passed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PassedWhy {
+    /// Its bot carries or runs dry.
+    NotFree,
+    /// Its bot did not take the play within [`JOB_START_MS`].
+    NoPlay,
+}
+
+impl std::fmt::Display for PassedWhy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PassedWhy::NotFree => "not free: carrying or dry",
+            PassedWhy::NoPlay => "did not take the play",
+        })
+    }
+}
 
 /// Why a job ended ([`JobEvent::Ended`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1410,7 +1433,7 @@ pub enum JobEvent {
     /// A role given to a bot.
     Given { spot: u32, role: Role, place: Place },
     /// A role let go, and why.
-    Passed { spot: u32, role: Role, place: Place, why: &'static str },
+    Passed { spot: u32, role: Role, place: Place, why: PassedWhy },
     /// A job ended: why, its shooter, after how long (ms).
     Ended { spot: u32, shooter: Place, end: JobEnd, life_ms: u32 },
 }
@@ -1448,7 +1471,8 @@ impl Picture {
         self.held.iter().find(|l| l.id == id)
     }
 
-    /// The held line whose spot is at `at` now.
+    /// The held line whose spot is at `at` now (the by-point lookup, the
+    /// `job_line_by_id` switch off).
     pub fn line_by_spot(&self, at: Vec3) -> Option<&HeldLine> {
         self.held.iter().find(|l| l.at.distance_xz(at) < 0.01)
     }
@@ -1484,13 +1508,20 @@ pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
 ///   [`JOB_SHARE`]th of its players (rounded up; a job on a spot covering
 ///   an objective area is objective work and not counted);
 /// - a held spot with no job, whose shooter has none, gets one, up to
-///   [`JOBS_MAX`], only when a role of it can be given.
+///   [`JOBS_MAX`], only when a role of it can be given at once: a spot no
+///   free bot can take keeps no slot (nor its shooter's one job), and the
+///   next spot is tried ([`Count::JobNotOpened`]).
 ///
-/// `rested`: spots resting, and until when.
+/// `held`: the spots jobs open on (the holds, [`holds`]); `lanes`: the held
+/// lines a role's bot stands out of (every held line). `rested`: spots
+/// resting, and until when. `opening`: how a new job opens ([`Opening`]).
+#[allow(clippy::too_many_arguments)]
 pub fn jobs_tick(
     jobs: &mut Vec<Job>,
     rested: &mut Vec<(u32, u32)>,
     held: &[HeldLine],
+    lanes: &[HeldLine],
+    opening: Opening,
     team: &JobTeam,
     unheld: &dyn Fn(u32) -> JobEnd,
     now: u32,
@@ -1528,9 +1559,9 @@ pub fn jobs_tick(
                 continue;
             };
             let why = if !m.free {
-                Some(PASSED_NOT_FREE)
+                Some(PassedWhy::NotFree)
             } else if m.playing != Some((role, spot)) && now >= h.since + JOB_START_MS {
-                Some(PASSED_NO_PLAY)
+                Some(PassedWhy::NoPlay)
             } else {
                 None
             };
@@ -1541,6 +1572,72 @@ pub fn jobs_tick(
             }
         }
     }
+    let share = team.size.div_ceil(JOB_SHARE);
+    let staff = StaffRules { mates, lanes, share, now };
+    if opening == Opening::ThenDropped {
+        open_then_drop(jobs, rested, held, team, &staff, &mut events);
+        return events;
+    }
+    for i in 0..jobs.len() {
+        if let Some(line) = held.iter().find(|l| l.id == jobs[i].spot) {
+            staff.roles(jobs, i, line, &mut events);
+        }
+    }
+    // A job nobody holds ends.
+    jobs.retain(|j| {
+        let staffed = j.flanker.is_some() || j.pinner.is_some();
+        if !staffed {
+            rested.push((j.spot, now + JOB_REST_MS));
+            events.push(JobEvent::Ended { spot: j.spot, shooter: j.shooter, end: JobEnd::Nobody, life_ms: now.saturating_sub(j.since) });
+        }
+        staffed
+    });
+    // New jobs, each opened only when a role of it is given now.
+    for line in held {
+        if jobs.len() >= JOBS_MAX {
+            break;
+        }
+        let free = !jobs.iter().any(|j| j.spot == line.id || j.shooter == line.shooter)
+            && !rested.iter().any(|&(id, _)| id == line.id);
+        if !free {
+            continue;
+        }
+        let objective = team.objective_areas.iter().any(|&a| line.covers(a));
+        jobs.push(Job {
+            spot: line.id,
+            objective,
+            shooter: line.shooter,
+            since: now,
+            flanker: None,
+            pinner: None,
+            passed: Vec::new(),
+        });
+        let i = jobs.len() - 1;
+        staff.roles(jobs, i, line, &mut events);
+        if jobs[i].flanker.is_none() && jobs[i].pinner.is_none() {
+            jobs.pop();
+            count(Count::JobNotOpened);
+        }
+    }
+    events
+}
+
+/// How [`jobs_tick`] opens a job on a held spot ([`ThreatTuning::job_open_staffed`]).
+///
+/// [`ThreatTuning::job_open_staffed`]: crate::v026g::bots::tuning::ThreatTuning::job_open_staffed
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Opening {
+    /// Only when a role of it is given at once: the next spot is tried.
+    Staffed,
+    /// Opened on every free spot up to [`JOBS_MAX`] first, staffed after,
+    /// those with nobody dropped at the tick's end (holding a slot and their
+    /// shooter's one job meanwhile).
+    ThenDropped,
+}
+
+/// [`jobs_tick`]'s opening and staffing by [`Opening::ThenDropped`].
+fn open_then_drop(jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], team: &JobTeam, staff: &StaffRules, events: &mut Vec<JobEvent>) {
+    let now = staff.now;
     let mut opened = Vec::new();
     for line in held {
         if jobs.len() >= JOBS_MAX {
@@ -1562,36 +1659,9 @@ pub fn jobs_tick(
             opened.push(line.id);
         }
     }
-    let share = team.size.div_ceil(JOB_SHARE);
     for i in 0..jobs.len() {
-        let Some(line) = held.iter().find(|l| l.id == jobs[i].spot) else {
-            continue;
-        };
-        for role in [Role::Flanker, Role::Pinner] {
-            if jobs[i].holder(role).is_some() {
-                continue;
-            }
-            let off_objective: usize = jobs
-                .iter()
-                .filter(|j| !j.objective)
-                .map(|j| usize::from(j.flanker.is_some()) + usize::from(j.pinner.is_some()))
-                .sum();
-            if !jobs[i].objective && off_objective >= share {
-                break;
-            }
-            let busy = |place: Place| jobs.iter().any(|j| j.role_of(place).is_some());
-            let passed = &jobs[i].passed;
-            let pick = mates
-                .iter()
-                .filter(|m| m.free && !busy(m.place) && !passed.contains(&m.place))
-                .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
-                .filter(|m| !held.iter().any(|l| l.covers(m.feet)))
-                .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
-                .map(|m| m.place);
-            if let Some(place) = pick {
-                *jobs[i].holder_mut(role) = Some(Holder { place, since: now });
-                events.push(JobEvent::Given { spot: line.id, role, place });
-            }
+        if let Some(line) = held.iter().find(|l| l.id == jobs[i].spot) {
+            staff.roles(jobs, i, line, events);
         }
     }
     // A job nobody holds: a new one is not opened; an old one ends.
@@ -1601,9 +1671,55 @@ pub fn jobs_tick(
             rested.push((j.spot, now + JOB_REST_MS));
             events.push(JobEvent::Ended { spot: j.spot, shooter: j.shooter, end: JobEnd::Nobody, life_ms: now.saturating_sub(j.since) });
         }
+        if !staffed && opened.contains(&j.spot) {
+            count(Count::JobNotOpened);
+        }
         staffed
     });
-    events
+}
+
+/// Who may take a job's free roles ([`jobs_tick`]): the team's `mates`, out
+/// of every held line (`lanes`), while the team's bots in jobs off the
+/// objective are fewer than `share`.
+struct StaffRules<'a> {
+    mates: &'a [Mate],
+    lanes: &'a [HeldLine],
+    share: usize,
+    now: u32,
+}
+
+impl StaffRules<'_> {
+    /// Job `i`'s free roles (on `line`) to the nearest free teammates, the
+    /// flanker first.
+    fn roles(&self, jobs: &mut [Job], i: usize, line: &HeldLine, events: &mut Vec<JobEvent>) {
+        for role in [Role::Flanker, Role::Pinner] {
+            if jobs[i].holder(role).is_some() {
+                continue;
+            }
+            let off_objective: usize = jobs
+                .iter()
+                .filter(|j| !j.objective)
+                .map(|j| usize::from(j.flanker.is_some()) + usize::from(j.pinner.is_some()))
+                .sum();
+            if !jobs[i].objective && off_objective >= self.share {
+                break;
+            }
+            let busy = |place: Place| jobs.iter().any(|j| j.role_of(place).is_some());
+            let passed = &jobs[i].passed;
+            let pick = self
+                .mates
+                .iter()
+                .filter(|m| m.free && !busy(m.place) && !passed.contains(&m.place))
+                .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
+                .filter(|m| !self.lanes.iter().any(|l| l.covers(m.feet)))
+                .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
+                .map(|m| m.place);
+            if let Some(place) = pick {
+                *jobs[i].holder_mut(role) = Some(Holder { place, since: self.now });
+                events.push(JobEvent::Given { spot: line.id, role, place });
+            }
+        }
+    }
 }
 
 // The room of the cheapest way from region `from` to `to` (A*, A2): a walk
@@ -2059,7 +2175,7 @@ mod tests {
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
-        jobs_tick(&mut jobs, &mut rested, &held, &team(12, &[]), &unheld, 1_000);
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
         shooters.sort_unstable();
         assert_eq!(shooters, [7, 9]);
@@ -2067,12 +2183,12 @@ mod tests {
         assert_eq!(in_jobs(&jobs), 4);
         // A 6-player team: 2 bots in jobs at most (one job staffed).
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        jobs_tick(&mut jobs, &mut rested, &held, &team(6, &[]), &unheld, 1_000);
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(6, &[]), &unheld, 1_000);
         assert_eq!(in_jobs(&jobs), 2);
         assert_eq!(jobs.len(), 1, "the other opened job had nobody and is not kept: {jobs:?}");
         // Shooter 9's lanes cover an objective area: clearing him is objective work, outside the cap.
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        jobs_tick(&mut jobs, &mut rested, &held, &team(6, &[Vec3::new(30.0, 0.0, -40.0)]), &unheld, 1_000);
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(6, &[Vec3::new(30.0, 0.0, -40.0)]), &unheld, 1_000);
         assert_eq!(in_jobs(&jobs), 4);
         assert!(jobs.iter().any(|j| j.objective && j.shooter == 9), "{jobs:?}");
     }
@@ -2086,6 +2202,54 @@ mod tests {
         assert_eq!(ids(2), [5], "one kill and a sighting is no hold");
         assert_eq!(ids(1), [4, 5]);
         assert!(ids(3).is_empty());
+    }
+
+    #[test]
+    fn a_spot_no_bot_can_take_keeps_no_slot_from_one_that_can() {
+        // Lanes along +x; the team's bots stand at x = -20, out of them, near the spots at the origin.
+        let lane = |at: Vec3| [bearing(at, at + Vec3::new(30.0, 0.0, 0.0)), bearing(at, at + Vec3::new(30.0, 0.0, 1.0))];
+        let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
+        let far = Vec3::new(0.0, 0.0, 500.0);
+        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[] };
+        let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
+        // A far spot first in the list: both slots still go to the spots the bots can reach.
+        let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let before = counted()[Count::JobNotOpened as usize];
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team, &unheld, 1_000);
+        assert_eq!(ids(&jobs), [3, 4]);
+        assert_eq!(counted()[Count::JobNotOpened as usize] - before, 1, "the far spot, once this tick");
+        assert!(rested.is_empty(), "a spot never opened does not rest: {rested:?}");
+        // Off (the old rule): the far spot holds a slot through the tick, and only one job opens.
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::ThenDropped, &team, &unheld, 1_000);
+        assert_eq!(ids(&jobs), [3]);
+        // A camper who moved: his first spot out of reach does not take his one job from the second.
+        let held = [spot(5, far, 7), spot(6, at(0.0), 7)];
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team, &unheld, 1_000);
+        assert_eq!(ids(&jobs), [6]);
+    }
+
+    #[test]
+    fn a_role_goes_to_no_bot_in_a_held_line_of_one_kill() {
+        // The hold (two kills) at the origin, lanes along +x; a line of one kill from (-40, 0, 0) along +x covers the bot
+        // nearest the hold (12 m), which K1 keeps its routes out of as well.
+        let hold = line(4, at(0.0), &[bearing(at(0.0), at(30.0)), bearing(at(0.0), Vec3::new(30.0, 0.0, 1.0))]);
+        let from = Vec3::new(-40.0, 0.0, 0.0);
+        let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
+        let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
+        let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[] };
+        let (holds, lanes) = ([hold.clone()], [hold, one]);
+        assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
+        assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &holds, &lanes, Opening::Staffed, &team, &unheld, 1_000);
+        let given: Vec<Place> = jobs.iter().flat_map(|j| [j.flanker, j.pinner]).flatten().map(|h| h.place).collect();
+        assert!(!given.contains(&1), "{given:?}");
+        assert_eq!(given.len(), 2, "{given:?}");
     }
 
     #[test]
@@ -2104,7 +2268,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, &JobTeam { mates, size: 10, objective_areas: &[] }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[] }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
@@ -2123,12 +2287,12 @@ mod tests {
         let carrying = [playing[0], Mate { free: false, ..playing[1] }, playing[2], playing[3]];
         let events = tick(&mut jobs, &mut rested, &held, &carrying, 7_000);
         assert_eq!(holders(&jobs), (Some(2), Some(8)));
-        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 3, why: PASSED_NOT_FREE }), "{events:?}");
+        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 3, why: PassedWhy::NotFree }), "{events:?}");
         // The new pinner never takes the play: it lets it go after the start
         // time and is not offered it again; nobody else is free: the flanker holds on.
         let events = tick(&mut jobs, &mut rested, &held, &carrying, 7_000 + JOB_START_MS);
         assert_eq!(holders(&jobs), (Some(2), None));
-        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 8, why: PASSED_NO_PLAY }), "{events:?}");
+        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 8, why: PassedWhy::NoPlay }), "{events:?}");
         // The flanker goes down (no longer among the mates): the job ends at
         // once, nobody is sent after him, and the spot rests.
         let fewer = [playing[1], playing[2], playing[3]];
