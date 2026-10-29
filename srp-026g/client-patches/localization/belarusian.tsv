@@ -2359,6 +2359,7 @@ st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
 st_srp_weapon_aim_zoom	Базавае павелічэнне
+st_srp_weapon_chamber	Дасыланне патрона
 st_srp_weapon_draw_time	Час даставання
 st_srp_weapon_full_damage	Поўная шкода да
 st_srp_weapon_hip_spread	Раскід ад сцягна

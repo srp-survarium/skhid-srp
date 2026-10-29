@@ -57,6 +57,65 @@ package {
    require(color(cards[0],"Horizontal recoil variation")==15911311 && color(cards[1],"Horizontal recoil variation")==15911311,"equal variability stays neutral despite different bias");
    for(i=0;i<2;i++){cards[i].data=items[i];cards[i].itemCompare.setSecondaryWeapon(items[1-i]);}
   }
+  // A bolt-action AK-74M stand-in: its chambering time (prop 160, the weapons that have one).
+  private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
+  private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
+  // The native comparison row of a property (diff_1..diff_9), by its label.
+  private function nativeRow(card:Object,label:String):Object {
+   for(var i:int=1;i<=9;i++){var row:Object=card.itemCompare.getChildByName("diff_"+i);if(row && row.visible && row.indicator.label==label)return row.indicator;}
+   throw new Error("missing native row: "+label);
+  }
+  // weapon-rolls-1: the recoil, aim-time and chambering rolls on the card.
+  private function rollChecks():void {
+   var chamber:String=HarnessText.DATA.english.st_srp_weapon_chamber;
+   // Recoil (115) scales the six kick bounds by max(0, 1 + sum), defaults and defects summed once.
+   var rolled:Object=recoilItem(1.8,2,1.4,1.8,1.4,1.8);
+   rolled.modifiers=[{props:[{prop_id:115,prop_value:"-0.10"}]}];
+   require(stat(rolled,146).value=="1.62…1.8" && stat(rolled,147).value=="0.052","recoil roll scales the upward kick");
+   require(stat(rolled,148).value=="-0.36…0.36" && stat(rolled,149).value=="0.147","recoil roll scales the sideways kick");
+   rolled.modifiers.push({state:1,props:[{prop_id:115,prop_value:"0.10"}]});
+   require(stat(rolled,146).value=="1.8…2","a recoil defect cancels an equal roll");
+   rolled.modifiers=[{props:[{prop_id:115,prop_value:"-0.6"}]},{props:[{prop_id:115,prop_value:"-0.6"}]}];
+   require(stat(rolled,146).value=="0…0","recoil floored at zero, as the cook");
+   // Aim time (102) scales the stock aim-time bar (133): 0.25 s x 0.9.
+   var aimed:Object=item(false);aimed.modifiers=[{icon:33,textValue:"Aim time -10%",props:[{prop_id:102,prop_value:"-0.10"}]}];
+   shows(aimed,items[0]);
+   require(Math.abs(nativeRow(cards[0],"Aim time").value-.225)<1e-6,"aim-time roll shortens the aim-time bar");
+   require(Math.abs(nativeRow(cards[0],"Dispersion").value-.2)<1e-6,"an aim-time roll changes no other bar");
+   shows(items[1],items[0]);
+   require(Math.abs(nativeRow(cards[0],"Aim time").value-.25)<1e-6,"no roll, the weapon's own aim time");
+   // Chambering time (160, base x max(0, 1 + sum 119)): only on the weapons that have it.
+   require(text(cards[0]).indexOf(chamber)<0 && text(cards[1]).indexOf(chamber)<0,"no chambering row on weapons without one");
+   var bolt:Object=boltItem("1.333");
+   shows(bolt,items[1]);
+   require(text(cards[0]).indexOf(chamber+": 1.33s\n")>=0,"chambering row shows the weapon's own time");
+   require(text(cards[1]).indexOf(chamber+": –\n")>=0 && color(cards[1],chamber)==15911311,"a weapon without one shows a dash beside one with it");
+   require(color(cards[0],chamber)==15911311,"nothing to compare a chambering time with");
+   aligned();
+   var quick:Object=boltItem("1.333");quick.modifiers=[{icon:33,textValue:"Chambering -15%",props:[{prop_id:119,prop_value:"-0.15"}]}];
+   shows(quick,bolt);
+   require(text(cards[0]).indexOf(chamber+": 1.33s » 1.13s\n")>=0,"chambering roll shows base and modified time");
+   require(color(cards[0],chamber)==8890390 && color(cards[1],chamber)==9834254,"a shorter chambering time is green, the longer red");
+   aligned();
+   quick.modifiers.push({state:1,icon:36,textValue:"Chambering +10%",props:[{prop_id:119,prop_value:"0.10"}]});
+   shows(quick,bolt);
+   require(text(cards[0]).indexOf(chamber+": 1.33s » 1.27s\n")>=0,"a chambering defect sums with the roll");
+   // Its label fits one line beside the widest chambering value (a rolled 1.333 s), compact and expanded.
+   var misses:Array=[];
+   for each(var language:String in HarnessText.LANGUAGES){
+    Loc.setData(texts(language));
+    for each(var expanded:Boolean in [false,true]){
+     Scene.isShift=expanded;shows(quick,bolt);
+     require(text(cards[0]).indexOf(HarnessText.DATA[language].st_srp_weapon_chamber+": ")>=0,"chambering row: "+language);
+     misses=misses.concat(overflows(cards[0],language),overflows(cards[1],language));
+    }
+   }
+   var told:Object={};misses=misses.filter(function(m:String,...rest):Boolean{var again:Boolean=told[m];told[m]=true;return !again;});
+   for each(var miss:String in misses)trace("DETAILS OVERFLOW "+miss);
+   require(misses.length==0,misses.length+" labels beside a chambering time do not fit one line (DETAILS OVERFLOW lines)");
+   Loc.setData(texts("english"));
+   shows(items[0],items[1]);
+  }
   private function loaded(e:Event):void {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
@@ -68,7 +127,9 @@ package {
     var Props:Class=domain.getDefinition("survarium.data.PropertiesDescriptor") as Class;
     var props:Object=new Props("properties"),list:Array=[];
     for each(var spec:Array in [[1,"Damage",1,""],[2,"Dispersion",0,""],[3,"Armor penetration",1,""],[4,"Rate of fire",1,""],[15,"Weight",0,"kg"],[24,"Distance",1,"m"],[132,"Stopping power",1,"%"],[133,"Aim time",0,"s"],[134,"Magazine",1,""]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
-    for(var id:int=138;id<=159;id++)list.push({prop_id:id,comparable:false});
+    for(var id:int=138;id<=160;id++)list.push({prop_id:id,comparable:false});
+    // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
+    for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
     var Container:Class=domain.getDefinition("survarium.data.IconContainer") as Class;
     var Atlas:Class=domain.getDefinition("LobbyMenu_ModifierIcons") as Class;
@@ -237,6 +298,7 @@ package {
      require(misses.length==0,misses.length+" labels do not fit one line (DETAILS OVERFLOW lines)");
      Loc.setData(texts("english"));cards[0].data=items[0];cards[1].data=items[1];
      recoilChecks();
+     rollChecks();
      var baseRange:String=text(cards[0]);
      var defaultRange:Object={props:[{prop_id:24,prop_value:"0.10"}],isDefault:true,icon:33,textValue:"Range: +10%"};
      items[0].modifiersDefault=[defaultRange];

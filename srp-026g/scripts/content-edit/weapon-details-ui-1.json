@@ -1,5 +1,5 @@
 {
-  "_about": "Base weapon detail transport, properties 138..159. Numeric values copied from each weapon after balance edits. The movie renders these itself; native comparison rows skip them. No simulation changes.",
+  "_about": "Base weapon detail transport, properties 138..160 (160: chambering time, on the 11 bolt and pump weapons that have one). Numeric values copied from each weapon after balance edits. The movie renders these itself; native comparison rows skip them. No simulation changes.",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
@@ -638,6 +638,35 @@
         "prop_value": "{dispersion/max_dispersion}"
       },
       "only_if": "dispersion/max_dispersion"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 159
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 160,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 160,
+        "prop_value": "{parameters/chamber_a_round_time}"
+      },
+      "only_if": "parameters/chamber_a_round_time"
     }
   ]
 }

@@ -97,6 +97,23 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
 
+    def test_modifier_retarget_by_its_path(self):
+        """A modification's modifiers differ only in their `path`: `where` takes a path in the entry."""
+        def modifier(key):
+            return {'path': ['recoil', key], 'value': -0.02, 'type': 2}
+        data = config({'modifications': [{'id': 2080, 'modifiers': [modifier('a'), modifier('b'), modifier('c')]}]})
+        ce.set_entry(data, 'modifications', {'id': 2080}, {'modifiers[0]/path[1]': 'a'},
+                     {'modifiers[0]/path[1]': 'max_top_recoil'})
+        with self.assertRaises(ValueError):  # every modifier has this value and type
+            ce.remove_entry(bytearray(data), 'modifications[0]/modifiers', {'type': 2})
+        ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        with self.assertRaises(ValueError):  # gone: a second removal is refused
+            ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        self.assertEqual([value(data, 'modifications[0]/modifiers[%d]/path[1]' % i) for i in range(2)],
+                         ['max_top_recoil', 'c'])
+        self.assertTrue(ce.same(value(data, 'modifications[0]/modifiers[1]/value'), -0.02))
+        ce.walk(data)
+
     def test_cli_checks_add_remove_and_entry_index_shifts(self):
         edits = {
             'add_entry': [{'files': 'project', 'list': 'objects',

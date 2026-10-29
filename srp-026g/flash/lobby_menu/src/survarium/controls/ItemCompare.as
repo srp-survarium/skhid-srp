@@ -87,6 +87,16 @@ package survarium.controls
          }
       }
       
+      // A card property a modifier of another property changes: a weapon's aim-time roll (102,
+      // 2070..2074) scales its aim time (133, parameters/aim_time) since weapon-rolls-1.
+      private static const MODIFIED_BY:Object = {133:102};
+
+      // Whether a modifier of `modifierProp` changes the card property `prop`.
+      private static function modifies(modifierProp:int, prop:int) : Boolean
+      {
+         return modifierProp == prop || MODIFIED_BY[prop] === modifierProp;
+      }
+
       public static function setPropsDescriptor(descriptor:PropertiesDescriptor) : void
       {
          trace("setPropsDescriptor::",descriptor);
@@ -246,7 +256,7 @@ package survarium.controls
                {
                   for each(modifierProp in modifierEntry.props)
                   {
-                     if(modifierProp.prop_id == propDescription.prop_id)
+                     if(modifies(modifierProp.prop_id,propDescription.prop_id))
                      {
                         propValue = Number(modifierProp.prop_value);
                         if(propValue != Number(modifierProp.prop_value))
@@ -269,7 +279,8 @@ package survarium.controls
             }
             else
             {
-               total = base * (1 + modifier_value);
+               // The cook's type 2: base * max(0, 1 + sum) (0x358010).
+               total = base * Math.max(0,1 + modifier_value);
             }
             if(modifierType == ModifierType.MULTIPLY)
             {
