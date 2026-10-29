@@ -52,7 +52,8 @@ pub struct FirstLeg {
     pub detour: Share,
     /// The plain way is looked at only when this many metres of its first 60 m run through regions mates were in. GUESS.
     pub shared_m: u32,
-    /// Floors the costed search may expand, at most. GUESS (the K1 whole-route search runs out at about 1,900).
+    /// Floors the costed search of the stretch may expand, at most. GUESS: K1's local detour has 3,000 for 30-40 m and the
+    /// costed search covers 20-75 m; with 1,500 four searches in five ran out (bench 2026-10-29, both versions).
     pub floors: u32,
 }
 
@@ -65,7 +66,7 @@ impl Default for FirstLeg {
             max_mates: 3,
             detour: Share::of(0.125),
             shared_m: 12,
-            floors: 1_500,
+            floors: 8_000,
         }
     }
 }
