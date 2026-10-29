@@ -10,6 +10,11 @@
 //! the magazine counted in; the magazine itself and the health are not
 //! touched. A full kit or an empty storage allows no use at all.
 //!
+//! The pocket stacks (medkits, bandages, traps, grenades) are topped up by the same call (`inventory_item::restock`
+//! 0x2FFCE0, `min(count - stack, storage)`, PROVEN). With the bots' pocket store of 100 (`kit.pocket_store`) a bot at its box
+//! has its grenade or medkits back in mid-life, as a human with storage has; the play still goes by the rounds only
+//! (it does not walk to the box for a pocket), and the stand-in does not model the pockets' top-up.
+//!
 //! - **When:** the rounds it holds (magazine and stack) are at or under
 //!   `rounds_share` of the kit's count for a life (dry always counts), its
 //!   kit's storage has something to give, it carries no battery, no enemy

@@ -322,6 +322,40 @@ fn standard_kit() -> Vec<Slot> {
 }
 
 impl Heal {
+    /// The drugs of a bot's own profile: each kit's pockets with the stack the slot starts a life with and the storage
+    /// behind it, as the client has it (`inventory::setup_from_profile`), so a team on the store of 100 has its
+    /// medkits and bandages every life and one on the old store has them for the match. Not a bot's: [`Self::new`].
+    pub(crate) fn of_profile(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Self {
+        use crate::v026g::bots::pockets::{ProfilePockets, quick_use_of};
+        let Some(pockets) = ProfilePockets::of_profile(profile, true) else {
+            return Self::new();
+        };
+        let kits = pockets
+            .kits()
+            .iter()
+            .map(|kit| {
+                kit.iter()
+                    .flatten()
+                    .filter_map(|pocket| {
+                        Some(Slot {
+                            drug: Drug::of_name(pocket.name)?,
+                            quick: quick_use_of(kit, pocket.slot)?,
+                            count: pocket.units,
+                            store: pocket.stored.unwrap_or(u32::from(pocket.units)).min(u32::from(u16::MAX)) as u16,
+                            hand: 0,
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        Self {
+            uses: Vec::new(),
+            kits,
+            kit: 0,
+            kit_next: 0,
+        }
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             uses: Vec::new(),
@@ -329,6 +363,12 @@ impl Heal {
             kit: 0,
             kit_next: 0,
         }
+    }
+
+    /// The units of `drug` in the kit in use that are in store (the test of a team's pocket store reads it).
+    #[cfg(test)]
+    pub(crate) fn store_of(&self, drug: Drug) -> u16 {
+        self.kits[self.kit].iter().filter(|slot| slot.drug == drug).map(|slot| slot.store).sum()
     }
 
     /// A spawn: nothing active, the last life's slots back in store and

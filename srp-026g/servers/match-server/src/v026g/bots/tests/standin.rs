@@ -560,6 +560,15 @@ impl Game {
         }
     }
 
+    /// The drugs each bot's own profile holds ([`standin_heal::Heal::of_profile`]), by place: the first life's slots are filled
+    /// at once. A match that does not call this has the standard kit's, all in store as the old profiles had it.
+    pub(crate) fn set_heal_kits(&mut self, profiles: &[survarium::v026g::match_msgs::static_info::MatchProfile]) {
+        for (body, profile) in self.bodies.iter_mut().zip(profiles) {
+            body.heal = standin_heal::Heal::of_profile(profile);
+            body.heal.spawn();
+        }
+    }
+
     pub(crate) fn new(
         world: Arc<World>,
         teams: &[u8],

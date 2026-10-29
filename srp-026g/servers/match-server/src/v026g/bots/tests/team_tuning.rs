@@ -104,6 +104,32 @@ fn the_bots_of_team_1_are_made_of_team_1s_tuning() {
     assert_eq!(bots.bots[1].as_ref().unwrap().motor.feel.lip_guard_ticks, lip);
 }
 
+/// The kits of a bench team are built with its own tuning's pocket store (`kit.pocket_store`): team 1 on the old store has
+/// profiles whose stacks are stored at the count, the stand-in's drugs and the bots' prior follow them, and team 0 keeps the
+/// store of 100.
+#[test]
+fn the_kits_of_team_1_are_built_with_team_1s_pocket_store() {
+    use crate::v026g::bots::stock::{Drug, Pantry};
+    use survarium::v026g::loadouts::{BotEquipment, BotTier, RusherKits};
+    let mut team1 = Tuning::default();
+    team1.kit.pocket_store = false;
+    let teams = [0u8, 0, 1, 1];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let roster = bench_roster(&teams, equipment, &tunings(Tuning::default(), team1));
+    for (place, &team) in teams.iter().enumerate() {
+        let pantry = Pantry::of_profile(&roster.profiles[place]);
+        let per_life = team == 0;
+        // The medkits of the kit: 2 in the slot, 100 behind it (team 0) or 2 (team 1).
+        assert_eq!(pantry.total(Drug::Medkit), if per_life { 100 } else { 2 }, "place {place}");
+        let heal = crate::v026g::bots::tests::standin_heal::Heal::of_profile(&roster.profiles[place]);
+        assert_eq!(heal.store_of(Drug::Medkit), if per_life { 100 } else { 2 }, "place {place}");
+        // The frag the stand-in carries (the support's) has the same store.
+        for kits in &roster.grenades[place] {
+            assert!(kits.stored == 0 || kits.stored == if per_life { 100 } else { kits.count }, "place {place} {kits:?}");
+        }
+    }
+}
+
 /// The facts of a world (`facts.rs`): a team whose battery cheat is on has no HUD of the batteries. Team 1's dropped battery is
 /// on team 1's HUD (as in `a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud`) when team 1's cheat is off, and not
 /// when it is on, whatever team 0's is.

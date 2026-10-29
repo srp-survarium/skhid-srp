@@ -4857,6 +4857,11 @@ impl Game {
                 self.id,
                 walkers.bots.poll_report()
             );
+            log::info!(
+                "Match {:#x}: the bots' pockets: {}",
+                self.id,
+                walkers.bots.pocket_report()
+            );
         }
         self.result = Some(result);
         self.result_made = true;

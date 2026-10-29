@@ -337,6 +337,22 @@ pub enum PocketStore {
 pub const BOT_POCKET_STORE: u32 = 100;
 
 impl PocketStore {
+    /// Both stores, in the order of [`Self::index`].
+    pub const ALL: [Self; 2] = [Self::PerMatch, Self::PerLife];
+
+    /// The store a bot tuning's switch (`kit.pocket_store`) says: on is [`Self::PerLife`], the default.
+    pub fn of(on: bool) -> Self {
+        if on { Self::PerLife } else { Self::PerMatch }
+    }
+
+    /// The place of the store in [`Self::ALL`].
+    pub const fn index(self) -> usize {
+        match self {
+            Self::PerMatch => 0,
+            Self::PerLife => 1,
+        }
+    }
+
     /// What a stack of `count` units has in storage.
     pub fn stored(self, count: u32) -> u32 {
         match self {
@@ -344,22 +360,6 @@ impl PocketStore {
             Self::PerLife => count.max(BOT_POCKET_STORE),
         }
     }
-}
-
-/// The store the match server's own bots' kits are built with: `SRP_BOT_POCKET_STORE` set to `0`, `off` or
-/// `false` gives [`PocketStore::PerMatch`] (c3dc7241's profiles exactly), else [`PocketStore::PerLife`]. Read once.
-/// A kit is built outside the bots' tuning, so this is a process switch like [`new_kit`]; a bench that plays the
-/// two teams with different stores builds a team's kits with [`bot_kits_stored`] and [`bot_profile_stored`].
-pub fn pocket_store() -> PocketStore {
-    static STORE: std::sync::OnceLock<PocketStore> = std::sync::OnceLock::new();
-    *STORE.get_or_init(|| {
-        let store = match std::env::var("SRP_BOT_POCKET_STORE").as_deref().map(str::trim) {
-            Ok("0" | "off" | "false") => PocketStore::PerMatch,
-            _ => PocketStore::PerLife,
-        };
-        log::info!("SRP_BOT_POCKET_STORE is {store:?}");
-        store
-    })
 }
 
 /// Two medkits ("Medikit", `st_base_medkit_name`; `drugs`, heals 1, item
@@ -1595,7 +1595,7 @@ pub fn bot_kits_in(
     new: bool,
     upgrades: bool,
 ) -> [Loadout; 3] {
-    bot_kits_in_stored(equipment, role, new, upgrades, pocket_store())
+    bot_kits_in_stored(equipment, role, new, upgrades, PocketStore::default())
 }
 
 /// [`bot_kits_in`] with the pocket stacks' storage given ([`PocketStore`]).
@@ -1612,12 +1612,12 @@ pub fn bot_kits_in_stored(
 /// A bot of `role` with `equipment`'s kits as loadouts, one for each of its
 /// [`BotRole::kit_roles`] ([`bot_kit_items`]).
 pub fn bot_kits(equipment: BotEquipment, role: BotRole) -> [&'static Loadout; 3] {
-    bot_kits_stored(equipment, role, pocket_store())
+    bot_kits_stored(equipment, role, PocketStore::default())
 }
 
 /// [`bot_kits`] with the pocket stacks' storage given ([`PocketStore`]).
 pub fn bot_kits_stored(equipment: BotEquipment, role: BotRole, store: PocketStore) -> [&'static Loadout; 3] {
-    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len() * 2;
+    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len() * PocketStore::ALL.len();
     static SHARED: [std::sync::OnceLock<[Loadout; 3]>; KITS] =
         [const { std::sync::OnceLock::new() }; KITS];
     let equipment = BotEquipment {
@@ -1637,7 +1637,7 @@ pub fn bot_kits_stored(equipment: BotEquipment, role: BotRole, store: PocketStor
         + equipment.rusher as usize)
         * BotMask::ALL.len()
         + equipment.mask as usize;
-    let index = index * 2 + usize::from(store == PocketStore::PerLife);
+    let index = index * PocketStore::ALL.len() + store.index();
     let [first, second, third] = SHARED[index].get_or_init(|| {
         bot_kits_in_stored(equipment, role, new_kit(), upgrades_on(), store)
     });
@@ -1781,7 +1781,7 @@ pub fn bot_name(n: usize) -> String {
 ///
 /// One home for the lobby (`play::server_bot`) and for the real-map bench.
 pub fn bot_profile(n: usize, team: u8, role: BotRole, equipment: BotEquipment) -> MatchProfile {
-    bot_profile_stored(n, team, role, equipment, pocket_store())
+    bot_profile_stored(n, team, role, equipment, PocketStore::default())
 }
 
 /// [`bot_profile`] with the pocket stacks' storage given ([`PocketStore`]): a bench's team that plays the other store.
@@ -1803,6 +1803,20 @@ pub fn bot_profile_stored(
     );
     profile.clan_tag = "BOT".to_owned();
     profile
+}
+
+/// The profile of a server bot with its pocket stacks' storage the `store`'s, whatever the lobby built it with: its kits
+/// and items again from the equipment and role the profile says ([`bot_equipment_of`]), name, team and clan kept. The
+/// match registry gives every bot the store of the bot tuning's `kit.pocket_store` this way, so the lobby (which has no
+/// tuning) always builds [`PocketStore::default`]. `false`, the profile untouched, for a profile that is no bot's.
+pub fn with_pocket_store(profile: &mut MatchProfile, store: PocketStore) -> bool {
+    let Some((equipment, role)) = bot_equipment_of(profile) else {
+        return false;
+    };
+    let fresh = bot_profile_stored(1, profile.team, role, equipment, store);
+    profile.kits = fresh.kits;
+    profile.items = fresh.items;
+    true
 }
 
 /// What the type 1 (added) modifiers of the default modifications of

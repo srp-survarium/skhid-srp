@@ -27,10 +27,12 @@
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
     BOT_BANDAGES, BOT_MEDKIT, BOT_POCKETS, BotKitItem, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER, new_kit,
-    PocketStore, pocket_store,
+    PocketStore,
 };
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
+
+use super::pockets::{ProfilePockets, quick_use_of};
 
 /// A press is in a world made this long after it, ms: the input goes a
 /// tick or two ahead of the match clock to the client, which applies it at
@@ -164,8 +166,44 @@ pub struct Pantry {
     kits: Vec<Vec<Held>>,
     /// The kit in use.
     kit: usize,
-    /// The storage behind the stacks until a world says ([`PocketStore`]).
-    store: PocketStore,
+    /// What a kit the profile does not have is taken to hold, until a world says.
+    unknown: Vec<Held>,
+    counts: PantryCounts,
+}
+
+/// What a pantry did, for the logs and the bench (per bot; the bench sums them by team).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PantryCounts {
+    /// Lives begun ([`Pantry::new_life`]).
+    pub spawns: u32,
+    /// Lives that began with a drug's slot below its pocket's units: the store held less than the stack, so the
+    /// life started short. None with the store of [`PocketStore::PerLife`].
+    pub short_spawns: u32,
+    /// Units pressed, by drug ([`Drug::ALL`] order), and presses into an empty slot (the game does nothing then).
+    pub pressed: [u32; Drug::ALL.len()],
+    pub empty_presses: u32,
+}
+
+impl PantryCounts {
+    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, empty presses 0`.
+    pub fn line(&self) -> String {
+        let [medkits, bandages, antitoxins] = self.pressed;
+        format!(
+            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, empty presses {}",
+            self.spawns, self.short_spawns, self.empty_presses
+        )
+    }
+}
+
+impl std::ops::AddAssign for PantryCounts {
+    fn add_assign(&mut self, other: Self) {
+        self.spawns += other.spawns;
+        self.short_spawns += other.short_spawns;
+        for (mine, theirs) in self.pressed.iter_mut().zip(other.pressed) {
+            *mine += theirs;
+        }
+        self.empty_presses += other.empty_presses;
+    }
 }
 
 impl Default for Pantry {
@@ -189,7 +227,7 @@ impl Pantry {
     /// What every server bot's kit holds ([`BOT_POCKETS`]: two medkits),
     /// until a world says what its kits hold.
     pub fn standard() -> Self {
-        Self::standard_with(pocket_store())
+        Self::standard_with(PocketStore::default())
     }
 
     /// [`Self::standard`] with the store the kits were built with.
@@ -197,8 +235,52 @@ impl Pantry {
         Self {
             kits: vec![Self::standard_kit(store)],
             kit: 0,
-            store,
+            unknown: Self::standard_kit(store),
+            counts: PantryCounts::default(),
         }
+    }
+
+    /// The drugs of a bot's own profile: each kit's pockets (`pockets.rs`) with the stack the slot starts a life
+    /// with and the storage behind it, so the count follows the store the profile was built with, a team's own
+    /// (`kit.pocket_store`), not a process-wide one. A profile with no kit (a human's, a late joiner's) is the
+    /// standard pantry.
+    pub fn of_profile(profile: &MatchProfile) -> Self {
+        let Some(pockets) = ProfilePockets::of_profile(profile, true) else {
+            return Self::standard();
+        };
+        let kits: Vec<Vec<Held>> = pockets
+            .kits()
+            .iter()
+            .map(|kit| {
+                kit.iter()
+                    .flatten()
+                    .filter_map(|pocket| {
+                        let drug = Drug::of_name(pocket.name)?;
+                        let quick = quick_use_of(kit, pocket.slot)?;
+                        let total = pocket.stored.unwrap_or(u32::from(pocket.units)).min(u32::from(u16::MAX)) as u16;
+                        Some(Held {
+                            drug,
+                            quick,
+                            slot: pocket.units,
+                            total,
+                            hand: pocket.units,
+                            pressed: None,
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        Self {
+            unknown: kits.first().cloned().unwrap_or_default(),
+            kits,
+            kit: 0,
+            counts: PantryCounts::default(),
+        }
+    }
+
+    /// What this pantry has done so far.
+    pub fn counts(&self) -> PantryCounts {
+        self.counts
     }
 
     fn standard_kit(store: PocketStore) -> Vec<Held> {
@@ -224,7 +306,7 @@ impl Pantry {
 
     fn kit_at(&mut self, kit: usize) -> &mut Vec<Held> {
         while self.kits.len() <= kit {
-            self.kits.push(Self::standard_kit(self.store));
+            self.kits.push(self.unknown.clone());
         }
         &mut self.kits[kit]
     }
@@ -233,10 +315,14 @@ impl Pantry {
     /// left of it (the client's spawn), and nothing is active.
     pub fn new_life(&mut self, kit: usize) {
         self.kit = kit;
+        let mut short = false;
         for held in self.kit_at(kit) {
             held.hand = held.slot.min(held.total);
             held.pressed = None;
+            short |= held.hand < held.slot;
         }
+        self.counts.spawns += 1;
+        self.counts.short_spawns += u32::from(short);
     }
 
     /// The drugs of the kit in use.
@@ -287,11 +373,16 @@ impl Pantry {
             .iter_mut()
             .find(|held| held.quick == quick && held.hand > 0)
         else {
+            self.counts.empty_presses += 1;
             return false;
         };
         held.hand -= 1;
         held.total = held.total.saturating_sub(1);
         held.pressed = Some(now);
+        let drug = held.drug;
+        if let Some(at) = Drug::ALL.iter().position(|&d| d == drug) {
+            self.counts.pressed[at] += 1;
+        }
         true
     }
 
@@ -431,7 +522,7 @@ impl super::features::Feature for BotState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile, bot_profile_stored};
     use survarium::v026g::match_msgs::players::ItemLeft;
 
     /// A bot's block as the game shows it: each item of the profile in
@@ -516,6 +607,39 @@ mod tests {
             assert_eq!(pantry.in_hand(Drug::Medkit), 2, "life {}", life + 2);
         }
         assert_eq!(pantry.total(Drug::Medkit), 94);
+    }
+
+    /// A pantry built from the profile follows the store the profile was built with, as the client's own spawn does, and counts
+    /// what it did: the old store spends the stack for the match (a later life starts short), the store of 100 does not.
+    #[test]
+    fn a_pantry_of_a_profile_follows_the_store_the_profile_was_built_with() {
+        for (store, total, short_spawns, pressed) in [(PocketStore::PerMatch, 0, 3, 2), (PocketStore::PerLife, 94, 0, 6)] {
+            let profile = bot_profile_stored(
+                1,
+                0,
+                BotRole::ALL[0],
+                BotEquipment::of(BotTier::Low, RusherKits::default()),
+                store,
+            );
+            let mut pantry = Pantry::of_profile(&profile);
+            // The profile names the prior: 2 in the slot, 2 or 100 behind it, on quick use 1.
+            assert_eq!(pantry.total(Drug::Medkit), if store == PocketStore::PerMatch { 2 } else { 100 });
+            pantry.new_life(0);
+            assert_eq!(pantry.first(Drug::Medkit).map(|h| h.quick), Some(0));
+            for life in 0..3 {
+                assert_eq!(pantry.in_hand(Drug::Medkit), if life == 0 || store == PocketStore::PerLife { 2 } else { 0 });
+                while pantry.pressed(0, 1_000 + life * 20_000) {}
+                pantry.new_life(0);
+            }
+            assert_eq!(pantry.total(Drug::Medkit), total, "{store:?}");
+            let counts = pantry.counts();
+            assert_eq!((counts.spawns, counts.short_spawns), (4, short_spawns), "{store:?}");
+            assert_eq!((counts.pressed[0], counts.empty_presses), (pressed, 3), "{store:?}");
+        }
+        // A profile with no kit is the standard pantry.
+        let mut none = profile();
+        none.kits.clear();
+        assert_eq!(Pantry::of_profile(&none), Pantry::standard());
     }
 
     #[test]
