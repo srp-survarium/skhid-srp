@@ -66,6 +66,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
             needed(data, modifications::REROLL_PATH)?,
         ),
     )?;
+    // Before item_params: it reads the premium pieces' bonuses.
+    super::golden::check_content(data, &dictionary)?;
     let params = item_params::derive(data, &dictionary)?;
     for row in &params {
         for &id in row.default_modifications {
