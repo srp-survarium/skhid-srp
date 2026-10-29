@@ -2604,7 +2604,7 @@ impl WalkGrid {
             Ok(mut search) => {
                 let mut iters = usize::MAX;
                 search
-                    .step(self, allowed, &mut iters)
+                    .step(self, allowed, |_| 1.0, &mut iters)
                     .expect("an unbounded step ends the search")
             }
             Err(done) => done,
@@ -2893,11 +2893,17 @@ pub struct SlicedSearch {
 impl SlicedSearch {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// answer once the search ends, `None` while it goes on. `allowed` must
-    /// let through the same floors at every step.
+    /// let through the same floors at every step. A link into floor `v`
+    /// costs its length times `weight(v)`: an area cost, as Detour's
+    /// `dtQueryFilter::getCost` and Valve's path cost functor. The weight is
+    /// at least 1, so the heuristic (the ground distance) stays admissible
+    /// (Detour's header warns of costs under 1), and the same at every step;
+    /// `|_| 1.0` is the plain search (`x * 1.0 == x`).
     pub fn step(
         &mut self,
         grid: &WalkGrid,
         allowed: impl Fn(NodeId) -> bool,
+        weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Search> {
         let Self {
@@ -2962,7 +2968,7 @@ impl SlicedSearch {
                 {
                     continue;
                 }
-                let c = cu + grid.link_cost(u, v, kind);
+                let c = cu + grid.link_cost(u, v, kind) * weight(v);
                 if !c.is_finite() {
                     continue;
                 }
@@ -3437,7 +3443,7 @@ pub(crate) mod tests {
                 let mut sliced = grid.start_search(a, b, usize::MAX).unwrap();
                 let found = loop {
                     let mut iters = 3 + k;
-                    if let Some(found) = sliced.step(&grid, allowed, &mut iters) {
+                    if let Some(found) = sliced.step(&grid, allowed, |_| 1.0, &mut iters) {
                         break found;
                     }
                     assert_eq!(iters, 0);
@@ -3456,10 +3462,10 @@ pub(crate) mod tests {
         // Out of budget: as one search.
         let mut sliced = grid.start_search(0, n - 1, 50).unwrap();
         let mut iters = 20;
-        assert_eq!(sliced.step(&grid, |_| true, &mut iters), None);
+        assert_eq!(sliced.step(&grid, |_| true, |_| 1.0, &mut iters), None);
         let mut iters = 100;
         assert_eq!(
-            sliced.step(&grid, |_| true, &mut iters),
+            sliced.step(&grid, |_| true, |_| 1.0, &mut iters),
             Some(Search::TooFar)
         );
         assert_eq!(grid.search(0, n - 1, |_| true, 50), Search::TooFar);
@@ -3703,7 +3709,7 @@ pub(crate) mod tests {
             let walker = grid.search(from, to, |_| true, usize::MAX);
             let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Some(STANDING_JUMP_M)).unwrap();
             let mut iters = usize::MAX;
-            let carrier = carrier.step(&grid, |_| true, &mut iters).unwrap();
+            let carrier = carrier.step(&grid, |_| true, |_| 1.0, &mut iters).unwrap();
             (jumps(walker), jumps(carrier))
         };
         assert_eq!(ledge(1.0, None), (Some(1), None), "a 1.0 m ledge: the walker jumps, the carrier has no way");
@@ -4325,7 +4331,7 @@ pub(crate) mod tests {
         // The partial way of a search in slices too.
         let mut sliced = grid.start_search(c, d, usize::MAX).unwrap();
         let mut iters = 10;
-        assert_eq!(sliced.step(&grid, |_| true, &mut iters), None);
+        assert_eq!(sliced.step(&grid, |_| true, |_| 1.0, &mut iters), None);
         let partial = sliced.partial(&grid);
         assert!(partial.nodes.len() > 1 && along_links(&grid, &partial));
         assert_eq!(partial.nodes[0], c);

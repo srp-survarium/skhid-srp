@@ -81,6 +81,19 @@
   "smoke": {
     "sight": false
   },
+  "threat": {
+    "area": false,
+    "crossfire_out_of_lines": false,
+    "job": false,
+    "job_objective": false,
+    "lane_weighted": false,
+    "lanes_pierce": false,
+    "pair_up_hidden": false,
+    "recast": false,
+    "replan": false,
+    "trade_out_of_lines": false,
+    "whole_route": false
+  },
   "think": {
     "fall_lock": false,
     "rest_off_lip": false,

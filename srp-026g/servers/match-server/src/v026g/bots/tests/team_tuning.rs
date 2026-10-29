@@ -652,3 +652,26 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
     }
     assert!(carried > 0, "team 1's kits carry a smoke");
 }
+
+/// The team jobs on held spots (K2, `commander.rs` `threat_tick`) open by their own team's `threat.job_kills`: one enemy's two
+/// kills from one spot are a hold to team 1 (2, the default) and not to team 0 (3).
+#[test]
+fn the_team_jobs_open_by_their_teams_job_kills() {
+    let mut team0 = Tuning::default();
+    team0.threat.job_kills = 3;
+    let (mut bots, now) = after_one_poll(team0, Tuning::default());
+    // Each team's two deaths to one enemy on a spot south of it, out of its bots' sight of it (42 m and more off) and its
+    // lanes (the bots stand 40 degrees and more off them).
+    let spot = Vec3::new(40.0, 0.0, 0.0);
+    for (team, shooter) in [(0usize, 2), (1, 0)] {
+        let rules = crate::v026g::bots::threat::SpotRules::of(&bots.tuning_of(team as u8).threat);
+        for (i, victim) in [Vec3::new(40.0, 0.0, 20.0), Vec3::new(43.0, 0.0, 20.0)].into_iter().enumerate() {
+            bots.teams[team].features.threat.spots.died(victim, shooter, spot, now, now + i as u32, rules);
+        }
+    }
+    for clock in (now + 100..=now + 1_500).step_by(100) {
+        bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+    }
+    assert!(bots.teams[0].features.threat.jobs.is_empty(), "team 0: two kills are no hold by its job_kills 3");
+    assert_eq!(bots.teams[1].features.threat.jobs.len(), 1, "team 1: a hold by its job_kills 2");
+}

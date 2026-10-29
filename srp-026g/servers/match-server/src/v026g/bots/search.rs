@@ -509,6 +509,13 @@ impl Bots {
         let filter = pending.filter.clone();
         let start = pending.ends.0;
         let health = pending.health;
+        #[cfg(test)]
+        let _tag = path::tag::Scope::new(
+            self.bots
+                .get(pending.place)
+                .and_then(Option::as_ref)
+                .map_or(path::tag::OTHER, |bot| bot.features.threat.search_tag),
+        );
         let ended = if pending.second.is_some() {
             crossing::resume(
                 tactics,
