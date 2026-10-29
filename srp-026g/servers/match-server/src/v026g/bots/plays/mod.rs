@@ -641,10 +641,13 @@ impl Ctx<'_> {
         if p.team == self.me.team {
             return p.alive.then_some(p.feet);
         }
+        // With `spacing.callouts` SeenOnly a place older than its steering age steers nothing.
+        let steer_age = self.tuning.spacing.callouts.steer_age_ms();
         self.memory
             .tracks()
             .iter()
             .find(|t| t.who == place)
+            .filter(|t| steer_age.is_none_or(|age| self.now.saturating_sub(t.time) <= age))
             .inspect(|t| fairness::read(self.me.team, fairness::Site::Place, t, self.now))
             .map(|t| t.at)
             .or_else(|| {

@@ -147,6 +147,9 @@ pub fn lagging<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    if !cx.tuning.spacing.buddy {
+        return;
+    }
     if cx.me.carrying.is_some() || given_up(cx) {
         return;
     }
@@ -375,6 +378,15 @@ mod tests {
 
     /// A bot given up in its pocket is not offered the follow (`think.shut_in_gate`): offered, it took the play,
     /// the step ended it, and the next poll took it again (Buddy to Buddy, 817 times in 8 matches of the train).
+    /// `spacing.buddy` off: the follower is not offered the follow (the diagnosis arm: does Buddy gather the bots).
+    #[test]
+    fn with_the_buddy_switch_off_the_follow_is_not_offered() {
+        let mut s = pair(40.0);
+        assert!(s.candidates(2).iter().any(|c| c.kind == PlayKind::Buddy));
+        s.tuning.spacing.buddy = false;
+        assert!(s.candidates(2).iter().all(|c| c.kind != PlayKind::Buddy), "{:#?}", s.candidates(2));
+    }
+
     #[test]
     fn a_bot_given_up_in_its_pocket_is_not_offered_the_follow() {
         use crate::v026g::bots::escape::Trapped;

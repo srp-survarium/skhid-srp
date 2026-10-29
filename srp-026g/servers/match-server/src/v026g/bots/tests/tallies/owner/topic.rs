@@ -91,6 +91,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(OutcomeCounts::default()),
         Box::new(PierceCounts::default()),
         Box::new(PocketCounts::default()),
+        Box::new(SpacingCounts::new(n)),
     ]
 }
 

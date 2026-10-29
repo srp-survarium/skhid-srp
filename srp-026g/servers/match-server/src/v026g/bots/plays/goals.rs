@@ -651,6 +651,23 @@ mod tests {
         assert_eq!(s.cx(0).exposed_to(25.0, 1000, 15.0), None);
     }
 
+    /// `spacing.callouts` SeenOnly: a play aimed at a place follows a track no older than the steering age; today any age.
+    #[test]
+    fn a_track_older_than_the_steering_age_steers_no_play_when_callouts_are_seen_only() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::tuning::Callouts;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(14.0, 0.0, 24.0));
+        s.enemy(5, 1, Vec3::new(40.0, 0.0, 24.0), Some(Source::Heard));
+        assert!(s.cx(0).known_place(5).is_some());
+        s.tuning.spacing.callouts = Callouts::SeenOnly { steer_age_ms: 8_000 };
+        assert!(s.cx(0).known_place(5).is_some(), "just heard");
+        s.view.clock += 9_000;
+        assert!(s.cx(0).known_place(5).is_none(), "9 s old: past the age");
+        s.tuning.spacing.callouts = Callouts::SeenAndHeard;
+        assert!(s.cx(0).known_place(5).is_some(), "today: any age");
+    }
+
     #[test]
     fn a_no_way_proof_holds_within_the_replan_distance_until_it_expires() {
         let goal = Vec3::new(10.0, 0.0, 10.0);

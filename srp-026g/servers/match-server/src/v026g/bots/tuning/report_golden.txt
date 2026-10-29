@@ -12,6 +12,7 @@ switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.inve
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
 switches ON smoke: sight
+switches ON spacing: buddy
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: detour spots sprint
 switches ON traps: enabled react.defuse react.hear react.jump react.on react.pass react.shot
@@ -26,6 +27,7 @@ switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: jump_snap=by_keys
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
+switch values spacing: callouts=seen_and_heard
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)
