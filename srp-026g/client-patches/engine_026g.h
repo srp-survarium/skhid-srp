@@ -8,16 +8,19 @@
 #ifndef ENGINE_026G_H
 #define ENGINE_026G_H
 
+struct artefact;
 struct buffer_string;
 struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_string;
+struct core_world;
 struct engine_cfg;
 struct game_material_manager;
 struct game_scene;
 struct gfx_movie;
 struct gfx_value;
+struct inventory;
 struct match_options;
 struct material_pair;
 struct network_client;
@@ -29,7 +32,12 @@ struct player_params_modifiers_container;
 struct ray_result;
 struct render_model_instance;
 struct render_visual;
+struct scene_model;
+struct scene_model_ref;
+struct scene_reference;
 struct scene_renderer;
+struct static_model_instance;
+struct statistics_listener;
 struct text_translator;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
@@ -45,7 +53,7 @@ void *engine_malloc(void *allocator, unsigned int size, const void *where);
 void *engine_match_rule_base(void *rule, unsigned int type);
 
 /* 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
-void engine_write_u8(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5da0 vostok::network_core::buffer_writer::w<unsigned short>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
 void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
@@ -54,7 +62,7 @@ void engine_write_u16(const void *value, void *writer, const char *file, unsigne
 void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12 */
-void engine_statistics_notify(void *listener, unsigned int place, unsigned int event, unsigned int amount);
+void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount);
 
 /* 0x102d10 vostok::resources::register_cook: cook EDI; pops 0 */
 void engine_register_cook(void *cook);
@@ -214,5 +222,35 @@ void __attribute__((thiscall)) engine_light_insert(struct object_light *light);
 
 /* 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_light_remove(struct object_light *light);
+
+/* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
+void engine_inventory_remove(struct inventory *inventory, unsigned int slot);
+
+/* 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4 */
+void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming);
+
+/* 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX */
+unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal);
+
+/* 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX */
+void *engine_core_active_player(struct core_world *world, unsigned int place, struct player **out);
+
+/* 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second);
+
+/* 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8 */
+void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene);
+
+/* 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second);
+
+/* 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4 */
+void engine_static_model_bounds(struct static_model_instance *instance, float *bounds);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_item(struct artefact *object, unsigned int *count);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_model(struct scene_model *object, unsigned int *count);
 
 #endif

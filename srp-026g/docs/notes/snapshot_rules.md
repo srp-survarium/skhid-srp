@@ -380,7 +380,7 @@ M = the profile's item count (the static info's item list).
 
 ### 7.4 After the effects (walkable only with E = 0 and no battery carried)
 
-`u32` hit effects H, each `bool is_exists` and then 8 or 17 bytes (0x3402C0); `u8` current and target active object; 29 bytes of stamina (0x329310); then the **inventory** (0x2FE360): `f32 m_carried_weight`, `bool`, `u8 m_carried_item id or 0xFF` (then that battery's own state, not traced), `u8 m_artefact_slots_count` A (if A ≠ 0: `u8 slots_begin`, A × u8), `u8 m_active_slot`, `u8 m_grenade_slot`, then **the items by ascending slot 0..22** (0x2FE50A..0x2FE53B). After the inventory: jump type, speed, the damage model with each body part's `m_health` (0x32AE00, sizes not traced), the character controller if alive, spotting, recent hits, `bool m_respawn_disabled` last.
+`u32` hit effects H, each `bool is_exists` and then 8 or 17 bytes (0x3402C0); `u8` current and target active object; 29 bytes of stamina (0x329310); then the **inventory** (0x2FE360): `f32 m_carried_weight`, `bool`, `u8 m_carried_item id or 0xFF` (then that battery's own state, not traced), `u8 m_artefact_slots_count` A (if A ≠ 0: `u8 slots_begin`, A × u8), `u8 m_active_slot`, `u8 m_grenade_slot`, then **the items by ascending slot 0..22** (0x2FE50A..0x2FE53B). After the inventory: jump type, speed, the damage model with each body part's `m_health` (0x32AE00, sizes not traced), the character controller if alive, spotting, recent hits, `bool m_respawn_disabled`, the last native field. Client patch 78 (`artefact_carry`, `carry.save` at the serialize epilogue 0x2DB47E, read back at 0x2DBAB5) then appends the carry's 32-byte snapshot, version byte 2 first (`artefact_carry::carry::Carry::snapshot`), so a state's last 32 bytes are the carry's and `m_respawn_disabled` is the byte before them; `Motion::read` (§7.5) drops them first and refuses a state without a valid one.
 
 An item — `inventory_item::serialize` 0x2FFDF0:
 
@@ -398,6 +398,7 @@ Ammunition, grenades, traps, boosters, armour: the header only (5 or 7 bytes). A
 - `players::walk`: every block's end (§7.1, §7.2), exact.
 - `PlayerState::read`: the head (§7.3), exact, given M from the static info.
 - `Supplies::read`: per profile item `stored` (the head's u32); for the kit `current_index`, each slot's item is looked for after the head by its three id bytes `[roster place, kit, slot]`, in slot order, with an amount no larger than the slot's count before them (a stack) or a finite f32 ≥ 0 (anything else): `in_hand`, `condition`, and for an item whose config `type` is `wpn_…` the byte at h+16, `magazine`. LIKELY (that `player_id` is the roster place; that nothing else in a state has these bytes in this order). `inventory_read` says whether anything was found.
+- `Motion::read` (`match_msgs/motion.rs`; the bots' fixes in the match server, `srp-worlds`): the tail from the end, after dropping client patch 78's 32-byte carry snapshot (§7.4); a state without a valid snapshot is not read.
 - `Supplies::left`: a stack item's total as §7.3 says; a magazine's rounds go to the ammunition in the slot after the weapon's, or the one after that (LIKELY: the lobby's kit layout; which of the two is loaded, `m_current_ammo_id`, is not read; a chambered round is not seen).
 
 ## Correction (2026-10-12): the bools of the rules section are 0x00 and 0xFF

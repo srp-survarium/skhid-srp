@@ -29,3 +29,24 @@ visual.insert	0xA029B4	vtable	engine_visual_insert	-	-	-	render visual insert sl
 visual.remove	0xA029B8	vtable	engine_visual_remove	-	-	-	render visual remove slot
 light.insert	0xA0AE0C	vtable	engine_light_insert	-	-	-	object_light insert slot 8
 light.remove	0xA0AE10	vtable	engine_light_remove	-	-	-	object_light remove slot 9
+carry.input	0x2D86E0	lohook	-	6	-	player=ECX:survarium::player frame=ESP:survarium::input_entry_frame	base_player set_input entry; ECX player, stack time and immutable input; before early-out
+carry.weapon_hide	0x243FA0	lohook	-	6	-	weapon=ECX:survarium::weapon frame=ESP:survarium::weapon_hide_frame	weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal
+carry.filter	0x2D876F	lohook	-	5	-	player=EDI:survarium::player	set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched
+carry.tick	0x2DAAC1	lohook	-	6	-	player=EBX:survarium::player	base_player tick before held object tick; EBX player, updated time at +324h
+carry.construct	0x2D6990	lohook	-	5	-	frame=ESP:survarium::base_player_ctor_frame	base_player constructor entry; stack first argument destination, identity only
+carry.save	0x2DB47E	lohook	-	5	-	player=EBX:survarium::player writer=EDI:vostok::buffer_writer	base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp
+carry.load	0x2DBAB5	lohook	-	7	-	player=EBX:survarium::player reader=ESI:vostok::buffer_reader	base_player deserialize after final native field; EBX player, ESI reader
+carry.weapon	0x2477C8	lohook	-	6	skeleton@0x2477DF	player=EBX:survarium::player transform=EAX:vostok::float4x4	mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
+carry.spring	0x25EBB0	lohook	-	6	done@0x25EC84	callback=ECX:survarium::artefact_spring_client	Spring client update entry; ECX callback; done is native bare ret, no prologue executed
+carry.lifebone	0x25F100	lohook	-	6	done@0x25F1D4	callback=ECX:survarium::artefact_lifebone_client	Lifebone client update entry; ECX callback; done is native bare ret
+carry.onyx	0x25F640	lohook	-	6	done@0x25F714	callback=ECX:survarium::artefact_onyx_client	Onyx client update entry; ECX callback; done is native bare ret
+carry.rattle	0x25FB80	lohook	-	6	done@0x25FC54	callback=ECX:survarium::artefact_rattle_client	Rattle client update entry; ECX callback; done is native bare ret
+carry.damage_bones	0x2DA769	lohook	-	6	-	player=EDI:survarium::player bones=ESI:vostok::render::bone_matrix count=EBX:u32	before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h
+carry.flower_query	0x25E91A	lohook	-	9	done@0x25E928	frame=ESP:survarium::flower_query_frame	artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only
+carry.flower_ready	0x260278	lohook	-	6	-	item=EDI:survarium::artefact result=EBX:vostok::carry_queries	Lifebone assignment call: EDI item EBX queries_result; retain fourth model
+carry.flower_destroy	0x25EFE0	lohook	-	9	-	item=ECX:survarium::carry_lifebone	Lifebone destructor entry: ECX item; remove held model and release owned resource
+carry.death	0x2D77C0	lohook	-	5	-	player=ECX:survarium::player	base_player::on_player_death entry, ECX live player before remove_alive/inventory death
+carry.ground_save	0x313735	lohook	-	6	-	item=ESI:survarium::artefact writer=EDI:vostok::buffer_writer	artefact_base::serialize after native state-dependent fields; ESI item EDI writer
+carry.ground_load	0x3137EC	lohook	-	5	-	item=EBX:survarium::artefact reader=EDI:vostok::buffer_reader	artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader
+carry.client_death	0x1F28E0	lohook	-	5	-	player=ECX:survarium::player	client player death override, ECX player; inlines base teardown, does not call 0x2D77C0
+artefact_container.transfer	0x31C810	lohook	-	6	-	user=EBX:survarium::player container=EDI:survarium::artefact_container_core	artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)

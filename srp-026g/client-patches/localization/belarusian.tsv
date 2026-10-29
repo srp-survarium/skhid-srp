@@ -262,6 +262,7 @@ st_artefact_booster_name	Артэфакт-майстар
 st_artefact_no_free_slots	Няма вольных слотаў, каб узяць артэфакт!
 st_artefact_search_failed	Артэфакт не знойдзены
 st_artefact_search_success	Вы дасталі артэфакт!
+st_artefact_take_teammate	Узяць артэфакт ({USE})
 st_ash12_description	Апісанне пакуль недаступнае.
 st_ash12_name	АШ-12
 st_attention	Адбылася памылка пры запуску загрузчыка Survarium. Калі ласка, паўтарыце спробу запуску пазней.
@@ -1217,6 +1218,7 @@ st_hk_mp7_silencer_description	Нямецкая зброя самаабарон�
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Нямецкая зброя самаабароны пад боепрыпас 4.6х30, версія MP7A1 з глушыцелем. Распрацоўка Heckler & Koch пад уласны бранябойны патрон; служыць у бундэсверы і паліцыі. Магазін на 20 патронаў. Агонь: адзіночны і аўтаматычны. Прэміум-версія ў асаблівым камуфляжы.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Легенда"
+st_hold_artifact_action	Трымаць артэфакт
 st_hour_short	гадз.
 st_hud_tutorial_frame_0_text_1	Кіраванне камерай
 st_hud_tutorial_frame_0_text_2	Выкарыстоўвайце мыш, каб агледзецца

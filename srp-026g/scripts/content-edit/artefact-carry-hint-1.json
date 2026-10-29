@@ -1,0 +1,15 @@
+{
+  "_about": "Map the existing collection widget to the take hint, shown only when Use would take. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
+  "append_rows": [
+    {
+      "file": "localization/flash_movies_localizations.options",
+      "path": "hud_strings",
+      "rows": [
+        [
+          "st_artefact_take_teammate",
+          "st_artefact_take_teammate"
+        ]
+      ]
+    }
+  ]
+}

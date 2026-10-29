@@ -6,6 +6,843 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x243fa0 weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal: lohook -> artefact_carry_on_weapon_hide
+global artefact_carry_on_weapon_hide
+extern hook_artefact_carry_on_weapon_hide
+artefact_carry_on_weapon_hide:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_weapon_hide
+    mov edx, artefact_carry_on_weapon_hide_replay
+    cmp eax, 0
+    je artefact_carry_on_weapon_hide_go
+    mov edx, 0x243fa6
+    cmp eax, 1
+    je artefact_carry_on_weapon_hide_go
+    ud2
+artefact_carry_on_weapon_hide_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_weapon_hide_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x243fa6
+
+; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> artefact_carry_on_input
+global artefact_carry_on_input
+extern hook_artefact_carry_on_input
+artefact_carry_on_input:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_input
+    mov edx, artefact_carry_on_input_replay
+    cmp eax, 0
+    je artefact_carry_on_input_go
+    mov edx, 0x2d86e6
+    cmp eax, 1
+    je artefact_carry_on_input_go
+    ud2
+artefact_carry_on_input_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_input_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2d86e6
+
+; 0x2d876f set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched: lohook -> artefact_carry_on_filter
+global artefact_carry_on_filter
+extern hook_artefact_carry_on_filter
+artefact_carry_on_filter:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_filter
+    mov edx, artefact_carry_on_filter_replay
+    cmp eax, 0
+    je artefact_carry_on_filter_go
+    mov edx, 0x2d8774
+    cmp eax, 1
+    je artefact_carry_on_filter_go
+    ud2
+artefact_carry_on_filter_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_filter_replay:
+    db 0x50, 0x8d, 0x54, 0x24, 0x28
+    jmp 0x2d8774
+
+; 0x2daac1 base_player tick before held object tick; EBX player, updated time at +324h: lohook -> artefact_carry_on_tick
+global artefact_carry_on_tick
+extern hook_artefact_carry_on_tick
+artefact_carry_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_tick
+    mov edx, artefact_carry_on_tick_replay
+    cmp eax, 0
+    je artefact_carry_on_tick_go
+    mov edx, 0x2daac7
+    cmp eax, 1
+    je artefact_carry_on_tick_go
+    ud2
+artefact_carry_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_tick_replay:
+    db 0x8b, 0x8b, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2daac7
+
+; 0x2d6990 base_player constructor entry; stack first argument destination, identity only: lohook -> artefact_carry_on_construct
+global artefact_carry_on_construct
+extern hook_artefact_carry_on_construct
+artefact_carry_on_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_construct
+    mov edx, artefact_carry_on_construct_replay
+    cmp eax, 0
+    je artefact_carry_on_construct_go
+    mov edx, 0x2d6995
+    cmp eax, 1
+    je artefact_carry_on_construct_go
+    ud2
+artefact_carry_on_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_construct_replay:
+    db 0x83, 0xec, 0x44, 0x53, 0x55
+    jmp 0x2d6995
+
+; 0x2db47e base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp: lohook -> artefact_carry_on_save
+global artefact_carry_on_save
+extern hook_artefact_carry_on_save
+artefact_carry_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_save
+    mov edx, artefact_carry_on_save_replay
+    cmp eax, 0
+    je artefact_carry_on_save_go
+    mov edx, 0x2db483
+    cmp eax, 1
+    je artefact_carry_on_save_go
+    ud2
+artefact_carry_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_save_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x2db483
+
+; 0x2dbab5 base_player deserialize after final native field; EBX player, ESI reader: lohook -> artefact_carry_on_load
+global artefact_carry_on_load
+extern hook_artefact_carry_on_load
+artefact_carry_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_load
+    mov edx, artefact_carry_on_load_replay
+    cmp eax, 0
+    je artefact_carry_on_load_go
+    mov edx, 0x2dbabc
+    cmp eax, 1
+    je artefact_carry_on_load_go
+    ud2
+artefact_carry_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_load_replay:
+    db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
+    jmp 0x2dbabc
+
+; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones: lohook -> artefact_carry_on_weapon
+global artefact_carry_on_weapon
+extern hook_artefact_carry_on_weapon
+artefact_carry_on_weapon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_weapon
+    mov edx, artefact_carry_on_weapon_replay
+    cmp eax, 0
+    je artefact_carry_on_weapon_go
+    mov edx, 0x2477ce
+    cmp eax, 1
+    je artefact_carry_on_weapon_go
+    mov edx, 0x2477df
+    cmp eax, 2
+    je artefact_carry_on_weapon_go
+    ud2
+artefact_carry_on_weapon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_weapon_replay:
+    db 0x8b, 0x8b, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2477ce
+
+; 0x25ebb0 Spring client update entry; ECX callback; done is native bare ret, no prologue executed: lohook -> artefact_carry_on_spring
+global artefact_carry_on_spring
+extern hook_artefact_carry_on_spring
+artefact_carry_on_spring:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_spring
+    mov edx, artefact_carry_on_spring_replay
+    cmp eax, 0
+    je artefact_carry_on_spring_go
+    mov edx, 0x25ebb6
+    cmp eax, 1
+    je artefact_carry_on_spring_go
+    mov edx, 0x25ec84
+    cmp eax, 2
+    je artefact_carry_on_spring_go
+    ud2
+artefact_carry_on_spring_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_spring_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25ebb6
+
+; 0x25f100 Lifebone client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_lifebone
+global artefact_carry_on_lifebone
+extern hook_artefact_carry_on_lifebone
+artefact_carry_on_lifebone:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_lifebone
+    mov edx, artefact_carry_on_lifebone_replay
+    cmp eax, 0
+    je artefact_carry_on_lifebone_go
+    mov edx, 0x25f106
+    cmp eax, 1
+    je artefact_carry_on_lifebone_go
+    mov edx, 0x25f1d4
+    cmp eax, 2
+    je artefact_carry_on_lifebone_go
+    ud2
+artefact_carry_on_lifebone_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_lifebone_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25f106
+
+; 0x25f640 Onyx client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_onyx
+global artefact_carry_on_onyx
+extern hook_artefact_carry_on_onyx
+artefact_carry_on_onyx:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_onyx
+    mov edx, artefact_carry_on_onyx_replay
+    cmp eax, 0
+    je artefact_carry_on_onyx_go
+    mov edx, 0x25f646
+    cmp eax, 1
+    je artefact_carry_on_onyx_go
+    mov edx, 0x25f714
+    cmp eax, 2
+    je artefact_carry_on_onyx_go
+    ud2
+artefact_carry_on_onyx_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_onyx_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25f646
+
+; 0x25fb80 Rattle client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_rattle
+global artefact_carry_on_rattle
+extern hook_artefact_carry_on_rattle
+artefact_carry_on_rattle:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_rattle
+    mov edx, artefact_carry_on_rattle_replay
+    cmp eax, 0
+    je artefact_carry_on_rattle_go
+    mov edx, 0x25fb86
+    cmp eax, 1
+    je artefact_carry_on_rattle_go
+    mov edx, 0x25fc54
+    cmp eax, 2
+    je artefact_carry_on_rattle_go
+    ud2
+artefact_carry_on_rattle_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_rattle_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25fb86
+
+; 0x2da769 before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h: lohook -> artefact_carry_on_damage_bones
+global artefact_carry_on_damage_bones
+extern hook_artefact_carry_on_damage_bones
+artefact_carry_on_damage_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_damage_bones
+    mov edx, artefact_carry_on_damage_bones_replay
+    cmp eax, 0
+    je artefact_carry_on_damage_bones_go
+    mov edx, 0x2da76f
+    cmp eax, 1
+    je artefact_carry_on_damage_bones_go
+    ud2
+artefact_carry_on_damage_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_damage_bones_replay:
+    db 0x8b, 0x87, 0x98, 0x04, 0x00, 0x00
+    jmp 0x2da76f
+
+; 0x25e91a artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only: lohook -> artefact_carry_on_flower_query
+global artefact_carry_on_flower_query
+extern hook_artefact_carry_on_flower_query
+artefact_carry_on_flower_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_query
+    mov edx, artefact_carry_on_flower_query_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_query_go
+    mov edx, 0x25e923
+    cmp eax, 1
+    je artefact_carry_on_flower_query_go
+    mov edx, 0x25e928
+    cmp eax, 2
+    je artefact_carry_on_flower_query_go
+    ud2
+artefact_carry_on_flower_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_query_replay:
+    db 0xb9, 0x03, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x2c
+    jmp 0x25e923
+
+; 0x260278 Lifebone assignment call: EDI item EBX queries_result; retain fourth model: lohook -> artefact_carry_on_flower_ready
+global artefact_carry_on_flower_ready
+extern hook_artefact_carry_on_flower_ready
+artefact_carry_on_flower_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_ready
+    mov edx, artefact_carry_on_flower_ready_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_ready_go
+    mov edx, 0x26027e
+    cmp eax, 1
+    je artefact_carry_on_flower_ready_go
+    ud2
+artefact_carry_on_flower_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_ready_replay:
+    db 0x8b, 0x8b, 0x2c, 0x01, 0x00, 0x00
+    jmp 0x26027e
+
+; 0x25efe0 Lifebone destructor entry: ECX item; remove held model and release owned resource: lohook -> artefact_carry_on_flower_destroy
+global artefact_carry_on_flower_destroy
+extern hook_artefact_carry_on_flower_destroy
+artefact_carry_on_flower_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_destroy
+    mov edx, artefact_carry_on_flower_destroy_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_destroy_go
+    mov edx, 0x25efe9
+    cmp eax, 1
+    je artefact_carry_on_flower_destroy_go
+    ud2
+artefact_carry_on_flower_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0xa4, 0x04, 0x00, 0x00
+    jmp 0x25efe9
+
+; 0x2d77c0 base_player::on_player_death entry, ECX live player before remove_alive/inventory death: lohook -> artefact_carry_on_death
+global artefact_carry_on_death
+extern hook_artefact_carry_on_death
+artefact_carry_on_death:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_death
+    mov edx, artefact_carry_on_death_replay
+    cmp eax, 0
+    je artefact_carry_on_death_go
+    mov edx, 0x2d77c5
+    cmp eax, 1
+    je artefact_carry_on_death_go
+    ud2
+artefact_carry_on_death_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_death_replay:
+    db 0x56, 0x8b, 0xf1, 0x6a, 0x01
+    jmp 0x2d77c5
+
+; 0x313735 artefact_base::serialize after native state-dependent fields; ESI item EDI writer: lohook -> artefact_carry_on_ground_save
+global artefact_carry_on_ground_save
+extern hook_artefact_carry_on_ground_save
+artefact_carry_on_ground_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_ground_save
+    mov edx, artefact_carry_on_ground_save_replay
+    cmp eax, 0
+    je artefact_carry_on_ground_save_go
+    mov edx, 0x31373b
+    cmp eax, 1
+    je artefact_carry_on_ground_save_go
+    ud2
+artefact_carry_on_ground_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_ground_save_replay:
+    db 0x8d, 0x86, 0xa0, 0x02, 0x00, 0x00
+    jmp 0x31373b
+
+; 0x3137ec artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader: lohook -> artefact_carry_on_ground_load
+global artefact_carry_on_ground_load
+extern hook_artefact_carry_on_ground_load
+artefact_carry_on_ground_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_ground_load
+    mov edx, artefact_carry_on_ground_load_replay
+    cmp eax, 0
+    je artefact_carry_on_ground_load_go
+    mov edx, 0x3137f1
+    cmp eax, 1
+    je artefact_carry_on_ground_load_go
+    ud2
+artefact_carry_on_ground_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_ground_load_replay:
+    db 0x8b, 0x47, 0x04, 0x8b, 0x08
+    jmp 0x3137f1
+
+; 0x1f28e0 client player death override, ECX player; inlines base teardown, does not call 0x2D77C0: lohook -> artefact_carry_on_client_death
+global artefact_carry_on_client_death
+extern hook_artefact_carry_on_client_death
+artefact_carry_on_client_death:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_client_death
+    mov edx, artefact_carry_on_client_death_replay
+    cmp eax, 0
+    je artefact_carry_on_client_death_go
+    mov edx, 0x1f28e5
+    cmp eax, 1
+    je artefact_carry_on_client_death_go
+    ud2
+artefact_carry_on_client_death_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_client_death_replay:
+    db 0x57, 0x8b, 0xf9, 0x6a, 0x01
+    jmp 0x1f28e5
+
+; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
+global artefact_score_on_transfer
+extern hook_artefact_score_on_transfer
+artefact_score_on_transfer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_score_on_transfer
+    mov edx, artefact_score_on_transfer_replay
+    cmp eax, 0
+    je artefact_score_on_transfer_go
+    mov edx, 0x31c816
+    cmp eax, 1
+    je artefact_score_on_transfer_go
+    ud2
+artefact_score_on_transfer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_score_on_transfer_replay:
+    db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
+    jmp 0x31c816
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info

@@ -1,5 +1,5 @@
 name = "lamps"
-patch = 80
+patch = 81
 
 [[hook]]
 site = "project.insert"
