@@ -222,3 +222,67 @@ fn far_from_26(frame: &Frame, progress: &Progress) -> bool {
     progress.since_start >= Span::s(10)
         && frame.owner.as_ref().is_some_and(|o| o.body.feet.distance_xz(TOP_26.vec()) > 30.0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(clock: u32, y: f32, infection: f32, carried: bool) -> Frame {
+        Frame {
+            clock: At(clock),
+            playing: true,
+            owner: Some(Owner {
+                body: Body {
+                    place: 0,
+                    team: 0,
+                    alive: true,
+                    feet: Vec3::new(-1.8, y, -11.3),
+                    health: 1.0,
+                    kills: 0,
+                    deaths: 0,
+                    crouched: false,
+                    keys: 0,
+                    yaw: 0.0,
+                    pitch: 0.0,
+                    speed: 0.0,
+                },
+                pools: Some(Pools { infection, ..Pools::FULL }),
+            }),
+            bots: Vec::new(),
+            batteries: vec![BatteryState::Carried(carried.then_some(0))],
+            heard: Vec::new(),
+            sight: None,
+        }
+    }
+
+    /// Infection falling from 1.0 to 0.8 over 2 s reads as a loss of 0.2, 0.1 a second, hurt for 2 s, the dearest second 0.1; a steady pool reads 0.
+    #[test]
+    fn the_pool_meter_reads_the_loss_from_the_first_world() {
+        let start = TryStart { started: At(0), kills: 0, deaths: 0 };
+        let mut hurt = PoolMeter::make(&start);
+        let mut calm = PoolMeter::make(&start);
+        for (i, ms) in (0..=2_000u32).step_by(500).enumerate() {
+            hurt.sample(&frame(ms, 13.8, 1.0 - 0.0125 * i as f32 * 2.0, false));
+            calm.sample(&frame(ms, 17.1, 1.0, false));
+        }
+        let value = |meter: &dyn CustomMeter, n| meter.value(n).unwrap();
+        assert!((value(&*hurt, 0) - 0.1).abs() < 1e-5, "{hurt:?}");
+        assert!((value(&*hurt, 1) - 0.05).abs() < 1e-5);
+        assert!(value(&*hurt, 3) >= 1.9);
+        assert_eq!((value(&*calm, 0), value(&*calm, 2), value(&*calm, 3)), (0.0, 0.0, 0.0));
+    }
+
+    /// The top floors are told apart from the lower ring by height, and a carry is the owner's battery.
+    #[test]
+    fn the_height_and_carry_conditions_read_the_frame() {
+        assert!(on_top(&frame(0, 16.9, 1.0, false), Span(0)));
+        assert!(on_top(&frame(0, 17.5, 1.0, false), Span(0)));
+        assert!(!on_top(&frame(0, 13.8, 1.0, false), Span(0)));
+        assert!(on_lower_ring(&frame(0, 13.8, 1.0, false), Span(0)));
+        assert!(!carries(&frame(0, 16.9, 1.0, false)));
+        assert!(carries(&frame(0, 16.9, 1.0, true)));
+        let progress = Progress { since_start: Span::s(1), owner_kills: 0, owner_deaths: 0 };
+        assert!(carry_over(&frame(0, 16.9, 1.0, false), &progress));
+        assert!(!far_from_26(&frame(0, 13.8, 1.0, false), &progress));
+    }
+}
