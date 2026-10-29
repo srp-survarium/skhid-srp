@@ -15,3 +15,4 @@ workspace = true
 [dependencies]
 # patch 76's solver and corpses' machine: pure Rust, tested in its own crate
 ragdoll = { path = "../../../crates/ragdoll" }
+artefact-carry = { path = "../../../crates/artefact-carry" }

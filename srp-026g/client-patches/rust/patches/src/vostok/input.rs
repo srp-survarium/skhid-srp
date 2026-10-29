@@ -17,6 +17,10 @@ impl Action {
     pub const COMMIT_SUICIDE: Action = Action(0x1F);
     /// spot.
     pub const SPOT: Action = Action(0x22);
+    /// artefact (action table entry 0xA74D5C): unused by the game; patch 78
+    /// gives it the default key H and a controls row (patch 62's table), and
+    /// holding it makes a quick-use key offer that slot's artefact.
+    pub const ARTEFACT: Action = Action(0x23);
 }
 
 /// What the input handler holds of an action: its last key event.

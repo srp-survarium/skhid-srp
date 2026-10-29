@@ -61,6 +61,16 @@ global engine_setlocale
 global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
+global engine_inventory_remove
+global engine_inventory_take_artefact
+global engine_quick_inventory_slot
+global engine_core_active_player
+global engine_add_model
+global engine_remove_model
+global engine_update_model
+global engine_static_model_bounds
+global engine_release_item
+global engine_release_model
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -819,6 +829,174 @@ engine_cc_string:
     push dword [esp + 36]   ; name -> 4
     mov eax, [esp + 36]   ; object
     call 0xec860
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_remove:
+    ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; inventory
+    mov eax, [esp + 24]   ; slot
+    call 0x2fc680
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_take_artefact:
+    ; 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; incoming -> 4
+    mov eax, [esp + 24]   ; inventory
+    call 0x2fc850
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_quick_inventory_slot:
+    ; 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; ordinal -> 8
+    push dword [esp + 24]   ; inventory -> 4
+    call 0x2fe7f0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_core_active_player:
+    ; 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; world
+    mov ecx, [esp + 24]   ; place
+    mov edi, [esp + 28]   ; out
+    call 0x2d0ab0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_add_model:
+    ; 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; second -> 16
+    push dword [esp + 36]   ; first -> 12
+    push dword [esp + 36]   ; scene -> 8
+    push dword [esp + 32]   ; renderer -> 4
+    mov eax, [esp + 40]   ; model
+    call 0x21cd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_remove_model:
+    ; 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; scene -> 8
+    push dword [esp + 24]   ; renderer -> 4
+    mov eax, [esp + 32]   ; model
+    call 0x21f40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_update_model:
+    ; 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; second -> 16
+    push dword [esp + 36]   ; first -> 12
+    push dword [esp + 36]   ; scene -> 8
+    push dword [esp + 32]   ; renderer -> 4
+    mov eax, [esp + 40]   ; model
+    call 0x22280
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_static_model_bounds:
+    ; 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; bounds -> 4
+    mov ecx, [esp + 24]   ; instance
+    call 0x16e420
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_item:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_model:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx

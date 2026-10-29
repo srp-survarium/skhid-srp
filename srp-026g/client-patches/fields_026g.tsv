@@ -122,3 +122,90 @@ scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed strin
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
+vostok::animation::skeleton_bone	computed_layers	0x18	u8	computed matrix selection: render bit 1, damage bit 2; 0x3B2AF0 and 0x3B2C90
+survarium::inventory	artefact_slots_begin	0x168	ptr<survarium::inventory_slot>	pointer to the first artefact slot; native take_artefact and quick-slot lookup
+survarium::inventory	artefact_slot_count	0x16C	u8	number of artefact containers
+survarium::item	references	0xD0	u32	resource reference count; inventory set/remove retain/release
+survarium::item	inventory	0x250	ptr<survarium::inventory>	owning inventory; item virtual +28h changes it
+survarium::item	inventory_slot	0x254	u32	slot in owning inventory; 23 when absent
+survarium::artefact	id	0x27E	u8	anomaly registry ID serialized by inventory; 255 absent
+survarium::artefact	state	0x280	u32	native artefact state; 3 passive, 4 active
+survarium::image	weapon_vtable	0xA04174	u32	client weapon active interface; constructor 0x243640
+survarium::image	weapon_core_vtable	0xA11094	u32	weapon_core active interface; constructor 0x2DF116
+survarium::player	world_core	0x120	ptr<survarium::core_world>	world core, generate_killed_event 0x2DA170
+survarium::player	time	0x324	u32	simulation milliseconds, tick 0x2DAA7F
+survarium::player	actions	0x330	u32	current input action mask, set_input 0x2D876C
+survarium::player	need_to_select_animations	0x33E	u8	m_need_to_select_animations: a simulation field, serialized at 0x2DAFDA; set_input sets it (0x2D899D). Not a dirty flag
+survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h): 1 down, 2 repeat, 3 up (0x23FE45, 0x23FEC5, 0x23FEF9)
+survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
+survarium::input_entry_frame	input	0x8	ptr<survarium::native_player_input>	set_input entry second stack argument, immutable eight-byte input
+survarium::native_player_input	actions	0x4	u32	input angles followed by action mask
+survarium::base_player_ctor_frame	player	0x4	u32	base_player constructor first argument; destination
+survarium::game_world	scene	0x4	obj<vostok::scene_reference>	retained render scene, artefact client update 0x25FDA6
+survarium::weapon	model	0x1810	ptr<survarium::scene_model>	client weapon render model holder, mt_draw 0x244EDB
+survarium::weapon	world	0x180C	ptr<survarium::game_world>	client world, on_hide 0x243FB6
+survarium::weapon	transform	0x660	f32	world model matrix, scope scene add 0x244BA9
+survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; false performs no scene operation
+survarium::weapon	optics	0x1808	ptr<survarium::weapon_optics>	optional optics object, mt_draw 0x244F66
+survarium::weapon_optics	model	0x108	ptr<survarium::scene_model>	normal optics model holder, 0x244FF7
+survarium::weapon_optics	aim_model	0x10C	ptr<survarium::scene_model>	aimed optics model holder, 0x244FE1
+survarium::artefact_client	world	0xC	ptr<survarium::game_world>	client game world, common callback prefix
+survarium::artefact_client	cached_state	0x10	u32	presentation owner state, common callback prefix
+survarium::artefact_client	model	0x14	ptr<survarium::scene_model>	model holder, common callback prefix
+survarium::artefact_spring_client	base	-0x398	obj<survarium::artefact>	callback to inventory artefact base
+survarium::artefact_lifebone_client	base	-0x498	obj<survarium::artefact>	callback to inventory artefact base
+survarium::artefact_onyx_client	base	-0xF20	obj<survarium::artefact>	callback to inventory artefact base
+survarium::artefact_rattle_client	base	-0x340	obj<survarium::artefact>	callback to inventory artefact base
+survarium::game_world_ui	world	0x18	ptr<survarium::game_world>	client game world, constructor 0x233810
+survarium::player	core_skeleton	0x408	ptr<vostok::animation::skeleton>	simulation skeleton read by recompute_damage_collision_bones at 0x2DA60D
+vostok::carry_queries	count	0x38	u32	queries_result m_size, set by constructor 0xE70B0 and bounded before appended resource read
+vostok::carry_queries	flower	0x9CC	ptr<survarium::scene_model>	fourth unmanaged model result; 0x12C + 3*0x2E0, native artefact cook
+survarium::carry_lifebone	callback	0x498	obj<survarium::artefact_client>	client callback subobject (not a pointer); destructor 0x25EFE0
+survarium::image	spring_vtable	0xA05F44	u32	client artefact vtable, constructor write at 0x25EA5F; callback layout verified
+survarium::image	lifebone_vtable	0xA05FE4	u32	client artefact vtable, constructor write at 0x25EFA3; callback layout verified
+survarium::image	onyx_vtable	0xA06084	u32	client artefact vtable, constructor write at 0x25F4F2; callback layout verified
+survarium::image	rattle_vtable	0xA06124	u32	client artefact vtable, constructor write at 0x25FA32; callback layout verified
+survarium::item	world	0x248	ptr<survarium::core_world>	registered core world, inventory_item::register_in_game_world 0x2FFFD0
+survarium::core_world	artefacts_begin	0x18940	ptr<survarium::inventory_slot>	registered artefact reference vector, inventory::deserialize 0x2FE655
+survarium::core_world	artefacts_end	0x18944	ptr<survarium::inventory_slot>	registered artefact vector end, registration 0x31B935
+survarium::core_world	time	0x18FC0	u32	completed simulation time, tick writes EDI at 0x2D1E84; serialized 0x2D2583
+survarium::artefact	item	0	obj<survarium::item>	zero-offset inventory item base of every artefact
+survarium::item	artefact	0	obj<survarium::artefact>	only for entries read from artefact containers or registry
+survarium::item	weapon	0	obj<survarium::weapon>	only after checking the client weapon vtable
+survarium::artefact	spring_callback	0x398	obj<survarium::artefact_client>	client Spring callback after vtable check
+survarium::artefact	lifebone_callback	0x498	obj<survarium::artefact_client>	client Lifebone callback after vtable check
+survarium::artefact	onyx_callback	0xF20	obj<survarium::artefact_client>	client Onyx callback after vtable check
+survarium::artefact	rattle_callback	0x340	obj<survarium::artefact_client>	client Rattle callback after vtable check
+survarium::artefact_spring_client	callback	0	obj<survarium::artefact_client>	common callback prefix
+survarium::artefact_lifebone_client	callback	0	obj<survarium::artefact_client>	common callback prefix
+survarium::artefact_onyx_client	callback	0	obj<survarium::artefact_client>	common callback prefix
+survarium::artefact_rattle_client	callback	0	obj<survarium::artefact_client>	common callback prefix
+vostok::scene_reference	value	0	u32	retained scene pointer; comparison only, submit the reference itself
+vostok::buffer_reader	size_bytes	12	size	reader allocation: begin, cursor, size
+survarium::flower_query_frame	requests	0x2C	obj<survarium::resource_request>	the cook's three resource requests inline (the first the artefact's model)
+survarium::flower_query_frame	callback	0x0	ptr<u8>	query_resources' first stack argument at this pre-call site: the cook's callback
+survarium::flower_query_frame	allocator	0x4	ptr<u8>	its second: the allocator
+survarium::flower_query_frame	user_data	0x8	ptr<u8>	its third: the callback's user data
+survarium::flower_query_frame	parent	0xC	ptr<u8>	its fourth: the parent query
+survarium::flower_query_frame	flag	0x10	u32	its fifth
+survarium::resource_request	path	0x0	ptr<u8>	the resource's path, a C string (query_resources 0xE5B60 copies the requests)
+survarium::resource_request	class	0x4	u32	the resource class: 15 a static model
+survarium::resource_request	size	0x8	size	{path, class}
+vostok::buffer_writer	packet	0x14	ptr<u8>	the packet it grows: w<unsigned char> 0x1F3DE0 resizes it (0x7AB30) and stores at its bytes (+4) at its count (+0Ch)
+vostok::float4x4	value	0x0	f32	the first of its 16 f32, a row-vector 4x4 (a world transform)
+vostok::float4x4	size	0x40	size	16 f32
+survarium::scene_model	references	0xD0	u32	a model holder the scene renderer takes (weapons, optics, artefacts, the held flower): unmanaged resource reference count
+survarium::scene_model	render_instance	0x108	obj<vostok::render::scene_model_ref>	its render reference, what add/update/remove_model take (0x244EDB)
+vostok::render::scene_model_ref	instance	0x0	ptr<vostok::render::model_instance>	the retained render model instance
+vostok::render::model_instance	in_scene	0x10D	u8	renderer add/remove bookkeeping, 0x244EE7
+vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
+survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
+survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+survarium::base_game_statistics_handler	shared	0x8	obj<survarium::shared_statistics>	its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
+survarium::shared_statistics	players	0x0	obj<survarium::player_shared_statistics>	the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
+survarium::player_shared_statistics	events	0x0	obj<survarium::event_count>	events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)
+survarium::player_shared_statistics	size	0x1F8	size	a place's record (finish_match 0x2F4D25, imul 1F8h)
+survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds 1 with no bound (inc word, 0x2F5606)
+survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
+survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
+survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
