@@ -948,7 +948,6 @@ impl Bots {
         std::mem::take(&mut self.layers).attach(&mut tactics);
         let tuning = self.tunings.match_wide();
         tactics.escape = tuning.hazard.escape;
-        tactics.hazards.hurt = hazards::HurtTest::of(&tuning.hazard, tactics.world.grid.body().radius);
         tactics.clear_step_sees_lip = tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.

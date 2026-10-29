@@ -20,23 +20,26 @@ use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
 use super::collect::{Crossing, crossing_to, routed_crossing_to};
+use crate::v026g::bots::hazards::HurtTest;
 use crate::v026g::bots::tuning::RouteCrossing;
 
-/// What a crossing's question asks of the motor's route over the zones (`HazardTuning::route_crossing`,
-/// `price_way_out`).
+/// What a crossing's question asks of the zones and the motor's route over them: a team's tuning
+/// (`HazardTuning::route_crossing`, `price_way_out`, `hurt_by_shape`), so a question is kept per rule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RoutedRule {
     pub route: RouteCrossing,
     pub way_out: bool,
+    pub hurt: HurtTest,
 }
 
 impl RoutedRule {
-    pub fn of(tuning: &crate::v026g::bots::tuning::HazardTuning) -> Self {
-        Self { route: tuning.route_crossing, way_out: tuning.price_way_out }
+    /// The rule of `tuning` for a body of `radius` metres.
+    pub fn of(tuning: &crate::v026g::bots::tuning::HazardTuning, radius: f32) -> Self {
+        Self { route: tuning.route_crossing, way_out: tuning.price_way_out, hurt: HurtTest::of(tuning, radius) }
     }
 
-    /// Only the straight crossings.
-    pub const OFF: Self = Self { route: RouteCrossing::Off, way_out: false };
+    /// Only the straight crossings, priced by the margin.
+    pub const OFF: Self = Self { route: RouteCrossing::Off, way_out: false, hurt: HurtTest::Margin };
 }
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
@@ -49,14 +52,13 @@ const MEMO_MOST: usize = 4096;
 
 /// What each zone is, as the answers depend on it: whether it switches
 /// (its control, `Hazard::switches`) and its hit a second
-/// (`Hazard::hit_per_s`), and the floors that hurt (`Hazards::hurt`). It changes only at `Hazards::attach` (and in
+/// (`Hazard::hit_per_s`). It changes only at `Hazards::attach` (and in
 /// tests that set a zone's control).
 fn zones_stamp(hazards: &Hazards) -> impl Iterator<Item = u64> + Clone + '_ {
     hazards
         .zones
         .iter()
         .map(|zone| u64::from(zone.switches()) << 32 | u64::from(zone.hit_per_s().to_bits()))
-        .chain(std::iter::once(hazards.hurt.stamp()))
 }
 
 /// One question's answers by key, and the stamp ([`zones_stamp`]) they
@@ -164,8 +166,8 @@ impl Memo {
             routed,
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            let found = crossing_to(tactics, to, side, stop_m, armour)
-                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed.route, routed.way_out));
+            let found = crossing_to(tactics, to, side, stop_m, armour, routed.hurt)
+                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed));
             #[cfg(test)]
             {
                 use crate::v026g::bots::hazards::zone_fixes::{Ev, count};
@@ -474,12 +476,12 @@ mod tests {
             // Dry floor far from the zone: still a question with an answer.
             (Vec3::new(10.0, 0.0, 10.0), Some(0), 0.0),
         ];
-        assert!(crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None).is_some());
+        assert!(crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None, HurtTest::Margin).is_some());
         for round in 0..2 {
             for &(to, side, stop) in &asks {
                 assert_eq!(
                     memo.crossing(&tactics, to, side, stop, None, RoutedRule::OFF),
-                    crossing_to(&tactics, to, side, stop, None),
+                    crossing_to(&tactics, to, side, stop, None, HurtTest::Margin),
                     "round {round}: {to:?} {side:?} {stop}"
                 );
             }
@@ -504,7 +506,7 @@ mod tests {
             ..mapdata::Damage::default()
         });
         let harsh = memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, RoutedRule::OFF);
-        assert_eq!(harsh, crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None));
+        assert_eq!(harsh, crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None, HurtTest::Margin));
         assert!(
             harsh.is_some_and(|h| h.leg.body > mild.leg.body),
             "{harsh:?} {mild:?}"
@@ -515,7 +517,7 @@ mod tests {
         tactics.hazards.zones[0].control = Control::Timer;
         assert_eq!(
             memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, RoutedRule::OFF),
-            crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None)
+            crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None, HurtTest::Margin)
         );
         assert_eq!(memo.crossings_kept(), 1);
     }

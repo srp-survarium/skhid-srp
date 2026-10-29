@@ -23,6 +23,7 @@
 //! (`LookSpot`, `TargetRef::Point`).
 
 use super::*;
+use crate::v026g::bots::hazards::HurtTest;
 use crate::v026g::bots::tuning::RouteCrossing;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::crossing::START_HEALTH;
@@ -808,6 +809,7 @@ pub fn crossing_to(
     side: Option<i32>,
     stop_m: f32,
     armour: Option<&ZoneArmour>,
+    hurt: HurtTest,
 ) -> Option<Crossing> {
     let grid = &tactics.world.grid;
     let mut best: Option<Crossing> = None;
@@ -845,7 +847,7 @@ pub fn crossing_to(
                     leg_out: line_hurt(tactics, edge, stop, armour),
                     at_per_s: grid
                         .locate(stop, 1.5)
-                        .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour)),
+                        .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, hurt)),
                     routed: false,
                     walk_m: d,
                 };
@@ -884,9 +886,9 @@ pub fn routed_crossing_to(
     side: Option<i32>,
     stop_m: f32,
     armour: Option<&ZoneArmour>,
-    rule: RouteCrossing,
-    way_out: bool,
+    rules: memo::RoutedRule,
 ) -> Option<Crossing> {
+    let (rule, way_out) = (rules.route, rules.way_out);
     if rule == RouteCrossing::Off {
         return None;
     }
@@ -930,7 +932,7 @@ pub fn routed_crossing_to(
     };
     let cost_at = |s: f32| {
         grid.locate(route.floor_point(s), 1.5)
-            .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour))
+            .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, rules.hurt))
     };
     let zone_before_stop = first_zone(end).is_some();
     let (edge, leg, walk_m) = match first_zone(end) {
@@ -1049,8 +1051,14 @@ impl Ctx<'_> {
             self.bot.side,
             stop_short(stand, at),
             self.zone_armour(),
-            memo::RoutedRule::of(&self.tuning.hazard),
+            self.rules(),
         )
+    }
+
+    /// The rule of this team's tuning for crossings: how the motor's route is offered, whether the way out is priced,
+    /// what a floor only the margin marks costs. A team's, never the match's (head-to-head runs differ per team).
+    fn rules(&self) -> memo::RoutedRule {
+        memo::RoutedRule::of(&self.tuning.hazard, self.tactics.world.grid.body().radius)
     }
 
     /// The bot's way out of zones on all match when no way leads from where
@@ -1060,7 +1068,7 @@ impl Ctx<'_> {
         if !self.needs_crossing(me) {
             return None;
         }
-        crossing_to(self.tactics, me, self.bot.side, 0.0, self.zone_armour())
+        crossing_to(self.tactics, me, self.bot.side, 0.0, self.zone_armour(), self.rules().hurt)
     }
 
     /// The armour a crossing's cost is worked out with: the bot's, with `HazardTuning::zone_pools`
@@ -1964,7 +1972,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     // the play ends (no `Intent::zone_ok`).
     if let Some(edge) = crossing
         && !cx.budget().reserve.leaves(
-            crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour())
+            crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour(), cx.rules().hurt)
                 .map_or_else(|| line_hurt(cx.tactics, me, edge, cx.zone_armour()), |out| out.leg),
             CROSS_ABORT_LEFT,
         )
@@ -3520,16 +3528,16 @@ mod tests {
         use crate::v026g::bots::hazards::HurtTest;
         let at = Vec3::new(25.0, 0.0, 32.0);
         let mut s = with_slab(2.0);
+        assert_eq!(s.cx(0).rules().hurt, HurtTest::Margin, "the all-off tuning prices by the margin");
         s.battery(BatteryState::Free(at));
-        s.tactics.hazards.hurt = HurtTest::Margin;
         let margin = s.cx(0).crossing(at).expect("a crossing");
         // The tuning's rule: the floor the take is made on, over the top, is a band, priced at the drift's share of the
         // zone's hit; the legs stay at the margin's price, which is the motor's own.
-        let tuning = crate::v026g::bots::tuning::Tuning::default().hazard;
-        s.tactics.hazards.hurt = HurtTest::of(&tuning, 0.38);
-        let HurtTest::Shape { band_share } = s.tactics.hazards.hurt else {
-            panic!("on by default");
+        s.tuning.hazard.hurt_by_shape = true;
+        let HurtTest::Shape { band_permille } = s.cx(0).rules().hurt else {
+            panic!("the team's tuning sets the rule");
         };
+        let band_share = f32::from(band_permille) / 1000.0;
         let shape = s.cx(0).crossing(at).expect("a crossing");
         assert_eq!((shape.leg, shape.leg_out), (margin.leg, margin.leg_out));
         assert!(shape.at_per_s.most() > 0.0, "{shape:?}");
@@ -3543,12 +3551,15 @@ mod tests {
     fn a_route_that_meets_the_zone_only_in_its_last_metre_is_a_crossing_when_total() {
         let at = Vec3::new(25.0, 0.0, 32.0);
         let mut s = with_slab(0.05);
-        s.tactics.hazards.hurt =
-            crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38);
+        let rule = |route| memo::RoutedRule {
+            route,
+            way_out: false,
+            hurt: crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38),
+        };
         let stop = 2.0;
-        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, RouteCrossing::Off, false), None);
-        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, RouteCrossing::Strict, false), None);
-        let crossing = routed_crossing_to(&s.tactics, at, Some(0), stop, None, RouteCrossing::Total, false)
+        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Off)), None);
+        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Strict)), None);
+        let crossing = routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Total))
             .expect("the route is the take");
         assert!(crossing.routed && crossing.leg == Cost::ZERO && crossing.walk_m == 0.0, "{crossing:?}");
         let grid = &s.tactics.world.grid;
@@ -3593,7 +3604,6 @@ mod tests {
                     s.tuning = tuning.clone();
                     s.tactics = Tactics::new(world.clone(), 1.0);
                     s.tactics.hazards.attach(crate::v026g::bots::anomalies::Anomalies::new(&world.map, 0));
-                    s.tactics.hazards.hurt = crate::v026g::bots::hazards::HurtTest::of(&s.tuning.hazard, world.grid.body().radius);
                     s.side = Some(i32::from(team));
                     s.bot(0, team, spawn.position);
                     for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
@@ -3681,7 +3691,7 @@ mod tests {
                     for pair in path.windows(2) {
                         let d = (grid.position(pair[1]) - grid.position(pair[0])).length();
                         metres += d;
-                        cost = cost + s.tactics.hazards.hurt_cost_per_s(pair[1], cx.zone_armour()) * (d / CROSS_MPS);
+                        cost = cost + s.tactics.hazards.hurt_cost_per_s(pair[1], cx.zone_armour(), cx.rules().hurt) * (d / CROSS_MPS);
                     }
                     (metres, cost)
                 });

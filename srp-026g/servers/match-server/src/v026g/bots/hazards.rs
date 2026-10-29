@@ -329,17 +329,18 @@ impl HazardMarks {
     }
 }
 
-/// What a body on a floor loses to the zones there ([`Hazards::hurt_per_s`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// What a body on a floor loses to the zones there ([`Hazards::hurt_per_s`]). The rule is a team's (its tuning,
+/// `HazardTuning::hurt_by_shape`), so it is an argument of the question, not a field of the shared zones.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum HurtTest {
     /// The zone's full hit on every floor routes keep off, the margin's marks, as it was (`HazardTuning::hurt_by_shape`
     /// off; what a test with the all-off tuning has).
     #[default]
     Margin,
     /// The full hit on the floors a standing body's capsule overlaps the zone's shape from
-    /// ([`HazardMarks::hurt_set`]); on the margin's band round them `band_share` of it, the share of the time the
-    /// motor's drift puts a body walking there inside.
-    Shape { band_share: f32 },
+    /// ([`HazardMarks::hurt_set`]); on the margin's band round them `band_permille` thousandths of it, the share of the
+    /// time the motor's drift puts a body walking there inside.
+    Shape { band_permille: u16 },
 }
 
 impl HurtTest {
@@ -352,15 +353,15 @@ impl HurtTest {
         }
         let band = tuning.margin_m.get() - radius;
         let mean_drift = tuning.band_drift_m.get() * (2.0 / std::f32::consts::PI).sqrt();
-        let band_share = if band > 0.0 { (mean_drift / band).min(1.0) } else { 1.0 };
-        Self::Shape { band_share }
+        let share = if band > 0.0 { (mean_drift / band).min(1.0) } else { 1.0 };
+        Self::Shape { band_permille: (share * 1000.0).round() as u16 }
     }
 
-    /// For a cache's stamp: the rule and its number.
-    pub fn stamp(self) -> u64 {
+    /// The share of a zone's hit a body on a floor only the margin marks loses.
+    pub fn band_share(self) -> f32 {
         match self {
-            Self::Margin => 0,
-            Self::Shape { band_share } => 1 << 32 | u64::from(band_share.to_bits()),
+            Self::Margin => 1.0,
+            Self::Shape { band_permille } => f32::from(band_permille) / 1000.0,
         }
     }
 }
@@ -372,8 +373,6 @@ pub struct Hazards {
     pub zones: Vec<Hazard>,
     marks: Arc<HazardMarks>,
     pub margin: f32,
-    /// What [`Self::hurt_per_s`] counts (`HazardTuning::hurt_by_shape`).
-    pub hurt: HurtTest,
     /// How long a switching zone must stay off for [`Self::allowed`].
     pub pass_ms: u32,
     anomalies: Option<Anomalies>,
@@ -431,7 +430,6 @@ impl Hazards {
             zones,
             marks,
             margin,
-            hurt: HurtTest::default(),
             pass_ms: PASS_MS,
             anomalies: None,
             seen: 0,
@@ -450,8 +448,8 @@ impl Hazards {
 
     /// The zones that hurt a body standing on `node` ([`HurtTest`]): the zones whose shape it overlaps, or all that mark
     /// it.
-    pub fn hurt_zones_at(&self, node: NodeId) -> impl Iterator<Item = &Hazard> + '_ {
-        let floor_set = match self.hurt {
+    pub fn hurt_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = &Hazard> + '_ {
+        let floor_set = match rule {
             HurtTest::Shape { .. } => &self.marks.hurt_set,
             HurtTest::Margin => &self.marks.floor_set,
         };
@@ -464,13 +462,10 @@ impl Hazards {
 
     /// The zones marking `node` and how much of their hit a body there loses: all of it where the body is hurt
     /// ([`Self::hurt_zones_at`]), the band's share ([`HurtTest::Shape`]) where only the margin marks it.
-    fn weighted_zones_at(&self, node: NodeId) -> impl Iterator<Item = (&Hazard, f32)> + '_ {
-        let band = match self.hurt {
-            HurtTest::Shape { band_share } => band_share,
-            HurtTest::Margin => 1.0,
-        };
+    fn weighted_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = (&Hazard, f32)> + '_ {
+        let band = rule.band_share();
         self.zones_at(node).map(move |zone| {
-            let hurts = self.hurt_zones_at(node).any(|hurt| hurt.zone == zone.zone);
+            let hurts = self.hurt_zones_at(node, rule).any(|hurt| hurt.zone == zone.zone);
             (zone, if hurts { 1.0 } else { band })
         })
     }
@@ -517,16 +512,16 @@ impl Hazards {
     /// hit of the zones that hurt there, the band's share of the others' that only mark it ([`Self::weighted_zones_at`]),
     /// where [`Self::hit_per_s`] counts every floor routes keep off at the full hit (the gate of what may be crossed,
     /// `crossing::crossable`). A floor over a cylinder's top, in its margin only, costs the band's share.
-    pub fn hurt_per_s(&self, node: NodeId) -> f32 {
-        self.weighted_zones_at(node).map(|(zone, w)| zone.hit_per_s() * w).sum::<f32>() + self.live.hit_per_s(node)
+    pub fn hurt_per_s(&self, node: NodeId, rule: HurtTest) -> f32 {
+        self.weighted_zones_at(node, rule).map(|(zone, w)| zone.hit_per_s() * w).sum::<f32>() + self.live.hit_per_s(node)
     }
 
     /// [`Self::hurt_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body pool).
-    pub fn hurt_cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {
+    pub fn hurt_cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>, rule: HurtTest) -> Cost {
         match armour {
-            None => Cost::body(self.hurt_per_s(node)),
+            None => Cost::body(self.hurt_per_s(node, rule)),
             Some(armour) => {
-                self.weighted_zones_at(node).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
+                self.weighted_zones_at(node, rule).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
                     + Cost::body(self.live.hit_per_s(node))
             }
         }
@@ -821,17 +816,16 @@ mod tests {
         };
         map.zones.push(zone("slab", slab, 0.1));
         let world = world_of(map);
-        let mut hazards = Hazards::build(&world, 1.0);
+        let hazards = Hazards::build(&world, 1.0);
         let grid = &world.grid;
         let over = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
         assert!(!hazards.allowed(over, 0) && hazards.zone_of(over).is_some(), "shut to routes");
-        assert_eq!(hazards.hurt, HurtTest::Margin, "the tuning sets the rule");
         let full = hazards.hit_per_s(over);
         assert!(full > 0.0);
-        assert_eq!(hazards.hurt_per_s(over), full, "the margin's marks hurt, as they did");
-        hazards.hurt = HurtTest::Shape { band_share: 0.25 };
-        assert_eq!(hazards.hurt_zones_at(over).count(), 0, "the capsule does not reach it");
-        assert!((hazards.hurt_per_s(over) - 0.25 * full).abs() < 1e-6, "the band's share");
+        assert_eq!(hazards.hurt_per_s(over, HurtTest::default()), full, "the margin's marks hurt, as they did");
+        let shape = HurtTest::Shape { band_permille: 250 };
+        assert_eq!(hazards.hurt_zones_at(over, shape).count(), 0, "the capsule does not reach it");
+        assert!((hazards.hurt_per_s(over, shape) - 0.25 * full).abs() < 1e-6, "the band's share");
         assert_eq!(hazards.hit_per_s(over), full, "the gate of what may be crossed is the full hit");
         // A box whose top reaches the floor does hurt there, whichever test.
         let mut map = electric_map();
@@ -839,20 +833,19 @@ mod tests {
         let deep = Shape { center: Vec3::new(20.0, 0.5, 20.0), ..slab };
         map.zones.push(zone("deep", deep, 0.1));
         let world = world_of(map);
-        let mut hazards = Hazards::build(&world, 1.0);
-        hazards.hurt = HurtTest::Shape { band_share: 0.25 };
+        let hazards = Hazards::build(&world, 1.0);
         let on = world.grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
-        assert_eq!(hazards.hurt_per_s(on), hazards.hit_per_s(on));
+        assert_eq!(hazards.hurt_per_s(on, HurtTest::Shape { band_permille: 250 }), hazards.hit_per_s(on));
     }
 
     /// The band's share from the tuning: the margin less the body's radius wide, the drift's mean over it.
     #[test]
     fn the_bands_share_is_the_drifts_mean_over_its_width() {
         let tuning = super::super::tuning::Tuning::default().hazard;
-        let HurtTest::Shape { band_share } = HurtTest::of(&tuning, 0.38) else {
+        let HurtTest::Shape { band_permille } = HurtTest::of(&tuning, 0.38) else {
             panic!("on by default");
         };
-        assert!((band_share - 0.2 * (2.0 / std::f32::consts::PI).sqrt() / 0.62).abs() < 1e-6, "{band_share}");
+        assert_eq!(band_permille, (1000.0 * 0.2 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
         let off = super::super::tuning::Tuning::all_off().hazard;
         assert_eq!(HurtTest::of(&off, 0.38), HurtTest::Margin);
     }
@@ -970,7 +963,7 @@ mod tests {
                     let (mut marked, mut hurt) = (0, 0);
                     for node in 0..world.grid.len() as NodeId {
                         marked += usize::from(hazards.zones_at(node).any(|z| z.zone == zone.zone));
-                        hurt += usize::from(hazards.hurt_zones_at(node).any(|z| z.zone == zone.zone));
+                        hurt += usize::from(hazards.hurt_zones_at(node, HurtTest::Shape { band_permille: 0 }).any(|z| z.zone == zone.zone));
                     }
                     let shapes = &world.map.zones[zone.zone].shapes;
                     let tops = shapes.iter().map(|s| s.bounds()).map(|(lo, hi)| (lo.y, hi.y)).collect::<Vec<_>>();

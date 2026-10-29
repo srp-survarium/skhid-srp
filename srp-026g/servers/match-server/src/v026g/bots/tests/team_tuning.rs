@@ -140,3 +140,82 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
     assert!(hud_of_team_1(true, false), "team 1's cheat is off: its HUD shows the battery");
     assert!(!hud_of_team_1(false, true), "team 1's cheat is on: no HUD, whatever team 0's is");
 }
+
+/// The plays' reads of the hazard switches (`Ctx::tuning`, `plays/collect.rs`, `plays/escort.rs`): a battery lies on a floor 0.27 m over
+/// a damage zone's top, which the motor's route meets only in the last metre before its stop. Team 0's `route_crossing` is on
+/// (`total`: the route is the take), team 1's is off, so only team 0's bots go for the battery, and team 1's do not: the same
+/// situation, two answers by tuning. Swapped, the answers swap.
+#[test]
+fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
+    use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+    use crate::v026g::bots::tuning::RouteCrossing;
+    let at = Vec3::new(25.0, 0.0, 32.0);
+    let goes_for_it = |route0: RouteCrossing, route1: RouteCrossing| -> [usize; 2] {
+        let world = super::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "slab".into(),
+                team: -1,
+                position: Vec3::new(25.0, -1.27, 32.0),
+                damage_type: "radiation".into(),
+                damage: Some(Damage { max_hit: 0.1, interval_ms: 1000, parts: 2, ..Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: Vec3::new(25.0, -1.27, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(0.05, 1.0, 0.05),
+                }],
+            });
+        });
+        let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        team0.cheats.batteries = true;
+        team1.cheats.batteries = true;
+        team0.hazard.route_crossing = route0;
+        team1.hazard.route_crossing = route1;
+        let teams = [0u8, 0, 1, 1];
+        let mut bots = Bots::new_with(
+            0x7EA6,
+            survarium::v026g::maps::mode::BATTERIES,
+            0,
+            &teams,
+            &[true; 4],
+            &[None; 4],
+            tunings(team0, team1),
+            Trace::none(0),
+        );
+        bots.map_ready(world);
+        let spots = [(10.0, 10.0), (10.0, 14.0), (10.0, 26.0), (10.0, 30.0)];
+        for (place, (x, z)) in spots.into_iter().enumerate() {
+            bots.entered(place, true, 0);
+            let fix = Fix {
+                time: 1_000,
+                alive: true,
+                inserted: 100,
+                feet: Some(Vec3::new(x, 0.0, z)),
+                yaw: 0.0,
+                pitch: 0.0,
+                keys: 0,
+                speed: Some(0.0),
+            };
+            bots.fixed(place, fix, Some(1.0));
+        }
+        let facts = WorldFacts { time: 1_000, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() };
+        bots.facts(facts);
+        let mut count = [0usize; 2];
+        for clock in (1_100..=12_000).step_by(100) {
+            bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+        }
+        for (place, team) in teams.iter().enumerate() {
+            let collects = bots.bots[place]
+                .as_ref()
+                .and_then(|bot| bot.assignment.as_ref())
+                .is_some_and(|a| a.kind == PlayKind::Collect);
+            count[usize::from(*team)] += usize::from(collects);
+        }
+        count
+    };
+    let [t0, t1] = goes_for_it(RouteCrossing::Total, RouteCrossing::Off);
+    assert!(t0 > 0 && t1 == 0, "team 0 (routes) {t0} collect, team 1 (off) {t1}");
+    let [t0, t1] = goes_for_it(RouteCrossing::Off, RouteCrossing::Total);
+    assert!(t0 == 0 && t1 > 0, "swapped: team 0 (off) {t0} collect, team 1 (routes) {t1}");
+}
