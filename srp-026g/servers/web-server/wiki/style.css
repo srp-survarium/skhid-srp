@@ -197,3 +197,20 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
  .quick-stats small { display:block }
  .weapon-details { grid-template-columns:1fr; padding:18px; gap:24px }
 }
+/* Equipment (src/equipment.rs). */
+.slot-filter { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px }
+.slot-filter button { display:inline-flex; align-items:center; gap:6px; margin:0; padding:7px 12px; background:var(--panel); color:var(--ink-2); border:1px solid var(--rule); border-radius:2px; font:700 .75rem var(--display); text-transform:uppercase; letter-spacing:.06em; cursor:pointer }
+.slot-filter button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent) }
+.slot-filter button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.slot-filter .glyph { width:34px; height:18px }
+.gear-tools { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
+.gear .quick-stats { grid-template-columns:repeat(3,1fr) }
+.gear-group { margin:22px 0 8px; font-size:1.1rem; border-bottom:1px solid var(--rule); padding-bottom:4px }
+.table-scroll { overflow-x:auto }
+.protection { border-collapse:collapse; font:.82rem var(--data); width:100% }
+.protection th,.protection td { padding:5px 8px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap }
+.protection thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }
+.protection tbody th { text-align:left; font:400 .82rem var(--body); color:var(--ink-2) }
+.gear-modifiers { grid-column:1 / -1 }
+.gear-modifiers h3 { font-size:.85rem; margin:8px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+.flies-off { display:inline-block; margin-left:6px; padding:0 6px; border:1px solid var(--accent); border-radius:2px; color:var(--accent); font:700 .65rem var(--display); text-transform:uppercase; letter-spacing:.06em; vertical-align:1px }

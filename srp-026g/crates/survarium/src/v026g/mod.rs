@@ -1,6 +1,7 @@
 //! What srp serves the 0.26g client (`docs/notes/`).
 
 // The game data (`data.md`, `modes_maps.md`).
+pub mod armour;
 pub mod awards;
 pub mod dictionary;
 pub mod drops;

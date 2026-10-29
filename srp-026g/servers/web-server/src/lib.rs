@@ -45,6 +45,7 @@ mod icons;
 mod launcher;
 mod maps;
 mod moderation;
+mod equipment;
 mod modifiers;
 mod password_reset;
 mod patches;
@@ -704,7 +705,7 @@ impl Web {
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
-                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS
+                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT
             )
         {
             damage::POLICY
@@ -967,7 +968,7 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS) => {
+                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT) => {
                         return wiki_page(path, &request.target, request.lang);
                     }
                     path if path.starts_with(launcher::FRESH) => {

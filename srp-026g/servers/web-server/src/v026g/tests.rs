@@ -1038,6 +1038,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki",
         "/wiki/weapons",
         "/wiki/modifiers",
+        "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
     ] {
@@ -1062,6 +1063,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
     for section in [
         "/wiki/weapons",
         "/wiki/modifiers",
+        "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
     ] {
@@ -1128,6 +1130,11 @@ fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
 #[test]
 #[ignore = "local browser preview; serves until stopped"]
 fn serve_wiki_preview() {
+    // SRP_GAME_DATA: the pages from that server data (a release's, as srp runs
+    // on), not the tests' archive; it must be read before anything else is.
+    if std::env::var_os("SRP_GAME_DATA").is_some() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
+    }
     let world = world();
     let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
     eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
