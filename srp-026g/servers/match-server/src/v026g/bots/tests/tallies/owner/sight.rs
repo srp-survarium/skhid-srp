@@ -134,8 +134,8 @@ impl Topic for SightCounts {
     }
 
     fn bots(&mut self, bots: &Bots, _game: &Game) {
-        self.range_m = bots.tuning.sense.sight_m;
-        self.view_deg = bots.tuning.sense.view_deg;
+        self.range_m = bots.match_wide_tuning().sense.sight_m;
+        self.view_deg = bots.match_wide_tuning().sense.view_deg;
     }
 
     fn body(&mut self, run: &Run, at: &BodyAt<'_>, rays: &mut u64) {

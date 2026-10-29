@@ -77,6 +77,7 @@ mod play;
 mod report;
 mod sense;
 mod team;
+mod teams;
 mod traps;
 mod unstick;
 
@@ -108,6 +109,7 @@ pub use team::Personality;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
+pub use teams::TeamTunings;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
