@@ -1635,6 +1635,9 @@ pub(crate) fn real_bot_cost() {
                     habit.armed, habit.placed, habit.died_placing, own.fired, own.own_team_caught
                 );
                 eprintln!("  trap gate: {}", crate::v026g::bots::traps::gates::line());
+                let looks = bots.trap_look_outcomes();
+                eprintln!("  trap looks, team 0: {}", looks[0].line());
+                eprintln!("  trap looks, team 1: {}", looks[1].line());
                 eprintln!("  {}", bots.react_counts().line());
             }
             // The stand-in's bear traps (none carried: no line, the log as it was).

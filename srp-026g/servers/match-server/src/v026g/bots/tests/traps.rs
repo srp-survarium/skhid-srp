@@ -174,21 +174,20 @@ pub(crate) fn with_the_defaults_a_bot_still_places_its_trap_and_it_lands_away_fr
 /// the habit's think and its drive tick both take the tuning of the bot's own team (`Bots::tuning_of`, `think.rs`).
 #[test]
 pub(crate) fn the_landing_rule_is_read_from_the_bots_own_teams_tuning() {
-    let mut bots = Bots::new(
+    let mut off = Tuning::default();
+    off.traps.press_landing_m = None;
+    let mut tunings = crate::v026g::bots::tuning::TeamTunings::new(Arc::new(Tuning::default()));
+    tunings.give_team1(Arc::new(off));
+    let bots = Bots::new_with(
         0x7A96,
         survarium::v026g::maps::mode::TEAM_DEATHMATCH,
         0,
         &[0u8, 1],
         &[true, true],
         &[None, None],
-        Arc::new(Tuning::default()),
+        tunings,
         Trace::none(0),
     );
-    assert_eq!(bots.tuning_of(0).traps.press_landing_m, Some(1.0));
-    assert_eq!(bots.tuning_of(1).traps.press_landing_m, Some(1.0));
-    let mut off = Tuning::default();
-    off.traps.press_landing_m = None;
-    bots.side1_tuning = Some(Arc::new(off));
     assert_eq!(bots.tuning_of(0).traps.press_landing_m, Some(1.0));
     assert_eq!(bots.tuning_of(1).traps.press_landing_m, None);
 }

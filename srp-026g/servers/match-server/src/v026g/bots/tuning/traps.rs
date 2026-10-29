@@ -235,7 +235,8 @@ impl Check for TrapTuning {
         )?;
         check(
             self.press_landing_m
-                .is_none_or(|m| (super::super::traps::TRIGGER_M..=1.5).contains(&m)),
+                .is_none_or(|m| m >= super::super::traps::TRIGGER_M)
+                && super::super::traps::press_reachable(self),
             "traps.press_landing_m",
         )?;
         check(
