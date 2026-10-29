@@ -51,6 +51,8 @@ pub(super) struct FightCounts {
     /// when).
     pub(super) last_target: Vec<Option<Place>>,
     pub(super) hurt_by: Vec<Vec<(Place, u32)>>,
+    /// By place: the bot's team, as the last tick had it (the flank rates are by the team of the one hit).
+    pub(super) team_of: Vec<u8>,
     pub(super) switches: u32,
     pub(super) switches_off_hurter: u32,
     pub(super) hits: Vec<(u32, Place, Place)>,
@@ -65,6 +67,7 @@ impl FightCounts {
             last_target: vec![None; n],
             held_at: vec![0; n],
             hurt_by: vec![Vec::new(); n],
+            team_of: vec![0; n],
             ..Self::default()
         }
     }
@@ -680,6 +683,9 @@ impl FightCounts {
         // A target switch while an enemy who hurt it is in its line,
         // not the new target.
         let target = body.target.filter(|_| body.alive);
+        if let Some(team) = self.team_of.get_mut(place) {
+            *team = body.team;
+        }
         if let (Some(was), Some(new)) = (self.last_target[place], target)
             && was != new
         {
@@ -760,6 +766,8 @@ impl FightCounts {
         let rate = Scale::rate;
         // Turned on the shooter.
         let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
+        // ... by the team of the one hit: side hits, turned in time, died unturned.
+        let mut flank = [[0u32; 3]; 2];
         let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
         for &(t, shooter, victim) in &run.hits {
             let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
@@ -781,6 +789,8 @@ impl FightCounts {
                 continue;
             }
             hits_side += 1;
+            let team = usize::from(self.team_of.get(victim).copied().unwrap_or(0)).min(1);
+            flank[team][0] += 1;
             let end = (i + (TURN_MS / TICK_MS) as usize).min(recs.len() - 1);
             let mut outcome = None;
             for k in i..=end {
@@ -794,8 +804,14 @@ impl FightCounts {
                 }
             }
             match outcome {
-                Some(true) => turned += 1,
-                Some(false) => died_unturned += 1,
+                Some(true) => {
+                    turned += 1;
+                    flank[team][1] += 1;
+                }
+                Some(false) => {
+                    died_unturned += 1;
+                    flank[team][2] += 1;
+                }
                 None => {}
             }
         }
@@ -839,7 +855,7 @@ impl FightCounts {
             })
             .collect();
         let held: u32 = self.range_held.values().sum();
-        let json = serde_json::json!({
+        let mut json = serde_json::json!({
             "dry_s": (self.dry_ticks as f64 * tick_s).round(),
             "reload_s": (self.reload_ticks as f64 * tick_s).round(),
             "deaths_dry": self.deaths_dry,
@@ -878,6 +894,11 @@ impl FightCounts {
             "turned_3s_pct": pct(turned.into(), hits_side.into()),
             "died_unturned": died_unturned,
         });
+        // (Apart: the macro's recursion limit.)
+        json["flank_rates"] = serde_json::json!({ "by_team": {
+            "0": { "hits_side": flank[0][0], "turned_3s": flank[0][1], "died_unturned": flank[0][2] },
+            "1": { "hits_side": flank[1][0], "turned_3s": flank[1][1], "died_unturned": flank[1][2] },
+        } });
         let text = format!(
             "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; fire ticks with a side key {} of {} ({:.1} %); hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), at its target {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
             json["dry_s"],
