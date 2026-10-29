@@ -446,6 +446,9 @@ pub const JUMP_FACING: f32 = 0.2;
 const JUMP_LEAD_S: f32 = 0.2;
 /// … and this much more, metres.
 const PRESS_M: f32 = 0.15;
+/// A walking jump pressed farther before its take-off than the usual lead ([`Route::ledge_lead`]) is walked into from this
+/// much farther back than the press, metres.
+const LEAD_RUN_UP_M: f32 = 0.4;
 /// A body moving less than this a tick, m, is standing ([`Ahead::going`]).
 const STANDING_M: f32 = 0.02;
 /// The arrivals at a sprint-band take-off, short of what the client asks, backed off from before it is given up.
@@ -743,6 +746,8 @@ struct Ahead {
     /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
     /// line up, and `before` is the route's distance to the take-off.
     run_through: bool,
+    /// A walking jump up a short top is pressed this far before the take-off ([`Route::ledge_lead`]); 0 is the usual lead.
+    lead_m: f32,
 }
 
 /// Why the motor pressed jump.
@@ -1569,8 +1574,10 @@ impl Motor {
                 sprint,
                 rise: landing.y - take_off.y,
                 run_through: false,
+                lead_m: 0.0,
             });
         }
+        let lead_m = route.ledge_lead(k).unwrap_or(0.0);
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
         // A gap link is pressed at its own point: the run-up starts
         // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
@@ -1595,10 +1602,16 @@ impl Motor {
                 }
                 found.unwrap_or(mapdata::grid::SPRINT_RUN_UP_M)
             }
-            Leap::Ledge | Leap::SprintLedge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
-                .into_iter()
-                .find(|&m| clear(at(m)))
-                .unwrap_or(0.0),
+            Leap::Ledge | Leap::SprintLedge => {
+                let base = if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M };
+                // A press farther before the take-off is walked into from farther back.
+                (lead_m > 0.0)
+                    .then_some(lead_m + LEAD_RUN_UP_M)
+                    .into_iter()
+                    .chain([base, 0.5 * base])
+                    .find(|&m| clear(at(m)))
+                    .unwrap_or(0.0)
+            }
             Leap::Gap(press) | Leap::SprintGap(press) => {
                 let m = press.metres() + mapdata::grid::gap::GAP_RUN_UP_M;
                 if clear(at(m)) { m } else { press.metres() }
@@ -1662,6 +1675,7 @@ impl Motor {
             sprint,
             rise: landing.y - take_off.y,
             run_through: sprint_gap,
+            lead_m,
         })
     }
 
@@ -1701,7 +1715,7 @@ impl Motor {
         // A jump link as it walks over the take-off; a gap link at its own
         // point (where the grid found the client's jump lands it).
         let near = match ahead.leap {
-            Leap::Ledge | Leap::SprintLedge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
+            Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m),
             Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres(),
         };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
@@ -3429,6 +3443,30 @@ mod tests {
         assert!(sprinting > 0, "sprint held on the run-up");
         let after = sprint_jumps::counts();
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
+    /// A walking jump up a ledge with a short top is pressed farther before its take-off, when the route knows
+    /// ([`Route::ledge_lead`]): the clip's root then ends nearer the face and the body stays on the top.
+    #[test]
+    fn a_ledge_with_a_short_top_is_pressed_farther_before_it() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(ledge_to(y)),
+            low: false,
+        };
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true };
+        let press_at = |lead: Option<f32>| {
+            let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 0.9, true), p(14.0, 0.9, false)]);
+            if let Some(lead) = lead {
+                route = route.with_ledge_lead(Vec3::new(8.4, 0.9, 0.0), lead);
+            }
+            let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false);
+            climb.presses.first().map(|(_, at)| at.feet.distance_xz(ledge.take_off))
+        };
+        let usual = press_at(None).expect("the usual press");
+        let early = press_at(Some(1.4)).expect("the early press");
+        assert!(early > usual + 0.3 && early > 1.0, "usual {usual:.2} m before the take-off, early {early:.2} m");
     }
 
     /// A sprint-band ledge jump (1.2 m, over the walk jump's 1.09) of a body that starts at the take-off, at rest: without
