@@ -5,8 +5,6 @@
 //! * Operator overloads all stored in a single file
 //! * `vector destructor iterator' and similar remove quotes and replace spaces with underscores
 
-#![feature(trim_prefix_suffix)]
-
 use std::collections::HashMap;
 
 pub mod parser;

@@ -471,13 +471,10 @@ dependencies = [
 name = "lobby-server"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "env_logger",
  "log",
- "openssl",
  "session",
  "survarium",
- "thiserror",
  "udp-transport",
  "vostok",
 ]
@@ -649,7 +646,6 @@ name = "parse-journal-file"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "survarium",
  "vostok",
 ]
 
