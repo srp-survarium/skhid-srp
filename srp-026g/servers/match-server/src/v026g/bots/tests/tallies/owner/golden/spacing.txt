@@ -1,4 +1,4 @@
-owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near)]
+owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near)]; crowd cost: 0 spot searches (first spot not the base top 0), teammates near the spot given 0.00, near the base top 0.00
 {
   "spacing": {
     "by_play": {
@@ -52,6 +52,10 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "mates_near": 720,
         "samples": 360
       }
-    }
+    },
+    "crowd_near_base_top": 0,
+    "crowd_near_chosen": 0,
+    "crowd_queries": 0,
+    "crowd_reordered": 0
   }
 }

@@ -191,8 +191,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     });
     // Spots it reaches before he reaches the battery.
     let spots: Vec<Vec3> = cx
-        .tactics
-        .spots(&query, cx.now, num("spot_pick") as usize, rng)
+        .spots(&query, num("spot_pick") as usize, rng)
         .into_iter()
         .map(|spot| spot.at)
         .filter(|&at| cx.path_dist(at) <= his * num("first_ratio"))

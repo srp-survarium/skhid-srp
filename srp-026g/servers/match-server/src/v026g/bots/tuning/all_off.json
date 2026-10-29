@@ -26,6 +26,9 @@
     "pierce": null,
     "spot_cost": null
   },
+  "spacing": {
+    "spot_crowd": null
+  },
   "feel": {
     "band_jump_gate": false,
     "carrier_jump_m": null,

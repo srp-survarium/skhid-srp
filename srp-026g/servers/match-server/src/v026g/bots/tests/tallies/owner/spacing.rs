@@ -36,6 +36,10 @@ pub(super) struct SpacingCounts {
     by_team: [TeamSpacing; 2],
     window: Vec<[u64; WINDOW_S]>,
     was_alive: Vec<bool>,
+    /// The friend-crowding cost's searches (`Tactics::spots_with`), as the last tick left them: searches that found a spot,
+    /// the teammates near the spot given and near the best spot by the base score, summed, and the searches that did not start
+    /// from the base top.
+    crowd: [u64; 4],
     /// By the play the body runs (a bot's assignment; "human" for the stand-in): the living bodies sampled and the
     /// teammates near them, and how many had 3 or more.
     by_play: BTreeMap<String, [u64; 3]>,
@@ -43,13 +47,26 @@ pub(super) struct SpacingCounts {
 
 impl SpacingCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], by_play: BTreeMap::new() }
+        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], crowd: [0; 4], by_play: BTreeMap::new() }
     }
 }
 
 impl Topic for SpacingCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if let Some(tactics) = bots.tactics.as_ref() {
+            let t = &tactics.cover_tally;
+            self.crowd = [
+                t.crowd_queries.load(Relaxed),
+                t.crowd_near_chosen.load(Relaxed),
+                t.crowd_near_base_top.load(Relaxed),
+                t.crowd_reordered.load(Relaxed),
+            ];
+        }
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
@@ -123,7 +140,17 @@ impl SpacingCounts {
                 (play.clone(), serde_json::json!({ "samples": n, "mates_near": mates, "clumped_samples": clumped }))
             })
             .collect();
-        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play } });
+        let [queries, near_chosen, near_top, reordered] = self.crowd;
+        let json = serde_json::json!({
+            "spacing": {
+                "by_team": { "0": team(0), "1": team(1) },
+                "by_play": by_play,
+                "crowd_queries": queries,
+                "crowd_near_chosen": near_chosen,
+                "crowd_near_base_top": near_top,
+                "crowd_reordered": reordered,
+            }
+        });
         let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 };
         let line = |t: usize| {
             let c = &self.by_team[t];
@@ -139,7 +166,18 @@ impl SpacingCounts {
                 mean(c.crowd_enemies, c.deaths),
             )
         };
-        Part::new(json, format!("owner-test spacing: team 0 [{}]; team 1 [{}]", line(0), line(1)))
+        Part::new(
+            json,
+            format!(
+                "owner-test spacing: team 0 [{}]; team 1 [{}]; crowd cost: {} spot searches (first spot not the base top {}), teammates near the spot given {:.2}, near the base top {:.2}",
+                line(0),
+                line(1),
+                queries,
+                reordered,
+                mean(near_chosen, queries),
+                mean(near_top, queries),
+            ),
+        )
     }
 }
 

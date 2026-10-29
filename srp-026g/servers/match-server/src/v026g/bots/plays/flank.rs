@@ -193,8 +193,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
         };
         found.extend(
-            cx.tactics
-                .spots(&query, cx.now, 6, rng)
+            cx.spots(&query, 6, rng)
                 .into_iter()
                 .map(|s| s.at),
         );
@@ -225,8 +224,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
         ..SpotQuery::ring(spot, num("via_min_m"), num("via_max_m"))
     };
     let via = cx
-        .tactics
-        .spots(&via_query, cx.now, 6, rng)
+        .spots(&via_query, 6, rng)
         .into_iter()
         .map(|s| s.at)
         .filter(|at| {

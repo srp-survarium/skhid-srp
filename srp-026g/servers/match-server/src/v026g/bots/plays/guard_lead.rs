@@ -266,8 +266,7 @@ impl Ctx<'_> {
         // as many.
         let ask = if face.is_some() { pick * 6 } else { pick * 2 };
         let found: Vec<Vec3> = self
-            .tactics
-            .spots(&query, self.now, ask, rng)
+            .spots(&query, ask, rng)
             .into_iter()
             .map(|spot| spot.at)
             .filter(|&at| self.friends_near(at, num("apart_m")) == 0)

@@ -324,6 +324,11 @@ fn spots_by(cx: &Ctx, at: Vec3, from: Vec3, try_: u32) -> std::sync::Arc<Vec<Vec
 /// the ring's high spots in sight of the cut point are often ledges no walk
 /// gets onto, and a bot sent there stood with no way.
 fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
+    // The lists are kept for the whole side: the cost of the teammates near a spot is put in the pick.
+    cx.by_crowd(fine_spots_by_try(cx, at, from))
+}
+
+fn fine_spots_by_try(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
     (0..3)
         .map(|try_| {
             spots_by(cx, at, from, try_)

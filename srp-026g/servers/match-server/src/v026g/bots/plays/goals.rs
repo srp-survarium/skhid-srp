@@ -260,6 +260,29 @@ impl Ctx<'_> {
         })
     }
 
+    /// The teammates round this bot, for the friend-crowding cost of a spot (`spacing.spot_crowd`); none with it off. The
+    /// team knows where its mates are (the HUD shows them).
+    pub fn crowd(&self) -> Option<crate::v026g::bots::tactics::Crowd> {
+        let rule = self.tuning.spacing.crowd_rule()?;
+        let mates = self.view.team(self.me.team).filter(|p| p.place != self.me.place).map(|p| p.feet).collect();
+        Some(crate::v026g::bots::tactics::Crowd { rule, mates })
+    }
+
+    /// [`Tactics::spots`] with the friend-crowding cost: the places the plays choose to hold, wait or flank from.
+    pub fn spots(&self, query: &crate::v026g::bots::tactics::SpotQuery, n: usize, rng: &mut Rng) -> Vec<crate::v026g::bots::tactics::Spot> {
+        self.tactics.spots_with(query, self.crowd().as_ref(), self.now, n, rng)
+    }
+
+    /// Of `spots` the plays pick from (best first), the ones with fewer teammates near first, the order within a count kept:
+    /// for the plays that take their spot from a list kept for the whole side (`Tactics::spots_kept`), where the cost cannot
+    /// be in the search. With `spacing.spot_crowd` off, as they were.
+    pub fn by_crowd(&self, mut spots: Vec<Vec3>) -> Vec<Vec3> {
+        if let Some(crowd) = self.crowd() {
+            spots.sort_by_key(|&at| crowd.near(at).saturating_sub(crowd.rule.free_mates));
+        }
+        spots
+    }
+
     /// Whether a teammate's claim lies within `apart_m` of `at`: a spot
     /// choice drops it. The bot's own claim does not count.
     pub fn spot_taken(&self, at: Vec3, apart_m: f32) -> bool {
@@ -666,6 +689,25 @@ mod tests {
         assert!(s.cx(0).known_place(5).is_none(), "9 s old: past the age");
         s.tuning.spacing.callouts = Callouts::SeenAndHeard;
         assert!(s.cx(0).known_place(5).is_some(), "today: any age");
+    }
+
+    /// `spacing.spot_crowd`: of the spots a kept list gives, the ones with fewer teammates near come first, the first teammate
+    /// near free, the order within a count kept; off, the list as it was.
+    #[test]
+    fn the_spots_with_fewer_teammates_near_come_first_and_off_the_list_is_as_it_was() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(14.0, 0.0, 24.0));
+        s.bot(2, 0, Vec3::new(60.0, 0.0, 10.0));
+        s.bot(3, 0, Vec3::new(61.0, 0.0, 11.0));
+        s.bot(4, 0, Vec3::new(62.0, 0.0, 10.0));
+        // Within 15 m: spot a has all three teammates near, b two (the third is 15.1 m off), c none.
+        let (a, b, c) = (Vec3::new(61.0, 0.0, 12.0), Vec3::new(47.0, 0.0, 12.0), Vec3::new(20.0, 0.0, 30.0));
+        s.tuning.spacing.spot_crowd = Some(crate::v026g::bots::tuning::SpotCrowd::default());
+        assert_eq!(s.cx(0).by_crowd(vec![a, b, c]), vec![c, b, a]);
+        // Two with the same count keep their order.
+        assert_eq!(s.cx(0).by_crowd(vec![b, c, Vec3::new(21.0, 0.0, 30.0)]), vec![c, Vec3::new(21.0, 0.0, 30.0), b]);
+        s.tuning.spacing.spot_crowd = None;
+        assert_eq!(s.cx(0).by_crowd(vec![a, b, c]), vec![a, b, c]);
     }
 
     #[test]

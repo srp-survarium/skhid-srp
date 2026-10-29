@@ -24,7 +24,7 @@ use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
-use super::tuning::CoverRule;
+use super::tuning::{CoverRule, CrowdRule};
 use super::view::still_eye;
 
 /// A spawn area: this far round a side's spawn points, metres (GUESS from
@@ -229,6 +229,13 @@ pub struct CoverTally {
     /// The share (thousandths) that reaches the spot given, summed over `spot_weighed`.
     pub spot_share_weighed_milli: std::sync::atomic::AtomicU64,
     spot_events: std::sync::Mutex<Vec<SpotEvent>>,
+    /// Searches with a friend-crowding cost ([`Tactics::spots_with`]) that found a spot, the teammates near the spot given
+    /// and near the best spot by the base score (what the order without the cost would start from), summed, and the
+    /// searches whose first spot is not the base top.
+    pub crowd_queries: std::sync::atomic::AtomicU64,
+    pub crowd_near_chosen: std::sync::atomic::AtomicU64,
+    pub crowd_near_base_top: std::sync::atomic::AtomicU64,
+    pub crowd_reordered: std::sync::atomic::AtomicU64,
     /// All of them, drained or not.
     pub events_seen: std::sync::atomic::AtomicU64,
     /// Those kept for the logs, drained or not ([`COVER_EVENTS`] at most).
@@ -444,6 +451,26 @@ impl SpotQuery {
             side: None,
             samples: 48,
         }
+    }
+}
+
+/// The teammates round a bot, for the friend-crowding cost of a spot ([`Tactics::spots_with`]): where they are (the team knows
+/// it: the HUD) and what the bot's tuning charges for them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Crowd {
+    pub rule: CrowdRule,
+    pub mates: Vec<Vec3>,
+}
+
+impl Crowd {
+    /// The teammates near `at` (the rule's radius, ground distance).
+    pub fn near(&self, at: Vec3) -> u32 {
+        self.mates.iter().filter(|m| m.distance_xz(at) <= self.rule.radius_m).count() as u32
+    }
+
+    /// What `at` costs: each teammate near it past the free ones.
+    pub fn cost(&self, at: Vec3) -> f32 {
+        self.rule.cost * self.near(at).saturating_sub(self.rule.free_mates) as f32
     }
 }
 
@@ -1998,10 +2025,19 @@ impl Tactics {
 
     /// The best spots for `query`, best first, at most `n`.
     pub fn spots(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
+        self.spots_with(query, None, time, n, rng)
+    }
+
+    /// [`Self::spots`] for a bot with teammates round it: a spot costs [`Crowd::cost`] for the teammates near it, so of two
+    /// spots that are as good to hold the one with fewer of its own side round it comes first (mutual support stays: the
+    /// first teammates near are free). The cost is in the order the rays are cast in, so it costs no ray. Callers get the
+    /// crowd from `Ctx::crowd`.
+    pub fn spots_with(&self, query: &SpotQuery, crowd: Option<&Crowd>, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
         #[cfg(test)]
         super::bench_work::add(super::bench_work::Work::Spots, 1);
         let grid = &self.world.grid;
         let mut found: Vec<Spot> = Vec::new();
+        let mut crowd_costs: Vec<(NodeId, f32)> = Vec::new();
         for _ in 0..query.samples {
             let angle = rng.range(0.0, std::f32::consts::TAU);
             let r = rng.range(query.min_m, query.max_m);
@@ -2035,6 +2071,19 @@ impl Tactics {
                 let rise = (at.y - query.around.y).min(HIGH_CREDIT_M);
                 let score = query.prefer_high * rise - d * 0.01;
                 found.push(Spot { at, node, score });
+                if let Some(crowd) = crowd {
+                    // Kept apart from the score: the search below orders by it, the counters compare with the order without.
+                    crowd_costs.push((node, crowd.cost(at)));
+                }
+            }
+        }
+        // The friend-crowding cost: the order without it gives the top the counters compare with.
+        let base_top = found.iter().max_by(|a, b| a.score.total_cmp(&b.score)).copied();
+        if !crowd_costs.is_empty() {
+            for spot in &mut found {
+                if let Some((_, cost)) = crowd_costs.iter().find(|(node, _)| *node == spot.node) {
+                    spot.score -= cost;
+                }
             }
         }
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
@@ -2090,6 +2139,14 @@ impl Tactics {
                 }
             }
             out.push(spot);
+        }
+        if let (Some(crowd), Some(chosen), Some(top)) = (crowd, out.first(), base_top) {
+            use std::sync::atomic::Ordering::Relaxed;
+            let tally = &self.cover_tally;
+            tally.crowd_queries.fetch_add(1, Relaxed);
+            tally.crowd_near_chosen.fetch_add(u64::from(crowd.near(chosen.at)), Relaxed);
+            tally.crowd_near_base_top.fetch_add(u64::from(crowd.near(top.at)), Relaxed);
+            tally.crowd_reordered.fetch_add(u64::from(chosen.node != top.node), Relaxed);
         }
         if cost.is_some() && !out.is_empty() {
             use std::sync::atomic::Ordering::Relaxed;
@@ -2961,6 +3018,41 @@ pub(super) mod tests {
             assert!((10.0..=25.0).contains(&d));
             // Behind the wall from the enemy's side: x < 40.
             assert!(spot.at.x < 40.0, "{spot:?}");
+        }
+    }
+
+    /// The friend-crowding cost of a spot (A151 step 2a): of the spots a search finds, the ones with teammates near them come
+    /// later, past the free ones; with one teammate near (the free one) nothing changes, and with no cost it is the old order.
+    #[test]
+    fn spots_with_a_crowd_put_the_ones_with_fewer_teammates_near_first_and_the_first_teammate_is_free() {
+        use crate::v026g::bots::tuning::CrowdRule;
+        let tactics = Tactics::new(field(), 1.0);
+        let query = SpotQuery { samples: 120, ..SpotQuery::ring(Vec3::new(20.0, 0.0, 20.0), 2.0, 14.0) };
+        let rule = CrowdRule { radius_m: 6.0, free_mates: 1, cost: 1.0 };
+        // Three teammates round one spot of the ring: the spots near them cost, the free first one aside.
+        let mates = |n: usize| -> Vec<Vec3> { (0..n).map(|i| Vec3::new(26.0 + i as f32 * 0.5, 0.0, 20.0)).collect() };
+        let near = |crowd: &Crowd, spot: &Spot| crowd.near(spot.at);
+        let (mut fewer, mut worse) = (0, 0);
+        for seed in 0..24 {
+            let plain = tactics.spots(&query, 0, 1, &mut Rng::new(seed));
+            let crowd = Crowd { rule, mates: mates(3) };
+            let crowded = tactics.spots_with(&query, Some(&crowd), 0, 1, &mut Rng::new(seed));
+            let (Some(plain), Some(crowded)) = (plain.first(), crowded.first()) else { continue };
+            if near(&crowd, crowded) < near(&crowd, plain) {
+                fewer += 1;
+            }
+            if near(&crowd, crowded) > near(&crowd, plain) {
+                worse += 1;
+            }
+        }
+        assert_eq!(worse, 0, "the crowded search never starts from a spot with more teammates near");
+        assert!(fewer > 0, "and in some it starts from one with fewer");
+        // One teammate near is free: nothing changes.
+        let one = Crowd { rule, mates: mates(1) };
+        for seed in 0..8 {
+            let plain = tactics.spots(&query, 0, 5, &mut Rng::new(seed));
+            let crowded = tactics.spots_with(&query, Some(&one), 0, 5, &mut Rng::new(seed));
+            assert_eq!(plain, crowded, "seed {seed}: the first teammate is free");
         }
     }
 

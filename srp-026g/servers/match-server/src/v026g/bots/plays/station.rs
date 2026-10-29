@@ -90,7 +90,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             cx.num(PlayKind::Station, "spot_max_m"),
         )
     };
-    let spots = cx.tactics.spots(&query, cx.now, 3, rng);
+    let spots = cx.spots(&query, 3, rng);
     let spot = if spots.is_empty() {
         station
     } else {

@@ -183,7 +183,7 @@ fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
 /// `moved_min_m` from where it stands.
 fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
     let moved = cx.num(PlayKind::HoldExit, "moved_min_m");
-    spots_by(cx, exit)
+    let fine: Vec<Vec3> = spots_by(cx, exit)
         .iter()
         .copied()
         .filter(|at| {
@@ -193,7 +193,9 @@ fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
                 && cx.can_go(*at)
                 && !cx.exposed_climb(*at, exit)
         })
-        .collect()
+        .collect();
+    // The spots of the list are kept for the whole side: the cost of the teammates near a spot is put in here.
+    cx.by_crowd(fine)
 }
 
 /// A spot to hold `exit` from: one of the best `pick_of` fine ones.

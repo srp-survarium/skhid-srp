@@ -241,11 +241,13 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
 fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     let others = halves(cx, choke);
-    spots_by(cx, choke)
+    let fine: Vec<Vec3> = spots_by(cx, choke)
         .iter()
         .copied()
         .filter(|at| is_fine(cx, choke, apart, &others, *at))
-        .collect()
+        .collect();
+    // The list is kept for the whole side: the cost of the teammates near a spot is put in the pick.
+    cx.by_crowd(fine)
 }
 
 /// Whether [`fine_spots`] has one: it stops at the first, where the list

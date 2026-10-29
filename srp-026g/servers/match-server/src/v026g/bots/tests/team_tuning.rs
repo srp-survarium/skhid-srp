@@ -406,6 +406,12 @@ fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
     team1.spacing.callouts = crate::v026g::bots::tuning::Callouts::SeenOnly { steer_age_ms: 8_000 };
     let (bots, _) = after_one_poll(team0, team1);
     assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).spacing.buddy), [true, false]);
+    // The crowd cost is a team's too (A151 step 2a): team 1 pays for teammates near a spot, team 0 does not.
+    let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+    team0.spacing.spot_crowd = None;
+    team1.spacing.spot_crowd = Some(crate::v026g::bots::tuning::SpotCrowd::default());
+    let (bots, _) = after_one_poll(team0, team1);
+    assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).spacing.crowd_rule().is_some()), [false, true]);
     assert_eq!(
         [0u8, 1].map(|team| bots.tuning_of(team).spacing.callouts.steer_age_ms()),
         [None, Some(8_000)]
