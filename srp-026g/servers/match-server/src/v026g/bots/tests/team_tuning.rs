@@ -140,3 +140,24 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
     assert!(hud_of_team_1(true, false), "team 1's cheat is off: its HUD shows the battery");
     assert!(!hud_of_team_1(false, true), "team 1's cheat is on: no HUD, whatever team 0's is");
 }
+
+/// The cover rule (`cover.pierce`) is a team's: team 1 tests cover as bullets (a crate is no cover from them) when team 1's
+/// tuning says so, whatever team 0's is, and the other way round. The rule reaches the plays and the reflex through
+/// `Bots::think`'s one `tuning_of(team)` (`Due::tuning`, `Situation::cover`), the same place the probes above exercise; no
+/// play of the soak field asks a cover question, so the rule is read where a think takes it from.
+#[test]
+fn the_cover_rule_is_the_rule_of_the_team_that_asks() {
+    let rules = |team0_pierce: bool, team1_pierce: bool| {
+        let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        if !team0_pierce {
+            team0.cover.pierce = None;
+        }
+        if !team1_pierce {
+            team1.cover.pierce = None;
+        }
+        let (bots, _) = after_one_poll(team0, team1);
+        [0u8, 1].map(|team| bots.tuning_of(team).cover.rule().is_some())
+    };
+    assert_eq!(rules(false, true), [false, true], "team 1 pierce-aware, team 0 solid");
+    assert_eq!(rules(true, false), [true, false], "team 1 solid, team 0 pierce-aware");
+}
