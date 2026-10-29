@@ -115,8 +115,14 @@ Two facts about the model that a reader of that file needs: the trap counters ex
   for each team's top bot (the bots' own rule, `plays::pair_up`: kills + 2 x streak at least 8 and 3 over the team's next), the stand-in
   human (`SRP_BENCH_HUMAN`) and the other bots: deaths a minute alive (live top 1.19, others 0.81), the share of deaths with 3 or more
   distinct enemies within 30 m in the 10 s before (live top 41 to 45 %), enemies within 30 m at the death, seconds from a life's
-  start to the first enemy within 30 m (live median 14 to 15 s for a top's lives), and a `crowded death:` note for a top's or the
-  human's crowded death: the enemies near with the play each ran and how each one's track of the dead came to it
-  (Seen, Heard, Told, Hud, Cheat(Radar), Cheat(Thief), none). Distances are straight lines.
-- **Assists** are counted for several windows at once (`owner-test scoreboard:` prints the assists a kill for 1, 2, 3, 5, 10 and 30 s):
-  the window that gives the live 0.19 a kill is the one to use.
+  start to the first enemy within 30 m (live median 14 to 15 s for a top's lives), and the **gangup** counters (`an-gang-up.md` §5) for the
+  stand-in (human or camper) and each top: the plays aimed at him a tick and the share of his time with 3+ enemies near; per arrival
+  (an enemy bot's first tick within 30 m, ground distance) its play, what it was aimed at (him, an exit, an objective, another place,
+  none), the source of its track of him and which sources it held in the 10 s before (exact: the last tick each was the track's);
+  PairUp arrivals per top death (guard <= 1); mates and enemies within 30 m of a living bot (live 1.65 and 0.65); the distinct enemies
+  who hit the dead in the 5 s before the death (does the reflex's target choice need a dog-pile term?).
+- **Assists are UNCALIBRATED.** The rule is the original server's: srp's server relays the event and the client exe has no rule to read
+  (checked 2026-10-29), so none is PROVEN. The bench's guess (a teammate's hit within 10 s) gives 1.0 a kill, and 0.37 even at 1 s, against the live
+  0.19, so no window fits: it is probably a share of the damage. The scoreboard prints `assists ... (UNCALIBRATED)`, a `score (without
+  assists)` beside the score, and the assists a kill for 1, 2, 3, 5, 10 and 30 s. A margin uses kills and objective points (`h2h-compare.py`
+  does), never the assists. To calibrate: find the original server's rule (recordings with per-hit damage and the players' assist counts).

@@ -9,7 +9,8 @@
 //!   carrier delivers alone, the client splits the bring by carry share); 20 put in (the carrier at the container, `put_in_log`);
 //!   10 enemy carrier killed (`carrier_kills`). Not counted: headshot (15), steal (17), found (19): the stand-in has no part for
 //!   the first, and the other two are not in its log as counts.
-//! - **assists** (GUESS: the client's rule is not in the notes): a non-killer teammate of the killer who hit the victim within
+//! - **assists (UNCALIBRATED):** the rule is the original server's, not the client's: srp's server only relays the event
+//!   (`snapshot::event::ASSIST`) and the client exe has no rule to read (checked 2026-10-29), so none is PROVEN. This one is a GUESS: a non-killer teammate of the killer who hit the victim within
 //!   [`ASSIST_MS`] before the kill. The live figure is 0.19 assists a kill (`bench-decision-metrics.md` §c): the share is printed beside
 //!   it and the window is the thing to move if it is far off.
 //! - **score:** `snapshot::score` with `static_info::score_weights(mode)`, the client's own sum of the events (the table is not
@@ -188,6 +189,9 @@ impl Topic for Scoreboard {
             set(CARRIER_KILL, carrier_kills);
             set(PUT_IN, put_in);
             let score = snapshot::score(&stats, &weights);
+            // The same score with no assists, for a margin that does not rest on the uncalibrated rule.
+            stats.events[ASSIST][0] = 0;
+            let score_without_assists = snapshot::score(&stats, &weights);
             let points = |event: usize, count: u32| {
                 let hundredths = if static_info_hundredths(event) { 0.01 } else { 1.0 };
                 f64::from(count) * f64::from(weights[event]) * hundredths
@@ -216,6 +220,7 @@ impl Topic for Scoreboard {
                 delivered,
                 carrier_kill: points(CARRIER_KILL, carrier_kills),
                 score,
+                score_without_assists,
             });
         }
         let json = serde_json::json!({ "scoreboard": entries.iter().map(Entry::json).collect::<Vec<_>>() });
@@ -225,11 +230,16 @@ impl Topic for Scoreboard {
         let teams: Vec<String> = (0..2u8)
             .map(|team| {
                 let mine = entries.iter().filter(|e| e.team == team);
-                format!("team {team} score {}", mine.map(|e| e.score).sum::<u32>())
+                let mine: Vec<&Entry> = mine.collect();
+                format!(
+                    "team {team} score {} (without assists {})",
+                    mine.iter().map(|e| e.score).sum::<u32>(),
+                    mine.iter().map(|e| e.score_without_assists).sum::<u32>()
+                )
             })
             .collect();
         lines.push(format!(
-            "owner-test scoreboard: {}; assists {assists} of {kills} kills = {:.2} a kill (live 0.19; the rule is a GUESS: a teammate's hit within {} s); a kill's assists by window (s): {:?}",
+            "owner-test scoreboard: {}; assists UNCALIBRATED {assists} of {kills} kills = {:.2} a kill (live 0.19; the rule is a GUESS: a teammate's hit within {} s, not used in a margin); a kill's assists by window (s): {:?}",
             teams.join(", "),
             if kills > 0 { f64::from(assists) / f64::from(kills) } else { 0.0 },
             ASSIST_MS / 1000,
@@ -258,13 +268,14 @@ struct Entry {
     delivered: f64,
     carrier_kill: f64,
     score: u32,
+    score_without_assists: u32,
 }
 
 impl Entry {
     fn line(&self, context: &str) -> String {
         let events: Vec<String> = self.events.iter().map(|(id, count)| format!("{id}: {count}")).collect();
         format!(
-            "scoreboard: {context} | place {} team {} kind {} | kills {} deaths {} assists {} streak {} | events {{{}}} | objective {{delivered: {:.1}, carrier_kill: {:.1}}} | score {}",
+            "scoreboard: {context} | place {} team {} kind {} | kills {} deaths {} assists {} (UNCALIBRATED) streak {} | events {{{}}} | objective {{delivered: {:.1}, carrier_kill: {:.1}}} | score {} (without assists {})",
             self.place,
             self.team,
             self.kind.name(),
@@ -275,7 +286,8 @@ impl Entry {
             events.join(", "),
             self.delivered,
             self.carrier_kill,
-            self.score
+            self.score,
+            self.score_without_assists
         )
     }
 
@@ -291,6 +303,7 @@ impl Entry {
             "events": self.events,
             "objective": { "delivered": self.delivered, "carrier_kill": self.carrier_kill },
             "score": self.score,
+            "score_without_assists": self.score_without_assists,
         })
     }
 }
