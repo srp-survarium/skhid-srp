@@ -98,3 +98,20 @@ brightness as alpha (their baked drop shadow drops out), for the page to
 tint in its ink with CSS masks. The build fails if an item of those
 categories has no lobby icon, a modification's icon is an empty cell, or a
 filter frame does not hold exactly one bitmap.
+
+## Equipment
+
+`/wiki/equipment` is the web server's (`servers/web-server/src/equipment.rs`),
+like the modifiers page: every armour piece from the server's own game data
+(`crates/survarium/src/v026g/armour.rs`, read at srp's start) with its icon,
+protection per body part (Armour and Isolation when a part's physical types
+and its anomaly types each share one value, as in every config so far; else a
+column per type), the slots its model takes, an oxygen tank's time and gas
+filter (`data.amount_time_sec`, `influences`), level, matchmaking level when it
+differs, faction (`factions_dict`), and the modifiers page's "Can roll" /
+"Comes with" (`modifiers::item_lists`). What it shows and skips follows
+`docs/notes/armour-params.md`. A helmet "flies off" when the headwear edit list
+(`scripts/content-edit/headwear-1.json`, compiled in) rebinds its model.
+`equipment.js` (copied by `build.py`) filters by slot and faction (both kept
+in the address: `?slot=helmet&faction=3`), level and name, sorts, and groups
+by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.

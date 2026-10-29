@@ -1,14 +1,16 @@
 //! The wiki: its index and a weapons catalogue generated from the same released
 //! dataset and images as the damage calculator. No separately maintained stats.
-//! The modifiers ([`crate::modifiers`]) come from the server's game data.
+//! The modifiers ([`crate::modifiers`]) and the equipment
+//! ([`crate::equipment`]) come from the server's game data.
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
 //! sections too, each a page of its own look.
 
-use crate::{ContentType, Lang, Response, damage, escape, maps, modifiers};
+use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
 pub(crate) const MODIFIERS: &str = "/wiki/modifiers";
+pub(crate) const EQUIPMENT: &str = "/wiki/equipment";
 const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
 const STYLE: &str = include_str!("../wiki/style.css");
 
@@ -35,6 +37,7 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
     (path == "/wiki/weapons.js")
         .then_some(("text/javascript; charset=utf-8", SCRIPT))
         .or_else(|| modifiers::file(path))
+        .or_else(|| equipment::file(path))
 }
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
@@ -46,6 +49,8 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
             Lang::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
+    } else if path == EQUIPMENT {
+        (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
     } else if path == MODIFIERS {
         (
             lang.tr("Modifiers", "Модифікатори"),
@@ -55,7 +60,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -63,6 +68,13 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     &lang.tr("Weapons", "Зброя"),
                     &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
                         "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                ),
+                section(
+                    lang,
+                    EQUIPMENT,
+                    &lang.tr("Equipment", "Спорядження"),
+                    &lang.tr("Every armour piece: protection, weight, built-in bonuses and what it can roll.",
+                        "Усе спорядження: захист, вага, вбудовані властивості й модифікатори."),
                 ),
                 section(
                     lang,

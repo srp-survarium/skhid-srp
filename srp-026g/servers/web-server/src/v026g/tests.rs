@@ -1038,6 +1038,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki",
         "/wiki/weapons",
         "/wiki/modifiers",
+        "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
     ] {
@@ -1062,6 +1063,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
     for section in [
         "/wiki/weapons",
         "/wiki/modifiers",
+        "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
     ] {
