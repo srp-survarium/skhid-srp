@@ -141,6 +141,7 @@ macro_rules! packages {
 
 packages! {
     sample,
+    zones,
 }
 
 /// What is set up by [`init`], once for the process.
