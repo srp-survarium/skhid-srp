@@ -156,10 +156,11 @@ pub struct AvoidTuning {
     /// A bot steps out of the blast of every grenade it knows of (below). Off: no bot knows of one, the
     /// list is not read.
     pub grenade_avoid: bool,
-    /// The server's live list reads a server bot's pockets from its profile, as a human's: a bot's throw key
-    /// lists a grenade only if its kit in use holds one with units left (the client throws nothing otherwise).
-    /// Off: every throw key of a bot is listed as a frag, so mates stepped out of blasts that never came
-    /// (155 of 204 bot throws in the owner's matches of 2026-10-28 had empty pockets).
+    /// The server's live list always reads a server bot's pockets from its profile, as a human's; this decides whether a team
+    /// dodges a grenade the list holds from a bot's throw key with its pockets read and empty (the client throws nothing).
+    /// Off: the team dodges it as a frag, so mates stepped out of blasts that never came (155 of 204 bot throws in the owner's
+    /// matches of 2026-10-28 had empty pockets). A key of a bot whose pockets were not read (the bench's) may throw a frag:
+    /// every team dodges it.
     pub bot_pockets: bool,
     /// The server's live list takes a player's pockets from the kit a world says he is in (`players::Supplies::kit`),
     /// not always the profile's first kit: a throw from kit 2 or 3 is then listed. Off: kit 1 whatever a world says,

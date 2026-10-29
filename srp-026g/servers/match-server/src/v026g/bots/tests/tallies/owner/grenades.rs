@@ -1005,7 +1005,7 @@ impl GrenadeCounts {
         if let Some(listed) = self.listed {
             let live = &self.live_blasts;
             text.push_str(&format!(
-                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}, inside the radius at the launch [thrower, mates, enemies] {:?}",
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets known {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}, inside the radius at the launch [thrower, mates, enemies] {:?}",
                 listed.frag,
                 listed.smoke,
                 listed.no_pockets,

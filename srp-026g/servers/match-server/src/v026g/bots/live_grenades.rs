@@ -7,9 +7,10 @@
 //!   key whose slot holds one ([`Pockets`], from the place's profile) goes down: the thrower, its team and
 //!   the press time are known. The fuse (the grenade's `ttl_ms`) runs from the press, whichever key began the throw (PROVEN,
 //!   `fact-grenade-arc.md`). A smoke grenade (`rdg-m`) is no danger and is left out, counted apart. A server
-//!   bot's pockets are read from its profile like a human's (`AvoidTuning::bot_pockets`), so a throw key of a
-//!   bot with no grenade left lists nothing, as the client throws nothing. The pockets are those of the kit in
-//!   use ([`KitPockets`], the worlds say which).
+//!   bot's pockets are read from its profile like a human's, so a throw key of a bot with no grenade left throws
+//!   nothing, as the client's: the list keeps the press as an assumed grenade ([`Whose::Assumed`]) that a team with
+//!   `AvoidTuning::bot_pockets` on does not dodge; a bot whose pockets were not read is [`Whose::Unread`], dodged by
+//!   every team. The pockets are those of the kit in use ([`KitPockets`], the worlds say which).
 //! - **The launch.** [`LAUNCH_MS`] after the press (LIKELY) the grenade leaves the hand along the thrower's
 //!   view: the arc model of `arc.rs` over the map's bullet mesh gives the first contact and where it comes to
 //!   rest ([`arc::Landing`]), once, from the body's reckoning at that time. A thrower that is dead by then
@@ -56,53 +57,35 @@ pub struct LiveGrenade {
     pub phase: Phase,
     /// Its numbers (fuse, blast), from the game data: the bots' for a bot's, else its pocket's.
     pub grenade: Grenade,
-    /// How the list knows it is a grenade.
-    pub basis: Basis,
-    /// Whose it is (the counts of the avoidance split by it).
+    /// Whose it is, and so how the list knows it is a grenade (the counts of the avoidance split by it).
     pub whose: Whose,
 }
 
-/// Why a grenade is on the list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Basis {
-    /// The thrower's pockets (of the kit in use) held a grenade the key throws, as the client's would.
-    Pockets,
-    /// A server bot pressed the throw key with no grenade left (or its pockets unknown): the client throws nothing, the
-    /// list keeps the entry as it did before the bots' pockets were read (`AvoidTuning::bot_pockets` off). A team with
-    /// the switch on skips these in its avoidance (`grenade_threat`).
-    AssumedFromBotKey,
-}
-
-/// Whose grenade it is, for the counts of the avoidance.
+/// Whose a listed grenade is, which is also how the list knows it is one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Whose {
-    /// A human's.
+    /// A human's, from his pockets: the kit in use held a grenade the key throws, as the client's would.
     Human,
-    /// A server bot's, its pockets holding it.
+    /// A server bot's, its pockets (read from its profile) holding it.
     Bot,
-    /// A server bot's key press with no grenade behind it ([`Basis::AssumedFromBotKey`]).
+    /// A server bot's throw key whose pockets were read and held no grenade: the client throws nothing, the list keeps
+    /// the entry as it did before the bots' pockets were read (`AvoidTuning::bot_pockets` off). A team with the switch on
+    /// skips these in its avoidance (`grenade_threat`).
     Assumed,
+    /// A server bot's throw key whose pockets are not known (a profile with no kit, or the bench until it calls
+    /// `Bots::set_throws`): it may be a frag, so every team dodges it, and it is counted apart.
+    Unread,
 }
 
 impl Whose {
-    pub const ALL: [Self; 3] = [Self::Human, Self::Bot, Self::Assumed];
+    pub const ALL: [Self; 4] = [Self::Human, Self::Bot, Self::Assumed, Self::Unread];
 
     pub const fn index(self) -> usize {
         match self {
             Self::Human => 0,
             Self::Bot => 1,
             Self::Assumed => 2,
-        }
-    }
-}
-
-impl Whose {
-    /// Whose a grenade is that is listed on `basis` from a thrower that is a server bot or not.
-    pub fn of(basis: Basis, thrower_is_bot: bool) -> Self {
-        match (basis, thrower_is_bot) {
-            (Basis::AssumedFromBotKey, _) => Self::Assumed,
-            (Basis::Pockets, true) => Self::Bot,
-            (Basis::Pockets, false) => Self::Human,
+            Self::Unread => 3,
         }
     }
 }
@@ -158,17 +141,22 @@ pub struct Pocket {
     /// The slot's stack at a spawn.
     pub full: u16,
     pub left: u16,
-    /// Units of the item in storage behind the slot: a spawn fills the slot from it, `min(full, storage)`, and a
-    /// death puts what is left back (`inventory::setup_from_profile` 0x2FCB70 and `unload_to_profile` 0x2FD2D0,
-    /// PROVEN). A bot's kit has [`BOT_POCKET_STORE`](survarium::v026g::loadouts::BOT_POCKET_STORE) of it, so a life
-    /// starts with the stack; with the old kit (storage at the count) the stack is for the match.
-    pub store: u32,
+    pub store: Store,
     pub grenade: Grenade,
 }
 
-/// The storage of a pocket built without the profile's own (tests, and a kit with a store for every life): enough
-/// for any number of lives.
-const AMPLE_STORE: u32 = 1_000_000;
+/// The item's storage behind a pocket's slot: a spawn fills the slot from it, `min(full, storage)`, and a death puts
+/// what is left back (`inventory::setup_from_profile` 0x2FCB70 and `unload_to_profile` 0x2FD2D0, PROVEN). A bot's kit
+/// has [`BOT_POCKET_STORE`](survarium::v026g::loadouts::BOT_POCKET_STORE) of it, so a life starts with the stack; with
+/// the old kit (storage at the count) the stack is for the match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Store {
+    /// The storage is not read (tests, and a list that does not apply the storage rule): every life starts with the
+    /// whole stack, as the list did before the rule.
+    Unread,
+    /// Units in the storage behind the slot.
+    Units(u32),
+}
 
 /// A player's pockets, in slot order: what the throw keys throw (`loadouts::POCKET_SLOTS`,
 /// `QUICK_USE_ORDER`, PROVEN): the throw key the first pocket that holds a grenade with units left, quick use
@@ -189,7 +177,7 @@ impl Pockets {
                     item,
                     full: units,
                     left: units,
-                    store: AMPLE_STORE,
+                    store: Store::Unread,
                     grenade: *Grenade::bots(),
                 })
             }),
@@ -202,7 +190,7 @@ impl Pockets {
         for (slot, stored) in self.slots.iter_mut().zip(stored) {
             if let (Some(pocket), Some(stored)) = (slot.as_mut(), stored) {
                 pocket.left = u32::from(pocket.full).min(stored) as u16;
-                pocket.store = stored - u32::from(pocket.left);
+                pocket.store = Store::Units(stored - u32::from(pocket.left));
             }
         }
         self
@@ -223,18 +211,26 @@ impl Pockets {
     /// does at a death and a spawn.
     pub fn refill(&mut self) {
         for pocket in self.slots.iter_mut().flatten() {
-            let storage = pocket.store + u32::from(pocket.left);
-            pocket.left = u32::from(pocket.full).min(storage) as u16;
-            pocket.store = storage - u32::from(pocket.left);
+            match pocket.store {
+                Store::Unread => pocket.left = pocket.full,
+                Store::Units(units) => {
+                    let storage = units + u32::from(pocket.left);
+                    pocket.left = u32::from(pocket.full).min(storage) as u16;
+                    pocket.store = Store::Units(storage - u32::from(pocket.left));
+                }
+            }
         }
     }
 
-    /// The fragmentation grenades the pockets hold now (units left in the slots).
+    /// The fragmentation grenades the throw key throws from now: the units of the pockets that hold a grenade, in
+    /// order, up to the first that holds a smoke (the key throws from the first pocket with a grenade, 0x2FE8B0, so a
+    /// frag behind a smoke is out of its reach until the smoke is gone).
     pub fn frags(&self) -> u16 {
         self.slots
             .iter()
             .flatten()
-            .filter(|pocket| pocket.item == Pocketed::Frag)
+            .filter(|pocket| pocket.left > 0 && pocket.item.is_grenade())
+            .take_while(|pocket| pocket.item == Pocketed::Frag)
             .map(|pocket| pocket.left)
             .sum()
     }
@@ -253,6 +249,18 @@ impl Pockets {
         self.slots[i]
             .is_some_and(|pocket| pocket.item.is_grenade())
             .then_some(i)
+    }
+
+    /// Whether the two rules for which pockets the quick-use keys number pick different pockets for `pressed` (a quick-use key):
+    /// the units left now (what the list goes by) and the pockets the kit filled at the spawn (what the heal count goes by,
+    /// [`quick_use_order`]). Counted, until the client steps P6-1..P6-3 settle which is the client's.
+    fn quick_rules_differ(&self, pressed: u32) -> bool {
+        let Some(n) = key::QUICK.iter().position(|&bit| pressed & bit != 0) else {
+            return false;
+        };
+        let now = quick_use_order(|i| self.slots[i].is_some_and(|pocket| pocket.left > 0)).nth(n);
+        let at_spawn = quick_use_order(|i| self.slots[i].is_some()).nth(n);
+        now != at_spawn
     }
 
     /// The grenade the keys `pressed` (just gone down) throw, if any: one unit is taken.
@@ -324,6 +332,11 @@ impl KitPockets {
         self.in_use
     }
 
+    /// [`Pockets::quick_rules_differ`] on the kit in use.
+    pub fn quick_rules_differ(&self, pressed: u32) -> bool {
+        self.kits[self.in_use.0].quick_rules_differ(pressed)
+    }
+
     /// [`Pockets::throw_grenade`] on the kit in use.
     pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
         self.kits[self.in_use.0].throw_grenade(pressed)
@@ -340,8 +353,9 @@ impl KitPockets {
     /// 13..=18) what each pocket holds, a frag (a grenade whose blast hurts, with its own fuse and radius: the game
     /// data's `rgd-5`), a smoke (another grenade item, `rdg-m`) or something else the quick-use keys count, the units
     /// of the slot, and the item's storage behind it (a stack's `condition_or_stack`: what a spawn fills the slot from,
-    /// PROVEN, `inventory::setup_from_profile`). `all_kits` off reads the profile's first kit only. `None` for a
-    /// profile with no kit.
+    /// PROVEN, `inventory::setup_from_profile`). `all_kits` (`AvoidTuning::kit_in_use`) brings the storage rule
+    /// with it: off, the profile's first kit only and every life starts with the whole stack, as the list did before the
+    /// rule; on, every kit and the stack of a life from the storage. `None` for a profile with no kit.
     pub fn of_profile(profile: &MatchProfile, all_kits: bool) -> Option<Self> {
         let kits = ProfilePockets::of_profile(profile, all_kits)?
             .kits()
@@ -357,7 +371,7 @@ impl KitPockets {
                     Some((held, pocket.units))
                 });
                 let grenades = kit.map(|pocket| Grenade::named(pocket?.name).copied());
-                let stored = kit.map(|pocket| pocket?.stored);
+                let stored = kit.map(|pocket| pocket?.stored.filter(|_| all_kits));
                 Pockets::new(slots).with_grenades(grenades).with_storage(stored)
             })
             .collect();
@@ -375,14 +389,30 @@ impl From<Pockets> for KitPockets {
     }
 }
 
+/// Who a place is: a human at a client, or one of the server's own bots (`MatchPlayer::driven`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Player {
+    Human,
+    Bot,
+}
+
+impl Player {
+    pub fn of(driven: bool) -> Self {
+        if driven { Self::Bot } else { Self::Human }
+    }
+}
+
 /// What the tracker knows of a place's throw keys, decided once where the profile is read (`game/driven.rs`):
 /// no flag changes what a missing value means.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum Throws {
-    /// The pockets of every kit: a key lists a grenade only if the kit in use holds one.
-    Pockets(KitPockets),
+    /// A human's pockets of every kit: a key lists a grenade only if the kit in use holds one.
+    Human(KitPockets),
+    /// A server bot's pockets of every kit: its throw key lists a grenade if the kit holds one, else an assumed one
+    /// ([`Whose::Assumed`]).
+    Bot(KitPockets),
     /// A server bot whose profile has no kit, or whose pockets were not read (the bench's, until it calls
-    /// `set_throws`): its throw key is taken for a frag ([`Basis::AssumedFromBotKey`]), as before the pockets were read.
+    /// `set_throws`): its throw key is taken for a frag ([`Whose::Unread`]), as before the pockets were read.
     GrenadeKeyIsFrag,
     /// A human whose profile did not read (or a late joiner): nothing is listed, and the throw keys are counted.
     #[default]
@@ -390,13 +420,26 @@ pub enum Throws {
 }
 
 impl Throws {
-    /// The fragmentation grenades the place holds now in the kit in use, where its pockets are known; none where they are
-    /// not (a bot the bench never gave pockets, a human unread): the grenade logic then goes by its own count, as before.
-    pub fn frags_left(&self) -> Option<u16> {
+    /// The pockets, where they are known.
+    pub fn pockets(&self) -> Option<&KitPockets> {
         match self {
-            Self::Pockets(pockets) => Some(pockets.frags()),
+            Self::Human(pockets) | Self::Bot(pockets) => Some(pockets),
             Self::GrenadeKeyIsFrag | Self::Unknown => None,
         }
+    }
+
+    pub fn pockets_mut(&mut self) -> Option<&mut KitPockets> {
+        match self {
+            Self::Human(pockets) | Self::Bot(pockets) => Some(pockets),
+            Self::GrenadeKeyIsFrag | Self::Unknown => None,
+        }
+    }
+
+    /// The fragmentation grenades the place can throw now with its throw key in the kit in use, where its pockets are
+    /// known ([`Pockets::frags`]); none where they are not (a bot the bench never gave pockets, a human unread): the
+    /// grenade logic then goes by its own count, as before.
+    pub fn frags_left(&self) -> Option<u16> {
+        self.pockets().map(KitPockets::frags)
     }
 
     /// What a place's throw keys throw, decided from its profile with [`KitPockets::of_profile`]: the one reader of the live
@@ -404,17 +447,21 @@ impl Throws {
     /// kit in use is the one a world names (`Bots::kit_in_use`, from `players::Supplies::kit`) when `all_kits` is on
     /// (`AvoidTuning::kit_in_use`); with it off only the profile's first kit is read, as before. A server bot's pockets are
     /// read like a human's whatever the switch: `AvoidTuning::bot_pockets` decides only whether a team dodges the grenades
-    /// listed from a bot's key alone. A profile with no kit is [`Self::unread`].
-    pub fn of_profile(profile: &MatchProfile, all_kits: bool) -> Self {
-        match KitPockets::of_profile(profile, all_kits) {
-            Some(pockets) => Self::Pockets(pockets),
-            None => Self::unread(survarium::v026g::loadouts::bot_role_of(profile).is_some()),
+    /// listed from a bot's key with its pockets read and empty. A profile with no kit is [`Self::unread`].
+    pub fn of_profile(profile: &MatchProfile, player: Player, all_kits: bool) -> Self {
+        match (KitPockets::of_profile(profile, all_kits), player) {
+            (Some(pockets), Player::Bot) => Self::Bot(pockets),
+            (Some(pockets), Player::Human) => Self::Human(pockets),
+            (None, player) => Self::unread(player),
         }
     }
 
     /// What a place's throw keys mean before its profile is read: a bot's throw key a frag, a human's unknown.
-    pub fn unread(bot: bool) -> Self {
-        if bot { Self::GrenadeKeyIsFrag } else { Self::Unknown }
+    pub fn unread(player: Player) -> Self {
+        match player {
+            Player::Bot => Self::GrenadeKeyIsFrag,
+            Player::Human => Self::Unknown,
+        }
     }
 }
 
@@ -423,20 +470,24 @@ impl Throws {
 pub struct ThrowCounts {
     /// Fragmentation grenades listed from the thrower's pockets (a throw key that threw one, a bot's or a human's).
     pub frag: u32,
-    /// Grenades listed from a bot's key alone ([`Basis::AssumedFromBotKey`]).
+    /// Grenades listed from a bot's key with its pockets read and empty ([`Whose::Assumed`]).
     pub assumed: u32,
+    /// Grenades listed from a bot's key with its pockets not read ([`Whose::Unread`]).
+    pub unread: u32,
     /// ... of them a human's.
     pub human_frag: u32,
     /// ... of a human's, thrown with a quick-use key (not the throw key), and from a kit other than the profile's first.
     pub human_quick: u32,
     pub human_other_kit: u32,
     /// A bot's throw key press with its pockets known and no grenade to throw: the client throws nothing. It is
-    /// listed as an assumed grenade ([`Basis::AssumedFromBotKey`]) that a team with `bot_pockets` on does not dodge.
+    /// listed as an assumed grenade ([`Whose::Assumed`]) that a team with `bot_pockets` on does not dodge.
     /// Counts presses, not throws: a press within [`SAME_THROW_MS`] of the last listed one is not counted.
     pub bot_empty: u32,
     /// A human's throw key (or a quick-use key) that found no grenade in the kit in use, and one while the kit is
     /// not known to the profile.
     pub human_empty: u32,
+    /// A quick-use key pressed where the units-left rule and the filled-at-spawn rule pick different pockets.
+    pub quick_rules_differ: u32,
     /// A world named a kit the profile does not have (`Supplies::kit` out of range): kept the kit it had.
     pub unknown_kit: u32,
     /// Smoke grenades: seen, left out.
@@ -511,15 +562,17 @@ impl super::Bots {
             .collect::<Vec<_>>()
             .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with no grenade left, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and the grenade's basis (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
             counts.human_other_kit,
             counts.assumed,
+            counts.unread,
             counts.smoke,
             counts.no_pockets,
             counts.human_empty,
+            counts.quick_rules_differ,
             counts.unknown_kit,
             counts.launched,
             counts.unplaced,
@@ -542,8 +595,8 @@ impl super::Bots {
     }
 
     /// What the avoidance of the bots of each team counted, by whose grenade it was ([`Whose::index`]).
-    pub fn grenade_counts(&self) -> [[super::grenade_threat::AvoidStats; 3]; 2] {
-        let mut by_team = [[super::grenade_threat::AvoidStats::default(); 3]; 2];
+    pub fn grenade_counts(&self) -> [[super::grenade_threat::AvoidStats; Whose::ALL.len()]; 2] {
+        let mut by_team = [[super::grenade_threat::AvoidStats::default(); Whose::ALL.len()]; 2];
         for bot in self.bots.iter().flatten() {
             for (sum, each) in by_team[usize::from(bot.team.min(1))].iter_mut().zip(&bot.features.avoid.by_whose) {
                 sum.add(each);
@@ -656,7 +709,7 @@ mod tests {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
         }
-        tracker.set_throws(vec![Throws::GrenadeKeyIsFrag, pockets.map_or(Throws::Unknown, |p| Throws::Pockets(p.into()))]);
+        tracker.set_throws(vec![Throws::GrenadeKeyIsFrag, pockets.map_or(Throws::Unknown, |p| Throws::Human(p.into()))]);
         tracker
     }
 
@@ -887,7 +940,6 @@ mod tests {
             press: 1_000,
             phase: Phase::Pressed,
             grenade: *Grenade::bots(),
-            basis: Basis::Pockets,
             whose: Whose::Human,
         };
         assert_eq!(g.blast_at(), 5_000);
@@ -913,7 +965,7 @@ mod tests {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
         }
-        tracker.set_throws(vec![bot.map_or(Throws::GrenadeKeyIsFrag, |p| Throws::Pockets(p.into())), human.map_or(Throws::Unknown, Throws::Pockets)]);
+        tracker.set_throws(vec![bot.map_or(Throws::GrenadeKeyIsFrag, |p| Throws::Bot(p.into())), human.map_or(Throws::Unknown, Throws::Human)]);
         tracker
     }
 
@@ -924,14 +976,12 @@ mod tests {
         press(&mut tracker, 0, 1_000, key::GRENADE);
         press(&mut tracker, 0, 1_050, 0);
         assert_eq!(tracker.live_grenades().len(), 1);
-        assert_eq!(tracker.live_grenades()[0].basis, Basis::Pockets);
         assert_eq!(tracker.live_grenades()[0].whose, Whose::Bot);
         // The one grenade is gone: the key throws nothing, as the client's. The list keeps the press as an
         // assumed grenade (a team with `bot_pockets` on does not dodge it), apart from the real one.
         press(&mut tracker, 0, 3_000, key::GRENADE);
         press(&mut tracker, 0, 3_050, 0);
         assert_eq!(tracker.live_grenades().len(), 2);
-        assert_eq!(tracker.live_grenades()[1].basis, Basis::AssumedFromBotKey);
         assert_eq!(tracker.live_grenades()[1].whose, Whose::Assumed);
         let counts = tracker.throw_counts();
         assert_eq!((counts.frag, counts.human_frag, counts.bot_empty, counts.assumed), (1, 0, 1, 1));
@@ -943,12 +993,12 @@ mod tests {
         press(&mut tracker, 0, 1_050, 0);
         press(&mut tracker, 0, 2_500, key::QUICK[0]);
         assert_eq!(tracker.live_grenades().len(), 1);
-        assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
+        assert_eq!(tracker.live_grenades()[0].whose, Whose::Assumed);
         assert_eq!(tracker.throw_counts().bot_empty, 1, "a quick-use key is no throw key press");
-        // A bot whose profile has no kit: every throw key an assumed grenade.
+        // A bot whose profile has no kit: its pockets are unknown, every throw key an unread (possible) frag.
         let mut tracker = stand_pockets(None, None);
         press(&mut tracker, 0, 1_000, key::GRENADE);
-        assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
+        assert_eq!(tracker.live_grenades()[0].whose, Whose::Unread);
     }
 
     /// A place whose profile was never read (the bench's bots, which never call `set_throws`, a human before the lobby's
@@ -961,15 +1011,15 @@ mod tests {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
         }
-        assert_eq!(Throws::unread(true), Throws::GrenadeKeyIsFrag);
-        assert_eq!(Throws::unread(false), Throws::Unknown);
+        assert_eq!(Throws::unread(Player::Bot), Throws::GrenadeKeyIsFrag);
+        assert_eq!(Throws::unread(Player::Human), Throws::Unknown);
         press(&mut tracker, 0, 1_000, key::GRENADE);
         press(&mut tracker, 1, 1_000, key::GRENADE);
         assert_eq!(tracker.live_grenades().len(), 1, "the bot's key lists a grenade, the human's nothing");
         assert_eq!(tracker.live_grenades()[0].by, 0);
-        assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
+        assert_eq!(tracker.live_grenades()[0].whose, Whose::Unread);
         let counts = tracker.throw_counts();
-        assert_eq!((counts.assumed, counts.no_pockets), (1, 1));
+        assert_eq!((counts.unread, counts.assumed, counts.no_pockets), (1, 0, 1));
     }
 
     /// The listing decisions are noted only while one of the list's switches is on, so a run with them off writes the notes
@@ -986,7 +1036,7 @@ mod tests {
         press(&mut tracker, 0, 3_000, key::GRENADE);
         let notes = tracker.take_notes();
         assert_eq!(notes.len(), 1, "{notes:?}");
-        assert!(notes[0].starts_with("grenade listed: place 0 team 0") && notes[0].contains("Pockets, Bot"), "{notes:?}");
+        assert!(notes[0].starts_with("grenade listed: place 0 team 0") && notes[0].contains(", Bot"), "{notes:?}");
         // A human's throw key that found no grenade is noted the same way.
         let mut tracker = stand_pockets(None, Some(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into()));
         tracker.note_listings(true);
@@ -999,17 +1049,72 @@ mod tests {
     #[test]
     fn the_frags_a_kit_holds_are_the_frags_left_in_the_kit_in_use() {
         let pockets = Pockets::new([Some((Pocketed::Other, 2)), Some((Pocketed::Frag, 2)), Some((Pocketed::Smoke, 1)), None, None, None]);
-        let mut throws = Throws::Pockets(pockets.into());
+        let mut throws = Throws::Human(pockets.into());
         assert_eq!(throws.frags_left(), Some(2), "the smoke and the medkit are no frags");
-        let Throws::Pockets(kit) = &mut throws else { unreachable!() };
+        let kit = throws.pockets_mut().expect("read");
         kit.throw_grenade(key::GRENADE);
         assert_eq!(throws.frags_left(), Some(1));
-        let Throws::Pockets(kit) = &mut throws else { unreachable!() };
+        let kit = throws.pockets_mut().expect("read");
         kit.throw_grenade(key::GRENADE);
         assert_eq!(throws.frags_left(), Some(0));
-        let medkits = Throws::Pockets(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into());
+        let medkits = Throws::Bot(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into());
         assert_eq!(medkits.frags_left(), Some(0), "a trap role's kit holds none");
         assert_eq!((Throws::GrenadeKeyIsFrag.frags_left(), Throws::Unknown.frags_left()), (None, None));
+    }
+
+    /// The throw key throws from the first pocket that holds a grenade, so the frags it can throw are the ones before the first
+    /// smoke: a smoke placed before a frag hides it from the cap until the smoke is thrown.
+    #[test]
+    fn the_frags_the_throw_key_reaches_are_those_before_the_first_smoke() {
+        let smoke_first = Pockets::new([Some((Pocketed::Other, 1)), Some((Pocketed::Smoke, 1)), Some((Pocketed::Frag, 2)), None, None, None]);
+        let mut throws = Throws::Bot(smoke_first.into());
+        assert_eq!(throws.frags_left(), Some(0), "the key throws the smoke first");
+        throws.pockets_mut().expect("read").throw_grenade(key::GRENADE);
+        assert_eq!(throws.frags_left(), Some(2), "the smoke is gone: the frags are next");
+        let frag_first = Pockets::new([None, Some((Pocketed::Frag, 2)), Some((Pocketed::Smoke, 1)), Some((Pocketed::Frag, 1)), None, None]);
+        assert_eq!(Throws::Bot(frag_first.into()).frags_left(), Some(2), "the frag behind the smoke is not counted");
+    }
+
+    /// The two rules for numbering the quick-use pockets agree until a pocket is spent, then the presses where they pick another
+    /// pocket are counted.
+    #[test]
+    fn a_quick_use_press_where_the_two_numbering_rules_differ_is_counted() {
+        let pockets = Pockets::new([Some((Pocketed::Frag, 1)), Some((Pocketed::Frag, 1)), None, None, None, None]);
+        let mut tracker = stand_pockets(Some(pockets), None);
+        press(&mut tracker, 0, 1_000, key::QUICK[0]);
+        press(&mut tracker, 0, 1_050, 0);
+        assert_eq!((tracker.throw_counts().quick_rules_differ, tracker.throw_counts().frag), (0, 1), "nothing spent: the rules agree");
+        // The first pocket is spent: by the units left, key 0 is the second pocket; by the pockets filled at the spawn it is still
+        // the first.
+        press(&mut tracker, 0, 3_000, key::QUICK[0]);
+        assert_eq!((tracker.throw_counts().quick_rules_differ, tracker.throw_counts().frag), (1, 2));
+    }
+
+    /// The storage rule (a stack's slot filled from the item's storage) comes with `kit_in_use` (`all_kits`): off, a life
+    /// starts with the whole stack as the list did before the rule, even with a profile whose storage is short.
+    #[test]
+    fn the_storage_rule_comes_with_the_kit_in_use_switch() {
+        use survarium::v026g::loadouts::{Loadout, POCKET_SLOTS};
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let kit = Loadout::from_names(dictionary, [(POCKET_SLOTS[0], "rgd-5")]).expect("a kit");
+        let profile = MatchProfile::from_loadouts("human", 0, &[&kit], [0.0; survarium::v026g::skills::MODIFIERS], dictionary, 1);
+        let lives = |all_kits: bool| {
+            let Throws::Human(mut pockets) = Throws::of_profile(&profile, Player::Human, all_kits) else { panic!("pockets") };
+            let mut thrown = Vec::new();
+            for _ in 0..3 {
+                let mut n = 0;
+                while pockets.throw_grenade(key::GRENADE).is_some() && n < 20 {
+                    n += 1;
+                }
+                thrown.push(n);
+                pockets.refill();
+            }
+            thrown
+        };
+        // The profile's rgd-5 has one unit in its storage: with the rule the grenade is for the match (PROVEN, 0x2FCB70), without
+        // it every life is refilled to the stack, as the list was before.
+        assert_eq!(lives(false), [1, 1, 1], "off: the tip's refill to full");
+        assert_eq!(lives(true), [1, 0, 0], "on: the storage has the one unit");
     }
 
     /// The client fills a stack slot from the item's storage at a spawn and takes what is left back at a death

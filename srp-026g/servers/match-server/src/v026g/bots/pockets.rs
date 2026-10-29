@@ -31,7 +31,8 @@ pub struct ProfilePocket {
 /// The one home of the numbering: [`QUICK_USE_ORDER`] begins with the six pockets in position order (PROVEN, table
 /// 0x925FD8), and the six keys reach the pockets first. **Which pockets count as held is the open question** (LIKELY the
 /// kit's filled slots at the spawn, as the heal count goes; the live grenade list counts the units left now, so a spent
-/// pocket closes the gap): each caller says it in `held`, and the client steps P6-1..P6-3 settle which is the client's.
+/// pocket closes the gap, and counts the presses where the two differ: `ThrowCounts::quick_rules_differ`): each caller says
+/// it in `held`, and the client steps P6-1..P6-3 settle which is the client's.
 pub fn quick_use_order(held: impl Fn(usize) -> bool) -> impl Iterator<Item = usize> {
     (0..POCKET_SLOTS.len()).filter(move |&i| held(i))
 }

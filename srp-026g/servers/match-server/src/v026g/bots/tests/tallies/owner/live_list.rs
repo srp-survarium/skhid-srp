@@ -1,13 +1,14 @@
 //! The owner counts of the server's live grenade list (`live_grenades.rs`) and the avoidance that reads it
-//! (`grenade_threat.rs`), by the bots' team: the grenades the list holds by basis (from a thrower's pockets, or assumed from a
-//! bot's key alone), the grenades the bots of a team came to know of (and how many a teammate's), the steps taken, the
-//! ones with no way out, the escapes and the catches at the blast, and the assumed grenades a team's avoidance refused
-//! (`avoid.bot_pockets`).
+//! (`grenade_threat.rs`), by the bots' team: the grenades the list holds by whose they are (a human's or a bot's from its
+//! pockets, a bot's key with its pockets read and empty, a bot's key with its pockets unread), the grenades the bots of a
+//! team came to know of (and how many a teammate's), the steps taken, the ones with no way out, the escapes and the catches
+//! at the blast, and the assumed grenades a team's avoidance refused (`avoid.bot_pockets`).
 //!
 //! What the bench cannot see: it never gives the tracker the bots' pockets (`Bots::set_throws`, as the live server does in
-//! `game/driven.rs` from `KitPockets::of_profile`), so every throw key of a stand-in body is read as the old `GrenadeKeyIsFrag`
-//! and the counts of the list (`frags listed from pockets`, `assumed`, `smokes`) are 0 here until the bench calls it. The avoidance counts
-//! are real: they come from the bots' own state against the stand-in's grenades.
+//! `game/driven.rs` from `KitPockets::of_profile`), so every throw key of a stand-in body is read as the old
+//! `GrenadeKeyIsFrag`: its grenades are listed as unread (`unread`, up to 10 a match) and every team dodges them, as the
+//! tip's bots do. The counts of the pockets (`frags listed from pockets`, `assumed`, `smokes`) are 0 here until the bench
+//! calls it. The avoidance counts are real: they come from the bots' own state against the stand-in's grenades.
 
 use super::*;
 use crate::v026g::bots::grenade_threat::AvoidStats;
@@ -17,7 +18,7 @@ use survarium::v026g::loadouts::BotRole;
 /// The list's and the avoidance's counts as the last tick left them (the tracker and the bots keep them; the topic copies).
 #[derive(Default)]
 pub(super) struct LiveListCounts {
-    by_team: [[AvoidStats; 3]; 2],
+    by_team: [[AvoidStats; Whose::ALL.len()]; 2],
     throws: ThrowCounts,
     /// Rolls for a grenade refused because the kit held no frag, `[team][role]` by `BotRole::ALL`.
     refused_no_frag: [[u32; BotRole::ALL.len()]; 2],
@@ -75,6 +76,8 @@ impl LiveListCounts {
             "live_list_team1": team_json(1),
             "live_list_frags": t.frag,
             "live_list_assumed": t.assumed,
+            "live_list_unread": t.unread,
+            "live_list_quick_rules_differ": t.quick_rules_differ,
             "live_list_smokes": t.smoke,
             "live_list_no_pockets": t.no_pockets,
             "live_list_launched": t.launched,
@@ -85,9 +88,10 @@ impl LiveListCounts {
         });
         let sum = |team: usize, f: fn(&AvoidStats) -> u32| self.by_team[team].iter().map(f).sum::<u32>();
         let text = format!(
-            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; frag rolls refused, none in the kit: team 0 {}, team 1 {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
+            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key with its pockets read {}, from a bot's key with its pockets unread {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; frag rolls refused, none in the kit: team 0 {}, team 1 {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
             t.frag,
             t.assumed,
+            t.unread,
             t.smoke,
             t.no_pockets,
             t.launched,

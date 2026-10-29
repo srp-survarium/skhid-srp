@@ -2998,6 +2998,11 @@ impl Reflex {
         self.grenade_stats
     }
 
+    /// The kit's frags now, as the last poll told (none: the kit was not read).
+    pub fn frags_left(&self) -> Option<u16> {
+        self.frags_left
+    }
+
     /// The kit's frags now, for the grenade logic ([`CombatTuning::grenade_kit_cap`]).
     pub fn set_frags_left(&mut self, frags: Option<u16>) {
         self.frags_left = frags;

@@ -1150,9 +1150,6 @@ impl Bots {
         }
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
-        // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
-        let avoid = &self.tunings.match_wide().avoid;
-        self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
         self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
@@ -1725,6 +1722,9 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tunings.match_wide().sense.sprint_body_mps);
+        // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
+        let avoid = &self.tunings.match_wide().avoid;
+        self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
         // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`).
         for bot in self.bots.iter_mut().flatten() {
             bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));

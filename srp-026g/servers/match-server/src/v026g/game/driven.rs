@@ -53,7 +53,7 @@ use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
-use crate::v026g::bots::live_grenades::Throws;
+use crate::v026g::bots::live_grenades::{Player, Throws};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -164,7 +164,8 @@ impl Walkers {
         let throws = formed
             .profiles
             .iter()
-            .map(|profile| Throws::of_profile(profile, all_kits))
+            .zip(&driven)
+            .map(|(profile, &driven)| Throws::of_profile(profile, Player::of(driven), all_kits))
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
@@ -977,7 +978,7 @@ mod tests {
     /// How many grenades a life of the profile's first kit throws with the throw key, and in the next life.
     fn grenades_in_lives(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> (u32, u32) {
         use crate::v026g::drive::key;
-        let Throws::Pockets(mut pockets) = Throws::of_profile(profile, true) else {
+        let Throws::Bot(mut pockets) = Throws::of_profile(profile, Player::Bot, true) else {
             panic!("a bot's pockets");
         };
         let life = |pockets: &mut KitPockets| {
@@ -1019,7 +1020,7 @@ mod tests {
                 assert_eq!(grenades_in_lives(&matched), (expect_new, 0), "{at}: owner's kit, storage at the count");
                 let old = profile_of(role, tier, false, PocketStore::PerLife);
                 assert_eq!(grenades_in_lives(&old), (2, 2), "{at}: the old pockets");
-                assert!(matches!(Throws::of_profile(&stocked, false), Throws::Pockets(_)), "{at}");
+                assert!(matches!(Throws::of_profile(&stocked, Player::Bot, false), Throws::Bot(_)), "{at}");
             }
         }
         assert!(supports_with_one > 0, "some support kit carries the one grenade");
@@ -1042,11 +1043,11 @@ mod tests {
             dictionary,
             1,
         );
-        let Throws::Pockets(mut first_only) = Throws::of_profile(&profile, false) else {
+        let Throws::Human(mut first_only) = Throws::of_profile(&profile, Player::Human, false) else {
             panic!("pockets");
         };
         assert!(first_only.throw_grenade(key::GRENADE).is_none());
-        let Throws::Pockets(mut all) = Throws::of_profile(&profile, true) else {
+        let Throws::Human(mut all) = Throws::of_profile(&profile, Player::Human, true) else {
             panic!("pockets");
         };
         assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
