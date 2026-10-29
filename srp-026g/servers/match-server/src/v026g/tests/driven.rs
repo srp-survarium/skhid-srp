@@ -226,6 +226,36 @@ fn the_servers_bots_have_no_seats_and_share_session_zero() {
     assert!(registry.join_running(1, late).is_err());
 }
 
+/// The bots' pocket stacks are made with the store of the bots' tuning (`kit.pocket_store`): the lobby builds the default and a
+/// registry on the old store has its bots' kits made again with the stack's count in storage; a human's profile is not touched.
+#[test]
+fn a_registry_makes_the_bots_kits_with_the_store_of_the_bot_tuning() {
+    use crate::v026g::bots::pockets::ProfilePockets;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, PocketStore, RusherKits, bot_profile};
+    let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
+    for (store, stored) in [(PocketStore::PerMatch, None), (PocketStore::PerLife, Some(100))] {
+        let registry = MatchRegistry::new("127.0.0.1", 1236).with_bot_pocket_store(store);
+        let mut setup = setup(4, MAP_TDM);
+        let human = setup.players[0].profile.clone();
+        let team = setup.players[2].profile.team;
+        for place in [2, 3] {
+            let player = &mut setup.players[place];
+            (player.driven, player.session_id, player.account_id) = (true, 0, 0);
+            player.profile = bot_profile(place, team, BotRole::ALL[0], equipment);
+        }
+        let ticket = registry.create(setup).expect("a match with two bots");
+        let formed = registry.formed(ticket.match_id).expect("it is formed");
+        assert_eq!(formed.profiles[0], human, "a human's profile is as it came");
+        for place in [2, 3] {
+            let pockets = ProfilePockets::of_profile(&formed.profiles[place], true).expect("a bot has kits");
+            for pocket in pockets.kits()[0].iter().flatten() {
+                assert_eq!(pocket.stored, Some(stored.unwrap_or_else(|| u32::from(pocket.units))), "{store:?} {pocket:?}");
+            }
+            assert_eq!(formed.profiles[place].name, bot_profile(place, team, BotRole::ALL[0], equipment).name);
+        }
+    }
+}
+
 /// A 60 x 60 m floor for the map of [`MAP_TDM`] with two stations to walk
 /// to, written where `SRP_MAPDATA_DIR` would point; the store with its
 /// walk grid built.

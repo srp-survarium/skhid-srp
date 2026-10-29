@@ -175,6 +175,16 @@ Why these:
 - **The storage** is `BOT_AMMO_LIVES` (6) lives' worth of each kit's slot [choice: finite, so a bot
   that fought through a kit switches]: 18 full lives over three kits. The lobby writes it as the
   ammo item's `condition_or_stack` (`SlotItem::stored`).
+- **The pocket stacks' storage** (medkits, bandages, traps, the support's grenade, the radio) is the same
+  mechanism: a spawn fills a pocket slot with `min(slot, storage)` and a death gives back what is left
+  (`setup_from_profile` 0x2FCB70, `unload_to_profile` 0x2FD2D0, PROVEN), so with the storage at the stack's count a bot's two
+  medkits or the support's one RGD-5 were for the match. Since 2026-10-29 every pocket stack has `BOT_POCKET_STORE` (100)
+  in storage (`PocketStore::PerLife`, the owner: "storage put 100+ should be enough"), so every life starts with the
+  stack. It is the bots' tuning switch `kit.pocket_store` (off: the count in storage, c3dc7241's profiles), read where a
+  match is made (`MatchRegistry::with_bot_pocket_store`) and, in the bench, by each team (`bench_roster`). A resupply box
+  tops pocket stacks up from the storage too (`inventory::resupply` 0x2FDC10 -> `inventory_item::restock` 0x2FFCE0, PROVEN,
+  `fact-b-resupply.md`), so a bot at a box has its grenade or medkits back mid-life; a human with storage gets the same. The
+  bench's stand-in does not model that for the stacks (play 27, off by default); the client test settles it.
 
 ## 5. Switching kits (the match server)
 

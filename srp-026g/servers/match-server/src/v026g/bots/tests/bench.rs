@@ -586,11 +586,6 @@ pub(crate) fn real_bot_cost() {
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];
-            // The bots as the lobby gives them (`bench_roster`): each its
-            // role and the tier's kits, read back from its profile as the
-            // match server does.
-            let roster = bench_roster(&teams, bench_equipment());
-            let roles = &roster.roles;
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
@@ -598,6 +593,10 @@ pub(crate) fn real_bot_cost() {
             if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
                 tunings.give_team1(Arc::new(bench_tuning_of(true)));
             }
+            // The bots as the lobby gives them (`bench_roster`): each its role and the tier's kits, read back from its
+            // profile as the match server does, built with its team's pocket store.
+            let roster = bench_roster(&teams, bench_equipment(), &tunings);
+            let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
                 mode,
@@ -611,6 +610,7 @@ pub(crate) fn real_bot_cost() {
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
             bots = bots.with_tiers(&roster.equipments);
+            bots.set_pantries(roster.profiles.iter().map(super::stock::Pantry::of_profile).collect());
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
             // ms): known to the clock less a ping drawn for each place, and
             // reckoned on from there (`Tracker::seen_late`). Off, the
@@ -889,6 +889,7 @@ pub(crate) fn real_bot_cost() {
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             owner.set_pings(ping_ms);
             game.set_grenade_kits(&roster.grenades);
+            game.set_heal_kits(&roster.profiles);
             // The stand-in camper plays by the build's defaults whatever his team's tuning is, so that the two runs of a head-to-head
             // bench face the same opponent.
             let camper_options = camper::CamperOptions::from_env();
@@ -1594,6 +1595,7 @@ pub(crate) fn real_bot_cost() {
             // The refreshed sight's own counts: poll gaps, the ray budget's refusals, sights lost by
             // ping band (the match-end line; the code before the refresh has none of them).
             eprintln!("  sight polls: {}", bots.poll_report());
+            eprintln!("  pockets: {}", bots.pocket_report());
             if let Some(error) = view_error.as_ref() {
                 eprintln!("  {}", error.line());
             }
@@ -1970,6 +1972,8 @@ pub(crate) struct BenchRoster {
     /// The frag grenades each of a bot's three kits holds and has in store (the profile's `count` and `stored` of its grenade pockets),
     /// by place; none for a place of no role.
     pub(crate) grenades: Vec<[standin_grenade::KitGrenades; 3]>,
+    /// Each bot's profile, built with its team's pocket store (`kit.pocket_store` of its tuning).
+    pub(crate) profiles: Vec<survarium::v026g::match_msgs::static_info::MatchProfile>,
 }
 
 /// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
@@ -2026,25 +2030,28 @@ fn frag_pockets(kit: &survarium::v026g::loadouts::Loadout) -> standin_grenade::K
 pub(crate) fn bench_roster(
     teams: &[u8],
     equipment: survarium::v026g::loadouts::BotEquipment,
+    tunings: &super::tuning::TeamTunings,
 ) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile_stored, bot_roles};
     let profiles: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_profile(n + 1, team, role, equipment))
+        .map(|(n, (&team, role))| bot_profile_stored(n + 1, team, role, equipment, tunings.of(team).kit.store()))
         .collect();
     let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
         grenades: bots
             .iter()
-            .map(|bot| {
+            .zip(teams)
+            .map(|(bot, &team)| {
                 bot.map_or([standin_grenade::KitGrenades::default(); 3], |(equipment, role)| {
-                    let kits = survarium::v026g::loadouts::bot_kits(equipment, role);
+                    let kits = survarium::v026g::loadouts::bot_kits_stored(equipment, role, tunings.of(team).kit.store());
                     std::array::from_fn(|k| frag_pockets(kits[k]))
                 })
             })
             .collect(),
+        profiles: profiles.clone(),
         upgrades: profiles.iter().map(Upgrades::of).collect(),
         roles: bots
             .iter()
@@ -2069,7 +2076,7 @@ pub(crate) fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
         let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
         for tier in BotTier::ALL {
             let equipment = BotEquipment::of(tier, RusherKits::default());
-            let roster = bench_roster(&teams, equipment);
+            let roster = bench_roster(&teams, equipment, &super::tuning::TeamTunings::new(Arc::new(Tuning::default())));
             let mut bots = Bots::new(
                 0xBE7C,
                 survarium::v026g::maps::mode::BATTERIES,

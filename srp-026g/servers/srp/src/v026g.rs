@@ -494,10 +494,10 @@ impl Stack {
         // The match server first: the registry tells the port it got.
         let match_socket = UdpSocket::bind(&options.match_bind)?;
         let match_addr = match_socket.local_addr()?;
-        let registry = Arc::new(MatchRegistry::new(
-            &options.match_public_host,
-            match_addr.port(),
-        ));
+        let registry = Arc::new(
+            MatchRegistry::new(&options.match_public_host, match_addr.port())
+                .with_bot_pocket_store(bot_tuning.tuning().kit.store()),
+        );
 
         // One for the process: the match server converts, the lobby gives
         // tokens, the web page takes them.

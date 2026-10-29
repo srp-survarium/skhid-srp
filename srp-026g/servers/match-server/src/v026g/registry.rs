@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::loadouts::PocketStore;
 use survarium::v026g::maps::{self, MapMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
@@ -322,6 +323,8 @@ pub struct MatchRegistry {
     host: String,
     port: u16,
     inner: Mutex<Inner>,
+    /// The store the server's own bots' pocket stacks are made with (`kit.pocket_store` of the bots' tuning).
+    bot_pocket_store: PocketStore,
 }
 
 impl MatchRegistry {
@@ -334,7 +337,16 @@ impl MatchRegistry {
                 last_id: random() | 1,
                 ..Inner::default()
             }),
+            bot_pocket_store: PocketStore::default(),
         }
+    }
+
+    /// The store of the server's own bots' pocket stacks: the lobby builds their profiles with the default
+    /// ([`PocketStore::PerLife`]) and a match made here has them built again with this one. The bots' tuning is not the
+    /// lobby's, so the match server is where `kit.pocket_store` is applied.
+    pub fn with_bot_pocket_store(mut self, store: PocketStore) -> Self {
+        self.bot_pocket_store = store;
+        self
     }
 
     /// The registry of the configured match server (`SRP_PUBLIC_HOST`,
@@ -381,7 +393,7 @@ impl MatchRegistry {
 
     pub(crate) fn create_with_dialect(
         &self,
-        setup: MatchSetup,
+        mut setup: MatchSetup,
         now: Instant,
         growing_roster: bool,
     ) -> Result<MatchTicket, CreateError> {
@@ -394,6 +406,11 @@ impl MatchRegistry {
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
         if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(setup.map_id));
+        }
+        if self.bot_pocket_store != PocketStore::default() {
+            for player in setup.players.iter_mut().filter(|player| player.driven) {
+                survarium::v026g::loadouts::with_pocket_store(&mut player.profile, self.bot_pocket_store);
+            }
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {

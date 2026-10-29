@@ -62,6 +62,8 @@ pub struct Tuning {
     pub hazard: HazardTuning,
     /// What smoke hides from the bots (`bots/smoke.rs`).
     pub smoke: SmokeTuning,
+    /// What the bots' kits are built with (`kit.rs`).
+    pub kit: KitTuning,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
 }
@@ -75,6 +77,7 @@ mod cover;
 mod grid;
 mod hazard;
 mod heal;
+mod kit;
 mod legacy;
 mod limits;
 mod motion;
@@ -102,6 +105,7 @@ pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
+pub use kit::KitTuning;
 pub use limits::Metres;
 pub use limits::Positive;
 pub use limits::Span;

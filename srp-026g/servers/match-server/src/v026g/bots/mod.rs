@@ -58,6 +58,7 @@ pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod pockets;
 pub mod pools;
 pub mod recoil;
 pub mod reflex;
@@ -911,6 +912,31 @@ impl Bots {
     /// ([`live_grenades`]).
     pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
         self.tracker.set_pockets(pockets);
+    }
+
+    /// Every bot's drugs as its own profile has them ([`stock::Pantry::of_profile`]): the store the profile was built
+    /// with is the prior of the count, until a world says.
+    pub fn set_pantries(&mut self, pantries: Vec<stock::Pantry>) {
+        for (place, pantry) in pantries.into_iter().enumerate() {
+            if let Some(Some(bot)) = self.bots.get_mut(place) {
+                bot.features.stock.pantry = pantry;
+            }
+        }
+    }
+
+    /// The pantry counts of both teams as the match-end log line (`the bots' pockets: ...`).
+    pub fn pocket_report(&self) -> String {
+        let [one, two] = self.pantry_counts();
+        format!("team 0: {}; team 1: {}", one.line(), two.line())
+    }
+
+    /// What every bot's pantry has done, summed by team ([`stock::PantryCounts`]).
+    pub fn pantry_counts(&self) -> [stock::PantryCounts; 2] {
+        let mut sums = [stock::PantryCounts::default(); 2];
+        for bot in self.bots.iter().flatten() {
+            sums[usize::from(bot.team.min(1))] += bot.features.stock.pantry.counts();
+        }
+        sums
     }
 
     /// Every place's weapon 1's shot reach (H1c, [`shot_reach`]), where

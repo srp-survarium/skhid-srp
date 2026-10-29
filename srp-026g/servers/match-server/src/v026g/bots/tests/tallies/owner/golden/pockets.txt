@@ -1,0 +1,19 @@
+owner-test pockets: team 0 [spawns 0 (short 0), medkits 0, bandages 0, antitoxins 0, empty presses 0]; team 1 [spawns 0 (short 0), medkits 0, bandages 0, antitoxins 0, empty presses 0]
+{
+  "pockets_team0": {
+    "antitoxins": 0,
+    "bandages": 0,
+    "empty_presses": 0,
+    "medkits": 0,
+    "short_spawns": 0,
+    "spawns": 0
+  },
+  "pockets_team1": {
+    "antitoxins": 0,
+    "bandages": 0,
+    "empty_presses": 0,
+    "medkits": 0,
+    "short_spawns": 0,
+    "spawns": 0
+  }
+}

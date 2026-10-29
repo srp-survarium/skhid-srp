@@ -160,6 +160,7 @@ impl Walkers {
             .map(|profile| weapon_of(profile, by_data))
             .collect();
         let pockets = formed.profiles.iter().map(pockets_of).collect();
+        let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
         let armours: Vec<_> = formed.profiles.iter().map(zone_armour_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
@@ -193,6 +194,7 @@ impl Walkers {
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
             walkers.bots.set_pockets(pockets);
+            walkers.bots.set_pantries(pantries);
             walkers.bots.set_shot_reach(reach);
             for (place, armour) in armours.into_iter().enumerate() {
                 walkers.bots.set_zone_armour(place, armour);

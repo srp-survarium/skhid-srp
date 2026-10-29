@@ -306,6 +306,62 @@ pub const BOT_AMMO_SLOTS: [u8; 1] = [8];
 /// for the next life (0xDE → 0xF3) brings its own storage.
 pub const BOT_AMMO_LIVES: u32 = 6;
 
+/// What a bot's pocket stacks (medkits, bandages, traps, grenades, the radio) have in storage: a bot's kit is
+/// built `PerLife` (the owner, 2026-10-28: "he should have enough grenades in storage so that on next life there
+/// will be a grenade to give", "we dont need to mimic humans in that. storage put 100+ should be enough") or
+/// `PerMatch`, as before: the stack's count once per kit for the match.
+///
+/// Why it matters (PROVEN, `inventory::setup_from_profile` 0x2FCB70, see [`BOT_AMMO_LIVES`]): a spawn fills a stack
+/// slot with `min(slot count, the item's storage)` and the storage loses that, so with the storage at the count a
+/// support's one RGD-5 and a bot's two medkits are for the match, not for a life.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PocketStore {
+    /// The stack's count is the storage: the stack is spent for the match.
+    PerMatch,
+    /// [`BOT_POCKET_STORE`] units in storage: every life starts with the stack again.
+    #[default]
+    PerLife,
+}
+
+/// The units a bot's pocket stack has in storage under [`PocketStore::PerLife`]: the owner's "100+". A flat
+/// number, not the count times lives: the kits' counts are 1 (a grenade) to 2, and 100 lets a bot spend a unit a
+/// second for a minute and a half and still start every life with the stack.
+///
+/// What is checked that a store of 100 is accepted: the server's profile rules (`session::v026g::rules::check_play`)
+/// are for accounts' kits and are not run on a bot's, which `bot_profile` builds (PROVEN, by the callers); the
+/// profile's item field is a `u32` on the wire and in `MatchItem` (PROVEN, the writer and the reader of
+/// `static_info.rs`; the lobby's own items carry a stack of 1,000,000 in `client_model`); the client takes
+/// `min(slot, storage)` and nothing else of it at the spawn (PROVEN, as for the ammo's six lives); a client cap on a
+/// stack's storage was not found and is a GUESS to settle on the client test (a support's second and third life
+/// each hold a grenade).
+pub const BOT_POCKET_STORE: u32 = 100;
+
+impl PocketStore {
+    /// Both stores, in the order of [`Self::index`].
+    pub const ALL: [Self; 2] = [Self::PerMatch, Self::PerLife];
+
+    /// The store a bot tuning's switch (`kit.pocket_store`) says: on is [`Self::PerLife`], the default.
+    pub fn of(on: bool) -> Self {
+        if on { Self::PerLife } else { Self::PerMatch }
+    }
+
+    /// The place of the store in [`Self::ALL`].
+    pub const fn index(self) -> usize {
+        match self {
+            Self::PerMatch => 0,
+            Self::PerLife => 1,
+        }
+    }
+
+    /// What a stack of `count` units has in storage.
+    pub fn stored(self, count: u32) -> u32 {
+        match self {
+            Self::PerMatch => count,
+            Self::PerLife => count.max(BOT_POCKET_STORE),
+        }
+    }
+}
+
 /// Two medkits ("Medikit", `st_base_medkit_name`; `drugs`, heals 1, item
 /// level 3, 20 silver) in the first pocket: quick use 1, as the first
 /// filled slot of [`QUICK_USE_ORDER`]. Two: a pocket's size in every
@@ -1505,7 +1561,7 @@ pub fn grenades_in(kit: &Loadout) -> u32 {
         .sum()
 }
 
-fn bot_loadout(items: &[BotKitItem]) -> Loadout {
+fn bot_loadout(items: &[BotKitItem], store: PocketStore) -> Loadout {
     let mut loadout = Loadout::from_names(
         Dictionary::shared(),
         items.iter().map(|item| (item.slot, item.name)),
@@ -1514,9 +1570,11 @@ fn bot_loadout(items: &[BotKitItem]) -> Loadout {
     for (slot, item) in loadout.items.iter_mut().zip(items) {
         slot.count = item.count;
         slot.mods = item.mods;
-        // The ammo's storage: [`BOT_AMMO_LIVES`] lives of it.
+        // The ammo's storage: [`BOT_AMMO_LIVES`] lives of it; a pocket stack's, [`PocketStore`].
         slot.stored = if BOT_AMMO_SLOTS.contains(&item.slot) {
             item.count * BOT_AMMO_LIVES
+        } else if POCKET_SLOTS.contains(&item.slot) {
+            store.stored(item.count)
         } else {
             item.count
         };
@@ -1537,13 +1595,29 @@ pub fn bot_kits_in(
     new: bool,
     upgrades: bool,
 ) -> [Loadout; 3] {
-    std::array::from_fn(|k| bot_loadout(&bot_kit_items_in(equipment, role, k, new, upgrades)))
+    bot_kits_in_stored(equipment, role, new, upgrades, PocketStore::default())
+}
+
+/// [`bot_kits_in`] with the pocket stacks' storage given ([`PocketStore`]).
+pub fn bot_kits_in_stored(
+    equipment: BotEquipment,
+    role: BotRole,
+    new: bool,
+    upgrades: bool,
+    store: PocketStore,
+) -> [Loadout; 3] {
+    std::array::from_fn(|k| bot_loadout(&bot_kit_items_in(equipment, role, k, new, upgrades), store))
 }
 
 /// A bot of `role` with `equipment`'s kits as loadouts, one for each of its
 /// [`BotRole::kit_roles`] ([`bot_kit_items`]).
 pub fn bot_kits(equipment: BotEquipment, role: BotRole) -> [&'static Loadout; 3] {
-    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len();
+    bot_kits_stored(equipment, role, PocketStore::default())
+}
+
+/// [`bot_kits`] with the pocket stacks' storage given ([`PocketStore`]).
+pub fn bot_kits_stored(equipment: BotEquipment, role: BotRole, store: PocketStore) -> [&'static Loadout; 3] {
+    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len() * PocketStore::ALL.len();
     static SHARED: [std::sync::OnceLock<[Loadout; 3]>; KITS] =
         [const { std::sync::OnceLock::new() }; KITS];
     let equipment = BotEquipment {
@@ -1563,8 +1637,9 @@ pub fn bot_kits(equipment: BotEquipment, role: BotRole) -> [&'static Loadout; 3]
         + equipment.rusher as usize)
         * BotMask::ALL.len()
         + equipment.mask as usize;
+    let index = index * PocketStore::ALL.len() + store.index();
     let [first, second, third] = SHARED[index].get_or_init(|| {
-        bot_kits_in(equipment, role, new_kit(), upgrades_on())
+        bot_kits_in_stored(equipment, role, new_kit(), upgrades_on(), store)
     });
     [first, second, third]
 }
@@ -1706,7 +1781,18 @@ pub fn bot_name(n: usize) -> String {
 ///
 /// One home for the lobby (`play::server_bot`) and for the real-map bench.
 pub fn bot_profile(n: usize, team: u8, role: BotRole, equipment: BotEquipment) -> MatchProfile {
-    let kits = bot_kits(equipment, role);
+    bot_profile_stored(n, team, role, equipment, PocketStore::default())
+}
+
+/// [`bot_profile`] with the pocket stacks' storage given ([`PocketStore`]): a bench's team that plays the other store.
+pub fn bot_profile_stored(
+    n: usize,
+    team: u8,
+    role: BotRole,
+    equipment: BotEquipment,
+    store: PocketStore,
+) -> MatchProfile {
+    let kits = bot_kits_stored(equipment, role, store);
     let mut profile = MatchProfile::from_loadouts(
         &bot_name(n),
         team,
@@ -1717,6 +1803,20 @@ pub fn bot_profile(n: usize, team: u8, role: BotRole, equipment: BotEquipment) -
     );
     profile.clan_tag = "BOT".to_owned();
     profile
+}
+
+/// The profile of a server bot with its pocket stacks' storage the `store`'s, whatever the lobby built it with: its kits
+/// and items again from the equipment and role the profile says ([`bot_equipment_of`]), name, team and clan kept. The
+/// match registry gives every bot the store of the bot tuning's `kit.pocket_store` this way, so the lobby (which has no
+/// tuning) always builds [`PocketStore::default`]. `false`, the profile untouched, for a profile that is no bot's.
+pub fn with_pocket_store(profile: &mut MatchProfile, store: PocketStore) -> bool {
+    let Some((equipment, role)) = bot_equipment_of(profile) else {
+        return false;
+    };
+    let fresh = bot_profile_stored(1, profile.team, role, equipment, store);
+    profile.kits = fresh.kits;
+    profile.items = fresh.items;
+    true
 }
 
 /// What the type 1 (added) modifiers of the default modifications of
@@ -3306,5 +3406,69 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Every bot pocket stack has a store for every life ([`BOT_POCKET_STORE`]); with [`PocketStore::PerMatch`] the kit is
+    /// c3dc7241's exactly (the stack's count in storage); the ammo's six lives are the same in both; and a client that
+    /// fills a slot from the storage at each spawn (`min(slot, storage)`, the storage losing that, PROVEN) gives a second
+    /// and third life the stack again only with the store.
+    #[test]
+    fn every_pocket_stack_has_a_store_for_every_life_and_the_off_value_is_the_old_kit() {
+        let dictionary = Dictionary::shared();
+        let (mut stacks, mut grenades) = (0, 0);
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                for new in [false, true] {
+                    let per_match = bot_kits_in_stored(eq(tier), role, new, false, PocketStore::PerMatch);
+                    let per_life = bot_kits_in_stored(eq(tier), role, new, false, PocketStore::PerLife);
+                    for (old, kit) in per_match.iter().zip(&per_life) {
+                        assert_eq!(old.items.len(), kit.items.len());
+                        for (old, item) in old.items.iter().zip(&kit.items) {
+                            let at = format!("{tier:?} {role:?} new {new} slot {}", item.slot);
+                            assert_eq!((old.slot, old.dict_id, old.count), (item.slot, item.dict_id, item.count), "{at}");
+                            if BOT_AMMO_SLOTS.contains(&item.slot) {
+                                assert_eq!((old.stored, item.stored), (item.count * BOT_AMMO_LIVES, item.count * BOT_AMMO_LIVES), "{at}");
+                            } else if POCKET_SLOTS.contains(&item.slot) {
+                                // The old kit: the count. The new: 100 units for a stack to start every life with.
+                                assert_eq!(old.stored, old.count, "{at}");
+                                assert_eq!(item.stored, BOT_POCKET_STORE.max(item.count), "{at}");
+                                stacks += 1;
+                                grenades += u32::from(
+                                    dictionary.item(item.dict_id).is_some_and(|row| row.name == BOT_GRENADE.name),
+                                );
+                                // The client's spawn: slot from storage, storage loses it.
+                                let (mut lives_old, mut lives_new) = (old.stored, item.stored);
+                                for life in 1..=3 {
+                                    let (took_old, took_new) = (item.count.min(lives_old), item.count.min(lives_new));
+                                    lives_old -= took_old;
+                                    lives_new -= took_new;
+                                    assert_eq!(took_new, item.count, "{at}: life {life} with the store");
+                                    assert_eq!(took_old > 0, life == 1, "{at}: life {life} without it");
+                                }
+                            } else {
+                                assert_eq!(old.stored, item.stored, "{at}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(stacks > 0 && grenades > 0, "{stacks} stacks, {grenades} grenades");
+        // The profile the match gets: a stack's condition_or_stack is its storage.
+        let profile = bot_profile_stored(1, 0, BotRole::Support, eq(BotTier::Mid), PocketStore::PerLife);
+        let old = bot_profile_stored(1, 0, BotRole::Support, eq(BotTier::Mid), PocketStore::PerMatch);
+        let stored = |profile: &MatchProfile| -> Vec<u32> {
+            let kit = &profile.kits[0];
+            POCKET_SLOTS
+                .iter()
+                .filter_map(|&slot| kit.slots[usize::from(slot)])
+                .filter(|&(item, _)| dictionary.is_stack(profile.items[usize::from(item)].dict_id))
+                .map(|(item, _)| profile.items[usize::from(item)].condition_or_stack)
+                .collect()
+        };
+        assert!(!stored(&old).is_empty());
+        assert!(stored(&old).iter().all(|&units| units <= 2));
+        assert!(stored(&profile).iter().all(|&units| units == BOT_POCKET_STORE));
+        assert_eq!(PocketStore::default(), PocketStore::PerLife);
     }
 }

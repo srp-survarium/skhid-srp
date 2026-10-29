@@ -59,6 +59,8 @@ use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::pools::{Pool, Pools};
 use crate::v026g::bots::stock::{Drug, Held, Pantry};
+#[cfg(test)]
+use survarium::v026g::loadouts::PocketStore;
 use crate::v026g::bots::tactics::SpotQuery;
 use crate::v026g::bots::tuning::{HealTuning, NeedWeights};
 use crate::v026g::bots::view::still_eye;
@@ -602,6 +604,8 @@ mod tests {
     #[test]
     fn what_it_pressed_is_counted_as_acting_so_a_hurt_is_not_answered_twice() {
         let mut s = hurt_bot(0.4, Vec3::new(30.0, 0.0, 10.0));
+        // The storage at the count: the kit's two are for the match (with the store they are for every life).
+        s.pantry = Pantry::standard_with(PocketStore::PerMatch);
         let now = s.view.clock;
         assert!(heals(&s).is_some());
         // Pressed a second ago: the medkit is active, its effect counts.
@@ -704,6 +708,7 @@ mod tests {
     #[test]
     fn the_third_press_of_a_kit_is_refused_by_the_rule() {
         let mut s = hurt_bot(0.4, Vec3::new(30.0, 0.0, 10.0));
+        s.pantry = Pantry::standard_with(PocketStore::PerMatch);
         let mut pressed = 0;
         for k in 0..3u32 {
             s.view.clock = 300_000 + 20_000 * k;
