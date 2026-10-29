@@ -2517,7 +2517,9 @@ st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_srp_speed_bonuses	Bónuszok: %1$s
 st_srp_speed_equipment	Felszerelés: %1$s
+st_srp_speed_label	Sebesség
 st_srp_speed_skills	Képességek: %1$s
+st_srp_speed_title	Mozgási sebesség: %1$s
 st_srp_speed_weight	Súly: %1$s
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%

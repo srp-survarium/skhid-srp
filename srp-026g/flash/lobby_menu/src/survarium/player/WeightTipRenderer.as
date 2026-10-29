@@ -42,8 +42,8 @@ package survarium.player
       private function prepare(e:Event) : void
       {
          if(_data == null) return;
-         var effects:WeightEffects = _data.effects as WeightEffects;
-         if(effects == null) throw new Error("WeightTipRenderer: missing weight effects");
+         var effects:IEffectRows = _data.effects as IEffectRows;
+         if(effects == null) throw new Error("WeightTipRenderer: missing effects");
          // New native timeline instances populate nested fields on their first
          // frame, not during construction or ADDED_TO_STAGE (unlike Ruffle).
          if(_skin != null)

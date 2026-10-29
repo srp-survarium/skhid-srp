@@ -723,10 +723,14 @@ fires once after the existing 300 ms delay.
 ## The kit's movement speed beside the weight (2026-10-29)
 
 The owner: show the final speed beside the weight, with everything the game
-takes into account. The lobby shows the game's speed icon (modifier atlas 11)
-and `<n>%` left of the weight (coral below 100 %, green above), and the
-weight tooltip lists the total and its four parts: weight, bonuses, skills,
-equipment. UI only: no gameplay or simulation change.
+takes into account, as its own indicator ("some might think this is
+associated with weight"). Left of the weight, apart from it, the lobby shows
+"Speed 97%" in the weight's label and value styles (`SpeedIndicator`; coral
+below 100 %, green above). Its own tooltip has the total in the heading and
+its four parts: weight, bonuses, skills, equipment. The weight's tooltip
+stays the weight's. The Autobuy box's label is as long as its text (the
+symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
+simulation change.
 
 - **The game's rule.** `base_player::movement_speed` 0x2DBB50 returns
   `max(m, v x max(0, 1 + S4))`: `v` the mode's speed (0x2F0980 on the

@@ -10,7 +10,7 @@ package survarium.player
    // weight, the kit's skills (the native kit float), the armour's bonuses
    // (armor::add_modifiers 0x33F3A0) and the weapon in hand's own movement
    // parameter, left out when a penalty and Bear Arms is on (0x2E2C5C).
-   public final class WeightEffects
+   public final class WeightEffects implements IEffectRows
    {
       public static const WARNING_STYLE:String = "weight_warning";
       public static const WARNING_COLOR:String = "#F18A78";
@@ -46,17 +46,15 @@ package survarium.player
       public function get knowsSpeed() : Boolean { return _speed != null; }
       // The kit's movement speed as a fraction of the base speed.
       public function get speed() : Number { return _speed == null ? NaN : _speed.total(_movement); }
-      // "96%" beside the speed icon, coral below the base speed, green above it.
-      public function get speedText() : String
+      // The speed's own indicator and tooltip; null for an exe that gives no speed.
+      public function get speedExplanation() : SpeedExplanation
       {
-         if(_speed == null) return "";
-         var percent:Number = Math.round(speed * 100);
-         var style:String = percent < 100 ? WARNING_STYLE : percent > 100 ? "green" : "highlight";
-         return Util.styledChar(LocalizationData.format("st_srp_unit_percent",percent.toString()),style);
+         return _speed == null ? null : new SpeedExplanation(_movement,_speed);
       }
       public function get slowsMovement() : Boolean { return _movement < 0; }
       public function get title() : String { return LocalizationData.getName("st_srp_weight_title"); }
-      private function percent(value:Number, bad:Boolean) : String
+      // A part's signed percentage, red when it hurts: the weight rows and the speed's parts.
+      public static function signed(value:Number, bad:Boolean) : String
       {
          // One decimal, without float noise or a displayed negative zero.
          var magnitude:Number = Math.round(Math.abs(value) * 1000) / 10;
@@ -68,20 +66,9 @@ package survarium.player
       // (modifications.options: defects 4070 and 4110).
       public function rows() : Array
       {
-         var result:Array;
-         if(_speed == null)
-            result = [{icon:11,label:LocalizationData.format("st_srp_weight_speed",percent(_movement,_movement < 0))}];
-         else
-         {
-            var total:Number = speed;
-            result = [{icon:11,label:LocalizationData.format("st_srp_weight_speed",Util.styledChar(LocalizationData.format("st_srp_unit_percent",(Math.round(total * 1000) / 10).toString()),total < 1 ? "red" : "white"))},
-               {icon:11,label:LocalizationData.format("st_srp_speed_weight",percent(_movement,_movement < 0))},
-               {icon:11,label:LocalizationData.format("st_srp_speed_bonuses",percent(_speed.bonuses,_speed.bonuses < 0))},
-               {icon:11,label:LocalizationData.format("st_srp_speed_skills",percent(_speed.skills,_speed.skills < 0))},
-               {icon:11,label:LocalizationData.format("st_srp_speed_equipment",percent(_speed.equipment,_speed.equipment < 0))}];
-         }
+         var result:Array = [{icon:11,label:LocalizationData.format("st_srp_weight_speed",signed(_movement,_movement < 0))}];
          if(_sprint != SPRINT_HEAVYWEIGHT)
-            result.push({icon:16,label:LocalizationData.format("st_srp_weight_sprint_stamina",percent(_spending,_spending > 0))});
+            result.push({icon:16,label:LocalizationData.format("st_srp_weight_sprint_stamina",signed(_spending,_spending > 0))});
          if(_sprint != SPRINT_ALLOWED)
             result.push({icon:11,label:Util.styledChar(LocalizationData.getName(_sprint == SPRINT_WEIGHT ? "st_srp_weight_no_sprint_limit" : "st_srp_weight_no_sprint_heavyweight"),"red")});
          return result;

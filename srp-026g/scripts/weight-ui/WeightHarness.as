@@ -114,46 +114,42 @@ package {
    shop.setupShopItems(offers);shop.forEachItem(check);
    shop.setupShopItems(offers);shop.forEachItem(check);
   }
-  // The kit's speed: base x max(0, 1 + weight + skills + bonuses + weapon), Bear Arms
-  // leaving a weapon's penalty out (WeightEffects, SpeedParts).
+  // The kit's speed, a second indicator left of the weight with its own tooltip:
+  // base x max(0, 1 + weight + skills + bonuses + weapon), Bear Arms leaving a
+  // weapon's penalty out (WeightEffects, SpeedParts, SpeedExplanation, SpeedIndicator).
   private function checkSpeed():void {
-   require(!Effects.parse(-.1,.75,0).knowsSpeed && Effects.parse(-.1,.75,0).speedText=="","an old exe gives no speed");
-   require(!Effects.parse(-.1,.75,0,.03,7).knowsSpeed,"invalid Bear Arms state refused");
+   require(Effects.parse(-.1,.75,0).speedExplanation==null,"an old exe gives no speed");
+   require(Effects.parse(-.1,.75,0,.03,7).speedExplanation==null,"invalid Bear Arms state refused");
    var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(.04,-.05);
-   require(Math.abs(e.speed-.92)<1e-9,"92% = 1 - 10% + 3% + 4% - 5%: "+e.speed);
-   require(e.speedText.indexOf("92%")>=0,"speed value: "+e.speedText);
-   var rows:Array=e.rows();
-   require(rows.length==6,"total, four parts and sprint stamina");
-   require(rows[0].label.indexOf("Movement speed")>=0 && rows[0].label.indexOf("92%")>=0,"total row: "+rows[0].label);
-   require(rows[1].label.indexOf("Weight")>=0 && rows[1].label.indexOf("-10%")>=0,"weight part: "+rows[1].label);
-   require(rows[2].label.indexOf("Bonuses")>=0 && rows[2].label.indexOf("+4%")>=0,"bonuses part: "+rows[2].label);
-   require(rows[3].label.indexOf("Skills")>=0 && rows[3].label.indexOf("+3%")>=0,"skills part: "+rows[3].label);
-   require(rows[4].label.indexOf("Equipment")>=0 && rows[4].label.indexOf("-5%")>=0,"equipment part: "+rows[4].label);
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,-.05).speed-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,.03).speed-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
-   require(Effects.parse(-.2,1.5,0,0,0).withItems(-1,0).speed==0,"never below zero");
+   var x:Object=e.speedExplanation;
+   require(Math.abs(x.total-.92)<1e-9,"92% = 1 - 10% + 3% + 4% - 5%: "+x.total);
+   require(x.value.indexOf("92%")>=0 && x.title.indexOf("92%")>=0,"value and heading: "+x.value+" "+x.title);
+   var rows:Array=x.rows();
+   require(rows.length==4,"the speed's four parts");
+   require(rows[0].label.indexOf("Weight")>=0 && rows[0].label.indexOf("-10%")>=0,"weight part: "+rows[0].label);
+   require(rows[1].label.indexOf("Bonuses")>=0 && rows[1].label.indexOf("+4%")>=0,"bonuses part: "+rows[1].label);
+   require(rows[2].label.indexOf("Skills")>=0 && rows[2].label.indexOf("+3%")>=0,"skills part: "+rows[2].label);
+   require(rows[3].label.indexOf("Equipment")>=0 && rows[3].label.indexOf("-5%")>=0,"equipment part: "+rows[3].label);
+   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Skills")<0,"the weight's tooltip stays the weight's");
+   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,-.05).speedExplanation.total-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
+   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,.03).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
+   require(Effects.parse(-.2,1.5,0,0,0).withItems(-1,0).speedExplanation.total==0,"never below zero");
    var fast:Object=Effects.parse(0,0,0,.03,0).withItems(.04,0);
    indicators[0].update(20,30,fast);
-   var field:TextField=speedField(0);
-   require(field.text.replace(/\s+$/,"")=="107%","speed beside the weight: "+field.text);
-   require(speedIcon(0).bitmapData===Icons.getIcon(11).bitmap.bitmapData && speedIcon(0).x+speedIcon(0).width<=field.x+1,"the game's speed icon before it");
-   require(field.getTextFormat(field.text.indexOf("107"),field.text.indexOf("107")+1).color==0x7FC24B,"faster than base: green");
-   require((field.numLines==1 || field.getLineText(1)=="") && field.x+field.width<=0,"one line, left of the weight: x "+field.x+" w "+field.width+" lines "+field.numLines+" text "+field.text);
-   require(widgets[0].textFieldValue.text.indexOf("%")<0,"the weight value keeps its own line");
+   var label:TextField=speedPart(0,"speedLabel"),value:TextField=speedPart(0,"speedValue");
+   require(label.visible && label.text.replace(/\s+$/,"")=="Speed","its own word: "+label.text);
+   require(value.text.replace(/\s+$/,"")=="107%" && value.getTextFormat(0,1).color==0x7FC24B,"107%, green above the base: "+value.text);
+   require(label.x+label.width<=value.x && value.x+value.width<=-12,"its own item, apart from the weight");
+   require(label.getTextFormat(0,1).font==widgets[0].textFieldLabel.getTextFormat(0,1).font && label.getTextFormat(0,1).size==widgets[0].textFieldLabel.getTextFormat(0,1).size,"the weight label's style");
+   require(widgets[0].textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
    indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(0,0));
-   require(speedField(0).text.indexOf("90%")>=0 && speedField(0).getTextFormat(speedField(0).text.indexOf("90"),speedField(0).text.indexOf("90")+1).color==0xF18A78,"slower than base: coral");
+   require(speedPart(0,"speedValue").text.indexOf("90%")>=0 && speedPart(0,"speedValue").getTextFormat(0,1).color==0xF18A78,"slower than base: coral");
    indicators[0].update(20,30,Effects.parse(0,0,0));
-   require(speedField(0).text=="" && speedIcon(0).bitmapData==null,"an old exe shows no speed");
+   require(!speedPart(0,"speedLabel").visible && !speedPart(0,"speedValue").visible,"an old exe shows no speed");
    indicators[0].update(20,30,fast);
   }
-  private function speedIcon(i:int):Bitmap {
-   for(var c:int=0;c<widgets[i].numChildren;c++){var b:Bitmap=widgets[i].getChildAt(c) as Bitmap;if(b!=null)return b;}
-   throw new Error("no speed icon");
-  }
-  private function speedField(i:int):TextField {
-   for(var c:int=0;c<widgets[i].numChildren;c++){var f:TextField=widgets[i].getChildAt(c) as TextField;if(f!=null && f!==widgets[i].textFieldValue && f!==widgets[i].textFieldLabel)return f;}
-   throw new Error("no speed field");
-  }
+  private function speedPart(i:int,name:String):TextField {var f:TextField=widgets[i].getChildByName(name) as TextField;if(f==null)throw new Error("no "+name);return f;}
+  private function speedTip(i:int):Object {return widgets[i].getChildByName("speedTip").getChildAt(0);}
   private function show(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));}
   private function hide(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));}
   private function rendered():Object {
@@ -218,17 +214,20 @@ package {
       for each(var entry:Object in target(2).tipData.effects.rows())require(entry.label.indexOf("undefined")<0 && entry.label.indexOf("#st_")<0 && entry.label.indexOf("%1$s")<0,"localized explanation: "+language+" "+entry.label);
       require(target(2).tipData.effects.rows()[0].label.indexOf("-20")>=0,"value in the translated line: "+language);
       indicators[0].refresh();
-      require((speedField(0).numLines==1 || speedField(0).getLineText(1)=="") && speedField(0).text.indexOf("107")>=0 && speedField(0).text.indexOf("%1$s")<0,"speed line: "+language+" "+speedField(0).text);
-      for each(var part:Object in target(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#st_")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
+      var sl:TextField=speedPart(0,"speedLabel"),sv:TextField=speedPart(0,"speedValue");
+      require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+sl.width<=sv.x && sv.x+sv.width<=-12,"speed item: "+language+" "+sl.text+" "+sv.text);
+      require(speedTip(0).tipData.effects.title.indexOf("107%")>=0,"speed heading: "+language);
+      for each(var part:Object in speedTip(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#st_")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
      }
-     Loc.setData(texts("english"));indicators[2].refresh();indicators[0].refresh();show(0);
+     Loc.setData(texts("english"));indicators[2].refresh();indicators[0].refresh();speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
     }
     if(frame==155) {
-     // The speed's parts in the same native card: total, weight, bonuses, skills, equipment, sprint stamina.
-     var card:Object=rendered();require(card.alpha==1 && card.numChildren==9,"native card with the speed's six rows: "+card.numChildren);
+     // The speed's own native card: its total in the heading, then weight, bonuses, skills, equipment.
+     var card:Object=rendered();require(card.alpha==1 && card.numChildren==7,"native card with the speed's four rows: "+card.numChildren);
+     require(card.getChildAt(2).textField.text.indexOf("107%")>=0,"heading with the total: "+card.getChildAt(2).textField.text);
      var text:String=rowText(card);
-     for each(var wanted:String in ["Movement speed: 107%","Weight","Bonuses: +4%","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
-     for(var m:int=3;m<9;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
+     for each(var wanted:String in ["Weight","Bonuses: +4%","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
+     for(var m:int=3;m<7;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
      finish(null);
     }

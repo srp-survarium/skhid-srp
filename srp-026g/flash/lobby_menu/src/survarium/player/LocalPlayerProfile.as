@@ -13,6 +13,7 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
+   import flash.text.TextFieldAutoSize;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
@@ -653,6 +654,10 @@ package survarium.player
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
          this.checkbox_autobuy.x = this.checkbox_autorepair.x;
+         // Its label as long as its text: the symbol's fixed width cut longer ones
+         // ("Automatikus vásá…"); the row has room up to the speed and weight.
+         this.checkbox_autobuy.textField.wordWrap = false;
+         this.checkbox_autobuy.textField.autoSize = TextFieldAutoSize.LEFT;
          this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
