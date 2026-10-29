@@ -20,12 +20,11 @@
 //! (`grenade_avoid`), so a match plays out as before.
 
 use mapdata::Vec3;
-use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::weapons::is_grenade_item;
 
 use super::arc::{self, Grenade};
+use super::pockets::ProfilePockets;
 use super::view::Place;
 use crate::v026g::drive::key;
 
@@ -334,33 +333,21 @@ impl KitPockets {
     /// PROVEN, `inventory::setup_from_profile`). `all_kits` off reads the profile's first kit only. `None` for a
     /// profile with no kit.
     pub fn of_profile(profile: &MatchProfile, all_kits: bool) -> Option<Self> {
-        let dictionary = Dictionary::shared();
-        let kits = profile
-            .kits
+        let kits = ProfilePockets::of_profile(profile, all_kits)?
+            .kits()
             .iter()
-            .take(if all_kits { usize::MAX } else { 1 })
             .map(|kit| {
-                let item_of = |i: usize| {
-                    let slot = usize::from(POCKET_SLOTS[i]);
-                    let (index, units) = kit.slots[slot]?;
-                    let item = profile.items.get(usize::from(index))?;
-                    let name = dictionary.item(item.dict_id)?.name.as_str();
-                    Some((item, name, units))
-                };
-                let slots = std::array::from_fn(|i| {
-                    let (_, name, units) = item_of(i)?;
-                    let held = match (Grenade::named(name), is_grenade_item(name)) {
+                let slots = kit.map(|pocket| {
+                    let pocket = pocket?;
+                    let held = match (Grenade::named(pocket.name), is_grenade_item(pocket.name)) {
                         (Some(_), _) => Pocketed::Frag,
                         (None, true) => Pocketed::Smoke,
                         (None, false) => Pocketed::Other,
                     };
-                    Some((held, units))
+                    Some((held, pocket.units))
                 });
-                let grenades = std::array::from_fn(|i| Grenade::named(item_of(i)?.1).copied());
-                let stored = std::array::from_fn(|i| {
-                    let (item, _, _) = item_of(i)?;
-                    dictionary.is_stack(item.dict_id).then_some(item.condition_or_stack)
-                });
+                let grenades = kit.map(|pocket| Grenade::named(pocket?.name).copied());
+                let stored = kit.map(|pocket| pocket?.stored);
                 Pockets::new(slots).with_grenades(grenades).with_storage(stored)
             })
             .collect();
