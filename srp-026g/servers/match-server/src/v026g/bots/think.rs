@@ -603,7 +603,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     {
         smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
     }
-    if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() {
+    // A carrier throws nothing: the battery is in its hands, and the client ignores the quick keys then
+    // (`process_quick_slots` 0x2D8BB0: the hands object's byte +0Eh, 0 for a battery, stops the quick pockets and the
+    // grenade key; observed, LIKELY for the battery, as for the heal habit).
+    if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() || me.carrying.is_some() {
         return;
     }
     let reach = smoke::Reach {

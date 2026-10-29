@@ -3428,6 +3428,14 @@ impl Reflex {
                 t.phase = SmokePhase::Held(now);
                 keys = t.key;
             }
+            // Picked up a battery before the press: the client ignores the quick key in a carrier's hands.
+            SmokePhase::Turning if me.carrying.is_some() => {
+                self.smoke_throw = None;
+                self.smoke_notes.push(format!("gave up a smoke for {:?}: carrying", t.plan.for_use));
+                #[cfg(test)]
+                super::smoke::tally::thrown(me.team, t.plan.for_use, false);
+                return None;
+            }
             SmokePhase::Turning if now >= t.started + c.grenade_give_up_ms => {
                 self.smoke_throw = None;
                 self.smoke_notes.push(format!("gave up a smoke for {:?}: the view did not come round", t.plan.for_use));
@@ -9065,6 +9073,13 @@ mod tests {
         }
         assert!(reflex.can_smoke());
         assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane")));
+        // A battery picked up before the press: given up at once, the key never sent.
+        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        let mut carrier = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
+        carrier.carrying = Some(1);
+        assert!(reflex.smoke_throwing(&carrier, 50, &c, 0.1).is_none());
+        assert!(reflex.can_smoke());
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane: carrying")));
     }
 
     /// The view is held for the grenade from the key's press to the launch and
