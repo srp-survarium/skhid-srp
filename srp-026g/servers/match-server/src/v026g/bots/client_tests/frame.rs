@@ -94,6 +94,9 @@ pub struct Frame {
     pub heard: Vec<Heard>,
     /// The map's line of sight, once the map is built.
     pub sight: Option<Sight>,
+    /// The exits of each team's base (`Tactics::exits`: points 30-60 m out on the ways from its spawns toward the other side's), by
+    /// team; empty until the map is built.
+    pub exits: [Vec<Vec3>; 2],
 }
 
 impl Frame {

@@ -684,6 +684,60 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
     assert!(carried > 0, "team 1's kits carry a smoke");
 }
 
+/// The kit frags (`kit.frags`) of a bench team are built with its own tuning, and the bench's tracker reads them from the profiles.
+/// With the owner's kit (`SRP_BOT_KIT=1`) and `support_and_camper` on team 1: its supports carry two frags and its campers one, team
+/// 0's kits are the owner's (the support's one, the camper none). With the old kit (the default of a test run) the choice changes
+/// nothing: every role carries two, in both teams. Run it with `SRP_BOT_KIT=1` for the first half.
+#[test]
+fn only_the_team_whose_tuning_has_kit_frags_carries_them() {
+    use crate::v026g::bots::live_grenades::Throws;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, KitFrags, RusherKits, new_kit};
+    let mut team0 = Tuning::default();
+    team0.kit.frags = KitFrags::Off;
+    let mut team1 = Tuning::default();
+    team1.kit.frags = KitFrags::SupportAndCamper;
+    let teams: Vec<u8> = (0..16).map(|k| u8::from(k >= 8)).collect();
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let tunings = tunings(team0, team1);
+    assert_eq!((tunings.of(0).kit.frags, tunings.of(1).kit.frags), (KitFrags::Off, KitFrags::SupportAndCamper));
+    let roster = bench_roster(&teams, equipment, &tunings);
+    let throws = crate::v026g::bots::tests::bench::bench_throws(&roster, &tunings);
+    let roles = survarium::v026g::loadouts::bot_roles(&teams);
+    let mut units = [[0u16; 2]; 2]; // [team][support, camper]
+    for (place, throws) in throws.iter().enumerate() {
+        let Throws::Bot(pockets) = throws else { panic!("place {place}: {throws:?}") };
+        let team = usize::from(teams[place]);
+        if !new_kit() {
+            assert_eq!(pockets.frags(), 2, "place {place}: the old kit gives every role two, whatever the choice");
+            continue;
+        }
+        match roles[place] {
+            BotRole::Support => units[team][0] += pockets.frags(),
+            BotRole::Camper => units[team][1] += pockets.frags(),
+            _ => assert_eq!(pockets.frags(), 0, "place {place}: only the support and the camper carry"),
+        }
+    }
+    if new_kit() {
+        let count = |role| roles[..8].iter().filter(|&&r| r == role).count() as u16;
+        let (supports, campers) = (count(BotRole::Support), count(BotRole::Camper));
+        assert_eq!(units[0], [supports, 0], "team 0 is the owner's kit");
+        assert_eq!(units[1], [2 * supports, campers], "team 1 carries the choice");
+    }
+}
+
+/// A bot's lives are counted when they begin (`FragLives::spawn`): lives with pockets read, those carrying a frag, the units; a
+/// bot whose pockets nobody read counts nothing.
+#[test]
+fn the_frags_a_life_begins_with_are_counted_and_an_unread_kit_is_not() {
+    use crate::v026g::bots::live_grenades::FragLives;
+    let mut lives = FragLives::default();
+    lives.spawn(Some(2));
+    lives.spawn(Some(0));
+    lives.spawn(None);
+    lives.spawn(Some(1));
+    assert_eq!((lives.lives, lives.carrying, lives.carried), (3, 2, 3));
+}
+
 /// The team jobs on held spots (K2, `commander.rs` `threat_tick`) open by their own team's `threat.job_kills`: one enemy's two
 /// kills from one spot are a hold to team 1 (2, the default) and not to team 0 (3).
 #[test]

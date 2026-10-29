@@ -101,6 +101,7 @@ impl Sim {
             batteries: Vec::new(),
             heard: Vec::new(),
             sight: None,
+            exits: Default::default(),
         }
     }
 
