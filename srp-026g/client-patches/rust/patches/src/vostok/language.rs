@@ -218,12 +218,10 @@ impl<const N: usize> Default for ConsoleString<N> {
 
 /// The Settings' call to the exe at `options.callback`: the movie's
 /// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
-/// start (0x1FF5D0), before the options match the method's name (the site's
-/// chain: patch 79's handler, then patch 81's).
+/// start (0x1FF5D0), before the options match the method's name.
 pub struct OptionsCall<'c> {
     options: raw::GameOptionsInterface,
-    arguments: Option<raw::GfxValue>,
-    count: u32,
+    frame: raw::OptionsCallbackFrame,
     method: &'c CStr,
     _thread: &'c Thread,
 }
@@ -234,11 +232,11 @@ impl<'c> OptionsCall<'c> {
         // SAFETY: the context is this site's: the options' interface and the
         // callback's frame, alive for the call, on the game's thread; the
         // method's name a C string the movie gave.
-        let (options, arguments, count, method) = unsafe {
+        let (options, frame, method) = unsafe {
             let (options, frame) = (site::options(ctx)?, site::frame(ctx)?);
-            (options, frame.arguments(), *frame.count(), c_string(frame.method(), TEXT_LIMIT)?)
+            (options, frame, c_string(frame.method(), TEXT_LIMIT)?)
         };
-        Some(OptionsCall { options, arguments, count, method, _thread: ctx.thread() })
+        Some(OptionsCall { options, frame, method, _thread: ctx.thread() })
     }
 
     pub fn method(&self) -> &CStr {
@@ -250,8 +248,9 @@ impl<'c> OptionsCall<'c> {
         // SAFETY: the callback's arguments and their count, alive for the
         // call; a string's text (managed: its node's) a C string as long.
         unsafe {
-            let values = self.arguments?;
-            if index >= self.count {
+            let count = *self.frame.count();
+            let values = self.frame.arguments()?;
+            if index >= count {
                 return None;
             }
             let value = values.at(index as usize);

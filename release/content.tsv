@@ -37,7 +37,7 @@ movie	debug_animations	-	the animation debug screen
 movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
 movie	login_menu	-	the login screen with the login hint
-movie	main_menu	-	the main menu with the FOV slider, the Language choice (exe patch 79) and the Lobby choice (exe patch 81)
+movie	main_menu	-	the main menu with the FOV slider and the Language choice (exe patch 79)
 movie	player_icons	-	the players' icons over their heads
 movie	replay_player	-	the replay player
 pack	bandit-mask@12	resources.db.patch_17	the Bandit balaclava (1810)

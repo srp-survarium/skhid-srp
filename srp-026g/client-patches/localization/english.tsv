@@ -2326,12 +2326,6 @@ st_srp_loadout_sell_many	Used in %1$s. Sell anyway?
 st_srp_loadout_sell_one	Used in Loadout %1$s. Sell anyway?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	can't play
-st_srp_lobby_camp_069	Camp
-st_srp_lobby_day	Classic
-st_srp_lobby_hangar_046	Hangar
-st_srp_lobby_scene_option	Lobby:
-st_srp_lobby_scene_restart	Applies after restart.
-st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Account created on first sign-in
 st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)

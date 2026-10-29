@@ -16,4 +16,3 @@ handler = "on_configs_texts"
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"
-order = 1                           # the site's chain: patch 81's after (lobby_scene.toml)

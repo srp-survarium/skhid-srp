@@ -112,3 +112,10 @@ impl<'t> ScenesReady<'t> {
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
     }
 }
+
+/// The quest faction the server just gave, at `lobby_client.faction` (the
+/// 0x8E handler as it keeps the message's last byte, EAX, at the lobby
+/// client's +1EA998h): the factions_dict id, 0 for none chosen yet.
+pub fn arrived_faction(ctx: &Context<'_>) -> u8 {
+    ctx.reg(super::context::Reg::Eax) as u8
+}

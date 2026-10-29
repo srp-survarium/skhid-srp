@@ -1,41 +1,50 @@
 # Lobby scenes
 
-The owner (2026-10-29): "we will have a selection for them": players choose the 3D scene behind
-the lobby menu. Exe patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the main menu
-movie (`flash/main_menu/src/SrpLobbyScene.as`), patch 45's weapon spot (`weapon_table_026g.asm`).
+The owner (2026-10-29): "different ones should be for different factions"; "stalker2 one is for
+bandits"; "the current one is for army"; "the room is for stalker". The 3D scene behind the lobby
+menu follows the player's quest faction; there is no setting. Exe patch 81
+(`client-patches/rust/patches/src/lobby_scene.rs`), patch 45's weapon spot
+(`weapon_table_026g.asm`).
 
-## The choice
+## The lobby of a faction
 
-- **Where:** Settings, Gameplay tab, the bottom panel's right half, on the Language list's row:
-  "Lobby:" with the game's arrow selector (`< Classic >`, the video options' stepper; its arrows
-  stop at the first and the last), the note under it; the Language choice has the left half (in
-  Ruffle: `../images/lobby-scene-option.png`). The names are dictionary texts
-  (`st_srp_lobby_<id>`, the label `st_srp_lobby_scene_option`, the note
-  `st_srp_lobby_scene_restart`), which the exe answers translated. "STALKER 2", not
-  "S.T.A.L.K.E.R. 2": the dotted one is wider than the selector's value field.
-- **The lobbies**, in the selector's order (one enum, `Lobby` in `lobby_scene.rs`):
+- One enum, `Lobby` in `lobby_scene.rs`, and one total match from the faction:
 
-  | label             | id               | project                       |
-  |-------------------|------------------|-------------------------------|
-  | Classic           | `day`            | `lobby_scene/day` (stock)     |
-  | STALKER 2         | `stk2_blockpost` | `lobby_scene/stk2_blockpost`  |
-  | Hangar            | `hangar_046`     | `lobby_scene/hangar_046`      |
-  | Camp              | `camp_069`       | `lobby_scene/camp_069`        |
+  | quest faction (factions_dict id) | lobby                                         |
+  |----------------------------------|-----------------------------------------------|
+  | Renaissance, the Army (3)        | `lobby_scene/day`, the classic (stock)        |
+  | Black Market, the Bandits (2)    | `lobby_scene/stk2_blockpost`, S.T.A.L.K.E.R. 2 |
+  | Scavengers (1)                   | `lobby_scene/camp_069`, the 0.69d camp        |
+  | Edge (4)                         | `lobby_scene/hangar_046`, the 0.46c2 hangar   |
+  | none chosen yet (0), any other   | the classic                                   |
 
-- **Apply saves a pick**, as any option of the tab: a pick enables Apply and Cancel; Apply sends
-  it to the exe, which writes user.cfg at once; Cancel, or leaving the tab or Settings without
-  Apply, puts the saved lobby back.
-- **Applies after restart:** the note "Applies after restart." shows while the saved lobby is not
-  the one shown. No live swap (below).
-- **Stored in user.cfg** as the console variable `srp_lobby_scene` (`srp_lobby_scene camp_069`),
-  saved and read as every other setting. No line, an empty or unknown id: the classic lobby.
-- **Client only:** the server never knows the choice; a match is the same whatever lobby.
+  In code, not game data: the exe would have to read the factions' configs for a project name,
+  more than the match.
+- **The faction is the account's quest faction**, the last byte of `0x8E` (lc+1EA998h,
+  `lobby.md` section 2.14). The server sends it at the sign-in and after every change of faction
+  (`4B 00`: `8E`, then `83 4B`): the exe takes every one at `lobby_client.faction` (0x2717CF).
+- **The next start shows it:** the faction is kept in user.cfg as the console variable
+  `srp_lobby_faction` (`srp_lobby_faction 2`), written by the exe (user.cfg saved at once when it
+  changed), never by the player. No line, an empty or unknown value: the classic.
+- **Client only:** the server knows nothing of the lobby; a match is the same whatever lobby.
+
+## When the faction is known
+
+- **After the scene has loaded.** The lobby menu asks for its scene at the game's start, before
+  the sign-in, and the network client is made in that query's own callback (on_render_scenes_ready
+  0x220B20 calls game::create_network_client at 0x221C2F): no faction can come before the scene's
+  results are taken. Holding the query until `8E` would hold the sign-in itself.
+- So the first start, a new player's and one after a change of faction show the last start's
+  lobby (the classic the first time); every later start shows the faction's from the first frame,
+  with no swap.
+- **A change of faction during a session applies at the next start**, as does the first `8E` of
+  a session that differs from the saved one (no hint: nothing for the player to do).
 
 ## At start
 
 - The lobby menu is made once, at the game's start (`game::create_lobby_menu`), and asks for its
-  scene with its movies in one query (0x21E450); the exe asks for the chosen lobby there instead of
-  `lobby_scene/day`.
+  scene with its movies in one query (0x21E450); the exe asks for the saved faction's lobby there
+  instead of `lobby_scene/day`.
 - **A missing project would crash the game:** the project's cook reads its config without a
   check (`project_cooker_simple::create_game_objects`, a null config read at 0x22C11E; seen in a
   game, 2026-10-29). So another lobby than the classic is asked first as its config alone
@@ -48,10 +57,9 @@ movie (`flash/main_menu/src/SrpLobbyScene.as`), patch 45's weapon spot (`weapon_
   query asked again with the classic.
 - The classic itself failing is the stock game's failure (as without the patch).
 - Another lobby costs one more query at the start (its config, the lobby's movies with it).
-- Never a black scene, never a crash; the Settings then show the note (the saved lobby is not
-  the one shown).
+- Never a black scene, never a crash.
 
-## Why at the next start, not live
+## Why not live
 
 - The scene is loaded once per run, with the lobby's movies, and is never unloaded until exit
   (`lobby_menu::clear_resources` 0x21D080, from `game::clear_resources` only). A match does not
@@ -106,17 +114,20 @@ classic's. What the exe and our patches take from it:
 
 ## Checks
 
-- Rust tests of the enum and the transition (`lobby_scene.rs`), `check_lobby_scene_026g.py`
-  (Unicorn: the variable, the query's list, the probe, the fallbacks, the Settings' call),
-  selftest check 81, `check_weapon_table_026g.py` (the spot from the project's config, the turned
-  bench), the movie in Ruffle (`scripts/lobby-scene/check.sh`).
-- In a game (2026-10-29, local, headless, a debug build that set the choice; no input but the
-  sign-in): no choice, the classic; `camp_069` (not in the db), the probe failed and the classic
-  came, no crash; `hangar_046` from a test patch (the classic's project without its walls), that
-  scene in the lobby.
-- **Not seen:** the choice read back from user.cfg in a game. In the local Wine 11.8 prefixes the
-  game's query of `user_data/user.cfg` gives no resource (load_cc_script gets null, also with the
-  certificate-only build), so no line of user.cfg is applied at a start there, this one and patch
-  79's `localization` included; the choice is saved (the line `srp_lobby_scene <id>`) and the
-  console variable takes a line (Unicorn). Windows not checked.
-
+- Rust tests of the factions, the match and the transitions (`lobby_scene.rs`),
+  `check_lobby_scene_026g.py` (Unicorn: the variable, `0x8E`'s faction kept and saved, the query's
+  list, the probe, the fallbacks), selftest check 81, `check_weapon_table_026g.py` (the spot from
+  the project's config, the turned bench).
+- In a game (2026-10-29, local, headless, no input but the sign-in; the default build of this
+  branch; packs lobby-hangar-046@2 and lobby-camp-069@2 in a test patch, no STK2 pack):
+  `srp_lobby_faction 4` in user.cfg, the hangar from the first frame; `1`, the camp; `2` (no
+  STK2 project), the probe failed and the classic came, no crash; at each sign-in the Black
+  Market account's faction was saved (`srp_lobby_faction 2`). A debug build without a saved value:
+  the classic; a test patch's `hangar_046`, that scene.
+- An early finding of this PR, that user.cfg is never read under Wine, was wrong: it was this
+  work's own headless prefix (load_cc_script got no resource for `user_data/user.cfg` there, the
+  cause not found); in a local-clients `run.py` prefix the file is read and the saved faction
+  applies. Debug builds of this work crashed on a user.cfg line of a `cc_string` (`r_resolution
+  1280x720`, the one run.py writes): a debug-only hook at cc_string::execute read its argument
+  off the wrong stack slot (never in the branch). check_lobby_scene_026g.py runs whole user.cfgs
+  (run.py's LF file, the game's CRLF one, no final end of line) through the console's own load.

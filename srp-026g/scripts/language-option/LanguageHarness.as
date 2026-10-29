@@ -16,7 +16,7 @@ package
 
     // The Settings' Language choice (exe patch 79) in the rebuilt main menu:
     // the exe's answer as root.srp_language gives it, the list, the saved
-    // pick, the note, its place in the bottom panel's left half (the seeding and
+    // pick, the note, its place in the bottom panel (the seeding and
     // statistics options hidden), a pick as a pending change that Apply saves
     // and Cancel drops, the other tabs, and the embedded font's glyphs for
     // every language's own name and texts (check.sh passes them, from the
@@ -140,9 +140,8 @@ package
                 var bounds:Rectangle = part.getBounds(content);
                 require(panel.containsRect(bounds), "in the bottom panel " + panel + ": " + part.name + " " + bounds);
             }
-            // the left half of the panel (the Lobby choice has the right)
-            var middle:Number = panel.x + panel.width / 4;
-            require(Math.abs(menu.x + menu.width / 2 - middle) < 4, "the list centred in the panel's left half");
+            var middle:Number = panel.x + panel.width / 2;
+            require(Math.abs(menu.x + menu.width / 2 - middle) < 4, "the list centred in the panel");
             var model:TextFormat = content._upload_speed.textField.defaultTextFormat;
             var format:TextFormat = heading.defaultTextFormat;
             require(format.font == model.font && format.size == model.size && format.color == model.color,

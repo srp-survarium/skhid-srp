@@ -3673,25 +3673,26 @@ language and every registered language by its own name. The launcher's PLAY,
 the replay start and the scripts pass no language by default. See
 `check_language_026g.py` and `../scripts/language-option/check.sh`.
 
-## Lobby scene in Settings (patch 81)
+## Lobby scene by faction (patch 81)
 
-Players choose the lobby's scene (`../docs/notes/lobby-scenes.md`): Classic,
-STALKER 2, Hangar or Camp, the projects `lobby_scene/<id>`. The Rust
-`lobby_scene` patch registers the console variable `srp_lobby_scene` (a saved
-string) at game::on_configs_loaded's start, in the site's chain after patch
-79's handler. The lobby menu asks for its scene once, at the game's start: the
-patch puts the chosen lobby in the classic's place in that query
-(0x21E5CC); another lobby than the classic is first asked as its config alone
-(a missing project would crash the project's cook), and when those results
-come (on_render_scenes_ready's start, 0x220B20) the query is asked again with
-the lobby's project, or the classic's when the config is not there or the
-project has no camera track. The choice applies at the next start. The main
-menu's Settings (Gameplay) call `srp_lobby_scene` (a pick, or a query), in the
-options callback's chain after patch 79's: a known id is saved and user.cfg
-written at once; the answer is `root.srp_lobby_scene` with the two texts, the
-saved and the shown lobby and every lobby's id and name. Patch 45 takes the
-weapon's spot from the lobby project's `srp_lobby` table (Round 6). See
-`check_lobby_scene_026g.py` and `../scripts/lobby-scene/check.sh`.
+The lobby's scene follows the player's quest faction
+(`../docs/notes/lobby-scenes.md`): Renaissance the classic (`lobby_scene/day`),
+the Black Market `lobby_scene/stk2_blockpost`, the Scavengers
+`lobby_scene/camp_069`, the Edge `lobby_scene/hangar_046`, none the classic.
+The lobby menu asks for its scene once, at the game's start, before the
+sign-in (the network client is made in that query's own callback), so the
+faction of a session is known only after its scene: the Rust `lobby_scene`
+patch keeps every faction `0x8E` gives (0x2717CF) in the console variable
+`srp_lobby_faction` (a saved string, registered at game::on_configs_loaded's
+start in the site's chain after patch 79's handler; user.cfg written when it
+changed), and the next start's query asks that faction's lobby in the
+classic's place (0x21E5CC). Another lobby than the classic is first asked as
+its config alone (a missing project would crash the project's cook); when
+those results come (on_render_scenes_ready's start, 0x220B20) the query is
+asked again with the lobby's project, or the classic's when the config is not
+there or the project has no camera track. Patch 45 takes the weapon's spot
+from the lobby project's `srp_lobby` table (Round 6). See
+`check_lobby_scene_026g.py`.
 
 ## Medical consumable countdown (patch 77)
 

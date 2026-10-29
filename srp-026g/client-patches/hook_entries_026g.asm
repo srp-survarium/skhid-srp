@@ -375,7 +375,6 @@ language_on_configs_texts_replay:
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
 extern hook_language_on_options_call
-extern hook_lobby_scene_on_options_call
 language_on_options_call:
     lea esp, [esp - 4]
     pushfd
@@ -394,11 +393,6 @@ language_on_options_call:
     sub esp, 12
     push eax
     call hook_language_on_options_call
-    test eax, eax
-    jnz language_on_options_call_flow
-    lea eax, [esp + 16]
-    mov [esp], eax
-    call hook_lobby_scene_on_options_call
 language_on_options_call_flow:
     mov edx, language_on_options_call_replay
     cmp eax, 0
@@ -420,6 +414,46 @@ language_on_options_call_go:
 language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
+
+; 0x2717cf the 0x8E reputations message handler (0x271740) as it keeps the trailing quest_active_faction (mov [ebx+1EA998h],eax): EAX the faction (0 none; factions_dict: 1 Scavengers, 2 Black Market, 3 Renaissance, 4 Edge), EBX the lobby client; every faction the server gives, at the sign-in and after a change, comes so: lohook -> lobby_scene_on_faction
+global lobby_scene_on_faction
+extern hook_lobby_scene_on_faction
+lobby_scene_on_faction:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_faction
+lobby_scene_on_faction_flow:
+    mov edx, lobby_scene_on_faction_replay
+    cmp eax, 0
+    je lobby_scene_on_faction_go
+    mov edx, 0x2717d5
+    cmp eax, 1
+    je lobby_scene_on_faction_go
+    ud2
+lobby_scene_on_faction_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_faction_replay:
+    db 0x89, 0x83, 0x98, 0xa9, 0x1e, 0x00
+    jmp 0x2717d5
 
 ; 0x21e5cc lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h: lohook -> lobby_scene_on_scene_request
 global lobby_scene_on_scene_request

@@ -4025,9 +4025,9 @@ def test_language(original, image, before):
 
 
 def test_lobby_scene(original, image, before):
-    """Check 81: players choose the lobby's scene, a setting kept in user.cfg
-    (patch 81, the Rust patch `lobby_scene`, four lohooks of
-    lobby_scene.toml, two of them in a chain after patch 79's;
+    """Check 81: the lobby's scene follows the player's quest faction, the
+    last one kept in user.cfg (patch 81, the Rust patch `lobby_scene`, four
+    lohooks of lobby_scene.toml, one in a chain after patch 79's;
     ../docs/notes/lobby-scenes.md). check_lobby_scene_026g.py runs each from
     the game's code on made-up objects, the original beside."""
     stock = Image(original)
@@ -4048,21 +4048,26 @@ def test_lobby_scene(original, image, before):
           and rows(0x221E77, 3) == ["ret 0x4"],
           "lobby_menu::on_render_scenes_ready (0x220B20, ECX the menu, [esp+4] the results) reads result 3's "
           "resource at +9CCh unchecked and its project's track (+1E4h) unchecked; it returns at 0x221E77 (ret 4)")
+    check(rows(0x2717C2, 0x1B) == ["mov eax,[edi+0x4]", "mov cl,[eax]", "inc eax", "mov [edi+0x4],eax",
+                                    "movzx eax,cl", "pop esi", "mov [ebx+0x1ea998],eax", "pop ebp", "mov al,0x1",
+                                    "pop ebx", "pop ecx", "ret 0x4"]
+          and rows(0x225D00, 6) == ["mov edi,[eax+0x1ea998]"] and rows(0x21D428, 7) == ["cmp dword [eax+0x1ea998],byte +0x0"],
+          "the 0x8E handler (0x271740) keeps the message's last byte, the quest faction, at the lobby client's "
+          "+1EA998h (0x2717CF, EBX the client), which the faction's UI reads (0x225D00, 0x21D428)")
     import hooks_026g
     every = hooks_026g.hooks()
     hooks = {h["site_name"]: h for h in every if h["patch"] == "lobby_scene"}
     heads = {h["site_name"]: h for h in every if h.get("chain")}
     linked = P.arena()
     block = linked.blocks["patches.code"]
-    check(sorted(hooks) == ["configs.start", "lobby_menu.scene_request", "lobby_menu.scenes_ready",
-                            "options.callback"]
+    check(sorted(hooks) == ["configs.start", "lobby_client.faction", "lobby_menu.scene_request",
+                            "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
-          and all(hooks[site].get("chained") and heads[site]["patch"] == "language"
-                  and heads[site]["chain"][-1] == hooks[site]["shim"]
-                  for site in ("configs.start", "options.callback")),
-          "lobby_scene.toml's four hooks are lohooks; at configs.start and options.callback in the chain after "
-          "patch 79's handler (one entry, language's, calls both shims)")
-    for site in ("lobby_menu.scene_request", "lobby_menu.scenes_ready"):
+          and hooks["configs.start"].get("chained") and heads["configs.start"]["patch"] == "language"
+          and heads["configs.start"]["chain"][-1] == hooks["configs.start"]["shim"],
+          "lobby_scene.toml's four hooks are lohooks; at configs.start in the chain after patch 79's handler "
+          "(one entry, language's, calls both shims)")
+    for site in ("lobby_client.faction", "lobby_menu.scene_request", "lobby_menu.scenes_ready"):
         h = hooks[site]
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]

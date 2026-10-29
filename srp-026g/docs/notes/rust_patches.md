@@ -172,8 +172,7 @@ is the next; in a `lohook` chain the first non-`Continue` flow ends it.
 Lohook chains are generated (`hooks_026g.chain_lohooks`): the first in
 `order` is the site's one entry and install, which calls each handler's shim
 in order with the same Context; the others are `chained` (their shim and Exit
-enum, no entry). The first: patch 79's and patch 81's at `configs.start` and
-`options.callback`.
+enum, no entry). The first: patch 79's and patch 81's at `configs.start`.
 **Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.

@@ -7,11 +7,10 @@ the main menu movie (`flash/main_menu/src/SrpLanguage.as`).
 
 ## The choice
 
-- **Where:** Settings, Gameplay tab, the bottom panel, centred on its left half (the Lobby choice,
-  `lobby-scenes.md`, has the right): the label "Language:" (styled as the tab's option labels), a
-  list of every registered language by its own name (English, Українська, Русский, Deutsch,
-  Polski, Srpski, Čeština, Magyar, Suomi, ...), the saved one selected (in Ruffle:
-  `../images/language-option.png`).
+- **Where:** Settings, Gameplay tab, the bottom panel, centred: the label "Language:" (styled as
+  the tab's option labels), a list of every registered language by its own name (English,
+  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, ...), the saved one selected
+  (in Ruffle: `../images/language-option.png`).
 - **The panel's old options are hidden:** "Enable seeding", "Limit upload speed" (the old launcher's
   torrent) and "Enable statistics collection" (nothing in the 0.26g exe reads it). Hidden, not
   removed: the exe binds the gameplay options by their index in the movie's `_element_map`.

@@ -2326,12 +2326,6 @@ st_srp_loadout_sell_many	Используется в комплектах %1$s. 
 st_srp_loadout_sell_one	Используется в комплекте %1$s. Продать?
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для боя
-st_srp_lobby_camp_069	Лагерь
-st_srp_lobby_day	Классика
-st_srp_lobby_hangar_046	Ангар
-st_srp_lobby_scene_option	Лобби:
-st_srp_lobby_scene_restart	Применится после перезапуска.
-st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Аккаунт создаётся при первом входе
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
