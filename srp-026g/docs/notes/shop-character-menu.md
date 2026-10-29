@@ -5,8 +5,24 @@ with inventory ... not character, but character menu ... with 3 profiles current
 
 - **Where:** the Shop tab. The character menu (the kits and what each has on) shows on the left, as
   on the Inventory tab. Before, the shop hid it.
-- **What it does there:** what it does on the Inventory tab. A shop item dropped on one of its slots
-  is bought into that slot, as the game already did (`DragRegion`, `MainScene.buyFunction`).
+- **What it does there:** what it does on the Inventory tab, and a shop item can be bought by a drop
+  (the owner, 2026-10-29: "either normal buy, or drag into weapon slot buy"):
+  - a shop item dropped on a slot it fits is bought into that slot after the usual buy dialog
+    ("already purchased" first for an item owned), weapons, equipment and pocket items alike;
+  - an item that slot held goes to the inventory (a helmet dropped on the helmet replaces it);
+  - a pocket item already in another pocket is refused, one pocket an item type, and nothing is
+    bought;
+  - dropped anywhere else on the character, it does nothing (it was bought into a slot picked for it);
+  - Buy and a double click buy into the inventory, as before.
+- **How the drop buys:** a weapon or equipment goes as `relocate_item` (0x288D60) with item id 0
+  and source slot 200, which sends the buy `47 00` with that target slot; the server buys and moves
+  it into the slot (`rules::buy`). It never reached the game: `LobbyMenu.relocate_to_paperdoll`
+  called the profile's relocate getter in place and Scaleform threw "is not a function"; it reads
+  it first now. A pocket item goes as the ammo dialog's `46 00`, its row from slot 200: the server
+  buys what is missing and moves it from the inventory (`rules::move_items`); it refused slot 200
+  before ("Impossible to relocate the item").
+- **A refused buy into a slot** (no money) gets the account sent again: the game locks the paper
+  doll for the buy (`set_ui_element_lock_state` 0x229400), and only the account unlocks it.
 - **Its right-click menu acts on the kit's item:** choosing a kit item makes it the card's item
   even though the shop does not list it (`InventoryList.selectItem`). Before that fix, Attachment
   there opened the shop card's item, which the game does not have, and the game crashed in
