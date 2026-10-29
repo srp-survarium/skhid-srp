@@ -25,7 +25,8 @@
 #      fails.
 # Relative paths (--with, $SKHID_STOCK_DB, $SKHID_PATCH_LIST, $SKHID_DBGRAB)
 # are of the folder it is run in.
-# Writes srp-026g/servers/web-server/{maps,damage}/ of <checkout> and the
+# Writes srp-026g/servers/web-server/{maps,damage,wiki}/ of <checkout> (wiki:
+# the calculator's wiki pages and their icons) and the
 # cache, nothing else. About 2 minutes, at nice 10 (the downloads aside).
 . "$(dirname "$0")/lib.sh"
 

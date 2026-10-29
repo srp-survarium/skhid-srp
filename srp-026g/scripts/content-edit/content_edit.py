@@ -50,6 +50,18 @@ Edits (edits.json):
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
                                                        later items move down in place, the count drops by 1
+  "promote_rolled_defaults": [{"categories", "from_top"}]
+                    every item of those `items_dict` categories: each of its `default_modifications`
+                    of a kind that rolls (a row of the kind with a drop weight that changes more than
+                    wear, as the server's Modification::rolls) weaker than that kind's `from_top`-th
+                    strongest row (1 the rarest: the rows by drop weight, commonest first, as the
+                    server and the wiki order them) becomes it; a stronger one stays (it only raises);
+                    kinds that never roll stay; applied as `set` edits, before them
+  "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table of
+                                                       numbers or strings `path` (an item's
+                                                       `default_modifications`), made like its first item;
+                                                       a value the table holds already is refused; applied
+                                                       after remove_item
   "copy":           [{"files", "from", "to"}]          every live file the glob matches (its path starts
                                                        with `from`) is also a new file at `to` + the rest
                                                        of its path, a path no live file has; applied first,
@@ -482,6 +494,87 @@ def remove_item(buf, path, value):
     REC.pack_into(buf, off, d, i, crc, t, cnt - 1)
 
 
+def append_item(buf, path, value):
+    """`value` after the items of the indexed table of numbers or strings `path`, a record like its
+    first item; the table's records move to a new array with it. A value the table holds already is
+    refused (a stale base, or a second bonus of one modification)."""
+    items = items_of(buf, path)
+    if value in items:
+        raise ValueError('%s holds %r already' % (path, value))
+    off = find(buf, path)
+    kids = children(buf, off)
+    if not kids:
+        raise ValueError('%s has no item to make the new one like' % path)
+    _, ii, icrc, it, icnt = rec(buf, kids[0])
+    if it == T_STR and isinstance(value, str):
+        text = value.encode()
+        new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
+    elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
+        new = REC.pack(value & 0xffffffff, ii, icrc, it, icnt)
+    elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
+        new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
+    else:
+        raise ValueError('%s holds items of type %d, not %r' % (path, it, value))
+    old = [bytes(buf[c:c + 24]) for c in kids]
+    d, i, crc, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, append_array(buf, old + [new]), i, crc, t, cnt + 1)
+
+
+DICTIONARY = 'gameplay/db_static_dictionaries'
+MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
+# What a "reliability" modification changes, and nothing else (the server's WEAR_PARAMETERS).
+WEAR = {'parameters/degrade_per_match', 'parameters/degrade_per_use', 'parameters/degrade_per_death'}
+
+
+def rolled_strengths(mods):
+    """For each kind (type_mask's set character) that rolls, its rolling rows' ids by drop weight,
+    commonest first (then by id), as the server's Modification::rolls and its order have them."""
+    rows = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        paths = ['/'.join(items_of(mods, '%s/modifiers[%d]/path' % (at, j)))
+                 for j in range(len(children(mods, find(mods, at + '/modifiers'))))]
+        weight = value_of(mods, find(mods, at + '/drop_weight'))
+        if weight > 0 and not (paths and all(p in WEAR for p in paths)):
+            kind = value_of(mods, find(mods, at + '/type_mask')).index('1')
+            rows.setdefault(kind, []).append((-weight, value_of(mods, find(mods, at + '/id'))))
+    return {kind: [i for _, i in sorted(r)] for kind, r in rows.items()}
+
+
+def promoted_defaults(read, categories, from_top):
+    """The `set` edits of promote_rolled_defaults: (file, path, from, to) for each default of a
+    rolling kind of an item of `categories` weaker than that kind's `from_top`-th strongest row
+    (it only raises: a default at that strength or stronger stays)."""
+    mods = read(MODIFICATIONS)
+    kinds = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        kinds[value_of(mods, find(mods, at + '/id'))] = value_of(mods, find(mods, at + '/type_mask')).index('1')
+    strengths = rolled_strengths(mods)
+    dictionary = read(DICTIONARY)
+    edits = []
+    for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
+        at = 'items_dict[%d]' % i
+        if value_of(dictionary, find(dictionary, at + '/item_category')) not in categories:
+            continue
+        cfg = value_of(dictionary, find(dictionary, at + '/cfg_name'))
+        item = read(cfg)
+        try:
+            defaults = items_of(item, 'default_modifications')
+        except KeyError:
+            continue
+        for j, mid in enumerate(defaults):
+            ranked = strengths.get(kinds.get(mid))
+            if not ranked:
+                continue
+            at = max(0, len(ranked) - from_top)
+            # Strength is the place in `ranked` (commonest first); a row of the kind that never
+            # rolls has no place, and is set like a weaker one.
+            if mid not in ranked or ranked.index(mid) < at:
+                edits.append((cfg, 'default_modifications[%d]' % j, mid, ranked[at]))
+    return edits
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -847,6 +940,13 @@ def main():
                 prefixed.setdefault(p, []).append((e['key'].encode(), e['prefix'].encode()))
                 n += k
         print('prefix %s with %s: %d values' % (e['key'], e['prefix'], n))
+    for e in edits.get('promote_rolled_defaults', []):
+        changed = promoted_defaults(buf, set(e['categories']), e['from_top'])
+        for cfg, path, frm, to in changed:
+            set_number(buf(cfg), path, frm, to)
+            allowed.setdefault(cfg, set()).add('/' + path)
+            print('built-in %s %s: %s -> %s' % (cfg, path, frm, to))
+        print('promote_rolled_defaults: %d defaults' % len(changed))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
@@ -984,6 +1084,15 @@ def main():
             e['path'], items_of(buf(e['file']), e['path']))
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
+    for e in edits.get('append_item', []):
+        k = len(items_of(buf(e['file']), e['path']))
+        append_item(buf(e['file']), e['path'], e['value'])
+        # The check below expects the new item and the table's count one more.
+        table = '/' + e['path']
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (e['path'], json.dumps(e['value'], ensure_ascii=False)))
     dropped = {}
     for e in edits.get('remove_entry', []):
         at = remove_entry(buf(e['file']), e['list'], e['where'])
