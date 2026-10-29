@@ -32,7 +32,7 @@ unsafe extern "C" {
     /// 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
     pub fn engine_write_u32(value: *const c_void, writer: *mut c_void, file: *const u8, line: u32, function: *const u8, name: *const u8);
     /// 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12
-    pub fn engine_statistics_notify(listener: *mut c_void, place: u32, event: u32, amount: u32);
+    pub fn engine_statistics_notify(listener: Option<StatisticsListener>, place: u32, event: u32, amount: u32);
     /// 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
     pub fn engine_register_cook(cook: *mut c_void);
     /// 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
@@ -2995,6 +2995,15 @@ impl CoreWorld {
     pub unsafe fn time(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18fc0).cast::<u32>().as_ptr() }
     }
+
+    /// +0x18fa8 (ptr<survarium::base_game_statistics_handler>): the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn statistics(self) -> Option<BaseGameStatisticsHandler> {
+        unsafe { self.0.byte_add(0x18fa8).cast::<Option<BaseGameStatisticsHandler>>().read_volatile() }
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -3353,6 +3362,245 @@ impl ModelInstance {
     #[inline(always)]
     pub unsafe fn static_model(self) -> StaticModelInstance {
         StaticModelInstance(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A survarium::artefact_container_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactContainerCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ArtefactContainerCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x54 (ptr<survarium::core_world>): its world's core: use_execute 0x31C838 reads the statistics handler from it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world_core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x54).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+}
+
+/// A survarium::base_game_statistics_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BaseGameStatisticsHandler(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BaseGameStatisticsHandler {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (obj<survarium::shared_statistics>): its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn shared(self) -> SharedStatistics {
+        SharedStatistics(unsafe { self.0.byte_add(0x8) })
+    }
+}
+
+/// A survarium::shared_statistics (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SharedStatistics(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SharedStatistics {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::player_shared_statistics>): the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn players(self) -> PlayerSharedStatistics {
+        PlayerSharedStatistics(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x31a0 (obj<survarium::statistics_listener>): the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener(self) -> StatisticsListener {
+        StatisticsListener(unsafe { self.0.byte_add(0x31a0) })
+    }
+}
+
+/// A survarium::player_shared_statistics (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerSharedStatistics(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerSharedStatistics {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::event_count>): events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn events(self) -> EventCount {
+        EventCount(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// 0x1f8 bytes: a place's record (finish_match 0x2F4D25, imul 1F8h)
+    pub const SIZE: usize = 0x1f8;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::player_shared_statisticss (0x1f8 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PlayerSharedStatisticsStorage([u8; 0x1f8]);
+
+#[allow(dead_code)]
+impl PlayerSharedStatisticsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1f8])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PlayerSharedStatistics {
+        PlayerSharedStatistics(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PlayerSharedStatistics> {
+        (!rooms.is_empty()).then(|| PlayerSharedStatistics(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::event_count (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventCount(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EventCount {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u16): one kit's count of one event; the game adds 1 with no bound (inc word, 0x2F5606)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
+    }
+
+    /// 0x2 bytes: a u16 (player_shared_statistics::serialize 0x335750)
+    pub const SIZE: usize = 0x2;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::event_counts (0x2 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct EventCountStorage([u8; 0x2]);
+
+#[allow(dead_code)]
+impl EventCountStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> EventCount {
+        EventCount(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<EventCount> {
+        (!rooms.is_empty()).then(|| EventCount(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::statistics_listener (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StatisticsListener(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StatisticsListener {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn function(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 }
 
@@ -4267,6 +4515,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// artefact_container.transfer (0x31c810): artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)
+    pub mod artefact_container_transfer {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn user(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// EDI: a survarium::artefact_container_core (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
         }
     }
 }

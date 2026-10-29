@@ -77,3 +77,6 @@ pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 mod consumable;
 pub use consumable::QuickSlotActivity;
+
+mod artefact;
+pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

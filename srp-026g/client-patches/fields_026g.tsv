@@ -198,3 +198,13 @@ survarium::scene_model	render_instance	0x108	obj<vostok::render::scene_model_ref
 vostok::render::scene_model_ref	instance	0x0	ptr<vostok::render::model_instance>	the retained render model instance
 vostok::render::model_instance	in_scene	0x10D	u8	renderer add/remove bookkeeping, 0x244EE7
 vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
+survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
+survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+survarium::base_game_statistics_handler	shared	0x8	obj<survarium::shared_statistics>	its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
+survarium::shared_statistics	players	0x0	obj<survarium::player_shared_statistics>	the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
+survarium::player_shared_statistics	events	0x0	obj<survarium::event_count>	events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)
+survarium::player_shared_statistics	size	0x1F8	size	a place's record (finish_match 0x2F4D25, imul 1F8h)
+survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds 1 with no bound (inc word, 0x2F5606)
+survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
+survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
+survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)

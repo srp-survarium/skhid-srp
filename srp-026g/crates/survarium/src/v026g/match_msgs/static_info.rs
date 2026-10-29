@@ -96,13 +96,18 @@ pub const FULL_CONDITION: u32 = 1_000_000;
 ///
 /// The match pays by the score of the events that are no kill and no help
 /// (`session::v026g::pay`), with these same weights.
+///
+/// An anomaly's artefact scores [`ARTEFACT_SCORE`] taken into an empty
+/// artefact slot and [`ARTEFACT_SCORE_SLOTS_FULL`] with every slot full
+/// (the owner, 2026-10-29; `docs/notes/artefact-score.md`): the game counts
+/// event 5 for each, exe patch 80 counts event 16 too for the first.
 pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     10.0, // kill (sourced)
     5.0,  // assist (sourced)
     0.0,  // death
     0.0,  // suicide
     0.0,  // team kill
-    2.0,  // artefact
+    ARTEFACT_SCORE_SLOTS_FULL, // artefact (every one an anomaly gives)
     10.0, // bring victory item (x0.01 by the client)
     2.5,  // teammate cure
     2.5,  // teammate rescue
@@ -113,7 +118,7 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     2.5,  // melee kill
     2.5,  // silent kill
     2.5,  // headshot kill
-    0.0,  // winning team victory item bonus
+    ARTEFACT_SCORE - ARTEFACT_SCORE_SLOTS_FULL, // an artefact into an empty slot (patch 80)
     35.0, // steal victory item (x0.01) (sourced)
     10.0, // recover victory item (x0.01)
     2.5,  // victory item found
@@ -126,6 +131,14 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // stolen battery brought home
     0.0,  // a new player's match
 ];
+
+/// An anomaly's artefact taken into an empty artefact slot: event 5 and
+/// event 16 together (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE: f32 = 15.0;
+/// An anomaly's artefact taken with every artefact slot full (it takes the
+/// first slot's place): event 5 alone. Less, so that a player hands one to
+/// a teammate first (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE_SLOTS_FULL: f32 = 5.0;
 
 /// What Research (mode 5) weighs otherwise: its rule counts a unit's
 /// capture in event 6 and a neutralisation in event 18 (hundredths, a
@@ -1064,7 +1077,7 @@ mod tests {
         assert_eq!(SCORE_WEIGHTS[17], 35.0);
         // The events the client adds at the end, and the new ones, score
         // nothing.
-        for event in [2, 3, 4, 11, 12, 16, 22, 23, 24, 25, 26, 27] {
+        for event in [2, 3, 4, 11, 12, 22, 23, 24, 25, 26, 27] {
             assert_eq!(SCORE_WEIGHTS[event], 0.0, "{event}");
         }
         // On the wire: little-endian f32, 28 of them before the squads.
@@ -1075,6 +1088,27 @@ mod tests {
             [0x00, 0x00, 0x20, 0x41, 0x00, 0x00, 0xA0, 0x40]
         );
         assert_eq!(weights[17 * 4..18 * 4], [0x00, 0x00, 0x0C, 0x42]);
+    }
+
+    #[test]
+    fn an_artefact_scores_15_into_an_empty_slot_and_5_with_every_slot_full() {
+        use super::super::snapshot::{self, event};
+        // What the clients count for one artefact taken with kit 1.
+        let taken = |slot_free: bool| {
+            let mut player = snapshot::PlayerStatistics::default();
+            player.events[event::ARTEFACT][1] = 1;
+            if slot_free {
+                player.events[event::WINNING_TEAM_VI_BONUS][1] = 1;
+            }
+            snapshot::score(&player, &SCORE_WEIGHTS)
+        };
+        assert_eq!(taken(true), 15);
+        assert_eq!(taken(false), 5);
+        // Research weighs them the same.
+        assert_eq!(
+            score_weights(super::super::super::maps::mode::RESEARCH)[event::WINNING_TEAM_VI_BONUS],
+            10.0
+        );
     }
 
     #[test]

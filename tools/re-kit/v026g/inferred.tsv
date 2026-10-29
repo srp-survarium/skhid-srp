@@ -3131,3 +3131,7 @@ va	status	ref_021d	name
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
 0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
+0x0026dac0	inferred-medium		survarium::base_game_statistics_handler::on_artefact_taken
+0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
+0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
+0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match

@@ -40,3 +40,4 @@ carry.death	0x2D77C0	lohook	-	5	-	player=ECX:survarium::player	base_player::on_p
 carry.ground_save	0x313735	lohook	-	6	-	item=ESI:survarium::artefact writer=EDI:vostok::buffer_writer	artefact_base::serialize after native state-dependent fields; ESI item EDI writer
 carry.ground_load	0x3137EC	lohook	-	5	-	item=EBX:survarium::artefact reader=EDI:vostok::buffer_reader	artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader
 carry.client_death	0x1F28E0	lohook	-	5	-	player=ECX:survarium::player	client player death override, ECX player; inlines base teardown, does not call 0x2D77C0
+artefact_container.transfer	0x31C810	lohook	-	6	-	user=EBX:survarium::player container=EDI:survarium::artefact_container_core	artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)

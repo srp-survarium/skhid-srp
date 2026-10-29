@@ -48,3 +48,5 @@ pub mod text_input;
 pub mod consumable_activity;
 
 pub mod language;
+
+pub mod artefact_score;
