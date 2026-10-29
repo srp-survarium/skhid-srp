@@ -5,7 +5,7 @@ use super::*;
 /// one JSON line each, in `<dir>/<level>-<mode>-<n>v<n>.jsonl`. What the
 /// plays' churn, the idle bots with a goal and the trades are counted from
 /// (`player_bots_behaviour.md` §3 "Play choice and trades").
-pub(crate) struct BenchEvents(pub(crate) Option<std::io::BufWriter<std::fs::File>>, Vec<LookTrack>);
+pub(crate) struct BenchEvents(pub(crate) Option<std::io::BufWriter<std::fs::File>>, Vec<LookTrack>, usize);
 
 /// What the events last saw of one bot's trap habit: whether it was looking, and its outcomes so far.
 #[derive(Clone, Copy, Default)]
@@ -23,7 +23,37 @@ impl BenchEvents {
                 std::io::BufWriter::new(std::fs::File::create(path).unwrap())
             }),
             Vec::new(),
+            0,
         )
+    }
+
+    /// The traps placed and set off since the last call, one line each, with the trap's floor point (the stand-in's list)
+    /// and, for a catch, who set it off and whose body that is (`kind`: the placer's own, a mate's, an enemy's).
+    pub(crate) fn traps(&mut self, game: &Game) {
+        use super::standin_traps::Event;
+        if self.0.is_none() {
+            return;
+        }
+        let at = |placer: Place, placed: u32| {
+            game.traps
+                .list
+                .iter()
+                .find(|trap| trap.placer == placer && trap.placed == placed)
+                .map(|trap| [(trap.at.x * 10.0).round() / 10.0, (trap.at.z * 10.0).round() / 10.0])
+        };
+        let from = self.2.min(game.traps.events.len());
+        for event in &game.traps.events[from..] {
+            match *event {
+                Event::Placed { tick, place, team, .. } => {
+                    self.line(serde_json::json!({"t": tick, "trap_placed": {"placer": place, "team": team, "at": at(place, tick)}}));
+                }
+                Event::Caught { tick, placer, victim, kind, placed, placer_team, victim_team, .. } => {
+                    self.line(serde_json::json!({"t": tick, "trap_caught": {"placer": placer, "victim": victim, "kind": format!("{kind:?}"), "placer_team": placer_team, "victim_team": victim_team, "at": at(placer, placed)}}));
+                }
+                Event::ShotOff { .. } | Event::DefusedBy { .. } => {}
+            }
+        }
+        self.2 = game.traps.events.len();
     }
 
     /// The containers once (team, x, z), for the thefts' distances.
@@ -1204,6 +1234,7 @@ pub(crate) fn real_bot_cost() {
                         events.theft(clock, place, robbed, holding[robbed]);
                     }
                     events.looks(clock, &game, &bots);
+                    events.traps(&game);
                     for (team, &held) in holding.iter().enumerate() {
                         let home = game.batteries.iter().any(|b| {
                             matches!(*b, Lying::Home(id)
