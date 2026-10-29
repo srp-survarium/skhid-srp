@@ -1,7 +1,21 @@
 # Wiki: weapons
 
-This first step contains `/wiki` and `/wiki/weapons` only: a searchable weapon
-catalogue with class filters, sorting and expandable weapon stats, in EN/UK.
+The wiki is `/wiki` (its index) and four sections: `/wiki/weapons`, built here;
+`/wiki/modifiers`; and the damage calculator (`/wiki/calculator`,
+`scripts/damage-calc/`) and the maps (`/wiki/maps`, `scripts/maps-tab/`), each a
+page of its own look under a "Wiki / <page>" line. Their old addresses `/damage`
+and `/maps` send to them.
+
+The modifiers page has no build step: the web server makes it from the server's
+own game data (`servers/web-server/src/modifiers.rs`), with the tables and the
+roll rule the lobby gives modifications by (`Modification::rolls`). Each kind
+lists its strengths, commonest first, and the item groups that roll it (or, for
+the kinds that never roll, the items that come with it); a group only some of
+whose items take it lists those items. Reliability is left out: items wear
+nothing.
+
+The weapons section is a searchable weapon catalogue with class filters,
+sorting and expandable weapon stats, in EN/UK.
 Two selected weapons share a stat comparison and recoil simulation. Comparison
 colors follow each stat's direction, stay neutral for equal displayed values,
 unknown values and neutral traits, and can be turned off. Range comparisons
@@ -62,3 +76,25 @@ screenshots to `/tmp/wiki-weapons-review`.
 
 Focused model checks: `node scripts/wiki/test_recoil.mjs servers/web-server/damage/calc.js`
 and `python3 -m unittest discover -s scripts/wiki -p 'test_*.py'` from `srp-026g`.
+
+## Icons
+
+`/wiki/icons/` holds the lobby's own icons (`lobby_menu.swf`), made by
+`build_icons.py` each time `damage-calc/build_site.py` runs (so every
+`release/build-site`) into `servers/web-server/wiki/icons/`, with `files.rs`
+listing them for the server (`servers/web-server/src/icons.rs`, `icons::url`
+gives an address with its `?v=` hash):
+
+- `items/<items_dict name>.webp`: the item icons the calculator's build cuts
+  (171x83), for every category of the shop's equipment and weapon filters;
+- `mods/<ui_desc.icon>.webp`: every cell of the `modifiers` atlas (character
+  3279, 38x38, column-major); each icon a modification shows must be one;
+- `groups/<item_category>.webp`: the shop filter buttons' icons
+  (FilterItemCatRenderer's `itemIcon`, sprite 1125, frame 300 + the icon
+  FiltersWindow gives the filter of that category).
+
+The modification and group icons are written white, with the glyph's
+brightness as alpha (their baked drop shadow drops out), for the page to
+tint in its ink with CSS masks. The build fails if an item of those
+categories has no lobby icon, a modification's icon is an empty cell, or a
+filter frame does not hold exactly one bitmap.

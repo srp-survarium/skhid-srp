@@ -1,6 +1,6 @@
-# Damage calculator (`/damage`)
+# Damage calculator (`/wiki/calculator`)
 
-The 0.26g site's tab "Calculator" / "Калькулятор": shooter against target, every
+The 0.26g wiki's section "Damage calculator" / "Калькулятор шкоди": shooter against target, every
 number from the game data, the rules as the client's hit code applies them. Built by
 `srp-026g/scripts/damage-calc/` (its README), served by `servers/web-server/src/damage.rs`.
 
@@ -41,9 +41,11 @@ number from the game data, the rules as the client's hit code applies them. Buil
 
 ## Serving
 
-- `GET /damage`: the page in the request's language, under the site's header (`no-store`, as
-  every page). Its Content-Security-Policy adds `script-src 'self'`, `img-src 'self' data:` and
-  `font-src 'self'` to the site's; nothing inline runs and nothing comes from elsewhere.
+- `GET /wiki/calculator`: the page in the request's language, under the site's header and a "Wiki /
+  Damage calculator" breadcrumb (`no-store`, as every page). Its Content-Security-Policy adds `script-src 'self'`,
+  `img-src 'self' data:` and `font-src 'self'` to the site's; nothing inline runs and nothing comes
+  from elsewhere.
 - `GET`/`HEAD /damage/calc.js`, `/damage/fonts/*.woff2`, `/damage/maps/*.webp`: the files the
   page names with `?v=<hash>`, kept a year (`immutable`). Part of the binary.
+- `GET`/`HEAD /damage` (its address before the wiki): a `301` to `/wiki/calculator?lang=<language>`.
 - The 0.21d site has no calculator.

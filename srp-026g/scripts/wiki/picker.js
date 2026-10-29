@@ -1,7 +1,10 @@
-// Calculator-style weapon chooser: lobby icons, class groups, level ordering,
+// Calculator-style chooser: lobby icons, class groups, level ordering,
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
-function WikiWeaponPicker(select, weapons, tr, collator) {
+// `weapons` are the elements offered (the weapons page's rows, or the
+// modifiers page's item entries, which carry their name in data-title).
+function WikiWeaponPicker(select, weapons, tr, collator, words = {
+  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -10,10 +13,10 @@ function WikiWeaponPicker(select, weapons, tr, collator) {
     return element;
   };
   const bare = text => text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-  const title = weapon => weapon.querySelector('.weapon-title strong').textContent;
+  const title = weapon => weapon.dataset.title || weapon.querySelector('.weapon-title strong').textContent;
   const icon = weapon => {
     const source = weapon?.querySelector('img');
-    return source ? make('img', {src: source.src, alt: '', width: 54, height: 26}) : make('span', {class: 'noimg'});
+    return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
@@ -21,8 +24,8 @@ function WikiWeaponPicker(select, weapons, tr, collator) {
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': tr('Search weapons', 'Пошук зброї'), placeholder: tr('Search…', 'Пошук…')});
-  const empty = make('p', {class: 'wpick-empty', role: 'status'}, tr('No weapons match.', 'Зброю не знайдено.'));
+    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+  const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
   const options = [], groups = new Map();

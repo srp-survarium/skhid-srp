@@ -872,10 +872,9 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
     assert!(home.contains(
-        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/damage?lang=en\">Calculator</a>\
-         <a href=\"/maps?lang=en\">Maps</a>"
+        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/wiki?lang=en\">Wiki</a>"
     ));
-    let page = world.web.route(&get("/damage"), "t");
+    let page = world.web.route(&get(crate::damage::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -887,7 +886,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\" aria-current=page>Calculator</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
@@ -897,11 +896,14 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/damage");
+    let mut uk = get(crate::damage::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Калькулятор</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+    assert!(uk.contains(
+        "<p class=breadcrumb><a href=\"/wiki?lang=uk\">Вікі</a> / Калькулятор шкоди</p>"
+    ));
 }
 
 #[test]
@@ -918,7 +920,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
             .filter(|path| !path.contains(['"', ' ', '<', '\n']))
             .collect()
     }
-    let page = world.web.route(&get("/damage"), "t").body;
+    let page = world.web.route(&get(crate::damage::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::damage::file("/damage/calc.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
@@ -946,7 +948,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
     let asks = [
         "GET /damage/calc.js?v=0 HTTP/1.0",
         "HEAD /damage/maps/level_01.webp HTTP/1.0",
-        "GET /damage?lang=uk HTTP/1.0",
+        "GET /wiki/calculator?lang=uk HTTP/1.0",
         "GET /damage/missing.js HTTP/1.0",
     ];
     let server = std::thread::spawn(move || {
@@ -1006,7 +1008,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
 #[test]
 fn the_maps_are_a_026g_page_under_the_sites_header() {
     let world = world();
-    let page = world.web.route(&get("/maps"), "t");
+    let page = world.web.route(&get(crate::maps::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -1014,25 +1016,31 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/maps?lang=en\" aria-current=page>Maps</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\">Calculator</a>")
+            .contains("<p class=breadcrumb><a href=\"/wiki?lang=en\">Wiki</a> / Maps</p>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/maps");
+    let mut uk = get(crate::maps::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Мапи</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
 }
 
 #[test]
 fn wiki_routes_use_the_sites_navigation_and_language() {
     let world = world();
-    for path in ["/wiki", "/wiki/weapons"] {
+    for path in [
+        "/wiki",
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/calculator",
+        "/wiki/maps",
+    ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
             request.lang = lang;
@@ -1049,10 +1057,70 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             )));
         }
     }
+    // The index leads to every section.
+    let index = world.web.route(&get("/wiki"), "t").body;
+    for section in [
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/calculator",
+        "/wiki/maps",
+    ] {
+        assert!(
+            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
+            "{section}"
+        );
+    }
     assert_eq!(
         world.web.route(&get("/wiki/unknown"), "t").status,
         "404 Not Found"
     );
+}
+
+#[test]
+fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    let world = world();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let asks = [
+        (
+            "GET /damage?lang=uk HTTP/1.0",
+            Some("/wiki/calculator?lang=uk"),
+        ),
+        ("HEAD /maps HTTP/1.0", Some("/wiki/maps?lang=en")),
+        // Their files keep their addresses.
+        ("GET /maps/maps.js HTTP/1.0", None),
+    ];
+    let server = std::thread::spawn(move || {
+        for _ in asks {
+            let (stream, _) = listener.accept().unwrap();
+            world.web.serve(stream);
+        }
+    });
+    for (ask, location) in asks {
+        let mut client = TcpStream::connect(address).unwrap();
+        client
+            .write_all(format!("{ask}\r\n\r\n").as_bytes())
+            .unwrap();
+        let mut got = String::new();
+        client.read_to_string(&mut got).unwrap();
+        match location {
+            Some(location) => {
+                assert!(
+                    got.starts_with("HTTP/1.0 301 Moved Permanently\r\n"),
+                    "{ask}"
+                );
+                assert!(
+                    got.contains(&format!("\r\nLocation: {location}\r\n")),
+                    "{ask}"
+                );
+                assert!(got.ends_with("\r\n\r\n"), "{ask}: no body");
+            }
+            None => assert!(got.starts_with("HTTP/1.0 200 OK\r\n"), "{ask}"),
+        }
+    }
+    server.join().unwrap();
 }
 
 /// A standalone local review of the real HTTP routes, with in-memory test
@@ -1084,7 +1152,7 @@ fn every_file_the_maps_name_is_served() {
             .collect()
     }
     let world = world();
-    let page = world.web.route(&get("/maps"), "t").body;
+    let page = world.web.route(&get(crate::maps::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::maps::file("/maps/maps.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
