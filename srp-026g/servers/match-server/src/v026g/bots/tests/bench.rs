@@ -993,6 +993,7 @@ pub(crate) fn real_bot_cost() {
             let mut push = PushTally::start(&world, game.bodies.len());
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
+            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
@@ -1217,6 +1218,19 @@ pub(crate) fn real_bot_cost() {
                     }
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
+                    }
+                    if let Some(habit) = &mut smoke_habit {
+                        let (place, now) = (habit.place(), game.tick);
+                        let fresh: Vec<bool> = (0..game.bodies.len())
+                            .map(|enemy| {
+                                bots.bots[place].as_ref().is_some_and(|me| {
+                                    me.memory.tracks().iter().any(|t| {
+                                        t.who == enemy && super::fairness::Basis::of(t, now) == super::fairness::Basis::Fresh
+                                    })
+                                })
+                            })
+                            .collect();
+                        habit.tick(&game, &mut bots.tracker, now, |enemy| fresh[enemy]);
                     }
                     let mut holding = [false; 2];
                     for bot in bots.bots.iter().flatten() {
@@ -1786,6 +1800,9 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  hold_switch: {}", super::hold_trace::line());
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
+            }
+            if let Some(habit) = &smoke_habit {
+                eprintln!("  {}", habit.line());
             }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
