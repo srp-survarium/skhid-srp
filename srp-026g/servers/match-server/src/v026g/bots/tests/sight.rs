@@ -87,7 +87,7 @@ pub(crate) fn the_thinks_due_are_counted_from_the_bots_that_have_entered_and_are
             total_s: 900.0,
             playing: true,
         },
-        &bots.tuning.kin,
+        &bots.match_wide_tuning().kin,
         Some(&*world),
     );
     for place in &mut view.places {

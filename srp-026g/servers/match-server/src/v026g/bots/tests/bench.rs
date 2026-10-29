@@ -404,14 +404,14 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
-    bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
     bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
     let view = bots
         .tracker
-        .view(&clock, &bots.tuning.kin, world.as_deref());
+        .view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
     let viewed = Instant::now();
     super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
@@ -423,10 +423,10 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     }
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
-    let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
+    let mut rays = RayBudget::new(bots.match_wide_tuning().think.rays_per_poll);
     rays.thinks_left = bots.thinks_due(&view);
     bots.features.searching.left = SEARCHES_PER_POLL;
-    bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
     let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
     let a = Instant::now();
     bots.go_on_searching();
@@ -580,25 +580,26 @@ pub(crate) fn real_bot_cost() {
             // match server does.
             let roster = bench_roster(&teams, bench_equipment());
             let roles = &roster.roles;
-            let mut bots = Bots::new(
+            // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
+            // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
+            // alone shows in its K/D.
+            let mut tunings = super::tuning::TeamTunings::new(Arc::new(bench_tuning()));
+            if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
+                tunings.give_team1(Arc::new(bench_tuning_of(true)));
+            }
+            let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
                 mode,
                 level,
                 &teams,
                 &driven,
                 roles,
-                Arc::new(bench_tuning()),
+                tunings,
                 Trace::none(0),
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
             bots = bots.with_tiers(&roster.equipments);
-            // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
-            // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
-            // alone shows in its K/D.
-            if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
-                bots.side1_tuning = Some(Arc::new(bench_tuning_of(true)));
-            }
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
             // ms): known to the clock less a ping drawn for each place, and
             // reckoned on from there (`Tracker::seen_late`). Off, the
@@ -655,7 +656,7 @@ pub(crate) fn real_bot_cost() {
                     .iter()
                     .map(|bot| {
                         let bot = bot.as_ref()?;
-                        super::reflex::WeaponKind::of_role(&bot.personality(&bots.tuning).name)
+                        super::reflex::WeaponKind::of_role(&bot.personality(bots.tunings.of(bot.team)).name)
                     })
                     .collect();
                 bots.set_weapons(weapons);
@@ -885,7 +886,7 @@ pub(crate) fn real_bot_cost() {
             // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
             // owner's CG-20 test): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
-            game.zone_routed = bots.tuning.hazard.zone_pools == super::tuning::ZonePools::Routed;
+            game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -1764,7 +1765,7 @@ pub(crate) fn real_bot_cost() {
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0
             );
-            if bots.tuning.aim.combat.fire.weapon_class_by_data {
+            if (0..2).any(|team| bots.tunings.of(team).aim.combat.fire.weapon_class_by_data) {
                 // The switch's activity and harm (the held weapons whose class,
                 // bursts' table, range floor or band the data's class changes).
                 let c = bots.class_counts();
@@ -1842,7 +1843,7 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
 
 /// The bots' rusher kit as the run has it, in a line (like the game data's):
 /// the setting and what the data lets the tier's rusher wear.
-/// Once per run, before the matches (`switches ON:`, `switches OFF:`, `switch values:`, `changed numbers:`, `data files:`,
+/// Once per run, before the matches (`switches ON <section>:`, `switches OFF <section>:`, `switch values <section>:`, `changed numbers <section>:`, `data files:`,
 /// `env switches:`, `bench models:`): what the bots of this run have on and off, the data they read and the stand-in's
 /// models, so a switch left off, or a model nobody set, shows in the log at once. Team 1's block (`side1 ...`) follows when
 /// `SRP_BENCH_ONE_SIDE` makes its tuning differ. Logging only.
