@@ -87,6 +87,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(SmokeCounts::new()),
         Box::new(Scoreboard::default()),
         Box::new(Metrics::default()),
+        Box::new(Feel::default()),
         Box::new(OutcomeCounts::default()),
         Box::new(PierceCounts::default()),
         Box::new(PocketCounts::default()),

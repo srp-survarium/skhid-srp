@@ -25,6 +25,8 @@ use super::*;
 
 /// A teammate's hit on the victim this long before the kill makes an assist (GUESS).
 const ASSIST_MS: u32 = 10_000;
+/// The windows the assists a kill are also counted for, s, so that the window can be chosen against the live 0.19 a kill.
+const WINDOWS_S: [u32; 6] = [1, 2, 3, 5, 10, 30];
 
 /// Score events the stand-in has a part for (the game's ids).
 const KILL: usize = 0;
@@ -64,6 +66,8 @@ pub(super) struct Scoreboard {
     kills_seen: usize,
     last_kill: Option<(u32, Place, Place)>,
     assists: Vec<u32>,
+    /// By [`WINDOWS_S`]: the assists the rule would give (distinct teammates who hit within the window), over the match.
+    by_window: [u32; WINDOWS_S.len()],
     carrier_kills_seen: usize,
     /// By place: enemy carriers killed.
     carrier_kills: Vec<u32>,
@@ -108,6 +112,21 @@ impl Scoreboard {
                 continue;
             };
             let mut helped: Vec<Place> = Vec::new();
+            for (k, window) in WINDOWS_S.iter().enumerate() {
+                let mut within: Vec<Place> = Vec::new();
+                for &(hit_t, shooter, target) in &self.hits {
+                    if target == victim
+                        && shooter != killer
+                        && hit_t <= t
+                        && t - hit_t <= window * 1000
+                        && game.bodies.get(shooter).is_some_and(|b| b.team == team)
+                        && !within.contains(&shooter)
+                    {
+                        within.push(shooter);
+                    }
+                }
+                self.by_window[k] += within.len() as u32;
+            }
             for &(hit_t, shooter, target) in &self.hits {
                 if target == victim
                     && shooter != killer
@@ -135,7 +154,7 @@ impl Topic for Scoreboard {
         self.grow(game.bodies.len());
         self.hits.extend(game.hit_log.iter().copied());
         let tick = game.tick;
-        self.hits.retain(|&(t, ..)| tick.saturating_sub(t) <= ASSIST_MS);
+        self.hits.retain(|&(t, ..)| tick.saturating_sub(t) <= WINDOWS_S[WINDOWS_S.len() - 1] * 1000);
         self.kills_tick(game);
         for &(killer, _) in &game.carrier_kills[self.carrier_kills_seen.min(game.carrier_kills.len())..] {
             if let Some(count) = self.carrier_kills.get_mut(killer) {
@@ -210,10 +229,11 @@ impl Topic for Scoreboard {
             })
             .collect();
         lines.push(format!(
-            "owner-test scoreboard: {}; assists {assists} of {kills} kills = {:.2} a kill (live 0.19; the rule is a GUESS: a teammate's hit within {} s)",
+            "owner-test scoreboard: {}; assists {assists} of {kills} kills = {:.2} a kill (live 0.19; the rule is a GUESS: a teammate's hit within {} s); a kill's assists by window (s): {:?}",
             teams.join(", "),
             if kills > 0 { f64::from(assists) / f64::from(kills) } else { 0.0 },
-            ASSIST_MS / 1000
+            ASSIST_MS / 1000,
+            WINDOWS_S.iter().zip(self.by_window).map(|(w, n)| (*w, if kills > 0 { (100.0 * f64::from(n) / f64::from(kills)).round() / 100.0 } else { 0.0 })).collect::<Vec<_>>()
         ));
         vec![("scoreboard", Part::new(json, lines.join("\n  ")))]
     }

@@ -1704,6 +1704,8 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Shared);
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
@@ -1724,8 +1726,6 @@ impl Bots {
                 }
             }
         }
-        #[cfg(test)]
-        bench_work::set(bench_work::Who::Shared);
         let mut rays = RayBudget::new(self.tunings.match_wide().think.rays_per_poll);
         rays.thinks_left = self.thinks_due(&view);
         self.features.searching.left = SEARCHES_PER_POLL;

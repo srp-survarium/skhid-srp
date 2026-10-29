@@ -202,18 +202,18 @@ impl Topic for Metrics {
 }
 
 /// The value at the fraction `p` of the sorted `values` (none: no values).
-fn quantile(values: &[u32], p: f64) -> Option<u32> {
+pub(super) fn quantile(values: &[u32], p: f64) -> Option<u32> {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
     let last = sorted.len().checked_sub(1)?;
     sorted.get((last as f64 * p).round() as usize).copied()
 }
 
-fn round1(x: f64) -> f64 {
+pub(super) fn round1(x: f64) -> f64 {
     (x * 10.0).round() / 10.0
 }
 
-fn round3(x: f64) -> f64 {
+pub(super) fn round3(x: f64) -> f64 {
     (x * 1000.0).round() / 1000.0
 }
 

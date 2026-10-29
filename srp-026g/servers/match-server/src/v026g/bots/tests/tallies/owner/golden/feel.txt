@@ -1,0 +1,90 @@
+owner-test feel (the live census's definitions; live in brackets)
+  top of team 0: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  top of team 1: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  other bots of team 0: alive 5.9 min, deaths 7 = 1.192 a minute (live 1.19 top, 0.81 not), crowded 7 = 100 % (live top 41-45, not 27-29), enemies within 30 m at death 1.714 / distinct in 10 s 3 (live 1.1), spawn to first contact p25/median/p75 s [Some(0.0), Some(0.0), Some(0.0)] over 11 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  other bots of team 1: alive 5.9 min, deaths 16 = 2.695 a minute (live 1.19 top, 0.81 not), crowded 14 = 87.5 % (live top 41-45, not 27-29), enemies within 30 m at death 2.625 / distinct in 10 s 2.875 (live 1.1), spawn to first contact p25/median/p75 s [Some(0.0), Some(0.0), Some(0.0)] over 7 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  the stand-in human: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+{
+  "feel": {
+    "other bots of team 0": {
+      "alive_min": 5.873,
+      "contact_lives": 11,
+      "contact_s_p25_median_p75": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crowded": 7,
+      "crowded_pct": 100.0,
+      "deaths": 7,
+      "deaths_per_min": 1.192,
+      "enemies_30m_at_death": 1.714,
+      "enemies_30m_in_10s": 3.0,
+      "no_contact_lives": 0
+    },
+    "other bots of team 1": {
+      "alive_min": 5.937,
+      "contact_lives": 7,
+      "contact_s_p25_median_p75": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crowded": 14,
+      "crowded_pct": 87.5,
+      "deaths": 16,
+      "deaths_per_min": 2.695,
+      "enemies_30m_at_death": 2.625,
+      "enemies_30m_in_10s": 2.875,
+      "no_contact_lives": 0
+    },
+    "the stand-in human": {
+      "alive_min": 0.0,
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0
+    },
+    "top of team 0": {
+      "alive_min": 0.0,
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0
+    },
+    "top of team 1": {
+      "alive_min": 0.0,
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0
+    }
+  }
+}

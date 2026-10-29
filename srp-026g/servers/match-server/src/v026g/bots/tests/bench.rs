@@ -426,6 +426,7 @@ fn set(tuning: &mut serde_json::Value, path: &str, value: serde_json::Value) {
 pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, Vec<Note>) {
     use std::time::Instant;
     let started = Instant::now();
+    super::bench_work::set(super::bench_work::Who::Shared);
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
@@ -461,6 +462,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             continue;
         }
         let a = Instant::now();
+        super::bench_work::set(super::bench_work::Who::Team(bots.bots[index].as_ref().map_or(0, |bot| bot.team)));
         // Before play begins: only rest.
         if clock.playing {
             bots.think(index, &view, &mut rays, &mut notes);
@@ -471,6 +473,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         think += (b - a).as_secs_f64();
         ticks += b.elapsed().as_secs_f64();
     }
+    super::bench_work::set(super::bench_work::Who::Idle);
     bots.polls.record(clock.clock, &rays);
     let parts = [
         (viewed - started).as_secs_f64(),
