@@ -692,11 +692,13 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
 fn only_the_team_whose_tuning_has_kit_frags_carries_them() {
     use crate::v026g::bots::live_grenades::Throws;
     use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, KitFrags, RusherKits, new_kit};
+    let mut team0 = Tuning::default();
+    team0.kit.frags = KitFrags::Off;
     let mut team1 = Tuning::default();
     team1.kit.frags = KitFrags::SupportAndCamper;
     let teams: Vec<u8> = (0..16).map(|k| u8::from(k >= 8)).collect();
     let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
-    let tunings = tunings(Tuning::default(), team1);
+    let tunings = tunings(team0, team1);
     assert_eq!((tunings.of(0).kit.frags, tunings.of(1).kit.frags), (KitFrags::Off, KitFrags::SupportAndCamper));
     let roster = bench_roster(&teams, equipment, &tunings);
     let throws = crate::v026g::bots::tests::bench::bench_throws(&roster, &tunings);

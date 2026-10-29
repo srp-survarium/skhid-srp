@@ -34,7 +34,7 @@ impl Default for KitTuning {
         Self {
             pocket_store: true,
             smoke: KitSmoke::Off,
-            frags: KitFrags::Off,
+            frags: KitFrags::SupportAndCamper,
         }
     }
 }
