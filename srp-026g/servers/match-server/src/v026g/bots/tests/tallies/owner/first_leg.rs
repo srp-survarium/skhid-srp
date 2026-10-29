@@ -30,6 +30,7 @@ impl Topic for FirstLegCounts {
                 ("too_long", Tally::read(&t.too_long)),
                 ("not_better", Tally::read(&t.not_better)),
                 ("no_way", Tally::read(&t.no_way)),
+                ("no_splice", Tally::read(&t.no_splice)),
                 ("budget", Tally::read(&t.budget)),
                 ("floors", Tally::read(&t.floors)),
                 ("detour_mm", Tally::read(&t.detour_mm)),

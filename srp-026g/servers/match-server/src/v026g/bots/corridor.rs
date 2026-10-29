@@ -8,9 +8,10 @@
 //! The commander tells each bot of the team where the team's bodies were in the last `trail_s` seconds, by region
 //! ([`Traffic`]: a bit a mate in the region's mask; what a player sees of his mates, not their intent). A bot younger than
 //! `young_s` (not at the match's opening) whose plain way runs `shared_m` metres or more through regions mates were in
-//! plans again with a region costing `1 + step` times its length for each such mate (up to `max_mates`) over a room of
-//! regions weighed the same way ([`threat::weighed_corridor`], HPA*'s abstract path, then the refined one); the costed
-//! way is kept when it is at most `detour` longer than the plain one and runs through fewer such regions.
+//! searches the stretch of its plain way through them again, a region costing `1 + step` times its length for each such mate (up
+//! to `max_mates`), over a room of regions weighed the same way ([`threat::weighed_corridor`], HPA*'s abstract path, then the
+//! refined one), and splices it in; the costed stretch is kept when it is at most `detour` longer than the plain one and the way
+//! runs through fewer such regions.
 //!
 //! Best practice: Killzone 2's multiplayer bots shape a squad's path cost by the paths of the squads before it ("squad
 //! corridors") and give a squad no regroup point another squad uses (Guerrilla, Verweij's bot system slides 58, 67-73).
@@ -103,18 +104,30 @@ pub struct BotState {
 
 impl Feature for BotState {}
 
-/// The metres of the first [`HORIZON_M`] of `route`, sampled every [`STEP_M`], that run through regions `who`'s mates were in.
-pub fn shared_m(route: &Route, height: RouteHeight, region_at: impl Fn(Vec3) -> Option<u32>, traffic: &Traffic, who: Place) -> f32 {
+/// Where the first [`HORIZON_M`] of a route runs through regions `who`'s mates were in: the metres (sampled every [`STEP_M`]), and
+/// the metres along the route of the first and the last such sample.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Shared {
+    pub metres: f32,
+    pub span: Option<(f32, f32)>,
+}
+
+pub fn shared(route: &Route, height: RouteHeight, region_at: impl Fn(Vec3) -> Option<u32>, traffic: &Traffic, who: Place) -> Shared {
     let length = route.length().min(HORIZON_M);
-    let (mut metres, mut s) = (0.0, 0.0);
+    let (mut out, mut s) = (Shared::default(), 0.0);
     while s <= length {
         if region_at(route.at(s, height)).is_some_and(|region| traffic.mates_on(region, who) > 0) {
-            metres += STEP_M;
+            out.metres += STEP_M;
+            out.span = Some(out.span.map_or((s, s), |(first, _)| (first, s)));
         }
         s += STEP_M;
     }
-    metres
+    out
 }
+
+/// A local search leaves the plain way this far before the first region mates were in and rejoins it this far after the last,
+/// metres (K1's detours use 13 m, `threat::DETOUR_MARGIN_M`). GUESS.
+pub const MARGIN_M: f32 = 8.0;
 
 /// What the cost did, by team (the owner tests' `first_leg` topic reads it).
 #[derive(Debug, Default)]
@@ -129,6 +142,8 @@ pub struct Tally {
     pub too_long: [AtomicU64; 2],
     pub not_better: [AtomicU64; 2],
     pub no_way: [AtomicU64; 2],
+    /// The stretch could not be searched on its own (no floors at its ends, or a jump in it).
+    pub no_splice: [AtomicU64; 2],
     pub budget: [AtomicU64; 2],
     /// Floors the searches expanded.
     pub floors: [AtomicU64; 2],
@@ -154,16 +169,17 @@ impl Tally {
 }
 
 /// The costed way of a body that came alive lately, if it is worth taking over its `plain` way: the plain way's metres
-/// through regions mates were in lately are looked at (under `shared_m`: nothing), a room of regions is weighed, the floors
-/// searched in it with the same weights; kept when at most `detour` longer and through fewer such regions. The floors the
-/// search expands are booked to the poll (`floors`, then past them).
+/// through regions mates were in lately are looked at (under `shared_m`: nothing); the stretch of it from [`MARGIN_M`] before the
+/// first such region to [`MARGIN_M`] after the last is searched again over a room of regions weighed the same way (a local
+/// detour spliced in, as K1's: a whole-route costed search ran out of its floors in 85 % of the first bench's searches); kept
+/// when the stretch is at most `detour` longer and the way runs through fewer such regions. The floors the search expands are
+/// booked to the poll (`floors`, then past them).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn costed_way(
     tactics: &Tactics,
     bot: &Bot,
     rule: tuning::FirstLegRule,
     plain: &Route,
-    ends: (NodeId, NodeId),
     time: u32,
     side: Option<i32>,
     objective: bool,
@@ -176,17 +192,22 @@ pub(super) fn costed_way(
     let region_at = |p: Vec3| grid.locate(p, 1.5).map(|node| regions.of(node));
     let heights = bot.motor.heights();
     Tally::add(&tally.young_plans, team);
-    let before = shared_m(plain, heights, region_at, &traffic, bot.place);
-    if before < rule.shared_m {
-        return None;
-    }
+    let before = shared(plain, heights, region_at, &traffic, bot.place);
+    let (first, last) = before.span.filter(|_| before.metres >= rule.shared_m)?;
     Tally::add(&tally.searched, team);
-    let (n0, n1) = ends;
+    let (s0, s1) = ((first - MARGIN_M).max(0.0), (last + MARGIN_M).min(plain.length()));
+    let ends = grid
+        .locate(plain.at(s0, heights), 1.5)
+        .zip(grid.locate(plain.at(s1, heights), 1.5))
+        .filter(|(a, b)| a != b && !plain.jumps_between(s0, s1 + 3.0));
+    let Some((n0, n1)) = ends else {
+        Tally::add(&tally.no_splice, team);
+        return None;
+    };
     let start = grid.position(n0);
     let weight = |region: u32| traffic.weight(region, bot.place, rule.step, rule.max_mates);
-    let Some(room) = threat::weighed_corridor(grid, regions, regions.of(n0), regions.of(n1), weight, |region| weight(region) > 1.0, |region| {
-        tactics.region_allowed_from(region, time, side, objective, start)
-    }) else {
+    let allowed = |region: u32| tactics.region_allowed_from(region, time, side, objective, start);
+    let Some(room) = threat::weighed_corridor(grid, regions, regions.of(n0), regions.of(n1), weight, |region| weight(region) > 1.0, allowed) else {
         Tally::add(&tally.no_way, team);
         return None;
     };
@@ -201,21 +222,22 @@ pub(super) fn costed_way(
     overdraft.spend(floors, used);
     Tally::add_n(&tally.floors, team, used as u64);
     match way {
-        Ok(Some(round)) if round.length() > plain.length() * (1.0 + rule.detour) => {
+        Ok(Some(local)) if local.length() > (s1 - s0) * (1.0 + rule.detour) => {
             Tally::add(&tally.too_long, team);
             None
         }
-        Ok(Some(round)) => {
-            let after = shared_m(&round, heights, region_at, &traffic, bot.place);
-            if after + STEP_M > before {
+        Ok(Some(local)) => {
+            let route = plain.spliced(s0, s1, &local);
+            let after = shared(&route, heights, region_at, &traffic, bot.place);
+            if after.metres + STEP_M > before.metres {
                 Tally::add(&tally.not_better, team);
                 return None;
             }
             Tally::add(&tally.kept, team);
-            Tally::add_n(&tally.detour_mm, team, ((round.length() - plain.length()).max(0.0) * 1000.0) as u64);
-            Tally::add_n(&tally.shared_before_mm, team, (before * 1000.0) as u64);
-            Tally::add_n(&tally.shared_after_mm, team, (after * 1000.0) as u64);
-            Some(round)
+            Tally::add_n(&tally.detour_mm, team, ((route.length() - plain.length()).max(0.0) * 1000.0) as u64);
+            Tally::add_n(&tally.shared_before_mm, team, (before.metres * 1000.0) as u64);
+            Tally::add_n(&tally.shared_after_mm, team, (after.metres * 1000.0) as u64);
+            Some(route)
         }
         Ok(None) => {
             Tally::add(&tally.no_way, team);

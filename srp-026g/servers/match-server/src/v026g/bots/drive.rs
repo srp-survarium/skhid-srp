@@ -1176,8 +1176,7 @@ fn drive_tick_inner(
                     && time.saturating_sub(me.spawned) < rule.young_ms
                     && !bot.features.corridor.traffic.is_empty()
                     && let Some(plain) = route.as_ref()
-                    && let Some(ends) = ends.filter(|(from, to)| from != to)
-                    && let Some(costed) = corridor::costed_way(tactics, bot, rule, plain, ends, time, side, objective, &filter, floors, overdraft)
+                    && let Some(costed) = corridor::costed_way(tactics, bot, rule, plain, time, side, objective, &filter, floors, overdraft)
                 {
                     route = Some(costed);
                 }
