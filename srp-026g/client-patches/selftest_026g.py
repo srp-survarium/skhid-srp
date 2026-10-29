@@ -1329,11 +1329,12 @@ def test_server_options(original):
     else:
         check(False, "cert-only must refuse an embedded server")
     for embedded in (False, True):
-        line = overlay.launch_line("localhost:1234", "english", embedded)
-        batch = overlay.bat("localhost:1234", "english", embedded).decode("ascii")
+        line = overlay.launch_line("localhost:1234", embedded)
+        batch = overlay.bat("localhost:1234", embedded).decode("ascii")
         start = next(line for line in batch.splitlines() if line.startswith('start "" '))
-        check(("-server=" in line) != embedded and ("-server=" in start) != embedded,
-              f"overlay launch line and batch use {'embedded' if embedded else 'explicit'} server")
+        check(("-server=" in line) != embedded and ("-server=" in start) != embedded
+              and "-localization" not in line and "-localization" not in start,
+              f"overlay launch line and batch use {'embedded' if embedded else 'explicit'} server, no language")
 
 
 # sign_in_on_connected: from the copy of the version string to the write of
@@ -3986,6 +3987,10 @@ def test_language(original, image, before):
           and table.get(0xAEFDE0) == ("ADVAPI32.dll", "RegCloseKey"),
           "0xAEFDDC, 0xAEFDE4 and 0xAEFDE0 are the delay-loaded ADVAPI32 RegOpenKeyExW, RegQueryValueExW and "
           "RegCloseKey (the launcher's language)")
+    check(table.get(0x87027C) == ("KERNEL32.dll", "GetUserDefaultLCID")
+          and not any(name == "GetUserDefaultUILanguage" for _, name in table.values()),
+          "0x87027C is the KERNEL32 GetUserDefaultLCID import (a new player's language: the user locale's); the "
+          "game imports no GetUserDefaultUILanguage")
     import hooks_026g
     hooks = [h for h in hooks_026g.hooks() if h["patch"] == "language"]
     linked = P.arena()

@@ -58,3 +58,4 @@ engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine
 engine_reg_open_key_ex_w	0xaefddc	-	unsigned int engine_reg_open_key_ex_w(void *key, const void *sub_key, unsigned int options, unsigned int access, void **result)	import	
 engine_reg_query_value_ex_w	0xaefde4	-	unsigned int engine_reg_query_value_ex_w(void *key, const void *name, unsigned int *reserved, unsigned int *kind, void *data, unsigned int *size)	import	
 engine_reg_close_key	0xaefde0	-	unsigned int engine_reg_close_key(void *key)	import	
+engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	

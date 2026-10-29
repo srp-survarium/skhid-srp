@@ -22,7 +22,7 @@ sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
 keys = ('st_srp_language_option', 'st_srp_language_restart')
 texts = [[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES]
-print(json.dumps([[name, native] for name, _, native in LANGUAGES], ensure_ascii=False, separators=(',', ':')),
+print(json.dumps([[name, native] for name, _, native, _ in LANGUAGES], ensure_ascii=False, separators=(',', ':')),
       json.dumps(texts, ensure_ascii=False, separators=(',', ':')))
 PY
 )

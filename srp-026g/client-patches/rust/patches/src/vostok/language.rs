@@ -2,7 +2,8 @@
 //! docs/notes/language-option.md): the name every dictionary reader takes
 //! (`raw::image::LOCALIZATION`), the console variable that user.cfg keeps a
 //! choice in, the C locale the engine's start-up sets from the name, the
-//! launcher's own choice in the registry, and the Settings' call
+//! launcher's own choice in the registry, Windows' UI language, and the
+//! Settings' call
 //! (`game_options::scaleform_callback`) with the movie it answers.
 
 use core::cell::UnsafeCell;
@@ -143,6 +144,32 @@ pub fn launcher_language(_: &Thread) -> Option<u32> {
         (raw::engine_reg_close_key)(key);
         (read == 0 && kind == REG_DWORD && size == 4).then_some(value)
     }
+}
+
+/// A Windows language id (LANGID): the primary language in its low ten bits,
+/// the sublanguage (country, script) in the high six.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LangId(pub u16);
+
+/// A Windows primary language id (LANG_RUSSIAN 0x19, ...): a LANGID without
+/// its sublanguage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrimaryLanguage(pub u16);
+
+impl LangId {
+    pub const fn primary(self) -> PrimaryLanguage {
+        PrimaryLanguage(self.0 & 0x3FF)
+    }
+}
+
+/// The language of the player's Windows user locale (kernel32's
+/// GetUserDefaultLCID, the game's import; under Wine the Unix locale's
+/// LC_MESSAGES, which Wine's UI language is too).
+pub fn user_locale(_: &Thread) -> LangId {
+    // SAFETY: kernel32's GetUserDefaultLCID through the exe's import slot:
+    // no arguments, an LCID whose low word is its LANGID.
+    let lcid = unsafe { (raw::engine_get_user_default_lcid)() };
+    LangId(lcid as u16)
 }
 
 /// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does

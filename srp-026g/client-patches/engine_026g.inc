@@ -195,3 +195,7 @@ extern engine_reg_query_value_ex_w
 ; the IAT slot 0xaefde0 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_reg_close_key
+; unsigned int engine_get_user_default_lcid(void)
+; the IAT slot 0x87027c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_user_default_lcid

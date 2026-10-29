@@ -11,8 +11,9 @@ arena with them; check_hide_ui_026g.py's harness (Scaleform's Invoke
 0x511600 a stub that records each call). Stubbed besides: the CRT's
 setlocale (0x426AE1, recorded), advapi32's RegOpenKeyExW, RegQueryValueExW and
 RegCloseKey (behind the exe's delay-load slots 0xAEFDDC, 0xAEFDE4, 0xAEFDE0:
-the launcher's `language`, or none), translate_text (0x1FF0F0: the key's
-English text) and game::save_user_config (0x1E9030, counted):
+the launcher's `language`, or none), kernel32's GetUserDefaultLCID (its
+import slot 0x87027C: the case's user locale), translate_text (0x1FF0F0: the key's English text) and game::save_user_config
+(0x1E9030, counted):
 
 - on_configs_loaded's start (0x1EA210 to 0x1EA216): the patch registers the
   console variable `localization` once, with the game's own
@@ -24,7 +25,9 @@ English text) and game::save_user_config (0x1E9030, counted):
   (the engine's buffer_string 0x21E75E0, as its initializer 0x84E3E0 leaves
   it, or as -localization= sets it) and the saved value give: a registered
   flag wins (unchanged, no locale call), else the saved choice, else the
-  launcher's (asked only then), else English; a changed language gets the
+  launcher's pick (asked only then; its 0, English, is the default its first
+  start writes and no pick), else the language of Windows' user locale by its
+  primary language (asked only then), else English; a changed language gets the
   locale sequence of core::preinitialize (C, .ACP, its code page if any, C);
   the saved value is the language after; eax the original's;
 - the Settings' call (game_options::scaleform_callback 0x1FF5D0 to its
@@ -53,8 +56,10 @@ LIST_HEAD, CC_STRING_VTABLE, EXECUTE = 0x1F1D66C, 0x9E7C2C, 0xEC8C0
 LOCALIZATION, INITIALIZER = 0x21E75E0, 0x84E3E0
 SETLOCALE, TRANSLATE, SAVE = 0x426AE1, 0x1FF0F0, 0x1E9030
 REG_SLOTS = {0xAEFDDC: "open", 0xAEFDE4: "query", 0xAEFDE0: "close"}
+USER_LCID_SLOT = 0x87027C   # GetUserDefaultLCID's import
 DATA, OPTIONS, GAME, ARGS, TEXT = 0x30000000, 0x30001000, 0x30010000, 0x30020000, 0x30021000
 MOVIE = 0x30030000
+USER_LCID = 0x3003F000      # its stub's code
 ENGLISH = {"st_srp_language_option": b"Language", "st_srp_language_restart": b"Applies after restart."}
 
 
@@ -63,12 +68,14 @@ class Run(hide.Run):
         super().__init__(data)
         self.emu.mem_map(DATA, 0x40000, UC_PROT_ALL)
         self.locales, self.registry_calls, self.saves = [], [], 0
-        self.launcher = None
+        self.launcher, self.windows, self.windows_calls = None, None, []
         for stub in (SETLOCALE, TRANSLATE, SAVE):
             self.emu.hook_add(UC_HOOK_CODE, self.engine, begin=stub, end=stub)
         self.reg_targets = {self.read(slot): name for slot, name in REG_SLOTS.items()}
         for target in self.reg_targets:
             self.emu.hook_add(UC_HOOK_CODE, self.registry, begin=target, end=target)
+        self.word(USER_LCID_SLOT, USER_LCID)
+        self.emu.hook_add(UC_HOOK_CODE, self.user_lcid, begin=USER_LCID, end=USER_LCID)
         # the language string as its initializer leaves it
         self.call_at(INITIALIZER, ())
 
@@ -119,6 +126,14 @@ class Run(hide.Run):
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
+    def user_lcid(self, emu, address, size, _):
+        """GetUserDefaultLCID(), stdcall, no arguments: the case's LCID."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.windows_calls.append("GetUserDefaultLCID")
+        emu.reg_write(UC_X86_REG_EAX, self.windows)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
     # The engine's language string: {begin, end, capacity end} over 16 bytes.
     def language(self):
         return self.text(self.read(LOCALIZATION)).decode()
@@ -135,14 +150,15 @@ class Run(hide.Run):
         assert self.stopped == START_END
         return after, end, self.read(LIST_HEAD)
 
-    def texts(self, launcher=None):
+    def texts(self, launcher=None, windows=0x0409):
         self.launcher, self.locales, self.registry_calls = launcher, [], []
+        self.windows, self.windows_calls = windows, []
         sp = hide.STACK + 0x9000
         regs = {**hide.GAME, UC_X86_REG_EDI: GAME}
         after, end = self.run(TEXTS, (TEXTS_END,), sp, regs)
         assert self.stopped == TEXTS_END and end == sp
         assert after[UC_X86_REG_EAX] == GAME + 0x52A8 and after[UC_X86_REG_EDI] == GAME
-        return self.language(), list(self.locales), list(self.registry_calls)
+        return self.language(), list(self.locales), list(self.registry_calls), list(self.windows_calls)
 
     def callback(self, method, argument=None, managed=False):
         """scaleform_callback(movie, method, arguments, count) on the
@@ -205,39 +221,53 @@ def main():
         ours.emu.mem_write(buffer, value.encode() + b"\0")
 
     # before the dictionary loads
+    c, acp, c_numeric = (0, "C"), (1, ".ACP"), (4, "C")
+    page = lambda name: [c, acp, (0, name), c_numeric]
+    registry, asked = ["open", "query", "close"], ["GetUserDefaultLCID"]
+    # (label, flag, saved choice, launcher's value, Windows' user LCID, the language, locale calls,
+    # registry calls, kernel32 calls)
     cases = [
-        ("flag czech, saved german", "czech", "german", None, "czech", [], []),
-        ("flag english, saved polish", "english", "polish", 3, "english", [], []),
-        ("no flag, saved german", None, "german", 1, "german", [(0, "C"), (1, ".ACP"), (4, "C")], []),
-        ("no flag, saved hungarian", None, "hungarian", None, "hungarian", [(0, "C"), (1, ".ACP"), (4, "C")], []),
-        ("no flag, no choice, launcher RU", None, "", 1, "russian",
-         [(0, "C"), (1, ".ACP"), (0, ".1251"), (4, "C")], ["open", "query", "close"]),
-        ("no flag, unknown choice, launcher PL", None, "klingon", 4, "polish",
-         [(0, "C"), (1, ".ACP"), (0, ".1250"), (4, "C")], ["open", "query", "close"]),
-        ("no flag, no choice, launcher index 7", None, "", 7, "english",
-         [(0, "C"), (1, ".ACP"), (0, ".1252"), (4, "C")], ["open", "query", "close"]),
-        ("no flag, no choice, no launcher value", None, "", None, "english",
-         [(0, "C"), (1, ".ACP"), (0, ".1252"), (4, "C")], ["open"]),
+        ("flag czech, saved german", "czech", "german", None, 0x0419, "czech", [], [], []),
+        ("flag english, saved polish", "english", "polish", 3, 0x0419, "english", [], [], []),
+        ("no flag, saved german", None, "german", 1, 0x0419, "german", [c, acp, c_numeric], [], []),
+        ("no flag, saved hungarian", None, "hungarian", None, 0x0419, "hungarian", [c, acp, c_numeric], [], []),
+        ("no flag, no choice, launcher RU", None, "", 1, 0x0405, "russian", page(".1251"), registry, []),
+        ("no flag, unknown choice, launcher PL", None, "klingon", 4, 0x0405, "polish", page(".1250"), registry, []),
+        ("no flag, no choice, launcher EN (its first start's default), Windows 0x0419", None, "", 0, 0x0419,
+         "russian", page(".1251"), registry, asked),
+        ("no flag, no choice, no launcher value, Windows 0x0405", None, "", None, 0x0405, "czech",
+         [c, acp, c_numeric], ["open"], asked),
+        ("no flag, no choice, launcher index 7, Windows 0x0411", None, "", 7, 0x0411, "english", page(".1252"),
+         registry, asked),
+        ("no flag, unknown choice, no launcher value, Windows 0x101A (Croatian, Bosnia)", None, "klingon", None,
+         0x101A, "serbian", [c, acp, c_numeric], ["open"], asked),
+        ("no flag, no choice, no launcher value, Windows 0x0C07 (German, Austria)", None, "", None, 0x0C07,
+         "german", [c, acp, c_numeric], ["open"], asked),
+        ("no flag, no choice, no launcher value, Windows 0x10407 (German, phone book sort)", None, "", None,
+         0x10407, "german", [c, acp, c_numeric], ["open"], asked),
+        ("no flag, no choice, no launcher value, Windows 0x0C00 (a custom locale)", None, "", None, 0x0C00,
+         "english", page(".1252"), ["open"], asked),
     ]
-    for label, flag, choice, launcher, language, locales, registry in cases:
+    for label, flag, choice, launcher, windows, language, locales, registry_calls, kernel_calls in cases:
         for r in (stock, ours):
             r.call_at(INITIALIZER, ())
             if flag:
                 r.flag(flag)
         saved(choice)
         before = stock.language()
-        got = ours.texts(launcher)
-        stock_got = stock.texts(launcher)
-        expect(got == (language, locales, registry) and ours.text(buffer).decode() == language
-               and stock_got == (before, [], []),
-               f"{label}: the language {language}, locale calls {locales}, registry {registry or 'not asked'}; "
-               f"saved {language}; the original keeps {before}, no calls")
+        got = ours.texts(launcher, windows)
+        stock_got = stock.texts(launcher, windows)
+        expect(got == (language, locales, registry_calls, kernel_calls) and ours.text(buffer).decode() == language
+               and stock_got == (before, [], [], []),
+               f"{label}: the language {language}, locale calls {locales}, registry {registry_calls or 'not asked'}, "
+               f"Windows {'asked' if kernel_calls else 'not asked'}; saved {language}; the original keeps {before}, "
+               f"no calls")
 
     # the Settings' call
     ours.flag("english")
     saved("english")
     answer = ["Language", "Applies after restart."]
-    listing = [text for name, _, native in LANGUAGES for text in (name, native)]
+    listing = [text for name, _, native, _ in LANGUAGES for text in (name, native)]
     for label, argument, managed, saved_after, saves in [
         ("a registered name", "czech", False, "czech", 1),
         ("a managed string", "finnish", True, "finnish", 1),

@@ -144,6 +144,8 @@ unsafe extern "C" {
     pub static engine_reg_query_value_ex_w: unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut u32, *mut u32, *mut c_void, *mut u32) -> u32;
     /// the IAT slot 0xaefde0 (an import, stdcall): unsigned int engine_reg_close_key(void *key)
     pub static engine_reg_close_key: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
+    pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
