@@ -43,6 +43,7 @@
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "sprint_gaps": false,
+    "turn_in_air": false,
     "unclear_aim": false
   },
   "grid": {

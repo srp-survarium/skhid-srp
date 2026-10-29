@@ -69,6 +69,18 @@ owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,32],"route":[22,22],
   },
   "route_landed_down": 0,
   "route_landed_up": 0,
+  "route_presses_by_team": {
+    "0": {
+      "fwd_released": 0,
+      "presses": 24,
+      "stalled_ticks": 82
+    },
+    "1": {
+      "fwd_released": 0,
+      "presses": 25,
+      "stalled_ticks": 55
+    }
+  },
   "sprint_jumps": 12,
   "stall_at_step": 0,
   "stalls": 4

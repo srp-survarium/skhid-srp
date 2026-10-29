@@ -182,6 +182,12 @@ pub struct Feel {
     /// jump's lining up. Off: the speed is asked only short of the take-off, a run-up as short as half
     /// of [`SPRINT_RUN_UP_M`] is taken, and the sprint is let go of.
     pub band_jump_gate: bool,
+    /// A body in the air after a route jump's press ([`AIR_TURN_S`]) whose next leg is more than `stop_turn` off its
+    /// facing but not behind it ([`AIR_TURN_MAX_RAD`]) keeps forward held while the view turns to the leg, as a
+    /// player does, instead of letting go and turning on the spot after the landing (the stand-in's route jumps
+    /// let go of forward within 5 ticks 22 % of the time against 1 % of the live players': the jump line is not the
+    /// next leg's direction). Off: the walk lets go for any way over `stop_turn` off, in the air too.
+    pub turn_in_air: bool,
     /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
     /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
     /// walk's keys are the ones against the run until it is slow (the owner's rule, 2026-10-27: a landing run is
@@ -235,6 +241,7 @@ impl Default for Feel {
             drop_walk: true,
             sprint_gaps: true,
             band_jump_gate: true,
+            turn_in_air: true,
             landing_cancel_deg: 60.0,
             landing_cancel_drops: true,
             drop_truth: DropTruth::Links,
@@ -467,6 +474,13 @@ const GOING_TURN: f32 = 0.6;
 /// After a press the body is kept walking on the jump's line this long,
 /// seconds: the jump's 0.8 s and a tick.
 const CARRY_S: f32 = 0.85;
+
+/// After a route jump's press the body is taken to be in the air for this long, s (a ledge jump of about 1 m is up
+/// and down in 0.5-0.6 s): [`Feel::turn_in_air`] keeps forward held through it. GUESS.
+const AIR_TURN_S: f32 = 0.6;
+
+/// Over this far off its facing, radians, the next leg is behind the body: forward is let go as ever. GUESS.
+const AIR_TURN_MAX_RAD: f32 = 2.2;
 /// The feet within this under the landing's floor (and at most half the
 /// jump's rise), within [`UP_NEAR_M`] of it across: up the ledge, metres.
 pub const UP_M: f32 = 0.35;
@@ -1107,12 +1121,17 @@ impl Motor {
         // line for a turn off its way: it stands and turns to it first.
         let lined = jump.is_some_and(|jump| jump.lined);
         let run_through = jump.is_some_and(|jump| jump.run_through);
+        // In the air after a route jump the walk goes on, forward, while the view turns to a leg off to the side.
+        let air_turn = self.feel.turn_in_air
+            && jump.is_none()
+            && still <= AIR_TURN_MAX_RAD
+            && self.jump_try.is_some_and(|t| t.pressed.is_some_and(|at| self.since(at) < AIR_TURN_S));
         if lined && run_through {
             // A sprint gap link: the run goes on while the view turns onto the jump's way.
             self.walking = true;
         } else if lined {
             self.walking = still < LINE_UP_GO;
-        } else if self.walking && still > self.feel.stop_turn {
+        } else if self.walking && still > self.feel.stop_turn && !air_turn {
             self.walking = false;
         } else if !self.walking && still < self.feel.go_turn {
             self.walking = true;
@@ -1199,7 +1218,7 @@ impl Motor {
         if self.walking {
             // A jump's line is walked facing its way, forward only; any
             // other walk by the key set nearest the way to go.
-            keys |= if lined {
+            keys |= if lined || air_turn {
                 self.key_hold = None;
                 key::FORWARD
             } else {
@@ -3297,6 +3316,54 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// In the air after a route jump's press, with the next leg a right angle off the jump's way, the walk keeps
+    /// forward held while the view turns to the leg (`turn_in_air`); off, it lets go and turns on the spot. A leg behind
+    /// the body, or a press longer ago than the flight, lets go as ever.
+    #[test]
+    fn forward_is_held_through_the_flight_to_a_leg_off_the_jumps_way_only_with_the_switch() {
+        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let keys_of = |turn_in_air: bool, pressed_ticks_ago: u32, next: (f32, f32)| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, turn_in_air, ..Feel::default() }, &mut rng);
+            let (take_off, landing) = (Vec3::new(5.0, 0.0, 0.0), Vec3::new(6.0, 0.9, 0.0));
+            let mut route = Route::new(vec![p(0.0, 0.0, 0.0, false), p(5.0, 0.0, 0.0, false), p(6.0, 0.9, 0.0, true), p(next.0, 0.9, next.1, false)]);
+            motor.next_tick();
+            motor.walking = true;
+            let at = motor.clock.wrapping_sub(pressed_ticks_ago);
+            motor.jump_try = Some(JumpTry {
+                take_off,
+                landing,
+                tries: 1,
+                pressed: Some(at),
+                back: false,
+                counted: false,
+                sprint_counted: false,
+                band: BandTry::Approaching,
+            });
+            // The reckoned body is on the landing already, facing the jump's way (+x).
+            let pose = Pose { feet: landing, yaw: yaw_of([1.0, 0.0]), ..Default::default() };
+            let mut out = Vec::new();
+            for _ in 0..3 {
+                out.push(motor.walk(&mut route, &pose, 5.0, |_| true).0.keys);
+            }
+            out
+        };
+        let forward = |keys: &[u32]| keys.iter().all(|k| k & key::FORWARD != 0);
+        let none = |keys: &[u32]| keys.iter().all(|k| k & key::FORWARD == 0);
+        // A right angle to the left of the jump's way (+z), 4 ticks after the press: held with the switch.
+        assert!(forward(&keys_of(true, 4, (6.0, 10.0))), "{:?}", keys_of(true, 4, (6.0, 10.0)));
+        assert!(none(&keys_of(false, 4, (6.0, 10.0))), "{:?}", keys_of(false, 4, (6.0, 10.0)));
+        // Behind it: let go as ever, with or without.
+        assert!(none(&keys_of(true, 4, (-4.0, 0.0))));
+        // A press longer ago than the flight: let go.
+        assert!(none(&keys_of(true, 20, (6.0, 10.0))), "{:?}", keys_of(true, 20, (6.0, 10.0)));
     }
 
     /// A landing run carried across the route's way and the goal is braked by the keys against it once the feel

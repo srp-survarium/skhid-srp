@@ -163,6 +163,10 @@ pub(crate) const MISSED_BEFORE_MS: u32 = 500;
 
 pub(crate) const MISSED_LATE_MS: u32 = 2_000;
 
+/// The ticks after a route press whose idle ticks (a goal to walk to, no walk key) are counted by team (the jumps topic's
+/// `route_presses_by_team`): a second.
+const STALL_AFTER_TICKS: usize = 20;
+
 /// A jump press.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Press {
@@ -616,6 +620,9 @@ impl JumpCounts {
         // Jumps: the flags of every press, the stalls.
         let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
         let mut released_by: BTreeMap<String, u32> = BTreeMap::new();
+        // By the pressing bot's team (A156): the route presses, those whose forward key went up within 5 ticks, and the ticks
+        // within STALL_AFTER_TICKS of a route press with a goal to walk to and no walk key held.
+        let mut by_team = [[0u32; 3]; 2];
         let (mut wrong, mut failed) = (0u32, 0u32);
         let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
         let mut route_landed = [0u32; 2];
@@ -627,6 +634,19 @@ impl JumpCounts {
             let flags = run.press_flags(presses, i);
             for &f in &flags {
                 *flag_n.entry(f).or_default() += 1;
+            }
+            if p.route.is_some() && let Some(body) = game.bodies.get(p.place) {
+                let team = usize::from(body.team & 1);
+                let recs = &run.recs[p.place];
+                by_team[team][0] += 1;
+                by_team[team][1] += u32::from(flags.contains(&"FWD_RELEASED"));
+                if !recs.is_empty() {
+                    let ri = run.index(p.t).min(recs.len() - 1);
+                    by_team[team][2] += recs[ri..(ri + STALL_AFTER_TICKS).min(recs.len())]
+                        .iter()
+                        .filter(|r| r.travel && r.keys & WALK_KEYS == 0)
+                        .count() as u32;
+                }
             }
             // Who was running the route jump whose forward key went up right after (A142's guard): the play and the hide.
             if flags.contains(&"FWD_RELEASED") {
@@ -783,6 +803,10 @@ impl JumpCounts {
             "sprint_jumps": sprint_jumps,
             "band_jumps": band,
             "fwd_released_by_play_and_hide": released_by,
+            "route_presses_by_team": {
+                "0": { "presses": by_team[0][0], "fwd_released": by_team[0][1], "stalled_ticks": by_team[0][2] },
+                "1": { "presses": by_team[1][0], "fwd_released": by_team[1][1], "stalled_ticks": by_team[1][2] },
+            },
         });
         if let Some(g) = &gaps {
             json["gaps"] = g.json();
