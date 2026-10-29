@@ -195,6 +195,8 @@ pub struct Tactics {
     pub clear_step_sees_lip: bool,
     /// What [`Self::shot_reaches`] answered, and the lines the pierce opened (the logs' counts).
     pub cover_tally: CoverTally,
+    /// What the commander's piling consideration counted (A151 step 2b), by play.
+    pub piling_tally: super::team::PilingTally,
 }
 
 /// What [`Tactics::line_of_fire`] finds: whether the line is open to fire and the share of the bullet's damage that reaches its end.
@@ -784,6 +786,7 @@ impl Tactics {
             grass: Default::default(),
             clear_step_sees_lip: false,
             cover_tally: CoverTally::default(),
+            piling_tally: Default::default(),
             base,
         }
     }

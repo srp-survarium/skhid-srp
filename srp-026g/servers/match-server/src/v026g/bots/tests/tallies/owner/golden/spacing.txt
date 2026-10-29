@@ -52,6 +52,7 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "mates_near": 720,
         "samples": 360
       }
-    }
+    },
+    "piling": {}
   }
 }

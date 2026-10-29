@@ -52,11 +52,21 @@
 //!   when the other is near it). The personality decided about a third of
 //!   the hand-overs, which the margins and the 3 s hold only moved later
 //!   (Game AI Pro 3 ch. 13 §13.5.3).
+//! - **Piling** (A151 step 2b, [`piling_factor`]): a play of [`PILED`] aimed at a target
+//!   (or within the rule's radius of a point) that teammates' plays already go to
+//!   is scored lower in the choice, a trade partner and the first mate free, so
+//!   the third bot goes to its next best target. It moves the order inside a band
+//!   only (the band is read from the score as it was), and never a running play.
 //! - The commander says why: each assignment carries the winner's score and
 //!   the runners-up for the trace.
 
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+use mapdata::Vec3;
+
 use super::curve::{Explain, Input};
 use super::plays::{Candidate, PlayKind, Rank, SlotKey, TargetRef};
+use super::tuning::PilingRule;
 use super::view::Place;
 
 /// A candidate of the same band must beat the running play by this.
@@ -330,8 +340,9 @@ pub fn assign_trapped(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
+    piling: Option<&Piling>,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky)
+    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky, piling)
 }
 
 /// [`assign`] with the bands given.
@@ -341,7 +352,90 @@ pub fn assign_with(
     bands: &Bands,
     gap: f32,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, bands, gap, &[], &[])
+    assign_given_up(asking, now, bands, gap, &[], &[], None)
+}
+
+/// The plays the piling consideration acts on (A151 step 2b): the ones that put bots at a place of the map, for
+/// the clump the bench found in every play (`design-a151-2b.md`). Not Buddy (its job is to stay beside its leader), not
+/// Heal, Retreat or Resupply (a need, not a place), not the fight reflex.
+const PILED: [PlayKind; 5] = [PlayKind::Collect, PlayKind::Crossfire, PlayKind::Cut, PlayKind::HoldExit, PlayKind::Roam];
+
+fn piled_index(kind: PlayKind) -> Option<usize> {
+    PILED.iter().position(|&k| k == kind)
+}
+
+/// What the piling consideration counted, by play of [`PILED`] (the bench's `spacing` topic reads it).
+#[derive(Debug, Default)]
+pub struct PilingTally {
+    /// The assignments of each tick by the teammates (not the partner) already on the chosen target: none, one, two, three or more.
+    pub chosen_on: [[AtomicU64; 4]; PILED.len()],
+    /// New plays whose best candidate by its own score was scored down (counted by that play).
+    pub penalised: [AtomicU64; PILED.len()],
+    /// Of those, the ones that lost the pick to another candidate.
+    pub changed_pick: [AtomicU64; PILED.len()],
+}
+
+impl PilingTally {
+    /// The plays' names with their counters, for the bench's report.
+    pub fn read(&self) -> Vec<(PlayKind, [u64; 4], u64, u64)> {
+        PILED
+            .iter()
+            .enumerate()
+            .map(|(i, &kind)| {
+                (kind, self.chosen_on[i].each_ref().map(|c| c.load(Relaxed)), self.penalised[i].load(Relaxed), self.changed_pick[i].load(Relaxed))
+            })
+            .collect()
+    }
+}
+
+/// What the piling consideration needs of the team (the commander builds it for a team whose tuning has the switch on).
+pub struct Piling<'a> {
+    pub rule: PilingRule,
+    /// Each bot's trade partner (play 21), if it has one.
+    pub partners: &'a [(Place, Place)],
+    /// The map points the bots' candidates are about, by target (a battery, an exit, a container, a spawner, a route's
+    /// point): the places the radius is measured from. A target with none (an enemy, a threat spot, nothing) piles only
+    /// on the very same target.
+    pub points: &'a [(TargetRef, Vec3)],
+    pub tally: &'a PilingTally,
+}
+
+impl Piling<'_> {
+    fn point(&self, target: TargetRef) -> Option<Vec3> {
+        self.points.iter().find(|(t, _)| *t == target).map(|&(_, at)| at)
+    }
+
+    /// Whether two targets are the same place for the teammates on them.
+    fn same_place(&self, a: TargetRef, b: TargetRef) -> bool {
+        if a == TargetRef::None || b == TargetRef::None {
+            return false;
+        }
+        a == b
+            || self
+                .point(a)
+                .zip(self.point(b))
+                .is_some_and(|(x, y)| x.distance_xz(y) < self.rule.radius_m)
+    }
+
+    /// The teammates, `bot` and its partner left out, whose plays (`intents`: place, kind, target) go to `target`.
+    fn on_it(&self, intents: &[(Place, PlayKind, TargetRef)], bot: Place, target: TargetRef) -> usize {
+        let partner = self.partners.iter().find(|(p, _)| *p == bot).map(|&(_, partner)| partner);
+        intents
+            .iter()
+            .filter(|&&(place, kind, at)| {
+                place != bot && Some(place) != partner && piled_index(kind).is_some() && self.same_place(target, at)
+            })
+            .count()
+    }
+}
+
+/// The factor a play of [`PILED`] with `on_it` teammates already on its target is scored by: 1 up to the rule's free
+/// mates, then `step` less for each one more, never under the floor. One function for every play (and for PR C's
+/// "aimed at the same enemy").
+pub fn piling_factor(piling: &Piling, on_it: usize) -> f32 {
+    let rule = &piling.rule;
+    let over = on_it.saturating_sub(rule.free as usize) as f32;
+    (1.0 - rule.step * over).max(rule.floor)
 }
 
 fn assign_given_up(
@@ -351,6 +445,7 @@ fn assign_given_up(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
+    piling: Option<&Piling>,
 ) -> Vec<(Place, Assignment, bool)> {
     let behind = gap < 0.0;
     for bot in &mut asking {
@@ -394,6 +489,22 @@ fn assign_given_up(
     let mut taken: Vec<SlotKey> = Vec::new();
     // The plays given this tick, by kind and target.
     let mut given: Vec<(PlayKind, TargetRef)> = Vec::new();
+    // The plays the team's bots go to (A151 step 2b): the plays kept from the last tick first, whatever the order of this
+    // pass, each replaced by its bot's new choice.
+    let mut intents: Vec<(Place, PlayKind, TargetRef)> = if piling.is_some() {
+        asking
+            .iter()
+            .filter_map(|bot| {
+                let current = bot.current?;
+                bot.candidates
+                    .iter()
+                    .any(|c| c.kind == current.kind && c.target == current.target)
+                    .then_some((bot.place, current.kind, current.target))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut out = Vec::new();
     for bot in asking {
         let trapped = given_up.contains(&bot.place);
@@ -411,19 +522,26 @@ fn assign_given_up(
                 .is_some_and(|current| c.kind == current.kind && c.target == current.target)
         };
         let band = |c: &Candidate| bands.band(c, is_running(c), on_container(c, &given), behind);
+        // The score a candidate competes by: scored down for the teammates already on its target (A151 step 2b); the
+        // band is read from the score as it was, so a piled objective stays in its band and only its place in it moves.
+        let on_it = |c: &Candidate| piling.map_or(0, |p| p.on_it(&intents, bot.place, c.target));
+        let by = |c: &Candidate| match piling {
+            Some(p) if piled_index(c.kind).is_some() => c.score.get() * piling_factor(p, on_it(c)),
+            _ => c.score.get(),
+        };
         // The best free candidate, its band read with the plays given so
         // far (the order above is the bands alone).
-        let Some(best) = bot
-            .candidates
-            .iter()
-            .filter(free)
-            .filter(|c| !is_running(c))
-            .fold(None, |best: Option<&Candidate>, c| match best {
-                Some(b) if (band(b), b.score.get()) >= (band(c), c.score.get()) => Some(b),
-                _ => Some(c),
-            })
-            .or_else(|| bot.candidates.iter().find(free))
-        else {
+        let pick = |score: &dyn Fn(&Candidate) -> f32| {
+            bot.candidates
+                .iter()
+                .filter(free)
+                .filter(|c| !is_running(c))
+                .fold(None, |best: Option<&Candidate>, c| match best {
+                    Some(b) if (band(b), score(b)) >= (band(c), score(c)) => Some(b),
+                    _ => Some(c),
+                })
+        };
+        let Some(best) = pick(&by).or_else(|| bot.candidates.iter().find(free)) else {
             continue;
         };
         // The running play, if it is still a candidate and its slot free.
@@ -439,7 +557,7 @@ fn assign_given_up(
                 if band(c) > band(best)
                     || (band(c) == band(best)
                         && ((bot.committed && !survival(best))
-                            || best.score.get() < c.score.get() + MARGIN)) =>
+                            || by(best) < c.score.get() + MARGIN)) =>
             {
                 (c, false, current.reason)
             }
@@ -447,6 +565,23 @@ fn assign_given_up(
             _ if bot.current.is_some() => (best, true, "the play ran out or a higher band came"),
             _ => (best, true, "the best play"),
         };
+        if let Some(p) = piling {
+            if let Some(i) = piled_index(choice.kind) {
+                let n = on_it(choice);
+                p.tally.chosen_on[i][n.min(3)].fetch_add(1, Relaxed);
+            }
+            // A new play whose best candidate by its own score was scored down; and the ones that lost the pick to it.
+            if changed
+                && let Some(plain) = pick(&|c: &Candidate| c.score.get())
+                && let Some(i) = piled_index(plain.kind)
+                && piling_factor(p, on_it(plain)) < 1.0
+            {
+                p.tally.penalised[i].fetch_add(1, Relaxed);
+                p.tally.changed_pick[i].fetch_add(u64::from(!std::ptr::eq(plain, choice)), Relaxed);
+            }
+            intents.retain(|&(place, _, _)| place != bot.place);
+            intents.push((bot.place, choice.kind, choice.target));
+        }
         if let Some(slot) = choice.slot {
             taken.push(slot);
         }
@@ -661,7 +796,7 @@ mod tests {
                     committed: false,
                 });
             }
-            let out = assign_trapped(asking, now, 0.0, &[], shaky);
+            let out = assign_trapped(asking, now, 0.0, &[], shaky, None);
             out.iter().find(|(p, _, _)| *p == 2).unwrap().1.kind
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
@@ -889,7 +1024,7 @@ mod tests {
                     committed: false,
                 },
             ];
-            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[]);
+            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], None);
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
@@ -1269,5 +1404,148 @@ mod tests {
             c(PlayKind::Roam, Rank::Roam, 1.0, None, 2),
         ];
         assert_eq!(one(&off, all, None).0, PlayKind::Raid);
+    }
+
+    // --- A151 step 2b: the piling consideration ---
+
+    fn at(kind: PlayKind, rank: Rank, target: TargetRef, score: f32) -> Candidate {
+        Candidate { kind, target, rank, score: Score::new(score), why: Explain::default(), slot: None }
+    }
+
+    fn running(kind: PlayKind, target: TargetRef) -> Assignment {
+        Assignment { kind, target, slot: None, score: 0.5, since: 100, reason: "the best play" }
+    }
+
+    /// Exit 0 and battery 0 are one place (3 m apart); exit 1 is 100 m away.
+    const POINTS: [(TargetRef, Vec3); 3] = [
+        (TargetRef::Exit(0), Vec3::new(0.0, 0.0, 0.0)),
+        (TargetRef::Battery(0), Vec3::new(3.0, 0.0, 0.0)),
+        (TargetRef::Exit(1), Vec3::new(100.0, 0.0, 0.0)),
+    ];
+
+    fn rule() -> PilingRule {
+        PilingRule { radius_m: 15.0, free: 1, step: 0.375, floor: 0.25 }
+    }
+
+    /// Three bots that each prefer exit 0 (0.9) over exit 1 (0.6) as a roam.
+    fn three_roamers() -> Vec<Asking<'static>> {
+        (1..=3)
+            .map(|place| Asking {
+                place,
+                candidates: vec![
+                    at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(0), 0.9),
+                    at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(1), 0.6),
+                ],
+                current: None,
+                committed: false,
+            })
+            .collect()
+    }
+
+    fn targets(out: &[(Place, Assignment, bool)]) -> Vec<(Place, TargetRef)> {
+        let mut v: Vec<_> = out.iter().map(|(p, a, _)| (*p, a.target)).collect();
+        v.sort_by_key(|&(p, _)| p);
+        v
+    }
+
+    fn piled(asking: Vec<Asking>, partners: &[(Place, Place)], tally: &PilingTally) -> Vec<(Place, Assignment, bool)> {
+        let piling = Piling { rule: rule(), partners, points: &POINTS, tally };
+        assign_given_up(asking, 1_000, &Bands::default(), 0.0, &[], &[], Some(&piling))
+    }
+
+    #[test]
+    fn piling_sends_the_third_bot_to_its_next_best_place_and_off_is_today() {
+        let tally = PilingTally::default();
+        let out = piled(three_roamers(), &[], &tally);
+        assert_eq!(
+            targets(&out),
+            vec![(1, TargetRef::Exit(0)), (2, TargetRef::Exit(0)), (3, TargetRef::Exit(1))],
+            "one mate is free, the third is scored 0.9 x 0.625 under 0.6"
+        );
+        let roam = piled_index(PlayKind::Roam).unwrap();
+        assert_eq!(tally.penalised[roam].load(Relaxed), 1);
+        assert_eq!(tally.changed_pick[roam].load(Relaxed), 1);
+        assert_eq!(tally.chosen_on[roam].each_ref().map(|c| c.load(Relaxed)), [2, 1, 0, 0]);
+        let today = assign_given_up(three_roamers(), 1_000, &Bands::default(), 0.0, &[], &[], None);
+        assert!(targets(&today).iter().all(|&(_, t)| t == TargetRef::Exit(0)), "without the rule all three pile");
+    }
+
+    #[test]
+    fn piling_counts_a_place_by_its_radius_across_kinds_and_not_the_partner() {
+        // Bot 3 would hold exit 0 while bots 1 and 2 collect battery 0, 3 m from it: two mates on the place.
+        let asking = |third: usize| {
+            vec![
+                Asking { place: 1, candidates: vec![at(PlayKind::Collect, Rank::Objective, TargetRef::Battery(0), 0.9)], current: None, committed: false },
+                Asking { place: 2, candidates: vec![at(PlayKind::HoldExit, Rank::Objective, TargetRef::Exit(0), 0.85)], current: None, committed: false },
+                Asking {
+                    place: 3,
+                    candidates: vec![
+                        at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(0), 0.5),
+                        at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(1), 0.4),
+                    ],
+                    current: None,
+                    committed: false,
+                },
+            ]
+            .into_iter()
+            .take(third)
+            .collect::<Vec<_>>()
+        };
+        let tally = PilingTally::default();
+        let out = piled(asking(3), &[], &tally);
+        assert_eq!(targets(&out)[2], (3, TargetRef::Exit(1)), "two mates on the place across Collect and HoldExit");
+        // Its partner is bot 2: only bot 1 counts, which is free.
+        let out = piled(asking(3), &[(3, 2)], &PilingTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Exit(0)), "the partner does not count");
+    }
+
+    #[test]
+    fn piling_keeps_an_objective_in_its_band_and_moves_only_its_place_in_it() {
+        // Two mates are on battery 0's place, a third bot has Collect on it at 0.5 and a roam elsewhere at 0.9: the
+        // objective scored down to 0.325 is still the objective band, which wins.
+        let mut asking = three_roamers();
+        asking.truncate(2);
+        asking.push(Asking {
+            place: 3,
+            candidates: vec![
+                at(PlayKind::Collect, Rank::Objective, TargetRef::Battery(0), 0.5),
+                at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(1), 0.9),
+            ],
+            current: None,
+            committed: false,
+        });
+        let out = piled(asking, &[], &PilingTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Battery(0)));
+    }
+
+    #[test]
+    fn piling_counts_the_plays_kept_from_the_last_tick_whatever_the_order_of_the_pass() {
+        // Bots 1 and 2 keep their roam on exit 0; bot 3, served first (its best score is the highest), sees them.
+        let (a, b) = (running(PlayKind::Roam, TargetRef::Exit(0)), running(PlayKind::Roam, TargetRef::Exit(0)));
+        let asking = vec![
+            Asking {
+                place: 3,
+                candidates: vec![
+                    at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(0), 0.95),
+                    at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(1), 0.7),
+                ],
+                current: None,
+                committed: false,
+            },
+            Asking { place: 1, candidates: vec![at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(0), 0.9)], current: Some(&a), committed: false },
+            Asking { place: 2, candidates: vec![at(PlayKind::Roam, Rank::Roam, TargetRef::Exit(0), 0.9)], current: Some(&b), committed: false },
+        ];
+        let out = piled(asking, &[], &PilingTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Exit(1)));
+        assert!(out.iter().filter(|(p, ..)| *p != 3).all(|(_, _, changed)| !changed), "a running play is not dropped for piling");
+    }
+
+    #[test]
+    fn piling_never_goes_under_its_floor() {
+        let rule = PilingRule { radius_m: 15.0, free: 1, step: 0.375, floor: 0.25 };
+        let factor = |n| piling_factor(&Piling { rule, partners: &[], points: &[], tally: &PilingTally::default() }, n);
+        assert_eq!([factor(0), factor(1)], [1.0, 1.0]);
+        assert!(factor(2) == 0.625);
+        assert_eq!(factor(9), 0.25);
     }
 }

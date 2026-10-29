@@ -79,6 +79,9 @@
     "sprint_body_mps": null,
     "use_ray_m": 2.0
   },
+  "spacing": {
+    "piling": null
+  },
   "smoke": {
     "sight": false
   },

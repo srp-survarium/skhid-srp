@@ -326,6 +326,8 @@ impl Bots {
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
+        // [piling] The map points of the targets the candidates are about (`team::Piling::points`).
+        let mut points: Vec<(plays::TargetRef, mapdata::Vec3)> = Vec::new();
         let mut blocks = Vec::new();
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
@@ -416,6 +418,16 @@ impl Bots {
                 // A hold still walking to its spot (no way lately: not).
                 committed.push(bot.place);
             }
+            if tuning.spacing.piling.is_some() {
+                for c in &candidates {
+                    if !matches!(c.target, plays::TargetRef::None | plays::TargetRef::Place(_) | plays::TargetRef::ThreatSpot(_))
+                        && !points.iter().any(|(t, _)| *t == c.target)
+                        && let Some(at) = cx.point_of(c.target)
+                    {
+                        points.push((c.target, at));
+                    }
+                }
+            }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
         let asking = asked
@@ -434,7 +446,20 @@ impl Bots {
             .map(|&(place, _, _)| place)
             .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
             .collect();
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky) {
+        // [piling] The map points of the targets the bots' candidates are about, and the trade partners.
+        let partners: Vec<(Place, Place)> = asked
+            .iter()
+            .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
+            .collect();
+        let piling = tuning.spacing.piling_rule().map(|rule| team::Piling {
+            rule,
+            partners: &partners,
+            points: &points,
+            tally: &tactics.piling_tally,
+        });
+        for (place, assignment, changed) in
+            team::assign_trapped(asking, now, gap, &given_up, &shaky, piling.as_ref())
+        {
             let Some(me) = view.place(place) else {
                 continue;
             };

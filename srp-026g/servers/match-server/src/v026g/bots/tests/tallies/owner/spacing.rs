@@ -39,17 +39,32 @@ pub(super) struct SpacingCounts {
     /// By the play the body runs (a bot's assignment; "human" for the stand-in): the living bodies sampled and the
     /// teammates near them, and how many had 3 or more.
     by_play: BTreeMap<String, [u64; 3]>,
+    /// The commander's piling consideration (A151 step 2b), as the last tick left it (the tally is the tactics' own): by
+    /// play, the assignments by the teammates already on the chosen place (0, 1, 2, 3+), those scored down, the picks changed.
+    piling: Vec<(crate::v026g::bots::plays::PlayKind, [u64; 4], u64, u64)>,
 }
 
 impl SpacingCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], by_play: BTreeMap::new() }
+        Self {
+            by_team: Default::default(),
+            window: vec![[0; WINDOW_S]; n],
+            was_alive: vec![false; n],
+            by_play: BTreeMap::new(),
+            piling: Vec::new(),
+        }
     }
 }
 
 impl Topic for SpacingCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.piling = tactics.piling_tally.read();
+        }
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
@@ -123,7 +138,17 @@ impl SpacingCounts {
                 (play.clone(), serde_json::json!({ "samples": n, "mates_near": mates, "clumped_samples": clumped }))
             })
             .collect();
-        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play } });
+        let piling: serde_json::Map<String, serde_json::Value> = self
+            .piling
+            .iter()
+            .map(|(kind, on, penalised, changed)| {
+                (
+                    format!("{kind:?}"),
+                    serde_json::json!({ "chosen_on_0_1_2_3plus": on, "penalised": penalised, "changed_pick": changed }),
+                )
+            })
+            .collect();
+        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play, "piling": piling } });
         let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 };
         let line = |t: usize| {
             let c = &self.by_team[t];

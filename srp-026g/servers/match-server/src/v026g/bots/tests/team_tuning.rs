@@ -565,6 +565,16 @@ fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
     );
 }
 
+/// The piling consideration (A151 step 2b) is a team's switch too: team 0 as today (on), team 1 without it. The commander of a
+/// team builds the rule from its own `tuning_of(team)`; what the rule does is in the tests of `team.rs`.
+#[test]
+fn the_piling_switch_is_the_switch_of_the_team_that_asks() {
+    let (team0, mut team1) = (Tuning::default(), Tuning::default());
+    team1.spacing.piling = None;
+    let (bots, _) = after_one_poll(team0, team1);
+    assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).spacing.piling_rule().is_some()), [true, false]);
+}
+
 /// The edge watch (`smoke.react_watch`) through the real poll, one team's switch on: a cloud of each team between them
 /// from the start, nobody sees anybody. Only the team whose tuning has it watches, and only the other team's cloud
 /// (its own is told after `told_ms`); its bots look at the edge on the cloud's floor (a note a cloud).
