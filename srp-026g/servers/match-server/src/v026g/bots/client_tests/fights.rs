@@ -13,7 +13,6 @@
 use super::*;
 use mapdata::Vec3;
 
-use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::LegsWhy;
 use crate::v026g::bots::view::{BatteryState, Place};
 use crate::v026g::drive::key;
@@ -389,6 +388,7 @@ pub fn steps() -> Vec<Step> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::pools::Pools;
     use crate::v026g::bots::reflex::Gates;
 
     fn body(place: Place, team: u8, alive: bool, at: Vec3, keys: u32) -> Body {
@@ -413,6 +413,7 @@ mod tests {
             heard: Vec::new(),
             sight: None,
             exits: Default::default(),
+            counters: Default::default(),
         }
     }
 

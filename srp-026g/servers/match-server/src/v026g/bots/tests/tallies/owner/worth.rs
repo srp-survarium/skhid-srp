@@ -78,6 +78,9 @@ pub(super) struct WorthCounts {
     /// does not know of.
     chances: u32,
     chances_seen: u32,
+    /// By the bot's team: bot-ticks with a hurter in the line, with one in its sight, target switches, and switches off a hurter in
+    /// its sight (the rates of the head-to-head: one number per chance, whatever the other team did).
+    by_team: [[u32; 4]; 2],
     switches_off_seen_hurter: [u32; 2],
     /// ... by the age of the hurter's last hit at the switch (the world reaches the bot late): under 1 s, 1 to 2 s, over 2 s; for
     /// the worth and other.
@@ -183,11 +186,16 @@ impl Topic for WorthCounts {
             let hurter_seen = seen_age.is_some();
             self.chances += u32::from(hurter_in_line);
             self.chances_seen += u32::from(hurter_seen);
+            let team = usize::from(body.team).min(1);
+            self.by_team[team][0] += u32::from(hurter_in_line);
+            self.by_team[team][1] += u32::from(hurter_seen);
             if let (Some(was), Some(new)) = (self.last_target[p], target)
                 && was != new
             {
                 let for_worth = usize::from(!self.taken_at[p].is_some_and(|at| tick.saturating_sub(at) <= WORTH_TO_TARGET_MS));
                 self.switches[for_worth] += 1;
+                self.by_team[team][2] += 1;
+                self.by_team[team][3] += u32::from(hurter_seen);
                 self.switches_off_hurter[for_worth] += u32::from(hurter_in_line);
                 self.switches_off_seen_hurter[for_worth] += u32::from(hurter_seen);
                 if let Some(age) = seen_age {
@@ -353,6 +361,11 @@ impl WorthCounts {
             "worth_push_seen_again": w.push_seen_again,
             "worth_push_other_target": w.push_other_target,
             "worth_glances": w.glances,
+            "worth_out_of_reach": w.out_of_reach,
+            "switch_rates": { "by_team": {
+                "0": { "hurter_in_line_ticks": self.by_team[0][0], "hurter_seen_ticks": self.by_team[0][1], "switches": self.by_team[0][2], "switches_off_seen_hurter": self.by_team[0][3] },
+                "1": { "hurter_in_line_ticks": self.by_team[1][0], "hurter_seen_ticks": self.by_team[1][1], "switches": self.by_team[1][2], "switches_off_seen_hurter": self.by_team[1][3] },
+            } },
             "switches_for_worth": self.switches[0],
             "switches_for_worth_off_hurter": self.switches_off_hurter[0],
             "switches_other": self.switches[1],
@@ -384,7 +397,7 @@ impl WorthCounts {
              dropped by a hurt carrier {}: owners carry it again {} (mean {:.1} s), thief's side {} (mean {:.1} s), left {}; \
              blood first, {} exchanges: the one hit died {:.1} %, the one who hit died {:.1} %; \
              targets taken for their worth: objective threat {}, objective actor {}, hurt {} ({} from another target); \
-             pushes {} (ended: time {}, seen again {}, another target {}); flank glances {}; \
+             pushes {} (ended: time {}, seen again {}, another target {}); flank glances {}; targets taken with an objective actor out of the weapon's reach {}; \
              target switches for the worth {} ({} with a hurter in the line), other {} ({}); bot-ticks with a hurter in the line who is not the target {} (in the bot's sight {}), switches off a hurter in its sight: for the worth {} (by the age of his last hit: <1 s {}, 1-2 s {}, >2 s {}), other {} (<1 s {}, 1-2 s {}, >2 s {})",
             seconds(self.carrier_clear[0]),
             seconds(self.carrier_clear[1]),
@@ -410,6 +423,7 @@ impl WorthCounts {
             w.push_seen_again,
             w.push_other_target,
             w.glances,
+            w.out_of_reach,
             self.switches[0],
             self.switches_off_hurter[0],
             self.switches[1],

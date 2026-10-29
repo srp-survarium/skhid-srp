@@ -102,6 +102,7 @@ impl Sim {
             heard: Vec::new(),
             sight: None,
             exits: Default::default(),
+            counters: Default::default(),
         }
     }
 
