@@ -362,6 +362,7 @@ package survarium.item
             i++;
          }
          item.properties = description.item_properties;
+         WeaponMovement.expose(item);
          if(description.descr)
          {
             item.itemDescription = description.descr;

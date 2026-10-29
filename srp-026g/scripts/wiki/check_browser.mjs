@@ -1,0 +1,165 @@
+// Node 22+, isolated Firefox: --headless --remote-debugging-port 9457.
+// Real HTTP preview: cargo test -p web-server serve_wiki_preview -- --ignored --nocapture
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const [base = 'http://127.0.0.1:24583', port = '9457', output = '/tmp/wiki-weapons-review'] = process.argv.slice(2);
+await fs.mkdir(output, {recursive: true});
+const socket = new WebSocket(`ws://127.0.0.1:${port}/session`);
+await new Promise((resolve, reject) => {socket.onopen = resolve; socket.onerror = reject;});
+let id = 0;
+const pending = new Map();
+socket.onmessage = event => {
+  const message = JSON.parse(event.data), request = pending.get(message.id);
+  if (!request) return;
+  pending.delete(message.id); clearTimeout(request.timer);
+  message.type === 'error' ? request.reject(Error(JSON.stringify(message))) : request.resolve(message.result);
+};
+function send(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const next = ++id;
+    const timer = setTimeout(() => {pending.delete(next); reject(Error(`Timed out: ${method}`));}, 20000);
+    pending.set(next, {resolve, reject, timer});
+    socket.send(JSON.stringify({id: next, method, params}));
+  });
+}
+try {
+  await send('session.new', {capabilities: {alwaysMatch: {browserName: 'firefox'}}});
+  const {context} = await send('browsingContext.create', {type: 'tab'});
+  async function evaluate(expression) {
+    const result = await send('script.evaluate', {expression, target: {context}, awaitPromise: true});
+    if (result.type === 'exception') throw Error(JSON.stringify(result));
+    return result.result.value;
+  }
+  async function navigate(path) {
+    await send('browsingContext.navigate', {context, url: base + path, wait: 'complete'});
+    await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(resolve)))');
+  }
+  async function screenshot(name) {
+    await evaluate(`Promise.all([...document.querySelectorAll('img[src]')]
+      .filter(e => e.getBoundingClientRect().top < innerHeight && e.getBoundingClientRect().bottom > 0)
+      .map(e => new Promise((resolve, reject) => {
+        if (e.complete && e.naturalWidth) return resolve();
+        e.addEventListener('load', resolve, {once:true});
+        e.addEventListener('error', () => reject(Error('Weapon image failed')), {once:true});
+        e.loading = 'eager';
+      })))`);
+    const {data} = await send('browsingContext.captureScreenshot', {context});
+    await fs.writeFile(`${output}/${name}.png`, Buffer.from(data, 'base64'));
+  }
+  const visible = "[...document.querySelectorAll('.weapon')].filter(e => !e.hidden)";
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki');
+  assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
+  await screenshot('wiki');
+  await navigate('/wiki/weapons');
+  const total = await evaluate("document.querySelectorAll('.weapon').length");
+  assert.ok(total > 50);
+  assert.equal(await evaluate(`${visible}.length`), total);
+  assert.equal(await evaluate("document.querySelector('.catalogue-tools').hidden"), false, 'script works under the real CSP');
+  assert.equal(await evaluate("document.querySelector('#wpn_benelli_m4').dataset.class"), 'Shotgun');
+  await screenshot('weapons-desktop');
+  await evaluate("document.querySelector('#compare-a-btn').click()");
+  assert.equal(await evaluate("document.activeElement.className"), 'wpick-search');
+  assert.equal(await evaluate("document.querySelectorAll('#compare-a-list [role=option]').length"), total);
+  assert.equal(await evaluate("[...document.querySelectorAll('#compare-a-list [role=group]')].every(group => [...group.querySelectorAll('[role=option]')].every((option,i,items) => !i || Number(items[i-1].querySelector('small').textContent.replace(/\\D/g,'')) <= Number(option.querySelector('small').textContent.replace(/\\D/g,''))))"), true, 'chooser sorts each class by level');
+  await screenshot('weapon-chooser');
+  await evaluate("document.activeElement.value='AK74M';document.activeElement.dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate("[...document.querySelectorAll('#compare-a-list [role=option]')].filter(e=>!e.hidden).length"), 1);
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
+  assert.equal(await evaluate("document.querySelector('#compare-a').value"), 'wpn_ak_74m');
+  assert.equal(await evaluate("document.activeElement.id"), 'compare-a-btn');
+  assert.equal(await evaluate("document.querySelector('#compare-a-btn img').naturalWidth > 0"), true);
+  await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='PM';document.activeElement.dispatchEvent(new Event('input'));document.querySelector('#compare-b-wpn_pm').click()");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'chooser updates both stats and recoil');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('b')"), 'wpn_pm');
+  await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='no such weapon';document.activeElement.dispatchEvent(new Event('input'));document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
+  assert.equal(await evaluate("document.querySelector('#compare-b-picker .wpick-empty').hidden"), false);
+  assert.equal(await evaluate("document.querySelector('#compare-b').value"), 'wpn_pm', 'no-match Enter keeps selection');
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  assert.equal(await evaluate("document.querySelector('#compare-b-btn').getAttribute('aria-expanded')"), 'false');
+  await evaluate("document.querySelector('#compare-a-btn').click();document.querySelector('#compare-b-btn').focus();document.querySelector('#compare-b-btn').click()");
+  assert.equal(await evaluate("document.querySelectorAll('.wpick-pop:not([hidden])').length"), 1, 'one open chooser');
+  await evaluate("document.querySelector('#compare-b-btn').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));document.querySelector('#weapon-search').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));document.querySelector('#clear-comparison').click()");
+  assert.equal(await evaluate("document.querySelectorAll('.wpick-pop:not([hidden])').length"), 0, 'outside click closes');
+  await evaluate("document.querySelector('#weapon-search').value='AK74M';document.querySelector('#weapon-search').dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate(`${visible}.length`), 1, 'search ignores punctuation');
+  await evaluate("document.querySelector('#wpn_ak_74m summary').click()");
+  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m').open"), true);
+  await screenshot('weapon-details');
+  await evaluate("document.querySelector('#weapon-search').value='no weapon matches this';document.querySelector('#weapon-search').dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate("document.querySelector('#weapons-empty').hidden"), false);
+  await evaluate("document.querySelector('#weapon-search').value='';document.querySelector('#weapon-class').value='Shotgun';document.querySelector('#weapon-class').dispatchEvent(new Event('change'))");
+  assert.ok(await evaluate(`${visible}.length`) > 1);
+  assert.equal(await evaluate(`${visible}.every(e=>e.dataset.class==='Shotgun')`), true);
+  await evaluate("document.querySelector('#weapon-class').value='';document.querySelector('#weapon-sort').value='damage';document.querySelector('#weapon-sort').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate(`${visible}.every((e,i,a)=>!i||Number(a[i-1].dataset.damage)>=Number(e.dataset.damage))`), true);
+  await navigate('/wiki/weapons?lang=uk#wpn_ak_74m');
+  assert.equal(await evaluate('document.documentElement.lang'), 'uk');
+  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m').open"), true);
+  await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 844}, devicePixelRatio: 1});
+  await evaluate('scrollTo(0,0)');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
+  await screenshot('weapons-mobile-uk');
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki/weapons#wpn_ak_74m');
+  await screenshot('weapon-expanded');
+  assert.equal(await evaluate("[...document.querySelectorAll('.weapon-image[src]')].filter(e=>e.getBoundingClientRect().top<innerHeight&&e.getBoundingClientRect().bottom>0).every(e=>e.complete&&e.naturalWidth>0)"), true, 'visible images load');
+  const response = await fetch(base + '/wiki/weapons');
+  assert.ok(response.headers.get('content-security-policy').includes("script-src 'self'"));
+  assert.equal((await fetch(base + '/wiki/unknown')).status, 404);
+  await navigate('/wiki/weapons?a=wpn_ak_74m&b=wpn_pm');
+  assert.equal(await evaluate("document.querySelector('#compare-a-value').textContent"), 'AK-74M', 'URL paints chooser');
+  assert.ok(await evaluate("document.querySelectorAll('.weapon-comparison tr[data-stat]').length") >= 30, 'expanded stat coverage');
+  assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=bullet_damage] td').className"), 'better');
+  assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.weapon-comparison [data-stat=bullet_damage] td')).color"),
+    await evaluate("getComputedStyle(document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td')).color"), 'better values visibly change color');
+  assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td').className"), '', 'equal values neutral');
+  assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=\"breath_vibration.base_period\"] td').className"), '', 'sway period neutral');
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
+  assert.equal(await evaluate("document.querySelectorAll('#sim-vertical path').length"), 4, 'two complete and two elapsed curves');
+  await screenshot('comparison-stats');
+  await evaluate("document.querySelector('#compare-colors').click()");
+  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
+  await evaluate("document.querySelector('#compare-colors').click();document.querySelector('#only-differences').click()");
+  assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
+  await evaluate("document.querySelector('#sim-step').click()");
+  assert.equal(await evaluate("Number(document.querySelector('#sim-time').value)"), .05);
+  assert.ok((await evaluate("document.querySelector('#sim-legend').textContent")).includes('1/10'));
+  assert.equal(await evaluate("document.querySelectorAll('#sim-single,#sim-play').length"), 0, 'only manual step and reset actions');
+  await evaluate("document.querySelector('#sim-step').click()");
+  assert.ok(await evaluate("Number(document.querySelector('#sim-time').value)") > .05, 'next shot advances timeline');
+  const position = await evaluate("document.querySelector('#sim-time').value");
+  await evaluate('new Promise(r=>setTimeout(r,150))');
+  assert.equal(await evaluate("document.querySelector('#sim-time').value"), position, 'manual position stays fixed');
+  await evaluate("document.querySelector('#sim-time').value='1.5';document.querySelector('#sim-time').dispatchEvent(new Event('input'));document.querySelector('#recoil-sim').scrollIntoView()");
+  assert.equal(await evaluate("!!document.querySelector('#sim-variation')"), false, 'average kick option removed');
+  const beforeSeed = await evaluate("document.querySelector('#sim-vertical path').getAttribute('d')");
+  await evaluate("document.querySelector('#sim-seed').value='42';document.querySelector('#sim-seed').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelector('#sim-time').value"), '1.5', 'seed change preserves timeline');
+  assert.notEqual(await evaluate("document.querySelector('#sim-vertical path').getAttribute('d')"), beforeSeed, 'seed change redraws recoil');
+  await screenshot('comparison-recoil');
+  await evaluate("document.querySelector('#sim-reset').click()");
+  assert.equal(await evaluate("document.querySelector('#sim-time').value"), '0');
+  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelector('#compare-same').hidden"), false, 'same weapon has no differences');
+  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
+  await navigate('/wiki/weapons?lang=uk&a=wpn_ak_74m&b=wpn_pm');
+  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'comparison fits mobile');
+  await evaluate("document.querySelector('#comparison').scrollIntoView();document.querySelector('#compare-b-btn').click()");
+  assert.equal(await evaluate("(()=>{const r=document.querySelector('#compare-b-picker .wpick-pop').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"), true, 'right chooser stays on screen');
+  await screenshot('weapon-chooser-mobile-uk');
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  await evaluate("document.querySelector('#recoil-sim').scrollIntoView()");
+  await screenshot('comparison-recoil-mobile');
+  await evaluate("document.querySelector('#clear-comparison').click()");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true);
+  assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
+  await send('session.end');
+} finally {
+  await send('session.end').catch(() => {});
+  for (const request of pending.values()) clearTimeout(request.timer);
+  socket.close();
+}

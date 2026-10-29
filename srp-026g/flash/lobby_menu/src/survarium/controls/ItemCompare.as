@@ -10,6 +10,7 @@ package survarium.controls
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
+   import survarium.item.WeaponDetails;
    import survarium.constants.ModifierType;
    import survarium.constants.SuperCategory;
    import survarium.constants.ItemCategory;
@@ -184,6 +185,10 @@ package survarium.controls
       {
          return this._primary;
       }
+
+      public function getSecondaryData() : Object { return this._secondary; }
+
+      public function refreshComparison() : void { updateData(); }
       
       public function setSecondaryWeapon(item:Object) : void
       {
@@ -220,6 +225,7 @@ package survarium.controls
          trace("ItemCompare::updateData");
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
          var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
+         var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
@@ -296,6 +302,7 @@ package survarium.controls
          }
          for each(var s:Object in this._primary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -344,6 +351,7 @@ package survarium.controls
          }
          for each(s in this._secondary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)

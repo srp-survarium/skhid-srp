@@ -63,6 +63,8 @@ package survarium.player
       
       public var buyPremium:MovieClip;
       
+      private var _weightIndicator:WeightIndicator;
+
       private var _weightC:Number = 0;
       
       // autobuy_changed's state: whether the autobuy (ammo) box is ticked
@@ -392,15 +394,12 @@ package survarium.player
          _relocateFunction = link;
       }
       
-      public function updateWeight(cur:Number, max:Number) : void
+      public function updateWeight(cur:Number, max:Number, effects:WeightEffects = null) : void
       {
          _weightC = cur;
          _weightM = max;
-         this.playerWeight.textFieldValue.styleSheet = MainScene.textStyleSheet;
-         var style:String = this._weightC < this._weightM ? "highlight" : "red";
-         this.playerWeight.textFieldValue.text = Util.styledChar(cur.toFixed(2),style) + " / " + Util.getNumberString(max);
-         this.playerWeight.progress_indicator.maximum = this._weightM;
-         this.playerWeight.progress_indicator.value = this._weightC;
+         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
+         _weightIndicator.update(cur,max,effects);
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -616,6 +615,7 @@ package survarium.player
       protected function onLocal(value:String = "") : void
       {
          this.playerWeight.textFieldLabel.text = LocalizationData.getName("equipment_weight");
+         if(_weightIndicator != null) _weightIndicator.refresh();
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
          this.showPresetTitle();

@@ -1030,6 +1030,45 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
 }
 
 #[test]
+fn wiki_routes_use_the_sites_navigation_and_language() {
+    let world = world();
+    for path in ["/wiki", "/wiki/weapons"] {
+        for lang in [Lang::En, Lang::Uk] {
+            let mut request = get(path);
+            request.lang = lang;
+            let response = world.web.route(&request, "t");
+            assert_eq!(response.status, "200 OK");
+            assert!(
+                response
+                    .body
+                    .contains(&format!("<html lang=\"{}\">", lang.code()))
+            );
+            assert!(response.body.contains(&format!(
+                "href=\"/wiki?lang={}\" aria-current=page",
+                lang.code()
+            )));
+        }
+    }
+    assert_eq!(
+        world.web.route(&get("/wiki/unknown"), "t").status,
+        "404 Not Found"
+    );
+}
+
+/// A standalone local review of the real HTTP routes, with in-memory test
+/// accounts. Does not start or connect to login, lobby or match servers.
+#[test]
+#[ignore = "local browser preview; serves until stopped"]
+fn serve_wiki_preview() {
+    let world = world();
+    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    for stream in listener.incoming() {
+        world.web.serve(stream.unwrap());
+    }
+}
+
+#[test]
 fn every_file_the_maps_name_is_served() {
     // What the page and its script ask for, before a ?v=: its own files
     // and the calculator's renders and fonts.

@@ -4676,3 +4676,28 @@ va	name	location	role	basis
 0x00239cc0	survarium::game_world_ui::create_slot_value	entry ESP+8	the zero-based quick-slot index (EDI at 0x239DAC), copied unchanged into GFx slot_id at 0x239F23..0x239F32; the activity presentation uses the same index at 0x23B7A0	observed
 0x0033d390	survarium::medkit::set_active	activation delay	+2A4h configured delay ms; 0x33D45A..0x33D491 uses apply_modifier(profile+kit*704h+F4h,33,delay,1.0), truncates to u32 and stores +2ACh. Unlike effect duration, the delay does not use +2A0h skill weight.	observed
 0x002ffcc0	survarium::stackable_item::get_ui_description	medkit vtable+48h	medical items inherit this descriptor: writes item id at output+0 and stack count at +4; leaves cooldown byte +6 and timer word +2 zero. Medical activation needs its own native timing snapshot.	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	EAX	stamina; +18h minimum weight, +1Ch maximum, +20h speed penalty, +24h spend increase, +48h modifiers	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	entry ESP+4	carried weight in kg, supplied by base_player tick at 0x2DAAB5 after inventory::update_weight	observed
+0x00329290	survarium::player_stamina::player_stamina	EAX	stamina destination	observed
+0x00329290	survarium::player_stamina::player_stamina	ECX	40-byte stamina_base_parameters	observed
+0x00329290	survarium::player_stamina::player_stamina	entry ESP+4	player_params_modifiers_container pointer	observed
+0x002dbf40	survarium::base_player::can_sprint	entry ESP+4	player	observed
+0x002221e0	survarium::lobby_menu::update_player_items_weight	EAX	lobby menu; +6A0h profile, +9Ch game, +690h movie resource, +3118h configured capacity	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	EAX	kit index (low byte); profile+58h+704h*kit	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	ECX	equipment-compatible parameter index only; 0x2F7470 has an unchecked switch lookup at 0x2F7643; player modifier indices 26/31/32 are invalid and crash with equipped items; use 0x2D5AE0 on the kit modifier container for those	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+4	base value	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+8	profile	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+12	dictionary	observed
+0x00331840	survarium::weapon_recoil_parameters::load	ESI	recoil config node	observed
+0x00331840	survarium::weapon_recoil_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8	dispersion config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	ESI	breath_vibration config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	entry ESP+4	output parameter block	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	EAX	indexed config path node	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	entry ESP+4	root config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ESI	mutable scalar config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ECX	end iterator pointer	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	entry ESP+4	begin iterator	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	entry ESP+4	unused callback argument; ret 4	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	[0x021E75E0]	zero-terminated language name pointer; russian/ukrainian select ru, others en	observed
