@@ -96,7 +96,9 @@
 #      (of the list), release/build-zip (--ref: the commit checked in step
 #      1; --revision: the release's; --patches: the list, with the new
 #      patch, whose every patch the exe requires at its start: patch 49);
-#      checks the two files as release/deploy does; makes the release
+#      checks the two files as release/deploy does (live: and makes the item
+#      tables of the server data, srp-item-tables, so a tool failing on it
+#      stops here, before the swap); makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
 #      stages both in it (sha256 checked there, chmod 644), with
 #      changed.txt; with server code to build: tags the running image (by
@@ -135,7 +137,8 @@
 #      and without the server, the ZIP's, what it shipped: the merged PRs
 #      since the tag before), an entry in CHANGELOG-SKHID-026G.md for the
 #      owner to word, release/patches.tsv as offered, the pages step 1
-#      rebuilt, and <n> in place of
+#      rebuilt, the item tables of the server data where an item changed
+#      (srp-026g/docs/data/; a failure leaves them out, said), and <n> in place of
 #      a `next` row of simulation_changes.tsv (step 1); pushed as
 #      release/record-rev<n>, its PR opened and merged as a merge commit
 #      (gh). What gh could not do (the merge, when the token may not) is said
@@ -697,6 +700,15 @@ record_files() { # <wt> <shipped>
         cp "$PATCH_LIST" "$wt/release/patches.tsv"
         LIST_RECORDED=1
     fi
+    # The item tables of the server data the release ships: only where an
+    # item changed (the record carries no table otherwise). Step 4 made them
+    # once; a failure here leaves them out of the record, not the record.
+    if ! ITEM_TABLES_REPORT=$("$ITEM_TABLES" "$data" --dir "$wt/$ITEM_TABLES_DIR" 2>&1); then
+        record_problem "the item tables: $(tail -n 3 <<<"$ITEM_TABLES_REPORT" | tr '\n' ' ')— the record goes without them; by hand, on a branch of main: $(q "$ITEM_TABLES") $(q "$data") --dir $ITEM_TABLES_DIR, then a PR of what it wrote"
+        ITEM_TABLES_REPORT=''
+        git -C "$wt" checkout --quiet -- "$ITEM_TABLES_DIR" 2>/dev/null || true
+        git -C "$wt" clean --quiet -fd -- "$ITEM_TABLES_DIR" 2>/dev/null || true
+    fi
     # The site's pages the preflight rebuilt, as the server has them now.
     if [[ -n $site_tree ]]; then
         for page in "${SITE_PAGES[@]}"; do
@@ -708,8 +720,10 @@ record_files() { # <wt> <shipped>
     fi
 }
 
+# The lines of the item tables' changes the record's message shows.
+ITEM_TABLES_SHOWN=${SKHID_TEST_ITEM_TABLES_SHOWN:-50}
 record_release() {
-    local tag branch wt shipped url answer line
+    local tag branch wt shipped url answer line lines
     tag=$(release_tag "$rev") branch=$(record_branch "$rev") wt=$work/record
     progress "7. the record: tag $tag on $(git -C "$REPO" log -1 --format=%h "$main_commit"), the commit \"Release revision $rev\" on main"
     EXE_WITH=$(awk '$2 == "with-server" { print $1 }' "$work/zip/exe.sha256" 2>/dev/null || true)
@@ -759,6 +773,16 @@ record_release() {
             say "The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and"
             say "damage/) rebuilt from the offered patches by release/build-site, as the"
             say "server has them now."
+        fi
+        if grep -q ' change(s)$' <<<"$ITEM_TABLES_REPORT"; then
+            say
+            say "The item tables ($ITEM_TABLES_DIR/) of the server data it ships:"
+            # The message is the PR's body too (at most 65536 characters).
+            head -n "$ITEM_TABLES_SHOWN" <<<"$ITEM_TABLES_REPORT"
+            lines=$(grep -c . <<<"$ITEM_TABLES_REPORT")
+            if ((lines > ITEM_TABLES_SHOWN)); then
+                say "  ... and $((lines - ITEM_TABLES_SHOWN)) more lines: git diff shows them all"
+            fi
         fi
         if [[ -n $SIM_NEXT ]]; then
             say
@@ -1226,6 +1250,14 @@ if ((site_stale)); then
     fi
 fi
 
+# The item tables' tool (a live release's): step 4 runs it on the server
+# data before anything is staged, the record writes the tables of it
+# (srp-026g/docs/data/, only where an item changed). --test has no record.
+ITEM_TABLES='' ITEM_TABLES_REPORT=''
+if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
+    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
+fi
+
 # The server code: main's srp-026g build inputs against the live tree.
 build_code=0 code_report=''
 src_tar=$work/srp-026g-src.tar
@@ -1432,7 +1464,7 @@ build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH
 if ((DRY_RUN)); then
     say "[dry run] 4. $( ((no_maint)) && printf 'after the go' || printf 'during the countdown'), build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
-    say "[dry run]    then the checks of release/deploy on both, and the release folder:"
+    say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "<its sha256>"
@@ -1449,6 +1481,15 @@ else
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
     check_exe_requires "$zip" "$work"
+    # The record's item tables of this data: made once now, so a tool that
+    # fails on it stops the release here, not after the swap.
+    if ((!test_server)); then
+        rm -rf "$work/item-tables"
+        if ! answer=$("$ITEM_TABLES" "$data" --dir "$work/item-tables" 2>&1); then
+            die "the item tables (srp-item-tables) of $data: $(tail -n 3 <<<"$answer" | tr '\n' ' ')— the record could not write them after the swap"
+        fi
+        say "the item tables of it: made (the record writes them)"
+    fi
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
     progress "4. staging in the release folder $TARGET_DIR/$REL (not in place yet)"
@@ -1580,7 +1621,7 @@ if ((DRY_RUN)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"
     else
         say "[dry run] 7. once it went out, the record: git tag -a $(release_tag "$rev") ${main_commit:0:7} (the UTC time, the ZIP's and the server data's sha256) and git push origin refs/tags/$(release_tag "$rev");"
-        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
+        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered, the item tables of the server data where an item changed$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
         say "[dry run]    it would ship (merged PRs): $(shipped_prs "$main_commit" | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
     fi
     say

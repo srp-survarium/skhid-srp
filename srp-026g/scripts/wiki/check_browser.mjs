@@ -250,7 +250,8 @@ try {
   const helmets = (await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).map(e=>e.dataset.slot).join()")).split(',');
   assert.ok(helmets.length > 5 && helmets.every(slotName => slotName === 'helmet'), 'only helmets');
   assert.equal(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.querySelector('summary img.weapon-image')).map(e=>e.id).join()"), '', 'every piece has its icon');
-  assert.ok(await evaluate("document.querySelectorAll('.gear[data-slot=helmet][data-flies=\"1\"] .flies-off').length") >= 8, 'the helmets that fly off are marked');
+  assert.equal(await evaluate("document.querySelectorAll('.flies-off').length"), 0, 'flying off is a hidden detail: not on the rows');
+  assert.ok(await evaluate("[...document.querySelectorAll('.gear[data-slot=helmet] dt')].filter(dt => /Fatal headshot|Смертельне/.test(dt.textContent)).length") >= 8, 'the helmets that fly off say so on their cards');
   await screenshot('equipment-helmets');
   await evaluate("document.querySelector('.slot-filter [data-slot=mask]').click()");
   assert.ok((await evaluate("location.search")).includes('slot=mask'), 'the slot kept in the address');

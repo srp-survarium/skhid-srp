@@ -213,4 +213,3 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .protection tbody th { text-align:left; font:400 .82rem var(--body); color:var(--ink-2) }
 .gear-modifiers { grid-column:1 / -1 }
 .gear-modifiers h3 { font-size:.85rem; margin:8px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
-.flies-off { display:inline-block; margin-left:6px; padding:0 6px; border:1px solid var(--accent); border-radius:2px; color:var(--accent); font:700 .65rem var(--display); text-transform:uppercase; letter-spacing:.06em; vertical-align:1px }

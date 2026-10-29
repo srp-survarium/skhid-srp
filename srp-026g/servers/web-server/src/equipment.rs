@@ -69,7 +69,7 @@ fn flying_models() -> &'static [String] {
     })
 }
 
-fn flies_off(armour: &Armour) -> bool {
+pub(crate) fn flies_off(armour: &Armour) -> bool {
     armour
         .model
         .as_ref()
@@ -104,7 +104,7 @@ const SLOTS: [(Group, &str); 7] = [
     (Group::Boots, "boots"),
 ];
 
-fn slot_word(group: Group) -> &'static str {
+pub(crate) fn slot_word(group: Group) -> &'static str {
     SLOTS
         .iter()
         .find(|(slot, _)| *slot == group)
@@ -113,7 +113,7 @@ fn slot_word(group: Group) -> &'static str {
 
 /// The lobby's name of faction `faction` (`parameters.faction`): its
 /// `factions_dict` row's name, or the lobby's independent traders for none.
-fn faction_name(lang: Lang, faction: u8) -> String {
+pub(crate) fn faction_name(lang: Lang, faction: u8) -> String {
     let key = Dictionary::shared()
         .factions
         .iter()
@@ -170,7 +170,7 @@ fn hit_name(lang: Lang, hit: HitType) -> String {
 }
 
 /// A fraction as the lobby's cards print armour: a whole number of 100.
-fn hundredths(value: f32) -> String {
+pub(crate) fn hundredths(value: f32) -> String {
     format!("{:.0}", value * 100.0)
 }
 
@@ -190,13 +190,20 @@ fn one_value(values: &BTreeMap<HitType, f32>, hits: &[HitType]) -> Option<Option
 /// for its physical types and one for its anomaly types: then two columns,
 /// Armour and Isolation as the lobby says; a config that does not gets a
 /// column per hit type.
-fn protection_html(lang: Lang, armour: &Armour) -> String {
+pub(crate) struct Protection {
+    pub(crate) heads: Vec<String>,
+    /// The parts with those values, and the values (fractions).
+    pub(crate) rows: Vec<(Vec<String>, Vec<Option<f32>>)>,
+}
+
+/// `armour`'s protection table; `None` for a piece that protects nothing.
+pub(crate) fn protection(lang: Lang, armour: &Armour) -> Option<Protection> {
     let mut by_part: BTreeMap<BodyPart, BTreeMap<HitType, f32>> = BTreeMap::new();
     for &(part, hit, value) in &armour.protection {
         by_part.entry(part).or_default().insert(hit, value);
     }
     if by_part.is_empty() {
-        return String::new();
+        return None;
     }
     let paired = by_part.values().all(|values| {
         one_value(values, &PHYSICAL).is_some() && one_value(values, &ANOMALIES).is_some()
@@ -233,6 +240,14 @@ fn protection_html(lang: Lang, armour: &Armour) -> String {
             None => rows.push((vec![name], row)),
         }
     }
+    Some(Protection { heads, rows })
+}
+
+/// The protection table of `armour` as its card shows it.
+fn protection_html(lang: Lang, armour: &Armour) -> String {
+    let Some(Protection { heads, rows }) = protection(lang, armour) else {
+        return String::new();
+    };
     let mut html = format!(
         "<section><h2>{}</h2><div class=table-scroll><table class=protection><thead><tr><th></th>",
         lang.tr("Protection", "Захист")
@@ -357,18 +372,6 @@ fn piece_html(
     });
     let bullets = best(armour, &PHYSICAL);
     let anomalies = best(armour, &ANOMALIES);
-    let flying = if flies_off(armour) {
-        format!(
-            " <span class=flies-off title=\"{tip}\">{label}</span>",
-            tip = lang.tr(
-                "Flies off on a fatal headshot",
-                "Злітає при смертельному влучанні в голову"
-            ),
-            label = lang.tr("flies off", "злітає")
-        )
-    } else {
-        String::new()
-    };
     let quick = |label: String, value: String, unit: &str| {
         format!(
             "<div><dt>{}</dt><dd>{}<small>{}</small></dd></div>",
@@ -390,8 +393,8 @@ fn piece_html(
     format!(
         "<details class=\"weapon gear\" id=\"{key}\" data-slot={slot_word} data-faction={faction_id} \
          data-level={level} data-name=\"{lower}\" data-weight={weight} data-armour={bullets} \
-         data-isolation={anomalies} data-set=\"{set}\" data-flies={flies}><summary>{picture}\
-         <span class=weapon-title><strong>{name_html}</strong><span>{slot_html} · {level_word} {level} · {faction_html}{premium}{flying}</span></span>\
+         data-isolation={anomalies} data-set=\"{set}\"><summary>{picture}\
+         <span class=weapon-title><strong>{name_html}</strong><span>{slot_html} · {level_word} {level} · {faction_html}{premium}</span></span>\
          <dl class=quick-stats>{q1}{q2}{q3}</dl>\
          <span class=expand-label>{details} <span aria-hidden=true>+</span></span></summary>\
          <div class=weapon-details>{protection}{about}<section class=gear-modifiers>{lists}\
@@ -402,7 +405,6 @@ fn piece_html(
         level = params.item_level,
         lower = escape(&name.to_lowercase()),
         weight = params.weight,
-        flies = u8::from(flies_off(armour)),
         set = escape(&set_key(item, params)),
         name_html = escape(&name),
         slot_html = escape(&slot),
@@ -425,7 +427,7 @@ fn piece_html(
 
 /// Every armour piece with its params and group, in the lobby's slot order,
 /// then by level.
-fn pieces() -> Vec<(&'static Item, &'static ItemParams, &'static Armour, Group)> {
+pub(crate) fn pieces() -> Vec<(&'static Item, &'static ItemParams, &'static Armour, Group)> {
     let dictionary = Dictionary::shared();
     let mut rows: Vec<_> = armour::all()
         .iter()
@@ -616,7 +618,10 @@ mod tests {
             "Pilgrim stays on: {flying:?}"
         );
         assert!(flying.len() >= 8, "{flying:?}");
-        assert!(body(Lang::En).contains("class=flies-off"));
+        // A hidden detail: on the card, not on the list's row.
+        let page = body(Lang::En);
+        assert!(page.contains("<dt>Fatal headshot</dt><dd>flies off</dd>"));
+        assert!(!page.contains("class=flies-off"));
         let _ = dictionary;
     }
 
