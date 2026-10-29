@@ -3641,10 +3641,9 @@ The game language is a setting (`../docs/notes/language-option.md`). The Rust
 string, so user.cfg keeps it) at game::on_configs_loaded's start; after the
 file runs and before the dictionary loads it resolves the language once: a
 registered `-localization=` (then saved as the choice), else the saved choice,
-else a language picked in the launcher's menu (its registry value; the English
-its first start writes is no pick), else the language of the Windows user
-locale (GetUserDefaultLCID, by its primary language: `LANGUAGES`' last
-column), else English; the resolved one is saved as the choice; the
+else the language of the Windows user locale (GetUserDefaultLCID, by its
+primary language: `LANGUAGES`' last column), else English; the resolved one
+is saved as the choice (the launcher's registry language is not read); the
 engine's language string and C locale are set as a start with that flag sets
 them. The main menu's Settings (Gameplay) call `srp_language` (a pick, or a
 query): the patch saves a registered pick and writes user.cfg at once, and

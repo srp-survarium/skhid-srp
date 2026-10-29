@@ -138,12 +138,6 @@ unsafe extern "C" {
     pub static engine_query_performance_frequency: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870118 (an import, stdcall): unsigned int engine_get_current_thread_id(void)
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
-    /// the IAT slot 0xaefddc (an import, stdcall): unsigned int engine_reg_open_key_ex_w(void *key, const void *sub_key, unsigned int options, unsigned int access, void **result)
-    pub static engine_reg_open_key_ex_w: unsafe extern "stdcall" fn(*mut c_void, *const c_void, u32, u32, *mut *mut c_void) -> u32;
-    /// the IAT slot 0xaefde4 (an import, stdcall): unsigned int engine_reg_query_value_ex_w(void *key, const void *name, unsigned int *reserved, unsigned int *kind, void *data, unsigned int *size)
-    pub static engine_reg_query_value_ex_w: unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut u32, *mut u32, *mut c_void, *mut u32) -> u32;
-    /// the IAT slot 0xaefde0 (an import, stdcall): unsigned int engine_reg_close_key(void *key)
-    pub static engine_reg_close_key: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
 }

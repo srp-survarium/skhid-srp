@@ -3982,11 +3982,6 @@ def test_language(original, image, before):
           "game_options::scaleform_callback (0x1FF5D0, the method's name at [esp+8]) compares the name with its "
           "methods and returns at 0x1FF96E (`ret 10h` at 0x1FF971) for one it does not know")
     table = imports(stock)
-    check(table.get(0xAEFDDC) == ("ADVAPI32.dll", "RegOpenKeyExW")
-          and table.get(0xAEFDE4) == ("ADVAPI32.dll", "RegQueryValueExW")
-          and table.get(0xAEFDE0) == ("ADVAPI32.dll", "RegCloseKey"),
-          "0xAEFDDC, 0xAEFDE4 and 0xAEFDE0 are the delay-loaded ADVAPI32 RegOpenKeyExW, RegQueryValueExW and "
-          "RegCloseKey (the launcher's language)")
     check(table.get(0x87027C) == ("KERNEL32.dll", "GetUserDefaultLCID")
           and not any(name == "GetUserDefaultUILanguage" for _, name in table.values()),
           "0x87027C is the KERNEL32 GetUserDefaultLCID import (a new player's language: the user locale's); the "

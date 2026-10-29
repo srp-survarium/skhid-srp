@@ -4,8 +4,7 @@
 //! this patch registers before game::on_configs_loaded runs the file
 //! (`configs.start`). After the file, before the dictionary loads
 //! (`configs.texts`), the game language is resolved once: a registered
-//! `-localization=` of the command line, else the saved choice, else a
-//! language picked in the launcher's menu (its registry value), else the
+//! `-localization=` of the command line, else the saved choice, else the
 //! language of the player's Windows user locale, else English. It becomes
 //! the engine's language (with the C locale a start with that flag gives) and
 //! the saved choice, so the game's save writes it to user.cfg. The Settings'
@@ -18,8 +17,8 @@
 
 use core::ffi::CStr;
 
-use crate::vostok::language::{ConsoleString, LangId, OptionsCall, PrimaryLanguage, current, launcher_language,
-                              save_user_config, set_current, user_locale};
+use crate::vostok::language::{ConsoleString, LangId, OptionsCall, PrimaryLanguage, current, save_user_config,
+                              set_current, user_locale};
 use crate::vostok::{Context, Flow, NoExit, LanguageOnOptionsCallExit};
 
 /// A game language: its resource name (`-localization=`,
@@ -35,20 +34,9 @@ pub struct Language {
 // LANGUAGES, generated from localization_026g.py's registry.
 include!("../../../languages_026g.rs");
 
-/// The launcher's menu, by its index (launcher.md section 10.1), as a
-/// player's pick. Index 0, English, is none: the launcher's first start
-/// writes it when nothing was chosen (section 10.2; Skhid starts it without
-/// `-language=`), so a new player's registry says English before he chose.
-const LAUNCHER: [Option<&CStr>; 5] = [None, Some(c"russian"), Some(c"ukrainian"), Some(c"german"), Some(c"polish")];
-
 /// The registered language of this name.
 pub fn registered(name: &[u8]) -> Option<&'static Language> {
     LANGUAGES.iter().find(|l| l.name.to_bytes() == name)
-}
-
-/// The registered language a launcher's `language` value picked.
-fn launcher_pick(index: u32) -> Option<&'static Language> {
-    LAUNCHER.get(index as usize).copied().flatten().and_then(|name| registered(name.to_bytes()))
 }
 
 /// The registered language of a Windows language, by its primary language
@@ -58,14 +46,11 @@ pub fn of_windows(language: LangId) -> Option<&'static Language> {
 }
 
 /// The game language of a start: a registered `flag` (the command line's),
-/// else a registered `saved` choice, else a language picked in the
-/// launcher's menu, else the language of Windows' user locale (each asked
-/// only when the ones before give none), else English.
-pub fn resolve(flag: &[u8], saved: &[u8], launcher: impl FnOnce() -> Option<u32>,
-               system: impl FnOnce() -> LangId) -> &'static Language {
+/// else a registered `saved` choice, else the language of Windows' user
+/// locale (asked only then), else English.
+pub fn resolve(flag: &[u8], saved: &[u8], system: impl FnOnce() -> LangId) -> &'static Language {
     registered(flag)
         .or_else(|| registered(saved))
-        .or_else(|| launcher().and_then(launcher_pick))
         .or_else(|| of_windows(system()))
         .unwrap_or(&LANGUAGES[0])
 }
@@ -83,8 +68,7 @@ pub fn on_configs_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_configs_texts(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let flag = current(thread);
-    let language = resolve(flag.as_bytes(), SAVED.get(thread), || launcher_language(thread),
-                           || user_locale(thread));
+    let language = resolve(flag.as_bytes(), SAVED.get(thread), || user_locale(thread));
     if flag.as_bytes() != language.name.to_bytes() {
         set_current(thread, language.name);
     }
@@ -124,13 +108,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_registered_name_fits_the_engine_and_the_launcher_names_are_registered() {
+    fn every_registered_name_fits_the_engine() {
         assert_eq!(LANGUAGES[0].name, c"english");
         for language in &LANGUAGES {
             assert!(!language.name.is_empty() && language.name.count_bytes() < 16, "{language:?}");
-        }
-        for name in LAUNCHER.into_iter().flatten() {
-            assert!(registered(name.to_bytes()).is_some(), "{name:?}");
         }
     }
 
@@ -151,20 +132,16 @@ mod tests {
     }
 
     #[test]
-    fn the_flag_wins_then_the_saved_choice_then_the_launcher_then_windows_then_english() {
-        let never = || -> Option<u32> { panic!("the launcher is asked only without a flag and a choice") };
-        let no_windows = || -> LangId { panic!("Windows is asked only without a launcher's pick") };
+    fn the_flag_wins_then_the_saved_choice_then_windows_then_english() {
+        let never = || -> LangId { panic!("Windows is asked only without a flag and a choice") };
         let windows = |id| move || LangId(id);
-        assert_eq!(resolve(b"czech", b"german", never, no_windows).name, c"czech");
-        assert_eq!(resolve(b"original", b"german", never, no_windows).name, c"german");
-        assert_eq!(resolve(b"original", b"", || Some(2), no_windows).name, c"ukrainian");
-        assert_eq!(resolve(b"original", b"klingon", || Some(4), no_windows).name, c"polish");
-        // the launcher's English is what its first start writes: Windows decides
-        assert_eq!(resolve(b"original", b"", || Some(0), windows(0x0419)).name, c"russian");
-        assert_eq!(resolve(b"original", b"", || Some(5), windows(0x0405)).name, c"czech");
-        assert_eq!(resolve(b"original", b"", || None, windows(0x041A)).name, c"serbian");
-        assert_eq!(resolve(b"original", b"", || None, windows(0x0411)).name, c"english");
-        assert_eq!(resolve(b"original", b"", || None, windows(0x0C00)).name, c"english");
-        assert_eq!(resolve(b"Czech", b"", || None, windows(0x0409)).name, c"english");
+        assert_eq!(resolve(b"czech", b"german", never).name, c"czech");
+        assert_eq!(resolve(b"original", b"german", never).name, c"german");
+        assert_eq!(resolve(b"original", b"", windows(0x0419)).name, c"russian");
+        assert_eq!(resolve(b"original", b"klingon", windows(0x0405)).name, c"czech");
+        assert_eq!(resolve(b"original", b"", windows(0x041A)).name, c"serbian");
+        assert_eq!(resolve(b"original", b"", windows(0x0411)).name, c"english");
+        assert_eq!(resolve(b"original", b"", windows(0x0C00)).name, c"english");
+        assert_eq!(resolve(b"Czech", b"", windows(0x0409)).name, c"english");
     }
 }

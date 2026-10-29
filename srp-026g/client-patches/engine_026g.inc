@@ -183,18 +183,6 @@ extern engine_save_user_config
 ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_translate_text
-; unsigned int engine_reg_open_key_ex_w(void *key, const void *sub_key, unsigned int options, unsigned int access, void **result)
-; the IAT slot 0xaefddc (an import, stdcall)
-; `call [symbol]`: stdcall, it pops its arguments
-extern engine_reg_open_key_ex_w
-; unsigned int engine_reg_query_value_ex_w(void *key, const void *name, unsigned int *reserved, unsigned int *kind, void *data, unsigned int *size)
-; the IAT slot 0xaefde4 (an import, stdcall)
-; `call [symbol]`: stdcall, it pops its arguments
-extern engine_reg_query_value_ex_w
-; unsigned int engine_reg_close_key(void *key)
-; the IAT slot 0xaefde0 (an import, stdcall)
-; `call [symbol]`: stdcall, it pops its arguments
-extern engine_reg_close_key
 ; unsigned int engine_get_user_default_lcid(void)
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
