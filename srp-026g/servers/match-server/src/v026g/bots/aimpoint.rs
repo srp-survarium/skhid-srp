@@ -158,6 +158,20 @@ thread_local! {
     static RAYS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
+// [measure] Aims at a target with no part seen and his body alive (the fallback point), and the summed distance of
+// the fallback point from his true chest, metres, this thread.
+#[cfg(test)]
+thread_local! {
+    static FALLBACK: std::cell::Cell<(u64, f64)> = const { std::cell::Cell::new((0, 0.0)) };
+}
+
+/// The fallback aims so far on this thread: how many, and the mean distance of the point used from his true chest
+/// (0 with `aim_last_known` off: the point is his chest).
+#[cfg(test)]
+pub fn fallback_aims() -> (u64, f64) {
+    FALLBACK.with(|f| f.get())
+}
+
 /// The rays this thread cast through this module so far.
 #[cfg(test)]
 pub fn rays_cast() -> u64 {
@@ -496,7 +510,18 @@ impl Sight {
         match (looked.and_then(|l| l.part), body, last_seen) {
             (Some(part), Some(body), _) => Aim::Shows(part.point(body, self.eye)),
             (_, _, Some(at)) if self.spray == Some(who) => Aim::Spray(at),
-            (_, _, at) => Aim::Hidden(at.unwrap_or(known)),
+            (_, _, Some(at)) => Aim::Hidden(at),
+            (_, _, None) => {
+                // [measure] A target with no part seen: where the memory has him (`known`) against his true chest.
+                #[cfg(test)]
+                if body.is_some() {
+                    FALLBACK.with(|f| {
+                        let (n, sum) = f.get();
+                        f.set((n + 1, sum + f64::from((known - chest).length())));
+                    });
+                }
+                Aim::Hidden(known)
+            }
         }
     }
 
