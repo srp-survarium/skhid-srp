@@ -740,14 +740,10 @@ pub struct Bots {
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
     opening_pass: bool,
-    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
-    /// `campers.md` K1 §4): this bot holds one spot all match, and the
-    /// spot once found (with how many route points it sees), or none.
+    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`, `campers.md` K1 §4, `tests/camper_move.rs`): one bot holds a
+    /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
-    pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
-    /// The moving stand-in camper's state (`SRP_BENCH_CAMPER_MOVE`, `tests/camper_move.rs`).
-    #[cfg(test)]
-    pub(crate) bench_camper_motion: Option<tests::CamperMotion>,
+    pub(crate) bench_camper: Option<tests::BenchCamper>,
     tracker: Tracker,
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
@@ -838,8 +834,6 @@ impl Bots {
             opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
-            #[cfg(test)]
-            bench_camper_motion: None,
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             _search_memory: SearchMemory::hold(),
@@ -1764,6 +1758,17 @@ impl Bots {
     /// runs give team 1 another).
     fn tuning_of(&self, team: u8) -> Arc<Tuning> {
         self.tunings.of(team).clone()
+    }
+
+    /// The tuning the bot at `place` of `team` plays by: its team's, except the bench's stand-in camper, who plays by a fixed one
+    /// (`BenchCamper::tuning`) so that the two runs of a head-to-head bench face the same opponent.
+    #[cfg_attr(not(test), allow(unused_variables))]
+    fn tuning_for(&self, place: Place, team: u8) -> Arc<Tuning> {
+        #[cfg(test)]
+        if let Some(camper) = self.bench_camper.as_ref().filter(|camper| camper.place() == place) {
+            return camper.tuning().clone();
+        }
+        self.tuning_of(team)
     }
 
     /// The tuning of what exists once for both teams (see [`tuning::TeamTunings::match_wide`]): for the server's map

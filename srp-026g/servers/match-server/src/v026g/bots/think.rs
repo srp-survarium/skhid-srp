@@ -16,7 +16,7 @@ impl Bots {
         let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
             return;
         };
-        let tuning = self.tuning_of(team);
+        let tuning = self.tuning_for(index, team);
         let now = view.clock;
         let Some(bot) = self.bots[index].as_mut() else {
             return;
@@ -71,7 +71,7 @@ impl Bots {
             return;
         }
         #[cfg(test)]
-        if tests::drive_camper(&due, bot, &mut self.bench_camper, &mut self.bench_camper_motion) {
+        if self.bench_camper.as_mut().is_some_and(|camper| camper.drive(&due, bot)) {
             return;
         }
         let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
@@ -108,7 +108,7 @@ impl Bots {
         let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
             return;
         };
-        let tuning = self.tuning_of(team);
+        let tuning = self.tuning_for(index, team);
         let Some(bot) = self.bots[index].as_mut() else {
             return;
         };

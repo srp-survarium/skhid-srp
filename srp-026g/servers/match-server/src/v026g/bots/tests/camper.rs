@@ -50,21 +50,36 @@ impl CamperOptions {
         at: CamperAt::Free,
     };
 
-    /// The environment's ([`bench_settings`]).
+    /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
     pub(crate) fn from_env() -> Self {
         let settings = bench_settings();
-        let is = |name: &str, want: &str| settings.var(name).is_ok_and(|v| v == want);
-        Self {
-            rule: if is("SRP_BENCH_CAMPER_SPOT", "hidden") {
-                SpotRule::Hidden
-            } else {
-                SpotRule::Most
-            },
-            crouch: is("SRP_BENCH_CAMPER_CROUCH", "1"),
-            long_gun: is("SRP_BENCH_CAMPER_GUN", "long"),
-            moving: MoveOptions::from_env(),
-            at: CamperAt::from_env(),
-        }
+        Self::parse(&|name| settings.var(name).ok()).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    /// The options `get` (a setting by name) gives; a value that is not one of the choices is an error, not the default.
+    pub(crate) fn parse(get: &dyn Fn(&str) -> Option<String>) -> Result<Self, String> {
+        let rule = match get("SRP_BENCH_CAMPER_SPOT").as_deref() {
+            None | Some("most") => SpotRule::Most,
+            Some("hidden") => SpotRule::Hidden,
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_SPOT={other:?}: most or hidden")),
+        };
+        let crouch = match get("SRP_BENCH_CAMPER_CROUCH").as_deref() {
+            None | Some("0") => false,
+            Some("1") => true,
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_CROUCH={other:?}: 1 or unset")),
+        };
+        let long_gun = match get("SRP_BENCH_CAMPER_GUN").as_deref() {
+            None => false,
+            Some("long") => true,
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_GUN={other:?}: long or unset")),
+        };
+        Ok(Self {
+            rule,
+            crouch,
+            long_gun,
+            moving: MoveOptions::parse(get("SRP_BENCH_CAMPER_MOVE").as_deref(), get("SRP_BENCH_CAMPER_DWELL_S").as_deref())?,
+            at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
+        })
     }
 }
 
@@ -248,6 +263,34 @@ pub(crate) fn the_hidden_rule_prefers_a_spot_seen_from_few() {
     assert_eq!(pick_spot(SpotRule::Most, &none), None);
 }
 
+/// The options are parsed once: a value that is none of the choices is refused, and nothing set is the options off.
+#[test]
+pub(crate) fn the_camper_options_refuse_an_unknown_value() {
+    let with = |pairs: &'static [(&'static str, &'static str)]| {
+        CamperOptions::parse(&move |name| pairs.iter().find(|(n, _)| *n == name).map(|(_, v)| (*v).to_string()))
+    };
+    assert_eq!(with(&[]), Ok(CamperOptions::OFF));
+    let all = with(&[
+        ("SRP_BENCH_CAMPER_SPOT", "hidden"),
+        ("SRP_BENCH_CAMPER_CROUCH", "1"),
+        ("SRP_BENCH_CAMPER_GUN", "long"),
+        ("SRP_BENCH_CAMPER_MOVE", "1"),
+        ("SRP_BENCH_CAMPER_AT", "container"),
+    ])
+    .expect("known values");
+    assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
+    assert!(all.moving.is_some());
+    for bad in [
+        ("SRP_BENCH_CAMPER_SPOT", "hiden"),
+        ("SRP_BENCH_CAMPER_CROUCH", "yes"),
+        ("SRP_BENCH_CAMPER_GUN", "short"),
+        ("SRP_BENCH_CAMPER_AT", "batery"),
+    ] {
+        let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
+        assert!(with(pairs).is_err(), "{bad:?}");
+    }
+}
+
 /// On the soak field the standing most rule is the camper's old spot, and
 /// the hidden rule's has a ratio no worse than it.
 #[test]
@@ -294,7 +337,7 @@ fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.set_routes(camper_routes());
     }
-    bots.bench_camper = Some((0, None));
+    bots.bench_camper = Some(BenchCamper::new(0, CamperOptions::OFF, seed as u32, Arc::new(Tuning::default())));
     let mut game = Game::new(world, &teams, seed, Some(1_000), None);
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
@@ -352,7 +395,7 @@ fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, target, gun));
         }
     }
-    let found = bots.bench_camper.and_then(|(_, spot)| spot.flatten());
+    let found = bots.bench_camper.as_ref().and_then(BenchCamper::first_spot);
     assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
     held
 }

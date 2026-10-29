@@ -274,6 +274,11 @@ impl BenchSettings {
     pub(crate) fn number<T: std::str::FromStr>(&self, name: &str) -> Option<T> {
         self.var(name).ok().and_then(|v| v.parse().ok())
     }
+
+    /// [`Self::number`], but a value that is set and not a number refuses the run instead of reading as unset.
+    pub(crate) fn number_or_refuse<T: std::str::FromStr>(&self, name: &str) -> Option<T> {
+        parse_number(name, self.var(name).ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
+    }
 }
 
 /// Whose lanes of enemy humans count the other team as human (`SRP_BENCH_ENEMY_HUMAN_LANES`, **model**).
@@ -288,19 +293,29 @@ pub(crate) enum EnemyLanes {
     OnlyTeam(u8),
 }
 
+/// A setting that is a number: unset is none, a value that is not a number is an error.
+pub(crate) fn parse_number<T: std::str::FromStr>(name: &str, value: Option<&str>) -> Result<Option<T>, String> {
+    match value {
+        None => Ok(None),
+        Some(text) => text.trim().parse().map(Some).map_err(|_| format!("{name}={text:?} is not a number")),
+    }
+}
+
 impl EnemyLanes {
-    /// `off` or `0` or unset: none; `team0` / `team1`: that team's bots; any other value (`on`, `1`, `both`, empty): both teams.
-    pub(crate) fn parse(value: Option<&str>) -> Self {
+    /// `off` or `0` or unset: none; `team0` / `team1`: that team's bots; `on`, `1`, `both` or empty: both teams (the old `on`);
+    /// anything else is refused (a typo such as `team2` used to mean both).
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
         match value.map(str::trim) {
-            None | Some("off" | "0") => Self::Off,
-            Some("team0") => Self::OnlyTeam(0),
-            Some("team1") => Self::OnlyTeam(1),
-            Some(_) => Self::Both,
+            None | Some("off" | "0") => Ok(Self::Off),
+            Some("team0") => Ok(Self::OnlyTeam(0)),
+            Some("team1") => Ok(Self::OnlyTeam(1)),
+            Some("on" | "1" | "both" | "") => Ok(Self::Both),
+            Some(other) => Err(format!("SRP_BENCH_ENEMY_HUMAN_LANES={other:?}: off, team0, team1 or on")),
         }
     }
 
     pub(crate) fn from_env() -> Self {
-        Self::parse(bench_settings().var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref())
+        Self::parse(bench_settings().var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
     }
 
     /// Whether the bots of `team` take every body of the other team for a human.

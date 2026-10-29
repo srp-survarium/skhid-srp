@@ -208,6 +208,8 @@ pub(crate) struct Body {
     /// Its drugs, and the pools the fields above lack ([`standin_heal`]).
     pub(crate) heal: standin_heal::Heal,
     pub(crate) rest: standin_heal::Rest,
+    /// Its frag grenades: the store a spawn fills the hand from ([`standin_grenade::Stock`]).
+    pub(crate) grenades: standin_grenade::Stock,
     /// Its traps and the catch's slowing ([`standin_traps`]).
     pub(crate) trap: standin_traps::Rig,
 }
@@ -487,6 +489,15 @@ pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
 }
 
 impl Game {
+    /// The frag grenades each bot's three kits hold, by place ([`standin_grenade::Stock`]): the first life's hand is filled at
+    /// once. A match that does not call this carries a grenade for every throw.
+    pub(crate) fn set_grenade_kits(&mut self, kits: &[[standin_grenade::KitGrenades; 3]]) {
+        for (body, kits) in self.bodies.iter_mut().zip(kits) {
+            body.grenades = standin_grenade::Stock::of(*kits);
+            body.grenades.spawn();
+        }
+    }
+
     pub(crate) fn new(
         world: Arc<World>,
         teams: &[u8],
@@ -545,6 +556,7 @@ impl Game {
             why_now: 0,
             heal: standin_heal::Heal::new(),
             rest: standin_heal::Rest::FULL,
+            grenades: standin_grenade::Stock::Unlimited,
             trap: standin_traps::Rig::default(),
         };
         let mut game = Self {
@@ -681,6 +693,7 @@ impl Game {
         body.spawned = tick;
         body.carrying = None;
         body.heal.spawn();
+        body.grenades.spawn();
         body.rest = standin_heal::Rest::FULL;
         // Weapon 1 in hand afresh.
         body.gun = Arms::fallback().primary.0;
