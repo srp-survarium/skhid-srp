@@ -50,6 +50,7 @@ use std::sync::Arc;
 use mapdata::{RayTree, Vec3, World};
 
 use super::kin::{forward, yaw_of};
+use super::smoke::Veil;
 use super::view::{MatchView, Place, PlaceView, live_eye};
 
 /// A target's parts are looked at again after this, ms.
@@ -192,6 +193,42 @@ pub fn any_part_visible(
     shows(eye, body.feet, body.crouched(), sight, budget)
 }
 
+/// What a look at a body's parts came to, smoke read ([`look_parts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartsLook {
+    /// A part shows.
+    Shows,
+    /// None shows, and smoke hid one or more of them (the others were behind the world, or untested).
+    Smoke,
+    /// None shows on the bullet mesh.
+    Hidden,
+}
+
+/// [`any_part_visible`] through `veil`: a part the smoke hides is not looked at (no ray, nothing taken from
+/// `budget`); the others as [`shows`] looks at them, in the same order with the same budget. With
+/// [`Veil::Clear`] the rays and the answer are [`any_part_visible`]'s.
+pub fn look_parts(
+    eye: Vec3,
+    body: &PlaceView,
+    sight: &RayTree,
+    veil: Veil<'_>,
+    mut budget: impl FnMut() -> bool,
+) -> PartsLook {
+    let (feet, crouched) = (body.feet, body.crouched());
+    let mut smoke = false;
+    for part in Part::SIGHT_ORDER {
+        let point = part.point_of(feet, crouched, eye);
+        if veil.hides(eye, point) {
+            smoke = true;
+            continue;
+        }
+        if budget() && visible(sight, eye, point) {
+            return PartsLook::Shows;
+        }
+    }
+    if smoke { PartsLook::Smoke } else { PartsLook::Hidden }
+}
+
 /// [`any_part_visible`] for a body with its feet at `feet`.
 pub fn shows(
     eye: Vec3,
@@ -207,7 +244,7 @@ pub fn shows(
 
 /// The first part of `body` in [`Part::AIM_ORDER`] that shows from `eye`.
 pub fn aim_part(eye: Vec3, body: &PlaceView, sight: &RayTree) -> Option<Part> {
-    aim_part_moving(eye, body, body.feet, sight).0
+    aim_part_moving(eye, body, body.feet, sight, Veil::Clear).0
 }
 
 /// [`aim_part`] for a body that may be at `then` by the shot: the part
@@ -216,21 +253,35 @@ pub fn aim_part(eye: Vec3, body: &PlaceView, sight: &RayTree) -> Option<Part> {
 /// ([`TargetLook::shown`]) at no ray more. The pelvis, which the sight's
 /// order ([`Part::SIGHT_ORDER`]) leaves out, shows him only when a part
 /// is found: it cannot show alone.
+///
+/// Through `veil`: a part the smoke hides, where he is or there, does not show (no ray for it); the third
+/// answer is whether smoke hid one while none showed. With [`Veil::Clear`] the rays and answers are as with no
+/// smoke.
 fn aim_part_moving(
     eye: Vec3,
     body: &PlaceView,
     then: Vec3,
     sight: &RayTree,
-) -> (Option<Part>, bool) {
+    veil: Veil<'_>,
+) -> (Option<Part>, bool, bool) {
     let moves = then.distance_xz(body.feet) > 0.05;
     let crouched = body.crouched();
     let mut shown = false;
+    let mut smoke = false;
+    let mut seen = |point: Vec3| {
+        if veil.hides(eye, point) {
+            smoke = true;
+            return false;
+        }
+        visible(sight, eye, point)
+    };
     let part = Part::AIM_ORDER.into_iter().find(|part| {
-        let now = visible(sight, eye, part.point(body, eye));
+        let now = seen(part.point(body, eye));
         shown |= now && *part != Part::Pelvis;
-        now && (!moves || visible(sight, eye, part.point_of(then, crouched, eye)))
+        now && (!moves || seen(part.point_of(then, crouched, eye)))
     });
-    (part, shown || part.is_some())
+    let shown = shown || part.is_some();
+    (part, shown, smoke && !shown)
 }
 
 /// What the parts looked like at the last look.
@@ -244,6 +295,8 @@ struct Looked {
     part: Option<Part>,
     /// Some part showed where he was.
     shown: bool,
+    /// None showed, and smoke hid one ([`super::smoke`]).
+    smoke: bool,
 }
 
 /// What the target's parts looked like at a tick, for the sight (the
@@ -255,6 +308,8 @@ pub struct TargetLook {
     /// Looked at again at this tick (every [`LOOK_AGAIN_MS`]), not the last
     /// look's answer kept.
     pub fresh: bool,
+    /// Nothing shows, and smoke hid a part: the sight is lost to smoke.
+    pub smoke: bool,
 }
 
 /// [measure] What kept a shot from going clear ([`Sight::blocked`]): no
@@ -272,6 +327,24 @@ pub enum Blocked {
 pub struct Aim {
     pub point: Vec3,
     pub shows: bool,
+    /// The target went into smoke a moment ago: `point` is the last part seen of him and `shows` stands for a
+    /// spray there (`SmokeTuning::spray_ms`), which only fire already going may use ([`Aim::sprayed`]).
+    pub spray: bool,
+}
+
+impl Aim {
+    /// This aim, with a spray into smoke refused unless the fire is `continuing`: then nothing shows.
+    pub fn sprayed(self, continuing: bool) -> Self {
+        if self.spray && !continuing {
+            Self {
+                shows: false,
+                spray: false,
+                ..self
+            }
+        } else {
+            self
+        }
+    }
 }
 
 /// One bot's look at its target's parts, kept between ticks (the
@@ -289,6 +362,9 @@ pub struct Sight {
     reach: f32,
     /// The last part seen of a target, where it was, and when.
     last_seen: Option<(Place, Vec3, u32)>,
+    /// The target just went into smoke: the spray at the last part seen of him is open (`SmokeTuning::
+    /// spray_ms` from that sight), for this target.
+    spray: Option<Place>,
 }
 
 impl std::fmt::Debug for Sight {
@@ -297,6 +373,7 @@ impl std::fmt::Debug for Sight {
             .field("map", &self.world.is_some())
             .field("looked", &self.looked)
             .field("last_seen", &self.last_seen)
+            .field("spray", &self.spray)
             .finish()
     }
 }
@@ -304,13 +381,18 @@ impl std::fmt::Debug for Sight {
 impl Sight {
     /// Before a tick: the parts of `target` (the reflex's) that show from
     /// `me`'s eyes on `world`'s bullet mesh, looked at again when due.
-    /// What the look found, if there is a target alive.
+    /// What the look found, if there is a target alive. `veil` hides parts
+    /// behind smoke; a target lost to it within `spray_ms` of the last part
+    /// seen of him opens the spray at that part ([`Aim::spray`]).
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         me: &PlaceView,
         target: Option<Place>,
         view: &MatchView,
         world: &Arc<World>,
+        veil: Veil<'_>,
+        spray_ms: u32,
         now: u32,
     ) -> Option<TargetLook> {
         if !self.world.as_ref().is_some_and(|w| Arc::ptr_eq(w, world)) {
@@ -324,6 +406,7 @@ impl Sight {
         {
             self.last_seen = None;
         }
+        self.spray = None;
         let Some((who, body)) =
             target.and_then(|t| view.place(t).filter(|p| p.alive).map(|p| (t, p)))
         else {
@@ -341,7 +424,7 @@ impl Sight {
                 || (live_eye() && (l.eye - eye).length() > LOOK_EYE_MOVED_M)
         });
         if due {
-            let (part, shown) = aim_part_moving(eye, body, then, sight);
+            let (part, shown, smoke) = aim_part_moving(eye, body, then, sight, veil);
             self.looked = Some(Looked {
                 who,
                 at: now,
@@ -349,11 +432,24 @@ impl Sight {
                 crouched: body.crouched(),
                 part,
                 shown,
+                smoke,
             });
         }
         let shown = self.looked.is_some_and(|l| l.shown);
+        let smoke = self.looked.is_some_and(|l| l.smoke);
         let Some(part) = self.looked.and_then(|l| l.part) else {
-            return Some(TargetLook { shown, fresh: due });
+            if smoke
+                && self
+                    .last_seen
+                    .is_some_and(|(seen, _, at)| seen == who && now <= at + spray_ms)
+            {
+                self.spray = Some(who);
+            }
+            return Some(TargetLook {
+                shown,
+                fresh: due,
+                smoke,
+            });
         };
         let point = part.point(body, eye);
         self.last_seen = Some((who, point, now));
@@ -361,7 +457,11 @@ impl Sight {
             .length()
             .min((part.point_of(then, body.crouched(), eye) - eye).length())
             - SHORT_M;
-        Some(TargetLook { shown, fresh: due })
+        Some(TargetLook {
+            shown,
+            fresh: due,
+            smoke,
+        })
     }
 
     /// The map's bullet mesh from the first look: what a thrown grenade
@@ -378,20 +478,24 @@ impl Sight {
             return Aim {
                 point: chest,
                 shows: true,
+                spray: false,
             };
         }
         let looked = self.looked.filter(|l| l.who == who);
+        let spray = self.spray == Some(who);
         match (looked.and_then(|l| l.part), body) {
             (Some(part), Some(body)) => Aim {
                 point: part.point(body, self.eye),
                 shows: true,
+                spray: false,
             },
             _ => Aim {
                 point: self
                     .last_seen
                     .filter(|(seen, _, _)| *seen == who)
                     .map_or(chest, |(_, at, _)| at),
-                shows: false,
+                shows: spray,
+                spray,
             },
         }
     }
@@ -498,6 +602,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 
@@ -593,31 +698,31 @@ mod tests {
         let me = body(0, 0, Vec3::ZERO, false);
         let view = view_of(vec![me.clone(), enemy]);
         let mut sight = Sight::default();
-        sight.update(&me, Some(1), &view, &world, 1_000);
+        sight.update(&me, Some(1), &view, &world, Veil::Clear, 0, 1_000);
         assert_eq!(sight.looked_ms(1_000), Some(0));
         // 50 ms on, the eye 0.1 m along: the look stands.
         let mut then = me.clone();
         then.feet = Vec3::new(0.1, 0.0, 0.0);
-        sight.update(&then, Some(1), &view, &world, 1_050);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_050);
         assert_eq!(sight.looked_ms(1_050), Some(50));
         // The view up a radian (feet back) lifts the eye 0.13 m: still.
         then.feet = Vec3::ZERO;
         then.pitch = 1.0;
-        sight.update(&then, Some(1), &view, &world, 1_050);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_050);
         assert_eq!(sight.looked_ms(1_050), Some(50));
         // 0.3 m along: looked at again, from there.
         then.pitch = 0.0;
         then.feet = Vec3::new(0.3, 0.0, 0.0);
-        sight.update(&then, Some(1), &view, &world, 1_050);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_050);
         assert_eq!(sight.looked_ms(1_050), Some(0));
         // A crouch drops the eye 0.3 m (idle 1.04 against 1.46 m): looked at again.
         then.keys = key::CROUCH;
-        sight.update(&then, Some(1), &view, &world, 1_100);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_100);
         assert_eq!(sight.looked_ms(1_100), Some(0));
         // And the look is as old as ever when nothing moved: 100 ms on, again.
-        sight.update(&then, Some(1), &view, &world, 1_150);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_150);
         assert_eq!(sight.looked_ms(1_150), Some(50));
-        sight.update(&then, Some(1), &view, &world, 1_200);
+        sight.update(&then, Some(1), &view, &world, Veil::Clear, 0, 1_200);
         assert_eq!(sight.looked_ms(1_200), Some(0));
     }
 
@@ -782,7 +887,7 @@ mod tests {
         let view = view_of(vec![me.clone(), enemy.clone()]);
         let mut look = Sight::default();
         facing(&mut me, enemy.chest());
-        look.update(&me, Some(1), &view, &world, 1_000);
+        look.update(&me, Some(1), &view, &world, Veil::Clear, 0, 1_000);
         let aim = look.aim(1, Some(&enemy), enemy.chest());
         assert!(aim.shows && (aim.point.y - 1.60).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
@@ -793,11 +898,11 @@ mod tests {
         // Out of sight altogether: no shot, the view stays where he was
         // last seen, for a while after the target is gone too.
         let hidden = world_of(&[wall(19.0, -3.0, 3.0, 0.0, 3.0)]);
-        look.update(&me, Some(1), &view, &hidden, 1_200);
+        look.update(&me, Some(1), &view, &hidden, Veil::Clear, 0, 1_200);
         let aim = look.aim(1, Some(&enemy), enemy.chest());
         assert!(!aim.shows && (aim.point.y - 1.60).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
-        look.update(&me, None, &view, &hidden, 1_300);
+        look.update(&me, None, &view, &hidden, Veil::Clear, 0, 1_300);
         assert!(look.pre_aim(1_300).is_some());
         assert!(look.pre_aim(1_000 + PRE_AIM_MS + 1).is_none());
     }
@@ -812,12 +917,12 @@ mod tests {
         assert_eq!(aim_part(eye, &enemy, &world.sight), Some(Part::Chest));
         let view = view_of(vec![body(0, 0, Vec3::ZERO, false), enemy.clone()]);
         let mut look = Sight::default();
-        look.update(&view.places[0], Some(1), &view, &world, 100);
+        look.update(&view.places[0], Some(1), &view, &world, Veil::Clear, 0, 100);
         assert!(look.aim(1, Some(&enemy), enemy.chest()).shows);
         enemy.velocity = [-5.0, 0.0];
         let view = view_of(vec![body(0, 0, Vec3::ZERO, false), enemy.clone()]);
         let mut look = Sight::default();
-        look.update(&view.places[0], Some(1), &view, &world, 100);
+        look.update(&view.places[0], Some(1), &view, &world, Veil::Clear, 0, 100);
         let aim = look.aim(1, Some(&enemy), enemy.chest());
         assert!(!aim.shows, "{aim:?}");
     }
@@ -851,7 +956,7 @@ mod tests {
         let mut look = Sight::default();
         let before = rays_cast();
         for k in 0..4 {
-            look.update(&me, Some(1), &view, &open, 1_000 + k * 50);
+            look.update(&me, Some(1), &view, &open, Veil::Clear, 0, 1_000 + k * 50);
         }
         // Looks at 1000 and 1100.
         assert_eq!(rays_cast() - before, 2);

@@ -9,6 +9,7 @@ switches ON heal: bandages interrupt on
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
+switches ON smoke: sight
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: detour spots sprint
 switches ON traps: enabled react.defuse react.hear react.jump react.on react.pass react.shot

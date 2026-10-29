@@ -2348,6 +2348,10 @@ pub struct ReloadNote {
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
 
+/// Fire at a target this lately is still going, ms: a spray at the smoke he went into may go on
+/// (`SmokeTuning::spray_ms`). GUESS: longer than the pause between two bursts of the best players (`aim.pause_ms`).
+const SPRAY_FIRING_MS: u32 = 400;
+
 /// [measure] A gate trace note per bot and target at most this often, ms.
 pub const GATE_NOTE_MS: u32 = 1000;
 /// [measure] ... once its view has been this long on a seen target, within
@@ -2403,6 +2407,8 @@ pub struct Reflex {
     next_outranged: u32,
     /// No shot at the target before this: noticed + the reaction delay.
     first_shot_at: u32,
+    /// The last tick it fired, and at whom: a spray into smoke is only fire already going ([`SPRAY_FIRING_MS`]).
+    last_fire: Option<(Place, u32)>,
     /// The life it counts for (`PlaceView::spawned`).
     life: Option<u32>,
     /// Its health at the last think.
@@ -3075,9 +3081,38 @@ impl Reflex {
         sense: &SenseTuning,
         now: u32,
     ) {
+        let off = super::tuning::SmokeTuning {
+            sight: false,
+            ..Default::default()
+        };
+        self.look_through(me, view, world, memory, sense, &off, now);
+    }
+
+    /// [`Self::look`] through the match's smoke as the team's `smoke` tuning
+    /// reads it ([`super::smoke::Clouds::veil`]): parts behind a cloud do not
+    /// show, and a target just lost in one may be sprayed ([`super::aimpoint::Aim::spray`],
+    /// continuing fire only).
+    #[allow(clippy::too_many_arguments)]
+    pub fn look_through(
+        &mut self,
+        me: &PlaceView,
+        view: &MatchView,
+        world: &std::sync::Arc<mapdata::World>,
+        memory: &mut Memory,
+        sense: &SenseTuning,
+        smoke: &super::tuning::SmokeTuning,
+        now: u32,
+    ) {
         self.new_life(me);
         memory.set_sight_target(self.target);
-        let looked = self.sight.update(me, self.target, view, world, now);
+        let veil = view.smoke.veil(view.clock, smoke);
+        let looked = self
+            .sight
+            .update(me, self.target, view, world, veil, smoke.spray_ms, now);
+        #[cfg(test)]
+        if looked.is_some_and(|look| look.fresh && look.smoke) {
+            super::smoke::tally::add(me.team, super::smoke::tally::Event::AimLost);
+        }
         if sense.sight_refresh {
             self.sight_tick(me, view, memory, sense, looked);
         }
@@ -3115,6 +3150,7 @@ impl Reflex {
                 Err(miss) => LookOutcome::Failed(miss),
                 Ok(()) => match looked {
                     Some(look) if look.fresh && look.shown => LookOutcome::Seen,
+                    Some(look) if look.fresh && look.smoke => LookOutcome::Failed(Miss::Smoke),
                     Some(look) if look.fresh => LookOutcome::Failed(Miss::Blocked),
                     _ => LookOutcome::Untested,
                 },
@@ -4921,7 +4957,12 @@ impl Reflex {
         let point = body.map_or(track.at() + Vec3::new(0.0, 1.3, 0.0), PlaceView::chest);
         // [aimpoint] The part of him that shows (none: where he was last
         // seen); a shot only clear of the world (the last test below).
+        // A spray into the smoke he just went into: only fire already going at him.
         let aimed = self.sight.aim(track.who(), body, point);
+        let continuing = self
+            .last_fire
+            .is_some_and(|(who, at)| who == track.who() && now <= at + SPRAY_FIRING_MS);
+        let aimed = aimed.sprayed(continuing);
         // Where he will be at the tick decided (`lead_target`).
         let led = body.filter(|_| aimed.shows && c.lead_target);
         let point = led.map_or(aimed.point, |body| {
@@ -5082,6 +5123,13 @@ impl Reflex {
         let fire = self.trigger(wants, fire_allowed, now, c, distance, rng);
         if wants && !fire {
             failed |= gate::TRIGGER;
+        }
+        if fire {
+            self.last_fire = Some((track.who(), now));
+            #[cfg(test)]
+            if aimed.spray {
+                super::smoke::tally::add(me.team, super::smoke::tally::Event::Spray);
+            }
         }
         self.gates.bits |= failed;
         self.gates.target = Some(track.who());
@@ -5417,6 +5465,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 

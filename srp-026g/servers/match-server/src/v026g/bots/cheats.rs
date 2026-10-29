@@ -135,6 +135,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         };
         let tuning = CheatTuning::default();
         let mut clock = CheatClock::default();

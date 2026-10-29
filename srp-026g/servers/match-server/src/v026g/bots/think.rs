@@ -257,10 +257,13 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         }
         order
     };
-    let (percepts, looks) = sense::sense_looks(
+    // Smoke hides what is behind it, as the team's tuning reads it (`smoke.rs`).
+    let veil = view.smoke.veil(view.clock, &tuning.smoke);
+    let (percepts, looks) = sense::sense_looks_through(
         me,
         view,
         &tactics.world.sight,
+        veil,
         &tuning.sense,
         &tuning.cheats,
         bot.heard_until,
@@ -269,8 +272,19 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         &mut bot.rng,
     );
     bot.heard_until = now;
+    #[cfg(test)]
     for &(who, outcome) in &looks {
-        if matches!(outcome, LookOutcome::Seen | LookOutcome::Failed(Miss::Blocked)) {
+        if outcome == LookOutcome::Failed(Miss::Smoke) {
+            let event = if live.iter().any(|&(live, _)| live == who) {
+                super::smoke::tally::Event::SightLost
+            } else {
+                super::smoke::tally::Event::NotSeen
+            };
+            super::smoke::tally::add(bot.team, event);
+        }
+    }
+    for &(who, outcome) in &looks {
+        if matches!(outcome, LookOutcome::Seen | LookOutcome::Failed(Miss::Blocked | Miss::Smoke)) {
             if bot.tested.len() <= who {
                 bot.tested.resize(who + 1, 0);
             }
@@ -809,6 +823,7 @@ mod phase_tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: vec![],
+            smoke: Default::default(),
         }
     }
 

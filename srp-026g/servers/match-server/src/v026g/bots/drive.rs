@@ -311,12 +311,13 @@ fn drive_tick_inner(
     bot.memory
         .set_sight_window(know::SightWindow::of(&tuning.sense, &tuning.cheats));
     // [aimpoint] What of its target shows, before the reflex aims.
-    bot.reflex.look(
+    bot.reflex.look_through(
         aiming_me,
         view,
         &tactics.world,
         &mut bot.memory,
         &tuning.sense,
+        &tuning.smoke,
         time,
     );
     // A carrier never fires: in the game a new fire press drops the battery

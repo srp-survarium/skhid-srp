@@ -17,8 +17,9 @@
 use mapdata::{RayTree, Vec3};
 
 use super::kin::{forward, wrap};
-use super::aimpoint::Part;
+use super::aimpoint::{Part, PartsLook};
 use super::know::{KnownBattery, LookOutcome, Miss, Percept, Source, TeamKnowledge};
+use super::smoke::Veil;
 use super::rng::Rng;
 use super::tuning::{CheatTuning, HearingRanges, SenseTuning, ShotRanges};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
@@ -214,26 +215,29 @@ pub fn look(
     if let Err(miss) = gate(me, enemy, since, tuning) {
         return LookOutcome::Failed(miss);
     }
-    ray_test(me, enemy, sight, rays)
+    ray_test(me, enemy, sight, Veil::Clear, rays)
 }
 
-/// [`look`]'s rays.
+/// [`look`]'s rays, through `veil` (`smoke.rs`): a part the smoke hides is not looked at, and a look that found
+/// none showing with one hidden so is lost to smoke ([`Miss::Smoke`]).
 fn ray_test(
     me: &PlaceView,
     enemy: &PlaceView,
     sight: &RayTree,
+    veil: Veil<'_>,
     rays: &mut RayBudget,
 ) -> LookOutcome {
     let mut starved = false;
-    let seen = super::aimpoint::any_part_visible(me.eye(), enemy, sight, || {
+    let looked = super::aimpoint::look_parts(me.eye(), enemy, sight, veil, || {
         let given = rays.take(me.place, me.team);
         starved |= !given;
         given
     });
-    match (seen, starved) {
-        (true, _) => LookOutcome::Seen,
-        (false, true) => LookOutcome::Untested,
-        (false, false) => LookOutcome::Failed(Miss::Blocked),
+    match (looked, starved) {
+        (PartsLook::Shows, _) => LookOutcome::Seen,
+        (_, true) => LookOutcome::Untested,
+        (PartsLook::Smoke, false) => LookOutcome::Failed(Miss::Smoke),
+        (PartsLook::Hidden, false) => LookOutcome::Failed(Miss::Blocked),
     }
 }
 
@@ -296,6 +300,24 @@ pub fn sense_looks(
     rays: &mut RayBudget,
     rng: &mut Rng,
 ) -> (Vec<Percept>, Vec<(Place, LookOutcome)>) {
+    sense_looks_through(me, view, sight, Veil::Clear, tuning, cheats, since, order, rays, rng)
+}
+
+/// [`sense_looks`] through `veil`: an enemy whose parts are behind smoke is not seen (`smoke.rs`), and a look
+/// that found him so is [`Miss::Smoke`]. With [`Veil::Clear`] it is [`sense_looks`], ray for ray.
+#[allow(clippy::too_many_arguments)]
+pub fn sense_looks_through(
+    me: &PlaceView,
+    view: &MatchView,
+    sight: &RayTree,
+    veil: Veil<'_>,
+    tuning: &SenseTuning,
+    cheats: &CheatTuning,
+    since: u32,
+    order: &[Place],
+    rays: &mut RayBudget,
+    rng: &mut Rng,
+) -> (Vec<Percept>, Vec<(Place, LookOutcome)>) {
     let mut out = Vec::new();
     let mut looks = Vec::new();
     if !me.alive {
@@ -315,7 +337,8 @@ pub fn sense_looks(
                 continue;
             }
             let eye = me.eye();
-            if super::aimpoint::any_part_visible(eye, enemy, sight, || rays.take(me.place, me.team)) {
+            let looked = super::aimpoint::look_parts(eye, enemy, sight, veil, || rays.take(me.place, me.team));
+            if looked == PartsLook::Shows {
                 out.push(seen_percept(enemy, view));
             }
             continue;
@@ -335,7 +358,7 @@ pub fn sense_looks(
         // cannot see what is in front of it, because the others took the
         // rays, is no fair bot.
         let mut own = RayBudget::new(LOOK_RAYS);
-        let outcome = ray_test(me, enemy, sight, &mut own);
+        let outcome = ray_test(me, enemy, sight, veil, &mut own);
         rays.exempt += LOOK_RAYS - own.left;
         looks.push((who, outcome));
         if outcome == LookOutcome::Seen {
@@ -670,6 +693,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 

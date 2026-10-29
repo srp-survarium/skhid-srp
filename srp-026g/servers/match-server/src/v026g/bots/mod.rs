@@ -69,6 +69,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod smoke;
 pub mod stamina;
 pub mod stock;
 pub mod stuck;
