@@ -5,6 +5,7 @@
         "weapon_class_by_data": false
       },
       "grenade_claim": false,
+      "grenade_kit_cap": false,
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_search": false,

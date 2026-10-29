@@ -354,6 +354,9 @@ pub struct Bot {
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
     role: Option<BotRole>,
+    /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
+    /// reflex (which counts its own).
+    frag_rolls_refused: u32,
     /// The kit of this life, and the one it picked for its next (a kit
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
@@ -485,6 +488,7 @@ impl Bot {
             kits,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
+            frag_rolls_refused: 0,
             kit: 0,
             kit_chosen: 0,
             resupplies: 0,
@@ -520,6 +524,7 @@ impl Bot {
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
+        self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -701,6 +706,7 @@ impl Bot {
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
+        self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -1716,6 +1722,10 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tunings.match_wide().sense.sprint_body_mps);
+        // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`).
+        for bot in self.bots.iter_mut().flatten() {
+            bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));
+        }
         self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);

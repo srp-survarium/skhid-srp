@@ -800,6 +800,11 @@ impl Tracker {
         self.throws
     }
 
+    /// The fragmentation grenades `place` holds now in its kit in use, where its pockets are known ([`Throws::frags_left`]).
+    pub fn frags_left(&self, place: Place) -> Option<u16> {
+        self.places.get(place)?.throws.frags_left()
+    }
+
     /// The smoke clouds in the match now, those still in the air included ([`super::smoke`]).
     pub fn clouds(&self) -> &[Cloud] {
         &self.clouds

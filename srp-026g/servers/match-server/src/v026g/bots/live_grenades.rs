@@ -20,6 +20,7 @@
 //! (`grenade_avoid`), so a match plays out as before.
 
 use mapdata::Vec3;
+use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::weapons::is_grenade_item;
 
@@ -228,6 +229,16 @@ impl Pockets {
         }
     }
 
+    /// The fragmentation grenades the pockets hold now (units left in the slots).
+    pub fn frags(&self) -> u16 {
+        self.slots
+            .iter()
+            .flatten()
+            .filter(|pocket| pocket.item == Pocketed::Frag)
+            .map(|pocket| pocket.left)
+            .sum()
+    }
+
     /// The index of the pocket the keys `pressed` throw from, if they throw a grenade.
     fn throws_from(&self, pressed: u32) -> Option<usize> {
         let held = |slot: &Option<Pocket>| slot.is_some_and(|pocket| pocket.left > 0);
@@ -317,6 +328,11 @@ impl KitPockets {
     pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
         self.kits[self.in_use.0].throw_grenade(pressed)
     }
+
+    /// [`Pockets::frags`] of the kit in use.
+    pub fn frags(&self) -> u16 {
+        self.kits[self.in_use.0].frags()
+    }
 }
 
 impl KitPockets {
@@ -374,6 +390,15 @@ pub enum Throws {
 }
 
 impl Throws {
+    /// The fragmentation grenades the place holds now in the kit in use, where its pockets are known; none where they are
+    /// not (a bot the bench never gave pockets, a human unread): the grenade logic then goes by its own count, as before.
+    pub fn frags_left(&self) -> Option<u16> {
+        match self {
+            Self::Pockets(pockets) => Some(pockets.frags()),
+            Self::GrenadeKeyIsFrag | Self::Unknown => None,
+        }
+    }
+
     /// What a place's throw keys throw, decided from its profile with [`KitPockets::of_profile`]: the one reader of the live
     /// server (`game/driven.rs`) and of the bench (which gives the tracker its bots' pockets with `Bots::set_throws`). The
     /// kit in use is the one a world names (`Bots::kit_in_use`, from `players::Supplies::kit`) when `all_kits` is on
@@ -469,8 +494,24 @@ impl super::Bots {
             })
             .collect::<Vec<_>>()
             .join(" ");
+        let refused = self
+            .frag_rolls_refused()
+            .iter()
+            .enumerate()
+            .map(|(team, by_role)| {
+                let roles = BotRole::ALL
+                    .iter()
+                    .zip(by_role)
+                    .filter(|&(_, &n)| n > 0)
+                    .map(|(role, n)| format!("{} {n}", role.name()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("team {team} [{}]", if roles.is_empty() { "none" } else { &roles })
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with no grenade left, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and the grenade's basis (told/saw/heard): {avoidance}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with no grenade left, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and the grenade's basis (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
@@ -484,6 +525,20 @@ impl super::Bots {
             counts.unplaced,
             counts.died_throwing,
         )
+    }
+
+    /// Rolls for a grenade the bots refused because their kit held no frag (`CombatTuning::grenade_kit_cap`): `[team][role]`,
+    /// by [`BotRole::ALL`], the lives over.
+    pub fn frag_rolls_refused(&self) -> [[u32; BotRole::ALL.len()]; 2] {
+        let mut out = [[0; BotRole::ALL.len()]; 2];
+        for bot in self.bots.iter().flatten() {
+            if let Some(role) = bot.role
+                && let Some(at) = BotRole::ALL.iter().position(|&each| each == role)
+            {
+                out[usize::from(bot.team.min(1))][at] += bot.frag_rolls_refused + bot.reflex.refused_no_frag();
+            }
+        }
+        out
     }
 
     /// What the avoidance of the bots of each team counted, by whose grenade it was ([`Whose::index`]).
@@ -915,6 +970,24 @@ mod tests {
         assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
         let counts = tracker.throw_counts();
         assert_eq!((counts.assumed, counts.no_pockets), (1, 1));
+    }
+
+    /// The grenade logic caps its rolls by the frags the kit holds now (`Throws::frags_left`): a frag is counted, a smoke and a
+    /// medkit are not, a thrown one is gone, a new life brings the stack back, and a kit nobody read has none counted.
+    #[test]
+    fn the_frags_a_kit_holds_are_the_frags_left_in_the_kit_in_use() {
+        let pockets = Pockets::new([Some((Pocketed::Other, 2)), Some((Pocketed::Frag, 2)), Some((Pocketed::Smoke, 1)), None, None, None]);
+        let mut throws = Throws::Pockets(pockets.into());
+        assert_eq!(throws.frags_left(), Some(2), "the smoke and the medkit are no frags");
+        let Throws::Pockets(kit) = &mut throws else { unreachable!() };
+        kit.throw_grenade(key::GRENADE);
+        assert_eq!(throws.frags_left(), Some(1));
+        let Throws::Pockets(kit) = &mut throws else { unreachable!() };
+        kit.throw_grenade(key::GRENADE);
+        assert_eq!(throws.frags_left(), Some(0));
+        let medkits = Throws::Pockets(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into());
+        assert_eq!(medkits.frags_left(), Some(0), "a trap role's kit holds none");
+        assert_eq!((Throws::GrenadeKeyIsFrag.frags_left(), Throws::Unknown.frags_left()), (None, None));
     }
 
     /// The client fills a stack slot from the item's storage at a spawn and takes what is left back at a death

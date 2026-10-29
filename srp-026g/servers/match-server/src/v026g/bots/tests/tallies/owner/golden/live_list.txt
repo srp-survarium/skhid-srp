@@ -1,7 +1,19 @@
-owner-test live grenade list: frags from pockets 0, assumed from a bot's key 0, smokes 0, no pockets known 0, launched 0, unplaced 0, thrower dead 0; team 0 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0; team 1 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0
+owner-test live grenade list: frags from pockets 0, assumed from a bot's key 0, smokes 0, no pockets known 0, launched 0, unplaced 0, thrower dead 0; frag rolls refused, none in the kit: team 0 0, team 1 0; team 0 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0; team 1 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0
 {
   "live_list_assumed": 0,
   "live_list_died_throwing": 0,
+  "live_list_frag_rolls_refused_team0": {
+    "camper": 0,
+    "flanker": 0,
+    "rusher": 0,
+    "support": 0
+  },
+  "live_list_frag_rolls_refused_team1": {
+    "camper": 0,
+    "flanker": 0,
+    "rusher": 0,
+    "support": 0
+  },
   "live_list_frags": 0,
   "live_list_launched": 0,
   "live_list_no_pockets": 0,

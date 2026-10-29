@@ -12,12 +12,15 @@
 use super::*;
 use crate::v026g::bots::grenade_threat::AvoidStats;
 use crate::v026g::bots::live_grenades::{ThrowCounts, Whose};
+use survarium::v026g::loadouts::BotRole;
 
 /// The list's and the avoidance's counts as the last tick left them (the tracker and the bots keep them; the topic copies).
 #[derive(Default)]
 pub(super) struct LiveListCounts {
     by_team: [[AvoidStats; 3]; 2],
     throws: ThrowCounts,
+    /// Rolls for a grenade refused because the kit held no frag, `[team][role]` by `BotRole::ALL`.
+    refused_no_frag: [[u32; BotRole::ALL.len()]; 2],
 }
 
 impl Topic for LiveListCounts {
@@ -28,6 +31,7 @@ impl Topic for LiveListCounts {
     fn bots(&mut self, bots: &Bots, _game: &Game) {
         self.by_team = bots.grenade_counts();
         self.throws = bots.tracker.throw_counts();
+        self.refused_no_frag = bots.frag_rolls_refused();
     }
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -59,6 +63,13 @@ impl LiveListCounts {
             serde_json::Value::Object(by_whose)
         };
         let t = &self.throws;
+        let refused_json = |by_role: &[u32; BotRole::ALL.len()]| {
+            let mut map = serde_json::Map::new();
+            for (role, &n) in BotRole::ALL.iter().zip(by_role) {
+                map.insert(role.name().to_owned(), n.into());
+            }
+            serde_json::Value::Object(map)
+        };
         let json = serde_json::json!({
             "live_list_team0": team_json(0),
             "live_list_team1": team_json(1),
@@ -69,10 +80,12 @@ impl LiveListCounts {
             "live_list_launched": t.launched,
             "live_list_unplaced": t.unplaced,
             "live_list_died_throwing": t.died_throwing,
+            "live_list_frag_rolls_refused_team0": refused_json(&self.refused_no_frag[0]),
+            "live_list_frag_rolls_refused_team1": refused_json(&self.refused_no_frag[1]),
         });
         let sum = |team: usize, f: fn(&AvoidStats) -> u32| self.by_team[team].iter().map(f).sum::<u32>();
         let text = format!(
-            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
+            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; frag rolls refused, none in the kit: team 0 {}, team 1 {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
             t.frag,
             t.assumed,
             t.smoke,
@@ -80,6 +93,8 @@ impl LiveListCounts {
             t.launched,
             t.unplaced,
             t.died_throwing,
+            self.refused_no_frag[0].iter().sum::<u32>(),
+            self.refused_no_frag[1].iter().sum::<u32>(),
             sum(0, |a| a.noticed.iter().sum()),
             sum(0, |a| a.noticed_mate),
             sum(0, |a| a.stepped.iter().sum()),
@@ -108,10 +123,13 @@ pub(crate) fn the_live_list_topic_gives_the_teams_avoidance_by_basis() {
     topic.by_team[0][Whose::Bot.index()].stepped = [1, 0, 0];
     topic.by_team[1][Whose::Assumed.index()].refused = 4;
     topic.throws.frag = 7;
+    topic.refused_no_frag[0][2] = 3;
     let part = topic.part();
     assert_eq!(part.json["live_list_team0"]["bot"]["noticed_a_mates"], 2);
     assert_eq!(part.json["live_list_team1"]["assumed"]["refused"], 4);
     assert_eq!(part.json["live_list_frags"], 7);
+    assert_eq!(part.json["live_list_frag_rolls_refused_team0"][BotRole::ALL[2].name()], 3);
+    assert!(part.text.contains("frag rolls refused, none in the kit: team 0 3, team 1 0"), "{}", part.text);
     assert!(
         part.text.contains("team 0 noticed 3 (a mate's 2) stepped 1") && part.text.contains("team 1 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 4"),
         "{}",
