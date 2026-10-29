@@ -49,6 +49,10 @@ pub mod id {
 /// The slot id that means "the inventory" in a move and a purchase.
 pub const INVENTORY_SLOT: u8 = 100;
 
+/// The source slot of a move that names a shop item not owned (the lobby's
+/// `ItemPlace.SHOP`): a stack dropped from the shop on a pocket.
+pub const SHOP_SLOT: u8 = 200;
+
 /// Added to the amount of `47 04` by srp's exchange window when it buys gold
 /// with silver (`MessageMoneyExchange.BUY_GOLD`). The stock window sends only gold
 /// for silver, and no account has this much gold.
