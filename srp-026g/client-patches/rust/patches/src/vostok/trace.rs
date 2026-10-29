@@ -8,6 +8,7 @@
 
 use super::hook::Thread;
 use crate::raw;
+use core::ffi::c_void;
 use core::ptr::null_mut;
 
 /// The diagnostics' switch: [`DIAGNOSTICS_OFF`] in every build, 1 in a
@@ -23,9 +24,9 @@ pub fn enabled() -> bool {
     unsafe { core::ptr::read_volatile(&raw const SRP_DIAGNOSTICS) == 1 }
 }
 
-/// A file the diagnostics write to, opened for appending.
+/// A file the diagnostics write to, opened for appending: kernel32's handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TraceFile(u32);
+pub struct TraceFile(*mut c_void);
 
 /// The longest path a trace file has.
 const PATH: usize = 300;
@@ -53,9 +54,9 @@ impl TraceFile {
         // SAFETY: the exe's import; a 0-terminated path (`path` is zeros past
         // the name): FILE_APPEND_DATA, shared for reading and writing,
         // OPEN_ALWAYS, normal.
-        let handle =
-            unsafe { (raw::engine_create_file_a)(path.as_ptr(), 4, 3, null_mut(), 4, 0x80, null_mut()) } as u32;
-        (handle != 0 && handle != u32::MAX).then_some(TraceFile(handle))
+        let handle = unsafe { (raw::engine_create_file_a)(path.as_ptr(), 4, 3, null_mut(), 4, 0x80, null_mut()) };
+        // INVALID_HANDLE_VALUE is -1
+        (!handle.is_null() && handle as usize != usize::MAX).then_some(TraceFile(handle))
     }
 
     /// Writes `bytes` at the file's end.
@@ -63,7 +64,7 @@ impl TraceFile {
         let mut written = 0u32;
         // SAFETY: the exe's import on a handle `open` made.
         unsafe {
-            (raw::engine_write_file)(self.0 as usize as *mut _, bytes.as_ptr().cast(), bytes.len() as u32,
+            (raw::engine_write_file)(self.0, bytes.as_ptr().cast(), bytes.len() as u32,
                                      &mut written, null_mut())
         };
     }
