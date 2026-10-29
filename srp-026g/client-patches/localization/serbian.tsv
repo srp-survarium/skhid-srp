@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 me
 st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Vertikalni trzaj -10 %.
+st_srp_ak74_m24x15_name	Kočnica trzaja AK-74
 st_srp_attachments	Dodaci
 st_srp_equipment029_bm_back_6_desc	Opis još nije dostupan.
 st_srp_equipment029_bm_back_6_name	Stražarski ranac
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Primi
 st_srp_exchange_short_gold	Nema dovoljno zlata
 st_srp_exchange_short_silver	Nema dovoljno srebra
 st_srp_exchange_title	Razmeni
+st_srp_grip_slot	Rukohvat
 st_srp_inventory_search	Pretraga
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
+st_srp_muzzle_slot	Usta cevi
 st_srp_optics	Optika
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut

@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 20
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Függőleges hátrarúgás -10 %.
+st_srp_ak74_m24x15_name	AK-74 csőszájfék
 st_srp_attachments	Szerelékek
 st_srp_equipment029_bm_back_6_desc	A leírás még nem érhető el.
 st_srp_equipment029_bm_back_6_name	Őrszem hátizsák
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Kapsz
 st_srp_exchange_short_gold	Nincs elég arany
 st_srp_exchange_short_silver	Nincs elég ezüst
 st_srp_exchange_title	Átváltás
+st_srp_grip_slot	Markolat
 st_srp_inventory_search	Keresés
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Védelmi berendezés: töltők
 st_srp_mode_protective_device	Védelmi berendezés
 st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
+st_srp_muzzle_slot	Csőtorkolat
 st_srp_optics	Távcsövek
 st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
 st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva

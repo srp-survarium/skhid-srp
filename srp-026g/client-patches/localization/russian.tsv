@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Содержит следующие предметы
 st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
+st_srp_ak74_m24x15_description	Вертикальная отдача -10 %.
+st_srp_ak74_m24x15_name	Дульный тормоз АК-74
 st_srp_attachments	Обвес
 st_srp_equipment029_bm_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_srp_equipment029_bm_back_6_name	Рюкзак часового
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Получаете
 st_srp_exchange_short_gold	Недостаточно золота
 st_srp_exchange_short_silver	Недостаточно серебра
 st_srp_exchange_title	Обмен
+st_srp_grip_slot	Рукоять
 st_srp_inventory_search	Поиск
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
+st_srp_muzzle_slot	Дуло
 st_srp_optics	Оптика
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту

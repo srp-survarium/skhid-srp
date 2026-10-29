@@ -291,21 +291,12 @@ tables and duty-name-uk-1): the same. Text only; the lobby movie of the same cha
 its tree.
 
 
-## weapon-kit-slots-1.json (2026-10-25)
+## ak74m-brake-1.json (2026-10-29)
 
 | change | why |
 |---|---|
-| New texts `st_srp_muzzle_slot` (Muzzle, Mündung, Wylot, Дуло in russian, original and ukrainian) and `st_srp_grip_slot` (Grip, Griff, Chwyt, Рукоять in russian and original, Руків'я in ukrainian) in the six localization tables; the lobby movie's keys `muzzle_slot` and `grip_slot` mapped to them in `localization/flash_movies_localizations.options` (`lobby_menu_strings`, two items appended: `add_item`) | the weapon window's Attachments page has a muzzle device's and a grip's slot beside the scope's (the weapon kit, client patch 68; `../../docs/notes/weapon-kit.md`, `weapon-camo.md`); an empty slot shows its label |
+| One `items_compatibility` row of `gameplay/db_static_dictionaries`, `compatibility_262100003`: the AK-74M's brake `srp_ak74_m24x15` (2621, pack `ak74m-brake`) on the AK-74M (3) | the server puts a muzzle device only on a weapon of such a row; the lobby movie greys the others (`../../docs/notes/weapon-kit.md`, The AK-74M's brake) |
 
-## weapon-muzzle-fit-1.json (2026-10-25)
-
-Made by `../weapon-attachments/make_edit_list.py` from `devices.tsv`, `fit.tsv` and `offsets.tsv`
-there; edit those and run it again, not this file.
-
-| change | why |
-|---|---|
-| 111 `items_compatibility` rows of `gameplay/db_static_dictionaries` (`compatibility_<device><weapon>`), a weapon and a muzzle device it fits: each 0.26g weapon to which 0.46c2 gave the device's model | the server puts a device only on such a weapon; the lobby movie greys the others and lists a device's weapons (`../../docs/notes/weapon-kit.md`) |
-| `data/srp_muzzle_offset` of 23 weapon configs, metres: where the mesh's front is past barrel_point (the stock muzzle brakes 0.26g keeps in the mesh) | client patch 68 starts the device there, in front of the stock brake |
 ## battery-respawn-1.json (2026-10-21)
 
 | change | why |

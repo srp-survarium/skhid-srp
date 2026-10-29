@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruun
 st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Pystysuora rekyyli -10 %.
+st_srp_ak74_m24x15_name	AK-74:n suujarru
 st_srp_attachments	Lisävarusteet
 st_srp_equipment029_bm_back_6_desc	Kuvausta ei vielä ole.
 st_srp_equipment029_bm_back_6_name	Vartiomiehen reppu
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Saat
 st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
+st_srp_grip_slot	Kahva
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
 st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
+st_srp_muzzle_slot	Piipun suu
 st_srp_optics	Optiikka
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua

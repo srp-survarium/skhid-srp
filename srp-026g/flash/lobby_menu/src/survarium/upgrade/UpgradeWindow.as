@@ -1088,8 +1088,8 @@ package survarium.upgrade
          this.decalSlot1.label = LocalizationData.getName("decal_slot");
          this.decalSlot2.label = LocalizationData.getName(hostDictId >= 0 ? "camo_slot" : "decal_slot");
          this.camoSlot.label = LocalizationData.getName("camo_slot");
-         this.muzzleSlot.label = LocalizationData.getName("muzzle_slot");
-         this.gripSlot.label = LocalizationData.getName("grip_slot");
+         this.muzzleSlot.label = LocalizationData.getName("st_srp_muzzle_slot");
+         this.gripSlot.label = LocalizationData.getName("st_srp_grip_slot");
          this.infoContainer.infoDescr.text = LocalizationData.getName("modification_screen_hint") + "\n" + LocalizationData.getName("modification_screen_edit_decal_hint");
          this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
       }

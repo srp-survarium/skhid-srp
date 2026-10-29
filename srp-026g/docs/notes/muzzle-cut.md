@@ -166,6 +166,9 @@ Vityaz, and the fused AK-12.
 
 ## First step
 
+Done for the AK-74M alone (pack ak74m-brake@1, `weapon-kit.md`, The AK-74M's brake): the part cut
+out of its three bodies, the same part a static device model. The plan as it was:
+
 One gun, end to end: the AK-74M (also AK-74N and its premium: same part, 255 vertices / 260
 triangles in surface `ak74lpsg4`). A content edit that rewrites that surface's index chunk
 without the part (vertex chunk untouched, so skinning and bounds stay valid), plus 0.69d0's
