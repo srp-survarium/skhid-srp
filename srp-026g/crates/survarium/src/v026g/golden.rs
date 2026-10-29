@@ -44,6 +44,8 @@ use binary_config_parser::tree::ConfigValue;
 use super::dictionary::{self, Dictionary};
 use super::game_data::{GameData, GameDataError};
 
+mod content;
+
 /// Modification 1230: `parameters/money_bonus` +0.1, the first default of
 /// the golden weapons in the game's data.
 pub const SILVER_BONUS: u32 = 1230;
@@ -146,6 +148,16 @@ pub fn is_golden_weapon_name(name: &str) -> bool {
 /// The premium bonuses of the premium armour piece `name` (a dictionary
 /// name); `None` for anything else.
 pub fn armour_bonuses(name: &str) -> Option<&'static [u32]> {
+    legacy_armour_bonuses(name).or_else(|| {
+        content::shared()
+            .get(name)
+            .map(|item| item.bonuses.as_slice())
+    })
+}
+
+/// Stock premiums whose unpatched retail defaults are normalized by item_params.
+/// Pack premiums already have clean defaults, checked by content::load.
+pub(super) fn legacy_armour_bonuses(name: &str) -> Option<&'static [u32]> {
     PREMIUM_ARMOUR
         .iter()
         .find(|&&(premium, ..)| premium == name)
@@ -193,6 +205,11 @@ pub fn plain_name(name: &str) -> Option<&'static str> {
                 .iter()
                 .find(|&&(premium, ..)| premium == name)
                 .map(|&(_, plain, ..)| plain)
+        })
+        .or_else(|| {
+            content::shared()
+                .get(name)
+                .map(|item| item.plain_name.as_str())
         })
 }
 
@@ -253,12 +270,12 @@ pub fn unpatched(
     data: &GameData,
     dictionary: &Dictionary,
 ) -> Result<Vec<(String, &'static str)>, GameDataError> {
+    // Validate pack metadata against this exact data, not the process-global dictionary.
+    content::load(data, dictionary)?;
     let mut found = Vec::new();
-    for item in dictionary
-        .items
-        .iter()
-        .filter(|item| is_golden_name(&item.name))
-    {
+    for item in dictionary.items.iter().filter(|item| {
+        is_golden_weapon_name(&item.name) || PREMIUM_ARMOUR.iter().any(|row| row.0 == item.name)
+    }) {
         let config = super::game_data::config(data, &item.cfg_name)?
             .ok_or_else(|| GameDataError(format!("{}: no {}", item.name, item.cfg_name)))?;
         let defaults: Vec<i32> = config
@@ -275,7 +292,7 @@ pub fn unpatched(
             .and_then(|p| p.get("base_rarity_level"))
             .and_then(ConfigValue::as_i32)
             .unwrap_or(0);
-        let (defaults_left, patch) = match armour_bonuses(&item.name) {
+        let (defaults_left, patch) = match legacy_armour_bonuses(&item.name) {
             Some(bonuses) => (
                 defaults
                     .iter()
