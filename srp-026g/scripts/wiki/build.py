@@ -58,7 +58,7 @@ def simulation(tr):
         '<div class="sim-legend" aria-live="polite"></div>',
         f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="{tr("Where each weapon aims as the recoil moves it", "Куди цілиться кожна зброя під дією відбою")}"></svg>'
         f'<label class="sim-target-pick">{tr("Target", "Ціль")}<select class="sim-target"><option value="">{tr("None", "Немає")}</option>'
-        + "".join(f'<option value="{m}">{tr(f"Enemy at {m} m", f"Ворог на {m} м")}</option>' for m in (25, 50, 100))
+        + "".join(f'<option value="{m}">{tr(f"Enemy at {m} m", f"Ворог на {m} м")}</option>' for m in (10, 25))
         + '</select></label></figure>',
         f'<div class="sim-plots">{plots}</div>',
         f'<p class="sim-unavailable" hidden>{tr("Recoil parameters are unavailable for this selection.", "Параметри відбою для вибраної зброї недоступні.")}</p>',
