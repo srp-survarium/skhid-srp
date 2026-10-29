@@ -411,15 +411,15 @@ impl Game {
         self.traps.events.push(Event::Placed { tick, place, team, press_m, placer_crouched, placer_speed });
     }
 
-    /// The eye and the unit direction to the floor `ahead_m` in front of `place` (metres on the ground along its heading), for a
-    /// stand-in that lets a trap go where it stands: the same eye and heading the key's release would use.
-    pub(crate) fn trap_aim_ahead(&self, place: Place, ahead_m: f32) -> (Vec3, Vec3) {
+    /// The eye and the unit direction to the floor `ahead_m` from `place` (metres on the ground, `turn` radians from its heading, to
+    /// the left), for a stand-in that lets a trap go where it stands: the same eye the key's release would use.
+    pub(crate) fn trap_aim_ahead(&self, place: Place, ahead_m: f32, turn: f32) -> (Vec3, Vec3) {
         let body = &self.bodies[place];
         let eye = Self::eye(body);
         // No farther than the ray from the eye reaches the floor (0.1 m of slack under the reach).
         let eye_m = eye.y - body.feet.y;
         let ahead_m = ahead_m.min(((PLACE_REACH_M - 0.1).powi(2) - eye_m.powi(2)).max(0.01).sqrt());
-        let [fx, fz] = forward(body.yaw);
+        let [fx, fz] = forward(body.yaw + turn);
         let target = Vec3::new(body.feet.x + fx * ahead_m, body.feet.y, body.feet.z + fz * ahead_m);
         let to = target - eye;
         (eye, to * (1.0 / to.length().max(1e-3)))

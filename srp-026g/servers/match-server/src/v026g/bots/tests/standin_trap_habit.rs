@@ -10,8 +10,13 @@
 //! - **when:** [`SINCE_SPAWN_S`] after the spawn (P10 18 s, median 44 s, P90 92 s; 1 % within 10 s), and
 //! - **where:** the first tick the human stands in the third of the map the trap was drawn for, by the census's depth (distance to the
 //!   nearest own spawn over the nearest own plus the nearest enemy spawn: own third under 0.33, enemy third from 0.66): 29 / 42 / 28 %
-//!   ([`DEPTH_SHARES`], 159 / 228 / 154 traps). It lies where the view meets the floor, [`AHEAD_M`] in front, cut to what the model's 2 m
-//!   reach from the eye allows (about 1 m for a standing body; the census's distance from the placer is dead-reckoned and cannot say).
+//!   ([`DEPTH_SHARES`], 159 / 228 / 154 traps). The stand-in's life ends before it reaches the enemy third more often than before the
+//!   middle, so a trap's third is drawn from the live shares over each third's completion ([`COMPLETION_BY_THIRD`]) and the traps put
+//!   down come out in the live shares (a calibration of the stand-in, as the smoke habit's `COMPLETION`).
+//!   The trap lies where the view meets the floor, [`AHEAD_M`] from his feet and to the side of his heading ([`TURN_RAD`]), cut to what
+//!   the model's 2 m reach from the eye allows (about 1 m for a standing body; the census's distance from the placer is dead-reckoned
+//!   and cannot say). To the side because the stand-in's walk ignores traps, as live passers-by's do, and one laid in front of him
+//!   was caught by its placer at once (105 of 141 in the first batch; live placers are 4 % of the catches).
 //! - **the trap** is the model's (`standin_traps.rs`): the sensor, the catch, a shot, a hand defuse; the habit only lays it.
 //!
 //! Each placement is logged with the class drawn and the class scored at the spot, the seconds since spawn, and what became of the
@@ -29,7 +34,11 @@ pub(crate) const CARRY_PER_LIFE: f32 = 0.026;
 pub(crate) const ANY_PER_CARRIER: f32 = 371.0 / 1811.0;
 /// The share of the planned lives that place one, the rest end first (the stand-in's lives are shorter and its walk is its lane's).
 /// Measured by the carrier batch (lives that placed over lives that planned), re-measured whenever the rule of "when" changes.
-pub(crate) const COMPLETION: f32 = 1.0;
+pub(crate) const COMPLETION: f32 = 0.24;
+/// The share of planned traps that are put down, by the third they are for (own, middle, enemy): placed over planned in the first
+/// carrier batch (38, 84, 19 placed of 141, 202, 137 planned by the live shares), an estimate. A third the stand-in's life seldom
+/// reaches is drawn more often so that the traps put down are the live shares.
+const COMPLETION_BY_THIRD: [f32; 3] = [0.27, 0.42, 0.14];
 /// Traps in a life that places: 1 / 2 / 3 / 4 (220 / 134 / 15 / 2 of 371).
 const COUNT_SHARES: [f32; 4] = [220.0 / 371.0, 134.0 / 371.0, 15.0 / 371.0, 2.0 / 371.0];
 /// Seconds from the spawn to the placing (fraction of traps, value), linear between; the ends are GUESSES.
@@ -39,8 +48,10 @@ const DEPTH_SHARES: [f32; 3] = [159.0 / 541.0, 228.0 / 541.0, 154.0 / 541.0];
 /// The depth under which a spot is in the own third, and from which it is in the enemy's.
 const OWN_THIRD: f32 = 0.33;
 const ENEMY_THIRD: f32 = 0.66;
-/// How far in front of its feet the view meets the floor, metres on the ground (GUESS; `Game::trap_aim_ahead` cuts it to the model's reach).
+/// How far from its feet the view meets the floor, metres on the ground (GUESS; `Game::trap_aim_ahead` cuts it to the model's reach).
 const AHEAD_M: (f32, f32) = (0.9, 1.15);
+/// ... and how far from its heading, radians, to the left or the right (GUESS: to the side, 60 to 120 degrees).
+const TURN_RAD: (f32, f32) = (1.05, 2.1);
 
 /// A third of the map.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,18 +137,28 @@ pub(crate) struct Plan {
     /// At or after this tick, in the third `want`.
     from: u32,
     want: Third,
-    /// How far in front of its feet it lies, metres.
+    /// How far from its feet it lies, metres, and the turn from his heading, radians (left positive).
     ahead_m: f32,
+    turn: f32,
+}
+
+/// The shares a trap's third is drawn from: the live shares over each third's completion, normalised.
+fn drawn_shares() -> [f32; 3] {
+    let weights: [f32; 3] = std::array::from_fn(|i| DEPTH_SHARES[i] / COMPLETION_BY_THIRD[i]);
+    let total: f32 = weights.iter().sum();
+    weights.map(|w| w / total)
 }
 
 /// The traps a planned life puts down, in the order of their times.
 fn draw_plans(rng: &mut Rng, spawned: u32) -> Vec<Plan> {
     let n = pick(&COUNT_SHARES, rng.unit()) + 1;
+    let shares = drawn_shares();
     let mut plans: Vec<Plan> = (0..n)
         .map(|_| Plan {
             from: spawned + (at_fraction(&SINCE_SPAWN_S, rng.unit()) * 1000.0) as u32,
-            want: Third::ALL[pick(&DEPTH_SHARES, rng.unit())],
+            want: Third::ALL[pick(&shares, rng.unit())],
             ahead_m: rng.range(AHEAD_M.0, AHEAD_M.1),
+            turn: rng.range(TURN_RAD.0, TURN_RAD.1) * if rng.unit() < 0.5 { 1.0 } else { -1.0 },
         })
         .collect();
     plans.sort_by_key(|p| p.from);
@@ -185,6 +206,8 @@ pub(crate) struct TrapHabitCounts {
     pub(crate) carrying: u32,
     pub(crate) planned_lives: u32,
     pub(crate) planned: u32,
+    /// The traps planned for each third (own, middle, enemy).
+    pub(crate) planned_by: [u32; 3],
     pub(crate) placements: Vec<Placement>,
     /// Ticks a planned trap was due in its third and the floor in front was no place for one (steep, nothing in reach, on a sensor).
     pub(crate) refused: u32,
@@ -259,6 +282,9 @@ impl TrapHabit {
                 let plans = draw_plans(&mut self.rng, spawned);
                 self.counts.planned_lives += 1;
                 self.counts.planned += plans.len() as u32;
+                for plan in &plans {
+                    self.counts.planned_by[plan.want.index()] += 1;
+                }
                 self.life_planned = true;
                 Habit::Planned { plans }
             } else {
@@ -276,7 +302,7 @@ impl TrapHabit {
         if depth.is_some_and(|d| Third::of_depth(d) != plan.want) {
             return;
         }
-        let (eye, dir) = game.trap_aim_ahead(self.place, plan.ahead_m);
+        let (eye, dir) = game.trap_aim_ahead(self.place, plan.ahead_m, plan.turn);
         let Some(at) = game.trap_land(eye, dir) else {
             self.counts.refused += 1;
             return;
@@ -350,11 +376,12 @@ impl TrapHabit {
             }] += 1;
         }
         format!(
-            "trap habit (stand-in human): {} lives, {} carrying, {} planned in {} lives, {} placed = {per_100:.2} a 100 lives (live 0.78 for carriers 2.6 % x 0.30); lives by traps put down 0/1/2/3/4 {:?} (live of those that placed 59/36/4/1 %); thirds own/middle/enemy % drawn {} scored {} (live 29/42/28); press s from spawn P10/25/50/75/90 {:?} (live 18.2/29.6/44.4/64.8/92.0), {} refused spots; outcomes enemy/mate/own caught, shot off, defused, armed {:?} (live of the fired: enemy 85 %, mate 11 %, own 4 %)",
+            "trap habit (stand-in human): {} lives, {} carrying, {} planned in {} lives (by third {:?}), {} placed = {per_100:.2} a 100 lives (live 0.78 for carriers 2.6 % x 0.30); lives by traps put down 0/1/2/3/4 {:?} (live of those that placed 59/36/4/1 %); thirds own/middle/enemy % drawn {} scored {} (live 29/42/28); press s from spawn P10/25/50/75/90 {:?} (live 18.2/29.6/44.4/64.8/92.0), {} refused spots; outcomes enemy/mate/own caught, shot off, defused, armed {:?} (live of the fired: enemy 85 %, mate 11 %, own 4 %)",
             c.lives,
             c.carrying,
             c.planned,
             c.planned_lives,
+            c.planned_by,
             placed,
             c.per_life,
             share(wanted),
@@ -436,7 +463,7 @@ mod tests {
     fn a_planned_trap_is_laid_in_its_third_and_logged() {
         let mut game = field(Vec3::new(14.0, 0.0, 12.0));
         game.bodies[0].spawned = 0;
-        let plan = Plan { from: 20_000, want: Third::Middle, ahead_m: 1.0 };
+        let plan = Plan { from: 20_000, want: Third::Middle, ahead_m: 1.0, turn: 1.5 };
         let mut h = habit(vec![plan], 0);
         h.tick(&mut game, 10_000);
         assert!(game.traps.list.is_empty(), "not before the time");
@@ -462,7 +489,7 @@ mod tests {
     fn a_life_of_two_traps_lays_both_and_each_outcome_is_read() {
         let mut game = field(Vec3::new(40.0, 0.0, 12.0));
         game.bodies[0].spawned = 0;
-        let plans = vec![Plan { from: 1_000, want: Third::Middle, ahead_m: 1.0 }, Plan { from: 2_000, want: Third::Middle, ahead_m: 1.0 }];
+        let plans = vec![Plan { from: 1_000, want: Third::Middle, ahead_m: 1.0, turn: 1.5 }, Plan { from: 2_000, want: Third::Middle, ahead_m: 1.0, turn: -1.5 }];
         let mut h = habit(plans, 0);
         h.tick(&mut game, 1_000);
         // The second lies on another floor point: the human has walked on.
@@ -505,8 +532,15 @@ mod tests {
         assert!((share(counts[0], lives) - 0.593).abs() < 0.015, "one trap {}", share(counts[0], lives));
         assert!((share(counts[1], lives) - 0.361).abs() < 0.015, "two traps {}", share(counts[1], lives));
         let all: u32 = thirds.iter().sum();
+        // The thirds drawn are the live shares over each third's completion; put down, they are the live ones.
+        let drawn = drawn_shares();
+        for i in 0..3 {
+            assert!((share(thirds[i], all) - f64::from(drawn[i])).abs() < 0.015, "third {i}: {}", share(thirds[i], all));
+        }
+        let put: Vec<f32> = (0..3).map(|i| drawn[i] * COMPLETION_BY_THIRD[i]).collect();
+        let total: f32 = put.iter().sum();
         for (i, live) in [0.294, 0.421, 0.285].iter().enumerate() {
-            assert!((share(thirds[i], all) - live).abs() < 0.015, "third {i}: {}", share(thirds[i], all));
+            assert!((f64::from(put[i] / total) - live).abs() < 0.005, "put down {i}: {}", put[i] / total);
         }
         since.sort_by(f32::total_cmp);
         let at = |p: f32| since[((since.len() - 1) as f32 * p) as usize];
