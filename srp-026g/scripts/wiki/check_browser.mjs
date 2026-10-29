@@ -128,6 +128,7 @@ try {
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).match(/shots 1\/\d+/));
   assert.equal(await evaluate("document.querySelectorAll('#sim-single,.sim-single').length"), 0, 'no single-shot mode');
   assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-sight .sim-cross').length"), 2, 'a crosshair per weapon');
+  assert.equal(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-view')].map(view => view.querySelectorAll('.sim-cross').length).join()"), '1,1', 'a view per weapon');
   await evaluate("document.querySelector('#recoil-sim .sim-step').click()");
   assert.ok(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)") > .05, 'next shot advances timeline');
   const position = await evaluate("document.querySelector('#recoil-sim .sim-time').value");

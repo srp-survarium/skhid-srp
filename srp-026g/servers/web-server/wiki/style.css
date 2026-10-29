@@ -110,7 +110,12 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-legend { display:flex; flex-wrap:wrap; gap:8px 24px; margin-top:12px; font:.75rem var(--data) }
 .sim-legend p { margin:0; color:var(--accent) }
 .sim-legend .series-1 { color:#3684bd }
-.sim-sight { max-width:360px; margin:16px auto 0 }
+.sim-sight { max-width:760px; margin:16px auto 0 }
+.sim-sight-views { display:flex; flex-wrap:wrap; justify-content:center; gap:16px }
+.sim-view { flex:1 1 300px; max-width:360px; min-width:0 }
+.sim-view-name { margin:0 0 4px; font:.75rem var(--data); color:var(--accent) }
+.sim-view-name.series-1 { color:#3684bd }
+.sim-target-pick { max-width:360px; margin-left:auto !important; margin-right:auto !important }
 .sim-sight figcaption { font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
 .sim-sight svg { width:100%; height:auto; background:var(--bg); border:1px solid var(--rule) }
 .sim-origin { fill:none; stroke:var(--ink-3) }

@@ -346,9 +346,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     // The crosshair as the kick moves it: the kick climbing from the origin,
     // the path so far and each shot's mark. The side kick is far smaller than
     // the climb (and not a confirmed screen angle): it fills the width, its
-    // magnification (at most ×100) written in the corner.
+    // magnification (at most ×100) written in the corner. Each weapon has
+    // its own view, all on one scale so they compare.
     function drawSight(time) {
-      const svg = find('.sim-sight svg'); svg.replaceChildren();
       const frames = simulation.series.flatMap(series => series.frames);
       // In degrees of view: the kick as the camera turns. The pattern is the
       // weapon's: a target changes nothing of it, only its own size shows the
@@ -364,17 +364,25 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
       const x = h => 150 + viewSide(h) * sideScale, y = v => oy - viewUp(v) * scale;
       const magnified = Math.round(sideScale / scale);
-      if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
-      svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
-      svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
-      if (distance) {
-        dollBox ??= document.querySelector('#doll-shape').getBBox();
-        const size = body * scale / dollBox.height;
-        svg.append(svgNode('use', {href:'#doll-shape', class:'sim-target-body',
-          transform:`translate(${(150 - (dollBox.x + dollBox.width / 2) * size).toFixed(2)} ${(oy - body * CHEST * scale - dollBox.y * size).toFixed(2)}) scale(${size.toFixed(5)})`}));
-      }
-      svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
-      for (const series of simulation.series) {
+      const views = simulation.series.map(series => {
+        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${tr('where it aims as the recoil moves it', 'куди цілиться під дією відбою')}`});
+        const view = document.createElement('div'); view.className = 'sim-view';
+        if (simulation.series.length > 1) view.append(node('p', `${series.side ? 'B' : 'A'} · ${name(series.id)}`, `sim-view-name series-${series.side}`));
+        view.append(svg);
+        return {series, svg, view};
+      });
+      find('.sim-sight-views').replaceChildren(...views.map(({view}) => view));
+      for (const {series, svg} of views) {
+        if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
+        svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
+        svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
+        if (distance) {
+          dollBox ??= document.querySelector('#doll-shape').getBBox();
+          const size = body * scale / dollBox.height;
+          svg.append(svgNode('use', {href:'#doll-shape', class:'sim-target-body',
+            transform:`translate(${(150 - (dollBox.x + dollBox.width / 2) * size).toFixed(2)} ${(oy - body * CHEST * scale - dollBox.y * size).toFixed(2)}) scale(${size.toFixed(5)})`}));
+        }
+        svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
         const past = series.frames.filter(frame => frame.time <= time);
         svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
           class:`sim-trail series-${series.side}`}));

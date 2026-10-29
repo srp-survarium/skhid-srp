@@ -56,7 +56,7 @@ def simulation(tr):
         f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
-        f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="{tr("Where each weapon aims as the recoil moves it", "Куди цілиться кожна зброя під дією відбою")}"></svg>'
+        f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><div class="sim-sight-views"></div>'
         f'<label class="sim-target-pick">{tr("Target", "Ціль")}<select class="sim-target"><option value="">{tr("None", "Немає")}</option>'
         + "".join(f'<option value="{m}">{tr(f"Enemy at {m} m", f"Ворог на {m} м")}</option>' for m in (5, 10, 25))
         + '</select></label></figure>',
