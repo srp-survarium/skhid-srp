@@ -121,6 +121,10 @@ pub(super) const GFX_MANAGED: u32 = 0x40;
 pub const MAX_STRINGS: usize = 64;
 
 impl Movie<'_> {
+    pub fn invoke_text(&self, method: &CStr, value: &CStr) -> bool {
+        self.invoke_strings(method, &[value])
+    }
+
     /// Which movie this is (a new game world's is another), to tell it once.
     pub fn id(&self) -> usize {
         self.this.address() as usize

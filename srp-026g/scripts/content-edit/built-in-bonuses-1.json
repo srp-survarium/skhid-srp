@@ -1,0 +1,6 @@
+{
+ "_about": "Built-in bonuses at the second-strongest strength (the owner, 2026-10-29; docs/notes/built-in-bonuses.md): a built-in +1 % lost to any roll's +5 %, so nobody wore those pieces. Every equipment item (items_dict categories 1-7: helmet, mask, body armour, back, pants, gloves, boots; premium copies too) has each default_modification of a kind that rolls raised to that kind's second-strongest row (it only raises: a stronger one keeps its value); kinds that never roll (item slots, ammo bags, artefact container, pocket size and capacity, boosters) and wear-only ones stay. Computed from modifications.options and the item configs at build time, so new items follow it. Weapons keep their presets. Before exo-suits-buff-1, whose values (the Duty suit's top ones) apply after it.",
+ "promote_rolled_defaults": [
+  {"categories": [1, 2, 3, 4, 5, 6, 7], "from_top": 2}
+ ]
+}

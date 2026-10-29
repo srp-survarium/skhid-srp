@@ -541,7 +541,6 @@ va	status	ref_021d	name
 0x0016c1a0	reviewed	0x00101fcd	vostok::render::effect_block_compression::compile
 0x0016c520	reviewed	0x0010218b	vostok::render::model_factory::create_render_surface
 0x0016c8b0	reviewed	0x0010239d	vostok::render::model_factory::create_render_model
-0x0016e420	reviewed	0x0010369b	vostok::render::static_render_model_instance::get_aabb
 0x0016e460	reviewed	0x001036b9	vostok::render::static_render_model_instance::get_surfaces_count
 0x0016e500	reviewed	0x0010372b	vostok::render::static_render_surface::fill_lpv_vertex_color
 0x0016e550	reviewed	0x00103772	vostok::render::static_render_surface::add_shadow_vertices
@@ -1832,3 +1831,25 @@ va	status	ref_021d	name
 0x002f1430	observed		survarium::item_config_cook::find_modifier_target
 0x00358010	observed		vostok::configs::apply_multiplicative_modifiers
 0x0028cab0	verified		survarium::lobby_menu::go_to_knowledge_base
+0x002febc0	reviewed	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
+0x002df050	reviewed		survarium::portable_interactive_object_core::set_user_animation_resource
+0x002fb8a0	reviewed	0x001e0aca	survarium::weapon_user_animations_selector::~weapon_user_animations_selector
+0x00231bc0	reviewed		survarium::hit_animations_selector::~hit_animations_selector
+0x0016e420	verified	0x0010369b	vostok::render::static_render_model_instance::get_aabb
+0x002d0ab0	observed	0x001caa92	survarium::game_world_core::active_player_ptr
+0x002d6990	observed	0x001d2e62	survarium::base_player::base_player
+0x002d86e0	observed	0x001d4323	survarium::base_player::apply_new_input
+0x002daa60	observed	0x001d5a6e	survarium::base_player::tick
+0x0003b480	verified		vostok::collision::animated_object::update
+0x000e70b0	verified	0x000b237b	vostok::resources::queries_result::queries_result
+0x002da5b0	verified	0x001d5851	survarium::base_player::recompute_damage_collision_bones
+0x0025efe0	verified	0x0019560b	survarium::artefact<survarium::artefact_lifebone_core>::~artefact<survarium::artefact_lifebone_core>
+0x00260270	verified		survarium::artefact_lifebone::on_subresources_loaded
+0x00241200	verified		survarium::player_input_handler::alt_is_held
+0x002d77c0	verified		survarium::base_player::on_player_death
+0x002fffd0	verified	0x001e70bb	survarium::inventory_item::register_in_game_world
+0x00313200	verified		survarium::artefact_base::tick
+0x00313470	verified		survarium::artefact_base::on_taken
+0x00313490	verified		survarium::artefact_base::on_removed
+0x0025fa10	verified	0x00195e34	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>
+0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death

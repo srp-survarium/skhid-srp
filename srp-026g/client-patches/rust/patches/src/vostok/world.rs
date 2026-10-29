@@ -130,11 +130,24 @@ pub struct BodyId(pub(in crate::vostok) u32);
 /// A player of the match.
 #[derive(Clone, Copy)]
 pub struct Player<'t> {
-    this: raw::Player,
-    thread: &'t Thread,
+    pub(in crate::vostok) this: raw::Player,
+    pub(in crate::vostok) thread: &'t Thread,
 }
 
 impl<'t> Player<'t> {
+    pub fn eye_transform(&self) -> [f32; 16] {
+        // SAFETY: the live player's complete computed eye matrix.
+        unsafe { floats(self.this.eye()) }
+    }
+
+    pub fn inventory(&self) -> Option<super::inventory::Inventory<'t>> {
+        super::inventory::Inventory::of_player(self.this, self.thread)
+    }
+    pub fn core_skeleton(&self) -> Option<Skeleton<'t>> {
+        // SAFETY: the live core player retains its simulation skeleton.
+        Some(Skeleton { this: unsafe { self.this.core_skeleton() }?, thread: PhantomData })
+    }
+
     /// The player a site's typed register holds (raw's `site`), on its hook's thread.
     pub(in crate::vostok) fn of(ctx: &'t Context<'_>, this: Option<raw::Player>) -> Option<Player<'t>> {
         this.map(|this| Player { this, thread: ctx.thread() })
@@ -267,6 +280,11 @@ pub struct Skeleton<'t> {
 }
 
 impl Skeleton<'_> {
+    pub fn bone_computed(&self, index: u32, layer: u8) -> bool {
+        // SAFETY: bounded native skeleton record.
+        self.bone(index).is_some_and(|bone| unsafe { read(bone.computed_layers()) & layer != 0 })
+    }
+
     pub fn id(&self) -> SkeletonId {
         SkeletonId(self.this.address())
     }

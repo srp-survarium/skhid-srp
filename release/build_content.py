@@ -264,6 +264,11 @@ def edit_paths(edits, known):
         # The catalog compiler reads every existing dictionary, the UI mapping,
         # and support files copied into newly registered language directories.
         paths.update(p for p in known if p.startswith('localization/'))
+    if 'promote_rolled_defaults' in edits:
+        # Computed from the data (content_edit.py promoted_defaults): the modifications, the item
+        # dictionary and every equipment config; an item of the categories elsewhere stops the edit.
+        paths.update({'gameplay/items/modifications/modifications.options', 'gameplay/db_static_dictionaries'})
+        paths.update(p for p in known if p.startswith('gameplay/items/armour/'))
     for entries in edits.values():
         if not isinstance(entries, list):
             continue

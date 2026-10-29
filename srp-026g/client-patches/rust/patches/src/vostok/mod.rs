@@ -24,6 +24,9 @@
 
 pub mod bullet;
 pub mod camera;
+pub mod carry_runtime;
+pub mod carry_ground;
+pub mod carry_flower;
 mod cell;
 pub mod clock;
 mod context;
@@ -31,6 +34,7 @@ pub mod draw;
 pub mod headwear;
 mod hook;
 mod input;
+pub mod inventory;
 mod keyboard;
 pub mod language;
 pub mod log;

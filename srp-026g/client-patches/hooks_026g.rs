@@ -6,6 +6,336 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_weapon_hide` (0x243fa0, weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_weapon_hide(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_weapon_hide` calls this, from the game's jump at 0x243fa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_weapon_hide(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_input` (0x2d86e0, base_player set_input entry; ECX player, stack time and immutable input; before early-out) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_input` calls this, from the game's jump at 0x2d86e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_filter` (0x2d876f, set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_filter(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_filter` calls this, from the game's jump at 0x2d876f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_filter(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_tick` (0x2daac1, base_player tick before held object tick; EBX player, updated time at +324h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_tick` calls this, from the game's jump at 0x2daac1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_construct` (0x2d6990, base_player constructor entry; stack first argument destination, identity only) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_construct(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_construct` calls this, from the game's jump at 0x2d6990,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_construct(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_save` (0x2db47e, base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_save` calls this, from the game's jump at 0x2db47e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_load` (0x2dbab5, base_player deserialize after final native field; EBX player, ESI reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_load` calls this, from the game's jump at 0x2dbab5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_weapon (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnWeaponExit { Skeleton }
+/// The entry `artefact_carry_on_weapon` (0x2477c8, mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_weapon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_weapon` calls this, from the game's jump at 0x2477c8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_weapon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_spring (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnSpringExit { Done }
+/// The entry `artefact_carry_on_spring` (0x25ebb0, Spring client update entry; ECX callback; done is native bare ret, no prologue executed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_spring(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_spring` calls this, from the game's jump at 0x25ebb0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_spring(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_lifebone (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnLifeboneExit { Done }
+/// The entry `artefact_carry_on_lifebone` (0x25f100, Lifebone client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_lifebone(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_lifebone` calls this, from the game's jump at 0x25f100,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_lifebone(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_onyx (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnOnyxExit { Done }
+/// The entry `artefact_carry_on_onyx` (0x25f640, Onyx client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_onyx(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_onyx` calls this, from the game's jump at 0x25f640,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_onyx(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_rattle (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnRattleExit { Done }
+/// The entry `artefact_carry_on_rattle` (0x25fb80, Rattle client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_rattle(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_rattle` calls this, from the game's jump at 0x25fb80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_rattle(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_damage_bones` (0x2da769, before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_damage_bones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_damage_bones` calls this, from the game's jump at 0x2da769,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_damage_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The named exits of artefact_carry::on_flower_query (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnFlowerQueryExit { Done }
+/// The entry `artefact_carry_on_flower_query` (0x25e91a, artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_flower_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_flower_query` calls this, from the game's jump at 0x25e91a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_flower_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_flower_ready` (0x260278, Lifebone assignment call: EDI item EBX queries_result; retain fourth model) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_flower_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_flower_ready` calls this, from the game's jump at 0x260278,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_flower_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_flower_destroy` (0x25efe0, Lifebone destructor entry: ECX item; remove held model and release owned resource) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_flower_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_flower_destroy` calls this, from the game's jump at 0x25efe0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_flower_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_death` (0x2d77c0, base_player::on_player_death entry, ECX live player before remove_alive/inventory death) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_death` calls this, from the game's jump at 0x2d77c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_death(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_ground_save` (0x313735, artefact_base::serialize after native state-dependent fields; ESI item EDI writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_ground_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_ground_save` calls this, from the game's jump at 0x313735,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_ground_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_ground_load` (0x3137ec, artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_ground_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_ground_load` calls this, from the game's jump at 0x3137ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_ground_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_client_death` (0x1f28e0, client player death override, ECX player; inlines base teardown, does not call 0x2D77C0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_client_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_client_death` calls this, from the game's jump at 0x1f28e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_client_death(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_score (patch 80) ----
 
 /// The entry `artefact_score_on_transfer` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.
