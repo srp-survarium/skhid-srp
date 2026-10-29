@@ -1374,7 +1374,7 @@ va	name	source	ret_cleanup	result
 0x0032cb10	survarium::bullet::compute_parabolic_position	manual	8	
 0x0032ccc0	survarium::bullet::compute_trajectory_position	manual	4	
 0x0032d4e0		auto	24	
-0x0032d960		auto	16	
+0x0032d960	survarium::bullet::try_pierce	manual	16	the material's armor is f32 at +4Ch; the bullet's damage is f32 at +70h and its pierce f32 at +74h; a front face takes k = 1-(1-f)^2 off both, f = clamp((pierce-armor)/armor, 0, 1); armor >= pierce stops the bullet (PROVEN, 2026-10-29)
 0x0032de40		auto	12	
 0x0032e460	survarium::player_shootmarks_storage::add_shootmark	manual	8	AL: new-entry count1 or incremented existing eight-bit occurrence count; higher EAX bits unspecified
 0x0032e4f0		auto	16	
@@ -1382,7 +1382,7 @@ va	name	source	ret_cleanup	result
 0x0032e970		auto	16	
 0x0032ebd0		auto	16	
 0x0032ee20	survarium::bullet::change_trajectory	manual	4	
-0x0032ee90		auto	8	
+0x0032ee90	survarium::bullet::update_bullet_position	manual	8	each step (0x32F044..0x32F174) sets the bullet's +70h damage and +74h pierce to min(current, curve(speed)): a crossing's loss stays, the next wall meets the smaller of it and the curve at that distance (PROVEN, 2026-10-29)
 0x0032fcc0	survarium::usable_object_user_data::serialize	manual	0	
 0x0032fee0	survarium::transition_helper::serialize	manual	0	
 0x0032ff70	survarium::transition_helper::deserialize	manual	0	

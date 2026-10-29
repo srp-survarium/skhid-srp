@@ -43,6 +43,7 @@ pub mod format;
 pub mod grid;
 pub mod library;
 pub mod math;
+pub mod pierce;
 pub mod project;
 pub mod regions;
 pub mod resources;
@@ -53,7 +54,8 @@ pub use grid::{
     Body, BuildStats, DistanceMap, Erosion, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
     PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
-pub use library::{Library, Materials, WalkerBehaviour};
+pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
+pub use pierce::{Armor, Crossing, DamageShare, FaceArmor, Load, Pierce};
 
 /// Gives back the arrays this thread keeps between its searches (8 bytes a
 /// floor of the largest grid searched, twice while a search is left under
@@ -89,12 +91,12 @@ pub fn search_memory_bytes() -> usize {
 }
 pub use math::{PhysicsPoint, Rotation, Transform, Vec3};
 pub use project::{
-    Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
+    BulletMesh, Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
     BatterySpawner, CollisionFilter, Container, Damage, MapData, Placement, Shape, ShapeKind,
     Spawn, Triangle, Zone, ZoneGroup, ZoneKind,
 };
 pub use resources::{Error, Resources};
-pub use sight::{RayHit, RayTree};
+pub use sight::{ArmorCensus, Followed, RayHit, RayTree};
 pub use stands::{UsePose, UseStand, UseStands};
 
 /// A play area margin around the `levelmap` box, metres.
@@ -126,8 +128,9 @@ pub const HONEST_DROPS_ALGO: u32 = 1;
 /// the key already; the code that reads them is not, so a change to it needs this raised.
 pub const CLIENT_BODY_ALGO: u32 = 1;
 /// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
-/// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
-pub const SIGHT_ALGO: u32 = 2;
+/// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes). 3: the tree keeps
+/// each triangle's bullet armor ([`FaceArmor`]), in the key and in the file.
+pub const SIGHT_ALGO: u32 = 3;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -158,7 +161,7 @@ impl World {
             &spawns,
             links,
         );
-        let sight = RayTree::build(&map.bullet_triangles());
+        let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }
 
@@ -233,11 +236,16 @@ pub fn grid_key_with_links(
 }
 
 /// What a sight tree is built from ([`grid_key`] for the tree): the
-/// triangles' corners and [`SIGHT_ALGO`].
-pub fn sight_key(triangles: &[Triangle]) -> u64 {
+/// triangles' corners, their armor and [`SIGHT_ALGO`]. `armor` is one per triangle ([`BulletMesh`] keeps them
+/// together).
+pub fn sight_key(triangles: &[Triangle], armor: &[FaceArmor]) -> u64 {
+    debug_assert_eq!(triangles.len(), armor.len());
     let mut digest = digest::Digest::new();
     digest.u32(SIGHT_ALGO);
     triangles_into(&mut digest, triangles, false);
+    for armor in armor {
+        digest.f32(armor.to_wire());
+    }
     digest.finish()
 }
 

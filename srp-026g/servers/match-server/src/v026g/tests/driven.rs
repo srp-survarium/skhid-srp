@@ -242,8 +242,10 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
             Vec3::new(30.0, 0.0, 30.0),
             Vec3::new(-30.0, 0.0, 30.0),
         ],
-        triangles: vec![[0, 2, 1], [0, 3, 2]],
-        walker: vec![WalkerBehaviour::Walk; 2],
+        faces: vec![
+            mapdata::library::Face::unknown([0, 2, 1], WalkerBehaviour::Walk),
+            mapdata::library::Face::unknown([0, 3, 2], WalkerBehaviour::Walk),
+        ],
         primitives: 0,
     };
     let map = MapData {

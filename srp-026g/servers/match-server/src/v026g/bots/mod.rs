@@ -998,6 +998,17 @@ impl Bots {
             ),
             None => summary,
         };
+        // What the bullet mesh is made of: a file before format 5 gives every face as solid (no material), so the cover
+        // tests are the old ones; a v5 file has the armor of the face.
+        let census = tactics.world.sight.armor_census();
+        let summary = format!(
+            "{summary}; bullet mesh {} faces: {} with armor, {} free, {} without a material (solid){}",
+            census.total,
+            census.armored,
+            census.free,
+            census.unknown,
+            if census.armored == 0 && census.total > 0 { " [no materials: cover is solid, load format 5 files]" } else { "" }
+        );
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary

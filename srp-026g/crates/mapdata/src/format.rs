@@ -25,7 +25,10 @@
 //!                   the parts its hits go to, `hit_parts_filter`)
 //! list libraries:   string name, u32 primitives, list vec3 vertices,
 //!                   list [u32; 3] triangles, then one u8 walker behaviour
-//!                   per triangle
+//!                   per triangle, then (version 5) one f32 armor per
+//!                   triangle (`physic.armor` of its game material: what a
+//!                   bullet meets there, `crate::pierce`; NaN: the material
+//!                   is not known)
 //! list placements:  u32 library, vec3 position, vec3 rotation,
 //!                   u16 cgroup, u16 cmask
 //! magic "END\0"
@@ -60,12 +63,19 @@
 //! their count of parts, and everything that read the file before reads it
 //! the same).
 //!
+//! Version 5 (2026-10-28) added the bullet armor of every library triangle
+//! after the walker behaviours; a version 2 to 4 file is still read, with
+//! every face of unknown material (`FaceArmor::Unknown`: it stops every bullet, as the bullet mesh was
+//! taken before), so the bots' cover is what it was until the maps are
+//! dumped again.
+//!
 //! Reading checks every count against the bytes left, so a damaged file is
 //! an error, never a panic or a huge allocation.
 
 use std::path::Path;
 
-use crate::library::{Library, WalkerBehaviour};
+use crate::library::{Face, Library, Surface, WalkerBehaviour};
+use crate::pierce::FaceArmor;
 use crate::math::{Rotation, Vec3};
 use crate::project::{
     Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
@@ -76,7 +86,7 @@ use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
 /// The file name extension.
@@ -214,8 +224,13 @@ impl MapData {
             w.str(&l.name);
             w.u32(l.primitives);
             w.list(&l.vertices, |w, &v| w.vec3(v));
-            w.list(&l.triangles, |w, t| t.iter().for_each(|&i| w.u32(i)));
-            w.0.extend(l.walker.iter().map(|&b| b as u8));
+            w.list(&l.faces, |w, f| f.corners.iter().for_each(|&i| w.u32(i)));
+            w.0.extend(l.faces.iter().map(|f| f.surface.walker as u8));
+            if version >= 5 {
+                for face in &l.faces {
+                    w.f32(face.surface.armor.to_wire());
+                }
+            }
         });
         w.list(&self.placements, |w, p| {
             w.u32(p.library);
@@ -393,18 +408,24 @@ impl MapData {
             {
                 return Err(Error(format!("{name}: a triangle names no vertex")));
             }
-            let walker = r
+            let walker: Vec<WalkerBehaviour> = r
                 .take(triangles.len())?
                 .iter()
                 .map(|&b| WalkerBehaviour::from_u8(b))
                 .collect();
-            Ok(Library {
-                name,
-                vertices,
-                triangles,
-                walker,
-                primitives,
-            })
+            let mut faces = Vec::with_capacity(triangles.len());
+            for (corners, walker) in triangles.into_iter().zip(walker) {
+                // Before format 5 nothing says what a face is made of.
+                let armor = if version >= 5 {
+                    let value = r.f32()?;
+                    FaceArmor::from_wire(value)
+                        .ok_or_else(|| Error(format!("{name}: armor {value} is no armor")))?
+                } else {
+                    FaceArmor::Unknown
+                };
+                faces.push(Face { corners, surface: Surface { walker, armor } });
+            }
+            Ok(Library { name, vertices, faces, primitives })
         })?;
         map.placements = r.list(32, |r| {
             Ok(Placement {
@@ -585,6 +606,7 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pierce::Armor;
 
     fn sample() -> MapData {
         let shape = Shape {
@@ -685,8 +707,13 @@ mod tests {
             libraries: vec![Library {
                 name: "models/a.model/walker_collision#[2][2][2]".into(),
                 vertices: vec![Vec3::ZERO, Vec3::Y, Vec3::ONE],
-                triangles: vec![[0, 1, 2]],
-                walker: vec![WalkerBehaviour::DontWalk],
+                faces: vec![Face {
+                    corners: [0, 1, 2],
+                    surface: Surface {
+                        walker: WalkerBehaviour::DontWalk,
+                        armor: FaceArmor::Material(Armor::new(0.37).unwrap()),
+                    },
+                }],
                 primitives: 1,
             }],
             artefact_cores: vec![ArtefactCore {
@@ -726,9 +753,10 @@ mod tests {
             ..map.clone()
         };
         expected.zones[0].damage.as_mut().unwrap().part_names.clear();
+        expected.libraries[0].faces[0].surface.armor = FaceArmor::Unknown;
         assert_eq!(expected, old);
         assert!(MapData::from_bytes(&map.to_bytes_of(1)).is_err());
-        assert!(MapData::from_bytes(&map.to_bytes_of(5)).is_err());
+        assert!(MapData::from_bytes(&map.to_bytes_of(VERSION + 1)).is_err());
     }
 
     /// A version 3 file (written before the zones' part names) is still read, with none: the rest
@@ -743,10 +771,43 @@ mod tests {
         assert_eq!(old.zones[0].damage.as_ref().unwrap().parts, 2);
         let mut unnamed = map.clone();
         unnamed.zones[0].damage.as_mut().unwrap().part_names.clear();
+        unnamed.libraries[0].faces[0].surface.armor = FaceArmor::Unknown;
         assert_eq!(unnamed, old);
         // And the version 4 file keeps them.
         let new = MapData::from_bytes(&map.to_bytes()).unwrap();
         assert_eq!(&new.zones[0].damage.as_ref().unwrap().part_names, named);
+    }
+
+    /// A version 4 file (written before the bullet armor) is read with every face of unknown material; the version 5
+    /// file keeps each triangle's armor.
+    #[test]
+    fn a_version_4_file_is_read_with_solid_faces() {
+        let map = sample();
+        let old = MapData::from_bytes(&map.to_bytes_of(4)).unwrap();
+        assert_eq!(old.libraries[0].faces[0].surface.armor, FaceArmor::Unknown);
+        assert_eq!(old.zones, map.zones, "the rest of the map is what the file says");
+        let new = MapData::from_bytes(&map.to_bytes()).unwrap();
+        assert_eq!(new.libraries[0].faces[0].surface.armor, FaceArmor::Material(Armor::new(0.37).unwrap()));
+    }
+
+    /// An armor that is no armor in a file is an error, not a face that anything goes through.
+    #[test]
+    fn a_bad_armor_is_an_error() {
+        let good = sample().to_bytes();
+        // The armor (0.37) is the last f32 before the placements: patch its bytes to a negative number.
+        let at = good.windows(4).rposition(|w| w == 0.37f32.to_le_bytes()).expect("armor bytes");
+        for bad_value in [-1.0f32, f32::INFINITY] {
+            let mut bad = good.clone();
+            bad[at..at + 4].copy_from_slice(&bad_value.to_le_bytes());
+            let error = MapData::from_bytes(&bad).unwrap_err().to_string();
+            assert!(error.contains("no armor"), "{error}");
+        }
+        // NaN is a face of unknown material, not an error.
+        let mut unknown = good.clone();
+        unknown[at..at + 4].copy_from_slice(&f32::NAN.to_le_bytes());
+        let read = MapData::from_bytes(&unknown).unwrap();
+        assert_eq!(read.libraries[0].faces[0].surface.armor, FaceArmor::Unknown);
+        assert!(MapData::from_bytes(&good).is_ok());
     }
 
     #[test]

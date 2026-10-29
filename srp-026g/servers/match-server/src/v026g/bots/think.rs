@@ -533,6 +533,7 @@ pub(super) fn react(
             margin_m: tuning.avoid.margin_m,
             told_ms: tuning.avoid.told_ms.1,
         }),
+        cover: tuning.cover.rule(),
     };
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);

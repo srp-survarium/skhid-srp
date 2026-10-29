@@ -84,6 +84,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ShotOffsets::default()),
         Box::new(HitShapes::default()),
         Box::new(OutcomeCounts::default()),
+        Box::new(PierceCounts::default()),
     ]
 }
 

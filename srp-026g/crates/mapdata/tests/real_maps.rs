@@ -277,8 +277,7 @@ fn weather_projects_share_geometry() {
                 let same_libraries = day.libraries.len() == other.libraries.len()
                     && day.libraries.iter().zip(&other.libraries).all(|(a, b)| {
                         a.vertices == b.vertices
-                            && a.triangles == b.triangles
-                            && a.walker == b.walker
+                            && a.faces == b.faces
                     });
                 let same_placements = day.placements == other.placements;
                 let same_box = day.levelmap_min == other.levelmap_min
@@ -366,13 +365,13 @@ fn every_world_reads_back_from_its_built_files() {
         let body = Body::default();
         let seeds = map.grid_seeds();
         let grid_key = mapdata::grid_key(&walker, area, mapdata::CELL, body, &seeds);
-        let bullet = map.bullet_triangles();
-        let sight_key = mapdata::sight_key(&bullet);
+        let bullet = map.bullet_mesh();
+        let sight_key = bullet.key();
         let grid_path = out.join(mapdata::built::grid_file_name(grid_key));
         let sight_path = out.join(mapdata::built::sight_file_name(sight_key));
         let t = Instant::now();
         let grid = WalkGrid::build_kept(&walker, area, mapdata::CELL, body, &seeds, &spawns_of(&map));
-        let sight = RayTree::build(&bullet);
+        let sight = bullet.build_tree();
         let build = t.elapsed().as_secs_f32();
         if !grid_path.is_file() {
             grid.write(&grid_path, grid_key).unwrap();

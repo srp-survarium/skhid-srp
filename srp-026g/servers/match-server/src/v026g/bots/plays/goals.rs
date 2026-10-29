@@ -255,7 +255,7 @@ impl Ctx<'_> {
         seen.iter().any(|&enemy| {
             (1..=steps).any(|k| {
                 let p = self.me.feet + (to - self.me.feet) * (k as f32 / steps as f32);
-                self.tactics.sees(still_eye(enemy, false), still_eye(p, false))
+                self.tactics.shot_reaches(self.tuning.cover.rule(), still_eye(enemy, false), still_eye(p, false))
             })
         })
     }
@@ -621,6 +621,34 @@ mod tests {
         // Stale: known 10 s ago.
         s.view.clock += 10_000;
         assert!(!s.cx(0).exposed_climb(up, anchor));
+    }
+
+    /// A crate of wood stops an enemy's sight but not his bullets: the danger test ("am I exposed to a known enemy")
+    /// goes by the bot's own cover rule (`Tuning::cover`, per team), and is the old sight test with it off.
+    #[test]
+    fn a_wooden_crate_is_no_cover_from_a_known_enemys_bullets_but_a_wall_to_his_sight() {
+        use crate::v026g::bots::know::Source;
+        use mapdata::{Armor, FaceArmor, RayTree, World};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let base = crate::v026g::bots::tactics::tests::field();
+        let (points, triangles) = mapdata::library::PrimitiveShape::Box { half: Vec3::new(0.3, 2.0, 2.0) }.tessellate();
+        let centre = Vec3::new(17.0, 2.0, 24.0);
+        let wood = FaceArmor::Material(Armor::new(0.1).unwrap());
+        let tree = RayTree::from_armored_corners(triangles.iter().map(|t| (t.map(|i| points[i as usize] + centre), wood)));
+        let world = std::sync::Arc::new(World::assemble(base.map.clone(), base.grid.clone(), tree.into()));
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        s.bot(0, 0, Vec3::new(14.0, 0.0, 24.0));
+        s.enemy(5, 1, Vec3::new(20.0, 0.0, 24.0), Some(Source::Seen));
+        // The crate shuts his sight.
+        let (him, me) = (Vec3::new(20.0, 1.6, 24.0), Vec3::new(14.0, 1.6, 24.0));
+        assert!(!s.tactics.sees(him, me));
+        // With the cover rule on (the default; a scenario's tuning has the options off) his bullets reach: exposed.
+        s.tuning.cover = crate::v026g::bots::tuning::CoverTuning::default();
+        assert!(s.tuning.cover.pierce.is_some());
+        assert_eq!(s.cx(0).exposed_to(25.0, 1000, 15.0), Some(5));
+        // This bot's tuning with the rule off: the crate is cover again, as it was.
+        s.tuning.cover.pierce = None;
+        assert_eq!(s.cx(0).exposed_to(25.0, 1000, 15.0), None);
     }
 
     #[test]
