@@ -137,9 +137,9 @@ impl OwnerTally {
     }
 
     /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
-    pub(crate) fn set_scoreboard(&mut self, context: String, human: Option<Place>, camper: Option<Place>) {
-        self.topic::<Feel>().set_human(context.clone(), human, camper);
-        self.topic::<Scoreboard>().set_context(context, human, camper);
+    pub(crate) fn set_scoreboard(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
+        self.topic::<Feel>().set_human(human, camper);
+        self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
@@ -318,7 +318,8 @@ impl Part {
 /// made-up cases.
 fn made_up(teams: &[u8]) -> (Game, OwnerTally) {
     let game = Game::new(super::soak_world(), teams, 1, None, None);
-    let tally = OwnerTally::new(teams.len());
+    let mut tally = OwnerTally::new(teams.len());
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
     (game, tally)
 }
 

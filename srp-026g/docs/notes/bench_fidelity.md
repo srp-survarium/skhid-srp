@@ -126,3 +126,18 @@ Two facts about the model that a reader of that file needs: the trap counters ex
   0.19, so no window fits: it is probably a share of the damage. The scoreboard prints `assists ... (UNCALIBRATED)`, a `score (without
   assists)` beside the score, and the assists a kill for 1, 2, 3, 5, 10 and 30 s. A margin uses kills and objective points (`h2h-compare.py`
   does), never the assists. To calibrate: find the original server's rule (recordings with per-hit damage and the players' assist counts).
+- **Work counters count every ray and the team that asked** (review 715): every ray of the bots' code goes through `bots/rays.rs`
+  (`visible`, `ray_cast`, `ray_hit`, `follow`: one function a kind of ray, so a new caller counts without a line of its own); the
+  commanders and the pending sliced search are counted for the team they run for; `shared` is what no team asked for.
+  The test `work_by_team` checks it on real bots (a made-up match cannot). Not counted: the tallies' own rays (they are the bench's) and
+  `flip_sample`'s.
+- **The top is PairUp's own rule** (`plays::pair_up::TopRule`, one function for the play and the counters): the stand-in human and camper
+  are ranked like the bots, and a stand-in who leads is counted in `top of team N` as well as in his own group. A missing number panics.
+- **Mode and score:** the scoreboard takes the match's mode from the bench (`day_<mode>`, never inferred; an unknown mode panics) and the
+  objective kinds from (mode, event). `score` has no assists; `score_with_assist_guess` is the guess.
+- **The unified hold is geometry only** (10 m, 60 degrees): the camper topic still counts a holder after one kill, the outcomes after two,
+  and the live 32 % flank share is after two (an-anticamper §2.5), so `camper_kills_off_lane` is not that number; the lane cone is still
+  15 degrees against the report's 20.
+- **Fairness coverage is the three `Ctx` accessors only.** About twenty readers of `memory.tracks()` (crossfire, flank, trade, retreat,
+  roam, collect, buddy, ambush, heal, escort, goals, sneak, resupply, intercept, commander, reflex) bypass the helper, so the share of
+  reads that are not fresh is the accessors', not the bots'. A later refactor: one `Ctx::tracks()` that calls the helper.

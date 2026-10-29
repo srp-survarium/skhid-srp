@@ -1,6 +1,6 @@
 //! The bench's deterministic work counters, by team (TEST ONLY: this module exists in test builds): how much a team's bots made the
 //! match-server do, counted by the thing done and not by the time it took, so that two arms of one bench compare on any machine
-//! (`traces-20261028/BENCH-DECISIONS.md` §1b, §2F). Counts only; the owner tally prints them (`tallies/owner/fairness.rs`).
+//! (`traces-20261028/BENCH-DECISIONS.md` §1b, §2F). Counts only; the owner tally prints them (`tests/tallies/owner/metrics.rs`).
 //!
 //! A poll says whose work it is doing ([`set`]): a bot's think and ticks are its team's, the commander's and the shared search
 //! slices are [`Who::Shared`], and outside a poll nothing is counted (the tally's own rays are not the bots').

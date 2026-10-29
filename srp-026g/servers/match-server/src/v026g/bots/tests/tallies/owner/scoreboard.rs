@@ -2,7 +2,7 @@
 //! ("an average player should be around 3rd in 10v10", `traces-20261028/BENCH-DECISIONS.md` §5) can be read off a bench run, by team.
 //!
 //! `scoreboard: <project> <N>v<N> seed S | place P team T kind bot|camper|human | kills K deaths D assists A streak B | events
-//! {id: count} | objective {kind: points} | score X`, and the same objects as `sums.scoreboard`.
+//! {id: count} | objective {kind: points} | score X (with the assist guess Y)`, and the same objects as `sums.owner.scoreboard`.
 //!
 //! - **kills, deaths, streak:** `game.stats` (the longest streak is the best seen at a tick).
 //! - **events** (the game's event ids, `static_info::event`): 0 kill; 1 assist; 2 death; 6 brought (100 hundredths: the stand-in's
@@ -14,8 +14,12 @@
 //!   [`ASSIST_MS`] before the kill. The live figure is 0.19 assists a kill (`bench-decision-metrics.md` §c): the share is printed beside
 //!   it and the window is the thing to move if it is far off.
 //! - **score:** `snapshot::score` with `static_info::score_weights(mode)`, the client's own sum of the events (the table is not
-//!   copied). The mode is the stand-in's: tickets mean Team Deathmatch, else batteries.
-//! - **objective points** by kind, with the same weights: `delivered` (events 6 and 20), `carrier_kill` (event 10).
+//!   copied), **with no assists** while their rule is UNCALIBRATED (a margin rests on kills and the objective); `score_with_assist_guess`
+//!   is the same with the guess. The live median score a minute (10.6) includes assists (0.13 a minute), headshots (15), steals (17) and
+//!   found (19), which the bench omits: compare with a live median with those taken out.
+//! - **mode:** the match's, given by the bench from the project it plays (`day_<mode>`), never inferred; an unknown mode panics.
+//! - **objective points** by kind and mode (`objective_kind`): in the batteries modes `delivered` (events 6 and 20) and `carrier_kill`
+//!   (event 10); in Research `capture` (6) and `kill_invader` (10).
 //! - **kind:** `human` the stand-in human (`SRP_BENCH_HUMAN`), `camper` the stand-in camper, else `bot`.
 
 use survarium::v026g::maps::mode;
@@ -62,6 +66,8 @@ pub(super) struct Scoreboard {
     context: String,
     human: Option<Place>,
     camper: Option<Place>,
+    /// The match's mode id (`maps::mode`), given by the bench from the project it plays: the scoreboard has no guess of it.
+    mode: Option<u8>,
     /// The hits of the last [`ASSIST_MS`]: tick, shooter, victim.
     hits: Vec<(u32, Place, Place)>,
     kills_seen: usize,
@@ -76,8 +82,9 @@ pub(super) struct Scoreboard {
 }
 
 impl Scoreboard {
-    pub(super) fn set_context(&mut self, context: String, human: Option<Place>, camper: Option<Place>) {
+    pub(super) fn set_context(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
         self.context = context;
+        self.mode = Some(mode);
         self.human = human;
         self.camper = camper;
     }
@@ -172,7 +179,8 @@ impl Topic for Scoreboard {
 
     fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         self.grow(game.bodies.len());
-        let game_mode = if game.tickets.is_some() { mode::TEAM_DEATHMATCH } else { mode::BATTERIES };
+        let game_mode = self.mode.expect("the scoreboard is given the match's mode (OwnerTally::set_scoreboard)");
+        assert!(mode::ALL.contains(&game_mode), "mode {game_mode} is not a mode of the game");
         let weights = static_info::score_weights(game_mode);
         let puts = |place: Place| game.put_in_log.iter().filter(|(p, _)| *p == place).count() as u32;
         let mut entries = Vec::new();
@@ -188,15 +196,20 @@ impl Topic for Scoreboard {
             set(BROUGHT, put_in * 100);
             set(CARRIER_KILL, carrier_kills);
             set(PUT_IN, put_in);
-            let score = snapshot::score(&stats, &weights);
-            // The same score with no assists, for a margin that does not rest on the uncalibrated rule.
+            let score_with_assist_guess = snapshot::score(&stats, &weights);
+            // The score proper has no assists while their rule is uncalibrated: a margin rests on kills and the objective.
             stats.events[ASSIST][0] = 0;
-            let score_without_assists = snapshot::score(&stats, &weights);
+            let score = snapshot::score(&stats, &weights);
             let points = |event: usize, count: u32| {
                 let hundredths = if static_info_hundredths(event) { 0.01 } else { 1.0 };
                 f64::from(count) * f64::from(weights[event]) * hundredths
             };
-            let delivered = points(BROUGHT, put_in * 100) + points(PUT_IN, put_in);
+            let mut objective: BTreeMap<&'static str, f64> = BTreeMap::new();
+            for (event, count) in [(BROUGHT, put_in * 100), (PUT_IN, put_in), (CARRIER_KILL, carrier_kills)] {
+                if let Some(kind) = objective_kind(game_mode, event) {
+                    *objective.entry(kind).or_default() += points(event, count);
+                }
+            }
             let events: BTreeMap<usize, u32> = [
                 (KILL, kills),
                 (ASSIST, assists),
@@ -217,10 +230,9 @@ impl Topic for Scoreboard {
                 assists,
                 streak: self.best_streak[place],
                 events,
-                delivered,
-                carrier_kill: points(CARRIER_KILL, carrier_kills),
+                objective,
                 score,
-                score_without_assists,
+                score_with_assist_guess,
             });
         }
         let json = serde_json::json!({ "scoreboard": entries.iter().map(Entry::json).collect::<Vec<_>>() });
@@ -232,9 +244,9 @@ impl Topic for Scoreboard {
                 let mine = entries.iter().filter(|e| e.team == team);
                 let mine: Vec<&Entry> = mine.collect();
                 format!(
-                    "team {team} score {} (without assists {})",
+                    "team {team} score {} (with the assist guess {})",
                     mine.iter().map(|e| e.score).sum::<u32>(),
-                    mine.iter().map(|e| e.score_without_assists).sum::<u32>()
+                    mine.iter().map(|e| e.score_with_assist_guess).sum::<u32>()
                 )
             })
             .collect();
@@ -246,6 +258,18 @@ impl Topic for Scoreboard {
             WINDOWS_S.iter().zip(self.by_window).map(|(w, n)| (*w, if kills > 0 { (100.0 * f64::from(n) / f64::from(kills)).round() / 100.0 } else { 0.0 })).collect::<Vec<_>>()
         ));
         vec![("scoreboard", Part::new(json, lines.join("\n  ")))]
+    }
+}
+
+/// What kind of objective points a score event is in a mode (none: not objective). In the batteries modes a bring or a put in is a
+/// delivery and the death of a carrier a carrier kill; in Research a capture is event 6 and the kill of an invader event 10.
+fn objective_kind(game_mode: u8, event: usize) -> Option<&'static str> {
+    match (game_mode, event) {
+        (mode::BATTERIES | mode::TIMED_BATTERIES, BROUGHT | PUT_IN) => Some("delivered"),
+        (mode::BATTERIES | mode::TIMED_BATTERIES, CARRIER_KILL) => Some("carrier_kill"),
+        (mode::RESEARCH, BROUGHT) => Some("capture"),
+        (mode::RESEARCH, CARRIER_KILL) => Some("kill_invader"),
+        _ => None,
     }
 }
 
@@ -264,18 +288,19 @@ struct Entry {
     assists: u32,
     streak: u32,
     events: BTreeMap<usize, u32>,
-    /// Points of the objective by kind, in the score's units.
-    delivered: f64,
-    carrier_kill: f64,
+    /// Points of the objective by kind (`objective_kind`), in the score's units.
+    objective: BTreeMap<&'static str, f64>,
+    /// The game's score of the events with no assists, which are UNCALIBRATED.
     score: u32,
-    score_without_assists: u32,
+    /// The same with the assist guess.
+    score_with_assist_guess: u32,
 }
 
 impl Entry {
     fn line(&self, context: &str) -> String {
         let events: Vec<String> = self.events.iter().map(|(id, count)| format!("{id}: {count}")).collect();
         format!(
-            "scoreboard: {context} | place {} team {} kind {} | kills {} deaths {} assists {} (UNCALIBRATED) streak {} | events {{{}}} | objective {{delivered: {:.1}, carrier_kill: {:.1}}} | score {} (without assists {})",
+            "scoreboard: {context} | place {} team {} kind {} | kills {} deaths {} assists {} (UNCALIBRATED) streak {} | events {{{}}} | objective {} | score {} (with the assist guess {})",
             self.place,
             self.team,
             self.kind.name(),
@@ -284,10 +309,9 @@ impl Entry {
             self.assists,
             self.streak,
             events.join(", "),
-            self.delivered,
-            self.carrier_kill,
+            self.objective.iter().map(|(kind, points)| format!("{kind} {points:.1}")).collect::<Vec<_>>().join(", "),
             self.score,
-            self.score_without_assists
+            self.score_with_assist_guess
         )
     }
 
@@ -301,9 +325,9 @@ impl Entry {
             "assists": self.assists,
             "streak": self.streak,
             "events": self.events,
-            "objective": { "delivered": self.delivered, "carrier_kill": self.carrier_kill },
+            "objective": self.objective,
             "score": self.score,
-            "score_without_assists": self.score_without_assists,
+            "score_with_assist_guess": self.score_with_assist_guess,
         })
     }
 }
@@ -336,7 +360,7 @@ pub(crate) fn a_players_line_is_the_games_own_score_of_what_he_did() {
     assert_eq!(board[0]["events"]["10"], 1);
     assert_eq!(board[0]["objective"]["delivered"], f64::from(weights[BROUGHT]) + f64::from(weights[PUT_IN]));
     // Bot 1 hit the victim of his teammate within the window: one assist (5).
-    assert_eq!((board[1]["assists"].as_u64(), board[1]["score"].as_u64()), (Some(1), Some(5)));
+    assert_eq!((board[1]["assists"].as_u64(), board[1]["score"].as_u64(), board[1]["score_with_assist_guess"].as_u64()), (Some(1), Some(0), Some(5)));
     // The dead enemy scores nothing, and the kinds are bot.
     assert_eq!((board[2]["deaths"].as_u64(), board[2]["score"].as_u64()), (Some(1), Some(0)));
     assert_eq!(board[0]["kind"], "bot");

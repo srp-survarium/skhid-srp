@@ -172,20 +172,14 @@ pub fn sight_line(sight: &RayTree, from: Vec3, to: Vec3) -> bool {
 
 fn visible(sight: &RayTree, from: Vec3, to: Vec3) -> bool {
     #[cfg(test)]
-    {
-        RAYS.with(|r| r.set(r.get() + 1));
-        super::bench_work::add(super::bench_work::Work::Rays, 1);
-    }
-    sight.visible(from, to)
+    RAYS.with(|r| r.set(r.get() + 1));
+    super::rays::visible(sight, from, to)
 }
 
 fn ray_cast(sight: &RayTree, from: Vec3, dir: Vec3, max_t: f32) -> Option<f32> {
     #[cfg(test)]
-    {
-        RAYS.with(|r| r.set(r.get() + 1));
-        super::bench_work::add(super::bench_work::Work::Rays, 1);
-    }
-    sight.ray_cast(from, dir, max_t)
+    RAYS.with(|r| r.set(r.get() + 1));
+    super::rays::ray_cast(sight, from, dir, max_t)
 }
 
 /// Whether some part of `body` shows from `eye`, in

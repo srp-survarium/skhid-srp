@@ -91,9 +91,8 @@ impl Engage {
 
 #[derive(Default)]
 pub(super) struct Metrics {
-    /// The thread's counts when the match began (the tally's first tick).
-    reads0: Option<fairness::Counts>,
-    work0: Option<bench_work::Totals>,
+    /// The thread's counts and the tick when the match began (the tally's first tick).
+    start: Option<Baseline>,
     /// By place: the bot has a live sight of an enemy now (read before the tick's bodies).
     sighted: Vec<bool>,
     engage: Vec<Engage>,
@@ -107,8 +106,14 @@ pub(super) struct Metrics {
     dealt: [f64; 2],
     taken: [f64; 2],
     other: [f64; 2],
-    /// The tick the match's first and last count were made.
-    first_tick: Option<u32>,
+}
+
+/// What the thread had counted when the match began.
+#[derive(Clone, Copy)]
+struct Baseline {
+    reads: fairness::Counts,
+    work: bench_work::Totals,
+    tick: u32,
 }
 
 impl Metrics {
@@ -143,9 +148,7 @@ impl Topic for Metrics {
 
     fn begin(&mut self, _run: &Run, game: &mut Game) {
         self.grow(game.bodies.len());
-        self.reads0.get_or_insert_with(fairness::counts);
-        self.work0.get_or_insert_with(bench_work::totals);
-        self.first_tick.get_or_insert(game.tick);
+        self.start.get_or_insert_with(|| Baseline { reads: fairness::counts(), work: bench_work::totals(), tick: game.tick });
     }
 
     fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
@@ -171,7 +174,8 @@ impl Topic for Metrics {
         for (place, body) in game.bodies.iter().enumerate() {
             let team = usize::from(body.team & 1);
             if let Some(last) = self.health[place] {
-                let lost = f64::from((last - body.health).max(0.0));
+                // A death tick can leave the health below nothing: a body loses at most what it had.
+                let lost = f64::from((last - body.health.max(0.0)).max(0.0));
                 if lost > 0.0 {
                     self.taken[team] += lost;
                     let shooters: Vec<Place> =
@@ -190,7 +194,7 @@ impl Topic for Metrics {
     }
 
     fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
-        let seconds = f64::from(game.tick.saturating_sub(self.first_tick.unwrap_or(game.tick))) / 1000.0;
+        let seconds = f64::from(game.tick.saturating_sub(self.start.map_or(game.tick, |start| start.tick))) / 1000.0;
         vec![
             ("fairness", self.reads_part()),
             ("reaction", self.reaction_part()),
@@ -220,7 +224,7 @@ pub(super) fn round3(x: f64) -> f64 {
 impl Metrics {
     fn reads_part(&self) -> Part {
         let now = fairness::counts();
-        let before = self.reads0.unwrap_or(now);
+        let before = self.start.map_or(now, |start| start.reads);
         const SITES: [&str; fairness::SITES] = ["place", "near", "threats"];
         const BASES: [&str; fairness::BASES] = ["fresh", "stale", "hud", "cheat"];
         let delta = |team: usize, site: usize, basis: usize| now[team][site][basis] - before[team][site][basis];
@@ -307,7 +311,7 @@ impl Metrics {
 
     fn work_part(&self, seconds: f64) -> Part {
         let now = bench_work::totals();
-        let before = self.work0.unwrap_or(now);
+        let before = self.start.map_or(now, |start| start.work);
         const NAMES: [(&str, Work); bench_work::KINDS] =
             [("floors", Work::Floors), ("rays", Work::Rays), ("spots", Work::Spots), ("plays", Work::Plays)];
         let per_s = |row: usize, work: Work| {

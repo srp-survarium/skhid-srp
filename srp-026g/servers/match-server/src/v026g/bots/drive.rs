@@ -74,7 +74,7 @@ struct BlastAround<'a> {
 
 impl grenade_threat::Surroundings for BlastAround<'_> {
     fn sees(&self, from: Vec3, to: Vec3) -> bool {
-        !self.veil.hides(from, to) && self.tactics.world.sight.visible(from, to)
+        !self.veil.hides(from, to) && super::rays::visible(&self.tactics.world.sight, from, to)
     }
 
     fn way_out(

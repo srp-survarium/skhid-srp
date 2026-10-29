@@ -166,7 +166,7 @@ pub const BODY_NOTE_M: f32 = 1.0;
 /// [`FLOOR_BELOW_M`].
 pub fn floor_under(mesh: &mapdata::RayTree, at: Vec3) -> Option<f32> {
     let from = at + Vec3::new(0.0, 0.2, 0.0);
-    mesh.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), FLOOR_BELOW_M)
+    super::rays::ray_cast(mesh, from, Vec3::new(0.0, -1.0, 0.0), FLOOR_BELOW_M)
         .map(|t| from.y - t)
 }
 

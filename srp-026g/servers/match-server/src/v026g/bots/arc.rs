@@ -144,7 +144,7 @@ pub struct Mesh<'a>(pub &'a RayTree);
 
 impl Ground for Mesh<'_> {
     fn cast(&self, from: Vec3, dir: Vec3, max_t: f32) -> Option<Hit> {
-        let hit = self.0.ray_hit(from, dir, max_t)?;
+        let hit = super::rays::ray_hit(self.0, from, dir, max_t)?;
         Some(Hit {
             t: hit.t,
             normal: hit.normal,

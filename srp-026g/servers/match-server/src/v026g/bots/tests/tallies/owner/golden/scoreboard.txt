@@ -1,10 +1,10 @@
-scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5 (without assists 0)
-  scoreboard:  | place 1 team 0 kind bot | kills 0 deaths 0 assists 4 (UNCALIBRATED) streak 0 | events {1: 4} | objective {delivered: 0.0, carrier_kill: 0.0} | score 20 (without assists 0)
-  scoreboard:  | place 2 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5 (without assists 0)
-  scoreboard:  | place 3 team 1 kind bot | kills 0 deaths 0 assists 2 (UNCALIBRATED) streak 0 | events {1: 2} | objective {delivered: 0.0, carrier_kill: 0.0} | score 10 (without assists 0)
-  scoreboard:  | place 4 team 1 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5 (without assists 0)
-  scoreboard:  | place 5 team 1 kind bot | kills 0 deaths 0 assists 2 (UNCALIBRATED) streak 0 | events {1: 2} | objective {delivered: 0.0, carrier_kill: 0.0} | score 10 (without assists 0)
-  owner-test scoreboard: team 0 score 30 (without assists 0), team 1 score 25 (without assists 0); assists UNCALIBRATED 11 of 0 kills = 0.00 a kill (live 0.19; the rule is a GUESS: a teammate's hit within 10 s, not used in a margin); a kill's assists by window (s): [(1, 0.0), (2, 0.0), (3, 0.0), (5, 0.0), (10, 0.0), (30, 0.0)]
+scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 5)
+  scoreboard:  | place 1 team 0 kind bot | kills 0 deaths 0 assists 4 (UNCALIBRATED) streak 0 | events {1: 4} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 20)
+  scoreboard:  | place 2 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 5)
+  scoreboard:  | place 3 team 1 kind bot | kills 0 deaths 0 assists 2 (UNCALIBRATED) streak 0 | events {1: 2} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 10)
+  scoreboard:  | place 4 team 1 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATED) streak 0 | events {1: 1} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 5)
+  scoreboard:  | place 5 team 1 kind bot | kills 0 deaths 0 assists 2 (UNCALIBRATED) streak 0 | events {1: 2} | objective carrier_kill 0.0, delivered 0.0 | score 0 (with the assist guess 10)
+  owner-test scoreboard: team 0 score 0 (with the assist guess 30), team 1 score 0 (with the assist guess 25); assists UNCALIBRATED 11 of 0 kills = 0.00 a kill (live 0.19; the rule is a GUESS: a teammate's hit within 10 s, not used in a margin); a kill's assists by window (s): [(1, 0.0), (2, 0.0), (3, 0.0), (5, 0.0), (10, 0.0), (30, 0.0)]
 {
   "scoreboard": [
     {
@@ -20,8 +20,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 0,
-      "score": 5,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 5,
       "streak": 0,
       "team": 0
     },
@@ -38,8 +38,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 1,
-      "score": 20,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 20,
       "streak": 0,
       "team": 0
     },
@@ -56,8 +56,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 2,
-      "score": 5,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 5,
       "streak": 0,
       "team": 0
     },
@@ -74,8 +74,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 3,
-      "score": 10,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 10,
       "streak": 0,
       "team": 1
     },
@@ -92,8 +92,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 4,
-      "score": 5,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 5,
       "streak": 0,
       "team": 1
     },
@@ -110,8 +110,8 @@ scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 (UNCALIBRATE
         "delivered": 0.0
       },
       "place": 5,
-      "score": 10,
-      "score_without_assists": 0,
+      "score": 0,
+      "score_with_assist_guess": 10,
       "streak": 0,
       "team": 1
     }

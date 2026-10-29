@@ -4,7 +4,7 @@
 //!
 //! [`read`] is the helper: a play, a threat job, a grenade or a trap that takes an enemy's position from a [`Track`] calls it with
 //! the bot's team where it reads one. It counts only (in test builds; a live build has an empty function), by the bot's team and by
-//! the basis of the position. The owner tally prints the counts (`tallies/owner/fairness.rs`).
+//! the basis of the position. The owner tally prints the counts (`tests/tallies/owner/metrics.rs`).
 //!
 //! A read is **fresh** when the track's source is the team's own senses (sight, hearing, a teammate's word) and was sensed within
 //! [`UNSEEN_MS`]. Else it rests on an old sense (**stale**), on what a human's HUD shows (the kill feed gives a cone, not a point:
@@ -63,6 +63,7 @@ thread_local! {
 
 /// A decision of a bot of `team` read `track`'s position at `now`.
 #[cfg(test)]
+#[inline(always)]
 pub fn read(team: u8, site: Site, track: &Track, now: u32) {
     let basis = Basis::of(track, now);
     COUNTS.with(|c| {
@@ -73,6 +74,7 @@ pub fn read(team: u8, site: Site, track: &Track, now: u32) {
 }
 
 #[cfg(not(test))]
+#[inline(always)]
 pub fn read(_: u8, _: Site, _: &Track, _: u32) {}
 
 /// The counts so far on this thread.

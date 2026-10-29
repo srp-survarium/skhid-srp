@@ -106,6 +106,17 @@ impl Bots {
     /// Detour's path queue goes on with its head): its answer to its bot,
     /// for its next tick. Dropped when its bot left or the hazards changed.
     pub(super) fn go_on_searching(&mut self) {
+        // TEST ONLY: the work counters count the pending search for the team of the bot it is for.
+        #[cfg(test)]
+        if let Some(team) = self.features.searching.pending.as_ref().and_then(|p| self.bots.get(p.place)?.as_ref()).map(|bot| bot.team) {
+            super::bench_work::set(super::bench_work::Who::Team(team));
+        }
+        self.go_on_searching_inner();
+        #[cfg(test)]
+        super::bench_work::set(super::bench_work::Who::Shared);
+    }
+
+    fn go_on_searching_inner(&mut self) {
         let Some(mut pending) = self.features.searching.pending.take() else {
             return;
         };

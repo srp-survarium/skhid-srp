@@ -100,6 +100,7 @@ mod unclear_aim;
 mod walkway;
 mod weapon_class;
 mod weapon_data;
+mod work_by_team;
 mod world_facts;
 mod zone_runs;
 

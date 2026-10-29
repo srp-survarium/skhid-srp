@@ -100,6 +100,7 @@ mod layers;
 #[cfg(test)]
 pub mod pair_counts;
 mod polls;
+pub mod rays;
 #[cfg(test)]
 pub mod route_twins;
 mod search;
@@ -1722,7 +1723,11 @@ impl Bots {
         if self.tactics.is_some() {
             for team in 0..2u8 {
                 if self.commander_due(team, &clock, &view) {
+                    #[cfg(test)]
+                    bench_work::set(bench_work::Who::Team(team));
                     self.commander(team, &view, &mut notes);
+                    #[cfg(test)]
+                    bench_work::set(bench_work::Who::Shared);
                 }
             }
         }
