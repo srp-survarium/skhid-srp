@@ -6,12 +6,18 @@
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,
+      "grenade_chance": 0.15,
       "grenade_claim": false,
+      "grenade_friend_m": 6.0,
       "grenade_kit_cap": false,
+      "grenade_land_m": 12.0,
+      "grenade_lead_s": 4.0,
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_search": false,
+      "grenade_track_chance": 0.08,
       "grenade_tracks": false,
+      "grenade_wall_m": 18.0,
       "hit_cover_reach": false,
       "worth": {
         "hurt_from": "body"
@@ -77,6 +83,7 @@
     "jump_snap": "any"
   },
   "kit": {
+    "frags": "off",
     "pocket_store": false
   },
   "sense": {
