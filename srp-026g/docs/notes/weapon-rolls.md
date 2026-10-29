@@ -44,8 +44,8 @@ the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCom
 - The stock aim-time bar (prop 133) takes the weapon's 102 rolls: 133 x max(0, 1 + sum)
   (`ItemCompare.MODIFIED_BY`).
 - A chambering row (prop 160, `parameters/chamber_a_round_time`, carried by
-  weapon-details-ui-1 on the 11 bolt and pump weapons that have it): the weapon's own time, then
-  with its rolls when they change it (`1.33s » 1.13s`); lower is better. Beside a compared weapon
+  weapon-details-ui-1 on the 11 bolt and pump weapons that have it): the time with its rolls
+  (`1.13s`), as every other row (the owner, 2026-10-29); lower is better. Beside a compared weapon
   with one, a weapon without one shows a dash, so the rows stay aligned. Label
   `st_srp_weapon_chamber`.
 - Only the weapon's own modifications (with its defaults), never the player's.
