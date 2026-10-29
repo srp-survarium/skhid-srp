@@ -1,68 +1,63 @@
 package survarium.player
 {
+   import flash.display.Bitmap;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.display.Sprite;
-   import flash.text.TextField;
-   import flash.text.TextFieldAutoSize;
+   import flash.geom.Rectangle;
+   import panel_fla.WeightContainer_44;
    import survarium.data.LocalizationData;
 
-   // The kit's movement speed, a second indicator left of the weight: its own
-   // word ("Speed") and value in the weight's label and value styles, and its own
-   // tooltip with the speed's parts. Hidden when the exe gives no speed.
+   // The kit's movement speed: a box of its own left of the weight's, the same
+   // kind of box. Its frame is the weight's (WeightFrame), its word and value a
+   // second copy of the weight's own symbol, so they have the weight label's and
+   // value's fonts, sizes, colours and baseline; its own tooltip with the speed's
+   // parts covers the whole box. Hidden when the exe gives no speed.
    public class SpeedIndicator
    {
-      // The gap that separates it from the weight, and its label from its value.
-      private static const GAP:Number = 22;
-      private static const SPACE:Number = 6;
-      private var _widget:MovieClip;
-      private var _label:TextField;
-      private var _value:TextField;
-      private var _hover:Sprite;
+      // Where the original's graphics put playerWeight on its frame (the frame's
+      // shape at 397,851 in the profile, playerWeight at 419.45,856).
+      private static const WIDGET_X:Number = 22.45;
+      private static const WIDGET_Y:Number = 5;
+      // The frame's opaque box in its bitmap (around it, the shadow).
+      private static const BOX:Rectangle = new Rectangle(11,0,155,43);
+      private var _box:Sprite;
+      private var _widget:WeightContainer_44;
       private var _tip:WeightTip;
-      public function SpeedIndicator(widget:MovieClip)
+      // `weight`: the weight's widget, in its place on its frame.
+      public function SpeedIndicator(weight:MovieClip)
       {
-         _widget = widget;
-         _label = field(widget.textFieldLabel,"speedLabel");
-         _value = field(widget.textFieldValue,"speedValue");
-         _hover = new Sprite();
-         _hover.name = "speedTip";
+         var frame:Bitmap = new Bitmap(new WeightFrame());
+         _box = new Sprite();
+         _box.name = "speed";
+         _box.addChild(frame);
+         _widget = new WeightContainer_44();
+         _widget.x = WIDGET_X;
+         _widget.y = WIDGET_Y;
+         _widget.progress_indicator.visible = false;
+         _box.addChild(_widget);
+         var hover:Sprite = new Sprite();
          _tip = new WeightTip();
-         _hover.addChild(_tip);
-         widget.addChild(_label);
-         widget.addChild(_value);
-         widget.addChild(_hover);
+         _tip.graphics.beginFill(0,0.01);
+         _tip.graphics.drawRect(BOX.x,BOX.y,BOX.width,BOX.height);
+         _tip.graphics.endFill();
+         hover.addChild(_tip);
+         _box.addChild(hover);
+         // Its frame beside the weight's, on the weight's row, under the same panels.
+         _box.x = weight.x - WIDGET_X - frame.width;
+         _box.y = weight.y - WIDGET_Y;
+         var panel:DisplayObjectContainer = weight.parent;
+         panel.addChildAt(_box,panel.getChildIndex(weight));
          _tip.validateNow();
-      }
-      private static function field(like:TextField, name:String) : TextField
-      {
-         var f:TextField = new TextField();
-         f.name = name;
-         f.selectable = false;
-         f.mouseEnabled = false;
-         f.embedFonts = like.embedFonts;
-         f.defaultTextFormat = like.getTextFormat();
-         f.multiline = false;
-         f.wordWrap = false;
-         f.autoSize = TextFieldAutoSize.RIGHT;
-         return f;
       }
       public function update(speed:SpeedExplanation) : void
       {
-         var shown:Boolean = speed != null;
-         _label.visible = _value.visible = _hover.visible = shown;
+         _box.visible = speed != null;
          _tip.updateEffects(speed);
-         if(!shown) return;
-         _label.text = LocalizationData.getName("st_srp_speed_label");
-         _value.styleSheet = MainScene.textStyleSheet;
-         _value.text = speed.value;
-         _value.x = -GAP - _value.width;
-         _value.y = _widget.textFieldValue.y;
-         _label.x = _value.x - SPACE - _label.width;
-         _label.y = _widget.textFieldLabel.y;
-         _tip.graphics.clear();
-         _tip.graphics.beginFill(0,0.01);
-         _tip.graphics.drawRect(_label.x,0,-GAP - _label.x,_widget.height);
-         _tip.graphics.endFill();
+         if(speed == null) return;
+         _widget.textFieldLabel.text = LocalizationData.getName("st_srp_speed_label");
+         _widget.textFieldValue.styleSheet = MainScene.textStyleSheet;
+         _widget.textFieldValue.text = speed.value;
       }
    }
 }

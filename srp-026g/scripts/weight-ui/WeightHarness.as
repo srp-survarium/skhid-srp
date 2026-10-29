@@ -10,6 +10,8 @@ package {
   private var domain:ApplicationDomain;
   private var widgets:Array=[], indicators:Array=[];
   private var Effects:Object, Tip:Class, Loc:Object, Icons:Object;
+  // The inventory's own profile panel, for the speed box's place in it (off the stage's view).
+  private var profile:Object;
   private var frame:int=0;
   private var overlay:Sprite=new Sprite();
   public function WeightHarness() {
@@ -21,7 +23,7 @@ package {
   }
   private function require(ok:Boolean,why:String):void {if(!ok)throw new Error(why);}
   // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock key it reads.
-  private function texts(language:String):Object {var t:Object={btn_friends:"Friends"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];return t;}
+  private function texts(language:String):Object {var t:Object={btn_friends:"Friends"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];for(k in HarnessText.STOCK[language])t[k]=HarnessText.STOCK[language][k];return t;}
   private function label(s:String,x:Number,y:Number):void {var t:TextField=new TextField();t.defaultTextFormat=new TextFormat("Arial",18,0xBCCBCB);t.text=s;t.x=x;t.y=y;t.width=800;t.height=40;addChild(t);}
   private function loaded(e:Event):void {
    try {
@@ -41,11 +43,16 @@ package {
     var Widget:Class=domain.getDefinition("panel_fla.WeightContainer_44") as Class;
     var Indicator:Class=domain.getDefinition("survarium.player.WeightIndicator") as Class;
     label("Coral slowdown warning — native game tooltip",30,24);
+    // Two a row: each weight with its speed box (a frame wide) to its left.
     for(var i:int=0;i<4;i++) {
-     var w:Object=new Widget();w.x=40+i*225;w.y=620;addChild(w as DisplayObject);widgets.push(w);
+     var w:Object=new Widget();w.x=240+i%2*460;w.y=530+int(i/2)*100;addChild(w as DisplayObject);widgets.push(w);
      indicators.push(new Indicator(w));
-     label(["20 kg, skills and bonuses","25 kg: slowed","30 kg: carry limit","Heavyweight"][i],w.x,575);
+     label(["20 kg, skills and bonuses","25 kg: slowed","30 kg: carry limit","Heavyweight"][i],w.x-200,w.y-40);
     }
+    var Profile:Class=domain.getDefinition("SrvLocalPlayerProfile") as Class;
+    profile=new Profile();profile.x=-2000;
+    profile.setAmmoShare(domain.getDefinition("survarium.ammo.AmmoShareLite").getInstance());
+    addChild(profile as DisplayObject);stage.invalidate();
     addChild(overlay);
     addEventListener(Event.ENTER_FRAME,tick);
    } catch(e:Error){finish("setup: "+e+" "+e.getStackTrace());}
@@ -136,20 +143,56 @@ package {
    require(Effects.parse(-.2,1.5,0,0,0).withItems(-1,0).speedExplanation.total==0,"never below zero");
    var fast:Object=Effects.parse(0,0,0,.03,0).withItems(.04,0);
    indicators[0].update(20,30,fast);
-   var label:TextField=speedPart(0,"speedLabel"),value:TextField=speedPart(0,"speedValue");
-   require(label.visible && label.text.replace(/\s+$/,"")=="Speed","its own word: "+label.text);
+   var speed:Object=speedWidget(0),weight:Object=widgets[0];
+   var label:TextField=speed.textFieldLabel,value:TextField=speed.textFieldValue;
+   require(speedBox(0).visible && label.text.replace(/\s+$/,"")=="Speed","its own word: "+label.text);
    require(value.text.replace(/\s+$/,"")=="107%" && value.getTextFormat(0,1).color==0x7FC24B,"107%, green above the base: "+value.text);
-   require(label.x+label.width<=value.x && value.x+value.width<=-12,"its own item, apart from the weight");
-   require(label.getTextFormat(0,1).font==widgets[0].textFieldLabel.getTextFormat(0,1).font && label.getTextFormat(0,1).size==widgets[0].textFieldLabel.getTextFormat(0,1).size,"the weight label's style");
-   require(widgets[0].textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
+   require(speed is (domain.getDefinition("panel_fla.WeightContainer_44") as Class) && !speed.progress_indicator.visible,"the weight's own symbol, without the weight's bar");
+   for each(var pair:Array in [[label,weight.textFieldLabel],[value,weight.textFieldValue]]) {
+    var f:TextFormat=pair[0].getTextFormat(0,1),g:TextFormat=pair[1].getTextFormat(0,1);
+    require(f.font==g.font && f.size==g.size && f.bold==g.bold && pair[0].embedFonts==pair[1].embedFonts && pair[0].filters.length==pair[1].filters.length,"the weight's text style: "+pair[0].name);
+    require(pair[0].localToGlobal(new Point()).y==pair[1].localToGlobal(new Point()).y,"on the weight's baseline: "+pair[0].name);
+   }
+   require(label.getTextFormat(0,1).color==weight.textFieldLabel.getTextFormat(0,1).color,"the weight label's colour");
+   // Its frame is the weight's, one frame width left of the weight's: the same place on it.
+   var frame:Bitmap=speedBox(0).getChildAt(0) as Bitmap;
+   require(frame.bitmapData.width==177 && frame.bitmapData.height==47,"the weight's frame");
+   var at:Point=speed.localToGlobal(new Point()),home:Point=weight.localToGlobal(new Point());
+   require(at.x==home.x-177 && at.y==home.y,"beside the weight, on its row: "+at+" "+home);
+   var hover:Rectangle=speedTip(0).getBounds(speedBox(0)),words:Rectangle=speed.getBounds(speedBox(0));
+   require(hover.containsRect(words) && hover.width>=150,"its tooltip covers the whole box: "+hover);
+   require(weight.textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
    indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(0,0));
-   require(speedPart(0,"speedValue").text.indexOf("90%")>=0 && speedPart(0,"speedValue").getTextFormat(0,1).color==0xF18A78,"slower than base: coral");
+   require(speedWidget(0).textFieldValue.text.indexOf("90%")>=0 && speedWidget(0).textFieldValue.getTextFormat(0,1).color==0xF18A78,"slower than base: coral");
    indicators[0].update(20,30,Effects.parse(0,0,0));
-   require(!speedPart(0,"speedLabel").visible && !speedPart(0,"speedValue").visible,"an old exe shows no speed");
+   require(!speedBox(0).visible,"an old exe shows no speed");
    indicators[0].update(20,30,fast);
   }
-  private function speedPart(i:int,name:String):TextField {var f:TextField=widgets[i].getChildByName(name) as TextField;if(f==null)throw new Error("no "+name);return f;}
-  private function speedTip(i:int):Object {return widgets[i].getChildByName("speedTip").getChildAt(0);}
+  // The speed's box: right under its weight in the weight's parent; its frame, its copy of the weight's symbol, its tooltip.
+  private function speedBox(i:int):Sprite {var p:DisplayObjectContainer=widgets[i].parent;var b:Sprite=p.getChildAt(p.getChildIndex(widgets[i])-1) as Sprite;if(b==null||b.name!="speed")throw new Error("no speed box");return b;}
+  private function speedWidget(i:int):Object {return speedBox(i).getChildAt(1);}
+  private function speedTip(i:int):Object {return speedTipOf(speedBox(i));}
+  // In the inventory's profile, in `language`: the speed's box apart from the Autobuy box's text, the boots slot
+  // and the weight's frame, inside the panel; its word apart from its value.
+  private function checkProfileRow(language:String):void {
+   var p:DisplayObjectContainer=profile as DisplayObjectContainer;
+   // The profile took the texts before this language (LocalizationData.addCallback calls it once then):
+   // its next kit update puts the speed's word in.
+   profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
+   var box:Sprite=p.getChildByName("speed") as Sprite;require(box!=null && box.visible,"the profile's speed box: "+language);
+   var area:Rectangle=speedTipOf(box).getBounds(p);
+   var autobuy:Object=profile.checkbox_autobuy;autobuy.validateNow();var text:TextField=autobuy.textField;
+   require(text.text==HarnessText.STOCK[language].autobuy_button_label,"Autobuy's text: "+language+" "+text.text);
+   var autobuyRight:Number=text.localToGlobal(new Point(text.textWidth+4,0)).x-p.localToGlobal(new Point()).x;
+   require(autobuyRight<=area.left,"apart from Autobuy: "+language+" "+autobuyRight+" "+area);
+   require(!area.intersects(profile.profileItems.slotFoot.getBounds(p)),"apart from the boots: "+language);
+   require(area.right<=profile.playerWeight.x && area.left>=0,"left of the weight, inside the panel: "+language+" "+area);
+   var words:Object=box.getChildAt(1),sl:TextField=words.textFieldLabel,sv:TextField=words.textFieldValue;
+   require(sl.text==HarnessText.DATA[language].st_srp_speed_label,"translated word: "+language);
+   require(sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"its word apart from its value: "+language+" "+sl.text+" "+sv.text);
+   trace("SPEED ROW "+language+": Autobuy text ends at "+autobuyRight.toFixed(1)+", box "+area+", word "+sl.textWidth.toFixed(1)+" + value "+sv.textWidth.toFixed(1)+" of "+(sv.x+sv.width-sl.x).toFixed(1));
+  }
+  private function speedTipOf(box:Sprite):DisplayObject {return (box.getChildAt(2) as Sprite).getChildAt(0);}
   private function show(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));}
   private function hide(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));}
   private function rendered():Object {
@@ -167,6 +210,9 @@ package {
     if(frame==20) {
      require(Effects.parse(NaN,NaN,NaN)==null,"old callback remains unknown");
      require(Effects.parse(-.1,.75,99)==null,"invalid sprint state refused");
+     // The paper doll's ammo control is the lobby's; the profile's weight callback refreshes it.
+     profile.paperDoll.ammoControl=new (domain.getDefinition("survarium.ammo.AmmoShareControll") as Class)();
+     profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
      for(var i:int=0;i<4;i++)widgets[i].textFieldLabel.text="Weight";
      indicators[0].update(20,30,Effects.parse(0,0,0));
      checkSpeed();
@@ -214,8 +260,9 @@ package {
       for each(var entry:Object in target(2).tipData.effects.rows())require(entry.label.indexOf("undefined")<0 && entry.label.indexOf("#st_")<0 && entry.label.indexOf("%1$s")<0,"localized explanation: "+language+" "+entry.label);
       require(target(2).tipData.effects.rows()[0].label.indexOf("-20")>=0,"value in the translated line: "+language);
       indicators[0].refresh();
-      var sl:TextField=speedPart(0,"speedLabel"),sv:TextField=speedPart(0,"speedValue");
-      require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+sl.width<=sv.x && sv.x+sv.width<=-12,"speed item: "+language+" "+sl.text+" "+sv.text);
+      var sl:TextField=speedWidget(0).textFieldLabel,sv:TextField=speedWidget(0).textFieldValue;
+      require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"speed item: "+language+" "+sl.text+" "+sv.text);
+      checkProfileRow(language);
       require(speedTip(0).tipData.effects.title.indexOf("107%")>=0,"speed heading: "+language);
       for each(var part:Object in speedTip(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#st_")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
      }
