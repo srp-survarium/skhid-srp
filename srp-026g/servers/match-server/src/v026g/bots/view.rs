@@ -38,7 +38,7 @@ use super::live_grenades::{
     LiveGrenade, LAUNCH_MS, Phase, Pocketed, Pockets, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
 };
 use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
-use survarium::v026g::match_msgs::grenades::GrenadeBody;
+use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
 use crate::v026g::drive::key;
 
 /// A body this far over or under another is not beside it, metres.
@@ -796,43 +796,76 @@ impl Tracker {
     }
 
     /// The launched grenades a trusted world shows (`match_msgs::grenades`): a smoke's cloud is put where its body
-    /// really is (on the floor under it), in place of the arc's prediction. The body is the throw's whose blast is
-    /// its blast (the press + the fuse, the world's on the 50 ms grid), the nearest predicted centre among ties. The
-    /// latest sighting wins: a grenade still rolling is placed where it was then. One note for the first sighting
-    /// of each cloud, and for any later one that moves it [`super::smoke::BODY_NOTE_M`] or more.
+    /// lies (on the floor under it), in place of the arc's prediction, once the body is at rest ([`Motion::Resting`]):
+    /// a body still flying or rolling is not where it stops, and the arc's rest stands. Which throw a body is: one
+    /// already placed by its id, else the throw (smoke cloud or frag) whose blast is its blast within
+    /// [`super::smoke::BLAST_MATCH_MS`], the nearest predicted rest among ties; a frag's body moves no cloud. A later
+    /// resting sighting of the same body wins. One note for the first placing of each cloud, and for any later one
+    /// that moves it [`super::smoke::BODY_NOTE_M`] or more.
     pub fn grenade_bodies(&mut self, bodies: &[GrenadeBody], world: Option<&World>, time: u32) {
+        use super::smoke::{BLAST_MATCH_MS, BODY_NOTE_M, Placed};
         for body in bodies {
-            let at = Vec3::from_array(body.position);
-            let Some(cloud) = self
+            if body.motion != Motion::Resting {
+                continue;
+            }
+            let at = Vec3::from_array(body.place.0);
+            let near = |blast: u32| blast.abs_diff(body.blast.0) <= BLAST_MATCH_MS;
+            let by_id = self
                 .clouds
-                .iter_mut()
-                .filter(|c| c.pours.0.abs_diff(body.explode_ms) <= super::smoke::BLAST_MATCH_MS)
-                .min_by(|a, b| a.centre.distance_xz(at).total_cmp(&b.centre.distance_xz(at)))
-            else {
+                .iter()
+                .position(|c| matches!(c.placed, Placed::Seen { id, .. } if id == body.id));
+            let index = by_id.or_else(|| {
+                // The nearest predicted rest among the throws going off then: a cloud's, or a frag's (none).
+                let cloud = self
+                    .clouds
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.placed == Placed::Arc && near(c.pours.0))
+                    .map(|(i, c)| (Some(i), c.centre.distance_xz(at)))
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                let frag = self
+                    .grenades
+                    .iter()
+                    .filter(|g| near(g.blast_at()))
+                    .filter_map(|g| match g.phase {
+                        Phase::Flying { rest, .. } => Some((None::<usize>, rest.distance_xz(at))),
+                        Phase::Pressed => None,
+                    })
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                match (cloud, frag) {
+                    (Some(c), Some(f)) if f.1 < c.1 => None,
+                    (c, _) => c.and_then(|c| c.0),
+                }
+            });
+            let Some(cloud) = index.and_then(|i| self.clouds.get_mut(i)) else {
                 continue;
             };
             let floor = world.and_then(|world| super::smoke::floor_under(&world.sight, at));
             let centre = floor.map_or(at, |y| Vec3::new(at.x, y, at.z));
             let moved = cloud.centre.distance_xz(centre);
-            let first = cloud.placed == super::smoke::Placed::Arc;
+            let first = cloud.placed == Placed::Arc;
             let team = usize::from(cloud.team & 1);
             if first {
+                // The arc's error, against a resting body only.
                 self.smoke_counts.bodies_seen[team] += 1;
                 self.smoke_counts.moved_dm[team] += (moved * 10.0).round() as u32;
             }
-            if first || moved >= super::smoke::BODY_NOTE_M {
+            if first || moved >= BODY_NOTE_M {
                 self.notes.push(format!(
-                    "smoke cloud by player {} put on its grenade seen at ({:.1}, {:.1}, {:.1}) moving {:.1} m/s in the world at {time} ms: {moved:.1} m from {}",
+                    "smoke cloud by player {} put on its grenade {} at rest at ({:.1}, {:.1}, {:.1}) in the world at {time} ms: {moved:.1} m from {}",
                     cloud.by,
+                    body.id.0,
                     at.x,
                     at.y,
                     at.z,
-                    body.speed(),
                     if first { "the arc's rest" } else { "its last sighting" },
                 ));
             }
             cloud.centre = centre;
-            cloud.placed = super::smoke::Placed::Seen { world_ms: time };
+            cloud.placed = Placed::Seen {
+                world_ms: time,
+                id: body.id,
+            };
         }
     }
 
@@ -840,6 +873,12 @@ impl Tracker {
     #[cfg(test)]
     pub fn add_cloud(&mut self, cloud: Cloud) {
         self.clouds.push(cloud);
+    }
+
+    /// The clouds, to change one (tests).
+    #[cfg(test)]
+    pub fn clouds_mut_for_test(&mut self) -> &mut [Cloud] {
+        &mut self.clouds
     }
 
     /// An input of `place` for the tick `time` (a human's as relayed, a

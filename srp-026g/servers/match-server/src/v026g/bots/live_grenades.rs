@@ -433,9 +433,9 @@ mod tests {
     }
 
     #[test]
-    fn a_world_that_shows_the_smoke_grenade_puts_its_cloud_where_the_grenade_is() {
+    fn a_world_that_shows_the_smoke_grenade_at_rest_puts_its_cloud_where_the_grenade_is() {
         use crate::v026g::bots::smoke::Placed;
-        use survarium::v026g::match_msgs::grenades::GrenadeBody;
+        use survarium::v026g::match_msgs::grenades::{BlastMs, GrenadeBody, GrenadeId, Motion, Velocity, WorldPoint};
         let world = floor_world();
         let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
         let mut tracker = stand(Some(pockets));
@@ -444,24 +444,66 @@ mod tests {
         tracker.launch_grenades(2_100, Some(&*world));
         let predicted = tracker.clouds()[0];
         assert_eq!(predicted.placed, Placed::Arc);
-        let body = |explode_ms, at: [f32; 3]| GrenadeBody {
-            explode_ms,
-            id: 7,
-            position: at,
-            velocity: [0.1, 0.0, 0.0],
+        let body = |blast, id, at: [f32; 3], motion| GrenadeBody {
+            blast: BlastMs(blast),
+            id: GrenadeId(id),
+            place: WorldPoint(at),
+            motion,
         };
-        // Another grenade's blast (a frag thrown 2 s later): not this cloud.
-        tracker.grenade_bodies(&[body(predicted.pours.0 + 2_000, [3.0, 0.4, 20.0])], Some(&*world), 4_000);
+        // Another grenade's blast (2 s later): not this cloud.
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 2_000, 8, [3.0, 0.4, 20.0], Motion::Resting)], Some(&*world), 4_000);
         assert_eq!(tracker.clouds()[0], predicted);
-        // Its own, on the 50 ms grid 50 ms after the press's fuse, 0.4 m over the floor 6 m off the arc's rest.
+        // Its own, still flying at 15 m/s: the arc's rest stands (a moving body is not where it stops).
+        let flying = Motion::Moving(Velocity([15.0, 0.0, 0.0]));
         let seen = [predicted.centre.x + 6.0, 0.4, predicted.centre.z];
-        tracker.grenade_bodies(&[body(predicted.pours.0 + 50, seen)], Some(&*world), 4_000);
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 50, 7, seen, flying)], Some(&*world), 3_000);
+        assert_eq!(tracker.clouds()[0], predicted);
+        // At rest, on the 50 ms grid 50 ms after the press's fuse, 0.4 m over the floor 6 m off the arc's rest.
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 50, 7, seen, Motion::Resting)], Some(&*world), 4_000);
         let cloud = tracker.clouds()[0];
-        assert_eq!(cloud.placed, Placed::Seen { world_ms: 4_000 });
+        assert_eq!(cloud.placed, Placed::Seen { world_ms: 4_000, id: GrenadeId(7) });
         assert!((cloud.centre.x - seen[0]).abs() < 1e-4 && cloud.centre.y.abs() < 1e-3, "{cloud:?}");
         let counts = tracker.smoke_counts();
         assert_eq!((counts.bodies_seen, counts.moved_dm), ([0, 1], [0, 60]));
-        assert!(tracker.take_notes().iter().any(|n| n.contains("put on its grenade")));
+        assert!(tracker.take_notes().iter().any(|n| n.contains("put on its grenade 7 at rest")));
+        // A later sighting of the same body (it rolled on 1.5 m) follows it by its id; the arc's error is not counted again.
+        let rolled = [seen[0] + 1.5, 0.4, seen[2]];
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 50, 7, rolled, Motion::Resting)], Some(&*world), 5_000);
+        assert!((tracker.clouds()[0].centre.x - rolled[0]).abs() < 1e-4);
+        assert_eq!(tracker.smoke_counts().moved_dm, [0, 60]);
+    }
+
+    #[test]
+    fn a_frag_going_off_with_the_smoke_keeps_its_own_body_from_the_smokes_cloud() {
+        use crate::v026g::bots::smoke::Placed;
+        use survarium::v026g::match_msgs::grenades::{BlastMs, GrenadeBody, GrenadeId, Motion, WorldPoint};
+        let world = floor_world();
+        // The bot throws a frag and the human a smoke at once: both go off at press + 4 s, 50 ms apart.
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
+        let mut tracker = stand(Some(pockets));
+        press(&mut tracker, 0, 1_000, key::GRENADE);
+        press(&mut tracker, 1, 1_050, key::GRENADE);
+        press(&mut tracker, 0, 1_100, 0);
+        press(&mut tracker, 1, 1_150, 0);
+        tracker.launch_grenades(2_200, Some(&*world));
+        let cloud = tracker.clouds()[0];
+        let Phase::Flying { rest: frag_rest, .. } = tracker.live_grenades()[0].phase else {
+            panic!("{:?}", tracker.live_grenades());
+        };
+        // The frag's body, at rest beside the frag's predicted rest, its blast within 100 ms of the smoke's.
+        let frag_body = GrenadeBody {
+            blast: BlastMs(cloud.pours.0 - 50),
+            id: GrenadeId(9),
+            place: WorldPoint([frag_rest.x + 0.3, 0.2, frag_rest.z]),
+            motion: Motion::Resting,
+        };
+        // Both stand at the origin facing +z: the two rests are near; move the smoke's prediction off by 4 m so the
+        // frag's body is nearer the frag's rest.
+        let mut moved = cloud;
+        moved.centre.x += 4.0;
+        tracker.clouds_mut_for_test()[0] = moved;
+        tracker.grenade_bodies(&[frag_body], Some(&*world), 4_000);
+        assert_eq!(tracker.clouds()[0].placed, Placed::Arc, "the frag's body moved the smoke");
     }
 
     #[test]

@@ -18,6 +18,8 @@
 
 use mapdata::Vec3;
 
+use survarium::v026g::match_msgs::grenades::GrenadeId;
+
 use super::arc::Grenade;
 use super::view::Place;
 
@@ -150,8 +152,8 @@ impl SmokeGrenade {
 pub enum Placed {
     /// The arc model's rest from the thrower's view at the launch (`arc.rs`: median 2 m off, P80 8 m).
     Arc,
-    /// The grenade's body as a trusted world showed it (`match_msgs::grenades`), the world's time.
-    Seen { world_ms: u32 },
+    /// The grenade's body at rest as a trusted world showed it (`match_msgs::grenades`): the world's time, the body.
+    Seen { world_ms: u32, id: GrenadeId },
 }
 
 /// A world's grenade is a cloud's when its blast is the cloud's within this, ms (the world's blast time is the press

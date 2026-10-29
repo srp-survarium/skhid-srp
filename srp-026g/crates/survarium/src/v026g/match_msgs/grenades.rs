@@ -18,7 +18,7 @@
 //!
 //! Found by what it looks like, not walked: the transform's closing `1.0` is searched for (record offset 9 + 60), then
 //! the state byte 3, a blast time after the world's and at most a fuse ahead, a transform whose rotation rows have
-//! length 1, and a sane place and speed.
+//! length 1, and a sane place and speed. Parsed once into [`GrenadeBody`]: its blast, id, place and [`Motion`].
 
 /// A launched grenade's bytes in the objects section.
 pub const RECORD_LEN: usize = 97;
@@ -26,25 +26,53 @@ pub const RECORD_LEN: usize = 97;
 /// A blast this far after the world at most, ms: the longest fuse of the game data (4000) and a margin.
 pub const FUSE_MOST_MS: u32 = 4_200;
 
+/// A body slower than this is at rest, m/s: Bullet's linear sleeping threshold (`btRigidBodyConstructionInfo::
+/// m_linearSleepingThreshold`, 0.8 by default; PROVEN in Bullet's source, the game's grenade on the default LIKELY: no
+/// sleeping threshold is set in its config). Faster, it is still flying or rolling, and its place is not where it
+/// stops.
+pub const RESTING_MPS: f32 = 0.8;
+
+/// The match ms a grenade goes off at (its press + its fuse, on the 50 ms grid): the key to the throw the server saw.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BlastMs(pub u32);
+
+/// The game's id of a grenade object (a number that grows through the match).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GrenadeId(pub u32);
+
+/// A place in the world, metres (the game's frame: y up).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldPoint(pub [f32; 3]);
+
+/// A velocity, metres a second (the game's frame).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Velocity(pub [f32; 3]);
+
+impl Velocity {
+    /// Its speed, metres a second.
+    pub fn speed(self) -> f32 {
+        let [x, y, z] = self.0;
+        (x * x + y * y + z * z).sqrt()
+    }
+}
+
+/// How a grenade's body moves in a world.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Motion {
+    /// Under [`RESTING_MPS`]: where it lies is where it goes off (P95 2.7 m later).
+    Resting,
+    /// Flying or rolling: where it is now is not where it stops.
+    Moving(Velocity),
+}
+
 /// One launched grenade of a world.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GrenadeBody {
-    /// The match ms it goes off at (the press + its fuse): the key to the throw the server saw.
-    pub explode_ms: u32,
-    /// The game's id of the grenade object.
-    pub id: u32,
-    /// Where the body is (the transform's place), world metres.
-    pub position: [f32; 3],
-    /// How it moves, metres a second.
-    pub velocity: [f32; 3],
-}
-
-impl GrenadeBody {
-    /// Its speed, metres a second.
-    pub fn speed(&self) -> f32 {
-        let [x, y, z] = self.velocity;
-        (x * x + y * y + z * z).sqrt()
-    }
+    pub blast: BlastMs,
+    pub id: GrenadeId,
+    /// Where the body is (the transform's place).
+    pub place: WorldPoint,
+    pub motion: Motion,
 }
 
 fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
@@ -61,8 +89,8 @@ fn record_at(objects: &[u8], at: usize, world_ms: u32) -> Option<GrenadeBody> {
     if record[0] != 3 {
         return None;
     }
-    let explode_ms = u32_at(record, 1)?;
-    if explode_ms < world_ms || explode_ms > world_ms.saturating_add(FUSE_MOST_MS) {
+    let blast = u32_at(record, 1)?;
+    if blast < world_ms || blast > world_ms.saturating_add(FUSE_MOST_MS) {
         return None;
     }
     let id = u32_at(record, 5)?;
@@ -79,14 +107,22 @@ fn record_at(objects: &[u8], at: usize, world_ms: u32) -> Option<GrenadeBody> {
             return None;
         }
     }
-    let position = [m[12], m[13], m[14]];
+    let place = [m[12], m[13], m[14]];
     let velocity = [f32_at(record, 73)?, f32_at(record, 77)?, f32_at(record, 81)?];
     let sane = |v: &[f32; 3], most: f32| v.iter().all(|x| x.is_finite() && x.abs() <= most);
-    (sane(&position, 2000.0) && sane(&velocity, 60.0)).then_some(GrenadeBody {
-        explode_ms,
-        id,
-        position,
-        velocity,
+    if !(sane(&place, 2000.0) && sane(&velocity, 60.0)) {
+        return None;
+    }
+    let velocity = Velocity(velocity);
+    Some(GrenadeBody {
+        blast: BlastMs(blast),
+        id: GrenadeId(id),
+        place: WorldPoint(place),
+        motion: if velocity.speed() < RESTING_MPS {
+            Motion::Resting
+        } else {
+            Motion::Moving(velocity)
+        },
     })
 }
 
@@ -115,13 +151,18 @@ pub fn find(objects: &[u8], world_ms: u32) -> Vec<GrenadeBody> {
 mod tests {
     use super::*;
 
-    fn record(state: u8, explode_ms: u32, position: [f32; 3], velocity: [f32; 3]) -> Vec<u8> {
+    fn bytes(hex: &str) -> Vec<u8> {
+        (0..hex.trim().len() / 2)
+            .map(|i| u8::from_str_radix(&hex.trim()[2 * i..2 * i + 2], 16).unwrap())
+            .collect()
+    }
+
+    fn record(state: u8, blast: u32, place: [f32; 3], velocity: [f32; 3]) -> Vec<u8> {
         let mut out = vec![state];
-        out.extend(explode_ms.to_le_bytes());
+        out.extend(blast.to_le_bytes());
         out.extend(4858_u32.to_le_bytes());
         let matrix = [
-            1.0_f32, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, position[0], position[1], position[2],
-            1.0,
+            1.0_f32, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, place[0], place[1], place[2], 1.0,
         ];
         for v in matrix.into_iter().chain(velocity).chain([0.1, 0.0, -0.2]) {
             out.extend(v.to_le_bytes());
@@ -130,35 +171,46 @@ mod tests {
         out
     }
 
-    /// The bench match 13766414's grenade 4858 (`fx-smoke-rest-source.md` 2): at rest at (14.35, 19.47, 20.32) a
-    /// second before its blast at 288.9 s, between an unthrown grenade's one byte, one in the hand (9 bytes) and a
-    /// trap.
+    /// Two saved bench worlds (`pvb-final-local/worlds`, match 13766414, bot grenades): at 125,100 ms a grenade lies at
+    /// rest (0.18 m/s) at (2.478, 21.795, -72.466), going off at 125,700; at 271,900 one flies at 11.7 m/s through
+    /// (41.325, 20.387, -40.0), going off at 273,900.
     #[test]
-    fn a_launched_grenade_is_found_among_other_objects_with_its_place_and_speed() {
+    fn two_saved_worlds_give_a_grenade_at_rest_and_one_in_flight() {
+        let rest = find(&bytes(include_str!("grenades_world_rest.hex")), 125_100);
+        assert_eq!(rest.len(), 1, "{rest:?}");
+        assert_eq!((rest[0].blast, rest[0].id, rest[0].motion), (BlastMs(125_700), GrenadeId(1645), Motion::Resting));
+        let [x, y, z] = rest[0].place.0;
+        assert!((x - 2.478).abs() < 1e-3 && (y - 21.795).abs() < 1e-3 && (z + 72.466).abs() < 1e-3);
+        let fast = find(&bytes(include_str!("grenades_world_fast.hex")), 271_900);
+        assert_eq!(fast.len(), 1, "{fast:?}");
+        assert_eq!((fast[0].blast, fast[0].id), (BlastMs(273_900), GrenadeId(4379)));
+        let Motion::Moving(v) = fast[0].motion else {
+            panic!("{fast:?}");
+        };
+        assert!((v.speed() - 11.73).abs() < 0.01);
+    }
+
+    #[test]
+    fn a_launched_grenade_is_found_among_other_objects_with_its_place_and_motion() {
         let mut objects = vec![0u8, 2];
         objects.extend(288_900_u32.to_le_bytes());
         objects.extend(17_u32.to_le_bytes());
         objects.extend(record(3, 288_900, [14.35, 19.47, 20.32], [0.05, 0.0, 0.02]));
+        objects.extend(record(3, 289_400, [1.0, 2.0, 3.0], [15.0, 0.0, 0.0]));
         objects.extend([0u8; 3]);
         let found = find(&objects, 288_000);
-        assert_eq!(found.len(), 1, "{found:?}");
-        let g = found[0];
-        assert_eq!((g.explode_ms, g.id), (288_900, 4858));
-        assert!((g.position[0] - 14.35).abs() < 1e-4 && (g.position[2] - 20.32).abs() < 1e-4);
-        assert!(g.speed() < 0.6);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!((found[0].blast, found[0].id, found[0].motion), (BlastMs(288_900), GrenadeId(4858), Motion::Resting));
+        assert_eq!(found[1].motion, Motion::Moving(Velocity([15.0, 0.0, 0.0])));
     }
 
     #[test]
     fn a_blown_or_stale_record_and_a_trap_are_not_grenades() {
         // Blown (bit2), or its blast before the world, or more than a fuse ahead.
-        for (state, explode, world) in [(7, 288_900, 288_000), (3, 287_000, 288_000), (3, 293_000, 288_000)] {
-            assert!(find(&record(state, explode, [1.0, 2.0, 3.0], [0.0; 3]), world).is_empty());
+        for (state, blast, world) in [(7, 288_900, 288_000), (3, 287_000, 288_000), (3, 293_000, 288_000)] {
+            assert!(find(&record(state, blast, [1.0, 2.0, 3.0], [0.0; 3]), world).is_empty());
         }
         // The live world of `traps.rs` (two placed traps, no grenade).
-        let hex = include_str!("traps_world.hex");
-        let bytes: Vec<u8> = (0..hex.trim().len() / 2)
-            .map(|i| u8::from_str_radix(&hex.trim()[2 * i..2 * i + 2], 16).unwrap())
-            .collect();
-        assert!(find(&bytes, 254_600).is_empty());
+        assert!(find(&bytes(include_str!("traps_world.hex")), 254_600).is_empty());
     }
 }

@@ -231,7 +231,9 @@ pub fn look_parts(
     if smoke { PartsLook::Smoke } else { PartsLook::Hidden }
 }
 
-/// [`any_part_visible`] for a body with its feet at `feet`.
+/// [`any_part_visible`] for a body with its feet at `feet`, on the bullet mesh alone (tests and the bench's
+/// stand-in, which model a human's eyes; a bot's go through [`look_parts`]).
+#[cfg(test)]
 pub fn shows(
     eye: Vec3,
     feet: Vec3,
