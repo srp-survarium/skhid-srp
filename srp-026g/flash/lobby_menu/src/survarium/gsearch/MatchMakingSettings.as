@@ -19,9 +19,9 @@ package survarium.gsearch
    import survarium.constants.CharCode;
    import survarium.constants.ClanState;
    import survarium.constants.GameMode;
-   import survarium.constants.Language;
    import survarium.constants.MessageId;
    import survarium.constants.PvbCode;
+   import survarium.rooms.RoomsText;
    
    public class MatchMakingSettings extends MovieClip
    {
@@ -55,37 +55,21 @@ package survarium.gsearch
       // pvbWhy's "no reason": the player may start a bot match
       public static const PVB_WHY_NONE:int = -1;
       
-      // the words of pvbWords (pvbText keys; PVB_WHY_* are some of them too)
-      public static const PVB_WORD_TITLE:int = 0;
-      
-      public static const PVB_WORD_HINT:int = 1;
-      
-      public static const PVB_WORD_VS:int = 2;
-      
-      public static const PVB_WORD_BUSY:int = 3;
-      
-      public static const PVB_WORD_GEAR_MUST_BE:int = 4;
-      
-      public static const PVB_WORD_OR_LOWER:int = 5;
-      
-      public static const PVB_WORD_YOURS:int = 6;
-      
-      public static const PVB_WORD_CLOSE:int = 7;
-      
-      // PvbCode.IN_SQUAD..OFF have their words at PVB_WORD_REASONS + code (8..12)
-      public static const PVB_WORD_REASONS:int = 6;
-      
-      public static const PVB_WORD_AT_LIMIT:int = 13;
-      
-      public static const PVB_WORD_TRY_LATER:int = 14;
-      
-      public static const PVB_WORD_MAINTENANCE:int = 15;
-      
-      public static const PVB_WORD_CLAN_MATCH:int = 16;
-      
-      public static const PVB_WORD_UNKNOWN_CHOICE:int = 21;
-      
-      public static const PVB_WORD_DEMO_START:int = 22;
+      // the words (dictionary keys) of a PvbCode or a PVB_WHY_* reason (pvbReasonText)
+      public static const PVB_REASONS:Object = {
+         "2":"st_srp_pvb_in_squad",
+         "3":"st_srp_pvb_searching",
+         "4":"st_srp_pvb_in_match",
+         "5":"st_srp_pvb_outdated",
+         "6":"st_srp_pvb_off",
+         "8":"st_srp_pvb_maintenance",
+         "9":"st_srp_pvb_clan_match",
+         "10":"st_srp_pvb_unknown_choice",
+         "17":"st_srp_pvb_checking",
+         "18":"st_srp_pvb_no_answer",
+         "19":"st_srp_pvb_retry",
+         "20":"st_srp_pvb_generic"
+      };
       
       // a bot match's start request: PVB_CHOOSE + size * PVB_SIZE_STEP + map (the server's B2 rows)
       public static const PVB_SIZE_STEP:int = 1000;
@@ -183,8 +167,6 @@ package survarium.gsearch
       
       protected var pvbOn:Boolean;
       
-      protected var pvbLang:int;
-      
       protected var pvbCode:int;
       
       protected var pvbGear:int;
@@ -234,8 +216,6 @@ package survarium.gsearch
       protected var pvbDemoRows:Array;
       
       protected var pvbDemoAt:int;
-      
-      protected var pvbWordsCache:Array;
       
       public function MatchMakingSettings()
       {
@@ -563,8 +543,7 @@ package survarium.gsearch
             {
                return;
             }
-            this.pvbLang = this.pvbFindLang();
-            this.pvbRadio.label = this.pvbText(MatchMakingSettings.PVB_WORD_TITLE).toUpperCase();
+            this.pvbRadio.label = LocalizationData.getName("st_srp_pvb_title").toUpperCase();
             this.pvbFillMenus(true);
             this.pvbButtons();
             this.pvbLabel();
@@ -598,105 +577,17 @@ package survarium.gsearch
          }
       }
       
-      protected function pvbFindLang() : int
-      {
-         var word:String = LocalizationData.getName("btn_friends");
-         if(word == "Друзі")
-         {
-            return Language.UK;
-         }
-         if(word == "Друзья")
-         {
-            return Language.RU;
-         }
-         if(word == "Freunde")
-         {
-            return Language.DE;
-         }
-         if(word == "Znajomi")
-         {
-            return Language.PL;
-         }
-         if(word == "Prijatelji")
-         {
-            return Language.SR;
-         }
-         if(word == "Přátelé")
-         {
-            return Language.CS;
-         }
-         if(word == "Barátok")
-         {
-            return Language.HU;
-         }
-         if(word == "Kaverit")
-         {
-            return Language.FI;
-         }
-         if(word == "Сябры")
-         {
-            return Language.BE;
-         }
-         return Language.EN;
-      }
-      
-      protected function pvbWords() : Array
-      {
-         var words:Array = [["Player vs Bots","Гравець проти ботів","Игрок против ботов","Spieler vs. Bots","Gracz z botami", "Igrač protiv botova", "Hráč proti botům", "Játékos a botok ellen", "Pelaaja vastaan botit", "Гулец супраць ботаў"],["A match against bots, with bots on your team too","Бій проти ботів, у вашій команді теж боти","Бой против ботов, в вашей команде тоже боты","Ein Match gegen Bots, auch in deinem Team spielen Bots","Rozgrywka z botami, w twojej drużynie też są boty", "Meč protiv botova, sa botovima i u tvom timu", "Zápas proti botům, s boty i ve tvém týmu", "Meccs botok ellen, a saját csapatodban is botokkal", "Ottelu botteja vastaan, myös omassa joukkueessasi on botteja", "Бой супраць ботаў, у вашай камандзе таксама боты"],[" vs "," на "," на "," vs. "," na ", " protiv ", " proti ", " ellen ", " vastaan ", " на "],[" (busy)"," (зайнято)"," (занято)"," (belegt)"," (zajęte)", " (zauzeto)", " (obsazeno)", " (foglalt)", " (varattu)", " (занята)"],["Equipment level must be ","Рівень спорядження має бути ","Уровень снаряжения должен быть ","Ausrüstung Niveau muss ","Poziom wyposażenia musi wynosić ", "Nivo opreme mora biti ", "Úroveň vybavení musí být ", "A felszerelés szintje legfeljebb ", "Varusteiden tason on oltava ", "Узровень рыштунку павінен быць "],[" or lower"," або нижче"," или ниже"," oder niedriger sein"," lub mniej", " ili niži", " nebo nižší", " lehet", " tai alempi", " або ніжэй"],[" (yours: "," (у вас: "," (у вас: "," (deins: "," (twój: ", " (tvoj nivo: ", " (tvoje: ", " (a tiéd: ", " (omasi: ", " (у вас: "],[")",")",")",")",")", ")", ")", ")", ")", ")"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд","Verlasse zuerst deine Abteilung","Najpierw opuść brygadę", "Prvo napusti odred", "Nejdřív opusť četu", "Előbb lépj ki az osztagból", "Poistu ensin ryhmästä", "Спачатку пакіньце атрад"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab"
-         ,"Najpierw przerwij wyszukiwanie", "Prvo prekini pretragu", "Nejdřív zruš hledání", "Előbb állítsd le a keresést", "Lopeta ensin haku", "Спачатку скасуйце пошук"],["You are already in a match","Ви вже в матчі","Вы уже в матче","Du bist bereits in einem Match","Jesteś już w rozgrywce", "Već si u meču", "Už jsi v zápase", "Már meccsben vagy", "Olet jo ottelussa", "Вы ўжо ў матчы"],["Update your game","Оновіть гру","Обновите игру","Aktualisiere dein Spiel","Zaktualizuj grę", "Ažuriraj igru", "Aktualizuj hru", "Frissítsd a játékot", "Päivitä peli", "Абнавіце гульню"],["Matches with bots are switched off now","Матчі з ботами зараз вимкнені","Матчи с ботами сейчас отключены","Matches mit Bots sind gerade abgeschaltet","Rozgrywki z botami są teraz wyłączone", "Mečevi protiv botova su trenutno isključeni", "Zápasy s boty jsou teď vypnuté", "A botmeccsek most ki vannak kapcsolva", "Bottiottelut ovat nyt pois käytöstä", "Матчы з ботамі зараз адключаныя"],["The most bot matches at a time are already running","Уже йде найбільше матчів з ботами одночасно","Уже идёт максимум матчей с ботами одновременно","Die Höchstzahl an Bot-Matches läuft bereits","Trwa już maksymalna liczba rozgrywek z botami", "Već je pokrenut najveći dozvoljeni broj mečeva protiv botova", "Už běží maximální počet zápasů s boty", "Már elindult a megengedett legtöbb botmeccs", "Bottiotteluita on jo enimmäismäärä käynnissä", "Ужо ідзе максімум матчаў з ботамі адначасова"],[", try again in a minute",", спробуйте за хвилину",", попробуйте через минуту",", versuche es in einer Minute erneut",", spróbuj ponownie za minutę", ", pokušaj ponovo za minut", ", zkus to za minutu", ", próbáld újra egy perc múlva", ", yritä uudelleen minuutin kuluttua", ", паспрабуйце праз хвіліну"],["Maintenance starts soon, no new bot matches","Скоро технічне обслуговування, нові матчі з ботами не почнуться","Скоро техническое обслуживание, новые матчи с ботами не начнутся"
-         ,"Die Wartung beginnt bald, keine neuen Bot-Matches","Wkrótce konserwacja, nowe rozgrywki z botami nie wystartują", "Održavanje uskoro počinje, nema novih mečeva protiv botova", "Brzy začne údržba, nové zápasy s boty se nespustí", "Hamarosan karbantartás, nem indul új botmeccs", "Huolto alkaa pian, uusia bottiotteluita ei aloiteta", "Хутка тэхнічнае абслугоўванне, новыя матчы з ботамі не пачнуцца"],["Switch off \"Clan match\" first","Спершу вимкніть \"Клановий бій\"","Сначала отключите \"Клановый бой\"","Schalte zuerst \"Clan Kampf\" ab","Najpierw wyłącz \"Bitwa klanowa\"", "Prvo isključi \"Klanski meč\"", "Nejdřív vypni „Klanový zápas“", "Előbb kapcsold ki a „Klánmeccs” opciót", "Poista ensin klaaniottelu käytöstä", "Спачатку адключыце \"Кланавы бой\""],["Checking…","Перевірка…","Проверка…","Prüfung…","Sprawdzanie…", "Provera…", "Kontrola…", "Ellenőrzés…", "Tarkistetaan…", "Праверка…"],["No answer from the server","Сервер не відповідає","Сервер не отвечает","Keine Antwort vom Server","Brak odpowiedzi serwera", "Server ne odgovara", "Server neodpovídá", "A szerver nem válaszol", "Palvelin ei vastaa", "Сервер не адказвае"],["No answer, try again","Немає відповіді, спробуйте ще","Нет ответа, попробуйте ещё","Keine Antwort, erneut versuchen","Brak odpowiedzi, spróbuj ponownie", "Nema odgovora, pokušaj ponovo", "Žádná odpověď, zkus to znovu", "Nincs válasz, próbáld újra", "Ei vastausta, yritä uudelleen", "Няма адказу, паспрабуйце яшчэ"],["A bot match cannot start now","Матч з ботами зараз почати не можна","Матч с ботами сейчас начать нельзя","Ein Bot-Match kann gerade nicht starten","Rozgrywka z botami nie może teraz wystartować", "Meč protiv botova trenutno ne može da počne", "Zápas s boty teď nelze spustit", "Most nem indítható botmeccs", "Bottiottelua ei voi aloittaa nyt", "Матч з ботамі зараз пачаць нельга"],["This map or team size is not available now","Ця карта чи розмір команд зараз недоступні","Эта карта или размер команд сейчас недоступны","Diese Karte oder Teamgröße ist gerade nicht verfügbar"
-         ,"Ta mapa lub wielkość drużyn jest teraz niedostępna", "Ova mapa ili veličina tima trenutno nije dostupna", "Tato mapa nebo velikost týmu teď není dostupná", "Ez a pálya vagy csapatméret most nem érhető el", "Tämä kartta tai joukkuekoko ei ole nyt saatavilla", "Гэтая карта або памер каманд зараз недаступныя"],["Demo: the server would start the match now: ","Демо: сервер зараз почав би матч: ","Демо: сервер сейчас начал бы матч: ","Demo: der Server würde das Match jetzt starten: ","Demo: serwer uruchomiłby teraz rozgrywkę: ", "Demo: server bi sada pokrenuo meč: ", "Demo: server by teď spustil zápas: ", "Demó: a szerver most elindítaná a meccset: ", "Demo: palvelin aloittaisi nyt ottelun: ", "Дэма: сервер зараз пачаў бы матч: "]];
-         return words;
-      }
-      
-      protected function pvbText(key:int) : String
-      {
-         var row:Array = null;
-         if(!this.pvbWordsCache)
-         {
-            this.pvbWordsCache = this.pvbWords();
-         }
-         row = this.pvbWordsCache[key] as Array;
-         var text:String = null;
-         if(row)
-         {
-            text = row[this.pvbLang] as String;
-            if(!text)
-            {
-               text = row[0] as String;
-            }
-         }
-         if(!text)
-         {
-            text = "";
-         }
-         return text;
-      }
-      
       protected function pvbLevelName(level:int) : String
       {
-         var names:Array = [null,["Rudnya","Рудня","Рудня","Rudnya","Rudnia", "Rudnja", "Rudňa", "Rudnya", "Rudnja", "Рудня"],["School","Школа","Школа","Schule","Szkoła", "Škola", "Škola", "Iskola", "Koulu", "Школа"],["Vostok Radar Station","РЛС \"Восток\"","РЛС \"Восток\"","RS Vostok","Stacja Radarowa \"Vostok\"", "Radarska stanica Vostok", "Radarová stanice Vostok", "Vosztok radarállomás", "Vostokin tutka-asema", "РЛС \"Восток\""],["Chemical Plant","Хімзавод","Химзавод","Chemiebetrieb","Zakłady chemiczne", "Hemijska fabrika", "Chemička", "Vegyi üzem", "Kemiantehdas", "Хімзавод"],["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów", "Tarakanovski fort", "Tarakanovská pevnost", "Tarakanovi erőd", "Tarakanovin linnoitus", "Тараканаўскі форт"],["Mamayev Kurgan","Мамаїв курган","Мамаев курган","Mamaew kurgan","Kurhan Mamaja", "Mamajev kurgan", "Mamajova mohyla", "Mamajev-kurgán", "Mamajevin kurgaani", "Мамаеў курган"],["Vector Laboratory","Лабораторія \"Вектор\"","Лаборатория \"Вектор\"","Labor Vektor","Laboratorium \"Wektor\"", "Laboratorija Vektor", "Laboratoř Vektor", "Vektor laboratórium", "Vektor-laboratorio", "Лабараторыя \"Вектар\""],["Cologne","Кельн","Кельн","Köln","Most w Kolonii", "Keln", "Kolín nad Rýnem", "Köln", "Köln", "Кёльн"],["London","Лондон","Лондон","London","Londyn", "London", "Londýn", "London", "Lontoo", "Лондан"]];
-         var row:Array = null;
-         if(level >= 1 && level < names.length)
-         {
-            row = names[level] as Array;
-         }
-         if(row)
-         {
-            return String(row[this.pvbLang]);
-         }
-         return "";
+         var key:String = level >= 1 ? RoomsText.levelKey(level) : null;
+         return key != null ? LocalizationData.getName(key) : "";
       }
       
+      // The game's own name of a mode, without its trailing spaces.
       protected function pvbModeName(mode:int) : String
       {
          var key:String = mode == GameMode.TEAM_DEATHMATCH ? "match_settings_checkbox_team_match" : "match_settings_checkbox_battery_charge";
          var word:String = LocalizationData.getName(key);
-         var spare:Array = mode == GameMode.TEAM_DEATHMATCH ? ["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba", "Týmový deathmatch", "Csapatos deathmatch", "Joukkuekuolemanottelu", "Камандны бой"] : ["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj", "Ochranné zařízení", "Védelmi berendezés", "Suojalaite", "Ахоўная прылада"];
-         if(!word || word.length == 0 || word.charAt(0) == "#")
-         {
-            word = String(spare[this.pvbLang]);
-         }
          while(word.length > 0 && word.charAt(word.length - 1) == " ")
          {
             word = word.substr(0,word.length - 1);
@@ -716,59 +607,24 @@ package survarium.gsearch
       
       protected function pvbSizeName(size:int) : String
       {
-         return String(size) + this.pvbText(MatchMakingSettings.PVB_WORD_VS) + String(size);
+         return LocalizationData.format("st_srp_pvb_team_size",size,size);
       }
       
       public function pvbReasonText(why:int) : String
       {
-         var text:String = null;
          if(why == PvbCode.GEAR_TOO_HIGH)
          {
-            text = this.pvbText(MatchMakingSettings.PVB_WORD_GEAR_MUST_BE);
-            if(this.pvbMax >= 0)
-            {
-               text = text + String(this.pvbMax) + this.pvbText(MatchMakingSettings.PVB_WORD_OR_LOWER);
-            }
-            else
-            {
-               text = text + MatchMakingSettings.PVB_MAX_GEAR_DEFAULT + this.pvbText(MatchMakingSettings.PVB_WORD_OR_LOWER);
-            }
-            if(this.pvbGear >= 0)
-            {
-               text = text + this.pvbText(MatchMakingSettings.PVB_WORD_YOURS) + String(this.pvbGear) + this.pvbText(MatchMakingSettings.PVB_WORD_CLOSE);
-            }
-            return text;
+            var most:String = this.pvbMax >= 0 ? String(this.pvbMax) : MatchMakingSettings.PVB_MAX_GEAR_DEFAULT;
+            return this.pvbGear >= 0 ? LocalizationData.format("st_srp_pvb_gear_max_yours",most,this.pvbGear)
+               : LocalizationData.format("st_srp_pvb_gear_max",most);
          }
          if(why == PvbCode.AT_LIMIT)
          {
-            text = this.pvbText(MatchMakingSettings.PVB_WORD_AT_LIMIT);
-            if(this.pvbRunning >= 0 && this.pvbRunMax > 0)
-            {
-               text = text + " (" + String(this.pvbRunning) + "/" + String(this.pvbRunMax) + ")";
-            }
-            return text + this.pvbText(MatchMakingSettings.PVB_WORD_TRY_LATER);
+            return this.pvbRunning >= 0 && this.pvbRunMax > 0 ? LocalizationData.format("st_srp_pvb_at_limit_count",this.pvbRunning,this.pvbRunMax)
+               : LocalizationData.getName("st_srp_pvb_at_limit");
          }
-         if(why >= PvbCode.IN_SQUAD && why <= PvbCode.OFF)
-         {
-            return this.pvbText(MatchMakingSettings.PVB_WORD_REASONS + why);
-         }
-         if(why == PvbCode.MAINTENANCE)
-         {
-            return this.pvbText(MatchMakingSettings.PVB_WORD_MAINTENANCE);
-         }
-         if(why == PvbCode.CLAN_TEAM)
-         {
-            return this.pvbText(MatchMakingSettings.PVB_WORD_CLAN_MATCH);
-         }
-         if(why == PvbCode.UNKNOWN_CHOICE)
-         {
-            return this.pvbText(MatchMakingSettings.PVB_WORD_UNKNOWN_CHOICE);
-         }
-         if(why == MatchMakingSettings.PVB_WHY_CHECKING || why == MatchMakingSettings.PVB_WHY_NOANSWER || why == MatchMakingSettings.PVB_WHY_RETRY)
-         {
-            return this.pvbText(why);
-         }
-         return this.pvbText(MatchMakingSettings.PVB_WHY_GENERIC);
+         var key:String = MatchMakingSettings.PVB_REASONS[String(why)] as String;
+         return LocalizationData.getName(key != null ? key : MatchMakingSettings.PVB_REASONS[String(MatchMakingSettings.PVB_WHY_GENERIC)]);
       }
       
       protected function pvbWhy() : int
@@ -868,7 +724,7 @@ package survarium.gsearch
          }
          if(this.pvbOn)
          {
-            text = this.pvbText(MatchMakingSettings.PVB_WORD_TITLE);
+            text = LocalizationData.getName("st_srp_pvb_title");
          }
          else if(this.checkBoxClan.selected)
          {
@@ -1097,7 +953,7 @@ package survarium.gsearch
             }
             if(int(row.free) == 0 && this.pvbCode == PvbCode.ALLOWED)
             {
-               label += this.pvbText(MatchMakingSettings.PVB_WORD_BUSY);
+               label = LocalizationData.format("st_srp_pvb_busy",label);
             }
             rows.push({
                "label":label,
@@ -1160,7 +1016,7 @@ package survarium.gsearch
          {
             this.checkBoxPVP.enabled = this._enabled && (allowed || this.pvbOn);
          }
-         this.pvbRadio.data = {"name":(why >= 0 ? this.pvbReasonText(why) : this.pvbText(MatchMakingSettings.PVB_WORD_HINT))};
+         this.pvbRadio.data = {"name":(why >= 0 ? this.pvbReasonText(why) : LocalizationData.getName("st_srp_pvb_hint"))};
          this.updateLayout();
       }
       
@@ -1612,7 +1468,7 @@ package survarium.gsearch
             this.pvbChoosing = false;
             if(MatchMakingSettings.PVB_DEMO)
             {
-               Message.showMessage("ok",this.pvbText(MatchMakingSettings.PVB_WORD_DEMO_START) + this.pvbSizeName(this.pvbChooseSize) + ", " + this.pvbChosenMapName());
+               Message.showMessage("ok",LocalizationData.format("st_srp_pvb_demo_start",this.pvbSizeName(this.pvbChooseSize) + ", " + this.pvbChosenMapName()));
                return;
             }
             try

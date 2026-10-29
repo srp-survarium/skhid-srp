@@ -6,7 +6,8 @@ one complete file per language. `localization-1.json`, the final manifest edit,
 compiles them all. The text-only edit lists described historically below have
 been folded into those TSVs; add new item names and descriptions there in every
 language, then run `python3 srp-026g/client-patches/check_localization_026g.py`
-from the repository root. Gameplay values and UI key mappings remain edit lists.
+from the repository root. Gameplay values and UI key mappings remain edit lists; srp's own
+menu texts (`st_srp_*`) need no mapping: the compile maps each for the lobby and login movies.
 
 `content_edit.py` makes a patch folder by editing the live game configs in place:
 only the bytes of the edited values change (a renamed key's table is re-sorted by

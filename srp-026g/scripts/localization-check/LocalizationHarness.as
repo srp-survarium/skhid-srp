@@ -12,6 +12,8 @@ package
     import flash.text.TextFormat;
 
     // Uses the rebuilt movie's own classes and embedded font; no game or server.
+    // Each language's texts reach the movie as the exe gives them
+    // (set_localization_data: HarnessText, from the dictionaries).
     public class LocalizationHarness extends Sprite
     {
         private var loader:Loader = new Loader();
@@ -40,45 +42,47 @@ package
                 var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                 var data:* = domain.getDefinition("survarium.data.LocalizationData");
                 var words:* = domain.getDefinition("survarium.rooms.RoomsText");
-                var friends:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi", "Prijatelji", "Přátelé", "Barátok", "Kaverit", "Сябры"];
-                for (var i:int = 0; i < friends.length; ++i)
-                {
-                    data.setData({btn_friends: friends[i]});
-                    require(words.language() == i, "language detection " + i);
-                    require(words.sayFirst("startMatch") != "undefined", "start label " + i);
-                }
-                var roomTitles:Array = ["Sobe", "Místnosti", "Szobák", "Huoneet", "Пакоі"];
-                var starts:Array = ["Pokreni", "Spustit", "Indítás", "Aloita", "Пачаць"];
-                var schools:Array = ["Škola", "Škola", "Iskola", "Koulu", "Школа"];
-                var nights:Array = ["noć", "noc", "éjszaka", "yö", "ноч"];
-                var research:Array = ["Istraživanje", "Výzkum", "Kutatás", "Tutkimus", "Даследаванне"];
-                var joined:Array = ["se pridružio sobi", "se připojuje do místnosti", "belépett a szobába", "liittyi huoneeseen", "увайшоў у пакой"];
-                var letters:Array = ["ČĆŠŽĐčćšžđ", "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž", "ÁÉÍÓÖŐÚÜŰáéíóöőúüű", "ÅÄÖåäö", "ЎўІіЁёЫыЭэ'"];
                 var fontClass:Class = domain.getDefinition("Fonts_CB_Bold") as Class;
                 var font:Font = new fontClass() as Font;
                 var label:TextField = new TextField();
                 label.embedFonts = true;
                 label.defaultTextFormat = new TextFormat(font.fontName, 15, 0xffffff, true);
-                for (i = 5; i < friends.length; ++i)
+                var keys:int = 0;
+                for each (var language:String in HarnessText.LANGUAGES)
                 {
-                    data.setData({btn_friends: friends[i]});
-                    var added:int = i - 5;
-                    require(words.sayFirst("servers") == roomTitles[added], "room title " + i);
-                    require(words.sayFirst("startMatch") == starts[added], "start button " + i);
-                    require(words.levelName(2, i) == schools[added], "map name " + i);
-                    require(words.weatherName(4, i) == nights[added], "weather " + i);
-                    require(words.modeName(5, i) == research[added], "research mode " + i);
-                    require(words.notice("Ada joined the room") == "Ada " + joined[added], "chat notice " + i);
-                    require(font.hasGlyphs(letters[added]), "Calibri lacks glyphs for language " + i);
-                    label.text = words.sayFirst("roomChat");
-                    require(label.textWidth <= 104, "room chat tab exceeds 108 px including padding: " + i);
+                    var text:Object = HarnessText.DATA[language];
+                    data.setData(text);
+                    // The movie's own lookups by number.
+                    require(words.levelName(2) == text.st_srp_map_school, "map name " + language);
+                    require(words.levelName(13) == text.st_srp_map_vostok_v011, "ported map name " + language);
+                    require(words.weatherName(4) == text.st_srp_weather_night, "weather " + language);
+                    require(words.modeName(5) == text.st_srp_mode_research, "research mode " + language);
+                    require(words.codeText(3) == text.st_srp_rooms_code_3 && words.codeText(0) == "", "room code " + language);
+                    require(words.joinWhyText(7) == text.st_srp_rooms_join_why_7, "join reason " + language);
+                    // The server's English room line, in the language, the name in its place.
+                    var joined:String = words.notice("Ada joined the room");
+                    require(joined == String(text.st_srp_rooms_joined_room).split("%1$s").join("Ada"), "chat notice " + language);
+                    require(language == "english" || joined != "Ada joined the room", "chat notice untranslated " + language);
+                    // Every text: its placeholders filled, its letters in the font.
+                    keys = 0;
+                    for (var key:String in text)
+                    {
+                        var filled:String = data.format(key, "11", "22", "33", "44");
+                        require(!/%\d\$s/.test(filled), "a placeholder past %4$s left in " + key + " " + language);
+                        require(font.hasGlyphs(filled.replace(/\s/g, "")), "Calibri lacks glyphs of " + key + " (" + language + "): " + filled);
+                        keys++;
+                    }
+                    require(data.format("st_srp_replay_place_in_line", 3, 12).indexOf("%") < 0, "replay line " + language);
+                    label.text = data.getName("st_srp_rooms_room_chat");
+                    require(label.textWidth <= 104, "room chat tab exceeds 108 px including padding: " + language);
                 }
-                trace("LOCALIZATION ten-language detection, added menu texts, tab widths and Calibri glyphs pass");
+                trace("LOCALIZATION " + HarnessText.LANGUAGES.length + " languages x " + keys
+                    + " texts: lookups, placeholders, tab widths and Calibri glyphs pass");
                 trace("LOCALIZATION RESULT pass");
             }
             catch (error:Error)
             {
-                trace("LOCALIZATION RESULT fail: " + error);
+                trace("LOCALIZATION RESULT fail: " + error.message);
             }
         }
     }

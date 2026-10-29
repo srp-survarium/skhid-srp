@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check every checked-in TSV and custom Flash table with no game assets needed.
+"""Check every checked-in TSV and the Flash menus' text keys with no game assets needed.
 
 python check_localization_026g.py
 python check_localization_026g.py /path/to/dbgrab-output
@@ -12,10 +12,10 @@ from pathlib import Path
 import re
 import sys
 
-from localization_026g import (CATALOG, CYRILLIC, EMPTY_KEYS, FOREIGN_LETTERS, LANGUAGES, discover,
-                              encode_strings, read_config, read_strings, read_translations,
-                              rust_table_issue)
-from check_flash_localization_026g import audit_flash, audit_native_labels
+from localization_026g import (CATALOG, CYRILLIC, EMPTY_KEYS, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
+                              LANGUAGES, discover, encode_strings, read_config, read_strings,
+                              read_translations, rust_table_issue)
+from check_flash_localization_026g import audit_flash
 
 
 # Game substitutions and printf arguments must survive translation unchanged.
@@ -59,6 +59,10 @@ def audit_catalog(root=CATALOG):
     for language, strings in dictionaries.items():
         result = compare(dictionaries['english'], strings)
         result['empty'] = sorted(k for k, v in strings.items() if not v.strip() and k not in EMPTY_KEYS)
+        # The game's localizer (0x1FEF90) makes {NAME} an action's key and drops any other
+        # {...}: srp's own texts take %1$s placeholders.
+        result['braces'] = sorted(k for k, v in strings.items()
+                                  if k.startswith(FLASH_PREFIX) and re.search('[{}]', v))
         result['invalid_utf8'] = []  # Strict UTF-8 decoding happens in read_translations.
         result['key_order'] = [] if list(strings) == sorted(strings) else ['keys must be sorted']
         result['too_long'] = sorted(k for k, v in strings.items() if len(v.encode('utf-8')) >= 512)
@@ -145,6 +149,10 @@ def audit(root, required=(), reference='english'):
                 keys.add(row[1])
         report['ui_mapping_found'] = True
         report['ui_missing'] = {lang: sorted(keys - strings.keys()) for lang, strings in dictionaries.items()}
+        # srp's own texts: each mapped to itself for the movies that read them.
+        own = {k for k in baseline if k.startswith(FLASH_PREFIX)}
+        report['ui_unmapped'] = {f'{movie}_strings': sorted(
+            k for k in own if [k, k] not in mapping.get(f'{movie}_strings', [])) for movie in FLASH_MOVIES}
     return report
 
 
@@ -153,8 +161,9 @@ def failed(report):
                 or report.get('rust_table') or any(
         result.get(field) for result in report['languages'].values()
         for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                      'too_long', 'non_latin', 'foreign_letters', 'key_order', 'catalog_mismatch'))
-        or any(report['ui_missing'].values()) or report.get('flash', {}).get('issues'))
+                      'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_order', 'catalog_mismatch'))
+        or any(report['ui_missing'].values()) or any(report.get('ui_unmapped', {}).values())
+        or report.get('flash', {}).get('issues'))
 
 
 def main(argv=None):
@@ -164,15 +173,19 @@ def main(argv=None):
     parser.add_argument('--reference', default='english')
     parser.add_argument('--require', action='append', default=[], metavar='LANGUAGE')
     parser.add_argument('--json', action='store_true', help='machine-readable report including every key')
-    parser.add_argument('--flash-source', type=Path, default=Path(__file__).resolve().parents[1] / 'flash',
-                        help='Flash source tree to check (default: this checkout)')
+    parser.add_argument('--flash-source', type=Path,
+                        help="Flash source tree whose text keys to check against the catalog "
+                             "(default: this checkout's, for this checkout's catalog only)")
     args = parser.parse_args(argv)
     try:
         report = audit_catalog(args.catalog)
         report['rust_table'] = rust_table_issue()
-        report['flash'] = audit_flash(args.flash_source)
+        flash = args.flash_source
+        if flash is None and args.catalog.resolve() == CATALOG:
+            flash = Path(__file__).resolve().parents[1] / 'flash'
+        report['flash'] = (audit_flash(flash, read_translations(args.catalog / 'english.tsv').keys())
+                           if flash else {'checked': 0, 'issues': []})
         if args.catalog.resolve() == CATALOG:
-            report['flash']['issues'].extend(audit_native_labels(args.flash_source, args.catalog))
             report['source_issues'] = audit_content_sources(Path(__file__).resolve().parents[2],
                                         read_translations(CATALOG / 'english.tsv').keys())
         if args.resources:
@@ -196,7 +209,7 @@ def main(argv=None):
                 f'{len(result[field])} {field}' for field in
                 ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8', 'unchanged')))
             for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                          'too_long', 'non_latin', 'foreign_letters', 'key_order'):
+                          'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_order'):
                 for key in result[field]:
                     print(f'  {field}: {key}')
             for key in report['ui_missing'].get(language, []):
@@ -215,7 +228,7 @@ def main(argv=None):
                 print(json.dumps(report['resources'], ensure_ascii=True, indent=2))
             if not report['resources']['ui_mapping_found']:
                 print('UI mapping not supplied; UI-reference coverage was not checked.')
-        print(f"Flash: {report['flash']['checked']} language rows checked")
+        print(f"Flash: {report['flash']['checked']} text keys of the movies checked")
         for issue in report['flash']['issues']:
             print(f'  {issue}')
         print('FAIL' if failed(report) or failed(report.get('resources', report)) else 'PASS')

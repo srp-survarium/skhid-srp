@@ -13,7 +13,6 @@ package survarium.controls
    import scaleform.clik.events.IndexEvent;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsLook;
-   import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
    
    public class TopMenu extends UIComponent
@@ -455,7 +454,7 @@ package survarium.controls
             }
             else
             {
-               this.setRoomsTab(RoomsText.sayFirst("servers"));
+               this.setRoomsTab(LocalizationData.getName("st_srp_rooms_servers"));
             }
          }
          catch(err:Error)

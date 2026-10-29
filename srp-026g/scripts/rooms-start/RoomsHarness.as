@@ -62,6 +62,9 @@ package
          try
          {
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            // The English texts, as the exe gives them (set_localization_data).
+            step = "the texts";
+            domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
             Win = domain.getDefinition("survarium.rooms.RoomsWindow");
             // The bottom bar's symbol (its class survarium.controls.BottomPanel), as the
             // lobby has it: the window sits over it.

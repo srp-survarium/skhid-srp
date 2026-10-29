@@ -10,9 +10,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 
 import check_localization_026g as checker
-from localization_026g import LANGUAGES, discover, encode_strings, read_strings, read_translations
+from localization_026g import (LANGUAGES, discover, encode_strings, read_config, read_strings,
+                              read_translations)
 from build_localization_026g import compile_catalog
 from check_flash_localization_026g import audit_flash
 
@@ -205,71 +207,92 @@ class LocalizationTests(unittest.TestCase):
         self.assertTrue(any('edit dictionary text' in issue
                             for issue in checker.audit_content_sources(self.root, {'st_new_item'})))
 
-    def test_checked_in_flash_tables_include_every_registered_language(self):
-        result = audit_flash(Path(__file__).resolve().parents[1] / 'flash')
+    def test_movies_name_only_dictionary_keys(self):
+        here = Path(__file__).resolve().parent
+        result = audit_flash(here.parent / 'flash', read_translations(here / 'localization/english.tsv').keys())
         self.assertGreater(result['checked'], 200)
         self.assertEqual(result['issues'], [])
 
-    def flash_fixture(self, row):
-        folder = self.root / 'lobby_menu/src/survarium/constants'
+    def flash_fixture(self, movie, source):
+        folder = self.root / 'flash' / movie / 'src'
         folder.mkdir(parents=True, exist_ok=True)
-        actual = Path(__file__).resolve().parents[1] / 'flash/lobby_menu/src/survarium/constants/Language.as'
-        (folder / 'Language.as').write_text(actual.read_text(encoding='utf-8'), encoding='utf-8')
-        (self.root / 'Words.as').write_text('var words:Array = ' + json.dumps(row) + ';', encoding='utf-8')
+        (folder / 'Words.as').write_text(source, encoding='utf-8')
+        for other in ('lobby_menu', 'login_menu'):
+            (self.root / 'flash' / other / 'src').mkdir(parents=True, exist_ok=True)
 
-    def test_flash_check_catches_omitted_columns_and_bad_text_in_each_added_language(self):
-        row = ['Play {n}', 'Грати {n}', 'Играть {n}', 'Spielen {n}', 'Graj {n}',
-               'Igraj {n}', 'Hrát {n}', 'Játék {n}', 'Pelaa {n}', 'Гуляць {n}']
-        self.flash_fixture(row[:-1])
-        self.assertTrue(any('expected 10 language columns' in issue
-                            for issue in audit_flash(self.root)['issues']))
-        self.flash_fixture(row)
-        self.assertEqual(audit_flash(self.root)['issues'], [])
-        for index in range(5, len(LANGUAGES)):
-            # A Latin language must not take Cyrillic; Belarusian must not take Russian letters.
-            wrong = 'Cyrillic' if LANGUAGES[index][0] != 'belarusian' else 'Russian or Ukrainian letters'
-            for replacement, error in [('', 'empty'), ('Play', 'substitutions'),
-                                        ('Играть {n}', wrong)]:
-                with self.subTest(language=LANGUAGES[index][0], error=error):
-                    changed = row.copy()
-                    changed[index] = replacement
-                    self.flash_fixture(changed)
-                    issues = audit_flash(self.root)['issues']
-                    self.assertTrue(any(error in issue and LANGUAGES[index][0] in issue for issue in issues))
+    def test_flash_check_catches_unknown_keys_and_movies_without_srp_texts(self):
+        self.flash_fixture('lobby_menu', 'text = LocalizationData.format("st_srp_rooms_room", 1);')
+        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues'], [])
+        issues = audit_flash(self.root / 'flash', set())['issues']
+        self.assertTrue(any('st_srp_rooms_room is not in the dictionaries' in issue for issue in issues))
+        self.flash_fixture('hud', 'text = LocalizationData.getName("st_srp_rooms_room");')
+        issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
+        self.assertTrue(any('the hud movie is not given' in issue for issue in issues))
 
-    def test_flash_constant_indices_cannot_drift_from_registry(self):
-        self.flash_fixture(['Same'] * len(LANGUAGES))
-        path = self.root / 'lobby_menu/src/survarium/constants/Language.as'
-        path.write_text(path.read_text().replace('FI:int = 8', 'FI:int = 9'))
-        self.assertTrue(any('expected language indices' in issue for issue in audit_flash(self.root)['issues']))
+    def test_srp_texts_take_no_braces(self):
+        # The game's localizer drops {...} (but an action's {NAME}) from every text it hands a movie.
+        self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}'})
+        report = checker.audit_catalog(self.root)
+        self.assertEqual(report['languages']['english']['braces'], ['st_srp_test'])
+        self.catalog({'st_srp_test': 'Loadout %1$s', 'st_test': 'Use {USE}'})
+        self.assertFalse(checker.failed(checker.audit_catalog(self.root)))
 
-    def test_flash_numbered_labels_without_cyrillic_still_require_all_languages(self):
-        row = ['Loadout {n}', '{n}', '{n}', '{n}', '{n}', 'Komplet {n}']
-        self.flash_fixture(row)
-        self.assertTrue(any('expected 10 language columns' in issue
-                            for issue in audit_flash(self.root)['issues']))
-        self.flash_fixture(row + ['Výbava {n}', '{n}. összeállítás', 'Varustesetti {n}', '{n}'])
-        self.assertEqual(audit_flash(self.root)['issues'], [])
+    def mapping(self, tables):
+        """A binary UI mapping, {table: [[ui key, dictionary key], ...]}, as the game's files keep it."""
+        data = bytearray(24)
 
-    def test_added_dictionary_labels_match_flash_detectors(self):
-        here = Path(__file__).resolve().parent
-        flash = here.parent / 'flash'
-        def table(path, name):
-            text = (flash / path).read_text(encoding='utf-8')
-            return json.loads(re.search(name + r':Array\s*=\s*(\[.*?\]);', text)[1])
-        friends = table('lobby_menu/src/survarium/rooms/RoomsText.as', 'FRIENDS')
-        cancel = table('lobby_menu/src/survarium/messages/MessageMoneyExchange.as', 'CANCEL')
-        login = (flash / 'login_menu/src/SrpLoginHint.as').read_text(encoding='utf-8')
-        for index, (language, code, *_) in enumerate(LANGUAGES[5:], 5):
-            with self.subTest(language=language):
-                translated = read_translations(here / f'localization/{language}.tsv')
-                self.assertEqual(translated['st_btn_friends'], friends[index])
-                self.assertEqual(translated['st_cancel'], cancel[index])
-                self.assertIn(json.dumps(translated['st_registration_str'], ensure_ascii=False) + ':', login)
-                for path in ('gsearch/MatchMakingSettings.as', 'controls/NotificationListScrollContent.as'):
-                    source = (flash / 'lobby_menu/src/survarium' / path).read_text(encoding='utf-8')
-                    self.assertRegex(source, r'if\(word == "' + re.escape(friends[index]) +
-                                     r'"\)\s*\{\s*return Language\.' + code + r';')
+        def append(raw):
+            data.extend(bytes(-len(data) % 8))
+            offset = len(data)
+            data.extend(raw)
+            return offset
+
+        def record(pointer, name, crc, kind, count):
+            return struct.pack('<QQIHH', pointer, name, crc, kind, count)
+
+        empty = append(b'\0')
+        named = []
+        for name, rows in tables.items():
+            pairs = []
+            for row in rows:
+                texts = [record(append(v.encode() + b'\0'), empty, 0, 5, len(v.encode()) + 1) for v in row]
+                pairs.append(record(append(b''.join(texts)), empty, 0, 4, len(row)))
+            named.append(record(append(b''.join(pairs)), append(name.encode() + b'\0'),
+                                zlib.crc32(name.encode()), 4, len(rows)))
+        named.sort(key=lambda r: struct.unpack('<QQIHH', r)[2])
+        struct.pack_into('<QQIHH', data, 0, append(b''.join(named)), 0, 0, 3, len(named))
+        return bytes(data)
+
+    def test_content_edit_maps_srp_texts_for_the_movies_that_read_them(self):
+        self.dictionary('english', {'st_test': 'Hello'})
+        self.catalog({'st_test': 'Hello', 'st_srp_hello': 'Hello %1$s'})
+        stock = {'lobby_menu_strings': [['caption', 'st_test']], 'login_menu_strings': [['login', 'st_test']],
+                 'hud_strings': [['hint', 'st_test']]}
+        options = self.root / 'localization/flash_movies_localizations.options'
+        options.write_bytes(self.mapping(stock))
+        report = checker.audit(self.root / 'localization')
+        self.assertEqual(report['ui_unmapped']['lobby_menu_strings'], [])  # no srp text compiled yet
+        edit = self.root / 'edit.json'
+        edit.write_text(json.dumps({'localization': '.'}))
+        script = Path(__file__).resolve().parents[1] / 'scripts/content-edit/content_edit.py'
+        output = self.root / 'result'
+        run = subprocess.run([sys.executable, '-I', '-S', str(script), str(edit), str(self.root), str(output)],
+                             capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn('0 unexpected differences', run.stdout)
+        mapped, errors = read_config(output / 'localization/flash_movies_localizations.options')
+        self.assertEqual(errors, [])
+        self.assertEqual(mapped['lobby_menu_strings'], [['caption', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
+        self.assertEqual(mapped['login_menu_strings'], [['login', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
+        self.assertEqual(mapped['hud_strings'], stock['hud_strings'])
+        report = checker.audit(output / 'localization')
+        self.assertEqual(report['ui_unmapped'], {'lobby_menu_strings': [], 'login_menu_strings': []})
+        self.assertFalse(checker.failed(report))
+        # A compiled dictionary with an srp text the mapping lacks fails the audit.
+        (output / 'localization/flash_movies_localizations.options').write_bytes(self.mapping(stock))
+        report = checker.audit(output / 'localization')
+        self.assertEqual(report['ui_unmapped']['login_menu_strings'], ['st_srp_hello'])
+        self.assertTrue(checker.failed(report))
 
     def test_all_dictionaries_cover_the_same_keys_and_formats(self):
         here = Path(__file__).resolve().parent / 'localization'

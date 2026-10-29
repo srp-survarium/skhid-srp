@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# check.sh <rebuilt lobby_menu.swf> [work dir]: Language detection, menu text and
-# embedded Latin and Cyrillic glyphs in Ruffle, on a private CPU-only virtual display.
+# check.sh <rebuilt lobby_menu.swf> [work dir]: srp's own menu texts in every language, given to the
+# movie as the exe gives them (set_localization_data, from the dictionaries): the movie's lookups by
+# number, its placeholders and the embedded Calibri's glyphs of every text, in Ruffle, on a private
+# CPU-only virtual display.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 lobby=$(readlink -f "$1")
@@ -13,11 +15,14 @@ else
     work=$(mktemp -d)
 fi
 
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/harness_text.py" "$work"
+
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/LocalizationHarness.swf" "$here/LocalizationHarness.as" >"$work/LocalizationHarness.mxmlc.log" 2>&1 \
     || { cat "$work/LocalizationHarness.mxmlc.log"; exit 1; }

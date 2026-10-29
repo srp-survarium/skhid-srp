@@ -54,7 +54,9 @@ Edits (edits.json):
                                                        the globs below see the copies
   "localization":   "relative/path/to/tsv/folder"
                     compile every registered language from its complete TSV dictionary;
-                    preserve all source keys, check formats and the native text buffer limit.
+                    preserve all source keys, check formats and the native text buffer limit;
+                    map each of srp's own texts (st_srp_*) to itself in the UI mapping of the
+                    movies that read them (localization_026g.FLASH_MOVIES), after their rows.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -590,6 +592,29 @@ def add_item(buf, path, where, key, value):
     return hit[0], cnt
 
 
+def append_rows(buf, path, rows):
+    """`rows` (lists of strings) after the items of the indexed table `path`, each an indexed table
+    of strings made like its first item (a UI mapping's [ui key, dictionary key]). Returns the index
+    of the first new item."""
+    lst = find(buf, path)
+    d, i, crc, t, cnt = rec(buf, lst)
+    items = children(buf, lst)
+    if t != T_INDEXED or not items or rec(buf, items[0])[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table of indexed tables' % path)
+    _, ri, rcrc, _, _ = rec(buf, items[0])
+    first = children(buf, items[0])
+    if not first or rec(buf, first[0])[3] != T_STR:
+        raise ValueError('%s[0] holds no string' % path)
+    _, si, scrc, _, _ = rec(buf, first[0])
+    new = []
+    for row in rows:
+        texts = [REC.pack(append(buf, v.encode() + b'\0'), si, scrc, T_STR, len(v.encode()) + 1) for v in row]
+        new.append(REC.pack(append_array(buf, texts), ri, rcrc, T_INDEXED, len(row)))
+    old = [bytes(buf[c:c + 24]) for c in items]
+    REC.pack_into(buf, lst, append_array(buf, old + new), i, crc, t, cnt + len(new))
+    return cnt
+
+
 def unshifted(path, lst, at):
     """A path of the file before entry `at` of the table `lst` was taken out, after it; None for a
     path of the entry itself."""
@@ -817,7 +842,7 @@ def main():
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
-        from localization_026g import LANGUAGES, read_config, read_translations
+        from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
         directory = Path(edits_file).resolve().parent / edits['localization']
         languages = [language for language, *_ in LANGUAGES] + ['original']
         # New languages inherit opaque support files (EULA/profanity data) from
@@ -838,8 +863,24 @@ def main():
             config, errors = read_config(bytes(buf(mapping)))
             if errors:
                 raise ValueError('UI mapping contains invalid UTF-8')
+            keys = read_translations(directory / 'english.tsv').keys()
+            for movie in FLASH_MOVIES:
+                table = movie + '_strings'
+                have = {row[0]: row[1] for row in config[table]}
+                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys)):
+                    raise ValueError(f'{table}: an srp text key mapped to another text')
+                rows = [row for row in flash_rows(keys) if row[0] not in have]
+                if rows:
+                    at = append_rows(buf(mapping), table, rows)
+                    for k in range(at, at + len(rows)):
+                        added.setdefault(mapping, []).extend(
+                            ['/%s[%d]' % (table, k), '/%s[%d][0]' % (table, k), '/%s[%d][1]' % (table, k)])
+                    grown.setdefault(mapping, {}).setdefault('/' + table, 0)
+                    grown[mapping]['/' + table] += len(rows)
+                    config[table] += rows
+                print('UI mapping %s: %d texts of srp mapped to themselves' % (table, len(rows)))
             referenced = {row[1] for rows in config.values() for row in rows}
-            missing = referenced - read_translations(directory / 'english.tsv').keys()
+            missing = referenced - keys
             if missing:
                 raise ValueError(f'UI mapping keys missing from TSV: {sorted(missing)}')
         for language, result in compiled.items():
