@@ -2515,6 +2515,10 @@ st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_speed_bonuses	Бонусы: %1$s
+st_srp_speed_equipment	Снаряжение: %1$s
+st_srp_speed_skills	Навыки: %1$s
+st_srp_speed_weight	Вес: %1$s
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс

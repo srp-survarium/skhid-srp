@@ -719,3 +719,39 @@ config, kit changes, skill combinations, exact limits and compatibility paths.
 live refresh, removal and localization in Ruffle. Its real hover check also
 caught the shared tooltip timer's missing repeat count: `TIMER_COMPLETE` now
 fires once after the existing 300 ms delay.
+
+## The kit's movement speed beside the weight (2026-10-29)
+
+The owner: show the final speed beside the weight, with everything the game
+takes into account. The lobby shows the game's speed icon (modifier atlas 11)
+and `<n>%` left of the weight (coral below 100 %, green above), and the
+weight tooltip lists the total and its four parts: weight, bonuses, skills,
+equipment. UI only: no gameplay or simulation change.
+
+- **The game's rule.** `base_player::movement_speed` 0x2DBB50 returns
+  `max(m, v x max(0, 1 + S4))`: `v` the mode's speed (0x2F0980 on the
+  player's +15Ch table), `m` its minimum (+190h), `S4` the sum of player
+  modifier 4 through `apply_modifier` 0x2D5AE0 (multiplicative index:
+  `B x max(0, 1 + S)`) on the kit container. Aiming also takes the lower of
+  that and `apply_modifiers` 0x2D5BC0 with modifiers 4 and 20.
+- **What S4 holds in a match**, all in one sum:
+  - the kit's own float: the skills (skill 208 `movement_speed`, +1 % a rank);
+  - the armour's nodes (`armor::add_modifiers` 0x33F3A0): every built-in,
+    rolled and defect modification of movement speed (prop 105). Armour has
+    no base movement parameter (all 0, `armour-params.md`);
+  - the weapon in hand's own `parameters/movement_speed_modifier` (its node
+    +610h, added in `weapon_core::initialize` 0x2E2C26..0x2E2C9C), left out
+    when it is a penalty and modifier 62 (Bear Arms, skill 112) is above 0;
+  - the weight: `-0.20 x q`, scaled by skill 202 (the section above).
+- **The lobby's parts.** The exe's weight callback (`weight_ui_026g.c`)
+  gives the skills (the raw kit float of index 4: in the lobby the items are
+  not in the container) and whether Bear Arms is on, besides the weight. The
+  movie adds the equipped armour's prop 105 modifiers (HEAD..FOOT) as
+  **bonuses** and the first weapon's own movement (prop 105, which
+  `WeaponMovement` puts in its built-in rows) as **equipment**: the weapon in
+  hand at spawn (LIKELY; switching to the second weapon changes this part in a
+  match). Shown: `max(0, 1 + weight + skills + bonuses + equipment)`, as a
+  percentage of the base speed.
+- **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
+  aiming's lower speed.
+- An older exe (five arguments) shows no speed and the old tooltip.

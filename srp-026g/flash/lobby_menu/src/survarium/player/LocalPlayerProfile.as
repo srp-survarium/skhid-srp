@@ -34,6 +34,8 @@ package survarium.player
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.constants.AmmoView;
+   import survarium.constants.ProfileSlot;
+   import survarium.item.ModificationRolls;
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
@@ -73,6 +75,9 @@ package survarium.player
       private static const AUTOBUY_AMMO:uint = 1;
       
       private var _weightM:Number = 0;
+      
+      // The exe's weight effects, before the kit's items are added to the speed.
+      private var _weightEffects:WeightEffects;
       
       private var _relocateFunctionRef:Function;
       
@@ -379,8 +384,9 @@ package survarium.player
       {
          _weightC = cur;
          _weightM = max;
+         _weightEffects = effects;
          if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
-         _weightIndicator.update(cur,max,effects);
+         _weightIndicator.update(cur,max,withKitItems(effects));
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -487,6 +493,35 @@ package survarium.player
             trace("invalidateOnEquipped");
             equippedItems.invalidate();
          }
+         // A bonus rerolled or repaired changes the speed without a weight callback.
+         if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
+      }
+      
+      // The speed's item parts: the armour's movement bonuses (built-in, rolled and
+      // defects) and the first weapon's own movement parameter (the weapon in hand).
+      private function withKitItems(effects:WeightEffects) : WeightEffects
+      {
+         if(effects == null || !effects.knowsSpeed) return effects;
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var bonuses:Number = 0;
+         var weapon:Number = 0;
+         for(var i:uint = 0; items != null && i < items.length; i++)
+         {
+            var item:ItemData = items[i] as ItemData;
+            if(item == null) continue;
+            if(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT) bonuses += movementOf(item);
+            else if(item.slotId == ProfileSlot.WEAPON_1) weapon = movementOf(item);
+         }
+         return effects.withItems(bonuses,weapon);
+      }
+      
+      private static function movementOf(item:ItemData) : Number
+      {
+         var sum:Number = 0;
+         for each(var modifier:Object in item.modifiers)
+            for each(var prop:Object in modifier.props)
+               if(prop.prop_id == 105 && isFinite(ModificationRolls.value(prop))) sum += ModificationRolls.value(prop);
+         return sum;
       }
       
       public function refillItem(value:uint) : void

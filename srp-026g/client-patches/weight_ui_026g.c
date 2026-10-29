@@ -31,6 +31,13 @@ static struct gfx_value value(double number)
 {
     return (struct gfx_value){ 0, 5, number, {0, 0} };
 }
+/* The kit's own part of movement-speed modifier 4 (skills): the float the
+ * native sum starts from (apply_modifier 0x2D5AE0: S = the kit's float plus
+ * its item nodes; in the lobby the items are the movie's to add). */
+static float kit_movement(const void *modifiers)
+{
+    return *(const float *)((const u8 *)modifiers + 4 * 4);
+}
 /* Sprint eligibility due to weight/Heavyweight only, not stamina or injury. */
 enum sprint { WEIGHT_PERMITS_SPRINT, WEIGHT_BLOCKS_SPRINT, HEAVYWEIGHT_BLOCKS_SPRINT };
 u32 weight_ui_invoke(const void *menu, void *movie, const struct gfx_value *original)
@@ -54,12 +61,16 @@ u32 weight_ui_invoke(const void *menu, void *movie, const struct gfx_value *orig
     const float movement = engine_apply_modifier(modifiers, 26, p.movement, 1);
     const float heavy = engine_apply_modifier(modifiers, 32, 0, 1);
     const float runner = engine_apply_modifier(modifiers, 31, 0, 1);
+    /* Bear Arms (skill 112): additive modifier 62; above 0 the drawn weapon's
+     * movement penalty is not added (0x2E2C5C..0x2E2C9C). */
+    const float bear_arms = engine_apply_modifier(modifiers, 62, 0, 1);
     const enum sprint sprint = heavy > 0 ? HEAVYWEIGHT_BLOCKS_SPRINT :
         current >= maximum && runner <= 0 ? WEIGHT_BLOCKS_SPRINT : WEIGHT_PERMITS_SPRINT;
-    struct gfx_value args[5] = {
+    struct gfx_value args[7] = {
         value(current), value(maximum),
         value(heavy > 0 ? 0 : (double)(movement * q)),
-        value(p.spending * q), value(sprint)
+        value(p.spending * q), value(sprint),
+        value(kit_movement(modifiers)), value(bear_arms > 0)
     };
-    return engine_movie_invoke(movie, method, 0, args, 5);
+    return engine_movie_invoke(movie, method, 0, args, 7);
 }
