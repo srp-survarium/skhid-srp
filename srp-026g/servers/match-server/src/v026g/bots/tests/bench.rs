@@ -120,7 +120,8 @@ impl BenchEvents {
     }
 
     /// The kills since the last call, and each bot as it is now: [place,
-    /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal].
+    /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal,
+    /// carrying a battery, the place of its target (null: none)].
     pub(crate) fn world(&mut self, clock: u32, game: &mut Game, bots: &Bots) {
         let kills = std::mem::take(&mut game.kill_log);
         if self.0.is_none() {
@@ -171,6 +172,8 @@ impl BenchEvents {
                     bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
                     bot.reflex.target().is_some(),
                     goal,
+                    body.carrying.is_some(),
+                    bot.reflex.target(),
                 ])
             })
             .collect();
@@ -559,6 +562,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         bots.sync_route_claim(index, now, claims_on);
         think += a.elapsed().as_secs_f64();
         bots.ticks(index, &clock, &view, &mut made);
+        bots.zone_walk_note(index, now, &mut notes);
     });
     let ticks = looped.elapsed().as_secs_f64() - think;
     super::bench_work::set(super::bench_work::Who::Idle);

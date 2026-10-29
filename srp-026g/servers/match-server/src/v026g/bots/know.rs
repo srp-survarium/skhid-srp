@@ -1409,6 +1409,11 @@ impl TeamKnowledge {
         });
     }
 
+    /// Whether a bot of the team saw the enemy at `who` carrying a battery within `within_ms` of `now`.
+    pub fn seen_carrying(&self, who: Place, now: u32, within_ms: u32) -> bool {
+        self.carriers_seen.iter().any(|s| s.who == who && now <= s.time.saturating_add(within_ms))
+    }
+
     /// Whether the team knows the enemy at `who` carried `battery`: he
     /// stole it from us (the HUD's theft), or a bot saw him carrying it.
     pub fn knew_carrying(&self, who: Place, battery: usize) -> bool {

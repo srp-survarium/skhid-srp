@@ -32,6 +32,12 @@ use super::view::still_eye;
 pub const SPAWN_AREA_M: f32 = 20.0;
 /// A point is looked for on the grid within this, metres.
 const LOCATE_M: f32 = 3.0;
+/// A body on refused floors may test a line over them this much beyond the way to the nearest allowed floor
+/// ([`Tactics::zone_exit_reach`]), metres: the turns of a way out, a stride's overshoot.
+const ZONE_EXIT_SLACK_M: f32 = 1.0;
+/// … and looks for that floor within this height of its feet (one storey) and this far, metres.
+const ZONE_EXIT_STOREY_M: f32 = 2.5;
+const ZONE_EXIT_MAX_M: f32 = 64.0;
 /// How much height a spot earns [`SpotQuery::prefer_high`] for, metres: the
 /// reach of the old search (the grid's `locate` finds floors up to 2 m over
 /// the ring's point), so a spot on a storey above ranks with the best of the
@@ -1259,7 +1265,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
-            filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
+            &weight,
             iters,
         )
     }
@@ -1315,7 +1321,7 @@ impl Tactics {
             &self.base.regions,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
-            None,
+            &|_| 1.0,
             iters,
         )
     }
@@ -1798,6 +1804,49 @@ impl Tactics {
         };
         path::straight_where(grid, from, to, |node| {
             self.allowed(node, time, side, objective)
+        })
+    }
+
+    /// For a body with its feet at `feet` on floors a zone refuses at `time` ([`Hazards::allowed`]: the refusal
+    /// [`Self::clear_line_for`] refuses its lines by): how far its walk may test a line over the refused floors, metres,
+    /// the way to the nearest floor the zones allow and [`ZONE_EXIT_SLACK_M`] more. None where it stands on allowed
+    /// floors. Its route out runs over the refused floors, so a line from it may cross as much of them as that way is long
+    /// ([`Self::clear_line_leaving`]), and no more.
+    pub fn zone_exit_reach(&self, feet: Vec3, time: u32) -> Option<f32> {
+        let grid = &self.world.grid;
+        let here = grid.locate(feet, 1.5)?;
+        if self.hazards.allowed(here, time) {
+            return None;
+        }
+        let nearest = |radius: f32| {
+            grid.floors_in([feet.x - radius, feet.z - radius, feet.x + radius, feet.z + radius])
+                .filter(|&node| self.hazards.allowed(node, time) && (grid.position(node).y - feet.y).abs() <= ZONE_EXIT_STOREY_M)
+                .map(|node| grid.position(node).distance_xz(feet))
+                .min_by(f32::total_cmp)
+        };
+        let depth = [2.0, 4.0, 8.0, 16.0, 32.0, ZONE_EXIT_MAX_M].into_iter().find_map(nearest).unwrap_or(ZONE_EXIT_MAX_M);
+        Some(depth + ZONE_EXIT_SLACK_M)
+    }
+
+    /// [`Self::clear_line_for`] for a body on refused floors ([`Self::zone_exit_reach`] `reach`): the refused floors of
+    /// the line's first stretch are walked, within `reach` of its start and before the first allowed floor, the way
+    /// [`Self::clear_step_for`] lets a body out of a lip's band: out, not across a zone's core or back in. The spawn
+    /// rule still holds.
+    pub fn clear_line_leaving(&self, a: Vec3, b: Vec3, time: u32, side: Option<i32>, objective: bool, reach: f32) -> bool {
+        let grid = &self.world.grid;
+        let Some((from, to)) = line_ends(grid, a, b) else {
+            return false;
+        };
+        let left = std::cell::Cell::new(false);
+        path::straight_where(grid, from, to, |node| {
+            if !self.spawn_ok(node, side, objective) {
+                return false;
+            }
+            if self.hazards.allowed(node, time) {
+                left.set(true);
+                return true;
+            }
+            !left.get() && grid.position(node).distance_xz(a) <= reach
         })
     }
 

@@ -1671,6 +1671,45 @@ mod tests {
         assert!(kinds.contains(&LinkKind::GapDrop), "{kinds:?}");
     }
 
+    /// The floor a body walks off an edge from is a lip, as a Drop link's is (a body that strays 0.3 m from it falls), with
+    /// `Body::walk_off_lips`: the guards read the lip bits ([`WalkGrid::is_lip`], [`WalkGrid::near_lip`]); a drop shallower
+    /// than a lip is none; without the switch the take-offs are no lips (the grid as it was), and a grid read back from its
+    /// file is given the switch ([`WalkGrid::read`]).
+    #[test]
+    fn the_take_off_of_a_walk_off_is_a_lip_with_the_switch() {
+        let build = |walk_off_lips: bool| {
+            let mut t = world_triangles(2.0, 0.8, 1.0, -3.0);
+            let (back, area) = way_back(2.0, 0.8, 1.0);
+            t.extend(back);
+            let body = Body { walk_off_lips, ..Body::default() };
+            (WalkGrid::build_with_links(&t, area, 0.25, body, OffMeshLinks::Gaps), body)
+        };
+        let (grid, body) = build(true);
+        let walk_offs: Vec<_> = grid.off_links().iter().filter(|l| l.press == Takeoff::WalkOff).collect();
+        assert!(!walk_offs.is_empty());
+        for l in &walk_offs {
+            let drop = grid.position(l.from).y - grid.position(l.to).y;
+            assert_eq!(grid.is_lip(l.from), drop >= LIP_DROP_M, "{l:?} drops {drop}");
+            if drop >= LIP_DROP_M {
+                assert!(grid.near_lip(l.from), "{l:?}");
+            }
+        }
+        assert!(walk_offs.iter().any(|l| grid.is_lip(l.from)), "a drop of a lip's height: {walk_offs:?}");
+        assert_eq!(grid.hot_mismatches(), 0);
+        let path = std::env::temp_dir().join(format!("srp-walk-off-lips-{}.grid", std::process::id()));
+        grid.write(&path, 11).unwrap();
+        let back = WalkGrid::read(&path, 11, body).unwrap();
+        assert!(walk_offs.iter().all(|l| back.is_lip(l.from) == grid.is_lip(l.from)));
+        assert_eq!(back.hot_mismatches(), 0);
+        let _ = std::fs::remove_file(&path);
+        // Without the switch no take-off is a lip, and the key differs.
+        let (plain, plain_body) = build(false);
+        assert!(plain.off_links().iter().filter(|l| l.press == Takeoff::WalkOff).all(|l| !plain.is_lip(l.from)));
+        assert_ne!(plain.digest(), grid.digest(), "the near-lip flags are in the file");
+        let key = |body| crate::grid_key_with_links(&[], [0.0, 0.0, 1.0, 1.0], 0.25, body, &[], OffMeshLinks::Gaps);
+        assert_ne!(key(body), key(plain_body));
+    }
+
     /// Whether a way from (`x`, `y`, 5) to the far block's floor takes a
     /// sprint gap link.
     fn sprints_across(grid: &WalkGrid, x: f32, y: f32, b: f32) -> bool {
@@ -1749,7 +1788,7 @@ mod tests {
         assert!(!grid.off_links().is_empty());
         let path = std::env::temp_dir().join(format!("gap-links-{}.grid", std::process::id()));
         grid.write(&path, 5).unwrap();
-        let back = WalkGrid::read(&path, 5).unwrap();
+        let back = WalkGrid::read(&path, 5, Body::default()).unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(back.digest(), grid.digest());
         assert_eq!(back.off_links(), grid.off_links());
@@ -1785,7 +1824,7 @@ mod tests {
         );
         let path = std::env::temp_dir().join(format!("no-gap-links-{}.grid", std::process::id()));
         grid.write(&path, 6).unwrap();
-        let back = WalkGrid::read(&path, 6).unwrap();
+        let back = WalkGrid::read(&path, 6, Body::default()).unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(back.digest(), grid.digest());
         assert!(back.off_links().is_empty());

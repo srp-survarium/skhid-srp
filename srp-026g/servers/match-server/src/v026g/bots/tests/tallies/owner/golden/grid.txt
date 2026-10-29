@@ -1,0 +1,41 @@
+owner-test grid: falls off the route 1 (from a flagged floor 0, an unflagged one 1; by class {"unplanned_unflagged_drop": 1}), planned 0 (0 only within 2 m); lip guard on walk-off take-offs 0 ticks, other lips 0; drops of 4 m or more in a second: off the route 0 {}, the rest 0; route jump presses by rise: step 1, standing 7, capped band 0, sprint 6, over a gap 0; links: jump 0 standing 0 capped 0 sprint, 0 walk rises of 0.6 m to the step, 0 gap jumps, 0 walk-offs (0 take-offs are lips); zone lines: 0 entries 0 exits, 0 ticks; zone floors: 0 bot-ticks (0 standing still, 0 stands of 2 s or more {}); carriers: 3543 ticks, 0 on lip floors, lip guard safe / swapped / braked [0, 0, 0]
+{
+  "grid_carry_guard_ticks": [
+    0,
+    0,
+    0
+  ],
+  "grid_carry_lip_ticks": 0,
+  "grid_carry_ticks": 3543,
+  "grid_drops4_rest": 0,
+  "grid_drops4_unplanned": {},
+  "grid_falls": {
+    "unplanned_unflagged_drop": 1
+  },
+  "grid_falls_planned": 0,
+  "grid_falls_planned_late": 0,
+  "grid_falls_unplanned": 1,
+  "grid_falls_unplanned_unflagged": 1,
+  "grid_guard_other_lip_ticks": 0,
+  "grid_guard_walk_off_ticks": 0,
+  "grid_links_gap_drop_pressed": 0,
+  "grid_links_gap_jump": 0,
+  "grid_links_jump_capped": 0,
+  "grid_links_jump_sprint": 0,
+  "grid_links_jump_standing": 0,
+  "grid_links_walk_off": 0,
+  "grid_links_walk_off_lips": 0,
+  "grid_links_walk_rises_over_exe_step": 0,
+  "grid_route_jump_presses_capped": 0,
+  "grid_route_jump_presses_gap": 0,
+  "grid_route_jump_presses_sprint": 6,
+  "grid_route_jump_presses_standing": 7,
+  "grid_route_jump_presses_step": 1,
+  "grid_zone_bot_ticks": 0,
+  "grid_zone_stands_2s": 0,
+  "grid_zone_stands_by": {},
+  "grid_zone_still_ticks": 0,
+  "grid_zone_walk_entries": 0,
+  "grid_zone_walk_exits": 0,
+  "grid_zone_walk_ticks": 0
+}

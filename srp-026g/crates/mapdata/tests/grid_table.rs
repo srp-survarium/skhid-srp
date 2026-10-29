@@ -434,3 +434,153 @@ fn the_grid_table() {
         "planned into a shut pocket: {shut_planned:?}"
     );
 }
+
+/// The jump cap per map (`GridTuning::jump_cap_m`): the grid of the defaults' shape (the clients' body, exact erosion, honest
+/// drops, gap links, lips at the walk-offs) built with the standing jump's cap at 0.998 and at the exe's 1.05, side by side: the
+/// Jump links by band (standing, the capped band to 1.05, sprint above), the links of the capped band with no run-up (kept, as
+/// the base kept them) and the sprint links taken away, and what a body gets to from the spawns (`reached`, `pockets`,
+/// `obj_unreached`): the cap must disconnect nothing.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_jump_cap_per_map() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let projects: Vec<String> = match std::env::var("SRP_GRID_TABLE_MAPS") {
+        Ok(list) => list.split(',').map(str::to_owned).collect(),
+        Err(_) => (1..=8)
+            .flat_map(|level| [2, 4].map(|mode| format!("level_{level:02}_day_{mode}")))
+            .collect(),
+    };
+    let header = "project\tcap\tfloors\tjump_standing\tjump_capped\tjump_sprint\tcapped_no_run_up\tsprint_cut\tjump_06_08\treached\tpockets\tobj_unreached\tlips\tlips_without_walk_off_lips";
+    eprintln!("{header}");
+    let mut lines = vec![header.to_owned()];
+    for project in &projects {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        for cap in [mapdata::grid::STANDING_JUMP_M, 1.05] {
+            let body = Body {
+                max_jump: cap,
+                erosion: mapdata::Erosion::Exact,
+                drop_flight_mps: 3.5,
+                walk_off_lips: true,
+                ..Body::client()
+            };
+            let (grid, stats) = WalkGrid::build_kept_with_links(
+                &map.walker_triangles(),
+                map.play_area(mapdata::AREA_MARGIN),
+                mapdata::CELL,
+                body,
+                &map.grid_seeds(),
+                &spawns,
+                mapdata::OffMeshLinks::Gaps,
+            );
+            let row = table_row(&map, &grid);
+            let (mut standing, mut capped, mut sprint, mut below_step) = (0usize, 0usize, 0usize, 0usize);
+            // `SRP_GRID_SPOT=x,z`: the Jump links of a rise under the step within 1.5 m of this spot are listed.
+            let spot = std::env::var("SRP_GRID_SPOT").ok().and_then(|v| {
+                let mut it = v.split(',').filter_map(|x| x.parse::<f32>().ok());
+                Some(Vec3::new(it.next()?, 0.0, it.next()?))
+            });
+            for a in 0..grid.len() as NodeId {
+                for (b, kind) in grid.links(a) {
+                    if kind == mapdata::LinkKind::Jump {
+                        let rise = grid.position(b).y - grid.position(a).y;
+                        // A Jump link of a rise between the exe's step and the clients' (0.6-0.8 m, startup.cfg): the body walks it; counted.
+                        if rise > mapdata::grid::STEP_UP_M && rise <= body.step {
+                            below_step += 1;
+                            if let Some(spot) = spot.filter(|spot| grid.position(a).distance_xz(*spot) <= 1.5) {
+                                eprintln!("{project}: Jump link {:?} -> {:?} rise {rise:.2} near {spot:?}", grid.position(a), grid.position(b));
+                            }
+                        }
+                        if rise > 1.05 {
+                            sprint += 1;
+                        } else if rise > cap {
+                            capped += 1;
+                        } else {
+                            standing += 1;
+                        }
+                    }
+                }
+            }
+            // The lips with and without the walk-off lips (`Body::walk_off_lips`), on the first cap's grid only.
+            let lips = |grid: &WalkGrid| (0..grid.len() as NodeId).filter(|&n| grid.is_lip(n)).count();
+            let lips_column = if cap == mapdata::grid::STANDING_JUMP_M {
+                let (without, _) = WalkGrid::build_kept_with_links(
+                    &map.walker_triangles(),
+                    map.play_area(mapdata::AREA_MARGIN),
+                    mapdata::CELL,
+                    Body { walk_off_lips: false, ..body },
+                    &map.grid_seeds(),
+                    &spawns,
+                    mapdata::OffMeshLinks::Gaps,
+                );
+                format!("{}\t{}", lips(&grid), lips(&without))
+            } else {
+                String::from("-\t-")
+            };
+            let line = format!(
+                "{project}\t{cap}\t{}\t{standing}\t{capped}\t{sprint}\t{}\t{}\t{below_step}\t{}\t{}\t{}\t{lips_column}",
+                row.floors, stats.capped_no_run_up, stats.sprint_cut, row.reached, row.pockets, row.objectives_unreached
+            );
+            eprintln!("{line}");
+            lines.push(line);
+        }
+    }
+    if let Some(out) = std::env::var_os("SRP_GRID_TABLE_OUT") {
+        std::fs::write(out, lines.join("\n") + "\n").unwrap();
+    }
+}
+
+/// Vector Laboratory (day_4): the floor at (26.8, 21.3, -3.8) is reached by a rise of 0.62 m. With the exe's step (0.6) that is
+/// a Jump link; with the clients' numbers (step 0.8, `startup.cfg`) it is a step, so no Jump link of a rise within the step
+/// starts or ends within 1.5 m of it and the walk never presses a jump there. (The owner's local matches ran the exe's step.)
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_vector_laboratory_step_of_0_62_m_is_a_jump_with_the_exes_step_and_a_walk_with_the_clients() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let Ok(map) = MapData::read(&dir.join("level_07_day_4.mapdata")) else {
+        eprintln!("skipping: no level_07_day_4.mapdata");
+        return;
+    };
+    let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+    // The Jump links of a rise over the exe's step and within the clients' (0.6-0.8 m) that end on the floor at the spot.
+    let jumps_to_the_step = |body: Body| {
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &map.walker_triangles(),
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &map.grid_seeds(),
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        let spot = Vec3::new(26.8, 21.3, -3.8);
+        let near = |p: Vec3| p.distance_xz(spot) <= 1.5 && (p.y - spot.y).abs() < 1.0;
+        let mut jumps = 0;
+        for a in 0..grid.len() as NodeId {
+            for (b, kind) in grid.links(a) {
+                let rise = grid.position(b).y - grid.position(a).y;
+                if kind == mapdata::LinkKind::Jump
+                    && rise > mapdata::grid::STEP_UP_M
+                    && rise <= 0.8
+                    && (near(grid.position(a)) || near(grid.position(b)))
+                {
+                    jumps += 1;
+                }
+            }
+        }
+        jumps
+    };
+    let exe = jumps_to_the_step(Body::default());
+    let client = jumps_to_the_step(Body { erosion: mapdata::Erosion::Exact, drop_flight_mps: 3.5, walk_off_lips: true, ..Body::client() });
+    assert!(exe > 0, "the exe's step makes the rise a jump");
+    assert_eq!(client, 0, "the clients' step walks it");
+}

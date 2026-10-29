@@ -123,7 +123,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.tuning.threat.job
         && let Some((job, Role::Pinner, line)) = cx.team.threat.job_of(cx.me.place)
         && (matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
-            || has_fine_spot(cx, line.at))
+            || has_fine_spot(cx, &Choke { at: line.at, job: job_at(cx, TargetRef::ThreatSpot(line.id), line.at) }))
         && let Some(c) = cx.job_candidate(PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH)
     {
         out.push(c);
@@ -173,9 +173,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         // none ended it within the second (the audit's churn: "no spot
         // round the choke", mostly round a known enemy's last place).
         if running != Some(choke)
-            && cx
-                .point_of(choke)
-                .is_none_or(|at| !has_fine_spot(cx, at))
+            && choke_of(cx, choke).is_none_or(|c| !has_fine_spot(cx, &c))
         {
             continue;
         }
@@ -236,10 +234,10 @@ fn halves(cx: &Ctx, choke: Vec3) -> Vec<(Place, Vec3)> {
 /// The spots to cover `choke` from that stay so for a while, best first:
 /// in sight of it, outside every spawn area; found once for the side and
 /// kept `spots_keep_s`.
-fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
+fn spots_by(cx: &Ctx, choke: &Choke) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Crossfire, name);
     // A job's pin on a held spot (K2): its own ring, at the edge of his reach.
-    let job = job_line(cx, choke);
+    let (job, choke) = (choke.job, choke.at);
     let kind = PlayKind::Crossfire as u32 + if job.is_some() { 1_000 } else { 0 };
     let key = Tactics::spot_key(kind, cx.bot.side, choke);
     let keep = (num("spots_keep_s") * 1000.0) as u32;
@@ -266,10 +264,40 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     })
 }
 
-/// The held spot a job's pin covers, if `choke` is one now (K2; the point
-/// of a `TargetRef::ThreatSpot`, read from the same picture).
-fn job_line<'a>(cx: &Ctx<'a>, choke: Vec3) -> Option<&'a HeldLine> {
-    cx.team.threat.line_by_spot(choke).filter(|_| cx.tuning.threat.job)
+/// What a crossfire covers: the choke's point, and the held line when it is
+/// a job's pin (K2, a `TargetRef::ThreatSpot` with `job` on), found by the
+/// spot's id once ([`choke_of`]).
+#[derive(Clone, Copy)]
+struct Choke<'a> {
+    at: Vec3,
+    job: Option<&'a HeldLine>,
+}
+
+/// The choke of `target` now, if it has a place.
+fn choke_of<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<Choke<'a>> {
+    let at = cx.point_of(target)?;
+    Some(Choke { at, job: job_at(cx, target, at) })
+}
+
+/// The held line a crossfire on `target` (at `at`) pins as a job (K2): by
+/// the spot's id ([`ThreatTuning::job_line_by_id`]), else by the point.
+///
+/// [`ThreatTuning::job_line_by_id`]: crate::v026g::bots::tuning::ThreatTuning::job_line_by_id
+fn job_at<'a>(cx: &Ctx<'a>, target: TargetRef, at: Vec3) -> Option<&'a HeldLine> {
+    let by_point = cx.team.threat.line_by_spot(at);
+    #[cfg(test)]
+    if by_point.is_some_and(|l| target != TargetRef::ThreatSpot(l.id)) {
+        crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::CrossfireChokeOnSpot);
+    }
+    let line = if cx.tuning.threat.job_line_by_id {
+        match target {
+            TargetRef::ThreatSpot(id) => cx.team.threat.line(id),
+            _ => None,
+        }
+    } else {
+        by_point
+    };
+    line.filter(|_| cx.tuning.threat.job)
 }
 
 /// The pinner's ring round a held spot: from [`PIN_DEPTH_M`] inside his
@@ -283,9 +311,9 @@ fn pin_ring(cx: &Ctx, line: &HeldLine) -> (f32, f32) {
 /// Of [`spots_by`], those this bot may take now, best first: fine goals it
 /// has a way to ([`Ctx::reachable`], no search lately proved none),
 /// `apart_deg` round the choke from every teammate in its ring.
-fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
+fn fine_spots(cx: &Ctx, choke: &Choke) -> Vec<Vec3> {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke);
+    let others = halves(cx, choke.at);
     let spots = spots_by(cx, choke);
     // The bench's count: the spots of a pick left out for a held line.
     #[cfg(test)]
@@ -298,15 +326,15 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
 
 /// Whether this choke's spots keep out of the held lines (K3; a job's pin
 /// always).
-fn out_of_lines(cx: &Ctx, choke: Vec3) -> bool {
-    cx.tuning.threat.crossfire_out_of_lines || job_line(cx, choke).is_some()
+fn out_of_lines(cx: &Ctx, choke: &Choke) -> bool {
+    cx.tuning.threat.crossfire_out_of_lines || choke.job.is_some()
 }
 
 /// Whether [`fine_spots`] has one: it stops at the first, where the list
 /// is built whole (the offer only asks whether there is a spot).
-fn has_fine_spot(cx: &Ctx, choke: Vec3) -> bool {
+fn has_fine_spot(cx: &Ctx, choke: &Choke) -> bool {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke);
+    let others = halves(cx, choke.at);
     spots_by(cx, choke)
         .iter()
         .any(|at| is_fine(cx, choke, apart, &others, *at))
@@ -314,20 +342,20 @@ fn has_fine_spot(cx: &Ctx, choke: Vec3) -> bool {
 
 /// Whether the bot may take `at` now: a fine goal it has a way to, `apart`
 /// degrees round the choke from every teammate in its ring (`others`).
-fn is_fine(cx: &Ctx, choke: Vec3, apart: f32, others: &[(Place, Vec3)], at: Vec3) -> bool {
+fn is_fine(cx: &Ctx, choke: &Choke, apart: f32, others: &[(Place, Vec3)], at: Vec3) -> bool {
     cx.tactics.fine_goal(at, cx.now, cx.bot.side)
         // Never in a held spot's lanes (K3, and a job's pin): where he
         // killed is where the next one dies.
         && !(out_of_lines(cx, choke) && cx.team.threat.line_at(at).is_some())
-        && others.iter().all(|(_, o)| round(choke, at, *o) >= apart)
+        && others.iter().all(|(_, o)| round(choke.at, at, *o) >= apart)
         && !cx.spot_taken(at, super::goals::APART_M)
         && cx.can_go(at)
-        && !cx.exposed_climb(at, choke)
+        && !cx.exposed_climb(at, choke.at)
 }
 
 /// A spot for the choke, `apart_deg` from every teammate in its ring.
-fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
-    let fine = super::goals::perch_first(cx, choke, rng, fine_spots(cx, choke));
+fn pick(cx: &Ctx, choke: &Choke, rng: &mut Rng) -> Option<Vec3> {
+    let fine = super::goals::perch_first(cx, choke.at, rng, fine_spots(cx, choke));
     // Among the best three, any (not always the best: hard to read).
     let n = fine.len().min(3);
     (n > 0).then(|| fine[rng.below(n)])
@@ -343,7 +371,7 @@ fn crowded(cx: &Ctx, choke: Vec3, spot: Vec3) -> bool {
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    match cx.point_of(target).and_then(|choke| pick(cx, choke, rng)) {
+    match choke_of(cx, target).and_then(|choke| pick(cx, &choke, rng)) {
         Some(spot) => State::Going {
             spot,
             checked: cx.now,
@@ -359,11 +387,11 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     {
         return Step::Done("covered the choke long enough");
     }
-    let Some(choke) = cx.point_of(target) else {
+    let Some(choke) = choke_of(cx, target) else {
         return Step::Done("the choke is gone");
     };
     // The team's job ended: the spot is no longer held.
-    if matches!(target, TargetRef::ThreatSpot(_)) && job_line(cx, choke).is_none() {
+    if matches!(target, TargetRef::ThreatSpot(_)) && choke.job.is_none() {
         return Step::Done("the spot is no longer held");
     }
     let every = (num("repick_every_s") * 1000.0) as u32;
@@ -373,10 +401,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         // the spot (its flanker, most often) is no reason to move or end
         // (the bench: pins ended "no spot apart from the other half" 3 s in).
         State::Going { spot, checked } | State::Hold { spot, checked, .. }
-            if cx.now >= *checked + every && job_line(cx, choke).is_none() && crowded(cx, choke, *spot) =>
+            if cx.now >= *checked + every && choke.job.is_none() && crowded(cx, choke.at, *spot) =>
         {
             *checked = cx.now;
-            let Some(new) = pick(cx, choke, rng) else {
+            let Some(new) = pick(cx, &choke, rng) else {
                 return Step::Failed("no spot apart from the other half");
             };
             *state = State::Going {
@@ -389,7 +417,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         State::Going { spot, checked } => {
             // Its spot proved no way to: another of the fine ones (none:
             // kept, and the think leaves the play, `goal_shut`).
-            if goals::repick_if_shut(cx, spot, || pick(cx, choke, rng)) {
+            if goals::repick_if_shut(cx, spot, || pick(cx, &choke, rng)) {
                 *checked = cx.now;
             }
             let spot = *spot;
@@ -406,7 +434,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                     until: cx.now + (s * 1000.0) as u32,
                     checked: cx.now,
                 };
-                return Step::Continue(Intent::stay().crouched().looking(Look::At(choke)));
+                return Step::Continue(Intent::stay().crouched().looking(Look::At(choke.at)));
             }
             let pace = if d < num("sneak_m") {
                 Pace::Sneak
@@ -419,7 +447,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             if cx.now >= *until {
                 return Step::Done("held the crossfire");
             }
-            Step::Continue(Intent::stay().crouched().looking(Look::At(choke)))
+            Step::Continue(Intent::stay().crouched().looking(Look::At(choke.at)))
         }
     }
 }
@@ -572,13 +600,14 @@ mod tests {
             s.bot(2, 0, mate);
             let mut any = 0;
             for &choke in &s.tactics.exits(1).to_vec() {
-                let list = fine_spots(&s.cx(0), choke);
-                assert_eq!(has_fine_spot(&s.cx(0), choke), !list.is_empty(), "{choke:?}");
+                let at = Choke { at: choke, job: None };
+                let list = fine_spots(&s.cx(0), &at);
+                assert_eq!(has_fine_spot(&s.cx(0), &at), !list.is_empty(), "{choke:?}");
                 any += list.len();
                 // Every one of them proved no way to: none left, both ways.
                 s.no_way_to = list.iter().map(|&at| (at, s.view.clock + 5_000)).collect();
-                assert!(fine_spots(&s.cx(0), choke).is_empty(), "{choke:?}");
-                assert!(!has_fine_spot(&s.cx(0), choke), "{choke:?}");
+                assert!(fine_spots(&s.cx(0), &at).is_empty(), "{choke:?}");
+                assert!(!has_fine_spot(&s.cx(0), &at), "{choke:?}");
                 s.no_way_to.clear();
             }
             assert!(any > 0, "the scenario has fine spots");
@@ -623,7 +652,7 @@ mod tests {
         // Every spot proved no way to: kept.
         let choke = s.tactics.exits(1)[0];
         let until = s.view.clock + 5_000;
-        s.no_way_to = spots_by(&s.cx(0), choke)
+        s.no_way_to = spots_by(&s.cx(0), &Choke { at: choke, job: None })
             .iter()
             .map(|&at| (at, until))
             .collect();

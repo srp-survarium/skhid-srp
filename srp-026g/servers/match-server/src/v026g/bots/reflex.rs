@@ -815,6 +815,22 @@ pub struct CombatTuning {
     /// error either side) meet the world within `hit_cover_m`, metres.
     pub hit_cover: bool,
     pub hit_cover_m: f32,
+    /// `hit_cover`'s cover is what stops the bullet by the game's rule ([`Tactics::shot_reaches`], the bot's `cover.pierce`):
+    /// a spot behind a crate or a car, which the shooter's bullets go through, is not cover. Off, or with `cover.pierce` off:
+    /// any surface of the bullet mesh within `hit_cover_m` is cover, as it was.
+    pub hit_cover_reach: bool,
+    /// Fire through cover (P4b; the owner, 2026-10-28: "yes, but capped"): a bot that was firing at an enemy goes on for this
+    /// long after the last time it saw a part of him (the sight stamped it), at the place he was, when the bullet's line
+    /// there keeps at least `fire_through_share` of its damage (the game's rule, `cover.pierce`; it is the middle of the
+    /// kits' pierce, the bot's own gun is not read), no mate in the line, one burst (one shot, a gun that fires singly)
+    /// in `fire_through_gap_ms`. Human-available: he was seen this moment ago and a human sprays the crate he went behind.
+    /// 0: off, a bot holds fire on a target it does not see, as it did.
+    pub fire_through_ms: u32,
+    pub fire_through_share: f32,
+    pub fire_through_gap_ms: u32,
+    /// `band_hold_on_carrier` reads what the team saw: the target is a carrier when a bot of the team saw him carrying this recently
+    /// (`TeamKnowledge::saw_carrying`, stamped with each sighting), not when the world says so now. 0: the world's, as it was.
+    pub band_carrier_seen_ms: u32,
     /// The look along the marker's direction is at a point this far,
     /// metres (a fixed one: no distance is known).
     pub hit_look_m: f32,
@@ -1216,6 +1232,11 @@ impl Default for CombatTuning {
             hit_match_deg: 15.0,
             hit_cover: true,
             hit_cover_m: 30.0,
+            hit_cover_reach: true,
+            fire_through_ms: 750,
+            fire_through_share: 0.8,
+            fire_through_gap_ms: 1_000,
+            band_carrier_seen_ms: 500,
             hit_look_m: 30.0,
             hit_told_m: 40.0,
             still_wait_ms: (2_000, 4_000),
@@ -2430,6 +2451,32 @@ const HEAL_WALKING_MS: u32 = 1_600;
 /// (a late walk would not use the item's delay).
 const HEAL_WALK_LATE_MS: u32 = 600;
 
+/// [measure] What fire through cover did in one life of a reflex (the bench's owner counts add the lives up; nothing decides by
+/// them): ticks the trigger was pressed at a target not in sight, bursts begun (one per [`CombatTuning::fire_through_gap_ms`] at
+/// most), and the chances refused by what: the damage share under the bar, a mate in the line, the gap since the last burst.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ThroughStats {
+    pub ticks: u32,
+    pub bursts: u32,
+    pub refused_share: u32,
+    pub refused_friend: u32,
+    pub refused_gap: u32,
+}
+
+impl ThroughStats {
+    pub fn total(&self) -> u32 {
+        self.ticks + self.bursts + self.refused_share + self.refused_friend + self.refused_gap
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.ticks += other.ticks;
+        self.bursts += other.bursts;
+        self.refused_share += other.refused_share;
+        self.refused_friend += other.refused_friend;
+        self.refused_gap += other.refused_gap;
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -2531,6 +2578,13 @@ pub struct Reflex {
     /// ([`Reflex::take_worth_notes`]).
     worth_stats: WorthStats,
     worth_notes: Vec<String>,
+    /// The bullet the bot's cover tests go by, as the last think had it (`Situation::cover`): fire through cover asks the
+    /// share of a shot's damage that reaches a place.
+    cover_rule: Option<super::tuning::CoverRule>,
+    /// When the last burst of fire through cover began ([`CombatTuning::fire_through_gap_ms`] between two); none yet this life.
+    through_at: Option<u32>,
+    /// [measure] What fire through cover did this life.
+    through_stats: ThroughStats,
     /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
     /// worth of the others (`worth.hurter_keep_ms`).
     hurter: Option<(Place, u32)>,
@@ -3077,6 +3131,10 @@ impl Reflex {
     }
 
     /// [measure] What the worth, the push and the flank glance did this life.
+    pub fn through_stats(&self) -> ThroughStats {
+        self.through_stats
+    }
+
     pub fn worth_stats(&self) -> WorthStats {
         self.worth_stats
     }
@@ -3122,6 +3180,12 @@ impl Reflex {
     /// The kit's frags now, as the last poll told (none: the kit was not read).
     pub fn frags_left(&self) -> Option<u16> {
         self.frags_left
+    }
+
+    /// A test's cover rule, as a think's `Situation::cover` gives it.
+    #[cfg(test)]
+    pub fn set_cover_rule(&mut self, rule: Option<super::tuning::CoverRule>) {
+        self.cover_rule = rule;
     }
 
     /// The kit's frags now, for the grenade logic ([`CombatTuning::grenade_kit_cap`]).
@@ -3183,6 +3247,7 @@ impl Reflex {
             self.hit_at = Some(now);
         }
         self.known = Known::of_enemies(sit.view, sit.team, (me.team, me.place), now, c.worth.told_ms);
+        self.cover_rule = sit.cover;
         self.threats(me, sit.view, memory, now, hit, c, rng);
         self.choose(me, Some(sit.view), memory, now, aim, skill, rng);
         self.glances(me, sit, memory, now, c);
@@ -4200,7 +4265,13 @@ impl Reflex {
                 let eye = still_eye(at, false);
                 [-spread, 0.0, spread].iter().all(|k| {
                     let [fx, fz] = forward(toward + k);
-                    super::rays::ray_cast(&tactics.world.sight, eye, Vec3::new(fx, 0.0, fz), c.hit_cover_m).is_some()
+                    let dir = Vec3::new(fx, 0.0, fz);
+                    // Cover is what stops the shooter's bullet on that bearing: the bullet from `hit_cover_m` out along it
+                    // does not keep the share over the rule's by the time it reaches the eye.
+                    match sit.cover.filter(|_| c.hit_cover_reach) {
+                        Some(rule) => !tactics.shot_reaches(Some(rule), eye + dir * c.hit_cover_m, eye),
+                        None => super::rays::ray_cast(&tactics.world.sight, eye, dir, c.hit_cover_m).is_some(),
+                    }
                 })
             };
             let query = SpotQuery {
@@ -4396,12 +4467,15 @@ impl Reflex {
             self.outranged_by = Some((track.who(), track.at(), sit.view.clock));
             return;
         }
-        // A carrier cannot shoot: no step back from him.
+        // A carrier cannot shoot: no step back from him. What he carries is what the team saw of him (a human sees the
+        // battery in his hands as long as he sees him), asked of the objective helper; with `band_carrier_seen_ms` 0, the
+        // world's now.
         let carrier = c.band_hold_on_carrier
-            && sit
-                .view
-                .place(track.who())
-                .is_some_and(|p| p.carrying.is_some());
+            && if c.band_carrier_seen_ms == 0 {
+                sit.view.place(track.who()).is_some_and(super::objective_actor::is_actor)
+            } else {
+                sit.team.is_some_and(|team| team.seen_carrying(track.who(), now, c.band_carrier_seen_ms))
+            };
         let step = if d < band.0 - c.band_slack_m {
             (!carrier).then(|| step_toward(me.feet, track.at(), -c.band_step_m))
         } else if d > band.1 + c.band_slack_m {
@@ -5422,6 +5496,9 @@ impl Reflex {
             self.held_ms = 0;
             self.strafe = 0;
             self.strafe_until = 0;
+            if let Some(over) = self.fire_through((me, view), now, fire_allowed, aim, (legs, reload, carry), rng) {
+                return over;
+            }
             // Play 21: the partner's death spot within `trade_m`, weapon
             // up, unless a shot was heard lately (play 6 first: the killer
             // is there, not at the body); else play 6.
@@ -5627,20 +5704,10 @@ impl Reflex {
         let mut wants = false;
         let burst = matches!(gun.handling, Handling::Burst(_));
         if open && blocked.is_none() {
-            match gun.handling {
-                Handling::Burst(_) if now < self.burst_until => wants = true,
-                // A burst as long as the best players hold this kind of
-                // weapon at this distance (a tap, more often far).
-                Handling::Burst(class) if now >= self.pause_until => {
-                    let class = c.fire.auto_class(gun, class);
-                    let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
-                    self.burst_until = now + hold;
-                    self.pause_until = self.burst_until
-                        + rng.range(aim.pause_ms.0 as f32, aim.pause_ms.1 as f32) as u32;
-                    wants = true;
-                }
-                Handling::Burst(_) => failed |= gate::PAUSE,
-                _ => wants = true,
+            if self.shot_wanted(gun, now, distance, aim, rng) {
+                wants = true;
+            } else {
+                failed |= gate::PAUSE;
             }
         } else if burst && now < self.burst_until && self.held_ms > 0 {
             failed |= gate::CUT;
@@ -5723,6 +5790,111 @@ impl Reflex {
                 .filter(|_| aimed.sees_body() && c.turn_feed)
                 .map(|body| bearing_rate(me, point, body.velocity)),
         }
+    }
+
+    /// Whether the trigger is to be pressed for a shot that may go: an automatic weapon in bursts (a burst begun is held to its
+    /// end; a new one after its pause), any other weapon at every cycle of its own. False: in the pause between two bursts.
+    fn shot_wanted(&mut self, gun: &Gun, now: u32, distance: f32, aim: &AimTuning, rng: &mut Rng) -> bool {
+        let c = &aim.combat;
+        match gun.handling {
+            Handling::Burst(_) if now < self.burst_until => true,
+            // A burst as long as the best players hold this kind of
+            // weapon at this distance (a tap, more often far).
+            Handling::Burst(class) if now >= self.pause_until => {
+                let class = c.fire.auto_class(gun, class);
+                let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
+                self.burst_until = now + hold;
+                self.pause_until = self.burst_until + rng.range(aim.pause_ms.0 as f32, aim.pause_ms.1 as f32) as u32;
+                true
+            }
+            Handling::Burst(_) => false,
+            _ => true,
+        }
+    }
+
+    /// Fire through cover (P4b), with the target lost: a bot that was firing at an enemy goes on, for
+    /// [`CombatTuning::fire_through_ms`] after the last part of him it saw, at the place that part was, while the line there
+    /// keeps [`CombatTuning::fire_through_share`] of a bullet's damage by the game's rule (the pierce of the bot's cover
+    /// tests), no mate stands in it and the burst before was [`CombatTuning::fire_through_gap_ms`] ago. Fire already going
+    /// only: the last shot at him is within the same time, and an automatic weapon's burst under way is held to its end, no
+    /// new one (it would start a pause that delays the next real shot). Nothing else is read of the hidden enemy: his place is the one
+    /// the bot saw, not where he is.
+    fn fire_through(
+        &mut self,
+        (me, view): (&PlaceView, &MatchView),
+        now: u32,
+        fire_allowed: bool,
+        aim: &AimTuning,
+        (legs, reload, carry): (Option<Legs>, u32, bool),
+        rng: &mut Rng,
+    ) -> Option<Override> {
+        let c = &aim.combat;
+        let rule = self.cover_rule.filter(|_| fire_allowed && c.fire_through_ms > 0 && !self.dry())?;
+        let (who, feet, _) = self.sight.last_place(now, c.fire_through_ms)?;
+        // Low, at his belly standing (a crouched head): the place a body that ducked behind a crate is, which the part he showed
+        // last, over the crate, is not.
+        let at = super::aimpoint::Part::Belly.point_of(feet, false, me.eye());
+        // Fire already going at him.
+        self.last_fire.filter(|&(shot_who, shot_at)| shot_who == who && now <= shot_at + c.fire_through_ms)?;
+        // He is hidden: one that is seen is the seen branch's.
+        let gun = self.hands().held().gun;
+        let distance = at.distance_xz(me.feet);
+        let ceiling_m = if gun.handling == Handling::Bolt { c.fire.bolt_range_m.max(aim.range_m) } else { aim.range_m };
+        if distance > c.fire_range_m(gun, ceiling_m) || self.hands().held().rounds == 0 {
+            return None;
+        }
+        // The view is on the place and the sights as they were for fire already going.
+        let off = off_by(me, at, (0.0, 0.0));
+        let aimed_in = self.aim_since.is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
+        if off > aim.fire_within_deg.to_radians() || !(aimed_in || hip_cone_fits(me, gun, self.strafe_fire, distance, c)) {
+            return None;
+        }
+        let keys = reload | if carry { key::AIM } else { 0 };
+        let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends);
+        let friend = super::friends::blocking(me, view, &lines.0, distance, aim.friends.spread(gun), lines.1, &aim.friends);
+        let share = self.sight.damage_share(me.eye(), at, rule, c.fire_through_share)?;
+        if share < c.fire_through_share {
+            self.through_stats.refused_share += 1;
+            return None;
+        }
+        if friend.is_some() {
+            self.through_stats.refused_friend += 1;
+            return None;
+        }
+        // One burst a gap (any other weapon: one shot): a burst under way goes to its end, a new one waits.
+        let burst_gun = matches!(gun.handling, Handling::Burst(_));
+        let gap_over = self.through_at.is_none_or(|began| now >= began + c.fire_through_gap_ms);
+        if !(burst_gun && now < self.burst_until) && !gap_over {
+            self.through_stats.refused_gap += 1;
+            return None;
+        }
+        // A burst of an automatic weapon begun here leaves the pause after it as it was: the pause belongs to fire at a target
+        // seen, and would delay the next real shot (the first bench, -2.9 % shots at a target).
+        let (began_burst, pause_before) = (burst_gun && self.burst_until <= now, self.pause_until);
+        if !self.shot_wanted(gun, now, distance, aim, rng) {
+            return None;
+        }
+        if began_burst {
+            self.pause_until = pause_before;
+        }
+        let fire = self.trigger(true, fire_allowed, now, c, distance, rng);
+        if !fire {
+            return None;
+        }
+        if gap_over {
+            self.through_at = Some(now);
+            self.through_stats.bursts += 1;
+        }
+        self.through_stats.ticks += 1;
+        self.last_fire = Some((who, now));
+        Some(Override {
+            look_at: Some(at),
+            fire,
+            keys,
+            legs,
+            band_m: self.band,
+            ..Override::default()
+        })
     }
 
     /// [aimpoint] [`super::aimpoint::Sight::blocked`] with the view (and
@@ -10463,6 +10635,52 @@ mod tests {
         }
     }
 
+    /// The far-shooter case behind cover the shooter's bullet goes through (a crate, a car): with `hit_cover_reach` that is not
+    /// cover, so no spot behind it is taken; with the switch off any surface of the mesh is cover, as it was.
+    #[test]
+    fn a_wall_the_shooters_bullet_goes_through_is_no_cover_from_a_hit() {
+        use mapdata::{Armor, FaceArmor, RayTree, World};
+        let field = crate::v026g::bots::tactics::tests::field();
+        // The field's wall across x = 40 from z = 0 to 25, as thin cover (armor 0.05: nearly all the damage passes).
+        let (points, triangles) = mapdata::library::PrimitiveShape::Box { half: Vec3::new(0.3, 2.0, 12.5) }.tessellate();
+        let tree = RayTree::from_armored_corners(triangles.iter().map(|t| {
+            (t.map(|i| points[i as usize] + Vec3::new(40.0, 2.0, 12.5)), FaceArmor::Material(Armor::new(0.05).unwrap()))
+        }));
+        let tactics = Tactics::new(Arc::new(World::assemble(field.map.clone(), field.grid.clone(), tree.into())), 1.0);
+        let rule = super::super::tuning::CoverRule {
+            pierce: mapdata::Pierce::new(0.3125).unwrap(),
+            max_share: 0.5,
+            spot_cost: None,
+        };
+        let start = Vec3::new(38.0, 0.0, 30.0);
+        let shooter_at = Vec3::new(158.0, 0.0, 30.0);
+        let hides = |reach: bool| {
+            let aim = AimTuning {
+                combat: CombatTuning { hit_bearing: true, hit_cover_reach: reach, ..CombatTuning::default() },
+                ..AimTuning::default()
+            };
+            (0..6)
+                .filter(|&seed| {
+                    let mut me = body(0, 0, start, std::f32::consts::FRAC_PI_2);
+                    let mut view = view_of(vec![me.clone(), body(1, 1, shooter_at, bearing(shooter_at, start))]);
+                    fn sit<'a>(view: &'a MatchView, tactics: &'a Tactics, rule: super::super::tuning::CoverRule) -> Situation<'a> {
+                        Situation { tactics: Some(tactics), side: Some(0), cover: Some(rule), ..Situation::of(view) }
+                    }
+                    let memory = Memory::default();
+                    let mut reflex = Reflex::default();
+                    let mut rng = Rng::new(50 + seed);
+                    reflex.think_with(&me, &sit(&view, &tactics, rule), &memory, 1_000, &aim, 0.5, &mut rng);
+                    view.sounds = vec![shot(1, shooter_at, 1_300)];
+                    me.health = 0.7;
+                    reflex.think_with(&me, &sit(&view, &tactics, rule), &memory, 1_600, &aim, 0.5, &mut rng);
+                    reflex.tick(&me, &view, &memory, 1_650, true, &aim, 0.5, &mut rng).legs.is_some()
+                })
+                .count()
+        };
+        assert_eq!(hides(true), 0, "a wall it shoots through is no cover");
+        assert!(hides(false) >= 5, "the mesh alone: any surface is cover");
+    }
+
     /// The far-shooter case (match report section 10): hit from 120 m by
     /// a shooter it neither sees nor hears. The HUD's marker gives the
     /// direction alone: it runs to a spot with cover that way (the wall),
@@ -10797,23 +11015,43 @@ mod tests {
     /// Match 0x15aa5b99 at 658-690 s: a Mosin bot backed off a battery
     /// carrier at 9-23 m and he walked home. A carrier cannot shoot: no
     /// step back from him; one who is not carrying is stepped back from as
-    /// before.
+    /// before. The carrier is the one the team saw carrying (`band_carrier_seen_ms`), not the world's
+    /// word: a battery the world has in his hands the team has not seen is not held to, and a sighting
+    /// older than the window is not either.
     #[test]
     fn a_sniper_holds_its_ground_at_a_battery_carrier() {
         let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
         let aim = AimTuning::default();
-        for (carrying, steps) in [(true, false), (false, true)] {
+        let off = AimTuning {
+            combat: CombatTuning { band_carrier_seen_ms: 0, ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        // (the world's carrying, seen carrying at, the aim, steps back)
+        let cases = [
+            (true, Some(1_300), &aim, false),
+            (false, None, &aim, true),
+            (true, None, &aim, true),
+            (true, Some(1_300 - 600), &aim, true),
+            (false, Some(1_300), &aim, false),
+            (true, None, &off, false),
+        ];
+        for (carrying, saw, aim, steps) in cases {
             let me = body(0, 0, Vec3::new(20.0, 0.0, 32.0), 0.0);
             let enemy_at = Vec3::new(30.0, 0.0, 32.0);
             let mut enemy = body(1, 1, enemy_at, 0.0);
             enemy.carrying = carrying.then_some(0);
             let view = view_of(vec![me.clone(), enemy]);
             let weapons = [Some(WeaponKind::Sniper), Some(WeaponKind::Rifle)];
+            let mut team = TeamKnowledge::default();
+            if let Some(time) = saw {
+                team.saw_carrying(1, 0, enemy_at, time);
+            }
             let sit = Situation {
                 tactics: Some(&tactics),
                 side: Some(0),
                 weapon: Some(WeaponKind::Sniper),
                 weapons: &weapons,
+                team: Some(&team),
                 ..Situation::of(&view)
             };
             let mut memory = Memory::default();
@@ -10821,13 +11059,14 @@ mod tests {
             let mut rng = Rng::new(64);
             for now in [1_000, 1_300] {
                 sense(&mut memory, &[percept(1, enemy_at, now, Source::Seen)], now);
-                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+                reflex.think_with(&me, &sit, &memory, now, aim, 0.5, &mut rng);
             }
-            let o = reflex.tick(&me, &view, &memory, 1_350, true, &aim, 0.5, &mut rng);
+            let o = reflex.tick(&me, &view, &memory, 1_350, true, aim, 0.5, &mut rng);
             assert_eq!(
                 o.legs.is_some_and(|l| l.why == LegsWhy::Range),
                 steps,
-                "carrying {carrying}: {o:?}"
+                "world {carrying}, saw {saw:?}, window {}: {o:?}",
+                aim.combat.band_carrier_seen_ms
             );
         }
     }

@@ -67,6 +67,9 @@ const DROP_EDGE_STEP_M: f32 = 1.0;
 pub enum Leap {
     /// Up a jump link: the motor presses as it walks over the take-off.
     Ledge,
+    /// Up a jump link above the grid body's standing jump (`Body::max_jump`): a sprint jump, run up to at a sprint. The
+    /// planner labels each jump link once, from the grid it plans on; the motor reads the label.
+    SprintLedge,
     /// Across a gap link (`mapdata::grid::gap`): pressed this far before the
     /// take-off, along the way to the landing, where the grid found the
     /// client's jump comes down on it.
@@ -549,6 +552,8 @@ pub struct Planning {
     search: RouteSearch,
     /// Its floors are weighed (a cost search, `RouteFilter::weight`): its
     /// route is pulled straight over floors of weight 1 only ([`finish`]).
+    /// Set once, at its start: [`Self::resume`] reads the weight it is given
+    /// only then.
     weighted: bool,
     #[cfg(test)]
     us: f64,
@@ -593,7 +598,7 @@ pub fn plan_start(
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume(grid, regions, allowed, region_ok, weight, iters) {
+            match planning.resume(grid, regions, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
                 Some(route) => Ok(route),
                 None => Err(planning),
             }
@@ -604,17 +609,18 @@ pub fn plan_start(
 impl Planning {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// route, or none, once the search ends; `None` while it goes on.
-    /// `weight` is the one it started with.
+    /// `weight`: the filter's (`RouteFilter::weight`), read only by a search
+    /// that started weighed, so a plain search stays plain whatever it is.
     pub fn resume(
         &mut self,
         grid: &WalkGrid,
         regions: &Regions,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
-        weight: Option<&dyn Fn(NodeId) -> f32>,
+        weight: &dyn Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
-        debug_assert_eq!(self.weighted, weight.is_some(), "a search goes on with the weight it started with");
+        let weight = self.weighted.then_some(weight);
         #[cfg(test)]
         let started = std::time::Instant::now();
         // The plain search keeps its own loop (no call through the weight).
@@ -869,6 +875,9 @@ fn pull_straight(
                 at: grid.position(nodes[i]),
                 node: nodes[i],
                 jump: match into[i] {
+                    LinkKind::Jump if grid.position(nodes[i]).y - grid.position(nodes[i - 1]).y > grid.body().max_jump => {
+                        Some(Leap::SprintLedge)
+                    }
                     LinkKind::Jump => Some(Leap::Ledge),
                     // A gap link (`mapdata::grid::gap`): at its own press.
                     // A gap link: pressed at its own point, or walked off
@@ -884,6 +893,15 @@ fn pull_straight(
             });
             if into[i] == LinkKind::Drop {
                 sprint_drops.push((grid.position(nodes[i]), grid.drop_harmless_at(nodes[i - 1], nodes[i], SPRINT_FLIGHT_MPS)));
+            } else if grid.body().walk_off_lips
+                && into[i] == LinkKind::GapDrop
+                && grid.off_link(nodes[i - 1], nodes[i]).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff)
+            {
+                // A drop walked off the edge: made only where the body lands on one level at every walk-off speed, a
+                // sprint's included (`gap::WALK_OFF_SPEEDS`), so it is harmless at a sprint. It is the route's own
+                // fall: the lip guard (its take-off is a lip) lets the body over the edge. Only with `grid.walk_off_lips`:
+                // without it the take-off is no lip and nothing brakes the body there.
+                sprint_drops.push((grid.position(nodes[i]), true));
             }
             leg(i - 1, i, &mut floors);
             continue;
@@ -994,8 +1012,9 @@ impl Route {
     /// This route with a jump from its end onto `to` (on floor `node`): a
     /// way out of a pocket, which no link of the grid makes
     /// (`escape.rs`). The floors along it are kept; the jump's leg is as
-    /// high as the line between its ends.
-    pub fn then_jump(self, to: Vec3, node: NodeId) -> Self {
+    /// high as the line between its ends. A rise over `max_jump` (the grid body's standing jump) is a sprint jump,
+    /// labelled as the planner labels a jump link ([`Leap::SprintLedge`]).
+    pub fn then_jump(self, to: Vec3, node: NodeId, max_jump: f32) -> Self {
         let Self {
             mut points,
             mut floors,
@@ -1014,7 +1033,7 @@ impl Route {
         points.push(Waypoint {
             at: to,
             node,
-            jump: Some(Leap::Ledge),
+            jump: Some(if to.y - last.at.y > max_jump { Leap::SprintLedge } else { Leap::Ledge }),
             low: false,
         });
         floors.push((along + last.at.distance_xz(to), to.y));
@@ -1315,6 +1334,11 @@ impl Route {
             .map(|k| (k, self.along[k - 1] - s))
     }
 
+    /// Whether waypoint `k` is reached by a sprint jump (the planner's label, [`Leap::SprintLedge`]).
+    pub fn sprint_ledge(&self, k: usize) -> bool {
+        self.points[k].jump == Some(Leap::SprintLedge)
+    }
+
     /// The landings of the drops of a lip's height or more the route makes from `s` to `within` metres on (a
     /// planned fall: the body walks off the edge there).
     pub fn drop_landings(&self, s: f32, within: f32, truth: DropTruth) -> Vec<Vec3> {
@@ -1324,6 +1348,14 @@ impl Route {
             .filter(|&k| self.drop_into(k, truth).is_some())
             .map(|k| self.points[k].at)
             .collect()
+    }
+
+    /// Whether the route drops onto a floor within `within` metres of `feet` (anywhere along it): a drop the planner
+    /// recorded ([`DropTruth::Links`]), whatever its height, so a drop link under a lip's height counts, and the
+    /// body that lands on a lower floor beside its landing (a shelf at a ledge's foot) is the route's.
+    #[cfg(test)]
+    pub fn drops_near(&self, feet: Vec3, within: f32) -> bool {
+        (1..self.points.len()).any(|k| self.points[k].at.distance_xz(feet) <= within && self.drop_into(k, DropTruth::Links).is_some())
     }
 
     /// What the planner knows of the drop that waypoint `k` is reached by (`k` at least 1), as to a sprint, if it is

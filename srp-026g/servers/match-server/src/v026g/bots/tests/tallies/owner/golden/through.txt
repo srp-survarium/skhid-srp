@@ -1,0 +1,26 @@
+owner-test through: fire at a target not in sight: ticks 0 bursts 0 (team 0 0 / team 1 0); refused: damage share under the bar 0, a mate in the line 0, the gap since the last burst 0
+{
+  "through": {
+    "by_team": {
+      "0": {
+        "bursts": 0,
+        "refused_friend": 0,
+        "refused_gap": 0,
+        "refused_share": 0,
+        "ticks": 0
+      },
+      "1": {
+        "bursts": 0,
+        "refused_friend": 0,
+        "refused_gap": 0,
+        "refused_share": 0,
+        "ticks": 0
+      }
+    }
+  },
+  "through_bursts": 0,
+  "through_refused_friend": 0,
+  "through_refused_gap": 0,
+  "through_refused_share": 0,
+  "through_ticks": 0
+}

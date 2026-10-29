@@ -130,14 +130,36 @@ impl Probe {
         };
         let real_v = {
             let ring = &self.ring[place];
-            if ring.len() >= 2 {
-                let (a, b) = (ring[ring.len() - 2].1, ring[ring.len() - 1].1);
+            // The velocity over the two ticks before the last (the last holds the fall).
+            if ring.len() >= 3 {
+                let (a, b) = (ring[ring.len() - 3].1, ring[ring.len() - 2].1);
                 format!("{:.2},{:.2}", (b.x - a.x) / 0.05, (b.z - a.z) / 0.05)
             } else {
                 String::new()
             }
         };
+        // The last five feet of the body and of the bot's reckoning, (x, y, z) each: where the model and the body part.
+        let trail = |points: &mut dyn Iterator<Item = Vec3>| points.map(|p| format!("{:.2},{:.2},{:.2}", p.x, p.y, p.z)).collect::<Vec<_>>().join(" ");
+        let real_trail = trail(&mut self.ring[place].iter().rev().take(5).rev().map(|r| r.1));
+        let est_trail = trail(&mut bot.bench_est.iter().rev().take(5).rev().map(|r| r.1));
         let (est_v, est_at) = bot.bench_guard_at;
+        // The next step of the body's last velocity played over the grid from the floor under `from`, with the bots' slide
+        // and the stand-in's capped one: whether each goes down a ledge (the guard plays the first, the body the second).
+        let models = bots.tactics.as_ref().map_or(String::new(), |tactics| {
+            let grid = &tactics.world.grid;
+            let ring = &self.ring[place];
+            if ring.len() < 3 {
+                return String::new();
+            }
+            let (a, b) = (ring[ring.len() - 3].1, ring[ring.len() - 2].1);
+            let Some(node) = grid.locate(from, 1.5) else {
+                return String::from("nofloor");
+            };
+            let to = Vec3::new(from.x + (b.x - a.x), from.y, from.z + (b.z - a.z));
+            let (n1, f1, _) = crate::v026g::bots::body::slide(grid, node, from, to);
+            let (n2, f2, _) = crate::v026g::bots::body::slide_capped(grid, node, from, to, grid.body().step);
+            format!("{node}@{:.2}:slide={n1}@{:.2} capped={n2}@{:.2}", grid.position(node).y, f1.y, f2.y)
+        });
         let (lip, lip_m) = bots.tactics.as_ref().map_or((String::from("-"), -1.0), |tactics| {
             let grid = &tactics.world.grid;
             let node = grid.locate(from, 1.0);
@@ -168,7 +190,7 @@ impl Probe {
             format!("walked={:.1}/{:.1} off={:.2} drop_ahead={:.1} goal_d={:.1}", walked, route.length(), off, ahead, goal.distance_xz(from))
         });
         eprintln!(
-            "{} t={} place={} drop={:.1} play={} step={} go={} legs={} why={:#x} unstick={} carrying={} strafe={} stepped={} est_v={:.2},{:.2} real_v={} est_dfeet={:.2} keys=[{}] speed={:.2} lip={} lip_m={:.2} route={} from={:.1},{:.1},{:.1}",
+            "{} t={} place={} drop={:.1} play={} step={} go={} legs={} why={:#x} unstick={} carrying={} strafe={} stepped={} est_v={:.2},{:.2} real_v={} est_dfeet={:.2} keys=[{}] speed={:.2} lip={} lip_m={:.2} route={} from={:.1},{:.1},{:.1} guard={} watch={:?} models=[{}] real_trail=[{}] est_trail=[{}]",
             if planned { "PLANNED" } else { "FALL" },
             time,
             place,
@@ -193,7 +215,12 @@ impl Probe {
             route,
             from.x,
             from.y,
-            from.z
+            from.z,
+            bot.bench_guard,
+            bot.lip_watch,
+            models,
+            real_trail,
+            est_trail
         );
     }
 }

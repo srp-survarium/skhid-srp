@@ -96,6 +96,8 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(SearchQueueCounts::default()),
         Box::new(ThreatAnswerCounts::default()),
         Box::new(WorthCounts::default()),
+        Box::new(GridCounts::new(n)),
+        Box::new(ThroughCounts::default()),
     ]
 }
 
@@ -148,6 +150,10 @@ impl BotNow {
             goal_m: self.goal_m,
             jump: self.jump,
             cover: "",
+            after_landing: None,
+            walk: 0,
+            why: 0,
+            has_route: false,
         }
     }
 }

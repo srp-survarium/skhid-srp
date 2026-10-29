@@ -169,11 +169,12 @@ impl RouteTally {
             let exact = std::mem::replace(&mut run.exact_was[place], exact_now) || exact_now;
             let fall = before.filter(|from| body.alive && from.y - body.feet.y >= 1.0).map(|from| {
                 // Its route drops there: a corner over a metre under the one before, within a metre of where
-                // it landed.
+                // it landed, or a drop the planner recorded (a drop link under a metre, onto a shelf above the
+                // floor the body lands on: Mamayev Kurgan's spawn deck).
                 let planned = bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
                     route.points().windows(2).any(|w| {
                         w[0].at.y - w[1].at.y >= 1.0 && w[1].at.distance_xz(body.feet) <= 1.0
-                    })
+                    }) || route.drops_near(body.feet, 1.0)
                 });
                 Fall { from, planned, exact }
             });

@@ -936,7 +936,7 @@ fn drive_tick_inner(
                     !tactics.allowed(from, time, side, objective)
                         && !(crossing && tactics.hazards.only_fixed_at(from))
                 });
-                let floors = &mut grant.floors;
+                let (floors, overdraft) = (&mut grant.floors, &mut grant.overdraft);
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
@@ -1080,14 +1080,19 @@ fn drive_tick_inner(
                             // Its own floors (`whole_route_floors`), not what the
                             // poll's other searches left: with the remainder it ran
                             // out in 29 of 30 searches at about 1,900 floors (p1-bench,
-                            // 2026-10-29). Taken off the poll's all the same, so the
-                            // searches after it in this poll wait.
+                            // 2026-10-29). Booked to the poll all the same (the grant's
+                            // floors, then past them: `Overdraft`), so the searches after
+                            // it in this poll wait.
                             let cap = tuning.threat.whole_route_floors as usize;
                             let mut mine = cap;
                             #[cfg(test)]
                             let _k1 = path::tag::Scope::new(path::tag::K1);
                             let way = tactics.start_route(n0, n1, time, side, objective, &avoid, &mut mine);
-                            *floors = floors.saturating_sub(cap - mine);
+                            if tuning.threat.whole_route_booked {
+                                overdraft.spend(floors, cap - mine);
+                            } else {
+                                *floors = floors.saturating_sub(cap - mine);
+                            }
                             let mut kept_m = seen.metres;
                             match way {
                                 Ok(Some(round)) if stuck::worth_round(round.length(), plain.length()) => {
@@ -1327,7 +1332,33 @@ fn drive_tick_inner(
                     bot.motor.exact_end = (exact_at == Some(*route_at)).then(|| intent.exact_arrive_m.unwrap_or(bot.motor.feel.arrive_m));
                     let side = bot.side;
                     let objective = intent.objective;
-                    let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
+                    // A body on a zone's floors walks its way out over them: the lines it tests may cross the refused
+                    // floors of their first stretch, within the way out and no further (`Feel::zone_lines`); else no
+                    // point of the route out is one it walks to, and `unclear_aim` stood it there. One test of "on
+                    // refused floors" for the walk: `Hazards::allowed`, the refusal `clear_line_for` goes by.
+                    let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit_reach(me.feet, time)).flatten();
+                    match (bot.zone_walk, leaving) {
+                        (None, Some(reach)) => {
+                            bot.zone_walk = Some(time);
+                            bot.zone_note = Some(format!(
+                                "walks out over the floors of a zone from {:?}: lines tested over them up to {reach:.1} m",
+                                me.feet.to_array()
+                            ));
+                        }
+                        (Some(since), None) => {
+                            bot.zone_walk = None;
+                            bot.zone_note = Some(format!(
+                                "is off the zone floors at {:?} after {} ms",
+                                me.feet.to_array(),
+                                time.wrapping_sub(since)
+                            ));
+                        }
+                        _ => {}
+                    }
+                    let clear = |p: Vec3| match leaving {
+                        Some(reach) => tactics.clear_line_leaving(me.feet, p, time, side, objective, reach),
+                        None => tactics.clear_line_for(me.feet, p, time, side, objective),
+                    };
                     // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
