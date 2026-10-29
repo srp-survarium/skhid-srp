@@ -661,7 +661,15 @@ pub(crate) fn real_bot_cost() {
     for (level, mode) in maps {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
-        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
+        let file = dir.join(mapdata::format::file_name(&project));
+        let version = mapdata::format::file_version(&file).unwrap_or_else(|e| panic!("{e}"));
+        let allow_old = bench_settings().var("SRP_BENCH_MAPDATA_OLD").as_deref() == Ok("allow");
+        match super::settings::mapdata_format_verdict(&file, version, allow_old) {
+            Ok(Some(warning)) => eprintln!("{warning}"),
+            Ok(None) => {}
+            Err(refusal) => panic!("{refusal}"),
+        }
+        let map = mapdata::MapData::read(&file).unwrap();
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
@@ -775,7 +783,7 @@ pub(crate) fn real_bot_cost() {
             }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
-            if bench_settings().flag("SRP_BENCH_WEAPONS") {
+            if bench_settings().is_on("SRP_BENCH_WEAPONS") {
                 let weapons = bots
                     .bots
                     .iter()
