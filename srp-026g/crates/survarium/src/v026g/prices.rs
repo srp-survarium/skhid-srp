@@ -1598,8 +1598,8 @@ mod with_the_weapons_from_0_29a3 {
     }
 }
 
-/// The weapon kit's muzzle devices (pack weapon-attachments, edit list
-/// weapon-muzzle-fit-1): run on the server game data of a build with them,
+/// The weapon kit's muzzle devices (pack ak74m-brake, edit list
+/// ak74m-brake-1: the AK-74M's brake): run on the server game data of a build with them,
 /// `SRP_TEST_WEAPON_KIT_DATA=<server-game-data.db> cargo test -p survarium
 /// --lib -- --ignored the_weapon_kits_muzzle_devices`.
 #[cfg(test)]
@@ -1623,7 +1623,8 @@ mod with_the_weapon_kits_muzzle_devices {
             .iter()
             .filter(|item| (2601..=2649).contains(&item.dict_id))
             .collect();
-        assert_eq!(devices.len(), 20);
+        assert_eq!(devices[0].name, "srp_ak74_m24x15");
+        assert_eq!(devices.len(), 1);
         for item in devices {
             let p = *params.iter().find(|p| p.dict_id == item.dict_id).unwrap();
             assert_eq!(p.kind, MUZZLE_KIND, "{}", item.name);
@@ -1650,6 +1651,8 @@ mod with_the_weapon_kits_muzzle_devices {
             .iter()
             .filter(|&&(_, device)| (2601..=2649).contains(&device))
             .count();
-        assert_eq!(rows, 111);
+        // the AK-74M (3) alone
+        assert_eq!(rows, 1);
+        assert!(dictionary.compatibility.contains(&(3, 2621)));
     }
 }
