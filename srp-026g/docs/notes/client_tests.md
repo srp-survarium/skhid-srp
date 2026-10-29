@@ -59,6 +59,15 @@ chat log of the game.
 A step that starts only with the owner alive: a step that ends with his death waits for his respawn before the next is armed.
 A try the match or the owner cut short (match over, owner gone) is not used up and runs again in the next match of its group.
 
+## Roles of the bots
+
+A step may ask for the role of a server bot (`Step::seat`): a camper, a flanker, a support or a rusher, with the role's kits and
+weapons. A match's profiles are made once, when the lobby forms the match, so the role is the match's: the plan's steps for one
+match are put together and two that disagree about one seat are refused at the start. The lobby asks the hook that `srp` registers
+(`lobby_server::v026g::client_test`, cargo feature `client-test` of `lobby-server`, forwarded by `srp`) for the roles of a Player vs
+Bots match's bots; with no plan, or no seat for the match, the roles are the lobby's. Without the feature the hook is not compiled and
+the lobby forms a match as before.
+
 ## What the runner can measure
 
 The server sees what the world uploads show (positions, health, kills, deaths) and what the bots log (their notes). It

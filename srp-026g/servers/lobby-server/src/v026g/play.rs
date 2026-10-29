@@ -910,6 +910,9 @@ impl Core<'_> {
         });
         let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
         let bot_roles = survarium::v026g::loadouts::bot_roles(&bot_teams);
+        // TEST ONLY: a client test may choose the roles (`client_test.rs`).
+        #[cfg(feature = "client-test")]
+        let bot_roles = super::client_test::roles(pvb.map(|choice| (choice.size, choice.map_id)), &bot_teams, bot_roles);
         let bot_tier = BotTier::of_gear(gear);
         let bot_equipment = BotEquipment::of(bot_tier, self.settings.pvb.rusher_kits);
         if bots > 0 {

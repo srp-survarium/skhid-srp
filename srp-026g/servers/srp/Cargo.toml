@@ -10,7 +10,7 @@ workspace = true
 
 [features]
 # TEST ONLY (`match-server`'s `bots/client_tests`): the client-test runner, with its lines for the owner sent to the game's chat.
-client-test = ["match-server/client-test"]
+client-test = ["match-server/client-test", "lobby-server/client-test"]
 
 [dependencies]
 ctrlc = { workspace = true }

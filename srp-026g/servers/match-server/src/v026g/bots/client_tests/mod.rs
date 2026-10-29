@@ -71,6 +71,9 @@
 //!   reaction to a trap and the jump over one, the step in off a lip, the zone way-out, the pocket escape, the sprint and the
 //!   detour round a held lane, the unstick and the pause after it; `React::Normal` leaves them. A match that lacks a named bot
 //!   voids the try (`missing_bots`). Bots cannot be placed: they walk, so a start that needs them says `Cond::BotsInPlace`.
+//! - `.seat(side, n, role)`: the bot `n` of `side` is a `role` (`BotRole`: its kits and weapons are the role's) for the whole match: the
+//!   lobby forms the match with it ([`bot_roles`], the hook `srp` registers with the lobby under the same feature). Two steps of
+//!   one match may not ask for two roles of one seat. A bot's tier and its rusher kit are the match's.
 //! - `.start(&[..])`: all [`Cond`]s must hold at once, after the owner has had 1.5 s to read, with him alive: `OwnerNear`,
 //!   `BotsInPlace`, `After(Span)`, `Custom(WaitFor)`. The default is at once; `.settle(Span)` changes the 1.5 s to read.
 //! - `.end(&[..])`: the first [`End`] that holds, or the budget (`.budget_s(n)`, default 60, at most 180): `OwnerDied`,
@@ -115,6 +118,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use plan::Plan;
+use survarium::v026g::loadouts::BotRole;
 
 /// Registers the packages' step files: one line each, in this list. A package adds its own line and nothing else.
 macro_rules! packages {
@@ -272,6 +276,31 @@ pub fn for_match(match_id: u32, played: Group) -> Option<Link> {
         todo.iter().map(|t| t.step.id).collect::<Vec<_>>().join(", ")
     );
     Some(Link::new(Runner::new(match_id, live.provenance.clone(), played, todo, next), live.output.clone()))
+}
+
+/// The roles of a match's server bots, as the plan wants them (TEST ONLY, called by the lobby when it forms a Player vs Bots match
+/// through the hook `srp` registers): `defaults` are the roles the lobby would give the bots `bot_teams` (their teams, by place); a
+/// plan that is not set, or has no seat for this match, gives them back unchanged. The owner is on team 0 with `per_team - 1` bots.
+pub fn bot_roles(level: u8, mode: u8, per_team: u8, bot_teams: &[u8], defaults: Vec<BotRole>) -> Vec<BotRole> {
+    let Some(live) = LIVE.get() else {
+        return defaults;
+    };
+    roles_for(&live.plan.roster_for(Group::new(level, mode).of_size(per_team)), bot_teams, defaults)
+}
+
+/// `defaults` with the seats' roles in: the n-th bot of team 0 / team 1 by place. A seat with no such bot is logged and left out.
+fn roles_for(roster: &[Seat], bot_teams: &[u8], mut roles: Vec<BotRole>) -> Vec<BotRole> {
+    for seat in roster {
+        let team = match seat.side {
+            Side::Mates => 0,
+            Side::Enemies => 1,
+        };
+        match bot_teams.iter().enumerate().filter(|(_, t)| **t == team).nth(usize::from(seat.nth)) {
+            Some((place, _)) => roles[place] = seat.role,
+            None => log::warn!("CLIENT_TEST: no {} bot {} in this match: its role {:?} is not given", seat.side.name(), seat.nth, seat.role),
+        }
+    }
+    roles
 }
 
 /// A match's runner and where its words and rows go.
