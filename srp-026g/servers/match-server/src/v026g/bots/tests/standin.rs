@@ -18,6 +18,7 @@
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
+//! | `SRP_BENCH_ZONE_INTENSITY` | on: a zone's hit is the client's rule (its hit curve at the body's place in it, the interval included); `0`: the full hit wherever a body stands in it |
 //! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
 //! | `SRP_BENCH_DRAW_TIME` | [`DRAW_MS`], 800 ms for every weapon; `weapon`: its `show_time` |
 //! | `SRP_BENCH_BODY_BLOCK_M` | off: bodies pass through each other; `0.76`: enemy bodies block (friends never) |
@@ -396,6 +397,10 @@ pub(crate) struct Game {
     /// (`HazardTuning::zone_pools` routed, `SRP_BENCH_ZONE_POOLS=routed`: [`Game::zone_tick_routed`]); else
     /// the body pool and the raw hit.
     pub(crate) zone_routed: bool,
+    /// A zone's hit is the client's rule (`SRP_BENCH_ZONE_INTENSITY`, on in the bench; [`Hazard::hit_rate_at`],
+    /// [`Hazard::client_cost_per_s`] at the body's centre): the hit curve at its place in the zone, the interval included;
+    /// else the full hit wherever a body stands in it.
+    pub(crate) zone_intensity: bool,
     /// What the routed zones took by pool (body, head, infection, pain) and the deaths in them by the pool
     /// that ran out.
     pub(crate) zone_pool_lost: [f32; 4],
@@ -671,6 +676,7 @@ impl Game {
             zone_deaths: 0,
             zone_hp: 0.0,
             zone_routed: false,
+            zone_intensity: false,
             zone_pool_lost: [0.0; 4],
             zone_pool_deaths: [0; 4],
             fields: standin_fields::FieldGen::from_env(&world, seed),
@@ -1568,6 +1574,7 @@ impl Game {
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
                 continue;
             };
+            let centre = self.body_centre(place);
             let per_baked: f32 = if baked {
                 inside
                     .zones_at(node)
@@ -1577,7 +1584,7 @@ impl Game {
                             .find(|o| o.zone == zone.zone)
                             .is_some_and(|o| o.activity.active(tick))
                     })
-                    .map(Hazard::hit_per_s)
+                    .map(|zone| self.zone_hit(zone, centre))
                     .sum()
             } else {
                 0.0
@@ -1646,6 +1653,23 @@ impl Game {
         }
     }
 
+    /// The centre of the body at `place`: half the grid body's height over its feet (the client asks the zone about the
+    /// capsule's centre: the live bots' losses fit the curve at it, `fx-zones-bots-hurt.md`).
+    fn body_centre(&self, place: usize) -> Vec3 {
+        self.bodies[place].feet + Vec3::new(0.0, 0.5 * self.world.grid.body().stand_height, 0.0)
+    }
+
+    /// What `zone` takes a second from a body whose centre is at `centre`, before armour: the client's rule under
+    /// [`Self::zone_intensity`], else the full hit.
+    fn zone_hit(&self, zone: &Hazard, centre: Vec3) -> f32 {
+        if self.zone_intensity { zone.hit_rate_at(centre) } else { zone.hit_per_s() }
+    }
+
+    /// [`Self::zone_hit`] in the pools that kill under `armour`.
+    fn zone_cost(&self, zone: &Hazard, armour: &crate::v026g::bots::zone_cost::ZoneArmour, centre: Vec3) -> crate::v026g::bots::zone_cost::Cost {
+        if self.zone_intensity { zone.client_cost_per_s(armour, centre) } else { zone.cost_per_s(armour) }
+    }
+
     /// [`Self::zone_tick`] with the zones' hits going where the client sends them (`zone_cost.rs`): each zone's
     /// hit a second, worked out for the armour the body wears (its kit's), goes to the body, the head, the
     /// infection (no regeneration) and the pain pools; the anomaly fields still hurt the body pool by their raw
@@ -1665,6 +1689,7 @@ impl Game {
                 continue;
             };
             let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, self.damage.mask, body.gun.item);
+            let centre = self.body_centre(place);
             let baked_cost: Cost = if baked {
                 inside
                     .zones_at(node)
@@ -1674,7 +1699,7 @@ impl Game {
                             .find(|o| o.zone == zone.zone)
                             .is_some_and(|o| o.activity.active(tick))
                     })
-                    .map(|zone| zone.cost_per_s(&armour))
+                    .map(|zone| self.zone_cost(zone, &armour, centre))
                     .sum()
             } else {
                 Cost::ZERO

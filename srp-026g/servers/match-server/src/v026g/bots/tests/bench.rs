@@ -930,6 +930,9 @@ pub(crate) fn real_bot_cost() {
             // owner's CG-20 test): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
             game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
+            // The client's zone rule (a hit at the body's place in the zone, the interval included; bots in live lose exactly
+            // that): on unless `SRP_BENCH_ZONE_INTENSITY=0` (the flat full hit the stand-in had).
+            game.zone_intensity = bench_settings().var("SRP_BENCH_ZONE_INTENSITY").is_ok_and(|v| v != "0");
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
