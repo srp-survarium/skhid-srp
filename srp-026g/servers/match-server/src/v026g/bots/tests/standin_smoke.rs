@@ -3,7 +3,8 @@
 //! clouds ([`Tracker::add_cloud`]) from the live players' numbers (`fx-smoke-data.md` §5, `smoke_use.py`: the 402 live recordings, 39,547
 //! lives, LIKELY unless said):
 //!
-//! - **how often:** 2.97 throws per 100 lives; a life draws once, at its spawn.
+//! - **how often:** 2.97 throws per 100 lives: a life draws once, at its spawn, at that rate over [`COMPLETION`] (a third of the draws end
+//!   with the life before the press can be made).
 //! - **when:** [`SINCE_SPAWN_S`] after the spawn (P10 7 s, median 27 s, P90 97 s), at the first tick the nearest enemy is within
 //!   [`NEAREST_MAX_M`] (live P90 60 m) and is one the thrower has seen or heard within 15 s (the fairness rule of BENCH-DECISIONS D: the
 //!   recordings have no sight data).
@@ -21,6 +22,9 @@ use crate::v026g::bots::smoke::{MatchMs, SmokeGrenade, SmokeThrow, floor_under};
 
 /// Live throws per life (2.97 per 100).
 pub(crate) const THROW_PER_LIFE: f32 = 0.0297;
+/// The share of the lives that draw a throw and make it: the rest end before an enemy is near and fresh at or after the press time (30
+/// of 45 draws in 1,508 lives of 112 matches, 2026-10-29). A life draws at [`THROW_PER_LIFE`] over this so that the throws are the live rate.
+pub(crate) const COMPLETION: f32 = 0.67;
 /// The shares of the throws by where the rest point is: on the line to the nearest enemy and closer, on him; the rest elsewhere.
 pub(crate) const BETWEEN_SHARE: f32 = 0.689;
 pub(crate) const ON_HIM_SHARE: f32 = 0.062;
@@ -93,7 +97,7 @@ impl SmokeHabit {
         if self.life != Some(body.spawned) {
             self.life = Some(body.spawned);
             self.counts.lives += 1;
-            self.habit = if self.rng.unit() < THROW_PER_LIFE {
+            self.habit = if self.rng.unit() < THROW_PER_LIFE / COMPLETION {
                 self.counts.planned += 1;
                 let after_s = at_fraction(&SINCE_SPAWN_S, self.rng.unit());
                 Habit::Waiting { from: body.spawned + (after_s * 1000.0) as u32 }
