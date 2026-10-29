@@ -1,0 +1,12 @@
+{
+ "_about": "Exoskeleton suits' buff (the owner, 2026-10-29; docs/notes/exo-suits.md). The suits' built-in bonuses are their default_modifications (the client adds them from the config, the server counts them as held, so the suit cannot roll a kind it comes with). Freedom (freedom_exo_026, torso): movement speed 1112 (+3 %) -> 1113 (+4 %), energy costs 1161 (-4 %) -> 1163 (-8 %), and stamina regeneration 1103 (+8 %) added; its item slot 1030, ammo bag 1050 and artefact container 1040 stay. Duty (duty_exo_026, torso): weight limit 1124 (+5 kg) and regeneration 1094 (+15 %) added to its item slot 1030, ammo bag 1050, pocket capacity 1170 and artefact container 1040.",
+ "set": [
+  {"file": "gameplay/items/armour/torso/freedom_exo_026.options", "path": "default_modifications[3]", "from": 1112, "to": 1113},
+  {"file": "gameplay/items/armour/torso/freedom_exo_026.options", "path": "default_modifications[4]", "from": 1161, "to": 1163}
+ ],
+ "append_item": [
+  {"file": "gameplay/items/armour/torso/freedom_exo_026.options", "path": "default_modifications", "value": 1103},
+  {"file": "gameplay/items/armour/torso/duty_exo_026.options", "path": "default_modifications", "value": 1124},
+  {"file": "gameplay/items/armour/torso/duty_exo_026.options", "path": "default_modifications", "value": 1094}
+ ]
+}

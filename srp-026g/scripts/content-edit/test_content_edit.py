@@ -114,6 +114,37 @@ class MapEditorEdits(unittest.TestCase):
         self.assertTrue(ce.same(value(data, 'modifications[0]/modifiers[1]/value'), -0.02))
         ce.walk(data)
 
+    def test_append_item_to_a_root_list_of_numbers(self):
+        """An item's default_modifications gains a value; a value it holds already is refused."""
+        data = config({'default_modifications': [1030, 1050], 'other': 7})
+        ce.append_item(data, 'default_modifications', 1103)
+        self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1050, 1103])
+        with self.assertRaises(ValueError):
+            ce.append_item(data, 'default_modifications', 1050)
+        with self.assertRaises(ValueError):
+            ce.append_item(data, 'default_modifications', 'text')
+        self.assertEqual(value(data, 'other'), 7)
+        ce.walk(data)
+
+    def test_cli_checks_set_and_append_item_of_a_root_list(self):
+        """The whole tool on a suit-like config: a default replaced by `set`, two appended; the check
+        afterwards expects exactly those changes."""
+        edits = {'set': [{'file': 'suit', 'path': 'default_modifications[1]', 'from': 1112, 'to': 1113}],
+                 'append_item': [{'file': 'suit', 'path': 'default_modifications', 'value': 1103},
+                                 {'file': 'suit', 'path': 'default_modifications', 'value': 1094}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/suit').write_bytes(bytes(config({'default_modifications': [1030, 1112], 'weight': 3.5})))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/suit').read_bytes())
+            self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1113, 1103, 1094])
+
     def test_cli_checks_add_remove_and_entry_index_shifts(self):
         edits = {
             'add_entry': [{'files': 'project', 'list': 'objects',

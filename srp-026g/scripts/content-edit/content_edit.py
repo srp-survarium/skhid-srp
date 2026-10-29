@@ -50,6 +50,11 @@ Edits (edits.json):
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
                                                        later items move down in place, the count drops by 1
+  "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table of
+                                                       numbers or strings `path` (an item's
+                                                       `default_modifications`), made like its first item;
+                                                       a value the table holds already is refused; applied
+                                                       after remove_item
   "copy":           [{"files", "from", "to"}]          every live file the glob matches (its path starts
                                                        with `from`) is also a new file at `to` + the rest
                                                        of its path, a path no live file has; applied first,
@@ -480,6 +485,32 @@ def remove_item(buf, path, value):
         buf[dst:dst + 24] = buf[src:src + 24]
     d, i, crc, t, cnt = rec(buf, off)
     REC.pack_into(buf, off, d, i, crc, t, cnt - 1)
+
+
+def append_item(buf, path, value):
+    """`value` after the items of the indexed table of numbers or strings `path`, a record like its
+    first item; the table's records move to a new array with it. A value the table holds already is
+    refused (a stale base, or a second bonus of one modification)."""
+    items = items_of(buf, path)
+    if value in items:
+        raise ValueError('%s holds %r already' % (path, value))
+    off = find(buf, path)
+    kids = children(buf, off)
+    if not kids:
+        raise ValueError('%s has no item to make the new one like' % path)
+    _, ii, icrc, it, icnt = rec(buf, kids[0])
+    if it == T_STR and isinstance(value, str):
+        text = value.encode()
+        new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
+    elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
+        new = REC.pack(value & 0xffffffff, ii, icrc, it, icnt)
+    elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
+        new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
+    else:
+        raise ValueError('%s holds items of type %d, not %r' % (path, it, value))
+    old = [bytes(buf[c:c + 24]) for c in kids]
+    d, i, crc, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, append_array(buf, old + [new]), i, crc, t, cnt + 1)
 
 
 def shifted(path, lst, at):
@@ -984,6 +1015,15 @@ def main():
             e['path'], items_of(buf(e['file']), e['path']))
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
+    for e in edits.get('append_item', []):
+        k = len(items_of(buf(e['file']), e['path']))
+        append_item(buf(e['file']), e['path'], e['value'])
+        # The check below expects the new item and the table's count one more.
+        table = '/' + e['path']
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (e['path'], json.dumps(e['value'], ensure_ascii=False)))
     dropped = {}
     for e in edits.get('remove_entry', []):
         at = remove_entry(buf(e['file']), e['list'], e['where'])
