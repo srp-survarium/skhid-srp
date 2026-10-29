@@ -1776,6 +1776,7 @@ pub(crate) fn real_bot_cost() {
                     habit.armed, habit.placed, habit.died_placing, own.fired, own.own_team_caught
                 );
                 eprintln!("  trap gate: {}", crate::v026g::bots::traps::gates::line());
+                eprintln!("  trap pass: {}", crate::v026g::bots::traps::onpass::line());
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());

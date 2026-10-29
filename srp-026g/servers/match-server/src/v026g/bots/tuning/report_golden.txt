@@ -23,6 +23,7 @@ switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
 switches OFF smoke: react_watch
 switches OFF threat: job_out_of_all_lines replan
+switches OFF traps: on_the_pass
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.worth.hurt_from=seen
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
