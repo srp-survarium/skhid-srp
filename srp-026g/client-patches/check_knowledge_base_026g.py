@@ -53,7 +53,7 @@ def check(original):
     for site in P.KNOWLEDGE_BASE:
         P.patch_section_value(patched, *site)
     for image, redirected in [(original, False), (patched, True)]:
-        for language, _ in LANGUAGES:
+        for language, *_ in LANGUAGES:
             game = BrowserGame(image, language)
             game.call(HANDLER, (0x12345678,), esi=0x76543210)
             code = "ru" if language in ("ukrainian", "russian") else "en"
