@@ -915,10 +915,10 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
-    /// Every place's pockets (a human's), for the throw keys
+    /// What every place's throw keys throw, for the live list
     /// ([`live_grenades`]).
-    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::KitPockets>>) {
-        self.tracker.set_pockets(pockets);
+    pub fn set_throws(&mut self, throws: Vec<live_grenades::Throws>) {
+        self.tracker.set_throws(throws);
     }
 
     /// Every bot's drugs as its own profile has them ([`stock::Pantry::of_profile`]): the store the profile was built

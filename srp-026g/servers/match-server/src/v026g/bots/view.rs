@@ -35,7 +35,7 @@ use super::arc::{self, Flight, Grenade, Mesh};
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
 use super::live_grenades::{
-    KitPockets, LiveGrenade, LAUNCH_MS, Phase, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
+    Basis, LiveGrenade, LAUNCH_MS, Phase, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts, Throws, Whose,
 };
 use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
 use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
@@ -539,9 +539,8 @@ struct PlaceState {
     stats: (u32, u32, u32),
     /// The last few uses pressed.
     uses: VecDeque<UsePress>,
-    /// The place's pockets over its kits, for the throw keys; with none read a
-    /// server bot's throw key is a frag.
-    pockets: Option<KitPockets>,
+    /// What its throw keys throw (`live_grenades::Throws`).
+    throws: Throws,
     /// The press of its last throw ([`SAME_THROW_MS`]).
     last_throw: Option<u32>,
     last_shot: Option<u32>,
@@ -766,22 +765,28 @@ impl Tracker {
         }
     }
 
-    /// Each place's pockets by place (all its kits), for the throw keys;
-    /// `None` for a profile that did not read, and for a server bot while
-    /// its pockets are not read (`AvoidTuning::bot_pockets`: its throw key
-    /// is then a frag).
-    pub fn set_pockets(&mut self, pockets: Vec<Option<KitPockets>>) {
-        for (state, pockets) in self.places.iter_mut().zip(pockets) {
-            state.pockets = pockets;
+    /// What each place's throw keys throw, by place (decided where the profiles are read).
+    pub fn set_throws(&mut self, throws: Vec<Throws>) {
+        for (state, throws) in self.places.iter_mut().zip(throws) {
+            state.throws = throws;
         }
     }
 
     /// A world says `place` is in its kit `kit` (`players::Supplies::kit`): its throw keys act on that kit's
-    /// pockets.
+    /// pockets. A kit the profile does not have is counted and the kit in use stays.
     pub fn kit_in_use(&mut self, place: Place, kit: usize) {
-        if let Some(pockets) = self.places.get_mut(place).and_then(|state| state.pockets.as_mut()) {
-            pockets.use_kit(kit);
+        let Some(Throws::Pockets(pockets)) = self.places.get_mut(place).map(|state| &mut state.throws) else {
+            return;
+        };
+        match pockets.kit(kit) {
+            Some(kit) => pockets.use_kit(kit),
+            None => self.throws.unknown_kit += 1,
         }
+    }
+
+    /// Whether `place` is a server bot.
+    pub fn is_bot(&self, place: Place) -> bool {
+        self.places.get(place).is_some_and(|state| state.bot)
     }
 
     /// The fragmentation grenades in the match now.
@@ -950,30 +955,46 @@ impl Tracker {
         if pressed & THROW_KEYS != 0
             && state.last_throw.is_none_or(|last| time >= last + SAME_THROW_MS)
         {
+            let assumed = (Pocketed::Frag, *Grenade::bots(), Basis::AssumedFromBotKey);
             let mut kit = 0;
-            let thrown = match state.pockets.as_mut() {
-                Some(pockets) => {
-                    kit = pockets.in_use();
-                    let thrown = pockets.throw_grenade(pressed);
-                    if thrown.is_none() && state.bot && pressed & key::GRENADE != 0 {
-                        self.throws.bot_empty += 1;
+            let thrown = match &mut state.throws {
+                Throws::Pockets(pockets) => {
+                    kit = pockets.in_use().get();
+                    match pockets.throw_grenade(pressed) {
+                        Some((item, grenade)) => Some((item, grenade, Basis::Pockets)),
+                        // The client throws nothing: a bot's key is listed as an assumed grenade, a human's counted.
+                        None if state.bot => {
+                            if pressed & key::GRENADE != 0 {
+                                self.throws.bot_empty += 1;
+                                Some(assumed)
+                            } else {
+                                None
+                            }
+                        }
+                        None => {
+                            self.throws.human_empty += 1;
+                            None
+                        }
                     }
-                    thrown
                 }
-                // Pockets not read: a server bot's throw key is a frag (the reflex's only grenade).
-                None if state.bot => (pressed & key::GRENADE != 0).then_some((Pocketed::Frag, *Grenade::bots())),
-                None => {
+                Throws::GrenadeKeyIsFrag => (pressed & key::GRENADE != 0).then_some(assumed),
+                Throws::Unknown => {
                     self.throws.no_pockets += 1;
                     None
                 }
             };
             match thrown {
-                Some((Pocketed::Frag, grenade)) => {
-                    self.throws.frag += 1;
-                    if !state.bot {
-                        self.throws.human_frag += 1;
-                        self.throws.human_quick += u32::from(pressed & key::GRENADE == 0);
-                        self.throws.human_other_kit += u32::from(kit != 0);
+                Some((Pocketed::Frag, grenade, basis)) => {
+                    match basis {
+                        Basis::Pockets => {
+                            self.throws.frag += 1;
+                            if !state.bot {
+                                self.throws.human_frag += 1;
+                                self.throws.human_quick += u32::from(pressed & key::GRENADE == 0);
+                                self.throws.human_other_kit += u32::from(kit != 0);
+                            }
+                        }
+                        Basis::AssumedFromBotKey => self.throws.assumed += 1,
                     }
                     state.last_throw = Some(time);
                     self.grenades.push(LiveGrenade {
@@ -982,9 +1003,11 @@ impl Tracker {
                         press: time,
                         phase: Phase::Pressed,
                         grenade,
+                        basis,
+                        whose: Whose::of(basis, state.bot),
                     });
                 }
-                Some((Pocketed::Smoke, _)) => {
+                Some((Pocketed::Smoke, _, _)) => {
                     self.throws.smoke += 1;
                     state.last_throw = Some(time);
                     self.smoke_counts.thrown[usize::from(state.team & 1)] += 1;
@@ -995,7 +1018,7 @@ impl Tracker {
                         grenade: *SmokeGrenade::of_game_data(),
                     });
                 }
-                Some((Pocketed::Other, _)) | None => {}
+                Some((Pocketed::Other, _, _)) | None => {}
             }
         }
         if pressed & key::USE != 0 {
@@ -1243,7 +1266,7 @@ impl Tracker {
         };
         state.alive = fix.alive;
         if state.spawned != fix.inserted
-            && let Some(pockets) = state.pockets.as_mut()
+            && let Throws::Pockets(pockets) = &mut state.throws
         {
             pockets.refill();
         }

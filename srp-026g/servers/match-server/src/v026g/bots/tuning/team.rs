@@ -161,6 +161,10 @@ pub struct AvoidTuning {
     /// Off: every throw key of a bot is listed as a frag, so mates stepped out of blasts that never came
     /// (155 of 204 bot throws in the owner's matches of 2026-10-28 had empty pockets).
     pub bot_pockets: bool,
+    /// The server's live list takes a player's pockets from the kit a world says he is in (`players::Supplies::kit`),
+    /// not always the profile's first kit: a throw from kit 2 or 3 is then listed. Off: kit 1 whatever a world says,
+    /// as before. Read where the profiles are read (`game/driven.rs`), once a match: the live server's one tuning.
+    pub kit_in_use: bool,
     /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
     /// human team can call it, few do); they step out after this long, ms, drawn.
     pub told_ms: (u32, u32),
@@ -188,6 +192,7 @@ impl Default for AvoidTuning {
         Self {
             grenade_avoid: true,
             bot_pockets: true,
+            kit_in_use: true,
             told_ms: (200, 400),
             notice_ms: (400, 900),
             see_m: 30.0,

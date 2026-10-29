@@ -13,7 +13,8 @@
   },
   "avoid": {
     "bot_pockets": false,
-    "grenade_avoid": false
+    "grenade_avoid": false,
+    "kit_in_use": false
   },
   "cheats": {
     "sight_hold_ms": 0

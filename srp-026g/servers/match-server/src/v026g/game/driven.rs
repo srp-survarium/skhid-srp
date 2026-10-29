@@ -54,7 +54,7 @@ use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::arc::Grenade;
-use crate::v026g::bots::live_grenades::{KitPockets, Pocketed, Pockets};
+use crate::v026g::bots::live_grenades::{KitPockets, Pocketed, Pockets, Throws};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -72,6 +72,8 @@ const WAITING_REFRESH: Duration = Duration::from_secs(1);
 /// The bots of a match and their map.
 pub(super) struct Walkers {
     pub(super) bots: Bots,
+    /// The worlds name the kit each place is in (`AvoidTuning::kit_in_use`).
+    kit_in_use: bool,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -159,11 +161,11 @@ impl Walkers {
             .iter()
             .map(|profile| weapon_of(profile, by_data))
             .collect();
-        let bot_pockets = tuning.avoid.bot_pockets;
-        let pockets = formed
+        let all_kits = tuning.avoid.kit_in_use;
+        let throws = formed
             .profiles
             .iter()
-            .map(|profile| pockets_of(profile, bot_pockets))
+            .map(|profile| throws_of(profile, all_kits))
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
@@ -195,10 +197,11 @@ impl Walkers {
             absent: false,
             waiting: None,
             events_seen: 0,
+            kit_in_use: all_kits,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
-            walkers.bots.set_pockets(pockets);
+            walkers.bots.set_throws(throws);
             walkers.bots.set_pantries(pantries);
             walkers.bots.set_shot_reach(reach);
             for (place, armour) in armours.into_iter().enumerate() {
@@ -371,29 +374,32 @@ fn weapon_in_slot_7(
     WeaponKind::of_item(kind, category)
 }
 
-/// A player's pockets for the throw keys: for each kit of its profile (slots 13..=18) what each holds, a frag (a
-/// grenade whose blast hurts, with its own fuse and radius: the game data's `rgd-5`), a smoke (another grenade
-/// item, `rdg-m`) or something else the quick-use keys count, and the units. The kit in use is the one a world
-/// names (`Bots::kit_in_use`, from `players::Supplies::kit`); the first until the first world. A server bot's
-/// pockets are read like a human's when `bot_pockets` is on (`AvoidTuning::bot_pockets`: it throws what its kit
-/// holds, as the client does), else it has none and its throw key is a frag.
-fn pockets_of(
+/// What a place's throw keys throw (`live_grenades::Throws`), decided here from its profile: for each kit (slots
+/// 13..=18) what each pocket holds, a frag (a grenade whose blast hurts, with its own fuse and radius: the game data's
+/// `rgd-5`), a smoke (another grenade item, `rdg-m`) or something else the quick-use keys count, the units of the slot
+/// and the item's storage behind it. The kit in use is the one a world names (`Bots::kit_in_use`, from
+/// `players::Supplies::kit`) when `all_kits` is on (`AvoidTuning::kit_in_use`); with it off only the profile's first
+/// kit is read, as before. A server bot's pockets are read like a human's whatever the switch: `AvoidTuning::bot_pockets`
+/// decides only whether a team dodges the grenades listed from a bot's key alone.
+fn throws_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
-    bot_pockets: bool,
-) -> Option<KitPockets> {
-    if !bot_pockets && survarium::v026g::loadouts::bot_role_of(profile).is_some() {
-        return None;
-    }
+    all_kits: bool,
+) -> Throws {
     let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     let kits = profile
         .kits
         .iter()
+        .take(if all_kits { usize::MAX } else { 1 })
         .map(|kit| {
-            let slots = std::array::from_fn(|i| {
+            let item_of = |i: usize| {
                 let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
                 let (index, units) = kit.slots[slot]?;
                 let item = profile.items.get(usize::from(index))?;
                 let name = dictionary.item(item.dict_id)?.name.as_str();
+                Some((item, name, units))
+            };
+            let slots = std::array::from_fn(|i| {
+                let (_, name, units) = item_of(i)?;
                 // By the game data: a frag is a grenade whose blast hurts (with its own fuse and radius), a
                 // smoke any other grenade item.
                 let held = match (Grenade::named(name), survarium::v026g::weapons::is_grenade_item(name)) {
@@ -403,17 +409,20 @@ fn pockets_of(
                 };
                 Some((held, units))
             });
-            let grenades = std::array::from_fn(|i| {
-                let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
-                let (index, _) = kit.slots[slot]?;
-                let item = profile.items.get(usize::from(index))?;
-                let name = dictionary.item(item.dict_id)?.name.as_str();
-                Grenade::named(name).copied()
+            let grenades = std::array::from_fn(|i| Grenade::named(item_of(i)?.1).copied());
+            // A stack's storage is the profile item's count; the first spawn has filled the slot from it.
+            let stored = std::array::from_fn(|i| {
+                let (item, _, _) = item_of(i)?;
+                dictionary.is_stack(item.dict_id).then_some(item.condition_or_stack)
             });
-            Pockets::new(slots).with_grenades(grenades)
+            Pockets::new(slots).with_grenades(grenades).with_storage(stored)
         })
         .collect();
-    KitPockets::new(kits)
+    match (KitPockets::new(kits), survarium::v026g::loadouts::bot_role_of(profile).is_some()) {
+        (Some(pockets), _) => Throws::Pockets(pockets),
+        (None, true) => Throws::GrenadeKeyIsFrag,
+        (None, false) => Throws::Unknown,
+    }
 }
 
 /// How far a shot of a place's weapon 1 (the item in slot 7 of its first
@@ -694,7 +703,7 @@ impl Game {
         let dictionary = survarium::v026g::dictionary::Dictionary::shared();
         for (place, supplies) in state.supplies.iter().enumerate() {
             // The kit a place is in, for its throw keys' pockets: a human's too.
-            if let Some(supplies) = supplies {
+            if let (Some(supplies), true) = (supplies, walkers.kit_in_use) {
                 walkers.bots.kit_in_use(place, usize::from(supplies.kit));
             }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
@@ -995,29 +1004,107 @@ mod tests {
         );
     }
 
-    /// A server bot's pockets are read from its profile like a human's when `bot_pockets` is on: they hold what its
-    /// kit holds (with the owner's kit on, none of the rusher's, flanker's or camper's holds a grenade), and are none
-    /// with the switch off (its throw key is then a frag).
-    #[test]
-    fn a_bots_pockets_are_its_kits_when_the_switch_is_on() {
+    /// The profile of a bot with the owner's kit `new` (or the old pockets) and the pocket store given, built explicitly
+    /// (`bot_profile` follows the process's `SRP_BOT_KIT` and `SRP_BOT_POCKET_STORE`).
+    fn profile_of(
+        role: BotRole,
+        tier: BotTier,
+        new: bool,
+        store: survarium::v026g::loadouts::PocketStore,
+    ) -> survarium::v026g::match_msgs::static_info::MatchProfile {
+        let equipment = BotEquipment { tier, rusher: RusherKit::Smg, mask: BotMask::Table };
+        let kits = survarium::v026g::loadouts::bot_kits_in_stored(equipment, role, new, false, store);
+        let kits = [&kits[0], &kits[1], &kits[2]];
+        survarium::v026g::match_msgs::static_info::MatchProfile::from_loadouts(
+            "bot",
+            0,
+            &kits,
+            survarium::v026g::bot_skills::bot_modifiers(&kits),
+            survarium::v026g::dictionary::Dictionary::shared(),
+            1,
+        )
+    }
+
+    /// How many grenades a life of the profile's first kit throws with the throw key, and in the next life.
+    fn grenades_in_lives(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> (u32, u32) {
         use crate::v026g::drive::key;
-        let equipment = BotEquipment { tier: BotTier::Mid, rusher: RusherKit::Smg, mask: BotMask::Table };
-        for role in BotRole::ALL {
-            let profile = bot_profile(1, 0, role, equipment);
-            assert!(pockets_of(&profile, false).is_none(), "{role:?}: switch off");
-            let mut pockets = pockets_of(&profile, true).expect("a bot's pockets");
+        let Throws::Pockets(mut pockets) = throws_of(profile, true) else {
+            panic!("a bot's pockets");
+        };
+        let life = |pockets: &mut KitPockets| {
             let mut thrown = 0;
             while pockets.throw_grenade(key::GRENADE).is_some() && thrown < 10 {
                 thrown += 1;
             }
-            if survarium::v026g::loadouts::new_kit() && role != BotRole::Support {
-                assert_eq!(thrown, 0, "{role:?} carries traps, not a grenade");
+            thrown
+        };
+        let first = life(&mut pockets);
+        pockets.refill();
+        (first, life(&mut pockets))
+    }
+
+    /// The pockets a bot's profile gives are its kit's, exactly: with the owner's kit only the support carries a grenade,
+    /// and only with four pockets open (gear 13-15), the old pockets give every role two; and a new life has the grenade
+    /// again exactly when the storage behind the slot has it (the store of 100, not the old count).
+    #[test]
+    fn a_bots_pockets_are_its_kits_and_a_new_life_follows_the_storage() {
+        use survarium::v026g::loadouts::{self, BOT_GRENADE, PocketStore};
+        let mut supports_with_one = 0;
+        for role in BotRole::ALL {
+            for tier in BotTier::ALL {
+                // What the owner's kit puts in the pockets the armour opens (`loadouts::bot_pockets`).
+                let equipment = BotEquipment { tier, rusher: RusherKit::Smg, mask: BotMask::Table };
+                let kit = &loadouts::bot_kits_in_stored(equipment, role, true, false, PocketStore::PerLife)[0];
+                let (open, _) = loadouts::pockets(kit);
+                let expect_new: u32 = loadouts::bot_pockets(role, open)
+                    .iter()
+                    .filter(|item| item.name == BOT_GRENADE.name)
+                    .map(|item| item.count)
+                    .sum();
+                assert!(expect_new == 0 || role == BotRole::Support, "{role:?} {tier:?}: only the support carries one");
+                supports_with_one += u32::from(expect_new == 1);
+                let at = format!("{role:?} {tier:?}");
+                let stocked = profile_of(role, tier, true, PocketStore::PerLife);
+                assert_eq!(grenades_in_lives(&stocked), (expect_new, expect_new), "{at}: owner's kit, store of 100");
+                let matched = profile_of(role, tier, true, PocketStore::PerMatch);
+                assert_eq!(grenades_in_lives(&matched), (expect_new, 0), "{at}: owner's kit, storage at the count");
+                let old = profile_of(role, tier, false, PocketStore::PerLife);
+                assert_eq!(grenades_in_lives(&old), (2, 2), "{at}: the old pockets");
+                assert!(matches!(throws_of(&stocked, false), Throws::Pockets(_)), "{at}");
             }
-            assert!(thrown < 10, "{role:?}");
-            // A new life fills them again.
-            pockets.refill();
-            assert_eq!(pockets.throw_grenade(key::GRENADE).is_some(), thrown > 0, "{role:?}");
         }
+        assert!(supports_with_one > 0, "some support kit carries the one grenade");
+    }
+
+    /// A profile of a human with a kit change: the first kit has no frag, the second one; with `all_kits` off (the
+    /// switch `avoid.kit_in_use`) only the first is read and a throw key lists nothing, as at c3dc7241.
+    #[test]
+    fn a_humans_second_kit_is_read_only_with_the_switch_on() {
+        use crate::v026g::drive::key;
+        use survarium::v026g::loadouts::{Loadout, POCKET_SLOTS};
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let with = |name: &str| Loadout::from_names(dictionary, [(POCKET_SLOTS[0], name)]).expect("a kit");
+        let (first, second) = (with("medkit"), with("rgd-5"));
+        let profile = survarium::v026g::match_msgs::static_info::MatchProfile::from_loadouts(
+            "human",
+            0,
+            &[&first, &second],
+            [0.0; survarium::v026g::skills::MODIFIERS],
+            dictionary,
+            1,
+        );
+        let Throws::Pockets(mut first_only) = throws_of(&profile, false) else {
+            panic!("pockets");
+        };
+        assert!(first_only.throw_grenade(key::GRENADE).is_none());
+        let Throws::Pockets(mut all) = throws_of(&profile, true) else {
+            panic!("pockets");
+        };
+        assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
+        let kit = all.kit(1).expect("the profile has a second kit");
+        all.use_kit(kit);
+        assert!(all.throw_grenade(key::GRENADE).is_some(), "kit 2 in use: the frag");
+        assert!(all.kit(2).is_none());
     }
 
     /// On the live game data (`SRP_GAME_DATA`): the 13-15 rusher's P90 and

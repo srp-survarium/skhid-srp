@@ -35,7 +35,7 @@ use mapdata::Vec3;
 
 use super::hazards::ARRIVE_MPS;
 use super::kin;
-use super::live_grenades::{LiveGrenade, Phase};
+use super::live_grenades::{Basis, LiveGrenade, Phase, Whose};
 use super::rng::Rng;
 use super::tuning::AvoidTuning;
 use super::view::{Place, PlaceView};
@@ -92,6 +92,8 @@ pub struct Known {
     pub blast_at: u32,
     pub how: Notice,
     pub first: u32,
+    /// Whose grenade it is (the counts are split by it).
+    pub whose: Whose,
 }
 
 /// One bot's state towards the grenades.
@@ -175,6 +177,24 @@ pub struct AvoidStats {
 }
 
 impl AvoidStats {
+    /// What was counted since `before` (every count of `self` is at least that of `before`).
+    pub fn since(&self, before: &Self) -> Self {
+        fn minus<const N: usize>(a: &[u32; N], b: &[u32; N]) -> [u32; N] {
+            std::array::from_fn(|i| a[i] - b[i])
+        }
+        Self {
+            noticed: minus(&self.noticed, &before.noticed),
+            stepped: minus(&self.stepped, &before.stepped),
+            held: minus(&self.held, &before.held),
+            out_at_act: minus(&self.out_at_act, &before.out_at_act),
+            no_way: minus(&self.no_way, &before.no_way),
+            retried: minus(&self.retried, &before.retried),
+            escaped: minus(&self.escaped, &before.escaped),
+            caught: minus(&self.caught, &before.caught),
+            react: std::array::from_fn(|k| minus(&self.react[k], &before.react[k])),
+        }
+    }
+
     pub fn add(&mut self, other: &Self) {
         fn plus<const N: usize>(a: &mut [u32; N], b: &[u32; N]) {
             for (a, b) in a.iter_mut().zip(b) {
@@ -200,6 +220,19 @@ impl AvoidStats {
 pub struct Avoid {
     pub state: GrenadeThreat,
     pub stats: AvoidStats,
+    /// The same counts split by whose grenade it was ([`Whose::index`]): a human's, a bot's from its pockets, one
+    /// listed from a bot's key alone. Sums to [`Self::stats`].
+    pub by_whose: [AvoidStats; 3],
+}
+
+impl GrenadeThreat {
+    /// The grenade the state is about, if any.
+    pub fn known(&self) -> Option<&Known> {
+        match self {
+            Self::Unaware { .. } => None,
+            Self::Noticed { known, .. } | Self::Stepping { known, .. } | Self::Clear { known, .. } => Some(known),
+        }
+    }
 }
 
 impl Avoid {
@@ -211,6 +244,7 @@ impl Avoid {
         rng: &mut Rng,
         around: &dyn Surroundings,
     ) -> Action {
+        let before = self.stats;
         let (state, action) = step(
             self.state,
             Event::Tick(tick),
@@ -219,6 +253,11 @@ impl Avoid {
             around,
             &mut self.stats,
         );
+        // What this tick counted belongs to the grenade the bot was about at its end (or, if it dropped it, at its start).
+        if let Some(known) = state.known().or_else(|| self.state.known()) {
+            let delta = self.stats.since(&before);
+            self.by_whose[known.whose.index()].add(&delta);
+        }
         self.state = state;
         action
     }
@@ -258,7 +297,10 @@ pub fn step(
                 else {
                     continue;
                 };
-                if now >= g.blast_at()
+                // A team that reads the bots' pockets (`bot_pockets`) does not dodge a grenade the list holds from a bot's
+                // key alone: the client throws nothing then.
+                if (g.basis == Basis::AssumedFromBotKey && c.bot_pockets)
+                    || now >= g.blast_at()
                     || pick.is_some_and(|p| p.blast_at <= g.blast_at())
                     || !relevant(me, rest, g.grenade.splash_m, c)
                 {
@@ -272,6 +314,7 @@ pub fn step(
                         blast_at: g.blast_at(),
                         how,
                         first,
+                        whose: g.whose,
                     });
                 }
             }
@@ -507,6 +550,8 @@ mod tests {
                 rest: Vec3::new(0.0, 0.0, 12.0),
             },
             grenade: *arc::Grenade::bots(),
+            basis: Basis::Pockets,
+            whose: Whose::Human,
         }
     }
 
@@ -539,6 +584,48 @@ mod tests {
     }
 
     const OUT: Vec3 = Vec3::new(0.0, 0.0, -2.0);
+
+    /// A grenade listed from a bot's key alone (the client throws nothing) is dodged only by a team that does not read
+    /// the bots' pockets (`bot_pockets` off, the old behaviour); a team with it on does not notice it. The counts are
+    /// split by whose grenade it was.
+    #[test]
+    fn an_assumed_grenade_is_dodged_only_with_bot_pockets_off_and_counted_apart() {
+        let me = view(0, Vec3::new(0.0, 0.0, 9.0), [0.0, 0.0]);
+        let around = Around {
+            sees: false,
+            out: Some(OUT),
+        };
+        let assumed = [LiveGrenade {
+            basis: Basis::AssumedFromBotKey,
+            whose: Whose::Assumed,
+            ..grenade()
+        }];
+        let tick = |c: &AvoidTuning, avoid: &mut Avoid, now: u32| {
+            let mut rng = Rng::new(1);
+            avoid.tick(Tick { now, me: &me, grenades: &assumed }, c, &mut rng, &around)
+        };
+        let on = tuning();
+        let off = AvoidTuning { bot_pockets: false, ..tuning() };
+        assert!(on.bot_pockets);
+        let mut avoid = Avoid::default();
+        for now in [2_200, 2_500, 3_000] {
+            assert_eq!(tick(&on, &mut avoid, now), Action::None);
+        }
+        assert_eq!(avoid.stats.noticed, [0, 0, 0], "not noticed with bot_pockets on");
+        let mut avoid = Avoid::default();
+        tick(&off, &mut avoid, 2_200);
+        assert_eq!(tick(&off, &mut avoid, 2_500), Action::Go(OUT));
+        assert_eq!(avoid.stats.noticed, [1, 0, 0]);
+        // The counts sit under the grenade's owner and sum to the total.
+        assert_eq!(avoid.by_whose[Whose::Assumed.index()].noticed, [1, 0, 0]);
+        assert_eq!(avoid.by_whose[Whose::Assumed.index()].stepped, [1, 0, 0]);
+        assert_eq!(avoid.by_whose[Whose::Human.index()], AvoidStats::default());
+        let mut sum = AvoidStats::default();
+        for each in &avoid.by_whose {
+            sum.add(each);
+        }
+        assert_eq!(sum, avoid.stats);
+    }
 
     /// A teammate of the thrower 3 m from the rest point is told at the launch, acts after its reaction time and
     /// walks to the floor out of the blast until it goes off.
@@ -685,6 +772,7 @@ mod tests {
             blast_at: 5_000,
             how: Notice::Told,
             first: 2_100,
+                    whose: Whose::Human,
         };
         let stepping = GrenadeThreat::Stepping { known, to: OUT };
         // It got to the floor 14 m from the rest point by the blast.
