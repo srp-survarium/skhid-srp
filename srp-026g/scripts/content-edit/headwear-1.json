@@ -28,9 +28,6 @@
       "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/bind_pose"
     },
     {
-      "file": "models/ported/novice_026/hat.skinned_model/render/bind_pose"
-    },
-    {
       "file": "models/character/human/black_market/black_market_fighter_05_helmet.skinned_model/render/bind_pose"
     },
     {
@@ -47,6 +44,12 @@
     },
     {
       "file": "models/character/human/scavengers/scavenger_anomaly_06_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/black_market/black_market_anom_07_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/edge/edge_defender_helmet.skinned_model/render/bind_pose"
     }
   ],
   "rigid_headwear": [
@@ -83,10 +86,6 @@
       "vertices": 1137
     },
     {
-      "file": "models/ported/novice_026/hat.skinned_model/render/hat/converted_model",
-      "vertices": 241
-    },
-    {
       "file": "models/character/human/black_market/black_market_fighter_05_helmet.skinned_model/render/black_market_fighter_05_helmet_s/converted_model",
       "vertices": 883
     },
@@ -109,6 +108,33 @@
     {
       "file": "models/character/human/scavengers/scavenger_anomaly_06_helmet.skinned_model/render/scavenger_anomaly_06_helmet_s/converted_model",
       "vertices": 448
+    },
+    {
+      "file": "models/character/human/black_market/black_market_anom_07_helmet.skinned_model/render/black_market_anom_07_helmet_s/converted_model",
+      "vertices": 670,
+      "allow_bones": [
+        20,
+        22,
+        45,
+        46,
+        47
+      ],
+      "why": "Omicron: a hood joined to its collar (RightClavicle, LeftClavicle, LeftEye, Jaw, RightEye on 36 of 670 vertices); it flies off whole"
+    },
+    {
+      "file": "models/character/human/edge/edge_defender_helmet.skinned_model/render/edge_defender_helmet_s/converted_model",
+      "vertices": 1122,
+      "allow_bones": [
+        19,
+        20,
+        22,
+        24,
+        45,
+        46,
+        47,
+        48
+      ],
+      "why": "Warrior: a helmet with a neck and shoulder guard (Chest, clavicles, shoulders, eyes, Jaw); it flies off whole, the guard with it"
     }
   ],
   "set_bool": [
@@ -155,12 +181,6 @@
       "to": true
     },
     {
-      "file": "material_instances/ported/novice_026/hat.material",
-      "path": "material/g_stage/effect/two_sided/value",
-      "from": false,
-      "to": true
-    },
-    {
       "file": "material_instances/characters/human/black_market_fighter_05/black_market_fighter_05_helmet.material",
       "path": "material/g_stage/effect/two_sided/value",
       "from": false,
@@ -192,6 +212,18 @@
     },
     {
       "file": "material_instances/characters/human/scavenger_anomaly_06/scavenger_anomaly_06_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/black_market_anom_07/black_market_anom_07_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/edge_defender_04/edge_defender_04_helmet.material",
       "path": "material/g_stage/effect/two_sided/value",
       "from": false,
       "to": true

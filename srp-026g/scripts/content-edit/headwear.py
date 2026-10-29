@@ -33,7 +33,19 @@ def append_headwear_bind(data):
     return result
 
 
-def rigid_headwear(data, expected_vertices):
+# Bones a surface may be skinned to and still become one rigid piece: Neck, Head.
+HEAD_BONES = (21, 44)
+
+
+def rigid_headwear(data, expected_vertices, allow_bones=()):
+    """Bind every vertex to the headwear bone. A surface also skinned to other
+    native bones is refused unless its edit names them (`allow_bones`): a piece
+    with a collar or a neck guard then flies off whole, the guard with it."""
+    allowed = set(HEAD_BONES)
+    for bone in allow_bones:
+        if not isinstance(bone, int) or not 0 <= bone < 69 or bone in allowed:
+            raise ValueError(f'allow_bones: {bone!r} is not another native bone')
+        allowed.add(bone)
     chunk, size, count = struct.unpack_from('<III', data)
     if chunk != 3 or count != expected_vertices or count == 0 or (size - 4) % count:
         raise ValueError('unexpected headwear vertex chunk')
@@ -56,9 +68,10 @@ def rigid_headwear(data, expected_vertices):
         if any(not math.isfinite(w) or not -1e-5 <= w <= 1.00001 for w in weights):
             raise ValueError('invalid skin weights')
         # The Biker's three blended neck vertices are deliberately rigidified;
-        # refuse other body parts, so a hood can never enter this edit by mistake.
-        if any(data[at + 12 + j] not in (21, 44) for j, w in enumerate(weights) if w > 1e-6):
-            raise ValueError('headwear has influences beyond Head/Neck')
+        # refuse other body parts unless named, so a hood never enters by mistake.
+        extra = {data[at + 12 + j] for j, w in enumerate(weights) if w > 1e-6} - allowed
+        if extra:
+            raise ValueError(f'headwear has influences beyond Head/Neck: bones {sorted(extra)}')
         result[at + 12:at + 16] = bytes([69] * 4)
         changed.update(range(at + 12, at + 16))
         if stored:
