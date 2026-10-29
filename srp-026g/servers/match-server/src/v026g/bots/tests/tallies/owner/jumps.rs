@@ -616,6 +616,7 @@ impl JumpCounts {
         // Jumps: the flags of every press, the stalls.
         let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
         let mut released_by: BTreeMap<String, u32> = BTreeMap::new();
+        let mut flags_by_play: BTreeMap<String, u32> = BTreeMap::new();
         let (mut wrong, mut failed) = (0u32, 0u32);
         let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
         let mut route_landed = [0u32; 2];
@@ -628,11 +629,17 @@ impl JumpCounts {
             for &f in &flags {
                 *flag_n.entry(f).or_default() += 1;
             }
-            // Who was running the route jump whose forward key went up right after (A142's guard): the play and the hide.
-            if flags.contains(&"FWD_RELEASED") {
+            // Who was running the jump a flag is on (the guards of A142 and A151): the play, and for the forward key let go
+            // the reflex's hide as well.
+            if !flags.is_empty() {
                 let recs = &run.recs[p.place];
                 let play = recs.get(run.index(p.t).min(recs.len().saturating_sub(1))).map_or("none", |r| run.plays[usize::from(r.play)].as_str());
-                *released_by.entry(format!("{play}/{}", p.cover)).or_default() += 1;
+                if flags.contains(&"FWD_RELEASED") {
+                    *released_by.entry(format!("{play}/{}", p.cover)).or_default() += 1;
+                }
+                for &f in &flags {
+                    *flags_by_play.entry(format!("{f}/{play}")).or_default() += 1;
+                }
             }
             if flags.contains(&"NOT_FREED") {
                 not_freed_pre.add(run, p.by, p.place, run.index(p.t));
@@ -783,6 +790,7 @@ impl JumpCounts {
             "sprint_jumps": sprint_jumps,
             "band_jumps": band,
             "fwd_released_by_play_and_hide": released_by,
+            "flags_by_play": flags_by_play,
         });
         if let Some(g) = &gaps {
             json["gaps"] = g.json();
