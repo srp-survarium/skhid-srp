@@ -146,8 +146,9 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1113, 1103, 1094])
 
     def test_cli_promotes_rolled_defaults_of_equipment_only(self):
-        """Built-in bonuses of a kind that rolls become its second-strongest row, on equipment only;
-        a kind that never rolls and a wear-only one stay; the check afterwards expects exactly that."""
+        """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
+        only; a stronger one, a kind that never rolls and a wear-only one stay; the check afterwards
+        expects exactly that."""
         def mask(kind):
             return '0' * kind + '1' + '0' * (40 - kind)
         def row(mid, kind, weight, path):
@@ -161,8 +162,10 @@ class MapEditorEdits(unittest.TestCase):
             'gameplay/items/modifications/modifications.options': config({'modifications': speed + wear + slot}),
             'gameplay/db_static_dictionaries': config({'items_dict': [
                 {'cfg_name': 'gameplay/items/armour/torso/suit.options', 'item_category': 3},
+                {'cfg_name': 'gameplay/items/armour/legs/fast.options', 'item_category': 5},
                 {'cfg_name': 'gameplay/items/weapons/gun.options', 'item_category': 8}]}),
             'gameplay/items/armour/torso/suit.options': config({'default_modifications': [1030, 1110, 1200]}),
+            'gameplay/items/armour/legs/fast.options': config({'default_modifications': [1114]}),
             'gameplay/items/weapons/gun.options': config({'default_modifications': [1112]}),
         }
         edits = {'promote_rolled_defaults': [{'categories': [1, 2, 3, 4, 5, 6, 7], 'from_top': 2}]}
@@ -180,6 +183,10 @@ class MapEditorEdits(unittest.TestCase):
             suit = bytearray((root / 'out/gameplay/items/armour/torso/suit.options').read_bytes())
             # +1 % -> the second strongest (1113); the item slot and the wear-only bonus stay.
             self.assertEqual(ce.items_of(suit, 'default_modifications'), [1030, 1113, 1200])
+            # It only raises: the top strength (+5 %, 1114) stays.
+            fast = bytearray((root / 'out/gameplay/items/armour/legs/fast.options').read_bytes())
+            self.assertEqual(ce.items_of(fast, 'default_modifications'), [1114])
+            self.assertNotIn('legs/fast.options default_modifications', result.stdout)
             # A weapon is left alone (not written: unchanged).
             self.assertFalse((root / 'out/gameplay/items/weapons/gun.options').exists())
 

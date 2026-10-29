@@ -53,10 +53,10 @@ Edits (edits.json):
   "promote_rolled_defaults": [{"categories", "from_top"}]
                     every item of those `items_dict` categories: each of its `default_modifications`
                     of a kind that rolls (a row of the kind with a drop weight that changes more than
-                    wear, as the server's Modification::rolls) becomes that kind's `from_top`-th
+                    wear, as the server's Modification::rolls) weaker than that kind's `from_top`-th
                     strongest row (1 the rarest: the rows by drop weight, commonest first, as the
-                    server and the wiki order them); kinds that never roll stay; applied as `set`
-                    edits, before them
+                    server and the wiki order them) becomes it; a stronger one stays (it only raises);
+                    kinds that never roll stay; applied as `set` edits, before them
   "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table of
                                                        numbers or strings `path` (an item's
                                                        `default_modifications`), made like its first item;
@@ -543,7 +543,8 @@ def rolled_strengths(mods):
 
 def promoted_defaults(read, categories, from_top):
     """The `set` edits of promote_rolled_defaults: (file, path, from, to) for each default of a
-    rolling kind of an item of `categories` that is not that kind's `from_top`-th strongest row."""
+    rolling kind of an item of `categories` weaker than that kind's `from_top`-th strongest row
+    (it only raises: a default at that strength or stronger stays)."""
     mods = read(MODIFICATIONS)
     kinds = {}
     for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
@@ -566,9 +567,11 @@ def promoted_defaults(read, categories, from_top):
             ranked = strengths.get(kinds.get(mid))
             if not ranked:
                 continue
-            want = ranked[max(0, len(ranked) - from_top)]
-            if mid != want:
-                edits.append((cfg, 'default_modifications[%d]' % j, mid, want))
+            at = max(0, len(ranked) - from_top)
+            # Strength is the place in `ranked` (commonest first); a row of the kind that never
+            # rolls has no place, and is set like a weaker one.
+            if mid not in ranked or ranked.index(mid) < at:
+                edits.append((cfg, 'default_modifications[%d]' % j, mid, ranked[at]))
     return edits
 
 
