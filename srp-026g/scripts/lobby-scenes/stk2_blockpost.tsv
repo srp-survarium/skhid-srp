@@ -1,0 +1,13 @@
+# The STK2 lobby (pack lobby-stk2@1, projects/lobby_scene/stk2_blockpost): where things are, in the
+# lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's
+# build-stk2-lobby-026 (ports/stk2-lobby-to-026g.json), which bakes the STK2 scene into this frame.
+# yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
+# One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
+character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z, yaw pi), on the hut floor between the door and the campfire
+camera_default_eye	0.000	1.200	-1.960	0	the stock camera at its start (looks at (0, 1.2, 0) from 1.96 m; the hut's west wall and door are behind it)
+weapon	0.900	1.550	2.550	0	patch 45's BENCH here: 0.35 m above the sentry cabinet's counter (top y 1.20, x 0.12..1.67, z 2.43..3.19, its back panel at z 3.21 up to y 2.5); a rifle's 0.95 m along x and its spin (0.47 m) stay over the counter and 0.19 m off the panel
+artefact	-0.468	0.500	2.310	0	on the stool's seat (radius 0.19 m, seat y 0.50), left behind the character
+artefact_counter	1.500	1.200	2.800	0	the other one: resting on the counter's right end, clear of the weapon's spin
+campfire	-0.698	0.000	0.740	-	the STK2 campfire's logs, the bonfire flame and its light (0.55 m above)
+hut_interior	-3.210	0.000	-2.050	-	the room's corner (min); the other corner is (2.110, 2.560, 3.270): floor y 0, ceiling about 2.56
+door	-1.210	0.000	-2.380	-	the door opening (min x, floor, outer z) to (0.100, about 2.0, -2.050), behind the camera
