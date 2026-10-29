@@ -804,6 +804,45 @@ artefact_carry_on_client_death_replay:
     db 0x57, 0x8b, 0xf9, 0x6a, 0x01
     jmp 0x1f28e5
 
+; 0x23fe42 player_input_handler::on_keyboard_action after the binder's answer: EDI the key's action (49h none, gone), EBP the frame; before mov esi,[ebp+10h] / cmp esi,1: lohook -> artefact_carry_on_key
+global artefact_carry_on_key
+extern hook_artefact_carry_on_key
+artefact_carry_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_key
+    mov edx, artefact_carry_on_key_replay
+    cmp eax, 0
+    je artefact_carry_on_key_go
+    mov edx, 0x23fe48
+    cmp eax, 1
+    je artefact_carry_on_key_go
+    ud2
+artefact_carry_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_key_replay:
+    db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
+    jmp 0x23fe48
+
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer
 extern hook_artefact_score_on_transfer
