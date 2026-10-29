@@ -131,7 +131,7 @@ should mix them just as retail does")
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
-  sentences in the six localization tables; no lobby card. `artefact-texts-1.json` makes them say
+  sentences in all language TSVs; no lobby card. `client-patches/localization/*.tsv` makes them say
   the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 75 % for `%s` s since
   2026-10-25).
 

@@ -1079,7 +1079,6 @@ mkdir -p "$T/game" "$T/tmp"
 cat >>"$T/release.env" <<ENV
 SKHID_GAME=$T/game
 SKHID_GAME_SERVER=127.0.0.1:1234
-SKHID_LOCALIZATION=english
 SKHID_MIN_FREE_MB=1
 SKHID_LIVE_MIN_FREE_MB=1
 SKHID_BOT_DATA=$T/bot-data

@@ -108,6 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
+| `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -551,12 +552,11 @@ gold. The window has:
 
 Typing in either field updates the other. Silver goes by whole gold: a silver
 amount that is not a multiple of the rate is evened out when the field is
-left, and on Exchange. The texts are in all five game languages; the language
-is the one of the client's own "Cancel" (`st_cancel`; in German the game's
-file says "Abrechnen"). "Silver" is the game's own word, read live
-(`regular_money`, `st_regular_money`); "Gold" is the game's `st_premium_money_name`,
-copied, as the movie has no key for it; the rest are the window's own words,
-the game having none for them.
+left, and on Exchange. The texts are dictionary keys (`st_srp_exchange_*`,
+`localization/README.md`, Flash menus' own texts). "Silver" is the game's own word
+(`regular_money`, `st_regular_money`); "Gold" (`st_srp_exchange_gold`) is the game's
+`st_premium_money_name`, copied, as the movie has no key for it; the rest are the
+window's own words, the game having none for them.
 
 It is the stock window (`MessageMoneyExchange`, symbol `SrvMessageExchangeSkinned`)
 with the stock pieces moved: its 9-slice background made 300 x 300, its buttons
@@ -3198,7 +3198,7 @@ does what no config of 0.26g could.
   [ebx-0C30h] / push 0BB8h`) the time on screen becomes the active's time left (+F14h), and of
   the Onyx fired by one press (state 4, the same activation time +2A0h) only the first of the
   slots shows it. The hud movie's set_parameterized_message writes a text's `%s` as that time in
-  seconds (rounded up); the six hints say "75% for %s s" (`artefact-texts-1.json`). Not `{s}`:
+  seconds (rounded up); all language hints say "75% for %s s" (`localization/*.tsv`). Not `{s}`:
   the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
   other name nothing (the owner's test of `{s}`: "for  s.").
 
@@ -3310,7 +3310,7 @@ of its own, saved in `user.cfg` (`cc_value<bool>` 0x1DDB0 through the engine lib
 cc_bool vtable 0x9E7C4C, as the hud registers its own `show_quests_progress` at 0x2339C9). So
 the option is live and kept. The main menu enables its checkbox (where its timeline makes it,
 `settingsTabs_15`, and in `Settings.create_content`);
-`match-chat-off-1.json` labels it "Hide chat in match" in the six tables (Chat im Kampf
+`localization/*.tsv` labels it "Hide chat in match" in all language tables (Chat im Kampf
 ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою).
 A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the handler, the
 channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
@@ -3381,7 +3381,7 @@ and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in 
 `hide_ui.data`, and points the six functions at it (their immediates) with counts of 29h. Saving
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
-`hide-interface-1.json` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
+`localization/*.tsv` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
 ausblenden, Ukryj interfejs). The default stays the action table's F11 (the options' reset sets
 the binder's defaults).
 
@@ -3634,6 +3634,24 @@ site from the game's code on the game's own static baker:
   weapons can crash every client of a match
   (`../docs/OPEN-ISSUES.md`, 26-24).
 
+## Language in Settings (patch 79)
+
+The game language is a setting (`../docs/notes/language-option.md`). The Rust
+`language` patch registers the console variable `localization` (a saved
+string, so user.cfg keeps it) at game::on_configs_loaded's start; after the
+file runs and before the dictionary loads it resolves the language once: a
+registered `-localization=` (then saved as the choice), else the saved choice,
+else the language of the Windows user locale (GetUserDefaultLCID, by its
+primary language: `LANGUAGES`' last column), else English; the resolved one
+is saved as the choice (the launcher's registry language is not read); the
+engine's language string and C locale are set as a start with that flag sets
+them. The main menu's Settings (Gameplay) call `srp_language` (a pick, or a
+query): the patch saves a registered pick and writes user.cfg at once, and
+answers `root.srp_language` with the two texts, the saved and the running
+language and every registered language by its own name. The launcher's PLAY,
+the replay start and the scripts pass no language by default. See
+`check_language_026g.py` and `../scripts/language-option/check.sh`.
+
 ## Medical consumable countdown (patch 77)
 
 The Rust `consumable_activity` hook publishes the medkit class's current use-delay
@@ -3664,4 +3682,4 @@ The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`
 after the existing confirmation. `KNOWLEDGE_BASE` changes the fixed URL and
 skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
-executes the original and redirected callbacks for all six game languages.
+executes the original and redirected callbacks for every game language.

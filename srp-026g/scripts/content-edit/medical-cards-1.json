@@ -1,5 +1,5 @@
 {
-  "_about": "Medical card values for bandages and medkit: arms/legs, body/head, pain relief (medkit 0%), with native activation/duration/weight retained. Lower activation time is better. Presentation only; no simulation fields changed. Follows bandages-1 and weapon-balance-1 (UI property IDs 135..137).",
+  "_about": "Dictionary text is maintained in client-patches/localization/*.tsv. Medical card values for bandages and medkit: arms/legs, body/head, pain relief (medkit 0%), with native activation/duration/weight retained. Lower activation time is better. Presentation only; no simulation fields changed. Follows bandages-1 and weapon-balance-1 (UI property IDs 135..137).",
   "set_entry": [
     {
       "file": "gameplay/static_game_parameters.options",
@@ -150,116 +150,6 @@
         "prop_id": 137,
         "prop_value": "0"
       }
-    }
-  ],
-  "add_key": [
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Healing: arms / legs"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Heilung: Arme / Beine"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Leczenie: ręce / nogi"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Лечение: руки / ноги"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Лечение: руки / ноги"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_inv_healing_limbs",
-      "text": "Лікування: руки / ноги"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Healing: body / head"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Heilung: Körper / Kopf"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Leczenie: tułów / głowa"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Лечение: тело / голова"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Лечение: тело / голова"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_inv_healing_body_head",
-      "text": "Лікування: тіло / голова"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Pain relief"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Schmerzlinderung"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Ulga w bólu"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Снятие боли"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Снятие боли"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_inv_pain_relief",
-      "text": "Зняття болю"
     }
   ]
 }

@@ -23,10 +23,10 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
    import survarium.data.LocalizationData;
+   import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
    import survarium.constants.CharCode;
    import survarium.constants.ChatTab;
-   import survarium.constants.Language;
    import survarium.constants.MatchJoinCode;
    import survarium.constants.MatchPhase;
    
@@ -60,29 +60,50 @@ package survarium.controls
       
       public static const MATCHES_NO_ANSWER:int = 2;
       
-      // the words of matchesText; MATCHES_SAY_NONE: no word said
-      public static const MATCHES_SAY_NONE:int = -1;
+      // the words of matchesText (dictionary keys); MATCHES_SAY_NONE: no word said
+      public static const MATCHES_SAY_NONE:String = null;
       
-      public static const MATCHES_WORD_TITLE:int = 0;
+      public static const MATCHES_WORD_TITLE:String = "st_srp_matches_title";
       
-      public static const MATCHES_WORD_NONE:int = 1;
+      public static const MATCHES_WORD_NONE:String = "st_srp_matches_none";
       
-      public static const MATCHES_WORD_WAITING:int = 2;
+      public static const MATCHES_WORD_WAITING:String = "st_srp_matches_waiting";
       
-      public static const MATCHES_WORD_STARTING:int = 3;
+      public static const MATCHES_WORD_STARTING:String = "st_srp_matches_starting";
       
-      public static const MATCHES_WORD_JOINING:int = 4;
+      public static const MATCHES_WORD_JOINING:String = "st_srp_matches_joining";
       
-      public static const MATCHES_WORD_FULL:int = 5;
+      public static const MATCHES_WORD_FULL:String = "st_srp_matches_full";
       
-      public static const MATCHES_WORD_CLOSED:int = 6;
+      public static const MATCHES_WORD_CLOSED:String = "st_srp_matches_closed";
       
-      public static const MATCHES_WORD_CANNOT_JOIN:int = 7;
+      public static const MATCHES_WORD_CANNOT_JOIN:String = "st_srp_matches_cannot_join";
       
-      public static const MATCHES_WORD_NO_ANSWER:int = 8;
+      public static const MATCHES_WORD_NO_ANSWER:String = "st_srp_matches_no_answer";
       
-      // MatchJoinCode.BALANCED..QUEUED have their words at MATCHES_WORD_REASONS + code (9..20)
-      public static const MATCHES_WORD_REASONS:int = 7;
+      // MatchJoinCode.BALANCED..QUEUED: their words
+      public static const MATCHES_REASONS:Object = {
+         "2":"st_srp_matches_balanced",
+         "3":"st_srp_matches_no_place",
+         "4":"st_srp_matches_another_joining",
+         "5":"st_srp_matches_not_in_play",
+         "6":"st_srp_matches_ends_soon",
+         "7":"st_srp_matches_no_late_join",
+         "8":"st_srp_matches_in_match",
+         "9":"st_srp_matches_in_squad",
+         "10":"st_srp_matches_outdated",
+         "11":"st_srp_matches_played_before",
+         "12":"st_srp_matches_maintenance",
+         "13":"st_srp_matches_queued"
+      };
+      
+      // The modes' names by GameMode (the maps': RoomsText.levelKey)
+      public static const MATCHES_MODES:Object = {
+         "2":"st_srp_matches_mode_protective_device",
+         "3":"st_srp_matches_mode_protective_device",
+         "4":"st_srp_mode_team_deathmatch",
+         "5":"st_srp_mode_research"
+      };
       
       // meaning unknown: the movie drops a match key above it
       public static const MATCHES_KEY_MAX:int = 99999999;
@@ -120,10 +141,6 @@ package survarium.controls
       
       protected var _matchesShown:Boolean = false;
       
-      protected var _matchesLang:int = 0;
-      
-      protected var _matchesNames:Object;
-      
       protected var _matchesBack:DisplayObject;
       
       protected var _matchesRowsBox:Sprite;
@@ -146,7 +163,7 @@ package survarium.controls
       
       protected var _matchesJoinAt:int = 0;
       
-      protected var _matchesSayKey:int = BottomPanel.MATCHES_SAY_NONE;
+      protected var _matchesSayKey:String = BottomPanel.MATCHES_SAY_NONE;
       
       protected var _matchesSayAt:int = 0;
       
@@ -431,76 +448,20 @@ package survarium.controls
          this.placeMatchesWindow();
       }
       
-      protected function matchesNameTable() : Object
+      protected function matchesName(key:String, id:int) : String
       {
-         var friends:Array = ["Friends","Друзі","Друзья","Freunde","Znajomi"];
-         var levels:Object = {
-            "1":["Rudnya","Рудня","Рудня","Rudnya","Rudnia"],
-            "2":["School","Школа","Школа","Schule","Szkoła"],
-            "3":["Vostok Radar Station","РЛС \"Восток\"","РЛС \"Восток\"","RS Vostok","Stacja Radarowa \"Vostok\""],
-            "4":["Chemical Plant","Хімзавод","Химзавод","Chemiebetrieb","Zakłady chemiczne"],
-            "5":["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów"],
-            "6":["Mamayev Kurgan","Мамаїв курган","Мамаев курган","Mamaew kurgan","Kurhan Mamaja"],
-            "7":["Vector Laboratory","Лабораторія \"Вектор\"","Лаборатория \"Вектор\"","Labor Vektor","Laboratorium \"Wektor\""],
-            "8":["Cologne","Кельн","Кельн","Köln","Most w Kolonii"],
-            "9":["London","Лондон","Лондон","London","Londyn"],
-            "10":["Vostok Radar Station (v0.21)","РЛС \"Восток\" (v0.21)","РЛС \"Восток\" (v0.21)","RS Vostok (v0.21)","Stacja Radarowa \"Vostok\" (v0.21)"],
-            "11":["Mamayev Kurgan (v0.21)","Мамаїв курган (v0.21)","Мамаев курган (v0.21)","Mamaew kurgan (v0.21)","Kurhan Mamaja (v0.21)"],
-            "12":["Chemical Plant (v0.11)","Хімзавод (v0.11)","Химзавод (v0.11)","Chemiebetrieb (v0.11)","Zakłady chemiczne (v0.11)"],
-            "13":["Vostok Radar Station (v0.11)","РЛС \"Восток\" (v0.11)","РЛС \"Восток\" (v0.11)","RS Vostok (v0.11)","Stacja Radarowa \"Vostok\" (v0.11)"]
-         };
-         var modes:Object = {
-            "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
-            "3":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
-            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"],
-            "5":["Research","Дослідження","Исследование","Forschung","Badania"]
-         };
-         return {
-            "friends":friends,
-            "levels":levels,
-            "modes":modes
-         };
+         return key != null ? LocalizationData.getName(key) : "#" + String(id);
       }
       
-      protected function matchesTable() : Object
+      protected function matchesText(key:String) : String
       {
-         if(!this._matchesNames)
-         {
-            this._matchesNames = this.matchesNameTable();
-         }
-         return this._matchesNames;
+         return LocalizationData.getName(key);
       }
       
-      protected function matchesName(kind:String, id:int) : String
+      protected function matchesWhyKey(code:int) : String
       {
-         var name:String = null;
-         var names:Array = this.matchesTable()[kind][id] as Array;
-         if(names)
-         {
-            name = names[this._matchesLang] as String;
-         }
-         if(!name)
-         {
-            name = "#" + String(id);
-         }
-         return name;
-      }
-      
-      protected function matchesText(key:int) : String
-      {
-         var words:Array = [["Matches","Матчі","Матчи","Matches","Rozgrywki"],["No matches right now","Зараз матчів немає","Сейчас матчей нет","Zurzeit keine Matches","Brak rozgrywek w tej chwili"],["waiting","очікування","ожидание","Warten","oczekiwanie"],["starting","старт","старт","Start","start"],["joining…","приєднання…","вход…","Beitritt…","dołączanie…"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce"],["This match is closed","Цей матч уже закритий","Этот матч уже закрыт","Dieses Match ist geschlossen","Ta rozgrywka jest już zamknięta"],["You cannot join now","Зараз приєднатися не можна","Сейчас присоединиться нельзя","Beitritt gerade nicht möglich","Nie możesz teraz dołączyć"],["No answer, try again","Немає відповіді, спробуйте ще","Нет ответа, попробуйте ещё","Keine Antwort, erneut versuchen","Brak odpowiedzi, spróbuj ponownie"],["Match is already balanced","Матч уже збалансований","Матч уже сбалансирован"
-         ,"Match ist bereits ausgeglichen","Rozgrywka jest już wyrównana"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce"],["Another player is joining","Інший гравець уже приєднується","Другой игрок уже присоединяется","Ein anderer Spieler tritt gerade bei","Inny gracz właśnie dołącza"],["Match has not started yet","Матч ще не почався","Матч ещё не начался","Match hat noch nicht begonnen","Rozgrywka jeszcze się nie zaczęła"],["Match ends soon","Матч скоро завершиться","Матч скоро закончится","Match endet bald","Rozgrywka wkrótce się skończy"],["Match takes no new players","Матч не приймає нових гравців","Матч не принимает новых игроков","Match nimmt keine neuen Spieler auf","Rozgrywka nie przyjmuje nowych graczy"],["You are already in a match","Ви вже в матчі","Вы уже в матче","Du bist bereits in einem Match","Jesteś już w rozgrywce"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд"
-         ,"Verlasse zuerst deine Abteilung","Najpierw opuść brygadę"],["Update your game","Оновіть гру","Обновите игру","Aktualisiere dein Spiel","Zaktualizuj grę"],["You already played in this match","Ви вже грали в цьому матчі","Вы уже играли в этом матче","Du hast in diesem Match schon gespielt","Twoje miejsce w tej rozgrywce już wykorzystano"],["Ends after maintenance starts","Завершиться після початку обслуговування","Закончится после начала обслуживания","Endet nach Beginn der Wartung","Skończy się po rozpoczęciu konserwacji"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab","Najpierw przerwij wyszukiwanie"]];
-         return words[key][this._matchesLang];
-      }
-      
-      protected function matchesWhyKey(code:int) : int
-      {
-         if(code >= MatchJoinCode.BALANCED && code <= MatchJoinCode.QUEUED)
-         {
-            return BottomPanel.MATCHES_WORD_REASONS + code;
-         }
-         return BottomPanel.MATCHES_SAY_NONE;
+         var key:String = BottomPanel.MATCHES_REASONS[String(code)] as String;
+         return key != null ? key : BottomPanel.MATCHES_SAY_NONE;
       }
       
       protected function matchesWord() : String
@@ -510,18 +471,6 @@ package survarium.controls
       
       protected function onMatchesLocal(value:String) : void
       {
-         var i:int = 0;
-         var friends:Array = this.matchesTable().friends;
-         this._matchesLang = Language.EN;
-         i = 1;
-         while(i < friends.length)
-         {
-            if(value == friends[i])
-            {
-               this._matchesLang = i;
-            }
-            i++;
-         }
          if(this.matchesTab)
          {
             this.matchesTab.data = {
@@ -566,7 +515,7 @@ package survarium.controls
          this.matchesTab.addChild(icon);
          this.matchesTab.addEventListener(ButtonEvent.CLICK,this.onMatchesTabClick);
          this.matchesTab.addEventListener(Event.ENTER_FRAME,this.onMatchesTabFrame);
-         LocalizationData.addCallback(this.onMatchesLocal,"btn_friends");
+         LocalizationData.addCallback(this.onMatchesLocal,BottomPanel.MATCHES_WORD_TITLE);
          this.placeMatchesTab();
          // The tab is still made, and hidden at once; the rooms window (in
          // the lobby, over this bar) is made with it.
@@ -761,7 +710,7 @@ package survarium.controls
       
       public function matchesJoinAnswer(name:String) : void
       {
-         var say:int = BottomPanel.MATCHES_WORD_CANNOT_JOIN;
+         var say:String = BottomPanel.MATCHES_WORD_CANNOT_JOIN;
          var result:String = null;
          var now:int = getTimer();
          var fields:Array = name.split(";");
@@ -799,7 +748,7 @@ package survarium.controls
          {
             say = BottomPanel.MATCHES_WORD_CLOSED;
          }
-         if(fields.length >= 4 && this.matchesWhyKey(this.matchesNumber(fields[3])) >= 0)
+         if(fields.length >= 4 && this.matchesWhyKey(this.matchesNumber(fields[3])) != null)
          {
             say = this.matchesWhyKey(this.matchesNumber(fields[3]));
          }
@@ -811,7 +760,7 @@ package survarium.controls
          }
       }
       
-      protected function matchesSay(key:int, now:int) : void
+      protected function matchesSay(key:String, now:int) : void
       {
          this._matchesSayKey = key;
          this._matchesSayAt = now;
@@ -828,7 +777,7 @@ package survarium.controls
          {
             return;
          }
-         if(this._matchesSayKey >= 0)
+         if(this._matchesSayKey != null)
          {
             text = this.matchesText(this._matchesSayKey);
          }
@@ -902,7 +851,7 @@ package survarium.controls
                   this.matchesSay(BottomPanel.MATCHES_WORD_NO_ANSWER,now);
                   this.matchesRender();
                }
-               if(this._matchesSayKey >= 0 && (now - this._matchesSayAt >= 8000 || now - this._matchesSayAt < 0))
+               if(this._matchesSayKey != null && (now - this._matchesSayAt >= 8000 || now - this._matchesSayAt < 0))
                {
                   this.matchesSay(BottomPanel.MATCHES_SAY_NONE,now);
                }
@@ -1516,8 +1465,8 @@ package survarium.controls
          var word:String = "";
          var wordColour:uint = 8356742;
          var score:String = String(row.score);
-         var label:String = this.matchesName("modes",int(row.mode)) + "  ·  " + String(row.team0) + " v " + String(row.team1);
-         this.matchesPut(rec.map,this.matchesName("levels",int(row.level)),13421772);
+         var label:String = this.matchesName(BottomPanel.MATCHES_MODES[String(int(row.mode))] as String,int(row.mode)) + "  ·  " + String(row.team0) + " v " + String(row.team1);
+         this.matchesPut(rec.map,this.matchesName(RoomsText.levelKey(int(row.level)),int(row.level)),13421772);
          this.matchesPut(rec.label,label,6973545);
          if(score.length == 6)
          {
@@ -1551,7 +1500,7 @@ package survarium.controls
             wordColour = 16704178;
          }
          canJoin = this._matchesJoinKey == 0 && this.matchesCanJoin(row);
-         if(word == "" && !canJoin && this._matchesVersion == BottomPanel.MATCHES_M2 && this.matchesWhyKey(int(row.why)) >= 0)
+         if(word == "" && !canJoin && this._matchesVersion == BottomPanel.MATCHES_M2 && this.matchesWhyKey(int(row.why)) != null)
          {
             word = this.matchesText(this.matchesWhyKey(int(row.why)));
             wordColour = 16704178;

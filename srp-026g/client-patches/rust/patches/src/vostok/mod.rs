@@ -31,6 +31,7 @@ pub mod draw;
 mod hook;
 mod input;
 mod keyboard;
+pub mod language;
 pub mod log;
 mod options;
 pub mod parse;

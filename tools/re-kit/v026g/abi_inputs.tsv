@@ -4676,6 +4676,21 @@ va	name	location	role	basis
 0x00239cc0	survarium::game_world_ui::create_slot_value	entry ESP+8	the zero-based quick-slot index (EDI at 0x239DAC), copied unchanged into GFx slot_id at 0x239F23..0x239F32; the activity presentation uses the same index at 0x23B7A0	observed
 0x0033d390	survarium::medkit::set_active	activation delay	+2A4h configured delay ms; 0x33D45A..0x33D491 uses apply_modifier(profile+kit*704h+F4h,33,delay,1.0), truncates to u32 and stores +2ACh. Unlike effect duration, the delay does not use +2A0h skill weight.	observed
 0x002ffcc0	survarium::stackable_item::get_ui_description	medkit vtable+48h	medical items inherit this descriptor: writes item id at output+0 and stack count at +4; leaves cooldown byte +6 and timer word +2 zero. Medical activation needs its own native timing snapshot.	observed
+0x00426ae1	setlocale	entry ESP+4	the category (LC_ALL 0, LC_COLLATE 1, LC_NUMERIC 4)	observed
+0x00426ae1	setlocale	entry ESP+8	the locale name (".1251", "C", ...)	observed
+0x000e3c10	vostok::core::preinitialize	EDI	stored at 0x1F1D63C (the object whose vtable+50h survarium::game::save_user_config asks for the user data folder); the -localization key 0xA81A88 read at 0xE3C52 into the global buffer_string 0x21E75E0 (default "original", 0x84E3E0), then setlocale(LC_ALL) from it: original/russian ".1251", english ".1252", polish ".1250", other names none; LC_COLLATE ".ACP" before, LC_NUMERIC "C" after	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	ECX	the command-line key (0xA81A88 localization: a buffer_string of its value and its name)	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	EAX	the buffer_string the value is copied into, or 0	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	EAX	the console command object (48h bytes: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Dh saved, +40h the buffer, +44h its size; vtable cc_string 0x9E7C2C; linked at the head of the list 0x1F1D66C)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+4	the name (+10h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+8	the buffer address of the string value (+40h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+12	the buffer's size (+44h; execute 0xEC8C0 copies a value with strncpy_s(buffer, size, value, size))	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+16	saved to user.cfg, a byte (+1Dh; 1 for r_current_render_configuration)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	ECX	the options' ExternalInterface (game_options+4, vtable 0x9FD478; +30h the game, game_options+34h)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+4	the movie (main_menu's GFx movie)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+8	the method name (accept_changes, cancel_changes, options_tab_changed, ...; an unknown one returns at 0x1FF96E)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+12	the arguments (GFx values, 24 bytes each: +4 the type, 6 a string, 40h its managed bit; +8 the value)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+16	the argument count	observed
 0x00329b20	survarium::player_stamina::update_weight_modifiers	EAX	stamina; +18h minimum weight, +1Ch maximum, +20h speed penalty, +24h spend increase, +48h modifiers	observed
 0x00329b20	survarium::player_stamina::update_weight_modifiers	entry ESP+4	carried weight in kg, supplied by base_player tick at 0x2DAAB5 after inventory::update_weight	observed
 0x00329290	survarium::player_stamina::player_stamina	EAX	stamina destination	observed

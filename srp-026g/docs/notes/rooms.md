@@ -303,6 +303,14 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   the window hidden (not the match start's 15).
 - **Site:** the launcher shows rooms and players in rooms; `/api/stats` has `rooms`,
   `in_rooms`, `queued` (in room queues).
+- **The list's table:** each column as wide as its header and its texts need in every
+  language (the longest map name, "Any", a vote's time), each header and cell given its
+  column's width (none runs into the next); the name takes the rest and a long one is cut
+  with "…"; the next map's weather in small type under its name. The side panel shows the
+  map and weather on one line, the mode under them; a card's mode tag widens for a long mode
+  name and its map name runs up to the votes. `scripts/rooms-start/check.sh` checks, in every
+  language, the list, a room in each phase and hint, and the create window: no text cut by
+  its field, no two on one line meeting (`ROOMS OVERLAP` lines), 5% of the width to spare.
 - **The list's side panel: who is in the room** (the owner's of 2026-10-20: "down there is
   enough space for a list of players", "below state"; "it should also show a player level in
   room people list preview"; "make sure we properly handle long names"):

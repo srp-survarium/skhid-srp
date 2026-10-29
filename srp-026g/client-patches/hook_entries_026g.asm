@@ -279,6 +279,126 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
+global language_on_configs_start
+extern hook_language_on_configs_start
+language_on_configs_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_configs_start
+    mov edx, language_on_configs_start_replay
+    cmp eax, 0
+    je language_on_configs_start_go
+    mov edx, 0x1ea216
+    cmp eax, 1
+    je language_on_configs_start_go
+    ud2
+language_on_configs_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_configs_start_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ea216
+
+; 0x1ea306 on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded: lohook -> language_on_configs_texts
+global language_on_configs_texts
+extern hook_language_on_configs_texts
+language_on_configs_texts:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_configs_texts
+    mov edx, language_on_configs_texts_replay
+    cmp eax, 0
+    je language_on_configs_texts_go
+    mov edx, 0x1ea30c
+    cmp eax, 1
+    je language_on_configs_texts_go
+    ud2
+language_on_configs_texts_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_configs_texts_replay:
+    db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
+    jmp 0x1ea30c
+
+; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
+global language_on_options_call
+extern hook_language_on_options_call
+language_on_options_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_options_call
+    mov edx, language_on_options_call_replay
+    cmp eax, 0
+    je language_on_options_call_go
+    mov edx, 0x1ff5d6
+    cmp eax, 1
+    je language_on_options_call_go
+    mov edx, 0x1ff971
+    cmp eax, 2
+    je language_on_options_call_go
+    ud2
+language_on_options_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_options_call_replay:
+    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x1ff5d6
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

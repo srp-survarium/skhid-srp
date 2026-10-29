@@ -51,3 +51,8 @@ engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performa
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)	thunk	
 engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int engine_point_to_screen(void *game, const float *point, float *out)	thunk
+engine_cc_string	0x0ec860	EAX:object ESP+4:name ESP+8:buffer ESP+12:size ESP+16:saved	void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved)	thunk	
+engine_setlocale	0x426ae1	ESP+4:category ESP+8:locale	char *engine_setlocale(unsigned int category, const char *locale)	cdecl	
+engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl	
+engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(void *translator, const char *key, char *out)	thiscall	
+engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	

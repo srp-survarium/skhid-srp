@@ -4,8 +4,8 @@
 # (it looks for newer Skhid files, and its PLAY button starts the game).
 set -euo pipefail
 
-# Game language; server is empty when the executable has an embedded default.
-localization=english
+# The game's language is chosen in its Settings. Server: empty when the
+# executable has an embedded default.
 server=
 
 die() { echo "Error: $*" >&2; exit 1; }
@@ -120,8 +120,7 @@ fi
 
 export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
 if [[ $mode == launcher ]]; then
-    # The game it starts inherits this Wine environment; the language is the
-    # one chosen in the launcher, not the one above.
+    # The game it starts inherits this Wine environment.
     echo "Starting the Skhid launcher. Log: $log"
     "$WINE" launcher_skhid.exe >>"$log" 2>&1 \
         || die "Launcher exited with an error. See $log"
@@ -138,7 +137,7 @@ Start the launcher (bash Skhid.sh launcher, or bash play_skhid.sh launcher): it 
 Details: game/binaries/x86/updater_skhid.log"
 fi
 echo "Starting Survarium. Log: $log"
-args=("-localization=$localization" -mt_allocator=768 -minimum_resources_memory_size=768)
+args=(-mt_allocator=768 -minimum_resources_memory_size=768)
 [[ -z "$server" ]] || args+=("-server=$server")
 "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 \
     || die "Game exited with an error. See $log"

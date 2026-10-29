@@ -54,7 +54,7 @@
 ; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
 ; table again, the same 40 rows (each row's pointers its own), and a 41st:
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
-; (content edit hide-interface-1.json); patch_026g.py points the six
+; (its text in client-patches/localization/*.tsv); patch_026g.py points the six
 ; functions at it and makes their counts 29h. The binding is the binder's
 ; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
 ; back by the binder's own bind command (its save 0x207450 writes every bound

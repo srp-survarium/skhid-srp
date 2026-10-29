@@ -3112,6 +3112,11 @@ va	status	ref_021d	name
 0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
 0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
 0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list
+0x000e3c10	observed		vostok::core::preinitialize
+0x000ddeb0	observed		vostok::command_line::key<string>::is_set
+0x0084e3e0	observed		vostok::core::`dynamic initializer for 's_localization''
+0x001e9030	observed		survarium::game::save_user_config
+0x001e9c00	observed		survarium::game::~game
 0x00229400	inferred-high		survarium::lobby_menu::set_ui_element_lock_state
 0x00276360	inferred-high		survarium::lobby_client::on_buy_item_result
 0x002f7470	inferred-medium		survarium::player_profile::add_item_kit_parameters

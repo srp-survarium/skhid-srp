@@ -1,7 +1,6 @@
 package survarium.player
 {
    import survarium.Util;
-   import survarium.rooms.RoomsText;
    import survarium.data.LocalizationData;
 
    // Parsed once at the native callback. Fractions are the weight's contribution
@@ -16,13 +15,6 @@ package survarium.player
       private var _movement:Number;
       private var _spending:Number;
       private var _sprint:int;
-      private static const WORDS:Object = {
-         "title":["Weight effects", "Вплив ваги", "Влияние веса", "Gewichtseffekte", "Wpływ wagi", "Uticaj težine"],
-         "speed":["Movement speed", "Швидкість руху", "Скорость движения", "Bewegungsgeschwindigkeit", "Prędkość ruchu", "Brzina kretanja"],
-         "spending":["Sprint stamina use", "Витрати витривалості під час спринту", "Расход выносливости при спринте", "Ausdauerverbrauch beim Sprinten", "Zużycie wytrzymałości podczas sprintu", "Potrošnja izdržljivosti pri sprintu"],
-         "weight":["Cannot sprint: carry limit reached.", "Спринт недоступний: досягнуто межі ваги.", "Спринт недоступен: достигнут предел веса.", "Sprint nicht möglich: Traglast erreicht.", "Sprint niedostępny: osiągnięto limit wagi.", "Sprint nije moguć: dostignuta je nosivost."],
-         "heavy":["Cannot sprint: Heavyweight skill.", "Спринт недоступний через навичку важковаговика.", "Спринт недоступен из-за навыка тяжеловеса.", "Sprint durch Schwergewicht-Fertigkeit gesperrt.", "Sprint zablokowany przez umiejętność ciężkiej wagi.", "Sprint nije moguć zbog veštine Teškaš."]
-      };
       public function WeightEffects(movement:Number, spending:Number, sprint:int)
       {
          _movement = movement;
@@ -36,30 +28,24 @@ package survarium.player
          return new WeightEffects(movement,spending,int(sprint));
       }
       public function get slowsMovement() : Boolean { return _movement < 0; }
-      public function get title() : String { return word("title"); }
-      private function word(key:String) : String { return WORDS[key][RoomsText.language()]; }
+      public function get title() : String { return LocalizationData.getName("st_srp_weight_title"); }
       private function percent(value:Number, bad:Boolean) : String
       {
          // One decimal, without float noise or a displayed negative zero.
          var magnitude:Number = Math.round(Math.abs(value) * 1000) / 10;
          // The game's embedded font has the ASCII minus, not U+2212.
-         var text:String = (magnitude == 0 ? "" : value < 0 ? "-" : "+") + magnitude.toString() + "%";
+         var text:String = (magnitude == 0 ? "" : value < 0 ? "-" : "+") + LocalizationData.format("st_srp_unit_percent",magnitude.toString());
          return Util.styledChar(text,bad ? "red" : "white");
-      }
-      private function stat(key:String, fallback:String) : String
-      {
-         var name:String = LocalizationData.getName(key);
-         return name && name != key && name != "#" + key ? name : word(fallback);
       }
       // Same modifier atlas entries as the game's movement/energy defects
       // (modifications.options: defects 4070 and 4110).
       public function rows() : Array
       {
-         var result:Array = [{icon:11,label:stat("st_inv_move_speed_modifier","speed") + ": " + percent(_movement,_movement < 0)}];
+         var result:Array = [{icon:11,label:LocalizationData.format("st_srp_weight_speed",percent(_movement,_movement < 0))}];
          if(_sprint != SPRINT_HEAVYWEIGHT)
-            result.push({icon:16,label:stat("st_multiplicative_stamina_spending_modifier","spending") + ": " + percent(_spending,_spending > 0)});
+            result.push({icon:16,label:LocalizationData.format("st_srp_weight_sprint_stamina",percent(_spending,_spending > 0))});
          if(_sprint != SPRINT_ALLOWED)
-            result.push({icon:11,label:Util.styledChar(word(_sprint == SPRINT_WEIGHT ? "weight" : "heavy"),"red")});
+            result.push({icon:11,label:Util.styledChar(LocalizationData.getName(_sprint == SPRINT_WEIGHT ? "st_srp_weight_no_sprint_limit" : "st_srp_weight_no_sprint_heavyweight"),"red")});
          return result;
       }
    }

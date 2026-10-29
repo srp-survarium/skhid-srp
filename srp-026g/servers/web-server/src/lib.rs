@@ -173,8 +173,7 @@ struct Stats {
     /// The 0.26g page.
     v026g: bool,
     /// The download holds the launcher (0.26g): the page tells players to
-    /// start that, and keeps the start script and the command line for
-    /// those who want them.
+    /// start that, and keeps the start script for those who want it.
     launcher: bool,
     /// The download's launcher brings the original game itself (0.26g):
     /// the page tells players to unpack into an empty folder, and names
@@ -1925,57 +1924,39 @@ fn home(lang: Lang, stats: Stats) -> String {
         lang.tr("registered", "зареєстровано"),
     );
     let version = if v026g { "0.26g" } else { "0.21d" };
-    // 0.26g: `-server=` (it has no `-client=`), and the exe that takes srp's
-    // certificate (`scripts/client-patch-026g`).
-    let server_key = if v026g { "-server" } else { "-client" };
-    let mut options = format!(
-        "<ul class=opts><li><code>{server_key}</code> {}</li><li><code>-localization</code> {}</li>",
+    // 0.21d: the start command, typed by hand. 0.26g's exe has the server and
+    // the memory sizes built in and its language is chosen in its Settings, so
+    // its page names no command line.
+    let command_line = format!(
+        "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
+        lang.tr(
+            "Start it with this command line:",
+            "Запустіть гру з такою командою:"
+        ),
+        lang.tr("english", "ukrainian"),
+        escape(address),
         lang.tr("server address", "адреса сервера"),
         lang.tr(
             "language: english, russian, ukrainian",
             "мова: english, russian, ukrainian"
         ),
     );
-    if v026g {
-        options += &format!(
-            "<li><code>-mt_allocator=768</code> {}</li><li><code>-minimum_resources_memory_size=768</code> {}</li>",
-            lang.tr(
-                "memory for the game (maps need more than the default), MB",
-                "пам'ять для гри (мапам замало типової), МБ"
-            ),
-            lang.tr("memory for resources, MB", "пам'ять для ресурсів, МБ"),
-        );
-    }
-    options += "</ul>";
-    let launch = if v026g {
-        format!(
-            "<pre>survarium_skhid.exe -localization={} -server={} -mt_allocator=768 -minimum_resources_memory_size=768</pre><p><small>{}</small></p>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-            lang.tr(
-                "Run it from the game's <code>game\\binaries\\x86</code> folder (the download's <code>play_skhid.bat</code> does).",
-                "Запускайте з теки гри <code>game\\binaries\\x86</code> (це робить <code>play_skhid.bat</code> із завантаження).",
-            ),
-        )
-    } else {
-        format!(
-            "<pre>survarium.exe -localization={} -client={}</pre>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-        )
-    };
-    let command_line = format!(
-        "{}{launch}{options}",
+    let language = format!(
+        "<p>{}</p>",
         lang.tr(
-            "Start it with this command line:",
-            "Запустіть гру з такою командою:"
-        ),
+            "Language: in the game, <b>Settings</b>, <b>Game</b>, <b>Language</b> (applies after a restart).",
+            "Мова: у грі, <b>Опції</b>, <b>Гра</b>, <b>Мова</b> (діє після перезапуску).",
+        )
+    );
+    let without_launcher = lang.tr(
+        "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
+        "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
     );
     // With the launcher in the download a player starts that and types
-    // nothing; the start script and the command line stay, folded away.
+    // nothing; the start script stays, folded away.
     let start = if with_launcher {
         format!(
-            "{}<p><small>{}</small></p><details><summary>{}</summary><p>{}</p>{command_line}</details>",
+            "{}<p><small>{}</small></p>{language}<details><summary>{}</summary><p>{without_launcher}</p></details>",
             if installs_game {
                 lang.tr(
                     "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
@@ -1999,11 +1980,9 @@ fn home(lang: Lang, stats: Stats) -> String {
                 )
             },
             lang.tr("Without the launcher", "Без лаунчера"),
-            lang.tr(
-                "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-                "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
-            ),
         )
+    } else if v026g {
+        format!("<p>{without_launcher}</p>{language}")
     } else {
         command_line
     };
@@ -3302,8 +3281,8 @@ mod tests {
             installs_game: false,
         };
         // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. The script and the command line are
-        // folded away below.
+        // download is needed once; how to change the language. The script
+        // is folded away below.
         for (lang, press, once, folded) in [
             (
                 Lang::En,
@@ -3333,7 +3312,9 @@ mod tests {
             assert!(!shown.contains("play_skhid.bat"), "{shown}");
             assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
             assert!(hidden.contains("play_skhid.bat"));
-            assert!(hidden.contains("<pre>survarium_skhid.exe -localization="));
+            assert!(shown.contains("<b>Language</b>") || shown.contains("<b>Мова</b>"), "{shown}");
+            assert!(!steps.contains("-localization"), "{steps}");
+            assert!(!steps.contains("<pre>"), "{steps}");
             assert_eq!(steps.matches("<details>").count(), 1);
             assert_eq!(steps.matches("</details>").count(), 1);
         }
@@ -3401,8 +3382,10 @@ mod tests {
         let page = home(Lang::En, stats(false));
         assert!(!page.contains("launcher_skhid.exe"));
         assert!(!page.contains("<details>"));
-        assert!(page.contains("Start it with this command line:<pre>survarium_skhid.exe"));
+        assert!(!page.contains("command line"));
+        assert!(!page.contains("-localization"));
         assert!(page.contains("<code>play_skhid.bat</code>"));
+        assert!(page.contains("<b>Settings</b>, <b>Game</b>, <b>Language</b>"));
     }
 
     #[test]
