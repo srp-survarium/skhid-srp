@@ -39,6 +39,7 @@ fn body(place: Place, team: u8, at: Vec3) -> Body {
 fn bot_view(place: Place, team: u8, at: Vec3) -> BotView {
     BotView {
         body: body(place, team, at),
+        role: None,
         mind: Mind {
             target: None,
             gates: Gates::default(),
@@ -246,6 +247,27 @@ fn a_step_the_owner_never_starts_is_void_and_used_up() {
     let results = results_of(&link);
     assert!(results.contains("\tVOID(never_started)\tarm_time\t"), "{results}");
     assert_eq!(link.output().used("t-never"), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A seat whose bot has another role than the step asked for voids the try, naming the seat and both roles; one whose bot has the
+/// role runs.
+#[test]
+fn a_bot_with_the_wrong_role_voids_the_try() {
+    use survarium::v026g::loadouts::BotRole::{Camper, Rusher};
+    let step = || Step::new("t-role", group(), "x").seat(Side::Enemies, 0, Camper).end(&[End::OwnerDied]);
+    let (mut link, dir) = link_for("role-wrong", vec![step()], None);
+    let mut sim = Sim::new();
+    sim.bots.iter_mut().for_each(|bot| bot.role = Some(Rusher));
+    sim.tick(&mut link);
+    let results = results_of(&link);
+    assert!(results.contains("VOID(wrong_role(enemy_bot_0_wanted_Camper_has_Some(Rusher)))"), "{results}");
+    let _ = std::fs::remove_dir_all(&dir);
+    let (mut link, dir) = link_for("role-right", vec![step()], None);
+    let mut sim = Sim::new();
+    sim.bots.iter_mut().for_each(|bot| bot.role = Some(Camper));
+    sim.tick(&mut link);
+    assert!(!results_of(&link).contains("wrong_role"), "{}", results_of(&link));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

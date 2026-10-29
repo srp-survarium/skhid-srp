@@ -21,18 +21,46 @@ pub type RolesHook = Box<dyn Fn(Roster<'_>) -> Vec<BotRole> + Send + Sync>;
 
 static HOOK: OnceLock<RolesHook> = OnceLock::new();
 
-/// Registers the hook (once for the process).
-pub fn set_roles_hook(hook: RolesHook) {
-    let _ = HOOK.set(hook);
+/// Why the hook's roles were not used.
+#[derive(Debug, PartialEq, Eq)]
+pub enum HookError {
+    /// A hook is registered already (one per process): the new one is not used.
+    AlreadySet,
+    /// The hook gave `got` roles for `wanted` bots.
+    WrongLength { wanted: usize, got: usize },
 }
 
-/// The roles of a Player vs Bots match's bots: the hook's, else `defaults`. A match not against bots (`size` none) is untouched.
+/// Registers the hook (once for the process); a second registration is an error and the first stays.
+pub fn set_roles_hook(hook: RolesHook) -> Result<(), HookError> {
+    HOOK.set(hook).map_err(|_| HookError::AlreadySet)
+}
+
+/// The roles of a Player vs Bots match's bots: the hook's, else `defaults`. A match not against bots (`size` none) is untouched. A
+/// hook that fails is logged as an error and the lobby's roles stand (the runner checks the roles of its seats when a try starts, so
+/// the test is voided and not reported against the wrong bot).
 pub(super) fn roles(size_and_map: Option<(u8, u8)>, bot_teams: &[u8], defaults: Vec<BotRole>) -> Vec<BotRole> {
-    let (Some((per_team, map_id)), Some(hook)) = (size_and_map, HOOK.get()) else {
-        return defaults;
+    match roles_with(HOOK.get(), size_and_map, bot_teams, defaults.clone()) {
+        Ok(roles) => roles,
+        Err(error) => {
+            log::error!("CLIENT_TEST: the roles hook's answer is not used: {error:?}");
+            defaults
+        }
+    }
+}
+
+/// [`roles`] with the hook given.
+fn roles_with(
+    hook: Option<&RolesHook>,
+    size_and_map: Option<(u8, u8)>,
+    bot_teams: &[u8],
+    defaults: Vec<BotRole>,
+) -> Result<Vec<BotRole>, HookError> {
+    let (Some((per_team, map_id)), Some(hook)) = (size_and_map, hook) else {
+        return Ok(defaults);
     };
-    let given = hook(Roster { map_id, per_team, bot_teams, defaults: defaults.clone() });
-    if given.len() == defaults.len() { given } else { defaults }
+    let wanted = defaults.len();
+    let given = hook(Roster { map_id, per_team, bot_teams, defaults });
+    if given.len() == wanted { Ok(given) } else { Err(HookError::WrongLength { wanted, got: given.len() }) }
 }
 
 #[cfg(test)]
@@ -43,7 +71,25 @@ mod tests {
     #[test]
     fn without_a_hook_the_lobbys_roles_stand() {
         let defaults = vec![BotRole::Flanker, BotRole::Support];
-        assert_eq!(roles(Some((6, 2)), &[0, 1], defaults.clone()), defaults);
-        assert_eq!(roles(None, &[0, 1], defaults.clone()), defaults);
+        assert_eq!(roles_with(None, Some((6, 2)), &[0, 1], defaults.clone()), Ok(defaults.clone()));
+        assert_eq!(roles_with(None, None, &[0, 1], defaults.clone()), Ok(defaults));
+    }
+
+    /// The hook's roles are the match's bots' roles, the hook is given the match (map, size, the bots' teams, the lobby's roles), and
+    /// a match not against bots is never asked; an answer of the wrong length is an error.
+    #[test]
+    fn the_hooks_roles_are_applied_to_the_matchs_bots() {
+        let defaults = vec![BotRole::Flanker, BotRole::Support, BotRole::Rusher];
+        let hook: RolesHook = Box::new(|roster| {
+            assert_eq!((roster.map_id, roster.per_team, roster.bot_teams.len()), (2, 6, 3));
+            let mut roles = roster.defaults;
+            roles[1] = BotRole::Camper;
+            roles
+        });
+        let given = roles_with(Some(&hook), Some((6, 2)), &[0, 1, 1], defaults.clone());
+        assert_eq!(given, Ok(vec![BotRole::Flanker, BotRole::Camper, BotRole::Rusher]));
+        assert_eq!(roles_with(Some(&hook), None, &[0, 1, 1], defaults.clone()), Ok(defaults.clone()));
+        let short: RolesHook = Box::new(|_| vec![BotRole::Camper]);
+        assert_eq!(roles_with(Some(&short), Some((6, 2)), &[0, 1, 1], defaults), Err(HookError::WrongLength { wanted: 3, got: 1 }));
     }
 }

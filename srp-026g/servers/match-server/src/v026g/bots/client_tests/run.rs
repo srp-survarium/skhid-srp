@@ -60,6 +60,8 @@ pub enum VoidWhy {
     NeverStarted,
     /// The match lacks the bots a setup names.
     MissingBots(String),
+    /// A bot a step asked a role of (`Step::seat`) has another: the hook did not apply, or the match is not the one planned.
+    WrongRole(String),
     /// The owner left the match.
     OwnerGone,
     /// The match ended while the step ran.
@@ -71,6 +73,7 @@ impl VoidWhy {
         match self {
             VoidWhy::NeverStarted => "never_started".into(),
             VoidWhy::MissingBots(who) => format!("missing_bots({who})"),
+            VoidWhy::WrongRole(who) => format!("wrong_role({who})"),
             VoidWhy::OwnerGone => "owner_gone".into(),
             VoidWhy::MatchEnded => "match_ended".into(),
         }
@@ -274,8 +277,20 @@ impl Member {
 struct Crew(Vec<Member>);
 
 impl Crew {
-    /// Resolves the setup against the bots in the match, or names the first side that lacks a bot.
-    fn pick(step: &Step, frame: &Frame) -> Result<Self, String> {
+    /// Resolves the setup against the bots in the match, or names the first side that lacks a bot or the first seat whose bot has
+    /// another role than the step asked for.
+    fn pick(step: &Step, frame: &Frame) -> Result<Self, VoidWhy> {
+        for seat in &step.roster {
+            let mut places: Vec<Place> = frame.side(seat.side).map(|b| b.body.place).collect();
+            places.sort_unstable();
+            let name = format!("{} bot {}", seat.side.name(), seat.nth);
+            let Some(bot) = places.get(usize::from(seat.nth)).and_then(|&place| frame.bot(place)) else {
+                return Err(VoidWhy::MissingBots(name.replace(' ', "_")));
+            };
+            if bot.role != Some(seat.role) {
+                return Err(VoidWhy::WrongRole(format!("{name} wanted {:?} has {:?}", seat.role, bot.role).replace(' ', "_")));
+            }
+        }
         let mut members: Vec<Member> = Vec::new();
         for setup in &step.setup {
             let (side, nth) = match setup.who {
@@ -289,7 +304,9 @@ impl Crew {
                 None => places,
             };
             if chosen.is_empty() {
-                return Err(format!("{} bot{}", side.name(), nth.map_or(String::new(), |n| format!(" {n}"))));
+                return Err(VoidWhy::MissingBots(
+                    format!("{} bot{}", side.name(), nth.map_or(String::new(), |n| format!(" {n}"))).replace(' ', "_"),
+                ));
             }
             for place in chosen {
                 // A later setup for the same bot replaces the earlier.
@@ -630,7 +647,7 @@ impl Runner {
                     told: frame.clock,
                 })
             }
-            Err(lacking) => {
+            Err(why) => {
                 let row = Row {
                     match_id: self.match_id,
                     provenance: self.provenance.clone(),
@@ -638,7 +655,7 @@ impl Runner {
                     package: todo.step.package,
                     try_no: todo.next_try,
                     tries: todo.step.tries,
-                    outcome: Outcome::Void(VoidWhy::MissingBots(lacking.replace(' ', "_"))),
+                    outcome: Outcome::Void(why),
                     ended_by: "setup",
                     start: frame.clock,
                     end: frame.clock,
