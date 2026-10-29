@@ -97,3 +97,26 @@ Two facts about the model that a reader of that file needs: the trap counters ex
   report counted). The camper topic's old 8 m / 45 degrees (K1) and the stand-in camper's special 10 m are gone; every decision
   compares arms of one binary, so the old benches' numbers are not comparable and need not be. The camper topic still counts a holder
   killed after one kill, the outcomes after two.
+- **The decision metrics** (`tallies/owner/metrics.rs`, goldens `fairness`, `reaction`, `trades`, `damage`, `work`), all by team:
+  - *enemy position reads* (`bots/fairness.rs`, a helper a package calls where a decision reads an enemy's position from a `Track`;
+    wired in `Ctx::known_place`, `enemies_near` and `threats`): fresh (own senses within 15 s), stale, hud, cheat. This counts
+    **reads, not choices**: a play's scoring reads many positions. New code should add no stale, hud or cheat read; a package that
+    adds its own read site calls `fairness::read(team, Site, &track, now)`. An empty function in a live build.
+  - *reaction*: ms from the first tick a bot has a live sight of an enemy (none in the second before) to its first fire key down;
+    n, median and p10 by the shooter's team, and the engagements that ended with no shot.
+  - *trades*: a death is traded when a teammate kills the killer within 5 s; deaths and traded by the dead's team. Team-wide; the
+    Trade play's own count is one play's.
+  - *damage*: health lost per tick by the team that lost it (taken), shared among the enemy hits on the body in that tick for the
+    team of the shooters (dealt); the rest is `other` (grenade, fall, zone, bleeding, a mate). In lives (1.0 = a body's full health).
+  - *work* (`bots/bench_work.rs`, test builds only): floors expanded, rays cast, spot queries, plays scored, a match-second, by the
+    team of the bot whose think or tick did them; `shared` is the commanders and the shared search slices. No time is read, so two
+    arms compare on any machine. The bench's own `timed_poll` copy of `Bots::poll` sets the same marks.
+- **The feel counters** (`tallies/owner/feel.rs`, golden `feel`): the live census's definitions (`an-top-player.md` §5, `an-gang-up.md`),
+  for each team's top bot (the bots' own rule, `plays::pair_up`: kills + 2 x streak at least 8 and 3 over the team's next), the stand-in
+  human (`SRP_BENCH_HUMAN`) and the other bots: deaths a minute alive (live top 1.19, others 0.81), the share of deaths with 3 or more
+  distinct enemies within 30 m in the 10 s before (live top 41 to 45 %), enemies within 30 m at the death, seconds from a life's
+  start to the first enemy within 30 m (live median 14 to 15 s for a top's lives), and a `crowded death:` note for a top's or the
+  human's crowded death: the enemies near with the play each ran and how each one's track of the dead came to it
+  (Seen, Heard, Told, Hud, Cheat(Radar), Cheat(Thief), none). Distances are straight lines.
+- **Assists** are counted for several windows at once (`owner-test scoreboard:` prints the assists a kill for 1, 2, 3, 5, 10 and 30 s):
+  the window that gives the live 0.19 a kill is the one to use.
