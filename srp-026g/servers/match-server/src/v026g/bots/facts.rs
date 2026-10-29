@@ -104,12 +104,22 @@ impl Bots {
                     .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
                     .map(|(now, _)| now.place)
                     .collect();
+                let deaths = &mut self.teams[team].features.threat.deaths;
+                deaths.retain(|d| time.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
+                deaths.push(threat::Death {
+                    victim: a.place,
+                    killer: match killers[..] {
+                        [killer] => Some(killer),
+                        _ => None,
+                    },
+                    time,
+                });
                 if let [killer] = killers[..]
                     && let Some(death) = new_deaths.iter().find(|d| d.place == a.place)
                     && let Some((_, sensed, at)) = self.last_sensed(killer, team, &[])
                     && sensed + threat::SENSED_MS >= time
                 {
-                    self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time);
+                    self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time, threat::SpotRules::of(&self.tunings.of(team as u8).threat));
                 }
             }
             // An enemy known to carry a battery died: his team's HUD shows

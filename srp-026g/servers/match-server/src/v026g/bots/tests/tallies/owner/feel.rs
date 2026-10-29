@@ -115,7 +115,8 @@ impl Aim {
             Some(TargetRef::Place(place)) if place == him => Aim::Him,
             Some(TargetRef::Exit(_)) => Aim::Exit,
             Some(TargetRef::Battery(_) | TargetRef::Container(_) | TargetRef::Spawner(_)) => Aim::Objective,
-            Some(TargetRef::Place(_) | TargetRef::Point(_)) => Aim::AnotherPlace,
+            // A threat spot (K2's job plays): a held spot's point, not the subject's place.
+            Some(TargetRef::Place(_) | TargetRef::Point(_) | TargetRef::ThreatSpot(_)) => Aim::AnotherPlace,
             Some(TargetRef::None) | None => Aim::Nothing,
         }
     }

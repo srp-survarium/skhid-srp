@@ -104,6 +104,38 @@ fn the_bots_of_team_1_are_made_of_team_1s_tuning() {
     assert_eq!(bots.bots[1].as_ref().unwrap().motor.feel.lip_guard_ticks, lip);
 }
 
+/// The bench gives the tracker every body's pockets from its profile (`bench_throws`), as the live server does: each
+/// is a bot's pockets, and the frags it can throw are the frags its first kit holds, so the bots' frag rolls go by
+/// them (`aim.combat.grenade_kit_cap`) and not by an assumed frag.
+#[test]
+fn the_bench_reads_every_bodys_pockets_from_its_profile() {
+    use crate::v026g::bots::live_grenades::Throws;
+    use survarium::v026g::loadouts::{BotEquipment, BotTier, RusherKits, bot_equipment_of, bot_kits_kit, grenades_in};
+    let teams = [0u8, 0, 0, 0, 1, 1, 1, 1];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let tunings = tunings(Tuning::default(), Tuning::default());
+    let roster = bench_roster(&teams, equipment, &tunings);
+    let throws = crate::v026g::bots::tests::bench::bench_throws(&roster, &tunings);
+    assert_eq!(throws.len(), teams.len());
+    for (place, (throws, profile)) in throws.iter().zip(&roster.profiles).enumerate() {
+        assert!(matches!(throws, Throws::Bot(_)), "place {place}: {throws:?}");
+        let (equipment, role) = bot_equipment_of(profile).expect("a bot");
+        let first = bot_kits_kit(equipment, role, tunings.of(teams[place]).kit.pockets())[0];
+        assert_eq!(throws.frags_left(), Some(grenades_in(first) as u16), "place {place} {role:?}");
+    }
+    let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0x5E10);
+    bots.set_throws(crate::v026g::bots::tests::bench::bench_throws(&bench_roster(&[0, 0, 1, 1], equipment, &tunings), &tunings));
+    assert!((0..4).all(|place| bots.tracker.frags_left(place).is_some()));
+    // The bench's own poll tells each bot's grenade logic what its kit holds, as `Bots::poll` does (it did not:
+    // the bench's bots rolled frags their kit did not hold).
+    let mut times = crate::v026g::bots::tests::bench::Times::default();
+    crate::v026g::bots::tests::bench::timed_poll(&mut bots, Clock { clock: 1_100, time_left_s: 600.0, total_s: 900.0, playing: true }, &mut times);
+    for place in 0..4 {
+        let bot = bots.bots[place].as_ref().unwrap();
+        assert_eq!(bot.reflex.frags_left(), bots.tracker.frags_left(place), "place {place}");
+    }
+}
+
 /// The kits of a bench team are built with its own tuning's pocket store (`kit.pocket_store`): team 1 on the old store has
 /// profiles whose stacks are stored at the count, the stand-in's drugs and the bots' prior follow them, and team 0 keeps the
 /// store of 100.
@@ -619,4 +651,27 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
         }
     }
     assert!(carried > 0, "team 1's kits carry a smoke");
+}
+
+/// The team jobs on held spots (K2, `commander.rs` `threat_tick`) open by their own team's `threat.job_kills`: one enemy's two
+/// kills from one spot are a hold to team 1 (2, the default) and not to team 0 (3).
+#[test]
+fn the_team_jobs_open_by_their_teams_job_kills() {
+    let mut team0 = Tuning::default();
+    team0.threat.job_kills = 3;
+    let (mut bots, now) = after_one_poll(team0, Tuning::default());
+    // Each team's two deaths to one enemy on a spot south of it, out of its bots' sight of it (42 m and more off) and its
+    // lanes (the bots stand 40 degrees and more off them).
+    let spot = Vec3::new(40.0, 0.0, 0.0);
+    for (team, shooter) in [(0usize, 2), (1, 0)] {
+        let rules = crate::v026g::bots::threat::SpotRules::of(&bots.tuning_of(team as u8).threat);
+        for (i, victim) in [Vec3::new(40.0, 0.0, 20.0), Vec3::new(43.0, 0.0, 20.0)].into_iter().enumerate() {
+            bots.teams[team].features.threat.spots.died(victim, shooter, spot, now, now + i as u32, rules);
+        }
+    }
+    for clock in (now + 100..=now + 1_500).step_by(100) {
+        bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+    }
+    assert!(bots.teams[0].features.threat.jobs.is_empty(), "team 0: two kills are no hold by its job_kills 3");
+    assert_eq!(bots.teams[1].features.threat.jobs.len(), 1, "team 1: a hold by its job_kills 2");
 }

@@ -93,6 +93,8 @@ pub const LANE_CLOSE_M: f32 = 3.0;
 pub const NOW_MS: u32 = 1_000;
 /// Rays cast at the regions of a newly held spot in one tick.
 pub const RAYS_PER_TICK: usize = 64;
+/// Spots gone lately, kept for a job's end reason: more than go in a tick.
+const GONE_KEPT: usize = 64;
 /// Height of the point a ray aims at in a region's middle, m (a chest).
 pub const TARGET_HEIGHT_M: f32 = 1.0;
 /// Bearings of a spot's victims kept.
@@ -119,10 +121,17 @@ pub struct Exposure {
 /// function of a route and the ground seen; what is seen is the caller's
 /// ([`Covered::exposed_at`] for the threat spots).
 pub fn exposure(route: &Route, height: RouteHeight, exposed: impl Fn(Vec3) -> bool, free: &[Vec3]) -> Exposure {
-    let length = route.length().min(HORIZON_M);
+    exposure_from(route, 0.0, height, exposed, free)
+}
+
+/// [`exposure`] of the [`HORIZON_M`] of `route` after `from` metres along
+/// it (the way ahead of a bot that walked them), spans in metres along the
+/// whole route.
+pub fn exposure_from(route: &Route, from: f32, height: RouteHeight, exposed: impl Fn(Vec3) -> bool, free: &[Vec3]) -> Exposure {
+    let length = route.length().min(from + HORIZON_M);
     let mut out = Exposure::default();
     let mut open: Option<f32> = None;
-    let mut s = 0.0;
+    let mut s = from;
     while s <= length {
         let p = route.at(s, height);
         let seen = !free.iter().any(|f| f.distance_xz(p) < FREE_M) && exposed(p);
@@ -263,10 +272,277 @@ pub fn rounded(place: usize, time: u32) {
 #[cfg(not(test))]
 pub fn rounded(_: usize, _: u32) {}
 
-/// Whether the bot at `place` took such a route within `ms` before `time`.
+/// Whether the bot at `place` took such a route within `ms` before `time`
+/// (one stamped later than `time` is another match's).
 #[cfg(test)]
 pub fn rounded_within(place: usize, time: u32, ms: u32) -> bool {
-    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&t| time.saturating_sub(t) <= ms))
+    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&t| t <= time && time - t <= ms))
+}
+
+/// A new match: the detours of the last are forgotten. The map is the
+/// thread's and the bench runs match after match on one thread, so a time
+/// of an earlier match read as "within" until the new clock passed it
+/// (`an-anticamper.md` §3b bench note: 665,224 detour bot-s of 2,008
+/// detours).
+#[cfg(test)]
+pub fn new_match() {
+    ROUNDED.with(|m| m.borrow_mut().clear());
+}
+
+#[cfg(test)]
+thread_local! {
+    static SPENT: std::cell::Cell<[u64; 3]> = const { std::cell::Cell::new([0; 3]) };
+}
+
+/// A search round the lanes expanded `floors`; the exposed route it was
+/// asked for had `plain_m` in the lanes, the route kept `kept_m` (the
+/// bench's count: floors a search, and the metres the detours took off).
+#[cfg(test)]
+pub fn spent(floors: usize, plain_m: f32, kept_m: f32) {
+    SPENT.with(|c| {
+        let mut n = c.get();
+        n[0] += floors as u64;
+        n[1] += (plain_m * 10.0).round() as u64;
+        n[2] += (kept_m * 10.0).round() as u64;
+        c.set(n);
+    });
+}
+
+#[cfg(not(test))]
+pub fn spent(_: usize, _: f32, _: f32) {}
+
+/// The counts of [`spent`] so far: floors, and the exposed decimetres of
+/// the routes asked for and of the routes kept.
+#[cfg(test)]
+pub fn spents() -> [u64; 3] {
+    SPENT.with(|c| c.get())
+}
+
+/// A decision of the threat answer, counted for the bench's owner tally
+/// (`tests/tallies/owner/threat_answer.rs`): each switch's firings and
+/// refusals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Count {
+    /// A3: the way ahead looked at against new cover; found exposed (a
+    /// replan), or clear.
+    ReplanAsked,
+    ReplanClear,
+    /// A4: a held spot's lanes cast again (any reason).
+    Recast,
+    /// K2: a role given, let go (not free / no play taken), a job ended
+    /// (unheld / its time / no bot / a holder down).
+    JobGiven,
+    JobPassedNotFree,
+    JobPassedNoPlay,
+    JobEndedUnheld,
+    JobEndedTime,
+    JobEndedNobody,
+    JobEndedDown,
+    /// A3's replans judged (the bench): the next route a new way (its
+    /// length ahead or exposure off the old by over [`JUDGE_SAME_M`]) or
+    /// the same; of the new ways, less exposed, and out of the lanes (at
+    /// most [`EXPOSED_M`] exposed); no new route within [`JUDGE_MS`].
+    ReplanNew,
+    ReplanSame,
+    ReplanLess,
+    ReplanOut,
+    ReplanNoRoute,
+    /// K3: a trade not taken into a proven held line.
+    TradeRefused,
+    /// K3: a teammate not joined for standing in a held line; a join spot
+    /// out of sight found, none found; a wait spot found.
+    PairUpMateRefused,
+    PairUpJoinHidden,
+    PairUpJoinNone,
+    PairUpWaitHidden,
+    /// K3: Crossfire spots left out for lying in a held line (at its picks).
+    CrossfireSpotRefused,
+}
+
+/// The [`Count`]s, in order, and their names in the tally.
+pub const COUNTS: [(Count, &str); 21] = [
+    (Count::ReplanAsked, "replan_asked"),
+    (Count::ReplanClear, "replan_clear"),
+    (Count::Recast, "recast"),
+    (Count::JobGiven, "job_given"),
+    (Count::JobPassedNotFree, "job_passed_not_free"),
+    (Count::JobPassedNoPlay, "job_passed_no_play"),
+    (Count::JobEndedUnheld, "job_ended_unheld"),
+    (Count::JobEndedTime, "job_ended_time"),
+    (Count::JobEndedNobody, "job_ended_nobody"),
+    (Count::JobEndedDown, "job_ended_down"),
+    (Count::ReplanNew, "replan_new"),
+    (Count::ReplanSame, "replan_same"),
+    (Count::ReplanLess, "replan_less"),
+    (Count::ReplanOut, "replan_out"),
+    (Count::ReplanNoRoute, "replan_no_route"),
+    (Count::TradeRefused, "trade_refused"),
+    (Count::PairUpMateRefused, "pair_up_mate_refused"),
+    (Count::PairUpJoinHidden, "pair_up_join_hidden"),
+    (Count::PairUpJoinNone, "pair_up_join_none"),
+    (Count::PairUpWaitHidden, "pair_up_wait_hidden"),
+    (Count::CrossfireSpotRefused, "crossfire_spot_refused"),
+];
+
+#[cfg(test)]
+thread_local! {
+    static COUNTED: std::cell::Cell<[u64; 21]> = const { std::cell::Cell::new([0; 21]) };
+    static JOB_COUNTED: std::cell::Cell<[[u64; 11]; 2]> = const { std::cell::Cell::new([[0; 11]; 2]) };
+    static JOB_LIVES: std::cell::RefCell<Vec<(u8, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A team job's outcome (K2), counted by team for the bench's tally: how it
+/// ended, who killed a holder that went down (his spot's shooter, another
+/// enemy, not known), and roles given on a spot whose shooter the team had
+/// not sensed for [`SEEN_MS`] (the fairness count: 0 is not required, the
+/// spot is what the kill feed and the team's own eyes gave).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JobTally {
+    EndShooterDied,
+    EndUnseen,
+    EndFaded,
+    EndCleared,
+    EndDown,
+    EndTime,
+    EndNobody,
+    DownByShooter,
+    DownByOther,
+    DownUnknown,
+    GivenUnsensed,
+}
+
+/// The [`JobTally`]s, in order, and their names in the tally.
+pub const JOB_TALLIES: [(JobTally, &str); 11] = [
+    (JobTally::EndShooterDied, "ended_shooter_died"),
+    (JobTally::EndUnseen, "ended_unseen"),
+    (JobTally::EndFaded, "ended_faded"),
+    (JobTally::EndCleared, "ended_cleared"),
+    (JobTally::EndDown, "ended_holder_down"),
+    (JobTally::EndTime, "ended_time"),
+    (JobTally::EndNobody, "ended_nobody"),
+    (JobTally::DownByShooter, "down_by_shooter"),
+    (JobTally::DownByOther, "down_by_other"),
+    (JobTally::DownUnknown, "down_by_unknown"),
+    (JobTally::GivenUnsensed, "given_unsensed"),
+];
+
+impl JobTally {
+    /// A job end's tally.
+    pub fn of_end(end: JobEnd) -> Self {
+        match end {
+            JobEnd::ShooterDied => JobTally::EndShooterDied,
+            JobEnd::Unseen => JobTally::EndUnseen,
+            JobEnd::Faded => JobTally::EndFaded,
+            JobEnd::Cleared => JobTally::EndCleared,
+            JobEnd::HolderDown { .. } => JobTally::EndDown,
+            JobEnd::Time => JobTally::EndTime,
+            JobEnd::Nobody => JobTally::EndNobody,
+        }
+    }
+}
+
+/// Team `team`'s job outcome `t` (the bench's count; nothing live).
+#[cfg(test)]
+pub fn job_tally(team: u8, t: JobTally) {
+    JOB_COUNTED.with(|cell| {
+        let mut all = cell.get();
+        all[usize::from(team & 1)][t as usize] += 1;
+        cell.set(all);
+    });
+}
+
+#[cfg(not(test))]
+pub fn job_tally(_: u8, _: JobTally) {}
+
+/// A job of team `team` lived `ms` (the bench's count; nothing live).
+#[cfg(test)]
+pub fn job_life(team: u8, ms: u32) {
+    JOB_LIVES.with(|lives| lives.borrow_mut().push((team & 1, ms)));
+}
+
+#[cfg(not(test))]
+pub fn job_life(_: u8, _: u32) {}
+
+/// The [`JobTally`]s so far, by team and [`JOB_TALLIES`] order.
+#[cfg(test)]
+pub fn job_tallied() -> [[u64; 11]; 2] {
+    JOB_COUNTED.with(|cell| cell.get())
+}
+
+/// The jobs' lives so far (team, ms), from the `from`th on.
+#[cfg(test)]
+pub fn job_lives(from: usize) -> Vec<(u8, u32)> {
+    JOB_LIVES.with(|lives| lives.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
+}
+
+/// `c` happened `n` times (the bench's count; nothing live).
+#[cfg(test)]
+pub fn count_n(c: Count, n: u64) {
+    COUNTED.with(|cell| {
+        let mut all = cell.get();
+        all[c as usize] += n;
+        cell.set(all);
+    });
+}
+
+#[cfg(not(test))]
+pub fn count_n(_: Count, _: u64) {}
+
+/// `c` happened once.
+pub fn count(c: Count) {
+    count_n(c, 1);
+}
+
+/// The [`Count`]s so far, by [`COUNTS`] order.
+#[cfg(test)]
+pub fn counted() -> [u64; 21] {
+    COUNTED.with(|cell| cell.get())
+}
+
+/// An A3 replan asked for (the bench's judgment of it): the way ahead it
+/// replaced, exposed and left (m), that route's birth, and when.
+#[derive(Clone, Copy, Debug)]
+pub struct Asked {
+    pub exposed_m: f32,
+    pub left_m: f32,
+    pub born: u32,
+    pub time: u32,
+}
+
+/// A replan's next route within this, ms, or none came (a search can go on
+/// over polls).
+pub const JUDGE_MS: u32 = 5_000;
+/// A next route this near the old in length ahead and exposure is the same way, m.
+pub const JUDGE_SAME_M: f32 = 1.0;
+
+/// An A3 replan's next route, `exposed_m` exposed and `left_m` long ahead,
+/// against the way ahead it replaced.
+pub fn judged(asked: Asked, exposed_m: f32, left_m: f32) {
+    let same = (left_m - asked.left_m).abs() <= JUDGE_SAME_M && (exposed_m - asked.exposed_m).abs() <= JUDGE_SAME_M;
+    if same {
+        count(Count::ReplanSame);
+        return;
+    }
+    count(Count::ReplanNew);
+    if exposed_m < asked.exposed_m {
+        count(Count::ReplanLess);
+    }
+    if exposed_m <= EXPOSED_M {
+        count(Count::ReplanOut);
+    }
+}
+
+/// A job event's count.
+pub fn count_job(event: JobEvent) {
+    count(match event {
+        JobEvent::Given { .. } => Count::JobGiven,
+        JobEvent::Passed { why, .. } if why == PASSED_NOT_FREE => Count::JobPassedNotFree,
+        JobEvent::Passed { .. } => Count::JobPassedNoPlay,
+        JobEvent::Ended { end: JobEnd::Time, .. } => Count::JobEndedTime,
+        JobEvent::Ended { end: JobEnd::Nobody, .. } => Count::JobEndedNobody,
+        JobEvent::Ended { end: JobEnd::HolderDown { .. }, .. } => Count::JobEndedDown,
+        JobEvent::Ended { .. } => Count::JobEndedUnheld,
+    });
 }
 
 /// The searches counted by [`searched`] so far, by [`Searched`] in order.
@@ -278,9 +554,40 @@ pub fn searches() -> [u64; 4] {
 /// What the spots read of the map: what is seen from where, and the
 /// regions' middles.
 pub trait Eyes {
+    /// A sight line: what a teammate sees (the clear test).
     fn sees(&self, from: Vec3, to: Vec3) -> bool;
+    /// Whether a shooter's bullet from `from` still hurts at `to`: what his
+    /// lanes cover (the casts). [`FireEyes`] answers it by the team's cover
+    /// rule (#705: thin cover no longer hides a lane); any other `Eyes`, by a
+    /// sight line, as before.
+    fn shot_reaches(&self, from: Vec3, to: Vec3) -> bool {
+        self.sees(from, to)
+    }
     /// Every region and the point at its middle.
     fn region_points(&self) -> Vec<(u32, Vec3)>;
+}
+
+/// The spots' eyes with the team's cover rule (`Tuning::cover.rule()`, #705)
+/// for the lane casts (`ThreatTuning::lanes_pierce`): a lane reaches through
+/// what the team's bullets pierce (a crate, a car, a thin wall), as the bots'
+/// own hide spots are judged (`SpotQuery::out_of_fire_of`).
+pub struct FireEyes<'a> {
+    pub tactics: &'a Tactics,
+    pub cover: Option<super::tuning::CoverRule>,
+}
+
+impl Eyes for FireEyes<'_> {
+    fn sees(&self, from: Vec3, to: Vec3) -> bool {
+        self.tactics.sees(from, to)
+    }
+
+    fn shot_reaches(&self, from: Vec3, to: Vec3) -> bool {
+        self.tactics.shot_reaches(self.cover, from, to)
+    }
+
+    fn region_points(&self) -> Vec<(u32, Vec3)> {
+        Eyes::region_points(self.tactics)
+    }
 }
 
 impl Eyes for Tactics {
@@ -315,36 +622,171 @@ pub fn free_regions(covered: &Covered, tactics: &Tactics, from: mapdata::NodeId,
     free
 }
 
-/// Whether `p` lies within [`LANE_DEG`] of the bearing of one of the victims
-/// seen from `at`.
+/// Whether `p` lies within [`LANE_DEG`] of one of `bearings` seen from
+/// `at`.
 fn in_lane(bearings: &[f32], at: Vec3, p: Vec3) -> bool {
     // His own ground has no bearing.
     if p.distance_xz(at) < LANE_CLOSE_M {
         return true;
     }
-    let bearing = (p.x - at.x).atan2(p.z - at.z);
-    bearings.iter().any(|&b| {
-        let d = (bearing - b + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-        d.abs() <= LANE_DEG.to_radians()
-    })
+    let bearing = bearing(at, p);
+    bearings.iter().any(|&b| angle_between(bearing, b) <= LANE_DEG.to_radians())
+}
+
+/// The yaw from `from` to `to` on the ground plane.
+fn bearing(from: Vec3, to: Vec3) -> f32 {
+    (to.x - from.x).atan2(to.z - from.z)
+}
+
+/// The angle between two yaws, radians, 0 to pi.
+fn angle_between(a: f32, b: f32) -> f32 {
+    ((a - b + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI).abs()
+}
+
+/// A spot is the shooter's area, kills within this of its centre merged,
+/// and he is on it while sensed within it, m (`ThreatTuning::area`). A
+/// holder works a circle about 8 m across, p90 7.9-8.0 m from his hold's
+/// centre (`an-anticamper.md` §8.4, owner and 8,474 live holds: PROVEN);
+/// 10 m is the hold definition those were measured with.
+pub const AREA_M: f32 = 10.0;
+/// A spot's lanes are cast again when its centre moved this far from where
+/// they were cast from, m: at 20 m a 3 m shift turns a bearing by about 9
+/// degrees, half a lane (`LANE_DEG`). GUESS.
+pub const RECAST_MOVED_M: f32 = 3.0;
+/// Spot events kept between two commander ticks, at most (the notes).
+const EVENTS_KEPT: usize = 64;
+
+/// What a spot is: the two models (`ThreatTuning::area`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpotModel {
+    /// As it was (c3dc7241): the first kill's place; kills within
+    /// [`MERGE_M`] add to the first such spot; each lane's apex is that
+    /// place, its bearing taken from its own kill's place; the shooter is on
+    /// it within [`SEEN_ON_M`].
+    Point,
+    /// The shooter's area (§8.4): kills within `m` add to the nearest such
+    /// spot, its place is their middle, each lane's bearing is from there,
+    /// and the shooter is on it within `m`.
+    Area { m: f32 },
+}
+
+/// How the team's spots are kept, from `ThreatTuning` (parsed once a call).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpotRules {
+    pub model: SpotModel,
+    /// Lanes cast again on a new bearing, the old cover kept meanwhile.
+    pub recast: bool,
+}
+
+impl SpotRules {
+    pub fn of(tuning: &crate::v026g::bots::tuning::ThreatTuning) -> Self {
+        Self {
+            model: if tuning.area { SpotModel::Area { m: AREA_M } } else { SpotModel::Point },
+            recast: tuning.recast,
+        }
+    }
+
+    /// Kills within this of a spot add to it, m.
+    fn merge_m(self) -> f32 {
+        match self.model {
+            SpotModel::Point => MERGE_M,
+            SpotModel::Area { m } => m,
+        }
+    }
+
+    /// The distance within which the shooter is on a spot, m.
+    fn on_m(self) -> f32 {
+        match self.model {
+            SpotModel::Point => SEEN_ON_M,
+            SpotModel::Area { m } => m,
+        }
+    }
+
+    /// Whether the spot follows its kills (its place their middle).
+    fn recentres(self) -> bool {
+        matches!(self.model, SpotModel::Area { .. })
+    }
+}
+
+impl Default for SpotRules {
+    fn default() -> Self {
+        Self::of(&crate::v026g::bots::tuning::ThreatTuning::default())
+    }
+}
+
+/// A kill a spot counts: where the shooter was sensed, where the victim
+/// died.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Kill {
+    from: Vec3,
+    victim: Vec3,
+}
+
+/// What a cast was made from: the eye's ground point, the bearings and the
+/// reach.
+#[derive(Clone, Debug, PartialEq)]
+struct Lanes {
+    from: Vec3,
+    bearings: Vec<f32>,
+}
+
+/// Where a spot's lanes stand: one state, and the cover there is in each.
+#[derive(Clone, Debug, PartialEq)]
+enum Cast {
+    /// To be cast at its next tick held; the cover of the cast before kept
+    /// meanwhile (`SpotRules::recast`), if any.
+    Due { kept: Option<Vec<u32>> },
+    /// Rays going out, [`RAYS_PER_TICK`] a tick: the regions left, those
+    /// seen so far, what the lanes are cast from, the cover kept meanwhile.
+    Casting {
+        todo: Vec<(u32, Vec3)>,
+        seen: Vec<u32>,
+        lanes: Lanes,
+        kept: Option<Vec<u32>>,
+    },
+    /// All cast: the regions of his lanes, and what they were cast from.
+    Done { cover: Vec<u32>, lanes: Lanes },
+}
+
+impl Cast {
+    fn cover(&self) -> Option<&[u32]> {
+        match self {
+            Cast::Done { cover, .. } => Some(cover),
+            Cast::Due { kept } | Cast::Casting { kept, .. } => kept.as_deref(),
+        }
+    }
+
+    fn lanes(&self) -> Option<&Lanes> {
+        match self {
+            Cast::Done { lanes, .. } | Cast::Casting { lanes, .. } => Some(lanes),
+            Cast::Due { .. } => None,
+        }
+    }
+
+    /// To be cast again; the cover there is now kept when `keep`.
+    fn again(&mut self, keep: bool) {
+        let kept = if keep { self.cover().map(<[u32]>::to_vec) } else { None };
+        *self = Cast::Due { kept };
+    }
 }
 
 /// One place a shooter killed from.
 #[derive(Clone, Debug)]
 pub struct Spot {
+    /// The team's number for it, for the notes and the job's slots.
+    pub id: u32,
+    /// Its centre ([`SpotModel::Area`]) or its first kill's place.
     pub at: Vec3,
     strength: f32,
     stamp: u32,
     pub shooter: Place,
-    /// Where the victims were seen from the spot, yaw.
-    pub bearings: Vec<f32>,
+    kills: Vec<Kill>,
     pub reach_m: f32,
     shooter_seen: Option<u32>,
     empty_since: Option<u32>,
-    /// The regions within reach still to be cast at, and those seen.
-    todo: Option<Vec<(u32, Vec3)>>,
-    seen: Vec<u32>,
-    cast: bool,
+    cast: Cast,
+    /// Held at the last commander tick (the Held note is a change of it).
+    held_then: bool,
 }
 
 impl Spot {
@@ -361,18 +803,44 @@ impl Spot {
                 && self.shooter_seen.is_some_and(|t| now.saturating_sub(t) <= SEEN_MS))
     }
 
-    /// The regions of his line, once all cast.
+    /// The regions of his line, once all cast (or the last cast's, kept
+    /// while a new one goes on).
     pub fn covered(&self) -> Option<&[u32]> {
-        self.cast.then_some(&self.seen[..])
+        self.cast.cover()
     }
-}
 
-/// A team's threat spots.
-#[derive(Clone, Debug, Default)]
-pub struct ThreatSpots {
-    spots: Vec<Spot>,
-    /// Changes when the set of regions kept out may have.
-    pub version: u32,
+    /// Each lane as (its apex, the victim's bearing): the apex is the
+    /// spot's place; the bearing is from there ([`SpotModel::Area`]) or, as
+    /// it was, from the kill's own place ([`SpotModel::Point`], c3dc7241's
+    /// `in_lane(&bearings, s.at, p)` with each bearing from `shooter_at`).
+    fn lanes(&self, rules: SpotRules) -> Vec<(Vec3, f32)> {
+        self.kills
+            .iter()
+            .map(|k| {
+                let from = if rules.recentres() { self.at } else { k.from };
+                (self.at, bearing(from, k.victim))
+            })
+            .collect()
+    }
+
+    /// The way he faces: the mean of his victims' bearings from the centre.
+    pub fn facing(&self) -> f32 {
+        let (sx, sz) = self.kills.iter().fold((0.0_f32, 0.0_f32), |(x, z), k| {
+            let b = bearing(self.at, k.victim);
+            (x + b.sin(), z + b.cos())
+        });
+        sx.atan2(sz)
+    }
+
+    /// The middle of its kills' places.
+    fn centre(&self) -> Vec3 {
+        let n = self.kills.len().max(1) as f32;
+        let (x, y, z) = self
+            .kills
+            .iter()
+            .fold((0.0, 0.0, 0.0), |(x, y, z), k| (x + k.from.x, y + k.from.y, z + k.from.z));
+        Vec3::new(x / n, y / n, z / n)
+    }
 }
 
 /// A floor's region.
@@ -435,63 +903,197 @@ impl Covered {
     }
 }
 
+
+/// What happened to a spot, for its note (F4).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpotNote {
+    /// A first kill from a new place.
+    Made,
+    /// Another kill added to it, its strength now.
+    Added { strength: f32 },
+    /// Held from now.
+    Held,
+    /// Its lanes are to be cast again, and why.
+    Recast { why: &'static str },
+    /// All its lanes cast: the regions they cover.
+    Cast { regions: usize },
+    /// Seen empty by a teammate for [`CLEAR_MS`].
+    Cleared,
+    /// Its strength ran out.
+    Decayed,
+    /// Its shooter died (it keeps [`SHOOTER_DIED_KEEPS`]).
+    ShooterDied,
+}
+
+/// A spot's event: when, which spot, its shooter and place then, what.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpotEvent {
+    pub time: u32,
+    pub id: u32,
+    pub shooter: Place,
+    pub at: Vec3,
+    pub note: SpotNote,
+}
+
+impl std::fmt::Display for SpotEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let what = match self.note {
+            SpotNote::Made => "made".to_string(),
+            SpotNote::Added { strength } => format!("a kill added (strength {strength:.2})"),
+            SpotNote::Held => "held".to_string(),
+            SpotNote::Recast { why } => format!("cast again ({why})"),
+            SpotNote::Cast { regions } => format!("cast: {regions} regions"),
+            SpotNote::Cleared => "cleared, seen empty".to_string(),
+            SpotNote::Decayed => "let go, decayed".to_string(),
+            SpotNote::ShooterDied => "its shooter died".to_string(),
+        };
+        write!(
+            f,
+            "threat spot {} of shooter {} at ({:.1}, {:.1}, {:.1}): {what}",
+            self.id, self.shooter, self.at.x, self.at.y, self.at.z
+        )
+    }
+}
+
+/// A team's threat spots.
+#[derive(Clone, Debug, Default)]
+pub struct ThreatSpots {
+    spots: Vec<Spot>,
+    /// Changes when the set of regions kept out may have.
+    pub version: u32,
+    /// The next spot's number.
+    next_id: u32,
+    /// The spots gone lately and why (a job's end reads it, K2).
+    gone: Vec<(u32, JobEnd)>,
+    /// What happened since the commander last took them ([`Self::take_events`]).
+    events: Vec<SpotEvent>,
+}
+
 impl ThreatSpots {
+    fn event(&mut self, time: u32, id: u32, shooter: Place, at: Vec3, note: SpotNote) {
+        if self.events.len() < EVENTS_KEPT {
+            self.events.push(SpotEvent { time, id, shooter, at, note });
+        }
+    }
+
+    /// The events since the last call, oldest first.
+    pub fn take_events(&mut self) -> Vec<SpotEvent> {
+        std::mem::take(&mut self.events)
+    }
+
     /// A bot of the team died to `shooter`, whom the team sensed at
     /// `shooter_at` at `sensed`, the victim at `victim_at`.
-    pub fn died(&mut self, victim_at: Vec3, shooter: Place, shooter_at: Vec3, sensed: u32, now: u32) {
-        let bearing = (victim_at.x - shooter_at.x).atan2(victim_at.z - shooter_at.z);
+    pub fn died(&mut self, victim_at: Vec3, shooter: Place, shooter_at: Vec3, sensed: u32, now: u32, rules: SpotRules) {
         let reach = REACH_FLOOR_M.max(shooter_at.distance_xz(victim_at) + REACH_PLUS_M);
-        let spot = self
+        let kill = Kill { from: shooter_at, victim: victim_at };
+        let merge_m = rules.merge_m();
+        let mut matching = self
             .spots
             .iter_mut()
-            .find(|s| s.shooter == shooter && s.at.distance_xz(shooter_at) <= MERGE_M);
-        match spot {
-            Some(s) => {
-                s.strength = s.strength_at(now) + 1.0;
-                s.stamp = now;
-                s.shooter_seen = Some(s.shooter_seen.map_or(sensed, |t| t.max(sensed)));
-                s.empty_since = None;
-                if s.bearings.len() < BEARINGS_KEPT {
-                    s.bearings.push(bearing);
-                }
-                if reach > s.reach_m {
-                    s.reach_m = reach;
-                    // More of the map is in his line: cast again.
-                    s.cast = false;
-                    s.todo = None;
-                }
-            }
-            None => self.spots.push(Spot {
+            .filter(|s| s.shooter == shooter && s.at.distance_xz(shooter_at) <= merge_m);
+        // The area: the nearest; as it was, the first in the list.
+        let spot = if rules.recentres() {
+            matching.min_by(|a, b| a.at.distance_xz(shooter_at).total_cmp(&b.at.distance_xz(shooter_at)))
+        } else {
+            matching.next()
+        };
+        let Some(s) = spot else {
+            let id = self.next_id;
+            self.next_id = self.next_id.wrapping_add(1);
+            self.spots.push(Spot {
+                id,
                 at: shooter_at,
                 strength: 1.0,
                 stamp: now,
                 shooter,
-                bearings: vec![bearing],
+                kills: vec![kill],
                 reach_m: reach,
                 shooter_seen: Some(sensed),
                 empty_since: None,
-                todo: None,
-                seen: Vec::new(),
-                cast: false,
-            }),
+                cast: Cast::Due { kept: None },
+                held_then: false,
+            });
+            self.event(now, id, shooter, shooter_at, SpotNote::Made);
+            return;
+        };
+        s.strength = s.strength_at(now) + 1.0;
+        s.stamp = now;
+        s.shooter_seen = Some(s.shooter_seen.map_or(sensed, |t| t.max(sensed)));
+        s.empty_since = None;
+        // The kills kept: the latest, so the centre follows him (as it was:
+        // the first ones).
+        let kept = if s.kills.len() < BEARINGS_KEPT {
+            s.kills.push(kill);
+            true
+        } else if rules.recentres() {
+            s.kills.remove(0);
+            s.kills.push(kill);
+            true
+        } else {
+            false
+        };
+        if rules.recentres() {
+            s.at = s.centre();
+        }
+        let why = match s.cast.lanes() {
+            _ if reach > s.reach_m => Some("a longer kill"),
+            Some(lanes) if rules.recast && lanes.from.distance_xz(s.at) > RECAST_MOVED_M => Some("its centre moved"),
+            Some(lanes)
+                if rules.recast
+                    && kept
+                    && !in_lane(&lanes.bearings, lanes.from, victim_at) =>
+            {
+                Some("a kill off its lanes")
+            }
+            _ => None,
+        };
+        s.reach_m = s.reach_m.max(reach);
+        if why.is_some() {
+            s.cast.again(rules.recast);
+            count(Count::Recast);
+        }
+        let (id, at, strength) = (s.id, s.at, s.strength);
+        self.event(now, id, shooter, at, SpotNote::Added { strength });
+        if let Some(why) = why {
+            self.event(now, id, shooter, at, SpotNote::Recast { why });
         }
     }
 
     /// The shooter died: his spots keep half.
     pub fn shooter_died(&mut self, shooter: Place, now: u32) {
+        let mut noted = Vec::new();
         for s in self.spots.iter_mut().filter(|s| s.shooter == shooter) {
             s.strength = s.strength_at(now) * SHOOTER_DIED_KEEPS;
             s.stamp = now;
             s.shooter_seen = None;
+            noted.push((s.id, s.at));
+        }
+        for (id, at) in noted {
+            self.event(now, id, shooter, at, SpotNote::ShooterDied);
         }
     }
 
     /// The team sensed `shooter` at `at` at `time`.
-    pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, time: u32) {
+    pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, time: u32, rules: SpotRules) {
         for s in self.spots.iter_mut().filter(|s| s.shooter == shooter) {
-            if s.at.distance_xz(at) <= SEEN_ON_M && s.shooter_seen.is_none_or(|t| time > t) {
+            if s.at.distance_xz(at) <= rules.on_m() && s.shooter_seen.is_none_or(|t| time > t) {
                 s.shooter_seen = Some(time);
             }
+        }
+    }
+
+    /// Why spot `id` is not held at `now` (K2, a job's end): gone (cleared
+    /// by a teammate, or faded out), its shooter died (his death took his
+    /// sense and half its strength), the window of his last sense over
+    /// ([`SEEN_MS`]), or its strength under [`HELD_STRENGTH`] with no sense.
+    pub fn unheld_why(&self, id: u32, now: u32) -> JobEnd {
+        let Some(s) = self.spots.iter().find(|s| s.id == id) else {
+            return self.gone.iter().rev().find(|(g, _)| *g == id).map_or(JobEnd::Faded, |&(_, why)| why);
+        };
+        match s.shooter_seen {
+            None => JobEnd::ShooterDied,
+            Some(_) if s.strength_at(now) >= HELD_SEEN_STRENGTH => JobEnd::Unseen,
+            Some(_) => JobEnd::Faded,
         }
     }
 
@@ -508,17 +1110,21 @@ impl ThreatSpots {
     /// A commander tick at `now`: spots too weak are dropped; a spot a
     /// teammate (`watchers`, eye points) has a line to within
     /// [`CLEAR_LINE_M`] for [`CLEAR_MS`] with no enemy (`enemies`, sensed
-    /// points) within [`SEEN_ON_M`] of it is cleared; a held spot's regions
-    /// are cast at, [`RAYS_PER_TICK`] a tick.
-    pub fn tick(&mut self, now: u32, watchers: &[Vec3], enemies: &[Vec3], eyes: &dyn Eyes) {
+    /// points) on it is cleared; a held spot's regions are cast at,
+    /// [`RAYS_PER_TICK`] a tick.
+    pub fn tick(&mut self, now: u32, watchers: &[Vec3], enemies: &[Vec3], eyes: &dyn Eyes, rules: SpotRules) {
         let before = self.spots.len();
-        let mut changed = false;
+        let on_m = rules.on_m();
+        let mut notes = Vec::new();
+        let mut gone = Vec::new();
         self.spots.retain_mut(|s| {
             if s.strength_at(now) < GONE_STRENGTH {
+                notes.push((s.id, s.shooter, s.at, SpotNote::Decayed));
+                gone.push((s.id, JobEnd::Faded));
                 return false;
             }
             let at = s.at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
-            let empty = !enemies.iter().any(|e| e.distance_xz(s.at) <= SEEN_ON_M) && {
+            let empty = !enemies.iter().any(|e| e.distance_xz(s.at) <= on_m) && {
                 // The nearest few teammates within reach look: a sight ray each.
                 let mut near: Vec<Vec3> = watchers
                     .iter()
@@ -533,31 +1139,68 @@ impl ThreatSpots {
                 return true;
             }
             let since = *s.empty_since.get_or_insert(now);
-            now < since + CLEAR_MS
+            let keep = now < since + CLEAR_MS;
+            if !keep {
+                notes.push((s.id, s.shooter, s.at, SpotNote::Cleared));
+                gone.push((s.id, JobEnd::Cleared));
+            }
+            keep
         });
-        changed |= self.spots.len() != before;
-        for s in self.spots.iter_mut().filter(|s| s.held(now) && !s.cast) {
-            let todo = s.todo.get_or_insert_with(|| {
+        self.gone.extend(gone);
+        let extra = self.gone.len().saturating_sub(GONE_KEPT);
+        self.gone.drain(..extra);
+        // Held from now: noted once a change, whatever made it held (its
+        // first kills, or a sense of him again).
+        for s in self.spots.iter_mut() {
+            let held = s.held(now);
+            if held && !s.held_then {
+                notes.push((s.id, s.shooter, s.at, SpotNote::Held));
+            }
+            s.held_then = held;
+        }
+        let mut changed = self.spots.len() != before;
+        let mut points = None;
+        for s in self.spots.iter_mut().filter(|s| s.held(now)) {
+            if let Cast::Due { kept } = &mut s.cast {
+                let kept = kept.take();
+                let lanes = s.lanes(rules);
                 let reach = s.reach_m;
-                s.seen.clear();
-                let (at, bearings) = (s.at, s.bearings.clone());
-                eyes.region_points()
-                    .into_iter()
-                    .filter(|(_, p)| p.distance_xz(at) <= reach && in_lane(&bearings, at, *p))
-                    .collect()
-            });
-            let eye = s.at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
+                let at = s.at;
+                let todo = points
+                    .get_or_insert_with(|| eyes.region_points())
+                    .iter()
+                    .copied()
+                    .filter(|(_, p)| {
+                        p.distance_xz(at) <= reach && lanes.iter().any(|&(from, b)| in_lane(&[b], from, *p))
+                    })
+                    .collect();
+                s.cast = Cast::Casting {
+                    todo,
+                    seen: Vec::new(),
+                    lanes: Lanes { from: at, bearings: lanes.iter().map(|&(_, b)| b).collect() },
+                    kept,
+                };
+            }
+            let Cast::Casting { todo, seen, lanes, .. } = &mut s.cast else {
+                continue;
+            };
+            // The rays go from the spot's point at a standing eye.
+            let eye = lanes.from + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
             let take = todo.len().min(RAYS_PER_TICK);
             for (region, p) in todo.drain(..take) {
-                if eyes.sees(eye, p + Vec3::new(0.0, TARGET_HEIGHT_M, 0.0)) {
-                    s.seen.push(region);
+                if eyes.shot_reaches(eye, p + Vec3::new(0.0, TARGET_HEIGHT_M, 0.0)) {
+                    seen.push(region);
                 }
             }
             if todo.is_empty() {
-                s.cast = true;
-                s.todo = None;
+                let (cover, lanes) = (std::mem::take(seen), lanes.clone());
+                notes.push((s.id, s.shooter, s.at, SpotNote::Cast { regions: cover.len() }));
+                s.cast = Cast::Done { cover, lanes };
                 changed = true;
             }
+        }
+        for (id, shooter, at, note) in notes {
+            self.event(now, id, shooter, at, note);
         }
         if changed {
             self.version = self.version.wrapping_add(1);
@@ -565,7 +1208,8 @@ impl ThreatSpots {
     }
 
     /// The regions the held spots see, those cast at so far only when all
-    /// of a spot are (a half-cast line keeps nothing out).
+    /// of a spot are (a half-cast line keeps nothing out, unless the cast
+    /// before is kept meanwhile).
     pub fn covered_regions(&self, now: u32) -> Vec<u32> {
         self.held(now)
             .filter_map(Spot::covered)
@@ -574,6 +1218,487 @@ impl ThreatSpots {
             .collect()
     }
 
+    /// The held spots as the plays read them ([`Picture`]).
+    pub fn held_lines(&self, now: u32, rules: SpotRules) -> Vec<HeldLine> {
+        self.held(now)
+            .map(|s| HeldLine {
+                id: s.id,
+                at: s.at,
+                shooter: s.shooter,
+                lanes: s.lanes(rules),
+                facing: s.facing(),
+                reach_m: s.reach_m,
+                kills: s.kills.len(),
+                seen: s.shooter_seen,
+            })
+            .collect()
+    }
+}
+
+/// A held spot as the plays read it: its place, shooter, lanes and reach.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeldLine {
+    pub id: u32,
+    pub at: Vec3,
+    pub shooter: Place,
+    /// Each lane: the point it is seen from and the victim's bearing.
+    lanes: Vec<(Vec3, f32)>,
+    /// The way he faces (the mean of his victims' bearings), yaw.
+    pub facing: f32,
+    pub reach_m: f32,
+    /// The kills it counts (at most [`BEARINGS_KEPT`]).
+    pub kills: usize,
+    /// When the team last sensed him on it, if since his last death.
+    pub seen: Option<u32>,
+}
+
+impl HeldLine {
+    /// The ground direction he faces, as `kin::forward` gives one.
+    pub fn facing_dir(&self) -> [f32; 2] {
+        [self.facing.sin(), self.facing.cos()]
+    }
+
+    /// Whether `p` is in one of his lanes, within his reach: the ground he
+    /// killed in. Geometry only: what of it he sees is the cast's
+    /// ([`Covered`]); the plays ask this one, which needs no cast finished.
+    pub fn covers(&self, p: Vec3) -> bool {
+        p.distance_xz(self.at) <= self.reach_m && self.lanes.iter().any(|&(from, b)| in_lane(&[b], from, p))
+    }
+}
+
+/// A role of the team job on a held spot (K2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// Goes round to his side (Flank, facing from his death lanes).
+    Flanker,
+    /// Holds him from the edge of his reach, out of his lanes (Crossfire).
+    Pinner,
+}
+
+/// A role's bot and when it was given the role.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Holder {
+    pub place: Place,
+    pub since: u32,
+}
+
+/// The team job on one held spot: the bots given each role, and those
+/// that let a role of it go (not offered it again in this job).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Job {
+    /// The spot's number ([`Spot::id`]).
+    pub spot: u32,
+    /// Its lanes cover an objective area when it opened: objective work,
+    /// its holders outside the [`JOB_SHARE`] cap.
+    pub objective: bool,
+    /// Its shooter: one job a shooter (a camper who moved has two spots).
+    pub shooter: Place,
+    pub since: u32,
+    pub flanker: Option<Holder>,
+    pub pinner: Option<Holder>,
+    passed: Vec<Place>,
+}
+
+impl Job {
+    pub fn role_of(&self, place: Place) -> Option<Role> {
+        if self.flanker.is_some_and(|h| h.place == place) {
+            Some(Role::Flanker)
+        } else if self.pinner.is_some_and(|h| h.place == place) {
+            Some(Role::Pinner)
+        } else {
+            None
+        }
+    }
+
+    fn holder(&self, role: Role) -> Option<Holder> {
+        match role {
+            Role::Flanker => self.flanker,
+            Role::Pinner => self.pinner,
+        }
+    }
+
+    fn holder_mut(&mut self, role: Role) -> &mut Option<Holder> {
+        match role {
+            Role::Flanker => &mut self.flanker,
+            Role::Pinner => &mut self.pinner,
+        }
+    }
+}
+
+/// A job runs this long at most, ms, then its spot rests [`JOB_REST_MS`]
+/// before another: a flank takes 15-35 s (Flank's `give_up_s` is 35). GUESS.
+pub const JOB_MS: u32 = 45_000;
+pub const JOB_REST_MS: u32 = 20_000;
+/// A role's bot that has not taken its play this long after the role was
+/// given lets it go (a cooldown, its health, a higher play), ms: the
+/// commander polls each second, so a few polls. GUESS.
+pub const JOB_START_MS: u32 = 5_000;
+/// A bot this far from a spot or more is given no role, m: Flank's `near`
+/// consideration (100 m) less a margin.
+pub const JOB_NEAR_M: f32 = 90.0;
+/// Jobs a team runs at once, at most: two bots each.
+pub const JOBS_MAX: usize = 2;
+/// The team's bots in jobs, at most one in this many of its players
+/// (rounded up): two jobs took 4 of a 6-bot team. GUESS (a third: the
+/// flank-and-pin pair of a fire team, the rest on the objective).
+pub const JOB_SHARE: usize = 3;
+
+/// A teammate as the job's choice reads it: its place, feet, whether it
+/// may take a role (alive, not an objective actor ([`objective_actor`]),
+/// something to fire), and the job play it runs now (the role and the
+/// spot), if any.
+#[derive(Clone, Copy, Debug)]
+pub struct Mate {
+    pub place: Place,
+    pub feet: Vec3,
+    pub free: bool,
+    pub playing: Option<(Role, u32)>,
+}
+
+/// The team as the jobs read it: its living bots that may take a role, its
+/// players (bots and humans, the [`JOB_SHARE`] cap's count), and the
+/// objective areas ([`objective_areas`]): a job on a spot whose lanes
+/// cover one is objective work, outside the cap.
+pub struct JobTeam<'a> {
+    pub mates: &'a [Mate],
+    pub size: usize,
+    pub objective_areas: &'a [Vec3],
+}
+
+/// Where the mode's objective is (`MODES-READY.md` rule 1): the battery
+/// spawners and the home containers in the battery modes; none in TDM.
+/// (Research's capture zones go here with that update.)
+pub fn objective_areas(map: &mapdata::MapData, mode: super::view::Mode) -> Vec<Vec3> {
+    if mode.has_batteries() {
+        map.battery_spawners.iter().map(|s| s.position).chain(map.containers.iter().map(|c| c.position)).collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Whether a player is doing the mode's scoring action now (rule 2): the
+/// carrier in the battery modes; nobody in TDM. A threat job never takes
+/// one. (Research: a body in a capture zone, with that update.)
+pub fn objective_actor(mode: super::view::Mode, carrying: Option<usize>) -> bool {
+    mode.has_batteries() && carrying.is_some()
+}
+
+/// Why a role went ([`JobEvent`]).
+pub const PASSED_NOT_FREE: &str = "not free: carrying or dry";
+pub const PASSED_NO_PLAY: &str = "did not take the play";
+
+/// Why a job ended ([`JobEvent::Ended`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum JobEnd {
+    /// Its spot is no longer held: his death took his sense and half its
+    /// strength (a success when a holder killed him).
+    ShooterDied,
+    /// No longer held: the window of his last sense on it is over.
+    Unseen,
+    /// No longer held, or gone: its strength ran out.
+    Faded,
+    /// Gone: a teammate saw it empty.
+    Cleared,
+    /// A holder went down: the job ends and its spot rests (no feeding one
+    /// by one).
+    HolderDown { role: Role, place: Place },
+    /// It ran [`JOB_MS`].
+    Time,
+    /// No bot holds a role of it.
+    Nobody,
+}
+
+impl std::fmt::Display for JobEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JobEnd::ShooterDied => write!(f, "unheld: its shooter died"),
+            JobEnd::Unseen => write!(f, "unheld: not sensed on it lately"),
+            JobEnd::Faded => write!(f, "unheld: faded"),
+            JobEnd::Cleared => write!(f, "unheld: cleared"),
+            JobEnd::HolderDown { role, place } => write!(f, "its {role:?} bot {place} went down"),
+            JobEnd::Time => write!(f, "ran its time"),
+            JobEnd::Nobody => write!(f, "no bot free to hold it"),
+        }
+    }
+}
+
+/// What a job tick did, for the notes and the bench's counts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum JobEvent {
+    /// A role given to a bot.
+    Given { spot: u32, role: Role, place: Place },
+    /// A role let go, and why.
+    Passed { spot: u32, role: Role, place: Place, why: &'static str },
+    /// A job ended: why, its shooter, after how long (ms).
+    Ended { spot: u32, shooter: Place, end: JobEnd, life_ms: u32 },
+}
+
+impl std::fmt::Display for JobEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            JobEvent::Given { spot, role, place } => write!(f, "job on threat spot {spot}: {role:?} is bot {place}"),
+            JobEvent::Passed { spot, role, place, why } => {
+                write!(f, "job on threat spot {spot}: bot {place} lets the {role:?} role go ({why})")
+            }
+            JobEvent::Ended { spot, end, life_ms, .. } => {
+                write!(f, "job on threat spot {spot} ends ({end}) after {:.1} s", life_ms as f32 / 1000.0)
+            }
+        }
+    }
+}
+
+/// What the team's plays read of its threat spots (`TeamKnowledge::threat`):
+/// the held lines and the jobs on them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Picture {
+    pub held: Vec<HeldLine>,
+    pub jobs: Vec<Job>,
+}
+
+impl Picture {
+    /// The held line covering `p`, if any.
+    pub fn line_at(&self, p: Vec3) -> Option<&HeldLine> {
+        self.held.iter().find(|l| l.covers(p))
+    }
+
+    /// The held line of spot `id`, if it is held.
+    pub fn line(&self, id: u32) -> Option<&HeldLine> {
+        self.held.iter().find(|l| l.id == id)
+    }
+
+    /// The held line whose spot is at `at` now.
+    pub fn line_by_spot(&self, at: Vec3) -> Option<&HeldLine> {
+        self.held.iter().find(|l| l.at.distance_xz(at) < 0.01)
+    }
+
+    /// This bot's job, its role and the held line the job is on.
+    pub fn job_of(&self, place: Place) -> Option<(&Job, Role, &HeldLine)> {
+        self.jobs.iter().find_map(|j| {
+            let role = j.role_of(place)?;
+            Some((j, role, self.line(j.spot)?))
+        })
+    }
+}
+
+/// The held lines a job may open on (K2): the holds, with `min_kills`
+/// kills or more ([`ThreatTuning::job_kills`]).
+///
+/// [`ThreatTuning::job_kills`]: crate::v026g::bots::tuning::ThreatTuning::job_kills
+pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
+    held.iter().filter(|l| l.kills >= min_kills as usize).cloned().collect()
+}
+
+/// The team's jobs at `now` (K2), and what changed:
+/// - a job ends when its spot is no longer held (`unheld` says why), when a
+///   holder goes down (missing from `mates`: no refill of a dead holder in
+///   the same tick, no feeding one by one), or after [`JOB_MS`]; its spot
+///   then rests [`JOB_REST_MS`]; and when no bot holds a role of it;
+/// - a role's bot that is not free (carrying or dry), or has not taken its
+///   play [`JOB_START_MS`] after it was given the role, lets it go (and is
+///   not offered a role of that job again);
+/// - a free role goes to the nearest free teammate within [`JOB_NEAR_M`]
+///   that stands out of every held line and has no role, the flanker first,
+///   while the team's bots in jobs off the objective are fewer than a
+///   [`JOB_SHARE`]th of its players (rounded up; a job on a spot covering
+///   an objective area is objective work and not counted);
+/// - a held spot with no job, whose shooter has none, gets one, up to
+///   [`JOBS_MAX`], only when a role of it can be given.
+///
+/// `rested`: spots resting, and until when.
+pub fn jobs_tick(
+    jobs: &mut Vec<Job>,
+    rested: &mut Vec<(u32, u32)>,
+    held: &[HeldLine],
+    team: &JobTeam,
+    unheld: &dyn Fn(u32) -> JobEnd,
+    now: u32,
+) -> Vec<JobEvent> {
+    let mates = team.mates;
+    let mut events = Vec::new();
+    rested.retain(|&(_, until)| now < until);
+    let mate = |place: Place| mates.iter().find(|m| m.place == place);
+    jobs.retain(|j| {
+        let down = [Role::Flanker, Role::Pinner]
+            .into_iter()
+            .find_map(|role| j.holder(role).filter(|h| mate(h.place).is_none()).map(|h| JobEnd::HolderDown { role, place: h.place }));
+        let end = if !held.iter().any(|l| l.id == j.spot) {
+            Some(unheld(j.spot))
+        } else if let Some(down) = down {
+            Some(down)
+        } else if now >= j.since + JOB_MS {
+            Some(JobEnd::Time)
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            rested.push((j.spot, now + JOB_REST_MS));
+            events.push(JobEvent::Ended { spot: j.spot, shooter: j.shooter, end, life_ms: now.saturating_sub(j.since) });
+        }
+        end.is_none()
+    });
+    for j in jobs.iter_mut() {
+        for role in [Role::Flanker, Role::Pinner] {
+            let spot = j.spot;
+            let Some(h) = j.holder(role) else {
+                continue;
+            };
+            let Some(m) = mate(h.place) else {
+                continue;
+            };
+            let why = if !m.free {
+                Some(PASSED_NOT_FREE)
+            } else if m.playing != Some((role, spot)) && now >= h.since + JOB_START_MS {
+                Some(PASSED_NO_PLAY)
+            } else {
+                None
+            };
+            if let Some(why) = why {
+                *j.holder_mut(role) = None;
+                j.passed.push(h.place);
+                events.push(JobEvent::Passed { spot, role, place: h.place, why });
+            }
+        }
+    }
+    let mut opened = Vec::new();
+    for line in held {
+        if jobs.len() >= JOBS_MAX {
+            break;
+        }
+        let free = !jobs.iter().any(|j| j.spot == line.id || j.shooter == line.shooter)
+            && !rested.iter().any(|&(id, _)| id == line.id);
+        if free {
+            let objective = team.objective_areas.iter().any(|&a| line.covers(a));
+            jobs.push(Job {
+                spot: line.id,
+                objective,
+                shooter: line.shooter,
+                since: now,
+                flanker: None,
+                pinner: None,
+                passed: Vec::new(),
+            });
+            opened.push(line.id);
+        }
+    }
+    let share = team.size.div_ceil(JOB_SHARE);
+    for i in 0..jobs.len() {
+        let Some(line) = held.iter().find(|l| l.id == jobs[i].spot) else {
+            continue;
+        };
+        for role in [Role::Flanker, Role::Pinner] {
+            if jobs[i].holder(role).is_some() {
+                continue;
+            }
+            let off_objective: usize = jobs
+                .iter()
+                .filter(|j| !j.objective)
+                .map(|j| usize::from(j.flanker.is_some()) + usize::from(j.pinner.is_some()))
+                .sum();
+            if !jobs[i].objective && off_objective >= share {
+                break;
+            }
+            let busy = |place: Place| jobs.iter().any(|j| j.role_of(place).is_some());
+            let passed = &jobs[i].passed;
+            let pick = mates
+                .iter()
+                .filter(|m| m.free && !busy(m.place) && !passed.contains(&m.place))
+                .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
+                .filter(|m| !held.iter().any(|l| l.covers(m.feet)))
+                .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
+                .map(|m| m.place);
+            if let Some(place) = pick {
+                *jobs[i].holder_mut(role) = Some(Holder { place, since: now });
+                events.push(JobEvent::Given { spot: line.id, role, place });
+            }
+        }
+    }
+    // A job nobody holds: a new one is not opened; an old one ends.
+    jobs.retain(|j| {
+        let staffed = j.flanker.is_some() || j.pinner.is_some();
+        if !staffed && !opened.contains(&j.spot) {
+            rested.push((j.spot, now + JOB_REST_MS));
+            events.push(JobEvent::Ended { spot: j.spot, shooter: j.shooter, end: JobEnd::Nobody, life_ms: now.saturating_sub(j.since) });
+        }
+        staffed
+    });
+    events
+}
+
+// The room of the cheapest way from region `from` to `to` (A*, A2): a walk
+/// into a covered region (`covered`, but those in `free`) costs
+/// `1 + lane_cost` times its length (the whole route weighed, Valve's and
+/// Killzone's danger cost, not a closure); `region_ok` shuts regions (never
+/// the goal). The room is the way's regions and those next to it that are
+/// not covered: by region, whether the floors' search may go there. None
+/// with no way.
+#[allow(clippy::too_many_arguments)]
+pub fn costed_corridor(
+    grid: &mapdata::WalkGrid,
+    regions: &mapdata::regions::Regions,
+    from: u32,
+    to: u32,
+    covered: &Covered,
+    free: &[u32],
+    lane_cost: f32,
+    region_ok: impl Fn(u32) -> bool,
+) -> Option<Vec<bool>> {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    let n = regions.len();
+    if from as usize >= n || to as usize >= n {
+        return None;
+    }
+    let goal = grid.position(regions.middle(to));
+    let h = |r: u32| grid.position(regions.middle(r)).distance_xz(goal);
+    let in_lane = |r: u32| covered.region(r) && !free.contains(&r);
+    let mut cost = vec![f32::INFINITY; n];
+    let mut parent: Vec<Option<u32>> = vec![None; n];
+    let mut closed = vec![false; n];
+    let mut open = BinaryHeap::new();
+    // Ordered by the bits of a non-negative f32, which order as its value.
+    let key = |c: f32| Reverse(c.max(0.0).to_bits());
+    cost[from as usize] = 0.0;
+    open.push((key(h(from)), from));
+    let mut found = false;
+    while let Some((_, u)) = open.pop() {
+        if std::mem::replace(&mut closed[u as usize], true) {
+            continue;
+        }
+        if u == to {
+            found = true;
+            break;
+        }
+        let cu = cost[u as usize];
+        for &(v, step) in regions.out(u) {
+            if closed[v as usize] || (v != to && !region_ok(v)) {
+                continue;
+            }
+            let c = cu + step * if in_lane(v) { 1.0 + lane_cost } else { 1.0 };
+            if c < cost[v as usize] {
+                cost[v as usize] = c;
+                parent[v as usize] = Some(u);
+                open.push((key(c + h(v)), v));
+            }
+        }
+    }
+    if !found {
+        return None;
+    }
+    let mut room = vec![false; n];
+    let mut at = to;
+    loop {
+        room[at as usize] = true;
+        for v in regions.out(at).iter().map(|&(v, _)| v).chain(regions.into(at).iter().copied()) {
+            if !in_lane(v) && region_ok(v) {
+                room[v as usize] = true;
+            }
+        }
+        match parent[at as usize] {
+            Some(up) if at != from => at = up,
+            _ => break,
+        }
+    }
+    Some(room)
 }
 
 /// A team's threat state, by feature ([`super::features`]).
@@ -583,6 +1708,51 @@ pub struct TeamThreat {
     pub spots: ThreatSpots,
     /// The regions his line covers now.
     pub covered: Option<std::sync::Arc<Covered>>,
+    /// The team jobs on held spots (K2).
+    pub jobs: Vec<Job>,
+    /// Spots whose job ended, resting until then.
+    pub rested: Vec<(u32, u32)>,
+    /// The team's deaths of the last [`DEATH_KEPT_MS`] and their killers
+    /// (the kill feed's), for a job holder's end.
+    pub deaths: Vec<Death>,
+}
+
+/// A death of the team: who, by whom if the kill feed told, when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Death {
+    pub victim: Place,
+    pub killer: Option<Place>,
+    pub time: u32,
+}
+
+/// The team's deaths are kept this long, ms: the commander ticks each
+/// half second, so a holder's death is there at its next tick.
+pub const DEATH_KEPT_MS: u32 = 5_000;
+
+/// A bot's threat state (A3): the cover its route was last planned
+/// against, and the cover its way ahead was last found clear of (looked at
+/// once a change; a replan the poll's budget starves is looked at again).
+#[derive(Default)]
+pub struct BotThreat {
+    pub planned_with: Option<std::sync::Arc<Covered>>,
+    pub clear_with: Option<std::sync::Arc<Covered>>,
+    /// The bench's replan waiting for its judgment ([`judged`]).
+    #[cfg(test)]
+    pub asked: Option<Asked>,
+    /// The bench's tag of its last search (`path::tag`), for its resumed part.
+    #[cfg(test)]
+    pub search_tag: u8,
+}
+
+impl super::features::Feature for BotThreat {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.planned_with = None;
+        self.clear_with = None;
+        #[cfg(test)]
+        {
+            self.asked = None;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -604,6 +1774,9 @@ mod tests {
         }
     }
 
+    /// The rules as they were before the area and the recast.
+    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false };
+
     fn at(x: f32) -> Vec3 {
         Vec3::new(x, 0.0, 0.0)
     }
@@ -613,38 +1786,38 @@ mod tests {
         let mut spots = ThreatSpots::default();
         // One death, the shooter sensed on the spot 2 s before: held for the
         // 15 s from that sense.
-        spots.died(at(30.0), 7, at(0.0), 1_000, 3_000);
+        spots.died(at(30.0), 7, at(0.0), 1_000, 3_000, OLD);
         assert_eq!(spots.held(3_000).count(), 1);
         assert_eq!(spots.held(16_000).count(), 1);
         assert_eq!(spots.held(16_001).count(), 0, "one death, unsensed for 15 s");
         // Two deaths hold it without a sense.
-        spots.died(at(35.0), 7, at(3.0), 8_000, 10_000);
+        spots.died(at(35.0), 7, at(3.0), 8_000, 10_000, OLD);
         assert_eq!(spots.spots.len(), 1);
         assert_eq!(spots.held(60_000).count(), 1);
         // Two minutes on, the 2.0 is down to 1.5 less 1.0: not held.
         assert_eq!(spots.held(10_000 + 120_000).count(), 0);
         // Another shooter on the same ground is another spot.
-        spots.died(at(35.0), 8, at(3.0), 11_000, 11_500);
+        spots.died(at(35.0), 8, at(3.0), 11_000, 11_500, OLD);
         assert_eq!(spots.spots.len(), 2);
     }
 
     #[test]
     fn a_shooter_sensed_on_a_weak_spot_holds_it_and_one_off_it_does_not() {
         let mut spots = ThreatSpots::default();
-        spots.died(at(30.0), 7, at(0.0), 0, 1_000);
+        spots.died(at(30.0), 7, at(0.0), 0, 1_000, OLD);
         assert_eq!(spots.held(20_000).count(), 0);
-        spots.shooter_sensed(7, at(2.0), 20_000);
+        spots.shooter_sensed(7, at(2.0), 20_000, OLD);
         assert_eq!(spots.held(21_000).count(), 1);
         // Sensed 20 m off the spot: not on it.
-        spots.shooter_sensed(7, at(20.0), 40_000);
+        spots.shooter_sensed(7, at(20.0), 40_000, OLD);
         assert_eq!(spots.held(41_000).count(), 0);
     }
 
     #[test]
     fn the_shooters_death_halves_the_spot() {
         let mut spots = ThreatSpots::default();
-        spots.died(at(30.0), 7, at(0.0), 0, 500);
-        spots.died(at(30.0), 7, at(0.0), 500, 1_000);
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        spots.died(at(30.0), 7, at(0.0), 500, 1_000, OLD);
         assert_eq!(spots.held(1_000).count(), 1);
         spots.shooter_died(7, 2_000);
         // 2.0 becomes 1.0, and he is not sensed on it any more.
@@ -654,10 +1827,10 @@ mod tests {
     #[test]
     fn a_held_spot_casts_at_its_regions_and_keeps_those_seen() {
         let mut spots = ThreatSpots::default();
-        spots.died(at(30.0), 7, at(0.0), 0, 500);
-        spots.died(at(30.0), 7, at(0.0), 400, 600);
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        spots.died(at(30.0), 7, at(0.0), 400, 600, OLD);
         let eyes = Line { blind: vec![3, 4] };
-        spots.tick(1_000, &[], &[], &eyes);
+        spots.tick(1_000, &[], &[], &eyes, OLD);
         // Reach 45 m: regions 0 to 4; 3 and 4 are behind a wall.
         let mut seen = spots.covered_regions(1_000);
         seen.sort_unstable();
@@ -670,8 +1843,8 @@ mod tests {
         let mut spots = ThreatSpots::default();
         // 190 m: all 20 regions are within reach and 64 rays a tick finish
         // them at once, so make the field larger through a long line.
-        spots.died(at(30.0), 7, at(0.0), 0, 500);
-        spots.died(at(30.0), 7, at(0.0), 0, 600);
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        spots.died(at(30.0), 7, at(0.0), 0, 600, OLD);
         struct Wide;
         impl Eyes for Wide {
             fn sees(&self, _: Vec3, _: Vec3) -> bool {
@@ -681,32 +1854,32 @@ mod tests {
                 (0..150).map(|r| (r, Vec3::new(r as f32 * 0.2, 0.0, 0.0))).collect()
             }
         }
-        spots.tick(1_000, &[], &[], &Wide);
+        spots.tick(1_000, &[], &[], &Wide, OLD);
         assert!(spots.covered_regions(1_000).is_empty(), "64 of 150 cast");
-        spots.tick(1_100, &[], &[], &Wide);
+        spots.tick(1_100, &[], &[], &Wide, OLD);
         assert!(spots.covered_regions(1_100).is_empty(), "128 of 150 cast");
-        spots.tick(1_200, &[], &[], &Wide);
+        spots.tick(1_200, &[], &[], &Wide, OLD);
         assert_eq!(spots.covered_regions(1_200).len(), 150);
     }
 
     #[test]
     fn a_spot_is_cleared_when_a_watcher_sees_it_empty_for_three_seconds() {
         let mut spots = ThreatSpots::default();
-        spots.died(at(30.0), 7, at(0.0), 0, 0);
+        spots.died(at(30.0), 7, at(0.0), 0, 0, OLD);
         let eyes = Line { blind: vec![] };
         let watcher = [at(20.0)];
-        spots.tick(1_000, &watcher, &[], &eyes);
-        spots.tick(3_900, &watcher, &[], &eyes);
+        spots.tick(1_000, &watcher, &[], &eyes, OLD);
+        spots.tick(3_900, &watcher, &[], &eyes, OLD);
         assert!(!spots.is_empty());
-        spots.tick(4_100, &watcher, &[], &eyes);
+        spots.tick(4_100, &watcher, &[], &eyes, OLD);
         assert!(spots.is_empty());
         // An enemy sensed on the spot keeps it.
-        spots.died(at(30.0), 7, at(0.0), 5_000, 5_000);
-        spots.tick(6_000, &watcher, &[at(1.0)], &eyes);
-        spots.tick(9_500, &watcher, &[at(1.0)], &eyes);
+        spots.died(at(30.0), 7, at(0.0), 5_000, 5_000, OLD);
+        spots.tick(6_000, &watcher, &[at(1.0)], &eyes, OLD);
+        spots.tick(9_500, &watcher, &[at(1.0)], &eyes, OLD);
         assert!(!spots.is_empty());
         // Nobody near enough to look: kept.
-        spots.tick(20_000, &[at(100.0)], &[], &eyes);
+        spots.tick(20_000, &[at(100.0)], &[], &eyes, OLD);
         assert!(!spots.is_empty());
     }
 
@@ -714,8 +1887,8 @@ mod tests {
     fn a_spot_covers_the_lanes_of_its_victims_not_all_it_sees() {
         let mut spots = ThreatSpots::default();
         // Victims 30 m along +x, then 30 m along +z.
-        spots.died(at(30.0), 7, at(0.0), 0, 500);
-        spots.died(Vec3::new(0.0, 0.0, 30.0), 7, at(0.0), 0, 600);
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        spots.died(Vec3::new(0.0, 0.0, 30.0), 7, at(0.0), 0, 600, OLD);
         struct Ring;
         impl Eyes for Ring {
             fn sees(&self, _: Vec3, _: Vec3) -> bool {
@@ -732,7 +1905,7 @@ mod tests {
                 ]
             }
         }
-        spots.tick(1_000, &[], &[], &Ring);
+        spots.tick(1_000, &[], &[], &Ring, OLD);
         let mut seen = spots.covered_regions(1_000);
         seen.sort_unstable();
         // On +x (0), 14 degrees off it (1), on +z (2); not behind (3), not
@@ -780,6 +1953,309 @@ mod tests {
         let e = hits(&route, &[(Vec3::new(5.0, 0.0, 0.0), 0.5), (Vec3::new(5.6, 0.0, 0.0), 0.5)]);
         assert_eq!(e.spans.len(), 1);
         assert!((e.metres - 1.6).abs() < 1e-3, "{e:?}");
+    }
+
+    /// The rules on by default: the area, the recentre, the recast.
+    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true };
+
+    #[test]
+    fn a_spot_is_the_shooters_area_and_its_centre_follows_his_kills() {
+        let mut spots = ThreatSpots::default();
+        spots.died(at(40.0), 7, at(0.0), 0, 500, NEW);
+        // 9 m off his first kill's place: the same spot (8 m was not).
+        spots.died(at(45.0), 7, at(9.0), 600, 700, NEW);
+        assert_eq!(spots.spots.len(), 1);
+        assert!((spots.spots[0].at.x - 4.5).abs() < 1e-4, "{:?}", spots.spots[0].at);
+        let mut old = ThreatSpots::default();
+        old.died(at(40.0), 7, at(0.0), 0, 500, OLD);
+        old.died(at(45.0), 7, at(9.0), 600, 700, OLD);
+        assert_eq!(old.spots.len(), 2, "as it was: two spots");
+        // He is on it while sensed in the area: 9 m from the centre.
+        let mut spots = ThreatSpots::default();
+        spots.died(at(40.0), 7, at(0.0), 0, 500, NEW);
+        spots.shooter_sensed(7, at(9.0), 20_000, NEW);
+        assert_eq!(spots.held(21_000).count(), 1);
+    }
+
+    #[test]
+    fn a_kill_off_the_cast_lanes_casts_again_and_keeps_the_old_cover_meanwhile() {
+        struct Ring;
+        impl Eyes for Ring {
+            fn sees(&self, _: Vec3, _: Vec3) -> bool {
+                true
+            }
+            fn region_points(&self) -> Vec<(u32, Vec3)> {
+                vec![(0, Vec3::new(20.0, 0.0, 0.0)), (1, Vec3::new(0.0, 0.0, 20.0))]
+            }
+        }
+        for (rules, kept) in [(NEW, true), (OLD, false)] {
+            let mut spots = ThreatSpots::default();
+            spots.died(at(30.0), 7, at(0.0), 0, 500, rules);
+            spots.died(at(30.0), 7, at(0.0), 500, 600, rules);
+            spots.tick(1_000, &[], &[], &Ring, rules);
+            assert_eq!(spots.covered_regions(1_000), vec![0]);
+            spots.take_events();
+            // A kill along +z, a lane not cast; his reach is no longer.
+            spots.died(Vec3::new(0.0, 0.0, 30.0), 7, at(0.0), 1_500, 1_600, rules);
+            let events: Vec<SpotNote> = spots.take_events().into_iter().map(|e| e.note).collect();
+            if kept {
+                assert!(events.contains(&SpotNote::Recast { why: "a kill off its lanes" }), "{events:?}");
+                // The old cover meanwhile, the new one after the cast.
+                assert_eq!(spots.covered_regions(1_600), vec![0]);
+                spots.tick(2_000, &[], &[], &Ring, rules);
+                let mut seen = spots.covered_regions(2_000);
+                seen.sort_unstable();
+                assert_eq!(seen, vec![0, 1]);
+            } else {
+                // As it was: the new lane is never cast.
+                spots.tick(2_000, &[], &[], &Ring, rules);
+                assert_eq!(spots.covered_regions(2_000), vec![0]);
+            }
+        }
+    }
+
+    #[test]
+    fn each_spot_event_is_noted_once() {
+        let mut spots = ThreatSpots::default();
+        let eyes = Line { blind: vec![] };
+        spots.died(at(30.0), 7, at(0.0), 0, 0, NEW);
+        spots.tick(500, &[], &[], &eyes, NEW);
+        spots.tick(600, &[], &[], &eyes, NEW);
+        let notes: Vec<SpotNote> = spots.take_events().into_iter().map(|e| e.note).collect();
+        assert_eq!(notes[0], SpotNote::Made);
+        assert_eq!(notes.iter().filter(|n| **n == SpotNote::Held).count(), 1, "{notes:?}");
+        assert!(matches!(notes.last(), Some(SpotNote::Cast { .. })), "{notes:?}");
+        spots.shooter_died(7, 700);
+        spots.tick(800, &[at(20.0)], &[], &eyes, NEW);
+        spots.tick(4_000, &[at(20.0)], &[], &eyes, NEW);
+        let notes: Vec<SpotNote> = spots.take_events().into_iter().map(|e| e.note).collect();
+        assert_eq!(notes, vec![SpotNote::ShooterDied, SpotNote::Cleared]);
+        let text = SpotEvent { time: 0, id: 3, shooter: 7, at: at(1.0), note: SpotNote::Cleared }.to_string();
+        assert_eq!(text, "threat spot 3 of shooter 7 at (1.0, 0.0, 0.0): cleared, seen empty");
+    }
+
+    fn line(id: u32, at: Vec3, bearings: &[f32]) -> HeldLine {
+        HeldLine {
+            id,
+            at,
+            shooter: 7,
+            lanes: bearings.iter().map(|&b| (at, b)).collect(),
+            facing: bearings[0],
+            reach_m: 50.0,
+            kills: bearings.len(),
+            seen: None,
+        }
+    }
+
+    /// No spot is gone or unseen in these tests but by their own steps.
+    fn unheld(_: u32) -> JobEnd {
+        JobEnd::Faded
+    }
+
+    #[test]
+    fn a_held_line_covers_his_lanes_within_his_reach() {
+        // Lanes along +x (bearing pi/2 as `bearing` gives it).
+        let l = line(0, at(0.0), &[bearing(at(0.0), at(30.0))]);
+        assert!(l.covers(at(30.0)) && l.covers(Vec3::new(30.0, 0.0, 8.0)));
+        assert!(!l.covers(Vec3::new(30.0, 0.0, 15.0)), "28 degrees off");
+        assert!(!l.covers(at(60.0)), "past his reach");
+        assert!(!l.covers(at(-30.0)), "behind him");
+        // He faces down it.
+        let d = l.facing_dir();
+        assert!((d[0] - 1.0).abs() < 1e-4 && d[1].abs() < 1e-4, "{d:?}");
+    }
+
+    #[test]
+    fn one_job_a_shooter_and_a_third_of_the_team_at_most() {
+        // Two spots of one shooter, a third of another, far apart.
+        let mut a = line(1, at(0.0), &[bearing(at(0.0), at(30.0))]);
+        let mut b = line(2, Vec3::new(0.0, 0.0, 40.0), &[bearing(Vec3::new(0.0, 0.0, 40.0), Vec3::new(30.0, 0.0, 40.0))]);
+        let mut c = line(3, Vec3::new(0.0, 0.0, -40.0), &[bearing(Vec3::new(0.0, 0.0, -40.0), Vec3::new(30.0, 0.0, -40.0))]);
+        (a.shooter, b.shooter, c.shooter) = (7, 7, 9);
+        let held = [a, b, c];
+        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas };
+        // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
+        jobs_tick(&mut jobs, &mut rested, &held, &team(12, &[]), &unheld, 1_000);
+        let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
+        shooters.sort_unstable();
+        assert_eq!(shooters, [7, 9]);
+        let in_jobs = |jobs: &[Job]| jobs.iter().map(|j| usize::from(j.flanker.is_some()) + usize::from(j.pinner.is_some())).sum::<usize>();
+        assert_eq!(in_jobs(&jobs), 4);
+        // A 6-player team: 2 bots in jobs at most (one job staffed).
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &held, &team(6, &[]), &unheld, 1_000);
+        assert_eq!(in_jobs(&jobs), 2);
+        assert_eq!(jobs.len(), 1, "the other opened job had nobody and is not kept: {jobs:?}");
+        // Shooter 9's lanes cover an objective area: clearing him is objective work, outside the cap.
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &held, &team(6, &[Vec3::new(30.0, 0.0, -40.0)]), &unheld, 1_000);
+        assert_eq!(in_jobs(&jobs), 4);
+        assert!(jobs.iter().any(|j| j.objective && j.shooter == 9), "{jobs:?}");
+    }
+
+    #[test]
+    fn a_job_opens_only_on_a_hold_of_two_kills() {
+        let one = line(4, at(0.0), &[bearing(at(0.0), at(30.0))]);
+        let two = line(5, at(50.0), &[bearing(at(50.0), at(80.0)), bearing(at(50.0), at(70.0))]);
+        let held = [one, two];
+        let ids = |min| holds(&held, min).iter().map(|l| l.id).collect::<Vec<_>>();
+        assert_eq!(ids(2), [5], "one kill and a sighting is no hold");
+        assert_eq!(ids(1), [4, 5]);
+        assert!(ids(3).is_empty());
+    }
+
+    #[test]
+    fn a_held_spot_gets_a_flanker_and_a_pinner_out_of_its_lanes() {
+        let held = vec![line(4, at(0.0), &[bearing(at(0.0), at(30.0))])];
+        let mate = |place, x: f32, z: f32, free| Mate { place, feet: Vec3::new(x, 0.0, z), free, playing: None };
+        let mates = [
+            // In his lane: not chosen.
+            mate(1, 20.0, 0.0, true),
+            mate(2, 0.0, 30.0, true),
+            mate(3, -10.0, 40.0, true),
+            // Carrying: not free.
+            mate(5, 0.0, 10.0, false),
+            // Too far.
+            mate(6, 0.0, 95.0, true),
+        ];
+        let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
+        let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
+            jobs_tick(jobs, rested, held, &JobTeam { mates, size: 10, objective_areas: &[] }, &unheld, now)
+        };
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
+        assert_eq!(holders(&jobs), (Some(2), Some(3)));
+        assert_eq!(events.len(), 2, "{events:?}");
+        // Both take their plays: kept past the start time.
+        let playing = [
+            Mate { playing: Some((Role::Flanker, 4)), ..mates[1] },
+            Mate { playing: Some((Role::Pinner, 4)), ..mates[2] },
+            mates[0],
+            mate(8, 5.0, -20.0, true),
+        ];
+        tick(&mut jobs, &mut rested, &held, &playing, 1_000 + JOB_START_MS + 1);
+        assert_eq!(holders(&jobs), (Some(2), Some(3)));
+        // The pinner starts carrying: it lets the role go and another takes it.
+        let carrying = [playing[0], Mate { free: false, ..playing[1] }, playing[2], playing[3]];
+        let events = tick(&mut jobs, &mut rested, &held, &carrying, 7_000);
+        assert_eq!(holders(&jobs), (Some(2), Some(8)));
+        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 3, why: PASSED_NOT_FREE }), "{events:?}");
+        // The new pinner never takes the play: it lets it go after the start
+        // time and is not offered it again; nobody else is free: the flanker holds on.
+        let events = tick(&mut jobs, &mut rested, &held, &carrying, 7_000 + JOB_START_MS);
+        assert_eq!(holders(&jobs), (Some(2), None));
+        assert!(events.contains(&JobEvent::Passed { spot: 4, role: Role::Pinner, place: 8, why: PASSED_NO_PLAY }), "{events:?}");
+        // The flanker goes down (no longer among the mates): the job ends at
+        // once, nobody is sent after him, and the spot rests.
+        let fewer = [playing[1], playing[2], playing[3]];
+        let events = tick(&mut jobs, &mut rested, &held, &fewer, 8_000);
+        assert!(jobs.is_empty(), "{jobs:?}");
+        assert_eq!(
+            events,
+            vec![JobEvent::Ended { spot: 4, shooter: 7, end: JobEnd::HolderDown { role: Role::Flanker, place: 2 }, life_ms: 7_000 }]
+        );
+        assert!(tick(&mut jobs, &mut rested, &held, &mates, 8_000 + JOB_REST_MS - 1).is_empty(), "resting");
+        // Held again after its rest; then no longer held: it ends with the reason given.
+        tick(&mut jobs, &mut rested, &held, &mates, 8_000 + JOB_REST_MS);
+        assert_eq!(jobs.len(), 1);
+        let events = tick(&mut jobs, &mut rested, &[], &mates, 30_000);
+        assert!(jobs.is_empty());
+        assert_eq!(events, vec![JobEvent::Ended { spot: 4, shooter: 7, end: JobEnd::Faded, life_ms: 2_000 }]);
+        // A job runs out.
+        tick(&mut jobs, &mut rested, &held, &mates, 30_000 + JOB_REST_MS);
+        let events = tick(&mut jobs, &mut rested, &held, &playing, 30_000 + JOB_REST_MS + JOB_MS);
+        assert!(jobs.is_empty() && events.iter().any(|e| matches!(e, JobEvent::Ended { end: JobEnd::Time, .. })), "{events:?}");
+        // Nobody to hold it: no job is opened at all.
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        assert!(tick(&mut jobs, &mut rested, &held, &[mates[3], mates[4]], 1_000).is_empty());
+        assert!(jobs.is_empty() && rested.is_empty());
+        let picture = Picture {
+            held: held.clone(),
+            jobs: vec![Job {
+                spot: 4,
+                objective: false,
+                shooter: 0,
+                since: 0,
+                flanker: Some(Holder { place: 2, since: 0 }),
+                pinner: None,
+                passed: Vec::new(),
+            }],
+        };
+        assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
+        assert!(picture.job_of(3).is_none());
+        assert!(picture.line_at(at(30.0)).is_some() && picture.line(4).is_some() && picture.line_by_spot(at(0.0)).is_some());
+    }
+
+    /// As it was (c3dc7241): every lane's apex is the spot's first point,
+    /// each bearing taken from its own kill's place; and a kill adds to the
+    /// first spot within reach, not the nearest.
+    #[test]
+    fn the_point_model_casts_and_merges_as_before() {
+        // Kills from (0, 0) and (5, 0): the second's victim due +z of its
+        // shooter, so its bearing is 0 from there.
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        spots.died(Vec3::new(5.0, 0.0, 30.0), 7, at(5.0), 0, 600, OLD);
+        assert_eq!(spots.spots.len(), 1);
+        let s = &spots.spots[0];
+        assert_eq!(s.at, at(0.0));
+        let lanes = s.lanes(OLD);
+        assert!(lanes.iter().all(|&(apex, _)| apex == at(0.0)), "{lanes:?}");
+        assert!(lanes[1].1.abs() < 1e-5, "bearing from its own kill's place: {lanes:?}");
+        // So a point due +z of the spot is in the second lane, as it was.
+        let line = &spots.held_lines(600, OLD)[0];
+        assert!(line.covers(Vec3::new(0.0, 0.0, 20.0)));
+        // The merge: spots at 0 and 9, a kill at 5 adds to the first.
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 0, OLD);
+        spots.died(at(40.0), 7, at(9.0), 0, 0, OLD);
+        assert_eq!(spots.spots.len(), 2);
+        spots.died(at(35.0), 7, at(5.0), 0, 0, OLD);
+        assert_eq!(spots.spots[0].kills.len(), 2, "the first in the list");
+        // The area model: the nearest.
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 0, NEW);
+        spots.died(at(60.0), 7, at(12.0), 0, 0, NEW);
+        spots.died(at(50.0), 7, at(8.0), 0, 0, NEW);
+        assert_eq!(spots.spots[1].kills.len(), 2, "the nearest");
+    }
+
+    #[test]
+    fn the_costed_corridor_goes_round_covered_regions_when_they_cost() {
+        use crate::v026g::bots::tactics::tests::field_with;
+        use mapdata::regions::Regions;
+        // An 80 x 40 m field, a wall at x 40 from z 0 to 25: the way from
+        // (10, 5) to (70, 5) goes through the gap, z 25 to 40.
+        let world = field_with(|_| {});
+        let grid = &world.grid;
+        let regions = std::sync::Arc::new(Regions::build(grid, None));
+        let (a, b) = (grid.locate(Vec3::new(10.0, 0.0, 5.0), 1.5).unwrap(), grid.locate(Vec3::new(70.0, 0.0, 5.0), 1.5).unwrap());
+        // The near half of the gap covered.
+        let lane: Vec<u32> = (0..regions.len() as u32)
+            .filter(|&r| {
+                let m = grid.position(regions.middle(r));
+                (30.0..50.0).contains(&m.x) && (24.0..31.0).contains(&m.z)
+            })
+            .collect();
+        assert!(!lane.is_empty());
+        let of = regions.clone();
+        let covered = Covered::build(lane.clone(), regions.len(), std::sync::Arc::new(move |n| of.of(n)));
+        let room = |cost| costed_corridor(grid, &regions, regions.of(a), regions.of(b), &covered, &[], cost, |_| true).unwrap();
+        let through = room(0.0);
+        let round = room(100.0);
+        assert!(lane.iter().any(|&r| through[r as usize]), "free to go through, it does");
+        assert!(lane.iter().all(|&r| !round[r as usize]), "costly: round them");
+        assert!(round[regions.of(a) as usize] && round[regions.of(b) as usize]);
+        // A free region is no cost.
+        let freed = costed_corridor(grid, &regions, regions.of(a), regions.of(b), &covered, &lane, 100.0, |_| true).unwrap();
+        assert!(lane.iter().any(|&r| freed[r as usize]));
+        // A route kept to that room never steps into the lane.
+        let filter = crate::v026g::bots::route_filter::RouteFilter::open()
+            .keeping_to(std::sync::Arc::new(round), { let of = regions.clone(); std::sync::Arc::new(move |n| of.of(n)) });
+        let route = crate::v026g::bots::path::plan_in(grid, &regions, a, b, |n| filter.floor_open(grid, n), |r| filter.region_open(r)).unwrap();
+        assert!(route.points().iter().all(|p| !covered.exposed_at(grid, p.at)), "{route:?}");
     }
 
     #[test]

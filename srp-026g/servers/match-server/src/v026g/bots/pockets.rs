@@ -27,18 +27,20 @@ pub struct ProfilePocket {
     pub stored: Option<u32>,
 }
 
-/// The pockets (by position in [`POCKET_SLOTS`]) the quick-use keys number, in order: those `held` says hold something.
-/// The one home of the numbering: [`QUICK_USE_ORDER`] begins with the six pockets in position order (PROVEN, table
-/// 0x925FD8), and the six keys reach the pockets first. **Which pockets count as held is the open question** (LIKELY the
-/// kit's filled slots at the spawn, as the heal count goes; the live grenade list counts the units left now, so a spent
-/// pocket closes the gap, and counts the presses where the two differ: `ThrowCounts::quick_rules_differ`): each caller says
-/// it in `held`, and the client steps P6-1..P6-3 settle which is the client's.
-pub fn quick_use_order(held: impl Fn(usize) -> bool) -> impl Iterator<Item = usize> {
-    (0..POCKET_SLOTS.len()).filter(move |&i| held(i))
+/// The pockets (by position in [`POCKET_SLOTS`]) the quick-use keys number, in order: those `present` says hold an item.
+/// The one home of the numbering rule: [`QUICK_USE_ORDER`] begins with the six pockets in position order (PROVEN, table
+/// 0x925FD8) and the six keys reach the pockets first; the client counts the **items present in the slots**, not their units
+/// (`inventory::quick_use_slot` 0x2FE7F0 never reads the stack count, PROVEN), and takes an item out of its slot only when an
+/// artefact's stack runs out (`inventory::remove_item` 0x2FC680 has that one direct caller, LIKELY). So a pocket the kit
+/// fills at the spawn keeps its number for the whole life however many units are left; every caller passes "the profile
+/// fills the slot" (the heal count: [`quick_use_of`]; the live grenade list: `live_grenades::Pockets`). The client step P6-1
+/// settles the LIKELY link (`fx-gear-client-tests.md`).
+pub fn quick_use_order(present: impl Fn(usize) -> bool) -> impl Iterator<Item = usize> {
+    (0..POCKET_SLOTS.len()).filter(move |&i| present(i))
 }
 
 /// The quick-use key (0 on) of the pocket in `slot` of `kit`, numbering the pockets the profile fills ([`quick_use_order`]
-/// with a pocket holding units at the spawn as held).
+/// with a pocket holding units at the spawn as present).
 pub fn quick_use_of(kit: &KitSlots, slot: u8) -> Option<usize> {
     let at = POCKET_SLOTS.iter().position(|&s| s == slot)?;
     quick_use_order(|i| kit[i].is_some_and(|pocket| pocket.units > 0)).position(|i| i == at)
