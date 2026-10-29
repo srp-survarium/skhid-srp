@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Szoba elhagyása
 st_srp_rooms_left_room	%1$s kilépett a szobából
 st_srp_rooms_level	Szint
 st_srp_rooms_map	Pálya
+st_srp_rooms_map_by_vote	A pályát szavazás dönti el
 st_srp_rooms_max	Max. szint
 st_srp_rooms_modes	Módok
 st_srp_rooms_my_room	Saját szoba

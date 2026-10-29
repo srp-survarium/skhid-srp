@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Opustit místnost
 st_srp_rooms_left_room	%1$s opouští místnost
 st_srp_rooms_level	Úroveň
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa se vybírá hlasováním
 st_srp_rooms_max	Max. úroveň
 st_srp_rooms_modes	Režimy
 st_srp_rooms_my_room	Moje místnost

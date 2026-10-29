@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Leave room
 st_srp_rooms_left_room	%1$s left the room
 st_srp_rooms_level	Level
 st_srp_rooms_map	Map
+st_srp_rooms_map_by_vote	Map chosen by vote
 st_srp_rooms_max	Max level
 st_srp_rooms_modes	Modes
 st_srp_rooms_my_room	My room

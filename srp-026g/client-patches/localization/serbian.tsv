@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Napusti sobu
 st_srp_rooms_left_room	%1$s je napustio sobu
 st_srp_rooms_level	Nivo
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa se bira glasanjem
 st_srp_rooms_max	Najviši nivo
 st_srp_rooms_modes	Režimi
 st_srp_rooms_my_room	Moja soba

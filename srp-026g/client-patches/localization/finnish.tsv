@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Poistu huoneesta
 st_srp_rooms_left_room	%1$s poistui huoneesta
 st_srp_rooms_level	Taso
 st_srp_rooms_map	Kartta
+st_srp_rooms_map_by_vote	Kartta valitaan äänestyksellä
 st_srp_rooms_max	Enimmäistaso
 st_srp_rooms_modes	Pelimuodot
 st_srp_rooms_my_room	Oma huone

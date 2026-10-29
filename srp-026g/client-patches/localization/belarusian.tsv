@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Выйсці з пакоя
 st_srp_rooms_left_room	%1$s пакінуў пакой
 st_srp_rooms_level	Узровень
 st_srp_rooms_map	Карта
+st_srp_rooms_map_by_vote	Карта выбіраецца галасаваннем
 st_srp_rooms_max	Макс. узровень
 st_srp_rooms_modes	Рэжымы
 st_srp_rooms_my_room	Мой пакой

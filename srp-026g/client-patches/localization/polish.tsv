@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Opuść pokój
 st_srp_rooms_left_room	%1$s opuścił pokój
 st_srp_rooms_level	Poziom
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa wybierana w głosowaniu
 st_srp_rooms_max	Maks. poziom
 st_srp_rooms_modes	Tryby
 st_srp_rooms_my_room	Mój pokój

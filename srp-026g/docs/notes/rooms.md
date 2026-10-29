@@ -189,6 +189,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     show no max level (the server tells 0). On the server a private room's settings have no
     max level at all (`rooms::Door::Pin`).
   - Open rooms and Play keep their size, players to start, max level and countdown.
+- **The chosen room beside the list** (the owner's of 2026-10-29: it flipped between two layouts):
+  one layout through the vote. Before the vote, and while no card leads alone (the server then
+  sends map 0), the map's render keeps its place empty and "Map chosen by vote" takes the map's
+  line; its members are always in two columns.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.

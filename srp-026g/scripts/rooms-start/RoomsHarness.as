@@ -107,6 +107,7 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         checkSideStable();
          checkQueueButton();
          checkCreate();
          checkWindowOrder();
@@ -420,6 +421,35 @@ package
          {
             failures.push(what + ": the facts' Max level " + (factsMax ? "missing" : "shown"));
          }
+      }
+
+      // The chosen room beside the list keeps one layout through its vote: with no card ahead
+      // (map 0) and with one (map 61), its name, "Map chosen by vote" or the map's line, and its
+      // facts at the same heights (the owner's of 2026-10-29: the card flipped between two).
+      private function checkSideStable() : void
+      {
+         tell(["S1;M;1;0","0;61;5;5;2;0"]);
+         var heights:Function = function(map:int):Object
+         {
+            tell(["S1;L;1;0","1001;8;10;8;9;3;32;" + map + ";0;Kosztinpeter"]);
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var at:Object = {};
+            for each(var t:Object in texts)
+               if(t.text == "Kosztinpeter" || t.text == "State" || t.text == "Players" || t.text == "Map chosen by vote")
+                  at[t.text] = Math.max(at[t.text] != null ? at[t.text] : -1, t.y);
+            return at;
+         };
+         var none:Object = heights(0);
+         var leading:Object = heights(61);
+         trace("ROOMS side card, no map: name " + none["Kosztinpeter"] + ", players " + none["Players"] + ", state " + none["State"]
+            + ", by vote " + none["Map chosen by vote"] + "; a map ahead: name " + leading["Kosztinpeter"] + ", players "
+            + leading["Players"] + ", state " + leading["State"]);
+         if(none["Map chosen by vote"] == null)
+            failures.push("side card without a map: no \"Map chosen by vote\"");
+         for each(var key:String in ["Kosztinpeter", "Players", "State"])
+            if(none[key] == null || none[key] != leading[key])
+               failures.push("side card: " + key + " moves with the map (" + none[key] + " / " + leading[key] + ")");
       }
 
       // Only private rooms can be made: no public sliders, and Create

@@ -201,7 +201,10 @@ package survarium.rooms
             return w * (COLS[c + 1] - COLS[c]) - 6;
         }
 
-        // The room chosen: its next map's render, what it is, and JOIN.
+        // The room chosen: its next map's render, what it is, and JOIN. One
+        // layout whether a map is known or not (a vote with no card ahead
+        // alone, or a room before its vote, has none): the render's place
+        // and the two lines under it are kept, so nothing moves as votes come.
         private function renderSide(room:Object, x:Number):void
         {
             var panel:Shape = new Shape();
@@ -223,7 +226,7 @@ package survarium.rooms
             // state"): the map's render made up to 60 lower when the panel is
             // short for the rows its players need at 18 each (two columns).
             var bottom:Number = look._h - RoomsLook.FOOT_H - 14;
-            var above:Number = 12 + 30 + (e != null ? 48 : 0) + facts.length * 26 + (room.pin ? 36 : 0) + 10;
+            var above:Number = 12 + 30 + 48 + facts.length * 26 + (room.pin ? 36 : 0) + 10;
             var need:int = memberRows(room) * 18;
             var picH:int = 150 - int(Math.max(0, Math.min(60, need - (bottom - 52 - 150 - above))));
             if (e != null)
@@ -244,6 +247,16 @@ package survarium.rooms
                 look._content.addChild(framed);
                 framed.mask = crop;
             }
+            else
+            {
+                // No map yet: the render's place, empty, at its size.
+                var empty:Shape = new Shape();
+                empty.graphics.lineStyle(1, 0x26323C);
+                empty.graphics.beginFill(0x05080B, 1);
+                empty.graphics.drawRect(x, 52, SIDE_W, picH);
+                empty.graphics.endFill();
+                look._content.addChild(empty);
+            }
             var y:Number = 52 + picH + 12;
             look.text(look._content, room.name, x + 16, y, SIDE_W - 32, 20, 0xFFFFFF);
             y += 30;
@@ -254,8 +267,10 @@ package survarium.rooms
                 look.text(look._content, win.levelName(e.level) + " · " + win.weatherName(e.weather), x + 16, y, SIDE_W - 32, 15,
                     RoomsLook.GREY);
                 look.text(look._content, win.modeName(e.mode), x + 16, y + 20, SIDE_W - 32, 15, RoomsLook.GREY);
-                y += 48;
             }
+            else
+                look.text(look._content, win.say("st_srp_rooms_map_by_vote"), x + 16, y, SIDE_W - 32, 15, RoomsLook.GREY);
+            y += 48;
             for (var i:int = 0; i < facts.length; i++)
             {
                 look.text(look._content, facts[i][0], x + 16, y, 140, 15, RoomsLook.DIM);
@@ -291,8 +306,8 @@ package survarium.rooms
             return Math.max(1, room.phase == RoomPhase.IN_MATCH ? Math.min(n, int(room.size)) : int((n + 1) / 2));
         }
 
-        // The chosen room's members: one column while they fit at 18 a row;
-        // two otherwise, and while it plays its match, side 1 on the left
+        // The chosen room's members in two columns (one layout, however many;
+        // the owner's of 2026-10-29), and while it plays its match, side 1 on the left
         // and side 2 on the right (a bar of the side's colour), those not
         // in the match where there is room. Each row: the equipment level
         // in a column of its own, the red mark of a kit that cannot play,
@@ -315,9 +330,7 @@ package survarium.rooms
                 if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
                     playing = true;
             var cols:Array;
-            if (!playing && all.length * 18 <= _membersH)
-                cols = [all.slice()];
-            else if (!playing)
+            if (!playing)
                 cols = [all.slice(0, int((all.length + 1) / 2)), all.slice(int((all.length + 1) / 2))];
             else
             {
@@ -336,7 +349,7 @@ package survarium.rooms
             var rows:int = Math.max(1, Math.max(cols[0].length, cols.length > 1 ? cols[1].length : 0));
             var rowH:int = int(Math.max(12, Math.min(22, _membersH / rows)));
             var size:int = rowH >= 20 ? 14 : rowH >= 17 ? 13 : 12;
-            var colW:Number = cols.length == 1 ? MEMBERS_W : (MEMBERS_W - 12) / 2;
+            var colW:Number = (MEMBERS_W - 12) / 2;
             for (var c:int = 0; c < cols.length; c++)
                 for (var r:int = 0; r < cols[c].length; r++)
                     // Never past the panel's bottom (a window at its least).

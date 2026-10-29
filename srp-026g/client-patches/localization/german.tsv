@@ -2462,6 +2462,7 @@ st_srp_rooms_leave_room	Raum verlassen
 st_srp_rooms_left_room	%1$s hat den Raum verlassen
 st_srp_rooms_level	Stufe
 st_srp_rooms_map	Karte
+st_srp_rooms_map_by_vote	Karte per Abstimmung
 st_srp_rooms_max	Max. Stufe
 st_srp_rooms_modes	Modi
 st_srp_rooms_my_room	Mein Raum
