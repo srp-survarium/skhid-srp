@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run patch 76's eight hooks (ragdoll and headwear; ../docs/notes/ragdoll.md)
+"""Run patch 76's nine hooks (ragdoll and headwear; ../docs/notes/ragdoll.md)
 in the built exe, with Unicorn (2.1.4).
 
     python check_ragdoll_026g.py <original survarium.exe>
 
 The exe is built as patch_026g.py builds it (with the late join and the
-arena); the build without the late join keeps the original's eight sites.
+arena); the build without the late join keeps the original's nine sites.
 The hooks are the Rust patch `ragdoll` (rust/patches/src/ragdoll.rs, its
 lohooks ragdoll.toml), each site a jmp to its generated entry
 (hook_entries_026g.asm), which saves the machine, calls the handler and
@@ -31,7 +31,7 @@ play_sound (0x3222F0), which record their arguments. The material pair
 (0x306D50) is the game's own code on a made-up material manager.
 
 Checked:
-- the eight sites: the original's bytes in the original and the build
+- the nine sites: the original's bytes in the original and the build
   without the late join, a jmp to the hook's entry in patches.code here;
 - every hook keeps the registers the game's code after it reads, and the
   flags of the two compares it stands in for (the step's `[esp+0Fh]`, the
@@ -91,6 +91,7 @@ HELD_SITE, HELD_NEXT, NO_BONES = 0x24754F, 0x24755D, 0x24781E      # mt_draw's r
 UPDATE_SKELETON = 0x22490
 POST_SITE, POST_NEXT = 0x2477DF, 0x2477E8
 RENDER_SITE, RENDER_NEXT = 0x15A950, 0x15A957
+KILLED_SITE, KILLED_NEXT = 0x2DA3DF, 0x2DA3E5
 VICTORY_ITEM_VTABLE = 0xA042AC
 RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
@@ -548,8 +549,8 @@ def main():
     block = linked.blocks["patches.code"]
     hooks = [h for h in base.rust_hooks(original) if h[2].startswith("ragdoll_")]
     check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE,
-                                  POST_SITE, RENDER_SITE],
-          "the Rust patch ragdoll's eight lohooks (ragdoll.toml, sites_026g.tsv)")
+                                  POST_SITE, RENDER_SITE, KILLED_SITE],
+          "the Rust patch ragdoll's nine lohooks (ragdoll.toml, sites_026g.tsv)")
     for va, old, symbol, opcode in hooks:
         at = base.file_offset(va)
         target = linked.symbols[symbol]
@@ -897,7 +898,46 @@ def check_headwear(built):
 
     worn = post()
     check(worn[69] == worn[44], 'a living player wears the helmet on Head')
+
+    def killed(cause, victim=player):
+        regs = {UC_X86_REG_ESI: victim, UC_X86_REG_EBX: 0x123400 | cause,
+                UC_X86_REG_EDI: 0xDA, UC_X86_REG_ECX: 0xCB, UC_X86_REG_EDX: 0xDC}
+        out = game.run(KILLED_SITE, KILLED_NEXT, regs)
+        check(all(out[r] == value for r, value in regs.items())
+              and out[UC_X86_REG_EAX] == game.u32(victim + 0x120),
+              'fatal-hit hook preserves registers and replays the world read')
+
+    # Unknown, body hit and suicide/environmental death all stay attached.
+    # A classification from another life or another place cannot authorize it.
+    other = game.add_player(1, 5.0, 0.0)
+    for cause in (None, 0, 3, 'old-life', 'other-player', 'corrected'):
+        game.set_alive(player, True, 999)
+        game.step()
+        if cause == 'old-life':
+            killed(1)
+        game.set_alive(player, False, 1000)
+        if cause == 'other-player':
+            game.set_alive(other, False, 1000)
+            killed(1, other)
+        elif cause == 'corrected':
+            killed(1)
+            killed(0)
+        elif isinstance(cause, int):
+            killed(cause)
+        for _ in range(40):
+            game.step()
+            game.draw(player)
+        attached = post()
+        check(attached[69] == attached[44], f'{cause}: helmet stays on the ragdoll head')
+        game.u32(player + HELD, 0)
+        calls = game.held_item(player)[2]
+        check(calls[-1][5][69] == calls[-1][5][44], 'unheld non-headshot corpse keeps its helmet')
+        game.u32(player + HELD, WEAPON_ITEM)
+
+    game.set_alive(player, True, 1000)
+    game.step()
     game.set_alive(player, False, 1000)
+    killed(1)
     for _ in range(40):
         game.step()
         game.draw(player)
@@ -908,10 +948,19 @@ def check_headwear(built):
     check(len(calls) == 1 and calls[0][4] == 70
           and math.dist(calls[0][5][69][12:15], calls[0][5][44][12:15]) > 0.15,
           'a corpse holding nothing retains its detached helmet')
+    killed(0)
+    corrected = post()
+    check(corrected[69] == corrected[44], 'a corrected non-headshot event immediately reattaches the helmet')
     game.set_alive(player, True, 1000)
     game.step()
     restored = post()
     check(restored[69] == restored[44], 'rollback or respawn restores the worn helmet')
+    game.set_alive(player, False, 1000)
+    for _ in range(40):
+        game.step()
+        game.draw(player)
+    restored = post()
+    check(restored[69] == restored[44], 'a rolled-back headshot does not authorize a later death')
 
 
 if __name__ == "__main__":

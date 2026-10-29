@@ -171,6 +171,12 @@ impl<'t> Player<'t> {
         PlayerId(self.this.id())
     }
 
+    /// The player's place in the match roster.
+    pub fn place(&self) -> u8 {
+        // SAFETY: the live base player's place byte.
+        unsafe { read(raw::player::place(self.this.ptr())) }
+    }
+
     /// In the match's world (m_has_been_inserted).
     pub fn inserted(&self) -> bool {
         // SAFETY: a player's byte field.

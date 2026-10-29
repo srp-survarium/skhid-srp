@@ -241,6 +241,8 @@ struct State {
     moving: [Moving; MAX_PLACES],
     /// Each place's last living hit's round (the trace's spike of its death).
     rounds: [Option<Round>; MAX_PLACES],
+    /// Native killing-hit classification, scoped to each place's current life.
+    deaths: [Option<(DeathKey, headwear::FatalHit)>; MAX_PLACES],
     trace: TraceState,
     shots: Shots,
 }
@@ -258,6 +260,7 @@ static STATE: Lock<State> = Lock::new(State {
     recent: [Recent::new(); MAX_PLACES],
     moving: [Moving { at: Vec3::ZERO, velocity: Vec3::ZERO, known: false }; MAX_PLACES],
     rounds: [None; MAX_PLACES],
+    deaths: [None; MAX_PLACES],
     trace: TraceState::Closed,
     shots: Shots { log: ShotLog::new(), pushes: [None; PUSHES], living: [None; LIVING_HITS] },
 });
@@ -367,6 +370,7 @@ fn seen(
     mappings: &mut [Mapping; 4],
     recent: &Recent,
     moving: &Moving,
+    fatal: Option<(DeathKey, headwear::FatalHit)>,
     now: f32,
 ) -> (Seen, Option<BoneIndex>) {
     if !player.inserted() || player.alive() {
@@ -379,11 +383,25 @@ fn seen(
     // the battery itself, 0x300E50)
     let gun = (player.held() == Held::Item).then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
-    death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
+    if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
+        death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
+    }
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
     (Seen::Dead(death), Some(index))
+}
+
+/// Record the native death event without changing simulation state.
+pub fn on_killed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some((place, life, hit)) = headwear::killed(ctx) {
+        STATE.with(ctx.thread(), |state| {
+            if let Some(death) = state.deaths.get_mut(usize::from(place)) {
+                *death = Some((life, hit));
+            }
+        });
+    }
+    Flow::Continue
 }
 
 /// The step: once a frame on the logic thread, after the simulation's move.
@@ -417,7 +435,13 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
         count = (client.places() as usize).min(MAX_PLACES);
         let local_place = client.local_place().map(usize::from);
         for place in 0..count {
-            let Some(player) = client.player(place as u32) else { continue };
+            let Some(player) = client.player(place as u32) else {
+                state.deaths[place] = None;
+                continue;
+            };
+            if !player.inserted() || player.alive() {
+                state.deaths[place] = None;
+            }
             physics = physics.or(player.physics_world());
             // this frame's bullets in this player (its hit model's body)
             let body = player.hit_body();
@@ -448,7 +472,8 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
                 m.at = at;
                 m.known = at.is_finite();
             }
-            let (s, index) = seen(&player, &mut state.mappings, &state.recent[place], &state.moving[place], state.time);
+            let (s, index) = seen(&player, &mut state.mappings, &state.recent[place], &state.moving[place],
+                                  state.deaths[place], state.time);
             seen_places[place] = s;
             players[place] = Some((player, index));
             if local_place == Some(place) {
@@ -456,6 +481,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
             }
         }
     }
+    state.deaths[count..].fill(None);
     let frame = Frame { dt, up: UP, places: &seen_places[..count], local: local.map(|(p, _)| p) };
     let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME };
     state.corpses.step(&frame, &mut level);
@@ -771,7 +797,10 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// The rendered accessory pose of the same death, in the player's model space.
 fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
-    let (_, slot, _) = draw_of(state, player)?;
+    let (key, slot, _) = draw_of(state, player)?;
+    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+        return None;
+    }
     let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
     Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
 }

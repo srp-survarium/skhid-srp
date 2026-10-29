@@ -597,6 +597,45 @@ ragdoll_on_render_bones_replay:
     db 0x80, 0xbf, 0xd8, 0x62, 0x00, 0x00, 0x00
     jmp 0x15a957
 
+; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]: lohook -> ragdoll_on_killed
+global ragdoll_on_killed
+extern hook_ragdoll_on_killed
+ragdoll_on_killed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_killed
+    mov edx, ragdoll_on_killed_replay
+    cmp eax, 0
+    je ragdoll_on_killed_go
+    mov edx, 0x2da3e5
+    cmp eax, 1
+    je ragdoll_on_killed_go
+    ud2
+ragdoll_on_killed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_killed_replay:
+    db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da3e5
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

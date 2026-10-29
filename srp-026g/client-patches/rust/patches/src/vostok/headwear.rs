@@ -5,6 +5,23 @@
 use super::{Context, Reg};
 use super::world::{Object, Player, floats, pointer, read};
 use crate::raw;
+use ragdoll::corpse::DeathKey;
+
+/// The engine's classification of the killing hit, not a recent impact.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FatalHit {
+    Headshot,
+    Other,
+}
+
+/// generate_killed_event after enqueue: ESI is the base player and BL is
+/// still the cause icon (1 for a headshot, 0/3 otherwise). The queue call
+/// preserves EBX and ESI; no render-player-only fields are read here.
+pub fn killed(ctx: &Context<'_>) -> Option<(u8, DeathKey, FatalHit)> {
+    let player = Player::at(ctx, Reg::Esi)?;
+    let hit = if ctx.reg(Reg::Ebx) as u8 == 1 { FatalHit::Headshot } else { FatalHit::Other };
+    Some((player.place(), DeathKey(player.spawned()), hit))
+}
 
 pub const HEAD: usize = 44;
 pub const BONE: usize = 69;

@@ -45,3 +45,8 @@ handler = "on_post_bones"
 [[hook]]
 site = "render.skeleton_updated"
 handler = "on_render_bones"
+
+# the native fatal-hit classification; cosmetic headwear only
+[[hook]]
+site = "player.killed_event"
+handler = "on_killed"

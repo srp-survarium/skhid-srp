@@ -4551,6 +4551,7 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
 0x002da170	survarium::base_player::generate_killed_event	ESI	the victim (place +114h, world +120h, damage model +2E0h)	observed
+0x002da170	survarium::base_player::generate_killed_event	0x2DA3DF ESI/BL	victim / native fatal cause (1 headshot, 0 other, 3 suicide or no killer), preserved by enqueue at 0x2D0A60; victim+328h is the life spawn time. Cosmetic headwear hook replays mov eax,[esi+120h], outside patch 67's span.	verified
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+4	the time (the event's +24h)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+8	the killer's place (0FFh: none)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+0Ch	the hit's bone name (brain or face: a headshot)	observed

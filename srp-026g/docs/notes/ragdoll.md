@@ -997,7 +997,17 @@ animation skeleton. `update_render_matrices` uses the command's count;
 its current, alternate and previous matrix buffers each hold 128 matrices.
 The scene command copies at most 80 matrices. The extended count is 70.
 
-Two additional Rust lohooks:
+Three additional Rust lohooks:
+
+- `player.killed_event` (0x2DA3DF), after `generate_killed_event` enqueues
+  the native death event: ESI is the victim and BL is its cause icon (1 is
+  a headshot). The enqueue preserves both. The hook records this result
+  against the victim's place and spawn time, outside patch 67's span.
+  Only a matching fatal headshot creates an independent headwear body;
+  body hits, suicide/environmental kills and unknown deaths keep Head's
+  pose. A recent head impact alone cannot enable detachment. Alive,
+  absent and uninserted players clear the record; a new life cannot use
+  an old result. A corrected non-headshot event also restores Head's pose.
 
 - `player_draw.post_bones` (0x2477DF), before the original render command's
   arguments are pushed: for an extended bind, copy the 69 drawn matrices
