@@ -37,8 +37,8 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
 - So the first start, a new player's and one after a change of faction show the last start's
   lobby (the classic the first time); every later start shows the faction's from the first frame,
   with no swap.
-- **A change of faction during a session applies at the next start**, as does the first `8E` of
-  a session that differs from the saved one (no hint: nothing for the player to do).
+- **A change of faction during a session shows after the next match** (below), as does the first
+  `8E` of a session that differs from the saved one (no hint: nothing for the player to do).
 
 ## At start
 
@@ -59,52 +59,69 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
 - Another lobby costs one more query at the start (its config, the lobby's movies with it).
 - Never a black scene, never a crash.
 
-## After a match (the owner's rule, not built yet)
+## After a match
 
 The owner (2026-10-29): "for lobbies the switch should happen after joining a faction and then
 playing a game": after a change of faction, the new faction's lobby from the first frame back from
-the next match. Not in this PR yet; what it needs, read from the code (PROVEN unless tagged):
+the next match. Built (PROVEN in the code; the swap run with Unicorn against the original's code on
+the same objects; not run in a game yet):
 
-- **One state machine:** (the lobby shown, the lobby wanted) and three events: a faction (`8E`,
-  the wanted lobby; user.cfg as now), the match entered (`lobby_menu::on_deactivate` 0x21D4A0:
-  the lobby not drawn; when wanted is not shown, ask), back in the lobby (`on_activate`
-  0x21D2E0). The scene stays loaded across a match (nothing unloads it); a swap while the match
-  runs is not seen.
-- **The new project:** the lobby's own query asked again (0x21E450, the probe first as at a
-  start), its other seven requests made cheap (a small binary config each, no user data) so no
-  second render scene, sound scene or movie is made; its results taken at
-  `lobby_menu.scenes_ready` and on_render_scenes_ready not run.
-- **The old project out** (`lobby_menu::clear_resources` 0x21D080's project half): `remove`
-  0x2855B0 (ESI the project: its game objects' vtable+24h, its render visuals); each static
-  collision (project+28h, +2Ch of them, 50h bytes, one class: vtable 0xA029A8, remove 0x2F8970,
-  insert 0x2F8850, thiscall with the physics world, lobby menu+3104h); the game effect player
-  (lobby menu+118h) stopped (0x2DE7F0, EDI player+8; +118h then 0); lobby menu+114h 0 and the
-  project's reference let go (its count +108h; at 0 engine_release_object with ECX project+38h).
-- **The new project in** (on_render_scenes_ready's project half): its reference taken, lobby menu
-  +114h; its vtable+0Ch (simple_game_project 0xA0A064: 0x2F8720, thiscall); the game effect player
-  restarted with the project's emitter (project+1E4h): the effect made by the emitter's
-  vtable+20h (thiscall: out, 0.0, 1.0; ret 0Ch), played by 0x2DE090 (EDI the player; the effect,
-  0, 1, 0, the menu's listener +684h; ret 14h), the made effect let go (its count +1Ch; at 0 its
-  owner's (+0Ch) vtable+1Ch); `insert` 0x285540 (EAX the project); each static collision's insert.
-  The project's `camera` (0x242770) is not needed: every lobby's character is at the origin.
-- **Two true virtual calls:** the emitter is polymorphic (game_effect_emitter: composite,
-  random permutation, hud, ... cooks), so the effect's making and letting go are vtable calls;
-  the engine-function library has no virtual kind yet (`engine_026g.tsv`: a function is a VA).
-  That kind (a slot offset, thiscall, its thunk `mov eax,[ecx] / call [eax+slot]`) comes first.
-- **Not known:** what the lobby's emitter plays (an ambient game effect; GUESS), and how long a
-  project's cook takes against a short match (a swap that comes after the return would show).
+- **One state machine** (`Scene` in `lobby_scene.rs`, one transition function `Scene::step`): not
+  asked; starting (the start's query, as above); loaded, with the lobby shown, whether it is
+  drawn (drawn, hidden, closed) and a swap's query in flight (the lobby it is for and what it asks).
+  The events: the query built (`lobby_menu.scene_request`), its results (`lobby_menu.scenes_ready`),
+  the lobby hidden (`lobby_menu::on_deactivate` 0x21D4A0: the active scene switched, a match;
+  game::switch_to_lobby and the match's switch call the old scene's vtable+4), the lobby shown
+  (`on_activate` 0x21D2E0), the game closing (`game::clear_resources` 0x1ED030, which deactivates
+  the active scene too). The wanted lobby is the saved faction's at each event (`srp_lobby_faction`
+  stays its one owner, written as before).
+- **The lobby hidden, another faction saved than the lobby shown:** the lobby's query is asked
+  again (query_resources 0x21E450 with the menu) with that lobby alone: its config first (as at a
+  start), then its project; the other seven requests are that lobby's config (a binary config,
+  no user data), so no second render scene, sound scene or movie is made. Back to the classic:
+  its project at once. One such query at a time: a match entered while one is out asks nothing.
+- **Its project in, while the lobby is hidden** (`ScenesReady::swap`): the project halves of
+  `lobby_menu::clear_resources` (0x21D080..0x21D100) and `on_render_scenes_ready` (0x220DA2..
+  0x220EC3, 0x22193E..0x221975), in their order, each step the game's own function:
+  - the old project out: `remove` 0x2855B0 (ESI the project); each static collision's remove
+    (project+28h, +2Ch of them, 50h bytes; static_collision vtable 0xA029A8 +4: 0x2F8970, thiscall
+    with the physics world, lobby menu+3104h); the track player's stop (0x2DE7F0, EDI menu+120h),
+    +118h 0; +114h 0 and the menu's reference let go (count +108h, lock xadd; at 0
+    `engine_release_object` 0xE0210, ECX project+38h, EAX the count);
+  - the new project in: its reference taken, +114h; simple_game_project's vtable+0Ch (0x2F8720,
+    thiscall); the stop and +118h 0 again; its track (+1E4h) made into an effect by the emitter's
+    vtable+20h (`emit`: thiscall, out, 0.0, 1.0; ret 0Ch; out returned), played by 0x2DE090 (EDI
+    menu+118h; the effect, 0, 1, 0, the listener menu+684h; ret 14h), the made effect let go (count
+    +1Ch; at 0 its emitter's (+0Ch) vtable+1Ch, `destroy`); `insert` 0x285540 (EAX the project);
+    each static collision's insert (vtable+0, 0x2F8850).
+  The two emitter calls are the engine-function library's virtual rows (client_patch.md 0.5);
+  nine emitter classes (vtables.tsv). The project's `camera` (0x242770) is not set again: every
+  lobby's character is at the origin (below). clear_resources' byte +3110h (set at the exit) is not.
+- **Never while the lobby is drawn:** results that come after the return (a short match, a slow
+  disk) are let go untouched, and the next match asks again. A swap is never seen: the first frame
+  back is the new lobby, or the old one when its project was late.
+- **A missing pack is the classic:** a config that is not there, or a project without its camera
+  track, makes the classic's project the one asked (none when the classic is shown: let go). The
+  classic failing keeps the lobby shown. The next match asks the faction's config again (a few
+  failed config reads, nothing else).
+- **The game closing:** from game::clear_resources on, nothing is asked (its on_deactivate of the
+  lobby asks nothing), and a swap's results that come after it are let go without the lobby menu
+  being touched.
+- **The faction changed again while a query is out:** results for the old wanted lobby are let go,
+  and the new one is asked (none when it is the one shown).
+- **Costs and not known:** two lobby projects are in memory for the moment of the swap; the
+  project's cook runs while the match loads or runs (its disk reads beside the match's: GUESS, not
+  measured); the eight requests of a swap's query name one config (the resource system's handling
+  of one name eight times in a query is read from the stock flow only, not seen). What the lobby's
+  track effect plays (an ambient effect; GUESS).
 
 ## Why not live
 
 - The scene is loaded once per run, with the lobby's movies, and is never unloaded until exit
   (`lobby_menu::clear_resources` 0x21D080, from `game::clear_resources` only). A match does not
   unload it: going back to the lobby after a match is the same scene.
-- A live swap would redo by hand the project half of `clear_resources` and of
-  `on_render_scenes_ready` (0x220B20) on a scene being drawn: the project's remove (0x2855B0) and
-  insert (0x285540), its static collision objects (project+28h, 50h bytes each, into the physics
-  world lobby menu+3104h), the camera track player at lobby menu+118h (restarted from
-  project+1E4h with the menu's +684h listener), the camera config, the refcounts. That is the
-  fragile engine state the owner asked to avoid; the owner may ask for it as its own change.
+- The swap (above) runs only while the lobby is not drawn. A live swap (on a scene being drawn,
+  the player watching) is not built: the owner asked for the switch after a match.
 
 ## What a lobby project must give (for the content packs)
 
@@ -149,10 +166,17 @@ classic's. What the exe and our patches take from it:
 
 ## Checks
 
-- Rust tests of the factions, the match and the transitions (`lobby_scene.rs`),
+- Rust tests of the factions, the match and the transitions (`lobby_scene.rs`: the start's paths,
+  a change shown after the next match, the probe then the project, the classic for a missing pack
+  or a project without its track, late results let go, the query in flight at the next match, a
+  faction changed while one is out, the close; every sequence of six events of seven kinds, under
+  three loads: never a swap while drawn, never a query once closed),
   `check_lobby_scene_026g.py` (Unicorn: the variable, `0x8E`'s faction kept and saved, the query's
-  list, the probe, the fallbacks), selftest check 81, `check_weapon_table_026g.py` (the spot from
-  the project's config, the turned bench).
+  list, the probe, the fallbacks; after a match: on_deactivate's query or none, the swap's lists,
+  the swap's 14 calls and state against the original's clear_resources and on_render_scenes_ready
+  halves on the same objects, late results, the close, a missing pack), selftest check 81 (the
+  seven sites, the stock code the swap redoes), `check_engine_026g.py` (the virtual rows),
+  `check_weapon_table_026g.py` (the spot from the project's config, the turned bench).
 - In a game (2026-10-29, local, headless, no input but the sign-in; the default build of this
   branch; packs lobby-hangar-046@2 and lobby-camp-069@2 in a test patch, no STK2 pack):
   `srp_lobby_faction 4` in user.cfg, the hangar from the first frame; `1`, the camp; `2` (no

@@ -269,6 +269,18 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
   stack slot missing, a cleanup that is no number or larger than the slots, a
   result the rows do not give, and what
   it cannot pass (an XMM argument, varargs).
+- **A virtual function** (the game calls it through its object's vtable,
+  `mov eax,[ecx] / call [eax+slot]`, and the object's class varies): its row's
+  `call` is `virtual` and its `va` is `<class>+<slot>`, the class whose
+  virtual it is and the slot's byte offset
+  (`survarium::pure_game_effect_emitter+0x20`). Its implementations are the
+  re-kit's `vtables.tsv` rows of that slot whose class is the class or one
+  derived from it (`base`): each vtable, the function its slot holds there.
+  Each implementation must have its rows, all the same and thiscall (`this`
+  in ECX, the stack slots popped), and the row's words are checked against
+  each. The thunk takes `this` as its first argument and calls the slot of
+  its vtable. A class found later is one more `vtables.tsv` row (and its
+  function's ABI rows); a slot of a class with none is refused.
 - **The check** (`check_engine_026g.py`, in the self-test): for every
   function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
   with a marker per argument, reaches the real function once with each marker
@@ -3691,8 +3703,24 @@ its config alone (a missing project would crash the project's cook); when
 those results come (on_render_scenes_ready's start, 0x220B20) the query is
 asked again with the lobby's project, or the classic's when the config is not
 there or the project has no camera track. Patch 45 takes the weapon's spot
-from the lobby project's `srp_lobby` table (Round 6). See
-`check_lobby_scene_026g.py`.
+from the lobby project's `srp_lobby` table (Round 6).
+
+After a change of faction the next match shows it (the owner, 2026-10-29: "the
+switch should happen after joining a faction and then playing a game"): when
+the lobby menu stops being the active scene (on_deactivate, 0x21D4A0: a
+match) with another faction saved than the lobby shown, the patch asks the
+lobby's query again with that lobby alone in it (its config first, then its
+project; the other seven requests that config, no user data), and when the
+project comes while the match is still up it puts it in the old one's place:
+the project halves of lobby_menu::clear_resources and on_render_scenes_ready
+redone with the game's own functions (the old project's remove and static
+collisions, the track player's stop, the release; the new one's
+vtable+0Ch, its track's effect through the emitter's vtable, the insert and
+its collisions), so the first frame back is the new lobby. Results that come
+after on_activate (0x21D2E0) are let go and the next match asks again; a
+missing pack is the classic; once game::clear_resources (0x1ED030) runs
+nothing is asked. One enum (`Scene`), one transition function
+(`Scene::step`). See `check_lobby_scene_026g.py`.
 
 ## Medical consumable countdown (patch 77)
 

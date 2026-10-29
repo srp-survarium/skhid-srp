@@ -1722,7 +1722,7 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
   (Ruffle). **Not run in a game.**
 
-### 3.59 The lobby's scene follows the quest faction (written 2026-10-29, README patch 81; the rules: `lobby-scenes.md`) — PROVEN in the code, the four sites run with Unicorn from the game's own code before each; run in a game (headless, a local-clients prefix: the saved faction's lobby at start with the hangar and camp packs, the sign-in's faction saved)
+### 3.59 The lobby's scene follows the quest faction (written 2026-10-29, README patch 81; the rules: `lobby-scenes.md`) — PROVEN in the code, the seven sites run with Unicorn from the game's own code before each, the swap against the original's halves; the start run in a game (headless, a local-clients prefix: the saved faction's lobby at start with the hangar and camp packs, the sign-in's faction saved); the swap after a match not run in a game
 
 The owner (2026-10-29): "different ones should be for different factions", "stalker2 one is for bandits", "the current one is for army", "the room is for stalker": Renaissance the classic, the Black Market the STK2 blockpost, the Scavengers the 0.69d camp, the Edge the 0.46c2 hangar, none the classic.
 
@@ -1734,8 +1734,10 @@ The owner (2026-10-29): "different ones should be for different factions", "stal
   - `lobby_client.faction` (0x2717CF, `mov [ebx+1EA998h],eax`, EAX the faction): the faction's id saved (none for 0 and unknown ids), user.cfg written (0x1E9030) when it changed.
   - `lobby_menu.scene_request` (0x21E5CC, `movq [eax+8],xmm0`, the list whole and not yet asked): the fourth request is the saved faction's lobby's: for the classic the original's; for another lobby first its config (`resources/projects/lobby_scene/<id>/client_project`, class 1Fh, its user data pointer 0), then its project (`lobby_scene/<id>`, 40h).
   - `lobby_menu.scenes_ready` (0x220B20, the callback's start): after a probe, or a project with no track (+1E4h of the project, +1ACh of its resource), the results are let go: the patch calls query_resources again with the menu (`engine_lobby_query_resources`) and exits at 0x221E77; a missing config's next query is the classic's. A usable project, or the classic's in any case, goes on into the original's code.
-  - The faction is one enum parsed at the boundary, its lobby one total match; the scene's state one enum (`Scene`: unasked, probing a lobby, asked, shown) with two transitions (a query, its results).
-- **Checked:** selftest check 81; `check_lobby_scene_026g.py` (Unicorn: the variable and a user.cfg line, `8E`'s faction kept as the original keeps it and saved once a change, the query's list for no faction, Renaissance, an unknown value, a lobby there, one missing and one without its track, each query's other requests and user data the original's, the results taken or let go with the query asked again); `check_language_026g.py` (patch 79 in the chain); `cargo test` (rust/). In a game (headless, 2026-10-29): a Black Market account's sign-in saved `srp_lobby_faction 2`; with a debug build setting the value: the classic, a missing lobby (the classic, no crash), a test patch's `hangar_046` shown.
+  - `lobby_menu.deactivate` (0x21D4A0, on_deactivate's start, the lobby menu's vtable+4 0x9FFE74: the active scene switched away, a match) and `lobby_menu.activate` (0x21D2E0, on_activate's, vtable+0): the lobby hidden and shown. Hidden with another faction saved than the lobby shown, the patch asks the query again (`engine_lobby_query_resources`); at `lobby_menu.scene_request` that query has the lobby alone (its config, then its project, in the project's place; the other seven requests that config, 1Fh, user data 0); at `lobby_menu.scenes_ready` its project, while still hidden, is put in the old one's place (`vostok::lobby::ScenesReady::swap`: clear_resources' project half 0x21D080..0x21D100 and on_render_scenes_ready's 0x220DA2..0x220EC3 and 0x22193E..0x221975, each step the game's function: remove 0x2855B0, static_collision's remove/insert 0x2F8970/0x2F8850 with the physics world +3104h, the track player's stop 0x2DE7F0 and play 0x2DE090, the release 0xE0210, simple_game_project's vtable+0Ch 0x2F8720, insert 0x285540, and the track emitter's emit (vtable+20h) and the effect's destroy (its emitter's vtable+1Ch) through the library's virtual rows, 0.5) and the callback returns (ret 4); results after on_activate are let go untouched.
+  - `game.clear_resources` (0x1ED030, the game's vtable 0x9FAC8C+10h, span 10: push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game closing. It deactivates the active scene (0x1ED0B0, [+539Ch]'s vtable+4), the lobby menu too; from it on nothing is asked and a swap's results are let go without the menu being touched.
+  - The faction is one enum parsed at the boundary, its lobby one total match; the scene's state one enum (`Scene`: unasked; starting with what it asks; loaded with the lobby shown, its view drawn/hidden/closed and a swap's query in flight) with one transition function (`Scene::step`, five events: the query, its results, hidden, shown, closing).
+- **Checked:** selftest check 81 (the seven sites; the stock code the swap redoes, read from the original); `check_lobby_scene_026g.py` (after a match: on_deactivate asking or not, the swap's two query lists, the swap's 14 calls and the lobby menu's +114h/+118h, both counts and the effect's count equal to the original's halves run on the same made-up objects, late results and the close let go untouched, a missing pack the classic; and Unicorn: the variable and a user.cfg line, `8E`'s faction kept as the original keeps it and saved once a change, the query's list for no faction, Renaissance, an unknown value, a lobby there, one missing and one without its track, each query's other requests and user data the original's, the results taken or let go with the query asked again); `check_language_026g.py` (patch 79 in the chain); `cargo test` (rust/). In a game (headless, 2026-10-29): a Black Market account's sign-in saved `srp_lobby_faction 2`; with a debug build setting the value: the classic, a missing lobby (the classic, no crash), a test patch's `hangar_046` shown.
 - **In a game** (headless, local-clients prefix, packs hangar@2 and camp@2): the saved faction's lobby from the first frame (Edge the hangar, Scavengers the camp), the Black Market without its pack the classic, no crash; the sign-in's faction saved. The whole user.cfgs check: `check_lobby_scene_026g.py` (run.py's file with `r_resolution 1280x720` last).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
@@ -2290,6 +2292,29 @@ slots' bytes, or a C return type that does not fit the rows' result (EAX; AL,
 widened; EDX:EAX for 64 bits; XMM0, moved to ST0 for a float). An XMM or
 x87 argument, varargs (log_message 0x111ED0, buffer_string::appendf
 0xE45B0) and tail jumps stay hand-written.
+
+**Virtual functions** (2026-10-29, patch 81's swap). A call through an
+object's vtable whose class varies (the game effect emitter's emit,
+`mov eax,[ecx] / call [eax+20h]`: nine emitter classes) has no VA. Its row
+says `call` virtual and `va` `<class>+<slot>`
+(`survarium::pure_game_effect_emitter+0x20`); its implementations are the
+re-kit's `vtables.tsv` rows (vtable, slot, va, class, base, basis: the
+function a class's vtable holds at a slot, and the class whose virtual it
+is) of that slot with that class or base. Each implementation's re-kit rows
+are checked against the row as a direct call's are, and must be the same
+for all and thiscall (`this` ECX, the stack slots popped: an implementation
+popping otherwise is refused). The thunk is a thunk's (cdecl in, the
+callee-saved kept) with `mov eax,[ecx] / call [eax+slot]` in place of the
+`call <VA>`. check_engine_026g.py: every vtables.tsv row is the exe's (the
+vtable holds that function at that slot), each implementation's `ret`s pop
+the cleanup, the thunk reaches a made-up vtable's slot with `this` in ECX
+and each argument where the rows put it, and with an object of each listed
+vtable, the exe's own, reaches that vtable's function. Rejected: the emit
+row at slot +1Ch (destroy's, one stack argument), a class without
+vtables.tsv rows, one emit popping 8 in abi.tsv, a vtables.tsv row naming
+the sound emitter's emit in the hud emitter's slot. Not caught: a class of
+the family that vtables.tsv does not list (no RTTI in the exe; the nine
+were found by their shared slots and their cooks).
 
 **What it generates.** `engine_026g.asm`, the arena's block `engine.code`: a
 thunk per function, each the global symbol of its C name:
