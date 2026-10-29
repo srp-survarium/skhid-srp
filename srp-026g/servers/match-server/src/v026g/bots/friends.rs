@@ -117,6 +117,11 @@ pub struct FriendlyFireTuning {
     /// bot's picture, and one beside or in front of it can be behind it
     /// there (0: off).
     pub touch_m: f32,
+    /// A teammate who blocks only by `touch_m` (the line itself is clear of him) is stepped back from, not
+    /// round: a side step across the view barely grows the distance to a mate straight ahead, so the bot stood
+    /// inside the radius for seconds (Cologne 0x72dafb5b, 96-98 s). Off: the side step for every block, as
+    /// before.
+    pub back_step: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -145,6 +150,7 @@ impl Default for FriendlyFireTuning {
             lead: true,
             lead_extra_ms: 0,
             touch_m: 2.0,
+            back_step: true,
         }
     }
 }
@@ -166,6 +172,24 @@ impl FriendlyFireTuning {
     }
 }
 
+/// How a teammate blocks a shot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockKind {
+    /// His body is within the margin of the line of fire.
+    Line,
+    /// The line is clear of him, but his feet are within [`FriendlyFireTuning::touch_m`] in front of the shooter.
+    Touch,
+}
+
+/// What a bot does to free the shot a teammate blocks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FriendStep {
+    /// Step across the line, away from him: this side key (the shooter's left or right of the line).
+    Side { away: u32 },
+    /// Step back from him, out of the touch radius.
+    Back,
+}
+
 /// A teammate in the line of fire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Blocked {
@@ -173,6 +197,18 @@ pub struct Blocked {
     /// The side key that steps away from him (the shooter's left or right
     /// of the line).
     pub away: u32,
+    pub kind: BlockKind,
+}
+
+impl Blocked {
+    /// The step that frees the shot: across the line for a block of the line, back for a block by touch alone
+    /// (`back_step`; off: across as before).
+    pub fn step(&self, back_step: bool) -> FriendStep {
+        match self.kind {
+            BlockKind::Touch if back_step => FriendStep::Back,
+            _ => FriendStep::Side { away: self.away },
+        }
+    }
 }
 
 /// A bot holding fire for a teammate in its line, as its fire step saw
@@ -181,6 +217,8 @@ pub struct Blocked {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Held {
     pub who: Place,
+    /// How he blocks.
+    pub kind: BlockKind,
     /// It would have fired but for him (aimed, in range, a round in).
     pub ready: bool,
     /// Its legs run.
@@ -218,17 +256,18 @@ pub fn blocking(
     if !t.on {
         return None;
     }
-    let mut best: Option<(f32, Place, f32)> = None;
+    let mut best: Option<(f32, Place, f32, BlockKind)> = None;
     for other in mates(me, view) {
         for near in assess(me, other, dirs, distance, spread, ahead_s, t) {
-            if near.blocks() && best.is_none_or(|(d, _, _)| near.s < d) {
-                best = Some((near.s, other.place, side(me, other)));
+            if near.blocks() && best.is_none_or(|(d, ..)| near.s < d) {
+                best = Some((near.s, other.place, side(me, other), near.kind()));
             }
         }
     }
-    best.map(|(_, who, right)| Blocked {
+    best.map(|(_, who, right, kind)| Blocked {
         who,
         away: if right >= 0.0 { key::LEFT } else { key::RIGHT },
+        kind,
     })
 }
 
@@ -274,6 +313,15 @@ pub struct Near {
 impl Near {
     pub fn blocks(&self) -> bool {
         self.touch || self.gap.is_some_and(|gap| gap <= self.margin)
+    }
+
+    /// How he blocks: the line when his body is within the margin of it, else (touching) by touch alone.
+    pub fn kind(&self) -> BlockKind {
+        if self.gap.is_some_and(|gap| gap <= self.margin) {
+            BlockKind::Line
+        } else {
+            BlockKind::Touch
+        }
     }
 
     /// How much more than the margin the line keeps from him, metres

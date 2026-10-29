@@ -282,6 +282,10 @@ pub struct Bot {
     /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
     #[cfg(test)]
     pub(crate) bench_stepped: u8,
+    /// The step that frees a shot a teammate blocks, of the last motor tick (A friend hold): 0 none, 1 across the
+    /// line and clear, 2 across and refused (ground), 3 back and clear, 4 back and refused.
+    #[cfg(test)]
+    pub(crate) bench_friend_step: u8,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -455,6 +459,8 @@ impl Bot {
             bench_go: None,
             #[cfg(test)]
             bench_stepped: 0,
+            #[cfg(test)]
+            bench_friend_step: 0,
             #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]

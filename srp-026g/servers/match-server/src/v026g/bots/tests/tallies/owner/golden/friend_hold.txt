@@ -1,0 +1,59 @@
+owner-test friend hold: team 0 [line: 0 ready ticks, 0 spells (0 long, mean 0 ms), 0 freed by a shot in 1 s, steps across 0/0 back 0/0 (taken/refused); touch: 0 ready ticks, 0 spells (0 long, mean 0 ms), 0 freed by a shot in 1 s, steps across 0/0 back 0/0 (taken/refused)]; team 1 [line: 0 ready ticks, 0 spells (0 long, mean 0 ms), 0 freed by a shot in 1 s, steps across 0/0 back 0/0 (taken/refused); touch: 0 ready ticks, 0 spells (0 long, mean 0 ms), 0 freed by a shot in 1 s, steps across 0/0 back 0/0 (taken/refused)]
+{
+  "friend_hold": {
+    "by_team": {
+      "0": {
+        "line": {
+          "freed": 0,
+          "long_spells": 0,
+          "no_step": 0,
+          "ready_ticks": 0,
+          "spell_ms": 0,
+          "spells": 0,
+          "step_across_refused": 0,
+          "step_across_taken": 0,
+          "step_back_refused": 0,
+          "step_back_taken": 0
+        },
+        "touch": {
+          "freed": 0,
+          "long_spells": 0,
+          "no_step": 0,
+          "ready_ticks": 0,
+          "spell_ms": 0,
+          "spells": 0,
+          "step_across_refused": 0,
+          "step_across_taken": 0,
+          "step_back_refused": 0,
+          "step_back_taken": 0
+        }
+      },
+      "1": {
+        "line": {
+          "freed": 0,
+          "long_spells": 0,
+          "no_step": 0,
+          "ready_ticks": 0,
+          "spell_ms": 0,
+          "spells": 0,
+          "step_across_refused": 0,
+          "step_across_taken": 0,
+          "step_back_refused": 0,
+          "step_back_taken": 0
+        },
+        "touch": {
+          "freed": 0,
+          "long_spells": 0,
+          "no_step": 0,
+          "ready_ticks": 0,
+          "spell_ms": 0,
+          "spells": 0,
+          "step_across_refused": 0,
+          "step_across_taken": 0,
+          "step_back_refused": 0,
+          "step_back_taken": 0
+        }
+      }
+    }
+  }
+}

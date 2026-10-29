@@ -10,6 +10,9 @@
       "grenade_repick": false,
       "grenade_search": false,
       "grenade_tracks": false
+    },
+    "friends": {
+      "back_step": false
     }
   },
   "avoid": {

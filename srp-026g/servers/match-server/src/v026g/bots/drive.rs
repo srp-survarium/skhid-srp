@@ -174,6 +174,12 @@ pub(super) fn side_step(keys: u32, strafe: u32, yaw: f32, by_keys: bool) -> Vec3
     Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M)
 }
 
+/// The keys of a walk or stand turned into the step back from a teammate in front ([`FriendStep::Back`]): no
+/// forward, no sprint, the back key, the side keys as they were.
+pub(super) fn back_keys(keys: u32) -> u32 {
+    (keys & !(key::FORWARD | key::SPRINT)) | key::BACK
+}
+
 /// What the fight's side step comes to this tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Step {
@@ -1419,6 +1425,21 @@ fn drive_tick_inner(
     #[cfg(test)]
     {
         bot.bench_stepped = 0;
+        bot.bench_friend_step = 0;
+    }
+    // [friends] A mate who blocks by touch alone (the line is clear of him): a step back out of his radius, where
+    // the ground behind is clear; a step across the line would barely grow the distance to a mate straight ahead.
+    if over.friend_step == Some(super::friends::FriendStep::Back) && !using && (aiming_still || walking_aimed) {
+        let keys = back_keys(decision.keys);
+        let to = me.feet + unstick_step(keys, me.yaw);
+        let clear = tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+        #[cfg(test)]
+        {
+            bot.bench_friend_step = if clear { 3 } else { 4 };
+        }
+        if clear {
+            decision.keys = keys;
+        }
     }
     let stepped = if aiming_still {
         Some(decision.keys | over.strafe)
@@ -1437,7 +1458,7 @@ fn drive_tick_inner(
         let (step, other_clear) = choose_step(
             keys,
             over.strafe,
-            over.strafe_away,
+            matches!(over.friend_step, Some(super::friends::FriendStep::Side { .. })),
             tactics.clear_step_sees_lip,
             slides,
             cfg!(test),
@@ -1447,6 +1468,9 @@ fn drive_tick_inner(
         {
             let clear = matches!(step, Step::Own(_));
             motor::counts::side_step(clear);
+            if matches!(over.friend_step, Some(super::friends::FriendStep::Side { .. })) {
+                bot.bench_friend_step = if clear { 1 } else { 2 };
+            }
             bot.bench_stepped = match (clear, aiming_still) {
                 (true, true) => 1,
                 (true, false) => 2,
@@ -1848,6 +1872,14 @@ mod tests {
     /// The side step is tested over the move the keys make: a weave of a walk
     /// forward is the diagonal, not the pure side step; with the switch off,
     /// or keys that cancel, the pure side step of the `strafe` side.
+    #[test]
+    fn the_step_back_drops_forward_and_sprint_and_keeps_the_side_keys() {
+        assert_eq!(back_keys(0), key::BACK);
+        assert_eq!(back_keys(key::FORWARD | key::SPRINT), key::BACK);
+        assert_eq!(back_keys(key::FORWARD | key::LEFT), key::BACK | key::LEFT);
+        assert_eq!(back_keys(key::BACK | key::RIGHT), key::BACK | key::RIGHT);
+    }
+
     #[test]
     fn the_side_step_is_tested_over_the_move_the_keys_make() {
         let pure = |yaw: f32, left: bool| {

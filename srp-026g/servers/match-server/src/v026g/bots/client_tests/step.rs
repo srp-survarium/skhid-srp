@@ -219,7 +219,7 @@ impl Grip {
             Fight::Free => Override {
                 legs: None,
                 strafe: 0,
-                strafe_away: false,
+                friend_step: None,
                 band_m: None,
                 ..over
             },

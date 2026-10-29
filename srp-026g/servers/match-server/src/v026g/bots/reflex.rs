@@ -1379,10 +1379,10 @@ pub struct Override {
     /// while the bot stands to aim at a seen target; the caller presses it
     /// only where the ground that side is clear.
     pub strafe: u32,
-    /// `strafe` is the step away from a teammate in the line of fire
-    /// (`friend.away`), not the reflex's own run: the caller never turns it
-    /// to the other side (that would step into him).
-    pub strafe_away: bool,
+    /// The step that frees a shot a teammate blocks ([`super::friends::Blocked::step`]), not the reflex's own
+    /// run: a `Side` step is `strafe`, which the caller never turns to the other side (that would step into
+    /// him); a `Back` step is the caller's, in its keys.
+    pub friend_step: Option<super::friends::FriendStep>,
     /// `look_at` is a glance at a heard shot (play 6, or a threat not
     /// made by a hit), not an aim: the caller keeps the play's look when
     /// the play uses something or carries (a glance there broke the use
@@ -2829,6 +2829,12 @@ impl Reflex {
     /// [friends] The teammate it held fire for at its last tick, if any.
     pub fn held_for(&self) -> Option<super::friends::Held> {
         self.held_for
+    }
+
+    /// The clock of its last shot (the bench's friend hold counts read it).
+    #[cfg(test)]
+    pub(crate) fn last_shot_ms(&self) -> Option<u32> {
+        self.last_fire.map(|(_, at)| at)
     }
 
     /// [friends] The trace line of the last tick's shot, fired or held,
@@ -5156,6 +5162,7 @@ impl Reflex {
         );
         self.held_for = friend.map(|f| super::friends::Held {
             who: f.who,
+            kind: f.kind,
             ready: fire_allowed
                 && within
                 && self.hands().held().rounds > 0
@@ -5285,10 +5292,13 @@ impl Reflex {
         } else if legs.is_none() || (c.strafe_walking && !running) {
             strafe = self.side_step(now, c, rng);
         }
-        if let Some(friend) = friend.filter(|_| !running) {
-            strafe = friend.away;
+        let friend_step = friend.filter(|_| !running).map(|friend| friend.step(aim.friends.back_step));
+        match friend_step {
+            Some(super::friends::FriendStep::Side { away }) => strafe = away,
+            // The step back is the caller's: the reflex's own run stops, or it would weave into it.
+            Some(super::friends::FriendStep::Back) => strafe = 0,
+            None => {}
         }
-        let strafe_away = friend.is_some_and(|friend| !running && friend.away != 0);
         Override {
             look_at: Some(point),
             error,
@@ -5299,7 +5309,7 @@ impl Reflex {
             legs,
             band_m: self.band,
             strafe,
-            strafe_away,
+            friend_step,
             glance: false,
             track: body
                 .filter(|_| aimed.sees_body() && c.turn_feed)
@@ -5642,12 +5652,16 @@ mod tests {
         let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
         let aim = AimTuning::default();
         let sight = |time| percept(1, Vec3::new(0.0, 0.0, 20.0), time, Source::Seen);
-        // (where the teammate stands, fires, held, touching)
-        for (mate, fires, touch) in [
-            // 1.2 m on, 1.2 m to the side: 45 degrees off, touching.
-            (Vec3::new(1.2, 0.0, 1.2), false, true),
+        // (where the teammate stands, fires, touching, the step that frees the shot: none, across, back)
+        for (mate, fires, touch, step) in [
+            // 1.2 m on, 1.2 m to the side: 45 degrees off, touching, the line clear of him: back.
+            (Vec3::new(1.2, 0.0, 1.2), false, true, Some(false)),
             // 1.5 m off the line 10 m on: clear by 0.87 m.
-            (Vec3::new(1.5, 0.0, 10.0), true, false),
+            (Vec3::new(1.5, 0.0, 10.0), true, false, None),
+            // 5 m on and 0.2 m off the line: in the line: across.
+            (Vec3::new(0.2, 0.0, 5.0), false, false, Some(true)),
+            // 1.5 m on and 0.2 m off the line: in the line and touching: across.
+            (Vec3::new(0.2, 0.0, 1.5), false, true, Some(true)),
         ] {
             let view = view_of(vec![me.clone(), enemy.clone(), body(2, 0, mate, 0.0)]);
             let mut memory = Memory::default();
@@ -5667,8 +5681,10 @@ mod tests {
                 let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
                 fired |= o.fire;
                 // A step away from the teammate is marked (the drive never turns it to the other side).
-                if o.strafe_away {
-                    assert_ne!(o.strafe, 0);
+                if let Some(taken) = o.friend_step {
+                    let across = matches!(taken, crate::v026g::bots::friends::FriendStep::Side { .. });
+                    assert_eq!(across, step == Some(true), "a teammate at {mate:?}: {taken:?}");
+                    assert_eq!(o.strafe != 0, across, "a teammate at {mate:?}: {taken:?}");
                     away += 1;
                 }
                 notes.extend(reflex.take_friend_note());
