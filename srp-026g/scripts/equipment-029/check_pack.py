@@ -6,17 +6,23 @@ import math
 from pathlib import Path
 import re
 
-from make_pack import bcw, material_switches, movie_metadata, shipped_switches, specs, HERE
+from make_pack import bcw, material_switches, missing_maps, movie_metadata, shipped_switches, shipped_textures, specs, HERE
 
 
 def check_shaders(pack):
-    """Every material draws with a shader the released game has compiled."""
+    """Every material draws with a shader the released game has compiled, and
+    every map it switches on has its texture in the game or the pack."""
     shipped = shipped_switches()
-    materials = sorted((pack / 'files').glob('material_instances/**/*.material'))
+    files = pack / 'files'
+    textures = shipped_textures(str(path.relative_to(files)) for path in files.glob('textures/**/*.dds'))
+    materials = sorted(files.glob('material_instances/**/*.material'))
     assert materials, 'no materials in the pack'
     for path in materials:
-        for combination in material_switches(bcw.loads(path.read_bytes())):
+        material = bcw.loads(path.read_bytes())
+        for combination in material_switches(material):
             assert combination in shipped, (str(path.relative_to(pack)), 'no 0.26g shader', combination)
+        missing = list(missing_maps(material, textures))
+        assert not missing, (str(path.relative_to(pack)), 'map switched on without its texture', missing)
     return len(materials)
 
 

@@ -135,6 +135,29 @@ def shipped_switches():
     return shipped
 
 
+# A map's switch and the texture it samples.
+MAPS = {
+    'use_alphablended_normal': 'texture_alphablended_normal',
+    'use_detail_nmap': 'texture_detail_normal',
+    'use_emissive_map': 'texture_emissive',
+    'use_nmap': 'texture_normal',
+    'use_subsurface_scattering_mask_map': 'texture_sss_mask',
+    'use_tdiffuse': 'texture_diffuse',
+    'use_tfresnel': 'texture_fresnel',
+    'use_troughness': 'texture_roughness',
+    'use_tspecular_intensity': 'texture_specular_intensity',
+    'use_tspecular_power': 'texture_specular_power',
+    'use_vertex_blended_normal': 'texture_vertex_blended_normal',
+    'use_vertex_blended_specular': 'texture_vertex_blended_specular',
+}
+
+
+def shipped_textures(own):
+    """The character and editor textures players have, and the pack's `own`."""
+    listed = (HERE / 'shipped_textures.txt').read_text().splitlines()
+    return set(listed) | {path for path in own if path.startswith('textures/') and path.endswith('.dds')}
+
+
 def material_switches(material):
     """Each stage's effect of a material instance: (stage, effect id, switches on)."""
     for stage, body in material['material'].items():
@@ -145,15 +168,30 @@ def material_switches(material):
             yield stage, effect['effect_id'], on
 
 
-def drawable_material(path, raw, shipped):
-    """The donor material with the switches 0.26g has no shader for turned off.
+def missing_maps(material, textures):
+    """(stage, switch, texture) of each map switched on whose texture is nowhere."""
+    for stage, _, on in material_switches(material):
+        effect = material['material'][stage]['effect']
+        for switch in sorted(on & MAPS.keys()):
+            texture = effect.get(MAPS[switch], {}).get('value')
+            if texture and f'textures/{texture}.dds' not in textures:
+                yield stage, switch, texture
 
-    0.29 draws a few switch combinations 0.26g never compiled (the Watchman
-    gloves' subsurface mask, ...): the game stops at "cannot find shader". Of
-    the shipped combinations within the donor's, the one keeping most is kept.
+
+def drawable_material(path, raw, shipped, textures):
+    """The donor material with what 0.26g cannot draw turned off.
+
+    0.29 switches on maps whose texture neither game ships (the Watchman
+    jacket's emissive map, ...) and draws a few switch combinations 0.26g never
+    compiled a shader for (the Watchman gloves' subsurface mask, ...): either
+    stops the game. Such a map's switch goes off; then, of the shipped
+    combinations within the donor's, the one keeping most is kept.
     """
     material = bcw.loads(raw)
     changed = []
+    for stage, switch, texture in list(missing_maps(material, textures)):
+        material['material'][stage]['effect'][switch]['value'] = False
+        changed.append(f'{stage}.{switch} (no {texture})')
     for stage, effect, on in list(material_switches(material)):
         if (stage, effect, on) in shipped:
             continue
@@ -163,13 +201,13 @@ def drawable_material(path, raw, shipped):
             raise ValueError(f'{path}: no shipped {stage} shader within {sorted(on)}')
         for switch in sorted(on - kept):
             material['material'][stage]['effect'][switch]['value'] = False
-            changed.append(f'{stage}.{switch}')
+            changed.append(f'{stage}.{switch} (no shader)')
     if not changed:
         return raw
     out = bcw.dump(material)
     if bcw.dump(bcw.loads(out)) != out:
         raise ValueError(f'{path}: material roundtrip failed')
-    print(f'{path}: off {", ".join(changed)} (no 0.26g shader)')
+    print(f'{path}: off {", ".join(changed)}')
     return out
 
 
@@ -317,10 +355,12 @@ def write_pack(inputs, out):
     # Pinned dependency closure. Shared assets are reused from the released game;
     # this list contains only new assets, including implicit camouflage AOAC maps.
     shipped = shipped_switches()
-    for line in (HERE / 'assets.txt').read_text().splitlines():
+    assets = (HERE / 'assets.txt').read_text().splitlines()
+    textures = shipped_textures(assets)
+    for line in assets:
         raw = inputs.read('assets', line)
         if line.endswith('.material'):
-            raw = drawable_material(line, raw, shipped)
+            raw = drawable_material(line, raw, shipped, textures)
         files['files/' + line] = raw
         operations.append({'op': 'add_file', 'path': line})
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
