@@ -1,0 +1,45 @@
+owner-test worth: carrier in a clear line of an enemy bot 359.4 bot-s, of them on another target 262.7 s (73.1 %); hurt to pain 1 lived 1 (100.0 %); dropped by a hurt carrier 0: owners carry it again 0 (mean 0.0 s), thief's side 0 (mean 0.0 s), left 0; blood first, 50 exchanges: the one hit died 26.0 %, the one who hit died 14.0 %; targets taken for their worth: objective threat 0, objective actor 0, hurt 0 (0 from another target); pushes 0 (ended: time 0, seen again 0, another target 0); flank glances 0; target switches for the worth 0 (0 with a hurter in the line), other 0 (0); bot-ticks with a hurter in the line who is not the target 3499 (in the bot's sight 0), switches off a hurter in its sight: for the worth 0 (by the age of his last hit: <1 s 0, 1-2 s 0, >2 s 0), other 0 (<1 s 0, 1-2 s 0, >2 s 0)
+{
+  "blood_first_first_died_pct": 14.0,
+  "blood_first_n": 50,
+  "blood_first_other_died_pct": 26.0,
+  "carrier_clear_other_target_pct": 73.1,
+  "carrier_clear_other_target_s": 262.7,
+  "carrier_clear_s": 359.4,
+  "hurt_drops_left_n": 0,
+  "hurt_drops_n": 0,
+  "hurt_drops_owners_mean_s": 0.0,
+  "hurt_drops_owners_n": 0,
+  "hurt_drops_thief_side_mean_s": 0.0,
+  "hurt_drops_thief_side_n": 0,
+  "hurt_lived_n": 1,
+  "hurt_lived_pct": 100.0,
+  "hurt_n": 1,
+  "hurter_in_line_bot_ticks": 3499,
+  "hurter_seen_in_line_bot_ticks": 0,
+  "off_seen_hurter_age_other": [
+    0,
+    0,
+    0
+  ],
+  "off_seen_hurter_age_worth": [
+    0,
+    0,
+    0
+  ],
+  "switches_for_worth": 0,
+  "switches_for_worth_off_hurter": 0,
+  "switches_for_worth_off_seen_hurter": 0,
+  "switches_other": 0,
+  "switches_other_off_hurter": 0,
+  "switches_other_off_seen_hurter": 0,
+  "worth_glances": 0,
+  "worth_push_expired": 0,
+  "worth_push_other_target": 0,
+  "worth_push_seen_again": 0,
+  "worth_pushes": 0,
+  "worth_target_hurt": 0,
+  "worth_target_objective_actor": 0,
+  "worth_target_objective_threat": 0,
+  "worth_target_switched": 0
+}

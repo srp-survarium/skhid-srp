@@ -95,6 +95,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(LiveListCounts::default()),
         Box::new(SearchQueueCounts::default()),
         Box::new(ThreatAnswerCounts::default()),
+        Box::new(WorthCounts::default()),
     ]
 }
 

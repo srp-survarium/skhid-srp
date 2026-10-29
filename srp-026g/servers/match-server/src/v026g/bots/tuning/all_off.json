@@ -9,7 +9,10 @@
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_search": false,
-      "grenade_tracks": false
+      "grenade_tracks": false,
+      "worth": {
+        "hurt_from": "body"
+      }
     }
   },
   "avoid": {

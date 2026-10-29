@@ -914,6 +914,8 @@ pub struct TeamKnowledge {
     /// "Shot from there" callouts of the last 20 s.
     pub shots_from: Vec<ShotFrom>,
     pub thefts: Vec<Theft>,
+    /// What the team saw land on its enemies, and who goes after a hurt one ([`super::worth`]).
+    pub wounds: super::worth::Wounds,
     /// Batteries of ours taken from home this match, by anyone (the
     /// container holder's need, `guard_lead`; [`Self::thefts`] keeps 60 s).
     pub thefts_match: u32,
@@ -1076,6 +1078,7 @@ impl TeamKnowledge {
         self.forget_callouts(who);
         self.claims.retain(|c| c.who != who);
         self.release_route(who);
+        self.wounds.forget(who);
         for theft in &mut self.thefts {
             if theft.thief == Some(who) {
                 theft.thief = None;
@@ -1294,6 +1297,7 @@ impl TeamKnowledge {
         self.danger.retain(|spot| spot.time + 30_000 >= now);
         self.shots_from.retain(|shot| shot.time + 20_000 >= now);
         self.thefts.retain(|theft| theft.time + 60_000 >= now);
+        self.wounds.forget_old(now);
         self.losses.retain(|loss| loss.time + LOSS_KEEP_MS >= now);
         self.carriers_seen
             .retain(|seen| seen.time + CARRIER_SEEN_KEEP_MS >= now);

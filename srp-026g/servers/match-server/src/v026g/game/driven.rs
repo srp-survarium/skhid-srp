@@ -624,6 +624,7 @@ impl Game {
                 if let Some(pools) = Pools::of_world(&damage.part_health) {
                     walkers.bots.pools(place, pools);
                 }
+                walkers.bots.bullet_hit(place, damage.last_hit_time_ms);
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);

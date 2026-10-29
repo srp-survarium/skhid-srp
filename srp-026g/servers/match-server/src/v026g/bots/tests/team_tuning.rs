@@ -676,3 +676,36 @@ fn the_team_jobs_open_by_their_teams_job_kills() {
     assert!(bots.teams[0].features.threat.jobs.is_empty(), "team 0: two kills are no hold by its job_kills 3");
     assert_eq!(bots.teams[1].features.threat.jobs.len(), 1, "team 1: a hold by its job_kills 2");
 }
+
+/// The worth of a seen enemy (`worth.rs`): a hit is the team's by its own tuning's `worth.credit_ms`. A bot of each team fired at the
+/// other 500 ms before the world that shows the pools down; team 1's window is 1 ms, team 0's the default. (The target choice, the
+/// push and the flank glance take the `&AimTuning` the think hands the reflex, as the probes above.)
+#[test]
+fn a_hit_is_a_teams_own_by_its_own_credit_window() {
+    let mut other = Tuning::default();
+    other.aim.combat.worth.credit_ms = 1;
+    let mut bots = Bots::new_with(
+        0x7EA6,
+        Mode::Batteries,
+        6,
+        &[0, 1],
+        &[true, true],
+        &[None, None],
+        tunings(Tuning::default(), other),
+        Trace::none(0),
+    );
+    // Each bot fired at the other 500 ms before the bullet hit that the world shows.
+    bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 9_500);
+    bots.bots[1].as_mut().unwrap().reflex.fired_on(0, 9_500);
+    for place in [0, 1] {
+        bots.bullet_hit(place, 10_000);
+    }
+    // Team 0 (the default window) saw the hit on bot 1; team 1 (1 ms) did not see the one on bot 0.
+    assert!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_000, 0, 400) > 0.0);
+    assert_eq!(bots.teams[1].knowledge.wounds.hurt(0, 0, 10_000, 1, 400), 0.0);
+    // A bullet that left long after the hit is not the hit's: no credit for a second one.
+    let one = bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400);
+    bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 12_000);
+    bots.bullet_hit(1, 10_500);
+    assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400), one);
+}

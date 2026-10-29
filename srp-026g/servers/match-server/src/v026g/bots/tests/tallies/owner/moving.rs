@@ -47,6 +47,7 @@ impl Stood {
             Self::Legs(LegsWhy::Range) => "range",
             Self::Legs(LegsWhy::AfterGrenade) => "after_grenade",
             Self::Legs(LegsWhy::Throwing) => "throwing",
+            Self::Legs(LegsWhy::Finish(_)) => "finish",
             Self::NewPlay => "new_play",
             Self::Nothing => "none",
         }
@@ -1213,6 +1214,7 @@ pub(crate) fn ticks_stood_with_a_goal_and_no_route_are_counted_by_why() {
         Stood::Legs(LegsWhy::Range),
         Stood::Legs(LegsWhy::AfterGrenade),
         Stood::Legs(LegsWhy::Throwing),
+        Stood::Legs(LegsWhy::Finish(0)),
         Stood::NewPlay,
         Stood::Nothing,
     ]

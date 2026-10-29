@@ -130,6 +130,9 @@ pub struct Gun {
     pub aim_ms: u32,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
+    /// `bullet_damage`: the share of a body's pool a bullet takes at its muzzle, before armour and the part hit (the
+    /// weapon's nominal damage; what a hit seen to land counts for, `bots/worth.rs`).
+    pub bullet_damage: f32,
     /// What the game data says it is ([`WeaponClass::of`]): its `wpn_*` type,
     /// the dictionary category only for a type nobody knows. The class the
     /// bots go by with `FireTuning::weapon_class_by_data` on.
@@ -420,6 +423,7 @@ impl Gun {
             category: w.category,
             aim_ms: ms(w.aim_time),
             dispersion: w.dispersion,
+            bullet_damage: w.bullet_damage,
             class: WeaponClass::of(w),
             by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),
         }
