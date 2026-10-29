@@ -311,7 +311,8 @@ impl Veil<'_> {
                 let mut inside = 0.0;
                 for cloud in clouds {
                     inside += cloud.inside_m(a, b, at);
-                    if inside >= thin_m {
+                    // Strictly more, as Valve's `IsLineBlockedBySmoke`.
+                    if inside > thin_m {
                         return true;
                     }
                 }
@@ -652,6 +653,61 @@ mod scenarios {
         assert!(!one.smoke.covers(5_000, &tuning, one.places[0].eye(), chest));
         let both = view(me, him, &rims, 5_000);
         assert!(both.smoke.covers(5_000, &tuning, both.places[0].eye(), chest));
+    }
+
+    #[test]
+    fn from_inside_a_cloud_the_near_are_seen_and_the_far_are_not() {
+        // The thrower in his own cloud (40 % of human smokes rest within 8 m of the thrower).
+        let me = Vec3::new(0.0, 0.0, 0.0);
+        let cloud = [Vec3::new(0.0, 0.0, 0.0)];
+        // 1.5 m off, inside it too: the line runs 1.5 m through smoke, under the 2 m it takes to hide.
+        assert_eq!(looks(&view(me, Vec3::new(0.0, 0.0, 1.5), &cloud, 5_000)), SEEN);
+        // 20 m off, outside: 8 m of smoke from the eye to the edge.
+        assert_eq!(looks(&view(me, Vec3::new(0.0, 0.0, 20.0), &cloud, 5_000)), SMOKED);
+    }
+
+    #[test]
+    fn a_cloud_hides_bodies_on_a_slope_below_its_floor_and_not_a_floor_under_it() {
+        let cloud = [Vec3::new(0.0, 0.0, 15.0)];
+        // Both 1.2 m down a slope from the rest point's floor: legs and all within the cloud's 1.3 m under it.
+        let (low_me, low_him) = (Vec3::new(0.0, -1.2, 0.0), Vec3::new(0.0, -1.2, 30.0));
+        assert_eq!(looks(&view(low_me, low_him, &cloud, 5_000)), SMOKED);
+        // A floor 4 m under it (a cloud on a balcony): the lines pass under its base.
+        let (under_me, under_him) = (Vec3::new(0.0, -4.0, 0.0), Vec3::new(0.0, -4.0, 30.0));
+        assert_eq!(looks(&view(under_me, under_him, &cloud, 5_000)), SEEN);
+    }
+
+    #[test]
+    fn a_grenade_that_stopped_on_a_wall_makes_its_cloud_on_the_floor_under_it() {
+        // A floor at 0 and a wall at z = 12; the arc's rest is on the wall 2.5 m up.
+        let (a, b) = (Vec3::new(-50.0, 0.0, -50.0), Vec3::new(50.0, 0.0, -50.0));
+        let (c, d) = (Vec3::new(50.0, 0.0, 50.0), Vec3::new(-50.0, 0.0, 50.0));
+        let (w0, w1) = (Vec3::new(-10.0, 0.0, 12.0), Vec3::new(10.0, 0.0, 12.0));
+        let (w2, w3) = (Vec3::new(10.0, 4.0, 12.0), Vec3::new(-10.0, 4.0, 12.0));
+        let mesh = RayTree::from_corners([[a, b, c], [a, c, d], [w0, w1, w2], [w0, w2, w3]]);
+        let throw = SmokeThrow {
+            by: 1,
+            team: 1,
+            press: MatchMs(0),
+            grenade: SmokeGrenade::RDG_M,
+        };
+        let floor = |rest: Vec3| {
+            let from = rest + Vec3::new(0.0, 0.2, 0.0);
+            mesh.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), FLOOR_BELOW_M).map(|t| from.y - t)
+        };
+        let cloud = throw.cloud_at(Vec3::new(0.0, 2.5, 11.95), floor);
+        assert!(cloud.centre.y.abs() < 1e-3, "{:?}", cloud.centre);
+        // Its base on the floor hides a man's shins behind it from a crouched eye (1.0 m): from the rest's height
+        // (its base 1.2 m up) the line ran under it.
+        let at = MatchMs(cloud.pours.0 + 5_000);
+        let clouds = Clouds::new(vec![cloud]);
+        let tuning = SmokeTuning::default();
+        let eye = Vec3::new(0.0, 1.0, 0.0);
+        assert!(clouds.covers(at.0, &tuning, eye, Vec3::new(0.0, 0.3, 20.0)), "shins");
+        let up = Clouds::new(vec![throw.cloud_at(Vec3::new(0.0, 2.5, 11.95), |_| None)]);
+        assert!(!up.covers(at.0, &tuning, eye, Vec3::new(0.0, 0.3, 20.0)), "the rest's height leaves the shins");
+        // No floor under it within reach: the rest itself.
+        assert_eq!(throw.cloud_at(Vec3::new(0.0, 2.5, 11.95), |_| None).centre.y, 2.5);
     }
 
     /// The cost of a sight query (`aimpoint::look_parts` through the veil) with 0, 1 and 4 live clouds off the

@@ -4,7 +4,7 @@
 use super::*;
 
 /// A cloud hides what lies behind it from a bot's eyes, as it does from a player's: a sight line that runs through
-/// a live cloud for [`Self::thin_m`] or more sees nothing past it. Bullets go through as before.
+/// a live cloud for more than [`Self::thin_m`] sees nothing past it. Bullets go through as before.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SmokeTuning {
@@ -20,8 +20,9 @@ pub struct SmokeTuning {
     /// line that only grazes an edge sees past it. Valve's Counter-Strike bot (`CBotManager::IsLineBlockedBySmoke`,
     /// the shipped bot's source, ReGameDLL_CS `game_shared/bot/bot_manager.cpp`) sums the smoked chords the same way
     /// and sees through up to 0.7 of its 115-unit smoke radius, 80 units, about 2.0 m: a smoke's density, not its
-    /// size, so the metres carry over. LIKELY for 0.26g's puffs (four or more overlap on a line, `smoke.rs`).
-    pub thin_m: Metres,
+    /// size, so the metres carry over: GUESS for 0.26g's 5 m puffs, whose alpha per metre was not read (client test S1). Above
+    /// nothing (0 would hide every line while any cloud lives).
+    pub thin_m: Positive,
 }
 
 impl Default for SmokeTuning {
@@ -29,7 +30,7 @@ impl Default for SmokeTuning {
         Self {
             sight: true,
             spray_ms: 750,
-            thin_m: Metres::of(2.0),
+            thin_m: Positive::of(2.0),
         }
     }
 }
