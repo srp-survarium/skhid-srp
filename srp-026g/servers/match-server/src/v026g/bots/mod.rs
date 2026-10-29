@@ -235,6 +235,8 @@ pub struct Bot {
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
+    /// [smoke] The team's held lanes, told at the commander's ticks while `smoke.cross_lane` is on.
+    lanes: Arc<[threat::HeldLane]>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -429,6 +431,7 @@ impl Bot {
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
+            lanes: Arc::from(Vec::new()),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -1735,11 +1738,12 @@ impl Bots {
     }
 
     /// The inputs due with the clock at `clock`.
-    /// What each bot's kit holds in frags, told to its grenade logic (`CombatTuning::grenade_kit_cap`): at the start of
-    /// every poll (`poll`, and the bench's `timed_poll`).
-    pub(crate) fn tell_frags_left(&mut self) {
+    /// What each bot's kit can throw now, told to its reflex: the frags it holds (`CombatTuning::grenade_kit_cap`) and the
+    /// quick-use key of its smoke (`smoke`). At the start of every poll (`poll`, and the bench's `timed_poll`).
+    pub(crate) fn tell_kit(&mut self) {
         for bot in self.bots.iter_mut().flatten() {
             bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));
+            bot.reflex.set_smoke_key(self.tracker.smoke_key(bot.place));
         }
     }
 
@@ -1755,7 +1759,7 @@ impl Bots {
         // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
         let avoid = &self.tunings.match_wide().avoid;
         self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
-        self.tell_frags_left();
+        self.tell_kit();
         self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);

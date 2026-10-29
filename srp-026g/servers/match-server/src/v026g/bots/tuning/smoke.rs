@@ -45,6 +45,14 @@ pub struct SmokeTuning {
     /// ledger's "own smoke told" row, as `avoid.told_ms` for a mate's frag; the thrower knows his own at once).
     /// Until then a mate's cloud seen or heard is of unknown side and watched as a possible enemy's.
     pub told_ms: u32,
+    /// [smoke use] A bot whose route crosses a held lane ahead (K1, `threat.rs`) within `lane_ahead_m`, before it
+    /// steps in, smokes the lane: a cloud between the spot and the crossing (`smoke::smoke_between`), if the team
+    /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none.
+    pub cross_lane: bool,
+    pub lane_ahead_m: Metres,
+    /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
+    /// between them, as near him as the throw reaches. Off: none.
+    pub anti_sniper: bool,
 }
 
 impl Default for SmokeTuning {
@@ -61,6 +69,9 @@ impl Default for SmokeTuning {
             heard_m: Metres::of(15.0),
             heard_ms: 2_000,
             told_ms: 400,
+            cross_lane: false,
+            lane_ahead_m: Metres::of(20.0),
+            anti_sniper: false,
         }
     }
 }

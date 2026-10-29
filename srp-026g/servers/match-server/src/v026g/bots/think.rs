@@ -579,6 +579,93 @@ fn smoke_react(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     }
 }
 
+/// [smoke use] A smoke from the kit for one of its uses, each its own switch (`SmokeTuning`): against the sniper that
+/// outranges it (`anti_sniper`), or across a held lane its route enters ahead (`cross_lane`). Only against an enemy
+/// the team sensed within [`super::smoke::FAIR_SENSED_MS`], with a smoke in the kit and the hands free; one note
+/// per throw decided.
+fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
+    use super::smoke::{self, FAIR_SENSED_MS, SmokeUse};
+    let Due {
+        now,
+        view,
+        me,
+        tactics,
+        tuning,
+    } = *due;
+    let t = &tuning.smoke;
+    if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() {
+        return;
+    }
+    let reach = smoke::Reach {
+        mesh: &tactics.world.sight,
+        grenade: smoke::SmokeGrenade::RDG_M,
+        thrower_eye: me.eye(),
+    };
+    let thin = t.thin_m.get();
+    let fresh = |sensed: u32| view.clock.saturating_sub(sensed) <= FAIR_SENSED_MS;
+    let eye_over = Vec3::new(0.0, 1.6, 0.0);
+    // Against the sniper it sees outranging it: the line from him to it.
+    let sniper = t
+        .anti_sniper
+        .then(|| bot.reflex.outranged_by())
+        .flatten()
+        .filter(|&(_, _, seen)| fresh(seen))
+        .and_then(|(who, at, _)| {
+            smoke::smoke_between(&reach, at + eye_over, me.feet, thin, SmokeUse::AntiSniper)
+                .map(|plan| (plan, format!("player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach", at.x, at.y, at.z)))
+        });
+    // Across the first held lane its route enters ahead, before it steps in.
+    let lane = || {
+        if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() {
+            return None;
+        }
+        let grid = &tactics.world.grid;
+        if bot.threat.exposed_at(grid, me.feet) {
+            return None;
+        }
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        let end = (start + t.lane_ahead_m.get()).min(route.length());
+        let crossing = (1..)
+            .map(|k| start + k as f32 * 2.0)
+            .take_while(|&s| s <= end)
+            .map(|s| route.at(s, heights))
+            .find(|&p| bot.threat.exposed_at(grid, p))?;
+        let held = bot
+            .lanes
+            .iter()
+            .filter(|l| l.sensed.is_some_and(fresh) && l.at.distance_xz(crossing) <= l.reach_m)
+            .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
+        smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
+            let why = format!(
+                "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
+                held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
+            );
+            (plan, why)
+        })
+    };
+    let Some((plan, why)) = sniper.or_else(lane) else {
+        return;
+    };
+    if bot.reflex.start_smoke(plan, now) {
+        #[cfg(test)]
+        {
+            smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
+            smoke::tally::begun(bot.team, plan.for_use);
+        }
+        let at = plan.at;
+        bot.note(
+            notes,
+            now,
+            format!(
+                "decides a smoke for {:?}: {why}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
+                plan.for_use, at.x, at.y, at.z, plan.covers_m
+            ),
+        );
+    }
+}
+
 /// The reflex thinks (`Reflex::think_with`) on what the bot remembers; its throw notes and the hit it felt from a direction alone.
 pub(super) fn react(
     due: &Due,
@@ -619,6 +706,7 @@ pub(super) fn react(
         bot.note(notes, now, text);
     }
     smoke_react(due, bot, notes);
+    smoke_uses(due, bot, notes);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);

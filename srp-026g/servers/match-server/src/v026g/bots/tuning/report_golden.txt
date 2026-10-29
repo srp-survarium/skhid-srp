@@ -21,7 +21,7 @@ switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_
 switches OFF cheats: batteries
 switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
-switches OFF smoke: react_watch
+switches OFF smoke: anti_sniper cross_lane react_watch
 switches OFF unstick: fix_gap_ms
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links

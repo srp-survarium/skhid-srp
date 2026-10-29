@@ -361,6 +361,11 @@ impl Spot {
                 && self.shooter_seen.is_some_and(|t| now.saturating_sub(t) <= SEEN_MS))
     }
 
+    /// When the team last sensed its shooter here (seen or heard), if since it was made.
+    pub fn sensed(&self) -> Option<u32> {
+        self.shooter_seen
+    }
+
     /// The regions of his line, once all cast.
     pub fn covered(&self) -> Option<&[u32]> {
         self.cast.then_some(&self.seen[..])
@@ -574,6 +579,30 @@ impl ThreatSpots {
             .collect()
     }
 
+}
+
+/// [smoke] A held spot as the team's bots read it for a smoke across its lane (`smoke.cross_lane`): where its
+/// shooter killed from, how far his line reaches, and when the team last sensed him there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeldLane {
+    pub at: Vec3,
+    pub shooter: Place,
+    pub reach_m: f32,
+    pub sensed: Option<u32>,
+}
+
+impl ThreatSpots {
+    /// The spots held at `now`, as lanes.
+    pub fn lanes(&self, now: u32) -> Vec<HeldLane> {
+        self.held(now)
+            .map(|s| HeldLane {
+                at: s.at,
+                shooter: s.shooter,
+                reach_m: s.reach_m,
+                sensed: s.sensed(),
+            })
+            .collect()
+    }
 }
 
 /// A team's threat state, by feature ([`super::features`]).

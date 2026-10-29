@@ -17,6 +17,7 @@ pub(super) struct TeamState {
 /// shooters its bots sense now, spots cleared where a bot sees them
 /// empty, a held spot cast at, and the regions his line covers told to
 /// the team's bots when they changed.
+#[allow(clippy::too_many_arguments)]
 fn threat_tick(
     tactics: &Tactics,
     bots: &mut [Option<Bot>],
@@ -24,6 +25,7 @@ fn threat_tick(
     team: u8,
     view: &MatchView,
     now: u32,
+    lanes: bool,
     notes: &mut Vec<Note>,
 ) {
     if state.features.threat.spots.is_empty() && state.features.threat.covered.is_none() {
@@ -43,6 +45,13 @@ fn threat_tick(
         }
     }
     state.features.threat.spots.tick(now, &watchers, &enemies, tactics);
+    // [smoke] The held lanes, for a smoke across one (`smoke.cross_lane`).
+    if lanes {
+        let held: Arc<[threat::HeldLane]> = state.features.threat.spots.lanes(now).into();
+        for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.lanes = held.clone();
+        }
+    }
     let mut regions = state.features.threat.spots.covered_regions(now);
     regions.sort_unstable();
     regions.dedup();
@@ -218,7 +227,8 @@ impl Bots {
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, notes);
+            let lanes = tuning.smoke.cross_lane;
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, lanes, notes);
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();

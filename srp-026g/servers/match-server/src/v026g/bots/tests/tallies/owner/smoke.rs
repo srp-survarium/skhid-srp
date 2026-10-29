@@ -48,6 +48,7 @@ thread_local! {
 pub(super) struct SmokeCounts {
     /// The eyes' counts on this thread when the match began (`smoke::tally::counts`).
     eyes_start: [[u64; smoke::tally::EVENTS]; 2],
+    throws_start: smoke::tally::Throws,
     /// The tracker's throws and clouds at the last tick, and its clouds then; grenade keys of humans whose pockets
     /// are not known (a real cloud the model cannot make).
     thrown: Thrown,
@@ -74,6 +75,7 @@ impl SmokeCounts {
     pub(super) fn new() -> Self {
         Self {
             eyes_start: smoke::tally::counts(),
+            throws_start: smoke::tally::throws(),
             thrown: Thrown::default(),
             clouds: Vec::new(),
             unknown_pockets: 0,
@@ -205,7 +207,30 @@ impl SmokeCounts {
         use smoke::tally::Event::{AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, SightLost, Spray, WatchBusy};
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
+        // The bots' smoke throws, by team and use: [begun, thrown, given up]; and the thrown by team and role.
+        let now_throws = smoke::tally::throws();
+        let roles = survarium::v026g::loadouts::BotRole::ALL;
+        let uses = smoke::SmokeUse::ALL;
+        let throw = |team: usize, role: usize, u: usize, step: usize| {
+            now_throws[team][role][u][step] - self.throws_start[team][role][u][step]
+        };
+        let by_use: [[[u64; smoke::tally::THROW_STEPS]; smoke::SmokeUse::ALL.len()]; 2] = std::array::from_fn(|team| {
+            std::array::from_fn(|u| std::array::from_fn(|step| (0..roles.len()).map(|r| throw(team, r, u, step)).sum()))
+        });
+        let thrown_by_role: [[u64; survarium::v026g::loadouts::BotRole::ALL.len()]; 2] =
+            std::array::from_fn(|team| std::array::from_fn(|r| (0..uses.len()).map(|u| throw(team, r, u, 1)).sum()));
+        let uses_json: serde_json::Map<String, serde_json::Value> = uses
+            .iter()
+            .map(|u| (format!("{u:?}"), serde_json::json!([by_use[0][u.index()], by_use[1][u.index()]])))
+            .collect();
+        let roles_json: serde_json::Map<String, serde_json::Value> = roles
+            .iter()
+            .enumerate()
+            .map(|(r, role)| (role.name().to_owned(), serde_json::json!([thrown_by_role[0][r], thrown_by_role[1][r]])))
+            .collect();
         let json = serde_json::json!({
+            "smoke_bot_throws_by_use": uses_json,
+            "smoke_bot_thrown_by_role": roles_json,
             "smoke_thrown": self.thrown.thrown,
             "smoke_clouds": self.thrown.clouds,
             "smoke_dropped": self.thrown.dropped,
@@ -230,7 +255,9 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
+            roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
