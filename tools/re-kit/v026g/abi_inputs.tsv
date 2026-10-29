@@ -4725,3 +4725,4 @@ va	name	location	role	basis
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+8	element: 0 the paper doll (with the slot), 1 the inventory, 2 the shop	observed
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
+0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed

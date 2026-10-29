@@ -3134,6 +3134,8 @@ va	status	ref_021d	name
 0x0028a2c0	inferred-medium		survarium::items_dictionary::copy_item_record
 0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
 0x002e13a0	inferred-medium		survarium::weapon_core::get_camera_shake_lexeme
+0x00329ff0	inferred-medium		survarium::body_part_parameters::hit_by_type
 0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
+0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
