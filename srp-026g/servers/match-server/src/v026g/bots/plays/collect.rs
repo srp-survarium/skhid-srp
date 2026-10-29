@@ -1554,6 +1554,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
             };
+            // A stand in zones on all match is looked at from its crossing's dry edge, as the take is (`State::Fetch`):
+            // `take_block` admitted the spot by that crossing (`RouteCrossing::Total` offers the motor's route as one), and a
+            // walk to the stand itself has no way (the look ended at once, "no way to it", for every bot that took it).
+            let stand = if cx.tuning.hazard.route_crossing == RouteCrossing::Total && cx.needs_crossing(stand) {
+                match cx.crossing(at) {
+                    Some(crossing) if crossing.fits(&cx.budget()) => crossing.edge,
+                    _ => return Step::Failed("no way to it"),
+                }
+            } else {
+                stand
+            };
             if !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
@@ -2490,6 +2501,40 @@ mod tests {
         harsh.tuning.hazard.route_crossing = RouteCrossing::Total;
         harsh.battery(BatteryState::Free(at));
         assert_eq!(harsh.cx(0).take_block(at), Some("its zone hurts too much"));
+    }
+
+    /// A look at a spot whose stand is in zones on all match, admitted by the motor's route over them
+    /// (`RouteCrossing::Total`): the bot walks to the crossing's dry edge to look, where it used to end at once ("no way to
+    /// it") on a walk to the stand itself. With the switch off the spot is not admitted at all.
+    #[test]
+    fn a_look_at_a_spot_in_zones_goes_to_the_crossings_dry_edge() {
+        use crate::v026g::bots::know::LookSpot;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let looked = |route: RouteCrossing| {
+            let mut s = with_hurting(26.0, 0.01);
+            s.tuning.hazard.route_crossing = route;
+            s.battery(BatteryState::Free(at));
+            s.team.add_look(LookSpot {
+                battery: 0,
+                at,
+                time: s.view.clock,
+                until: s.view.clock + crate::v026g::bots::know::LOOK_KEEP_MS,
+                theft: false,
+            });
+            s
+        };
+        let off = looked(RouteCrossing::Strict);
+        assert!(!off.cx(0).can_take(at), "not admitted without the routed crossing");
+        let s = looked(RouteCrossing::Total);
+        assert!(s.cx(0).can_take(at));
+        let edge = s.cx(0).crossing(at).expect("a route over the zone").edge;
+        let target = TargetRef::Point(at);
+        let mut rng = Rng::new(1);
+        let mut state = State::Search;
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else {
+            panic!("goes to look");
+        };
+        assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01), "{intent:?} {edge:?}");
     }
 
     /// A carrier in a zone on all match with no way out walks out by its
