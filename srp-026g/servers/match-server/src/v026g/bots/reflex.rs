@@ -3601,6 +3601,19 @@ impl Reflex {
         }
     }
 
+    /// [smoke] A glance at `at` (an enemy cloud's edge) until `until`, if nothing else holds the look: no target, no
+    /// glance, threat or sound under way. Whether it was taken.
+    pub fn watch_smoke(&mut self, at: Vec3, now: u32, until: u32) -> bool {
+        let busy = self.target.is_some()
+            || self.glance.is_some_and(|(_, end)| now < end)
+            || self.threat.is_some_and(|t| now < t.until)
+            || self.sound.is_some_and(|(_, end)| now < end);
+        if !busy {
+            self.glance = Some((at, until));
+        }
+        !busy
+    }
+
     /// Play 21: the partner died at a spot lately: watch it.
     fn trade_watch(&mut self, sit: &Situation, now: u32, c: &CombatTuning) {
         if self.trade.is_some_and(|(_, until)| now >= until) {

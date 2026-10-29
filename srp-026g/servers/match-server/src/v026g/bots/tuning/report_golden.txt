@@ -11,7 +11,7 @@ switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
-switches ON smoke: sight
+switches ON smoke: react_watch sight
 switches ON spacing: buddy
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: detour spots sprint

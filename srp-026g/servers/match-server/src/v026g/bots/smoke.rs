@@ -404,6 +404,119 @@ pub struct SmokeCounts {
     pub moved_dm: [u32; 2],
 }
 
+/// A cloud's name: who threw it and when.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CloudKey {
+    pub by: Place,
+    pub thrown: MatchMs,
+}
+
+impl Cloud {
+    pub fn key(&self) -> CloudKey {
+        CloudKey {
+            by: self.by,
+            thrown: self.thrown,
+        }
+    }
+}
+
+/// The clouds one bot knows of, as a player does: those it saw (smoking, in its view, a clear line to the cloud's
+/// middle within `see_m`, or near enough to hear it pop), and its own team's (a mate threw it). Never a cloud it
+/// had no way to see. Kept until the cloud ends; what the bot did about each (the next edge watch).
+#[derive(Clone, Debug, Default)]
+pub struct KnownClouds {
+    known: Vec<Known>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Known {
+    key: CloudKey,
+    /// When it may next watch the cloud's edge.
+    next_watch: MatchMs,
+    /// The first watch was noted.
+    noted: bool,
+}
+
+/// A cloud this near pops loud enough to be heard whatever way the bot faces, metres (GUESS: the smoke grenade's
+/// pop and hiss; no sound data read).
+pub const HEARD_POP_M: f32 = 15.0;
+
+/// What an edge watch came to: where to look, for which cloud, and whether it is the first for it (a note).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeWatch {
+    pub at: Vec3,
+    pub key: CloudKey,
+    pub first: bool,
+}
+
+impl KnownClouds {
+    /// At a think: the clouds that ended are forgotten; one it sees now (`sees` of the cloud's middle a metre over
+    /// its floor: the caller's sight of a cloud, in its view cone, a clear line on the map, within its range), one
+    /// within [`HEARD_POP_M`], or its own team's is known from now on.
+    pub fn update(&mut self, team: u8, eye: Vec3, clouds: &Clouds, now: u32, sees: impl Fn(Vec3) -> bool) {
+        let at = MatchMs(now);
+        self.known.retain(|k| clouds.all().iter().any(|c| c.key() == k.key && c.live_at(at)));
+        for cloud in clouds.all() {
+            if at < cloud.pours || !cloud.live_at(at) || self.known.iter().any(|k| k.key == cloud.key()) {
+                continue;
+            }
+            let middle = cloud.centre + Vec3::new(0.0, 1.0, 0.0);
+            let seen = cloud.team == team || eye.distance_xz(cloud.centre) <= HEARD_POP_M || sees(middle);
+            if seen {
+                self.known.push(Known {
+                    key: cloud.key(),
+                    next_watch: at,
+                    noted: false,
+                });
+            }
+        }
+    }
+
+    /// Whether it knows the cloud `key`.
+    pub fn knows(&self, key: CloudKey) -> bool {
+        self.known.iter().any(|k| k.key == key)
+    }
+
+    /// The edge of the nearest enemy cloud it knows, within `watch_m`, still hiding, facing it: where a man coming
+    /// through would step out. Due every `every_ms` per cloud. The bot is outside it (one inside sees nothing to watch).
+    pub fn edge_to_watch(
+        &mut self,
+        team: u8,
+        feet: Vec3,
+        clouds: &Clouds,
+        now: u32,
+        watch_m: f32,
+        every_ms: u32,
+    ) -> Option<EdgeWatch> {
+        let at = MatchMs(now);
+        let (index, cloud, radius) = self
+            .known
+            .iter()
+            .enumerate()
+            .filter(|(_, k)| at >= k.next_watch)
+            .filter_map(|(i, k)| {
+                let cloud = clouds.all().iter().find(|c| c.key() == k.key && c.team != team)?;
+                let radius = cloud.radius_at(at)?;
+                let d = feet.distance_xz(cloud.centre);
+                (d > radius && d - radius <= watch_m).then_some((i, *cloud, radius))
+            })
+            .min_by(|a, b| {
+                (feet.distance_xz(a.1.centre) - a.2).total_cmp(&(feet.distance_xz(b.1.centre) - b.2))
+            })?;
+        let toward = (feet - cloud.centre) * (1.0 / feet.distance_xz(cloud.centre).max(1e-3));
+        let edge = cloud.centre + Vec3::new(toward.x * radius, 1.4, toward.z * radius);
+        let known = &mut self.known[index];
+        known.next_watch = at.plus(every_ms);
+        let first = !known.noted;
+        known.noted = true;
+        Some(EdgeWatch {
+            at: edge,
+            key: cloud.key(),
+            first,
+        })
+    }
+}
+
 /// What a smoke throw is for: the uses of part 2, each its own switch (`SmokeTuning`), and the plays that call the
 /// API (fx-threat-obj's Breach and spawn-exit breakout: `Breach`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -526,9 +639,11 @@ pub mod tally {
         AimLost,
         /// A tick of fire sprayed at the last part seen of a target gone into smoke.
         Spray,
+        /// A glance at an enemy cloud's edge (`smoke.react_watch`).
+        EdgeWatch,
     }
 
-    pub const EVENTS: usize = 4;
+    pub const EVENTS: usize = 5;
 
     thread_local! {
         static COUNTS: Cell<[[u64; EVENTS]; 2]> = const { Cell::new([[0; EVENTS]; 2]) };
@@ -637,6 +752,51 @@ mod tests {
         assert!(clouds.veil(c.thrown.0, &on).is_clear(), "still in the air");
         assert!(clouds.veil(c.ends().0, &on).is_clear(), "gone");
         assert!(Clouds::default().veil(full, &on).is_clear());
+    }
+
+    #[test]
+    fn a_bot_knows_the_clouds_it_sees_or_hears_and_its_teams_and_watches_the_near_edge_of_an_enemys() {
+        let enemy = cloud(Vec3::new(0.0, 0.0, 30.0));
+        let mate = Cloud {
+            team: 1,
+            by: 4,
+            ..cloud(Vec3::new(30.0, 0.0, 0.0))
+        };
+        let clouds = Clouds::new(vec![enemy, mate]);
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let now = enemy.pours.0 + 1_000;
+        let update = |known: &mut KnownClouds, in_view: bool, clear: bool, at: u32| {
+            known.update(1, eye, &clouds, at, |_| in_view && clear);
+        };
+        // Out of the view, or behind a wall: only its own team's (team 1) is known.
+        let mut known = KnownClouds::default();
+        update(&mut known, false, true, now);
+        update(&mut known, true, false, now);
+        assert!(known.knows(mate.key()) && !known.knows(enemy.key()));
+        // Before it smokes, nothing to see; in the view with a clear line, known.
+        update(&mut known, true, true, enemy.pours.0 - 100);
+        assert!(!known.knows(enemy.key()));
+        update(&mut known, true, true, now);
+        assert!(known.knows(enemy.key()));
+        // Heard pop: within 15 m, whatever the view.
+        let mut near = KnownClouds::default();
+        let close = Clouds::new(vec![cloud(Vec3::new(0.0, 0.0, 12.0))]);
+        near.update(1, eye, &close, now, |_| false);
+        assert!(near.knows(close.all()[0].key()));
+        // The enemy cloud's edge facing the bot, 22 m off (its 8 m radius at 30 m), within the 40 m watch; the mate's never.
+        let watch = known.edge_to_watch(1, Vec3::ZERO, &clouds, now, 40.0, 4_000).unwrap();
+        assert_eq!(watch.key, enemy.key());
+        assert!(watch.first && (watch.at - Vec3::new(0.0, 1.4, 22.0)).length() < 1e-3, "{watch:?}");
+        // Again only after `every_ms`, and no longer the first.
+        assert_eq!(known.edge_to_watch(1, Vec3::ZERO, &clouds, now + 1_000, 40.0, 4_000), None);
+        let again = known.edge_to_watch(1, Vec3::ZERO, &clouds, now + 4_000, 40.0, 4_000).unwrap();
+        assert!(!again.first);
+        // Inside the cloud, or beyond the watch, nothing.
+        assert_eq!(known.edge_to_watch(1, Vec3::new(0.0, 0.0, 28.0), &clouds, now + 9_000, 40.0, 4_000), None);
+        assert_eq!(known.edge_to_watch(1, Vec3::new(0.0, 0.0, -30.0), &clouds, now + 9_000, 40.0, 4_000), None);
+        // Gone: forgotten.
+        update(&mut known, true, true, enemy.ends().0);
+        assert!(!known.knows(enemy.key()));
     }
 
     #[test]

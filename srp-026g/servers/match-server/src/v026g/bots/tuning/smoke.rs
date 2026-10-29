@@ -23,6 +23,19 @@ pub struct SmokeTuning {
     /// size, so the metres carry over: GUESS for 0.26g's 5 m puffs, whose alpha per metre was not read (client test S1). Above
     /// nothing (0 would hide every line while any cloud lives).
     pub thin_m: Positive,
+    /// React to an enemy cloud the bot knows (it saw it, or heard it pop, `smoke::KnownClouds`): with no target, glance
+    /// at the cloud's edge that faces it, where a man coming through steps out ("watch for enemies covering the
+    /// smoke's far edge", "peek the smoke's edge", `bp-anticamper-human.md` S26/S15). Off: no reaction.
+    pub react_watch: bool,
+    /// A cloud is seen from this far at most, metres (its middle in the view and a clear line to it). GUESS: the
+    /// 5 m puffs of a cloud are plain at 80 m.
+    pub see_m: Metres,
+    /// An enemy cloud's edge within this is watched, metres (the bots' fight ranges: a man stepping out at 40 m is
+    /// in reach of every weapon but a shotgun).
+    pub watch_m: Metres,
+    /// A watch lasts this long, and comes again this often while the cloud lasts, ms (the glance of a callout).
+    pub watch_ms: u32,
+    pub watch_every_ms: u32,
 }
 
 impl Default for SmokeTuning {
@@ -31,6 +44,11 @@ impl Default for SmokeTuning {
             sight: true,
             spray_ms: 750,
             thin_m: Positive::of(2.0),
+            react_watch: true,
+            see_m: Metres::of(80.0),
+            watch_m: Metres::of(40.0),
+            watch_ms: 1_500,
+            watch_every_ms: 4_000,
         }
     }
 }

@@ -410,4 +410,30 @@ fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
         [0u8, 1].map(|team| bots.tuning_of(team).spacing.callouts.steer_age_ms()),
         [None, Some(8_000)]
     );
+/// The edge watch (`smoke.react_watch`) through the real poll: a cloud between the teams from the start, nobody sees
+/// anybody, and each team's bots glance at the edge that faces them (a note a cloud); the switch off, none.
+#[test]
+fn bots_that_see_an_enemy_cloud_watch_its_near_edge() {
+    use crate::v026g::bots::smoke::tally::{self, Event};
+    let run = |watch: bool| {
+        let before = tally::counts();
+        let mut tuning = Tuning::default();
+        tuning.smoke.react_watch = watch;
+        let mut bots = facing_bots(tuning.clone(), tuning, 0x5E0F);
+        // The cloud is team 1's: team 0's bots watch it; team 1's own cloud is not watched.
+        bots.tracker.add_cloud(across_middle(0));
+        let mut notes = Vec::new();
+        for clock in (1_100..=6_000).step_by(100) {
+            let (_, polled) = bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+            notes.extend(polled);
+        }
+        let after = tally::counts();
+        let watched = [0, 1].map(|team| after[team][Event::EdgeWatch as usize] - before[team][Event::EdgeWatch as usize]);
+        let noted = notes.iter().filter(|n| n.text.contains("watches the edge of player 2's smoke")).count();
+        (watched, noted)
+    };
+    let (watched, noted) = run(true);
+    assert!(watched[0] > 0 && watched[1] == 0, "{watched:?}");
+    assert_eq!(noted, 2, "one note per bot of team 0");
+    assert_eq!(run(false), ([0, 0], 0));
 }

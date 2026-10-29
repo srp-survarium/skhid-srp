@@ -522,6 +522,54 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     );
 }
 
+/// [smoke] The clouds the bot sees join what it knows (`smoke::KnownClouds`); with `smoke.react_watch`, an enemy
+/// cloud's near edge is glanced at while nothing else holds its look (one note a cloud).
+fn smoke_react(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
+    let Due {
+        now,
+        view,
+        me,
+        tactics,
+        tuning,
+    } = *due;
+    let t = &tuning.smoke;
+    if view.smoke.is_empty() {
+        return;
+    }
+    let (eye, feet, yaw, view_deg) = (me.eye(), me.feet, me.yaw, tuning.sense.view_deg);
+    // A cloud is seen in the view, within `see_m`, along a clear line on the map.
+    let see_m = t.see_m.get();
+    bot.clouds.update(bot.team, eye, &view.smoke, view.clock, |middle| {
+        eye.distance_xz(middle) <= see_m
+            && super::sense::in_view(feet, yaw, middle, view_deg)
+            && tactics.sees(eye, middle)
+    });
+    if !t.react_watch {
+        return;
+    }
+    let Some(watch) = bot
+        .clouds
+        .edge_to_watch(bot.team, feet, &view.smoke, view.clock, t.watch_m.get(), t.watch_every_ms)
+    else {
+        return;
+    };
+    if bot.reflex.watch_smoke(watch.at, now, now + t.watch_ms) {
+        #[cfg(test)]
+        super::smoke::tally::add(bot.team, super::smoke::tally::Event::EdgeWatch);
+        if watch.first {
+            let at = watch.at;
+            bot.note(
+                notes,
+                now,
+                format!(
+                    "watches the edge of player {}'s smoke at ({:.1}, {:.1}, {:.1})",
+                    watch.key.by, at.x, at.y, at.z
+                ),
+            );
+        }
+    }
+}
+
 /// The reflex thinks (`Reflex::think_with`) on what the bot remembers; its throw notes and the hit it felt from a direction alone.
 pub(super) fn react(
     due: &Due,
@@ -561,6 +609,7 @@ pub(super) fn react(
     for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);
     }
+    smoke_react(due, bot, notes);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);
