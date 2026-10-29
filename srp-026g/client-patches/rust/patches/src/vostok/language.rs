@@ -6,13 +6,14 @@
 //! (`game_options::scaleform_callback`) with the movie it answers.
 
 use core::cell::UnsafeCell;
-use core::ffi::{CStr, c_void};
-use core::ptr::NonNull;
+use core::ffi::CStr;
 
-use super::context::{Context, Reg};
+use super::context::Context;
 use super::hook::Thread;
-use super::ui::{GFX_MANAGED, GFX_STRING, GfxString, GfxValue, movie_of};
+use super::ui::{GFX_MANAGED, GFX_STRING, movie_of};
 use crate::raw;
+
+pub use super::ui::MAX_STRINGS;
 
 /// The C string at `text`, read up to `limit` bytes for its zero (none in
 /// them: not a string here). core's `CStr::from_ptr` would call a strlen the
@@ -56,10 +57,7 @@ pub fn current(_: &Thread) -> LanguageName {
     // SAFETY: a static buffer_string of the image whose begin is its 16-byte
     // buffer, zero-terminated (its initializer 0x84E3E0, every writer
     // buffer_string::assign); the game's own thread reads it here.
-    let name = unsafe {
-        let begin = *raw::buffer_string::begin(raw::image::LOCALIZATION as usize as *mut c_void);
-        c_string(begin as usize as *const u8, 16)
-    };
+    let name = unsafe { c_string(raw::image::localization().begin(), 16) };
     let name = name.map_or(&[][..], CStr::to_bytes);
     let len = name.len().min(15);
     bytes[..len].copy_from_slice(&name[..len]);
@@ -72,7 +70,7 @@ pub fn current(_: &Thread) -> LanguageName {
 pub fn set_current(_: &Thread, name: &CStr) {
     // SAFETY: buffer_string::assign on the image's string; a registered name
     // has at most 15 bytes (localization_026g.py), so it fits the buffer.
-    unsafe { raw::engine_string_assign(raw::image::LOCALIZATION as usize as *mut c_void, name.as_ptr().cast()) };
+    unsafe { raw::engine_string_assign(Some(raw::image::localization()), name.as_ptr().cast()) };
     apply_locale(name);
 }
 
@@ -146,11 +144,11 @@ enum Registration {
     Registered,
 }
 
-/// The console variable object, a cc_string (0x48 bytes, cc_string::cc_string
-/// 0xEC860), and its value's buffer.
+/// The console variable object, a cc_string (cc_string::cc_string 0xEC860),
+/// and its value's buffer.
 #[repr(C)]
 struct Storage<const N: usize> {
-    object: [u32; 18],
+    object: raw::CcStringStorage,
     buffer: [u8; N],
 }
 
@@ -171,7 +169,7 @@ unsafe impl<const N: usize> Sync for ConsoleString<N> {}
 impl<const N: usize> ConsoleString<N> {
     pub const fn new() -> ConsoleString<N> {
         ConsoleString {
-            storage: UnsafeCell::new(Storage { object: [0; 18], buffer: [0; N] }),
+            storage: UnsafeCell::new(Storage { object: raw::CcStringStorage::zeroed(), buffer: [0; N] }),
             registration: UnsafeCell::new(Registration::Unregistered),
         }
     }
@@ -187,7 +185,7 @@ impl<const N: usize> ConsoleString<N> {
                 return;
             }
             let storage = self.storage.get();
-            raw::engine_cc_string((&raw mut (*storage).object).cast(), name.as_ptr().cast(),
+            raw::engine_cc_string(Some((*storage).object.handle()), name.as_ptr().cast(),
                                   (&raw mut (*storage).buffer).cast(), N as u32, 1);
             *self.registration.get() = Registration::Registered;
         }
@@ -221,23 +219,24 @@ impl<const N: usize> Default for ConsoleString<N> {
 /// The Settings' call to the exe at `options.callback`: the movie's
 /// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
 /// start (0x1FF5D0), before the options match the method's name.
-pub struct OptionsCall<'c, 't> {
-    ctx: &'c Context<'t>,
+pub struct OptionsCall<'c> {
+    options: raw::GameOptionsInterface,
+    frame: raw::OptionsCallbackFrame,
     method: &'c CStr,
-    frame: NonNull<c_void>,
+    _thread: &'c Thread,
 }
 
-impl<'c, 't> OptionsCall<'c, 't> {
-    pub fn at(ctx: &'c Context<'t>) -> Option<OptionsCall<'c, 't>> {
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = NonNull::new(ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void)?;
-        // SAFETY: the call's method name, a C string the movie gave
-        // (options_callback_frame, by the site's ESP).
-        let method = unsafe {
-            c_string(*raw::options_callback_frame::method(frame.as_ptr()) as usize as *const u8, TEXT_LIMIT)
-        }?;
-        Some(OptionsCall { ctx, method, frame })
+impl<'c> OptionsCall<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> Option<OptionsCall<'c>> {
+        use raw::site::options_callback as site;
+        // SAFETY: the context is this site's: the options' interface and the
+        // callback's frame, alive for the call, on the game's thread; the
+        // method's name a C string the movie gave.
+        let (options, frame, method) = unsafe {
+            let (options, frame) = (site::options(ctx)?, site::frame(ctx)?);
+            (options, frame, c_string(frame.method(), TEXT_LIMIT)?)
+        };
+        Some(OptionsCall { options, frame, method, _thread: ctx.thread() })
     }
 
     pub fn method(&self) -> &CStr {
@@ -246,23 +245,24 @@ impl<'c, 't> OptionsCall<'c, 't> {
 
     /// The call's argument `index` when it is a string.
     pub fn string_argument(&self, index: u32) -> Option<&CStr> {
-        // SAFETY: the callback's arguments and count (options_callback_frame,
-        // by the site's ESP); each argument a GFx value; a string's value a C
-        // string (managed: a pointer to its pointer), alive for the call.
+        // SAFETY: the callback's arguments and their count, alive for the
+        // call; a string's text (managed: its node's) a C string as long.
         unsafe {
-            let count = *raw::options_callback_frame::count(self.frame.as_ptr());
-            let values = *raw::options_callback_frame::arguments(self.frame.as_ptr()) as usize as *const GfxValue;
-            if index >= count || values.is_null() {
+            let count = *self.frame.count();
+            let values = self.frame.arguments()?;
+            if index >= count {
                 return None;
             }
-            let value = &*values.add(index as usize);
-            if value.kind & 0x3F != GFX_STRING {
+            let value = values.at(index as usize);
+            let kind = *value.kind();
+            if kind & 0x3F != GFX_STRING {
                 return None;
             }
-            let mut text = value.value as usize as *const u8;
-            if value.kind & GFX_MANAGED != 0 && !text.is_null() {
-                text = *(text as *const *const u8);
-            }
+            let text = if kind & GFX_MANAGED != 0 {
+                value.managed().map_or(core::ptr::null_mut(), |node| node.text())
+            } else {
+                value.text()
+            };
             c_string(text, TEXT_LIMIT)
         }
     }
@@ -272,16 +272,12 @@ impl<'c, 't> OptionsCall<'c, 't> {
     /// into `out`.
     pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
         out[0] = 0;
-        // SAFETY: ECX is the options' interface (game_options+4), its +30h the
-        // game, whose text translator is at +52A8h; translate_text copies a
-        // text shorter than 200h bytes with its zero into `out` (0x1FF15D)
-        // and leaves it alone otherwise.
+        // SAFETY: the options' game and its text translator, alive for the
+        // call; translate_text copies a text shorter than 200h bytes with its
+        // zero into `out` (0x1FF15D) and leaves it alone otherwise.
         unsafe {
-            let options = self.ctx.reg(Reg::Ecx) as usize as *mut c_void;
-            let game = *raw::game_options_interface::game(options) as usize as *mut c_void;
-            if !game.is_null() {
-                raw::engine_translate_text(raw::game::text_translator(game).cast(), key.as_ptr().cast(),
-                                           out.as_mut_ptr());
+            if let Some(game) = self.options.game() {
+                raw::engine_translate_text(Some(game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
             }
         }
         out[0x1FF] = 0;
@@ -292,22 +288,9 @@ impl<'c, 't> OptionsCall<'c, 't> {
     /// with these strings (UTF-8, as the dictionaries are), at most
     /// [`MAX_STRINGS`]; whether the movie took it.
     pub fn answer(&self, method: &CStr, values: &[&CStr]) -> bool {
-        // SAFETY: ECX is the options' interface; its menu is a movie holder or
-        // 0, alive for the call, on the hook's thread (the options' own
-        // Invoke reads it so, 0x1FF98F).
-        let movie = unsafe {
-            let options = self.ctx.reg(Reg::Ecx) as usize as *mut c_void;
-            movie_of(*raw::game_options_interface::menu(options))
-        };
-        let Some(movie) = movie else { return false };
-        let count = values.len().min(MAX_STRINGS);
-        let mut arguments: [GfxString<'_>; MAX_STRINGS] = core::array::from_fn(|_| GfxString::of(c""));
-        for (slot, value) in arguments.iter_mut().zip(&values[..count]) {
-            *slot = GfxString::of(value);
-        }
-        movie.invoke_strings(method, &arguments[..count])
+        // SAFETY: the options' menu, a movie holder alive for the call, on the
+        // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
+        let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
+        movie.invoke_strings(method, values)
     }
 }
-
-/// Up to this many strings in one answer to the movie.
-pub const MAX_STRINGS: usize = 64;
