@@ -149,7 +149,11 @@ pub struct ThreatTuning {
     /// tick, every tick; verify-703 should-fix 2).
     pub job_open_staffed: bool,
     /// K2: a role goes to a bot out of every held line (off: out of the
-    /// holds' only, `job_kills`; verify-703 should-fix 3).
+    /// holds' only, `job_kills`; verify-703 should-fix 3). OFF by default:
+    /// alone against the four follow-ups off (96 pairs by side, 2026-10-29)
+    /// the team scored -1.4 % (z -1.4; -2.7 %, z -2.2 at 48) while its own
+    /// jobs did better (their shooters killed 247 vs 226, holders down 240
+    /// vs 273): not settled, cost seen, and no cause in the event files.
     pub job_out_of_all_lines: bool,
     /// K2: a Crossfire finds its job's held line by the spot's id, its
     /// `TargetRef::ThreatSpot` (off: by the choke's point, so a plain
@@ -221,7 +225,7 @@ impl Default for ThreatTuning {
             crossfire_out_of_lines: true,
             whole_route_booked: true,
             job_open_staffed: true,
-            job_out_of_all_lines: true,
+            job_out_of_all_lines: false,
             job_line_by_id: true,
         }
     }

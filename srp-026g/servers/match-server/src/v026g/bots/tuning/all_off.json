@@ -92,7 +92,6 @@
     "job_line_by_id": false,
     "job_objective": false,
     "job_open_staffed": false,
-    "job_out_of_all_lines": false,
     "lane_weighted": false,
     "lanes_pierce": false,
     "pair_up_hidden": false,
