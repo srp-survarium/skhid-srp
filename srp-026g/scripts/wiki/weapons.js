@@ -137,18 +137,76 @@
       }
       svg.append(svgNode('line', {x1:x(time), x2:x(time), y1:24, y2:218, class:'sim-cursor'}));
     }
+    drawSight(time);
   }
+  // The crosshair as the kick moves it: the kick climbing from the origin,
+  // the path so far and each shot's mark. The side kick is far smaller than
+  // the climb (and not a confirmed screen angle): it fills the width, its
+  // magnification written in the corner.
+  function drawSight(time) {
+    const svg = document.querySelector('#sim-sight'); svg.replaceChildren();
+    const frames = simulation.series.flatMap(series => series.frames);
+    const up = Math.max(0, ...frames.map(frame => frame.vertical));
+    const down = Math.max(0, ...frames.map(frame => -frame.vertical));
+    const side = Math.max(0, ...frames.map(frame => Math.abs(frame.horizontal)));
+    const scale = 250 / Math.max(.1, up + down);
+    const sideScale = Math.max(scale, 120 / Math.max(side, 1e-6));
+    const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
+    const x = h => 150 + h * sideScale, y = v => oy - v * scale;
+    const magnified = Math.round(sideScale / scale);
+    if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
+    svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
+    svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
+    svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
+    for (const [index, series] of simulation.series.entries()) {
+      const past = series.frames.filter(frame => frame.time <= time);
+      svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
+        class:`sim-trail series-${index}`}));
+      for (const event of series.events.filter(event => event.time <= time)) {
+        const point = sample(series, event.time);
+        svg.append(svgNode('circle', {cx:x(point.horizontal), cy:y(point.vertical), r:2.4, class:`sim-shot series-${index}`}));
+      }
+      const point = sample(series, time), cx = x(point.horizontal), cy = y(point.vertical);
+      const cross = svgNode('g', {class:`sim-cross series-${index}`});
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        cross.append(svgNode('line', {x1:cx + dx * 5, y1:cy + dy * 5, x2:cx + dx * 15, y2:cy + dy * 15}));
+      }
+      cross.append(svgNode('circle', {cx, cy, r:1.6}));
+      svg.append(cross);
+    }
+  }
+  // Play: the burst in real time, from where the timeline is (or the start).
+  const playButton = document.querySelector('#sim-play');
+  let playing = null;
+  function stop() {
+    if (playing) cancelAnimationFrame(playing.frame);
+    playing = null; playButton.textContent = tr('Play', 'Відтворити');
+  }
+  function play() {
+    if (simulation.kind !== 'ready') return;
+    const from = simulation.time >= simulation.duration - .001 ? 0 : simulation.time, start = performance.now();
+    playButton.textContent = tr('Pause', 'Пауза');
+    const tick = now => {
+      if (simulation.kind !== 'ready') { stop(); return; }
+      simulation.time = Math.min(simulation.duration, from + (now - start) / 1000); drawSimulation();
+      if (simulation.time >= simulation.duration) stop(); else playing.frame = requestAnimationFrame(tick);
+    };
+    playing = {frame: requestAnimationFrame(tick)};
+  }
+  playButton.addEventListener('click', () => playing ? stop() : play());
   function seek(time) {
+    stop();
     if (simulation.kind !== 'ready') return;
     simulation.time = time; drawSimulation();
   }
   function rebuildSimulation(time = 0) {
     const ids = [pickerA.value, pickerB.value]; sim.hidden = !ids.every(Boolean);
-    simulation = {kind:'empty'};
+    stop(); simulation = {kind:'empty'};
     if (sim.hidden) return;
     const valid = ids.every(id => models.get(id));
     for (const element of sim.querySelectorAll('input,select,button')) element.disabled = !valid;
     document.querySelector('.sim-plots').hidden = !valid;
+    document.querySelector('.sim-sight').hidden = !valid;
     document.querySelector('#sim-unavailable').hidden = valid;
     if (!valid) { document.querySelector('#sim-legend').replaceChildren(); return; }
     shotInput.value = Math.max(1, Math.min(60, Math.floor(Number(shotInput.value) || 1)));

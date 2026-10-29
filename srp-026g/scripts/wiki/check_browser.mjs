@@ -125,12 +125,24 @@ try {
   await evaluate("document.querySelector('#sim-step').click()");
   assert.equal(await evaluate("Number(document.querySelector('#sim-time').value)"), .05);
   assert.ok((await evaluate("document.querySelector('#sim-legend').textContent")).includes('1/10'));
-  assert.equal(await evaluate("document.querySelectorAll('#sim-single,#sim-play').length"), 0, 'only manual step and reset actions');
+  assert.equal(await evaluate("document.querySelectorAll('#sim-single').length"), 0, 'no single-shot mode');
+  assert.equal(await evaluate("document.querySelectorAll('#sim-sight .sim-cross').length"), 2, 'a crosshair per weapon');
   await evaluate("document.querySelector('#sim-step').click()");
   assert.ok(await evaluate("Number(document.querySelector('#sim-time').value)") > .05, 'next shot advances timeline');
   const position = await evaluate("document.querySelector('#sim-time').value");
   await evaluate('new Promise(r=>setTimeout(r,150))');
   assert.equal(await evaluate("document.querySelector('#sim-time').value"), position, 'manual position stays fixed');
+  // Play runs the burst only when asked, and a second press pauses it.
+  await evaluate("document.querySelector('#sim-play').click()");
+  await evaluate('new Promise(r=>setTimeout(r,300))');
+  await evaluate("document.querySelector('#sim-play').click()");
+  const played = await evaluate("document.querySelector('#sim-time').value");
+  assert.ok(Number(played) > Number(position), 'play advances the timeline');
+  const crossAt = await evaluate("document.querySelector('#sim-sight .sim-cross circle').getAttribute('cy')");
+  await evaluate('new Promise(r=>setTimeout(r,150))');
+  assert.equal(await evaluate("document.querySelector('#sim-time').value"), played, 'pause holds the position');
+  assert.equal(await evaluate("document.querySelector('#sim-sight .sim-cross circle').getAttribute('cy')"), crossAt);
+  await screenshot('comparison-crosshair');
   await evaluate("document.querySelector('#sim-time').value='1.5';document.querySelector('#sim-time').dispatchEvent(new Event('input'));document.querySelector('#recoil-sim').scrollIntoView()");
   assert.equal(await evaluate("!!document.querySelector('#sim-variation')"), false, 'average kick option removed');
   const beforeSeed = await evaluate("document.querySelector('#sim-vertical path').getAttribute('d')");

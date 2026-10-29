@@ -199,9 +199,11 @@
 <p class="stat-note">Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.</p>
 <div class="sim-inputs"><label>Shots per weapon<input id="sim-shots" type="number" min="1" max="60" value="10"></label><label>Sample seed<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
 <p class="stat-note">Shots follow each weapon’s fire rate and stop at its magazine capacity. Random samples use the same seed for comparison; they are not recorded game shots.</p>
-<div class="sim-buttons"><button id="sim-step" type="button">Next shot</button><button id="sim-reset" type="button">Reset</button></div>
+<div class="sim-buttons"><button id="sim-play" type="button">Play</button><button id="sim-step" type="button">Next shot</button><button id="sim-reset" type="button">Reset</button></div>
 <label for="sim-time">Timeline <output id="sim-time-label">0 s</output></label><input id="sim-time" type="range" min="0" max="1" step="0.01" value="0">
-<div id="sim-legend" aria-live="polite"></div><div class="sim-plots">
+<div id="sim-legend" aria-live="polite"></div>
+<figure class="sim-sight"><figcaption>Crosshair · game units</figcaption><svg id="sim-sight" viewBox="0 0 300 300" role="img" aria-label="Where each weapon aims as the recoil moves it"></svg></figure>
+<div class="sim-plots">
 <figure><figcaption>Vertical kick · game units</figcaption><svg id="sim-vertical" viewBox="0 0 600 250" role="img" aria-label="Vertical kick"></svg></figure>
 <figure><figcaption>Horizontal kick · game units</figcaption><svg id="sim-horizontal" viewBox="0 0 600 250" role="img" aria-label="Horizontal kick"></svg></figure>
 </div><p id="sim-unavailable" hidden>Recoil parameters are unavailable for this selection.</p></section></section>
@@ -5188,4 +5190,4 @@
 </div></details>
 </div><p id="weapons-empty" hidden>No weapons match. Try another name or class.</p>
 <p class="wiki-stamp">Skhid revision 37</p>
-<script src="/wiki/weapons.js?v=fc6d53a44e70" defer></script>
+<script src="/wiki/weapons.js?v=25fed16b202b" defer></script>
