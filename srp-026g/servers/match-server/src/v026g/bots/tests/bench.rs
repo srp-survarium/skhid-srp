@@ -986,7 +986,7 @@ pub(crate) fn real_bot_cost() {
             let mut push = PushTally::start(&world, game.bodies.len());
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
-            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed));
+            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();

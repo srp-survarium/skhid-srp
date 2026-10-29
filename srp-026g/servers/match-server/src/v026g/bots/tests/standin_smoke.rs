@@ -82,11 +82,17 @@ pub(crate) struct SmokeHabit {
 
 impl SmokeHabit {
     /// The habit of the stand-in human at `place`, unless `SRP_BENCH_HUMAN_SMOKE=off`.
-    pub(crate) fn start(place: Place, seed: u32) -> Option<Self> {
+    pub(crate) fn start(place: Place, seed: u32, level: u8, mode: u8, per_team: usize) -> Option<Self> {
         if bench_settings().var("SRP_BENCH_HUMAN_SMOKE").is_ok_and(|v| v == "off") {
             return None;
         }
-        Some(Self { place, rng: Rng::new(0x5_B0CE + u64::from(seed)), habit: Habit::Idle, life: None, counts: SmokeHabitCounts::default() })
+        Some(Self { place, rng: Rng::new(Self::seed_of(seed, level, mode, per_team)), habit: Habit::Idle, life: None, counts: SmokeHabitCounts::default() })
+    }
+
+    /// The habit's random seed: the bench seed and the map, the mode and the size, so that two cells of one seed on two maps do not
+    /// draw the same lives (they did: a batch of 4 maps x 28 seeds was 28 draws repeated, not 112).
+    fn seed_of(seed: u32, level: u8, mode: u8, per_team: usize) -> u64 {
+        0x5_B0CE + u64::from(seed) + (u64::from(level) << 40) + (u64::from(mode) << 48) + ((per_team as u64) << 56)
     }
 
     /// One tick: a new life draws whether it throws; a waiting life throws when the nearest enemy is near enough and fresh in the
@@ -269,5 +275,14 @@ mod tests {
         game.bodies[1].feet = Vec3::new(40.0, 0.0, 10.0);
         habit.tick(&game, &mut tracker, 6_050, |_| true);
         assert_eq!(habit.counts.thrown, 1);
+    }
+
+    /// Two cells of one seed on different maps or modes draw different lives.
+    #[test]
+    fn the_habit_draws_differently_on_another_map() {
+        let seeds = [(1, 8, 2, 8), (1, 2, 2, 8), (1, 8, 4, 7), (1, 8, 2, 4), (2, 8, 2, 8)].map(|(s, l, m, p)| SmokeHabit::seed_of(s, l, m, p));
+        for (i, a) in seeds.iter().enumerate() {
+            assert!(seeds[i + 1..].iter().all(|b| a != b), "{seeds:?}");
+        }
     }
 }
