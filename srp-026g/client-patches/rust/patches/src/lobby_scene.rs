@@ -16,6 +16,15 @@
 //! (`lobby_menu.scenes_ready`) the query is asked again, with the lobby's
 //! project when its config is there, else with the classic's. A project
 //! without its camera track is the classic too.
+//!
+//! A change of faction during a session shows after the next match: when
+//! the lobby stops being the active scene (`lobby_menu.deactivate`) with
+//! another faction's lobby wanted than the one shown, its project is asked
+//! alone and, when it comes while the lobby is still hidden, put in the old
+//! one's place; the first frame back is the new lobby. Results after the
+//! return (`lobby_menu.activate`) or once the game closes
+//! (`game.clear_resources`) are let go. One enum, [`Scene`], and one
+//! transition function, [`Scene::step`].
 
 #![forbid(unsafe_code)]
 
