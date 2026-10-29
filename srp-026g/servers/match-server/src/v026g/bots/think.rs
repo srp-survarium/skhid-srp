@@ -787,6 +787,7 @@ pub(super) fn decide(
     };
     bot.rng = rng;
     let step_name = running.step_name();
+    let running_kind = running.kind();
     bot.running = Some(running);
     if let Some(at) = claim {
         state.knowledge.claim(me.place, at, now);
@@ -815,7 +816,9 @@ pub(super) fn decide(
                 bot.features.memory.failed_stands.push(failed);
                 bot.note(notes, now, failed.note());
             }
-            bot.intent = intent;
+            // The way out of the spawn first (`spawn_exit`): for the first seconds of a life.
+            let at = spawn_exit::Steer { tactics, objective: view.objective(), me, side: bot.side, kind: running_kind, now };
+            bot.intent = spawn_exit::steer(&mut bot.spawn_exit, tuning.spacing.spawn_exits, at, &mut state.knowledge, intent);
         }
         Step::Done(why) => {
             bot.end_play(now, why, notes);

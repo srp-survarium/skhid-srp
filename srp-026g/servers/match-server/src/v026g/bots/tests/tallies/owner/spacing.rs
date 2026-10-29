@@ -17,6 +17,11 @@ const WINDOW_S: usize = 10;
 /// Crowded: this many distinct enemies near in the window.
 const CROWD: u32 = 3;
 
+/// The life-age buckets of the samples (s since the body came alive, respawns only): 0-10, 10-20, 20-30, 30 and more. The 10-20 s bucket
+/// is the spawn exits' line (PR C; fx-cover's clump split: bots 0.51 mates near per available mate there, live 0.36).
+const LIFE_BUCKET_S: usize = 10;
+const LIFE_BUCKETS: usize = 4;
+
 #[derive(Clone, Copy, Default)]
 struct TeamSpacing {
     /// The living bodies sampled (a body-second), the teammates and enemies near them, and those with three or more mates near.
@@ -28,6 +33,9 @@ struct TeamSpacing {
     crowded_deaths: u64,
     /// The distinct enemies near in the window before a death, summed over the deaths.
     crowd_enemies: u64,
+    /// By life-age bucket ([`LIFE_BUCKET_S`]): the samples, the teammates near, and the teammates alive (the available
+    /// mates, the body itself left out).
+    by_life: [[u64; 3]; LIFE_BUCKETS],
 }
 
 /// What the topic keeps: the counts by team, and for each body the enemies near it (a bit by place) in each of the last
@@ -36,6 +44,11 @@ pub(super) struct SpacingCounts {
     by_team: [TeamSpacing; 2],
     window: Vec<[u64; WINDOW_S]>,
     was_alive: Vec<bool>,
+    /// The spawn exits' outcomes at the topic's start (`spawn_exit::counted`), to count this match's.
+    exits_before: [[u64; 6]; 2],
+    /// The second each body came alive, for a respawn (its life's age); none for its life from the match's start (the
+    /// opening is not a respawn, and is left out of the life-age buckets).
+    born: Vec<Option<usize>>,
     /// By the play the body runs (a bot's assignment; "human" for the stand-in): the living bodies sampled and the
     /// teammates near them, and how many had 3 or more.
     by_play: BTreeMap<String, [u64; 3]>,
@@ -43,7 +56,7 @@ pub(super) struct SpacingCounts {
 
 impl SpacingCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], by_play: BTreeMap::new() }
+        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], born: vec![None; n], exits_before: crate::v026g::bots::spawn_exit::counted(), by_play: BTreeMap::new() }
     }
 }
 
@@ -66,12 +79,18 @@ impl Topic for SpacingCounts {
                 ts.crowd_enemies += u64::from(near);
                 self.window[place] = [0; WINDOW_S];
             }
+            if !self.was_alive[place] && body.alive {
+                self.born[place] = (tick > 0).then_some(second);
+            }
             self.was_alive[place] = body.alive;
             if !(sample && body.alive) {
                 continue;
             }
-            let (mut mates, mut enemy_mask) = (0u64, 0u64);
+            let (mut mates, mut enemy_mask, mut alive_mates) = (0u64, 0u64, 0u64);
             for (other_place, other) in game.bodies.iter().enumerate() {
+                if other_place != place && other.alive && other.team == body.team {
+                    alive_mates += 1;
+                }
                 if other_place == place || !other.alive || other.feet.distance_xz(body.feet) > NEAR_M {
                     continue;
                 }
@@ -86,6 +105,12 @@ impl Topic for SpacingCounts {
             ts.mates += mates;
             ts.enemies += u64::from(enemy_mask.count_ones());
             ts.clumped += u64::from(mates >= 3);
+            if let Some(born) = self.born[place] {
+                let life = &mut ts.by_life[((second - born.min(second)) / LIFE_BUCKET_S).min(LIFE_BUCKETS - 1)];
+                life[0] += 1;
+                life[1] += mates;
+                life[2] += alive_mates;
+            }
             if let Some(rec) = run.recs[place].last() {
                 let play = run.plays.get(usize::from(rec.play)).map_or("none", String::as_str);
                 let entry = self.by_play.entry(play.to_owned()).or_default();
@@ -114,6 +139,7 @@ impl SpacingCounts {
                 "deaths": c.deaths,
                 "crowded_deaths": c.crowded_deaths,
                 "crowd_enemies": c.crowd_enemies,
+                "by_life": c.by_life.iter().map(|[n, mates, alive]| serde_json::json!({ "samples": n, "mates_near": mates, "mates_alive": alive })).collect::<Vec<_>>(),
             })
         };
         let by_play: serde_json::Map<String, serde_json::Value> = self
@@ -123,12 +149,30 @@ impl SpacingCounts {
                 (play.clone(), serde_json::json!({ "samples": n, "mates_near": mates, "clumped_samples": clumped }))
             })
             .collect();
-        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play } });
+        let (exits, names) = (crate::v026g::bots::spawn_exit::counted(), crate::v026g::bots::spawn_exit::NAMES);
+        let exits_of = |t: usize| -> serde_json::Map<String, serde_json::Value> {
+            names.iter().enumerate().map(|(i, name)| ((*name).to_owned(), (exits[t][i] - self.exits_before[t][i]).into())).collect()
+        };
+        let json = serde_json::json!({ "spacing": {
+            "by_team": { "0": team(0), "1": team(1) },
+            "by_play": by_play,
+            "spawn_exits": { "0": exits_of(0), "1": exits_of(1) },
+        } });
         let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 };
         let line = |t: usize| {
             let c = &self.by_team[t];
+            let ages: Vec<String> = c
+                .by_life
+                .iter()
+                .enumerate()
+                .map(|(i, [n, mates, alive])| {
+                    let from = i * LIFE_BUCKET_S;
+                    let to = if i + 1 == LIFE_BUCKETS { "+".to_string() } else { format!("-{}", from + LIFE_BUCKET_S) };
+                    format!("{from}{to} s {:.2} ({:.2} an available mate)", mean(*mates, *n), mean(*mates, *alive))
+                })
+                .collect();
             format!(
-                "mates within 30 m {:.2}, enemies {:.2}, 3+ mates {:.0} % of {} body-seconds; deaths {} crowded {} ({:.0} %, mean {:.1} enemies near)",
+                "mates within 30 m {:.2}, enemies {:.2}, 3+ mates {:.0} % of {} body-seconds; deaths {} crowded {} ({:.0} %, mean {:.1} enemies near); by life age: {}",
                 mean(c.mates, c.samples),
                 mean(c.enemies, c.samples),
                 100.0 * mean(c.clumped, c.samples),
@@ -137,9 +181,23 @@ impl SpacingCounts {
                 c.crowded_deaths,
                 100.0 * mean(c.crowded_deaths, c.deaths),
                 mean(c.crowd_enemies, c.deaths),
+                ages.join(", "),
             )
         };
-        Part::new(json, format!("owner-test spacing: team 0 [{}]; team 1 [{}]", line(0), line(1)))
+        let exit_line = |t: usize| {
+            let e = exits_of(t);
+            names.iter().map(|n| format!("{} {}", n.replace('_', " "), e[*n])).collect::<Vec<_>>().join(", ")
+        };
+        Part::new(
+            json,
+            format!(
+                "owner-test spacing: team 0 [{}]; team 1 [{}]; spawn exits: team 0 [{}]; team 1 [{}]",
+                line(0),
+                line(1),
+                exit_line(0),
+                exit_line(1)
+            ),
+        )
     }
 }
 
@@ -172,4 +230,25 @@ pub(crate) fn the_spacing_topic_counts_mates_and_enemies_near_and_the_crowded_de
     assert_eq!(team1["crowded_deaths"], 0, "alone when it died");
     // Each team-0 body was sampled with the other within 30 m, until place 0 died.
     assert!(team0["mates_near"].as_u64().unwrap() >= 2);
+    // Their lives from the match's start are no respawns: no life-age samples.
+    assert_eq!(team0["by_life"][0]["samples"], 0, "{json}");
+}
+
+/// A body that comes alive again is sampled by its life's age: place 1 (team 0) dies at 1.5 s and is back at 2.5 s beside its
+/// mate, so its samples from then on are in the 0-10 s bucket, each with one mate near of one alive.
+#[test]
+pub(crate) fn a_respawned_body_is_sampled_by_its_lifes_age() {
+    let (mut game, mut tally) = made_up(&[0, 0, 1]);
+    play(&mut game, &mut tally, 160, |k, game| {
+        put(game, 0, 0.0, 5.0, 0);
+        put(game, 1, 10.0, 5.0, 0);
+        put(game, 2, 80.0, 40.0, 0);
+        game.bodies[1].alive = !(30..50).contains(&k);
+        vec![bot_now(); 3]
+    });
+    let (_, json) = tally.finish(&game);
+    let young = &json["spacing"]["by_team"]["0"]["by_life"][0];
+    assert!(young["samples"].as_u64().unwrap() >= 5, "{json}");
+    assert_eq!(young["mates_near"], young["mates_alive"], "one mate near of one alive: {json}");
+    assert_eq!(json["spacing"]["by_team"]["0"]["by_life"][1]["samples"], 0, "{json}");
 }

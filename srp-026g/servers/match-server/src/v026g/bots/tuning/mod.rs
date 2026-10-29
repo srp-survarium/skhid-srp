@@ -123,6 +123,7 @@ pub use sense::ShotRanges;
 pub use smoke::SmokeTuning;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
+pub use spacing::SpawnExits;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::ModTuning;

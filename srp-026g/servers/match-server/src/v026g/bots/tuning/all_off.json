@@ -85,6 +85,9 @@
   "smoke": {
     "sight": false
   },
+  "spacing": {
+    "spawn_exits": "off"
+  },
   "threat": {
     "area": false,
     "crossfire_out_of_lines": false,

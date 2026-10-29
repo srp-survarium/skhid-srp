@@ -147,6 +147,10 @@ pub struct TacticsBase {
     /// at the first ask (`roam.join_ahead`), once for the map, not stored
     /// with the base; a map no switch asks it of never makes it.
     progress: std::sync::OnceLock<progress::Progress>,
+    /// The ways out of each side's spawn toward the map's objectives
+    /// ([`Tactics::ways_out`]): worked out at the first ask, not stored in
+    /// the built base (a base is one map file, so one mode).
+    ways_out: std::sync::OnceLock<Vec<(i32, Vec<Vec3>)>>,
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -495,6 +499,7 @@ impl TacticsBase {
             regions,
             walkable,
             progress: std::sync::OnceLock::new(),
+            ways_out: std::sync::OnceLock::new(),
         };
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
@@ -621,10 +626,24 @@ impl TacticsBase {
                     regions,
                     walkable,
                     progress: std::sync::OnceLock::new(),
+            ways_out: std::sync::OnceLock::new(),
                 })
             },
             Self::digest,
         )
+    }
+
+    /// The ways out of `side`'s spawn, worked out at the first call for the
+    /// map's `objective` ([`ways_out`]): one flood a side, once for the map.
+    fn ways_out(&self, side: i32, objective: super::objective::ObjectiveMap) -> &[Vec3] {
+        let all = self.ways_out.get_or_init(|| {
+            let mut sides: Vec<i32> = self.world.map.spawns.iter().map(|s| s.team).collect();
+            sides.sort_unstable();
+            sides.dedup();
+            let goals = objective.home_spots(&self.world.map);
+            sides.into_iter().map(|side| (side, ways_out(self, side, &goals))).collect()
+        });
+        all.iter().find(|(s, _)| *s == side).map_or(&[], |(_, w)| w.as_slice())
     }
 
     /// The progress of each region, worked out at the first call: two floods
@@ -756,6 +775,89 @@ impl TacticsBase {
         }
         exits
     }
+}
+
+/// A way out is this far along its route from the spawn, at least and at most, m (and out of every spawn area).
+pub const WAY_OUT_M: (f32, f32) = (25.0, 40.0);
+/// Two ways out at least this far apart, m.
+pub const WAY_OUT_APART_M: f32 = 10.0;
+/// Two ways out are two corridors only if their routes are this far apart 40 m along, m (else one corridor in
+/// disguise, a wide hall's two sides). GUESS.
+pub const WAY_OUT_PARTED_M: f32 = 15.0;
+
+/// The ways out of `side`'s spawn: for each of `goals` (the map's objective spots, `ObjectiveMap::home_spots`) and the
+/// enemy's spawns' middle, the cheapest walk from the side's spawn floors (one flood, traced back from the goal), and on
+/// it the first point [`WAY_OUT_M`] along out of every spawn area; kept when [`WAY_OUT_APART_M`] from the ways kept and
+/// its route [`WAY_OUT_PARTED_M`] from theirs 40 m along. How players leave a spawn toward different goals (option A of
+/// PR C): no search a match.
+fn ways_out(base: &TacticsBase, side: i32, goals: &[Vec3]) -> Vec<Vec3> {
+    let grid = &base.world.grid;
+    let spawns = &base.world.map.spawns;
+    let ours: Vec<NodeId> = spawns.iter().filter(|s| s.team == side).filter_map(|s| grid.locate(s.position, 1.5)).collect();
+    let theirs: Vec<Vec3> = spawns.iter().filter(|s| s.team != side).map(|s| s.position).collect();
+    let mut targets: Vec<Vec3> = goals.to_vec();
+    targets.extend(centroid(&theirs));
+    let from = grid.distances_from(&ours);
+    let mut kept: Vec<(Vec3, Vec3)> = Vec::new();
+    for target in targets {
+        let Some(goal) = grid.locate(target, LOCATE_M).filter(|&n| from.reaches(n)) else {
+            continue;
+        };
+        // The cheapest walk back from the goal to the spawn floors, then forwards.
+        let mut nodes = vec![goal];
+        let mut at = goal;
+        while from.get(at) > 0.0 && nodes.len() <= grid.len() {
+            // `incoming` gives the one-cell links only; a drop that lands up to 4 cells on is found from the floors
+            // round it, by their own links (the flood went forwards over both).
+            let p = grid.position(at);
+            let near = grid
+                .floors_in([p.x - 1.5, p.z - 1.5, p.x + 1.5, p.z + 1.5])
+                .filter_map(|v| grid.links(v).find(|&(to, _)| to == at).map(|(_, kind)| (v, kind)));
+            let Some((prev, _)) = grid
+                .incoming(at)
+                .chain(near)
+                .map(|(v, kind)| (v, from.get(v) + grid.link_cost(v, at, kind)))
+                .filter(|(_, c)| c.is_finite())
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+            else {
+                break;
+            };
+            nodes.push(prev);
+            at = prev;
+        }
+        // A trace that did not get back to a spawn floor (a link the walk took that leads nowhere backwards) is no way
+        // out: its points would be measured from mid-map.
+        if from.get(at) > 0.0 {
+            continue;
+        }
+        nodes.reverse();
+        let points: Vec<Vec3> = nodes.iter().map(|&n| grid.position(n)).collect();
+        let along = |m: f32| -> Vec3 {
+            let mut walked = 0.0;
+            for w in points.windows(2) {
+                let step = w[0].distance_xz(w[1]);
+                if walked + step >= m {
+                    return w[0] + (w[1] - w[0]) * ((m - walked) / step.max(1e-6));
+                }
+                walked += step;
+            }
+            *points.last().unwrap_or(&target)
+        };
+        let length: f32 = points.windows(2).map(|w| w[0].distance_xz(w[1])).sum();
+        let mut s = WAY_OUT_M.0;
+        while s <= WAY_OUT_M.1.min(length) {
+            let point = along(s);
+            if !base.in_spawn_area(point, None) {
+                let later = along(WAY_OUT_M.1);
+                if kept.iter().all(|&(p, l)| p.distance_xz(point) > WAY_OUT_APART_M && l.distance_xz(later) >= WAY_OUT_PARTED_M) {
+                    kept.push((point, later));
+                }
+                break;
+            }
+            s += 5.0;
+        }
+    }
+    kept.into_iter().map(|(p, _)| p).collect()
 }
 
 impl Tactics {
@@ -999,6 +1101,13 @@ impl Tactics {
     /// Whether `point` is in a spawn area of `side` (any side if `None`).
     pub fn in_spawn_area(&self, point: Vec3, side: Option<i32>) -> bool {
         self.base.in_spawn_area(point, side)
+    }
+
+    /// The ways out of `side`'s spawn toward the map's objectives and the
+    /// enemy's spawn ([`ways_out`]), for the match's `objective`: the spawn
+    /// exits' points (`spawn_exit`). One on a map with one real way out.
+    pub fn ways_out(&self, side: i32, objective: super::objective::ObjectiveMap) -> &[Vec3] {
+        self.base.ways_out(side, objective)
     }
 
     /// How far forward `point` is for `side` by the walk: 0 at its own

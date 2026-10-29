@@ -107,6 +107,7 @@ pub mod rays;
 #[cfg(test)]
 pub mod route_twins;
 mod search;
+pub mod spawn_exit;
 mod think;
 
 use std::sync::Arc;
@@ -230,6 +231,8 @@ pub struct Bot {
     sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
+    /// Its way out of the spawn for this life (`spawn_exit`).
+    spawn_exit: spawn_exit::SpawnExit,
     /// Whether it presses against something as it walks ([`contact`]), counted only.
     contact: contact::ContactWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
@@ -429,6 +432,7 @@ impl Bot {
             stamina: stamina::Reckoning::default(),
             sent_keys: 0,
             rest: rest::RestWatch::default(),
+            spawn_exit: spawn_exit::SpawnExit::default(),
             contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,

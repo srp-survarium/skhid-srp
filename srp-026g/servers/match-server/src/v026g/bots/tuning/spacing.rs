@@ -32,6 +32,24 @@ impl Callouts {
     }
 }
 
+/// How a respawned bot leaves its spawn (`spawn_exit`, PR C).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpawnExits {
+    /// By its play's shortest way, whatever its teammates took (before PR C).
+    Off,
+    /// By one of the base's exits: its way to the goal through it times `1 + claim_cost` for each teammate that claimed it
+    /// in the last 20 s, among the exits whose way is at most `slack_m` longer than the shortest. GUESS both: 20 m is a few
+    /// seconds' walk; 1.0 makes a second claimer double an exit's cost.
+    Spread { slack_m: f32, claim_cost: f32 },
+}
+
+impl Default for SpawnExits {
+    fn default() -> Self {
+        Self::Spread { slack_m: 20.0, claim_cost: 1.0 }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SpacingTuning {
@@ -39,10 +57,12 @@ pub struct SpacingTuning {
     pub buddy: bool,
     /// What the callouts tell and how old a place steers a play.
     pub callouts: Callouts,
+    /// How a respawned bot leaves its spawn (PR C: the first 20 s of a life hold about half the clump's excess).
+    pub spawn_exits: SpawnExits,
 }
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, spawn_exits: SpawnExits::default() }
     }
 }

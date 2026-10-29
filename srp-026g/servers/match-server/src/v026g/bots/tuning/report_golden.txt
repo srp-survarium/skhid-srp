@@ -31,7 +31,7 @@ switch values hazard: escape=under_start_zone route_crossing=total zone_pools=ro
 switch values kin: jump_snap=by_keys
 switch values kit: smoke=off
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
-switch values spacing: callouts=seen_and_heard
+switch values spacing: callouts=seen_and_heard spawn_exits={"spread":{"claim_cost":1.0,"slack_m":20.0}}
 switch values think: search_queue=fair
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)

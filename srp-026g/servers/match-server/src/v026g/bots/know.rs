@@ -880,6 +880,15 @@ pub struct RouteClaim {
     seen: u32,
 }
 
+/// The base exit a respawned bot left by (`spawn_exit`): its side's exit number and when it chose it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExitClaim {
+    pub who: Place,
+    pub side: i32,
+    pub exit: usize,
+    pub time: u32,
+}
+
 /// A bot's claim on a throw spot: the place it decided to throw a grenade
 /// at, stamped when it decided. A teammate's roll skips places within
 /// `CombatTuning::grenade_claim_m` of one for `grenade_claim_ms`.
@@ -954,6 +963,8 @@ pub struct TeamKnowledge {
     claims: Vec<Claim>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
     route_claims: Vec<RouteClaim>,
+    /// The base exits the team's respawned bots chose, one a bot ([`Self::claim_exit`]).
+    exit_claims: Vec<ExitClaim>,
     /// The places the team's bots decided to throw at, each throw a claim
     /// ([`Self::claim_throw`]).
     throws: Vec<ThrowClaim>,
@@ -1019,6 +1030,23 @@ impl TeamKnowledge {
             Some(c) => *c = claim,
             None => self.route_claims.push(claim),
         }
+    }
+
+    /// `who` leaves its spawn by `side`'s exit `exit`, chosen at `now`.
+    pub fn claim_exit(&mut self, who: Place, side: i32, exit: usize, now: u32) {
+        let claim = ExitClaim { who, side, exit, time: now };
+        match self.exit_claims.iter_mut().find(|c| c.who == who) {
+            Some(c) => *c = claim,
+            None => self.exit_claims.push(claim),
+        }
+    }
+
+    /// How many bots other than `except` chose `side`'s exit `exit` within `fresh_ms` of `now`.
+    pub fn exit_claims_of_others(&self, except: Place, side: i32, exit: usize, now: u32, fresh_ms: u32) -> usize {
+        self.exit_claims
+            .iter()
+            .filter(|c| c.who != except && c.side == side && c.exit == exit && now.saturating_sub(c.time) <= fresh_ms)
+            .count()
     }
 
     /// `who` runs along no route any more.
