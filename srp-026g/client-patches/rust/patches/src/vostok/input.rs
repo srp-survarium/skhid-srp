@@ -126,12 +126,6 @@ impl InputHandler<'_> {
         self.this
     }
 
-    /// Whether a held key is bound to `action` (kinds 5): its key sends an
-    /// event every tick while down, as the builder reads sprint (0x241F91).
-    pub fn held(&self, action: Action) -> bool {
-        matches!(self.action_state(action), Some(ActionState::Down | ActionState::Repeat))
-    }
-
     /// The state of `action`: `None` when the handler has none, or when it
     /// is no [`ActionState`].
     pub fn action_state(&self, action: Action) -> Option<ActionState> {

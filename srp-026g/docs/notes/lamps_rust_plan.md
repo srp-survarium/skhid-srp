@@ -88,7 +88,7 @@ The final staged sources also reproduce the arena lock without changes.
 The initial Rust conversion grows the arena from 459,124 to 467,316 bytes
 (+8 KiB) relative to the C reference. After integrating main's artefact carry
 and pickup scoring, the combined arena is 512,096 bytes. Its lock records
-SHA-256 `9ed47f158bdc0e832c9fbce4bcbeacd6126585d5ec45e7c7c03dfff0130a010f`.
+SHA-256 `5b5260dfa9afcdb60f5cee1f64748e66701e7cf04a980197e7d4748634254cec`.
 The shared Rust statics use 202,464 bytes, within a 256 KiB test budget; the
 whole arena keeps its existing 1 MiB limit. Lamps use patch ID 81 because
 pickup scoring now occupies 80. The shared reader layout has one definition,
