@@ -1,22 +1,7 @@
 # Lobby scenes
 
-The lobby menu loads the project `lobby_scene/day` (client_patch.md, the lobby menu's
-resources query, section 3.42). The other lobbies are projects of their own beside it, for the
-players' choice of lobby. Each has a section here; the selection (exe and lobby movie) is its
-own work.
-
-What a lobby project gives the 0.26g lobby, and what it does not:
-
-- The exe puts the lobby character at the world origin facing -z (yaw pi), the squad
-  panels' characters at (1, 0, 0.5) and (-1, 0, 0.5). The camera (lobby_camera) looks at
-  (0, 1.2, 0) from yaw 0, pitch 0, distance 1.96 (the wheel: 1.5..4.6; pitch within +-60
-  degrees), the eye shortened by a ray against the project's collision. None of that is in
-  the project: a scene is placed around the origin.
-- From the project: the render visuals, the collision objects (the camera's ray hits
-  cmask 20, cgroup 10, as `level/lobby/base.model/collision`), the client objects (lights,
-  ambient lights, the environment, its probe, particles, sounds).
-- The workbench of patch 45 (BENCH, section 3.42) is a constant of the exe, made for the
-  classic room; each scene below gives its own spot for it and for an artefact.
+What a lobby project must give and how the lobby is chosen: the selection's notes
+(feat/lobby-select, patch 81). Each lobby has its section.
 
 ## STK2 blockpost (`lobby_scene/stk2_blockpost`, pack lobby-stk2@1)
 
@@ -38,6 +23,13 @@ stool, on a flat grass terrain.
 - The default view: the camera stands just inside the door, the character in front of
   it, the campfire to his left, the mattress on the floor beyond it, the cabinet behind
   him on the right, a window in the right wall, the corrugated roof and its beams above.
+- For the selection (patch 81, patch 45 round 6): one `track` object (the classic's,
+  unmoved), the root `camera` (where the lobby camera starts), and the root table
+  `srp_lobby = { weapon = float3( 0.9, 1.55, 2.55 ), weapon_view = 0.0 }` (the weapon
+  over the cabinet's counter, seen from the room along +z). The hut's STK2 collision
+  mesh (walls, roof, the porch) is a collision object (cmask 20, cgroup 10): the camera's
+  ray stops at its walls; the door stays open, so the camera leaves through it only when
+  pulled straight back.
 - Spots (lobby world, metres; data:
   `srp-026g/scripts/lobby-scenes/stk2_blockpost.tsv`):
 
@@ -74,6 +66,8 @@ stool, on a flat grass terrain.
   height 0, all `terrain/grass_dry`) is a flat 80 m grass plane with its texture. STK2's
   sky and post-process are not used (0.26g's environment_day). STK2's spec maps are not
   shipped where the template does not read them.
-- Seen: a headless capture of the lobby with the project in place of `lobby_scene/day`
-  (a local test patch, not shipped), 2026-10-29. Not seen: other camera angles (no input
-  runs), the weapon and artefact displays (they need the selection's exe).
+- Seen (2026-10-29, headless, no input but the sign-in): the lobby with the project in
+  place of `lobby_scene/day` (a local test patch), and with feat/lobby-select's exe (a
+  debug build choosing `stk2_blockpost`, the pack as a local patch): patch 81 took the
+  project (its track and config there), the hut shown. Not seen: other camera angles
+  (no input runs), the weapon in its upgrade window, the choice from user.cfg.
