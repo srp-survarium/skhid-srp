@@ -374,6 +374,19 @@ pub enum Throws {
 }
 
 impl Throws {
+    /// What a place's throw keys throw, decided from its profile with [`KitPockets::of_profile`]: the one reader of the live
+    /// server (`game/driven.rs`) and of the bench (which gives the tracker its bots' pockets with `Bots::set_throws`). The
+    /// kit in use is the one a world names (`Bots::kit_in_use`, from `players::Supplies::kit`) when `all_kits` is on
+    /// (`AvoidTuning::kit_in_use`); with it off only the profile's first kit is read, as before. A server bot's pockets are
+    /// read like a human's whatever the switch: `AvoidTuning::bot_pockets` decides only whether a team dodges the grenades
+    /// listed from a bot's key alone. A profile with no kit is [`Self::unread`].
+    pub fn of_profile(profile: &MatchProfile, all_kits: bool) -> Self {
+        match KitPockets::of_profile(profile, all_kits) {
+            Some(pockets) => Self::Pockets(pockets),
+            None => Self::unread(survarium::v026g::loadouts::bot_role_of(profile).is_some()),
+        }
+    }
+
     /// What a place's throw keys mean before its profile is read: a bot's throw key a frag, a human's unknown.
     pub fn unread(bot: bool) -> Self {
         if bot { Self::GrenadeKeyIsFrag } else { Self::Unknown }

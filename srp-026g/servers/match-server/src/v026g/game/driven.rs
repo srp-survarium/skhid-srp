@@ -53,7 +53,7 @@ use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
-use crate::v026g::bots::live_grenades::{KitPockets, Throws};
+use crate::v026g::bots::live_grenades::Throws;
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -164,7 +164,7 @@ impl Walkers {
         let throws = formed
             .profiles
             .iter()
-            .map(|profile| throws_of(profile, all_kits))
+            .map(|profile| Throws::of_profile(profile, all_kits))
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
@@ -371,25 +371,6 @@ fn weapon_in_slot_7(
         );
     }
     WeaponKind::of_item(kind, category)
-}
-
-/// What a place's throw keys throw (`live_grenades::Throws`), decided here from its profile with
-/// [`KitPockets::of_profile`], the one reader of the live server and the bench. The kit in use is the one a world
-/// names (`Bots::kit_in_use`, from `players::Supplies::kit`) when `all_kits` is on (`AvoidTuning::kit_in_use`); with it
-/// off only the profile's first kit is read, as before. A server bot's pockets are read like a human's whatever the
-/// switch: `AvoidTuning::bot_pockets` decides only whether a team dodges the grenades listed from a bot's key alone.
-fn throws_of(
-    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
-    all_kits: bool,
-) -> Throws {
-    match (
-        KitPockets::of_profile(profile, all_kits),
-        survarium::v026g::loadouts::bot_role_of(profile).is_some(),
-    ) {
-        (Some(pockets), _) => Throws::Pockets(pockets),
-        (None, true) => Throws::GrenadeKeyIsFrag,
-        (None, false) => Throws::Unknown,
-    }
 }
 
 /// How far a shot of a place's weapon 1 (the item in slot 7 of its first
@@ -928,6 +909,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
+    use crate::v026g::bots::live_grenades::KitPockets;
     use super::*;
     use survarium::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, RusherKit, bot_profile};
 
@@ -995,7 +977,7 @@ mod tests {
     /// How many grenades a life of the profile's first kit throws with the throw key, and in the next life.
     fn grenades_in_lives(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> (u32, u32) {
         use crate::v026g::drive::key;
-        let Throws::Pockets(mut pockets) = throws_of(profile, true) else {
+        let Throws::Pockets(mut pockets) = Throws::of_profile(profile, true) else {
             panic!("a bot's pockets");
         };
         let life = |pockets: &mut KitPockets| {
@@ -1037,7 +1019,7 @@ mod tests {
                 assert_eq!(grenades_in_lives(&matched), (expect_new, 0), "{at}: owner's kit, storage at the count");
                 let old = profile_of(role, tier, false, PocketStore::PerLife);
                 assert_eq!(grenades_in_lives(&old), (2, 2), "{at}: the old pockets");
-                assert!(matches!(throws_of(&stocked, false), Throws::Pockets(_)), "{at}");
+                assert!(matches!(Throws::of_profile(&stocked, false), Throws::Pockets(_)), "{at}");
             }
         }
         assert!(supports_with_one > 0, "some support kit carries the one grenade");
@@ -1060,11 +1042,11 @@ mod tests {
             dictionary,
             1,
         );
-        let Throws::Pockets(mut first_only) = throws_of(&profile, false) else {
+        let Throws::Pockets(mut first_only) = Throws::of_profile(&profile, false) else {
             panic!("pockets");
         };
         assert!(first_only.throw_grenade(key::GRENADE).is_none());
-        let Throws::Pockets(mut all) = throws_of(&profile, true) else {
+        let Throws::Pockets(mut all) = Throws::of_profile(&profile, true) else {
             panic!("pockets");
         };
         assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
