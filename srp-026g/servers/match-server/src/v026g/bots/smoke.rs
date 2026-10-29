@@ -841,6 +841,13 @@ pub mod tally {
             const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
     }
 
+    /// A match begins on this thread: the per-place records of the last one go (places are reused).
+    pub fn begin_match() {
+        THREW.with(|s| s.borrow_mut().clear());
+        SEEN_LOOKS.with(|s| s.borrow_mut().clear());
+        SPRAYED.with(|s| s.borrow_mut().clear());
+    }
+
     /// The bot at `place` let go of a smoke at `now`.
     pub fn threw(place: usize, now: u32) {
         THREW.with(|s| s.borrow_mut().insert(place, now));

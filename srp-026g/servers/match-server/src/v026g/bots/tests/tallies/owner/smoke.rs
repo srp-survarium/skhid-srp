@@ -50,6 +50,21 @@ const FAIR_EYE_SIDE_M: f32 = 0.6;
 const DEATH_CLASSES: [&str; 3] = ["own throw", "by a team cloud", "neither"];
 const AFTER_SMOKE_MS: u32 = 10_000;
 const BY_CLOUD_M: f32 = 3.0;
+/// A death is traded when a mate of the dead kills the killer within this, ms (`metrics.rs`'s rule).
+const TRADE_MS: u32 = 5_000;
+
+/// A death as the smoke topic keeps it, classed at the match's end: the dead, the tick, [`DEATH_CLASSES`]'s index, crowded by
+/// `feel`'s rule, enemies within 30 m at the death, and whether the line from the dead's nearest living mate to the killer ran
+/// through a cloud (the mates could not see him to trade).
+#[derive(Clone, Copy, Debug)]
+struct Death {
+    place: Place,
+    tick: u32,
+    class: usize,
+    crowded: bool,
+    near: u32,
+    screened: bool,
+}
 
 /// A fairness case counted: the bot, the enemy, the tick, its eye, his feet as sensed.
 #[cfg(test)]
@@ -93,10 +108,8 @@ pub(super) struct SmokeCounts {
     seen_unlooked: [u32; 2],
     /// By the body's team: the last tick each body stood by a cloud of its team's.
     by_team_cloud: Vec<Option<u32>>,
-    /// By team, by [`DEATH_CLASSES`]: the deaths of the team's top (`feel`'s `TopRule`) and of the others, each [deaths, crowded
-    /// (`Feel::crowded_at_death`: 3 or more enemies within 30 m in the 10 s before), enemies within 30 m at the death].
-    top_deaths: [[[u32; 3]; 3]; 2],
-    rest_deaths: [[[u32; 3]; 3]; 2],
+    /// The match's deaths, classed at its end (the top is named at the last tick, as `feel` names it).
+    deaths: Vec<Death>,
     /// [diagnosis] The sensings whose line from the game's bodies is clearly behind smoke from every eye
     /// ([`Self::hides_body`]): the view's lag at a cloud's rim or flat top, not a bypass (the replay says which).
     seen_through_margin: [u32; 2],
@@ -104,6 +117,7 @@ pub(super) struct SmokeCounts {
 
 impl SmokeCounts {
     pub(super) fn new() -> Self {
+        smoke::tally::begin_match();
         Self {
             eyes_start: smoke::tally::counts(),
             throws_start: smoke::tally::throws(),
@@ -123,8 +137,7 @@ impl SmokeCounts {
             fresh_seen: Vec::new(),
             seen_unlooked: [0; 2],
             by_team_cloud: Vec::new(),
-            top_deaths: [[[0; 3]; 3]; 2],
-            rest_deaths: [[[0; 3]; 3]; 2],
+            deaths: Vec::new(),
             seen_through_margin: [0; 2],
         }
     }
@@ -179,7 +192,8 @@ impl SmokeCounts {
             .all(|part| veil.hides(look.eye, part.point_of(look.feet, look.crouched, look.eye)))
     }
 
-    /// The death of the bot at `place` at `tick`, by its class and whether it was its team's top.
+    /// The death of the bot at `place` at `tick`: its class, crowded or not, and whether its killer stood behind smoke from its
+    /// nearest living mate.
     fn death(&mut self, run: &Run, game: &Game, place: Place, tick: u32) {
         let team = game.bodies[place].team;
         let recent = |t: Option<u32>| t.is_some_and(|t| tick.saturating_sub(t) <= AFTER_SMOKE_MS);
@@ -193,11 +207,47 @@ impl SmokeCounts {
         let Some((crowded, near)) = super::feel::Feel::crowded_at_death(run, game, place) else {
             return;
         };
-        let top = super::feel::Feel::top_of(game, team) == Some(place);
-        let row = &mut if top { &mut self.top_deaths } else { &mut self.rest_deaths }[usize::from(team & 1)][class];
-        row[0] += 1;
-        row[1] += u32::from(crowded);
-        row[2] += near;
+        let killer = run.kills.iter().rev().find(|&&(_, _, victim)| victim == place).map(|&(_, killer, _)| killer);
+        let dead_at = game.bodies[place].feet;
+        let mate = game
+            .bodies
+            .iter()
+            .enumerate()
+            .filter(|&(p, b)| p != place && b.team == team && b.alive)
+            .min_by(|a, b| a.1.feet.distance_xz(dead_at).total_cmp(&b.1.feet.distance_xz(dead_at)));
+        let screened = match (killer, mate) {
+            (Some(killer), Some((_, mate))) if killer < game.bodies.len() => {
+                !self.clouds.is_empty() && self.hides(tick, Game::eye(mate), Game::chest(&game.bodies[killer]))
+            }
+            _ => false,
+        };
+        self.deaths.push(Death { place, tick, class, crowded, near, screened });
+    }
+
+    /// The deaths by team, top or not and class: [deaths, crowded, enemies near at the deaths, traded within [`TRADE_MS`] by a
+    /// mate, killer screened by smoke from the nearest mate].
+    fn deaths_by_class(&self, run: &Run, game: &Game) -> [[[[u32; 5]; 3]; 2]; 2] {
+        let team = |place: Place| usize::from(game.bodies.get(place).map_or(0, |b| b.team) & 1);
+        let tops = [super::feel::Feel::top_of(game, 0), super::feel::Feel::top_of(game, 1)];
+        let mut by = [[[[0u32; 5]; 3]; 2]; 2];
+        for d in &self.deaths {
+            let t = team(d.place);
+            let kill = run.kills.iter().enumerate().find(|&(_, &(k_t, _, victim))| victim == d.place && k_t.abs_diff(d.tick) <= 2 * TICK_MS);
+            let traded = kill.is_some_and(|(i, &(k_t, killer, _))| {
+                run.kills[i + 1..]
+                    .iter()
+                    .take_while(|&&(t2, ..)| t2.saturating_sub(k_t) <= TRADE_MS)
+                    .any(|&(_, killer2, victim2)| victim2 == killer && killer2 != d.place && team(killer2) == t)
+            });
+            let who = usize::from(tops[t] != Some(d.place));
+            let row = &mut by[t][who][d.class];
+            row[0] += 1;
+            row[1] += u32::from(d.crowded);
+            row[2] += d.near;
+            row[3] += u32::from(traded);
+            row[4] += u32::from(d.screened);
+        }
+        by
     }
 
     /// Whether `feet` stand inside a cloud at `tick`.
@@ -353,7 +403,7 @@ impl SmokeCounts {
         }
     }
 
-    fn part(&self) -> Part {
+    fn part(&self, deaths: &[[[[u32; 5]; 3]; 2]; 2]) -> Part {
         let now = smoke::tally::counts();
         let eyes: [[u64; smoke::tally::EVENTS]; 2] =
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
@@ -384,10 +434,15 @@ impl SmokeCounts {
             .enumerate()
             .map(|(r, role)| (role.name().to_owned(), serde_json::json!([thrown_by_role[0][r], thrown_by_role[1][r]])))
             .collect();
-        // By class: [team 0's, team 1's], each [deaths, crowded, enemies near at the deaths].
-        let classes = |by: &[[[u32; 3]; 3]; 2]| -> serde_json::Map<String, serde_json::Value> {
-            DEATH_CLASSES.iter().enumerate().map(|(c, name)| ((*name).to_owned(), serde_json::json!([by[0][c], by[1][c]]))).collect()
+        // By class: [team 0's, team 1's], each [deaths, crowded, enemies near at the deaths, traded, screened].
+        let classes = |who: usize| -> serde_json::Map<String, serde_json::Value> {
+            DEATH_CLASSES
+                .iter()
+                .enumerate()
+                .map(|(c, name)| ((*name).to_owned(), serde_json::json!([deaths[0][who][c], deaths[1][who][c]])))
+                .collect()
         };
+        let by_who = |who: usize| -> [[[u32; 5]; 3]; 2] { [deaths[0][who], deaths[1][who]] };
         let json = serde_json::json!({
             "smoke_bot_throws_by_use": uses_json,
             "smoke_bot_thrown_by_role": roles_json,
@@ -419,11 +474,11 @@ impl SmokeCounts {
             "smoke_fair_seen_unlooked": self.seen_unlooked,
             "smoke_fair_seen_through_margin": self.seen_through_margin,
             "smoke_fair_fire_through_margin": self.fire_through_margin,
-            "smoke_top_deaths_by_class": classes(&self.top_deaths),
-            "smoke_rest_deaths_by_class": classes(&self.rest_deaths),
+            "smoke_top_deaths_by_class": classes(0),
+            "smoke_rest_deaths_by_class": classes(1),
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; deaths [deaths, crowded, enemies near] by class {:?}: the tops' {:?}, the others' {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -455,8 +510,8 @@ impl SmokeCounts {
             self.seen_through_margin,
             self.fire_through_margin,
             DEATH_CLASSES,
-            self.top_deaths,
-            self.rest_deaths,
+            by_who(0),
+            by_who(1),
         );
         Part::new(json, text)
     }
@@ -514,8 +569,9 @@ impl Topic for SmokeCounts {
         }
     }
 
-    fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
-        vec![("smoke", self.part())]
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        let deaths = self.deaths_by_class(run, game);
+        vec![("smoke", self.part(&deaths))]
     }
 }
 
@@ -560,7 +616,7 @@ mod tests {
         counts.through(&game);
         assert_eq!((counts.hits_through, counts.spray_hits), ([1, 0], [1, 0]));
         assert!(counts.inside(5_000, game.bodies[1].feet) && !counts.inside(5_000, game.bodies[0].feet));
-        let part = counts.part();
+        let part = counts.part(&[[[[0; 5]; 3]; 2]; 2]);
         assert!(part.text.contains("through smoke hits [1, 0] (spray [1, 0]) kills [1, 0]"), "{}", part.text);
     }
 
