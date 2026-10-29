@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Za mało złota
 st_srp_exchange_short_silver	Za mało srebra
 st_srp_exchange_title	Wymiana
 st_srp_inventory_search	Szukaj
-st_srp_language_option	Język
+st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_loadout_block_ammo	Za mało amunicji do broni
 st_srp_loadout_block_locked	Ten profil jest zablokowany
@@ -2363,20 +2363,20 @@ st_srp_weapon_draw_time	Czas wyciągnięcia
 st_srp_weapon_full_damage	Pełne obrażenia do
 st_srp_weapon_hip_spread	Rozrzut z biodra
 st_srp_weapon_holster_time	Czas schowania
-st_srp_weapon_kick_side	Początkowy odrzut boczny
-st_srp_weapon_kick_side_variability	Zmienność odrzutu bocznego
-st_srp_weapon_kick_up	Początkowy odrzut w górę
-st_srp_weapon_kick_up_variability	Zmienność odrzutu w górę
+st_srp_weapon_kick_side	Odrzut poziomy
+st_srp_weapon_kick_side_variability	Zmienność w poziomie
+st_srp_weapon_kick_up	Odrzut pionowy
+st_srp_weapon_kick_up_variability	Zmienność w pionie
 st_srp_weapon_minimum_damage	Minimalne obrażenia
-st_srp_weapon_minimum_damage_from	Min. obrażenia od
+st_srp_weapon_minimum_damage_from	Minimalne obrażenia od
 st_srp_weapon_recoil_heading	Odrzut, rozrzut i kołysanie
 st_srp_weapon_reload	Przeładowanie
 st_srp_weapon_shift_hint	Przytrzymaj Shift: szczegóły
 st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
-st_srp_weapon_spread_max	Maksymalny dodatkowy rozrzut
+st_srp_weapon_spread_max	Limit wzrostu rozrzutu
 st_srp_weapon_spread_per_shot	Rozrzut na strzał
 st_srp_weapon_spread_recovery	Tempo odzyskania celności
-st_srp_weapon_stamina_damage	Obrażenia wytrzymałości
+st_srp_weapon_stamina_damage	Obrażenia kondycji
 st_srp_weapon_stats	Statystyki broni
 st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
@@ -2386,10 +2386,10 @@ st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór
 st_srp_weather_night	noc
 st_srp_weather_rain	deszcz
-st_srp_weight_no_sprint_heavyweight	Sprint zablokowany przez umiejętność ciężkiej wagi.
-st_srp_weight_no_sprint_limit	Sprint niedostępny: osiągnięto limit wagi.
+st_srp_weight_no_sprint_heavyweight	Sprint niedostępny: umiejętność „Mocarz”.
+st_srp_weight_no_sprint_limit	Sprint niedostępny: przeciążenie.
 st_srp_weight_speed	Prędkość ruchu: %1$s
-st_srp_weight_sprint_stamina	Zużycie wytrzymałości podczas sprintu: %1$s
+st_srp_weight_sprint_stamina	Koszty energii przy sprincie: %1$s
 st_srp_weight_title	Wpływ wagi
 st_stamina_boost_name	Drugi oddech
 st_stamina_boost_time_description	Odzyskanie energii po zabiciu przeciwnika:

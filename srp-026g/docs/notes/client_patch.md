@@ -2414,8 +2414,10 @@ Recoil and spread are not labelled degrees: the native recoil loader at
 0x331840 divides horizontal config values by 21.48 and vertical values by
 63.735. The dispersion loader at 0x330EE0 copies growth and recovery rates
 directly, as the breath loader at 0x2DEBC0 does for amplitudes and period.
-The UI reports each weapon's own base recoil/spread/sway values. Initial upward
-kick shows `[min_top, max_top]`; initial sideways kick shows
+The UI reports each weapon's own base recoil/spread/sway values, named in each
+language's own recoil, spread and sway words (the stock dictionary's: Russian
+отдача, разброс, раскачивание). Vertical (initial upward) recoil
+shows `[min_top, max_top]`; horizontal (initial sideways) recoil shows
 `[min_right - max_left, max_right - min_left]`, matching the engine's independent
 right-minus-left draws. Variability is the standard deviation: upward range
 width divided by `sqrt(12)`, sideways `sqrt((right_width² + left_width²) / 12)`.
@@ -2432,7 +2434,13 @@ owns resizing, and lobby positioning is refreshed when Shift changes its height.
 Focused check: `scripts/weight-ui/check_ui.sh <lobby.swf> <output-dir>
 scripts/weapon-details/WeaponDetailsHarness.as DETAILS` exercises native card
 expansion/collapse, comparison colors, translated heights, base values and old
-content fallback. The existing weight harness also checks the shop constructor.
+content fallback. In every language, compact and expanded, and beside the widest
+values of the live weapons (MSBS: -0.58…0.58, 1.98…2.2), every label is one line
+ending left of its value and every heading one line, with 5% of the width to
+spare (Ruffle lays out the embedded Calibri close to, not exactly as, Scaleform);
+each miss is printed as a `DETAILS OVERFLOW` line. A label that would not fit
+wraps before its value rather than under it (`LabelDiffIndicator`), the row
+taking the lines. The existing weight harness also checks the shop constructor.
 
 Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
 `WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,

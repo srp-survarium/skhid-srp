@@ -52,9 +52,9 @@ package {
    require(stat(symmetric,148)==null && stat(symmetric,149)==null && stat(symmetric,146)!=null,"missing side bound omits side stats only");
    var crossing:Array=[recoilItem(1,4,2,2,3,3),recoilItem(2,3,3,3,3,3)];
    for(var i:int=0;i<2;i++){cards[i].data=crossing[i];cards[i].itemCompare.setSecondaryWeapon(crossing[1-i]);}
-   require(color(cards[0],"Initial upward kick")==15911311 && color(cards[1],"Initial upward kick")==15911311,"crossing upward ranges stay neutral");
-   require(color(cards[0],"Initial sideways kick")==15911311 && color(cards[1],"Initial sideways kick")==15911311,"signed sideways ranges stay neutral");
-   require(color(cards[0],"Sideways variability")==15911311 && color(cards[1],"Sideways variability")==15911311,"equal variability stays neutral despite different bias");
+   require(color(cards[0],"Vertical recoil")==15911311 && color(cards[1],"Vertical recoil")==15911311,"crossing upward ranges stay neutral");
+   require(color(cards[0],"Horizontal recoil")==15911311 && color(cards[1],"Horizontal recoil")==15911311,"signed sideways ranges stay neutral");
+   require(color(cards[0],"Horizontal recoil variation")==15911311 && color(cards[1],"Horizontal recoil variation")==15911311,"equal variability stays neutral despite different bias");
    for(i=0;i<2;i++){cards[i].data=items[i];cards[i].itemCompare.setSecondaryWeapon(items[1-i]);}
   }
   private function loaded(e:Event):void {
@@ -113,6 +113,27 @@ package {
    }
    return out;
   }
+  // Every translated stat label is one line and ends left of its value's text, with room to spare:
+  // Ruffle draws the embedded Calibri, yet not exactly as Scaleform lays it out, so an exact fit proves nothing.
+  // The captions (headings, the Shift hint) are one line too. Every miss of the card, measured.
+  private static const FIT_MARGIN:Number=0.05;
+  private function overflows(card:Object,language:String):Array {
+   var view:Object=detailsView(card),misses:Array=[];
+   for(var i:int=0;i<view.numChildren;i++){
+    var e:Object=view.getChildAt(i);
+    if(e is Caption){
+     var field:TextField=e.textField;
+     if(field.numLines!=1 || field.textWidth*(1+FIT_MARGIN)+4>field.width)misses.push(language+": caption '"+field.text+"' "+Math.round(field.textWidth)+"/"+Math.round(field.width-4));
+     continue;
+    }
+    var label:TextField=e.indicator.textFieldLabel,value:TextField=e.indicator.textFieldValue;
+    var align:String=value.getTextFormat().align,valueStart:Number=value.x;
+    if(align==TextFormatAlign.RIGHT)valueStart+=value.width-value.textWidth-4;
+    else if(align==TextFormatAlign.CENTER)valueStart+=(value.width-value.textWidth)/2-2;
+    if(label.numLines!=1 || label.x+label.textWidth*(1+FIT_MARGIN)+6>valueStart)misses.push(language+": '"+label.text+"' "+Math.round(label.textWidth)+"/"+Math.round(valueStart-label.x-6)+(label.numLines!=1?" ("+label.numLines+" lines)":""));
+   }
+   return misses;
+  }
   private function detailsView(card:Object):Object {
    for(var i:int=0;i<card.numChildren;i++)if(card.getChildAt(i) is DetailsView)return card.getChildAt(i);
    throw new Error("missing detail view");
@@ -164,9 +185,9 @@ package {
      compactHeight=cards[0].height;Scene.isShift=true;
     }
     if(frame==45){
-     var s:String=text(cards[0]);require(s.indexOf("Initial upward kick: 2.5…3")>=0,"weapon own upward kick range");
-     require(s.indexOf("Initial sideways kick: -0.5…0.5")>=0,"weapon own sideways kick range");
-     require(s.indexOf("Upward variability: 0.144")>=0 && s.indexOf("Sideways variability: 0.204")>=0,"weapon own recoil standard deviations");
+     var s:String=text(cards[0]);require(s.indexOf("Vertical recoil: 2.5…3")>=0,"weapon own upward kick range");
+     require(s.indexOf("Horizontal recoil: -0.5…0.5")>=0,"weapon own sideways kick range");
+     require(s.indexOf("Vertical recoil variation: 0.144")>=0 && s.indexOf("Horizontal recoil variation: 0.204")>=0,"weapon own recoil standard deviations");
      require(s.indexOf("Hip-fire spread: 2x")>=0 && s.indexOf("Draw time: 1s")>=0 && s.indexOf("Holster time: 1s")>=0,"handling and accuracy");
      require(text(cards[1]).indexOf("Hip-fire spread: 1x")>=0,"missing multiplier shows native 1x default, as on Kiparis");
      aligned();
@@ -177,10 +198,10 @@ package {
      require(s.indexOf("Weapon modifiers only")<0,"no explanatory note presented as a stat");
      require(color(cards[0],"Reload")==9834254 && color(cards[1],"Reload")==8890390,"lower reload is green, higher reload is red");
      require(color(cards[0],"Minimum damage from")==9834254 && color(cards[1],"Minimum damage from")==8890390,"higher falloff distance is green");
-     require(color(cards[0],"Initial upward kick")==9834254 && color(cards[1],"Initial upward kick")==8890390,"upward range comparison colors");
-     require(color(cards[0],"Upward variability")==9834254 && color(cards[1],"Upward variability")==8890390,"upward variability comparison colors");
-     require(color(cards[0],"Sideways variability")==9834254 && color(cards[1],"Sideways variability")==8890390,"sideways variability comparison colors");
-     require(color(cards[0],"Initial sideways kick")==15911311 && color(cards[1],"Initial sideways kick")==15911311,"signed sideways range is neutral");
+     require(color(cards[0],"Vertical recoil")==9834254 && color(cards[1],"Vertical recoil")==8890390,"upward range comparison colors");
+     require(color(cards[0],"Vertical recoil variation")==9834254 && color(cards[1],"Vertical recoil variation")==8890390,"upward variability comparison colors");
+     require(color(cards[0],"Horizontal recoil variation")==9834254 && color(cards[1],"Horizontal recoil variation")==8890390,"sideways variability comparison colors");
+     require(color(cards[0],"Horizontal recoil")==15911311 && color(cards[1],"Horizontal recoil")==15911311,"signed sideways range is neutral");
      require(color(cards[0],"Minimum damage")==15911311 && color(cards[0],"Spread recovery rate")==15911311,"equal values retain their normal color");
      Scene.isCtrl=true;
     }
@@ -190,12 +211,20 @@ package {
     if(frame==85){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf("Hold Shift")>=0,"Ctrl alone retains compact layout");Scene.isCtrl=false;}
     if(frame==95){require(color(cards[0],"Reload")==9834254,"release Ctrl alone restores comparisons");Scene.isCtrl=true;}
     if(frame==100){neutral(cards[0]);Scene.isShift=true;}
-    if(frame==110){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf("Initial upward kick")>=0,"Shift expands while Ctrl remains neutral");Scene.isCtrl=false;}
+    if(frame==110){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf("Vertical recoil")>=0,"Shift expands while Ctrl remains neutral");Scene.isCtrl=false;}
     if(frame==120)require(color(cards[0],"Reload")==9834254,"Ctrl-first chord restores comparisons");
 
     if(frame==130){
+     // The widest values of the live weapons (MSBS: sideways -0.58…0.58, upward 1.98…2.2) leave a label the least room.
+     var misses:Array=[],wide:Object=recoilItem(1.98,2.2,1.42,2,1.42,2);
      for each(var language:String in HarnessText.LANGUAGES){
-      Loc.setData(texts(language));cards[0].data=items[0];cards[1].data=items[1];
+      Loc.setData(texts(language));
+      Scene.isShift=false;cards[0].data=items[0];cards[1].data=items[1];
+      require(text(cards[0]).indexOf(HarnessText.DATA[language].st_srp_weapon_shift_hint)>=0,"compact card: "+language);
+      misses=misses.concat(overflows(cards[0],language));
+      Scene.isShift=true;cards[0].data=items[0];cards[1].data=wide;
+      misses=misses.concat(overflows(cards[0],language),overflows(cards[1],language));
+      cards[1].data=items[1];
       require(cards[0].height<900,"expanded translated card fits: "+language);
       var translated:String=text(cards[0]);
       require(translated.indexOf("undefined")<0 && translated.indexOf("#st_")<0 && translated.indexOf("%1$s")<0,"complete translation: "+language);
@@ -203,6 +232,9 @@ package {
       require(translated.indexOf(HarnessText.DATA[language].st_srp_weapon_reload+": "+HarnessText.DATA[language].st_srp_unit_seconds.split("%1$s").join("10"))>=0,"translated unit: "+language);
       aligned();
      }
+     var told:Object={};misses=misses.filter(function(m:String,...rest):Boolean{var again:Boolean=told[m];told[m]=true;return !again;});
+     for each(var miss:String in misses)trace("DETAILS OVERFLOW "+miss);
+     require(misses.length==0,misses.length+" labels do not fit one line (DETAILS OVERFLOW lines)");
      Loc.setData(texts("english"));cards[0].data=items[0];cards[1].data=items[1];
      recoilChecks();
      var baseRange:String=text(cards[0]);

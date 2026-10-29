@@ -265,7 +265,7 @@ st_artefact_search_success	Sait artefaktin!
 st_ash12_description	Kuvausta ei vielä ole.
 st_ash12_name	Ash-12
 st_attention	Survariumin käynnistimen avaaminen epäonnistui. Yritä myöhemmin uudelleen.
-st_auto	Automaattinen
+st_auto	Auto
 st_auto_button_hint	Automaattinen ammustäydennys
 st_auto_repair_button_label	Automaattinen korjaus
 st_auto_repair_hint	Korjaa varusteiden pienet vauriot automaattisesti
@@ -430,7 +430,7 @@ st_btn_exchange_premium_money	Vaihda kultaa rupliksi
 st_btn_exit_label	Poistu
 st_btn_find_player	Etsi pelaaja
 st_btn_friends	Kaverit
-st_btn_friends_online_filter	Paikalla olevat kaverit
+st_btn_friends_online_filter	Kaverit paikalla
 st_btn_go_to_online_store	Jatka
 st_btn_invite_clan_memeber_label	Kutsu
 st_btn_item_craft	Paranna
@@ -511,11 +511,11 @@ st_camo_red_leather_name	Legioonalainen
 st_camo_rubber_green_01_name	Etsijä
 st_camo_rubber_green_02_name	Keltainen kumi
 st_camo_rubber_green_name	Vihreä kumi
-st_camo_slot	Maastokuviointi
+st_camo_slot	Maastokuvio
 st_camo_spekrt_01_name	Spektr-Syksy
 st_camo_spekrt_02_name	Spektr-Kevät
 st_camo_spekrt_03_name	Spektr-Kesä
-st_camo_steam	Steam-maastokuviointi
+st_camo_steam	Steam-maastokuvio
 st_camo_suede_leather_name	Mokka
 st_camo_ucp_name	UCP
 st_camo_vsr_name	MES
@@ -1116,7 +1116,7 @@ st_faction_scientists_blocked_text	Tutkijat eivät anna sinulle tehtäviä
 st_fall_damage_description	Putoamisvahinko:
 st_fall_damage_name	Laskuvarjojääkäri
 st_few_alpha_clan_string	Virheellinen nimi
-st_filter_all	Näytä kaikki
+st_filter_all	Kaikki
 st_filter_ammo	Ammukset
 st_filter_ammo_assault_rifle	Rynnäkkökiväärit
 st_filter_ammo_machine_gun	Konekiväärit
@@ -1127,7 +1127,7 @@ st_filter_ammo_submachine_gun	Konepistoolit
 st_filter_assault_rifle	Rynnäkkökiväärit
 st_filter_body_armor	Suojaliivit
 st_filter_boots	Saappaat
-st_filter_camo	Maastokuviointi
+st_filter_camo	Maastokuvio
 st_filter_decal	Merkit
 st_filter_device	Laitteet
 st_filter_equipment	Varusteet
@@ -1188,10 +1188,10 @@ st_friend_state_game	Paikalla
 st_friend_state_lobby	Aula
 st_friend_state_offline	Ei paikalla
 st_friendly_user_compliment	Ystävällinen
-st_friends_online	Paikalla olevat kaverit
+st_friends_online	Kaverit paikalla
 st_friends_signin_notification_option	Ilmoita kavereiden saapumisesta
 st_fullscreen_option	Koko näyttö
-st_general_volume_option	Pää-äänenvoimakkuus
+st_general_volume_option	Yleinen
 st_generic_money_name	Ruplat
 st_geometry_quality_option	Geometrian laatu
 st_go_to_knowledge_base_message	Tietopankki avautuu uuteen selainikkunaan.
@@ -1296,7 +1296,7 @@ st_item_drop_chance_team_premium	Premium-pelaajat ottelussa:
 st_item_hint_label	Tavarat
 st_item_hint_label_shop	Kauppa
 st_item_level	Esineen taso
-st_item_modification	Lisäominaisuuksien vaihtaminen
+st_item_modification	Lisäominaisuuden vaihto
 st_item_piece_postfix	yksikköä
 st_item_props_kg	kg
 st_item_props_meters	m
@@ -1413,7 +1413,7 @@ st_match_settings_checkbox_capture_points_hint	Taistelutila, jossa vallataan ava
 st_match_settings_checkbox_clan_match_hint	Klaanijoukkueiden taistelutilat
 st_match_settings_checkbox_rank_match	Luokiteltu ottelu
 st_match_settings_checkbox_rank_match_hint	Satunnaisesti valittujen klaanijoukkueiden kamppailu klaaniluokituksessa
-st_match_settings_checkbox_team_match	Joukkuekuolemanottelu
+st_match_settings_checkbox_team_match	Joukkuetaistelu
 st_match_settings_checkbox_team_match_hint	Taistelutila, jossa vihollinen on tuhottava kokonaan
 st_match_settings_checkbox_tournament_match	Turnausottelu
 st_match_settings_checkbox_tournament_match_hint	Klaanijoukkueiden kamppailu käynnissä olevassa turnauksessa
@@ -1470,7 +1470,7 @@ st_mode_02_name	Suojalaite
 st_mode_03_description	Myrsky lähestyy. Ainoa tapa selviytyä on löytää kartalta akkuja ja palauttaa suojalaitteet, jotka torjuvat Myrskyn. Mitä enemmän akkuja löydät, sitä varmempi suoja. Eniten akkuja kerännyt joukkue voittaa.
 st_mode_03_name	Suojalaite
 st_mode_04_description	Vahvista joukkueesi asemaa alueella eliminoimalla mahdollisimman monta vihollista. Jokainen kuolema vie joukkueelta yhden vahvistuspisteen. Eniten pisteitä ottelun lopussa säilyttänyt joukkue voittaa.
-st_mode_04_name	Joukkuekuolemanottelu
+st_mode_04_name	Joukkuetaistelu
 st_mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokainen vallattu yksikkö tuottaa joukkueellesi anomaliatutkimuspisteitä. Eniten pisteitä ottelun lopussa kerännyt joukkue voittaa.
 st_mode_05_name	Tutkimus
 st_modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
@@ -1649,7 +1649,7 @@ st_pm_description	Makarov-pistooli, kaliiperi 9x18 PM. Suunniteltu vuonna 1948 T
 st_pm_name	PM
 st_pockets	Taskut
 st_point	piste
-st_points_aviable	Käytettävissä olevat pisteet
+st_points_aviable	Vapaat pisteet
 st_points_earned	Tasosi
 st_post_process_options	Jälkikäsittelyn laatu
 st_pp2000_description	Kuvausta ei vielä ole.
@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
 st_srp_inventory_search	Hae
-st_srp_language_option	Kieli
+st_srp_language_option	Kieli:
 st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
 st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle
 st_srp_loadout_block_locked	Tämä profiili on lukittu
@@ -2207,7 +2207,7 @@ st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
-st_srp_mode_team_deathmatch	Joukkuekuolemanottelu
+st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
@@ -2228,7 +2228,7 @@ st_srp_pvb_outdated	Päivitä peli
 st_srp_pvb_retry	Ei vastausta, yritä uudelleen
 st_srp_pvb_searching	Lopeta ensin haku
 st_srp_pvb_team_size	%1$s vastaan %2$s
-st_srp_pvb_title	Pelaaja vastaan botit
+st_srp_pvb_title	Botteja vastaan
 st_srp_pvb_unknown_choice	Tämä kartta tai joukkuekoko ei ole nyt saatavilla
 st_srp_replay_asking	Pyydetään ottelun tallennetta palvelimelta…
 st_srp_replay_being_made	Tallenne luodaan ottelun lokista. Tämä tehdään ensimmäisellä katselukerralla, ja siinä kestää hetki.\nVoit sulkea ikkunan, palvelin jatkaa valmistelua.\n\n%1$s
@@ -2258,7 +2258,7 @@ st_srp_replay_waiting	Odotettu: %1$s s.
 st_srp_reroll_description	Voit vaihtaa esineen minkä tahansa lisäominaisuuden niin monta kertaa kuin haluat. Valitset sitten yhden kolmesta satunnaisesta lisäominaisuudesta.
 st_srp_rooms_all	Kaikki
 st_srp_rooms_all_rooms	Kaikki huoneet
-st_srp_rooms_any	Mikä tahansa
+st_srp_rooms_any	Ei rajaa
 st_srp_rooms_back	Takaisin
 st_srp_rooms_code_10	Omistaja poisti sinut huoneesta.
 st_srp_rooms_code_11	Poistu ensin klaanijoukkueesta.
@@ -2324,7 +2324,7 @@ st_srp_rooms_players	Pelaajat
 st_srp_rooms_playing	Ottelu käynnissä
 st_srp_rooms_pool	Karttavalikoima
 st_srp_rooms_pool_hint	Näistä arvotaan 3 korttia äänestykseen.
-st_srp_rooms_private_room	Yksityinen huone: enintään 20 pelaajaa. Sinä jaat joukkueet ja aloitat ottelun.
+st_srp_rooms_private_room	Yksityinen huone: jopa 20 pelaajaa; sinä jaat joukkueet ja aloitat.
 st_srp_rooms_queue	Jono
 st_srp_rooms_queue_room	Jonota huoneeseen
 st_srp_rooms_room	Huone
@@ -2349,7 +2349,7 @@ st_srp_rooms_unfit_kit	Varustesettisi ei kelpaa peliin (ase puuttuu tai ammuksia
 st_srp_rooms_vote	Äänestä seuraavaa karttaa
 st_srp_rooms_vote_hint	3 korttia valikoimasta. Eniten ääniä saanut voittaa, tasatilanne arvotaan. Vaihda ääntäsi klikkaamalla.
 st_srp_rooms_vote_now	Äänestä seuraavaa karttaa klikkaamalla korttia. Ajan loputtua ottelu alkaa voittajakartalla.
-st_srp_rooms_voting	Karttaäänestys
+st_srp_rooms_voting	Äänestys
 st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
@@ -2363,9 +2363,9 @@ st_srp_weapon_draw_time	Esillenottoaika
 st_srp_weapon_full_damage	Täyden vahingon kantama
 st_srp_weapon_hip_spread	Lonkkatulen hajonta
 st_srp_weapon_holster_time	Poislaittoaika
-st_srp_weapon_kick_side	Alkurekyyli sivuttain
-st_srp_weapon_kick_side_variability	Sivurekyylin vaihtelu
-st_srp_weapon_kick_up	Alkurekyyli ylöspäin
+st_srp_weapon_kick_side	Vaakarekyyli
+st_srp_weapon_kick_side_variability	Vaakarekyylin vaihtelu
+st_srp_weapon_kick_up	Pystyrekyyli
 st_srp_weapon_kick_up_variability	Pystyrekyylin vaihtelu
 st_srp_weapon_minimum_damage	Vähimmäisvahinko
 st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
@@ -2374,8 +2374,8 @@ st_srp_weapon_reload	Lataaminen
 st_srp_weapon_shift_hint	Lisätiedot: pidä Shift pohjassa
 st_srp_weapon_spread_growth	Hajonnan kasvunopeus
 st_srp_weapon_spread_max	Suurin lisähajonta
-st_srp_weapon_spread_per_shot	Hajonnan kasvu laukausta kohden
-st_srp_weapon_spread_recovery	Tarkkuuden palautumisnopeus
+st_srp_weapon_spread_per_shot	Hajonta laukausta kohden
+st_srp_weapon_spread_recovery	Tarkkuuden palautuminen
 st_srp_weapon_stamina_damage	Kestävyysvahinko
 st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso

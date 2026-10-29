@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Nicht genug Gold
 st_srp_exchange_short_silver	Nicht genug Silber
 st_srp_exchange_title	Tausch
 st_srp_inventory_search	Suche
-st_srp_language_option	Sprache
+st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
 st_srp_loadout_block_locked	Dieses Profil ist gesperrt
@@ -2363,33 +2363,33 @@ st_srp_weapon_draw_time	Ziehzeit
 st_srp_weapon_full_damage	Voller Schaden bis
 st_srp_weapon_hip_spread	Hüftfeuer-Streuung
 st_srp_weapon_holster_time	Wegsteckzeit
-st_srp_weapon_kick_side	Anfänglicher Seitenstoß
-st_srp_weapon_kick_side_variability	Seitliche Variabilität
-st_srp_weapon_kick_up	Anfänglicher Rückstoß oben
-st_srp_weapon_kick_up_variability	Vertikale Variabilität
+st_srp_weapon_kick_side	Horizontaler Rückstoß
+st_srp_weapon_kick_side_variability	Horizontale Schwankung
+st_srp_weapon_kick_up	Vertikaler Rückstoß
+st_srp_weapon_kick_up_variability	Vertikale Schwankung
 st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
-st_srp_weapon_recoil_heading	Rückstoß, Streuung, Schwanken
+st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
 st_srp_weapon_shift_hint	Shift halten: Details
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss
 st_srp_weapon_spread_recovery	Erholung der Präzision
-st_srp_weapon_stamina_damage	Ausdauerschaden
+st_srp_weapon_stamina_damage	Energieschaden
 st_srp_weapon_stats	Waffenwerte
-st_srp_weapon_sway_cycle	Schwankungsperiode
-st_srp_weapon_sway_horizontal	Horizontales Schwanken
-st_srp_weapon_sway_vertical	Vertikales Schwanken
+st_srp_weapon_sway_cycle	Verwackelperiode
+st_srp_weapon_sway_horizontal	Horizontales Verwackeln
+st_srp_weapon_sway_vertical	Vertikales Verwackeln
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
 st_srp_weather_night	Nacht
 st_srp_weather_rain	Regen
-st_srp_weight_no_sprint_heavyweight	Sprint durch Schwergewicht-Fertigkeit gesperrt.
+st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
 st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.
 st_srp_weight_speed	Bewegungsgeschwindigkeit: %1$s
-st_srp_weight_sprint_stamina	Ausdauerverbrauch beim Sprinten: %1$s
+st_srp_weight_sprint_stamina	Energiekosten beim Sprinten: %1$s
 st_srp_weight_title	Gewichtseffekte
 st_stamina_boost_name	Zweiter Atem
 st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:

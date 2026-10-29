@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Недостаточно золота
 st_srp_exchange_short_silver	Недостаточно серебра
 st_srp_exchange_title	Обмен
 st_srp_inventory_search	Поиск
-st_srp_language_option	Язык
+st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_loadout_block_ammo	Мало патронов к оружию
 st_srp_loadout_block_locked	Этот профиль закрыт
@@ -2348,7 +2348,7 @@ st_srp_rooms_unfit_gear	Ваше снаряжение выше макс. уро�
 st_srp_rooms_unfit_kit	Ваш комплект не может играть (нет оружия или мало патронов): исправьте, иначе на старте вы выйдете из комнаты.
 st_srp_rooms_vote	Голосуйте за следующую карту
 st_srp_rooms_vote_hint	3 карточки из пула. Побеждает большинство; ничья — случайно. Нажмите, чтобы сменить голос.
-st_srp_rooms_vote_now	Голосуйте за следующую карту: нажмите карточку. Когда время выйдет, матч начнётся на победителе.
+st_srp_rooms_vote_now	Голосуйте за следующую карту: нажмите карточку. Матч начнётся на победившей.
 st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
@@ -2363,33 +2363,33 @@ st_srp_weapon_draw_time	Время доставания
 st_srp_weapon_full_damage	Полный урон до
 st_srp_weapon_hip_spread	Разброс от бедра
 st_srp_weapon_holster_time	Время убирания
-st_srp_weapon_kick_side	Начальный боковой толчок
-st_srp_weapon_kick_side_variability	Изменчивость бокового толчка
-st_srp_weapon_kick_up	Начальный толчок вверх
-st_srp_weapon_kick_up_variability	Изменчивость толчка вверх
+st_srp_weapon_kick_side	Отдача вбок
+st_srp_weapon_kick_side_variability	Колебания отдачи вбок
+st_srp_weapon_kick_up	Отдача вверх
+st_srp_weapon_kick_up_variability	Колебания отдачи вверх
 st_srp_weapon_minimum_damage	Минимальный урон
-st_srp_weapon_minimum_damage_from	Мин. урон от
-st_srp_weapon_recoil_heading	Отдача, разброс и качание
+st_srp_weapon_minimum_damage_from	Минимальный урон от
+st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Удерживайте Shift: подробности
+st_srp_weapon_shift_hint	Зажмите Shift: подробнее
 st_srp_weapon_spread_growth	Скорость роста разброса
-st_srp_weapon_spread_max	Максимальный доп. разброс
+st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
-st_srp_weapon_spread_recovery	Скорость восстановления точности
-st_srp_weapon_stamina_damage	Урон выносливости
+st_srp_weapon_spread_recovery	Скорость сведения
+st_srp_weapon_stamina_damage	Урон по энергии
 st_srp_weapon_stats	Характеристики оружия
-st_srp_weapon_sway_cycle	Период качания
-st_srp_weapon_sway_horizontal	Горизонтальное качание
-st_srp_weapon_sway_vertical	Вертикальное качание
+st_srp_weapon_sway_cycle	Период раскачивания
+st_srp_weapon_sway_horizontal	Раскачивание в стороны
+st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
 st_srp_weather_evening	вечер
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
-st_srp_weight_no_sprint_heavyweight	Спринт недоступен из-за навыка тяжеловеса.
-st_srp_weight_no_sprint_limit	Спринт недоступен: достигнут предел веса.
-st_srp_weight_speed	Скорость движения: %1$s
-st_srp_weight_sprint_stamina	Расход выносливости при спринте: %1$s
+st_srp_weight_no_sprint_heavyweight	Спринт недоступен: навык «Тяжеловес».
+st_srp_weight_no_sprint_limit	Спринт недоступен: перегруз.
+st_srp_weight_speed	Скорость передвижения: %1$s
+st_srp_weight_sprint_stamina	Затраты энергии на спринт: %1$s
 st_srp_weight_title	Влияние веса
 st_stamina_boost_name	Второе дыхание
 st_stamina_boost_time_description	Восстановление энергии при убийстве противника:

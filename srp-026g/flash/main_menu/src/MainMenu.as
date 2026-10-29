@@ -108,10 +108,10 @@ package
          this.action_select.setData(value,promo);
       }
       
-      // The exe's answer to the Language choice (patch 79, SrpLanguage).
+      // The exe's answer to the Language choice (patch 79, Settings.setLanguage).
       public function srp_language(... values) : void
       {
-         SrpLanguage.answer(this.settings_window,values);
+         this.settings_window.setLanguage(values);
       }
       
       public function handle_promo_key_validation(value:Boolean, text:String) : void

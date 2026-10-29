@@ -6,15 +6,19 @@ package
     import flash.display.Sprite;
     import flash.events.Event;
     import flash.events.UncaughtErrorEvent;
+    import flash.geom.Rectangle;
     import flash.net.URLRequest;
     import flash.system.ApplicationDomain;
     import flash.system.LoaderContext;
     import flash.text.Font;
     import flash.text.TextField;
+    import flash.text.TextFormat;
 
     // The Settings' Language choice (exe patch 79) in the rebuilt main menu:
     // the exe's answer as root.srp_language gives it, the list, the saved
-    // pick, the note, the other tabs, and the embedded font's glyphs for
+    // pick, the note, its place in the bottom panel (the seeding and
+    // statistics options hidden), a pick as a pending change that Apply saves
+    // and Cancel drops, the other tabs, and the embedded font's glyphs for
     // every language's own name and texts (check.sh passes them, from the
     // registry and the dictionaries). No game or server.
     public class LanguageHarness extends Sprite
@@ -45,6 +49,28 @@ package
             if (!value) throw new Error(message);
         }
 
+        // A player's pick: the list dispatches its change only while open.
+        private function pick(menu:*, index:int):void
+        {
+            var listEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ListEvent") as Class;
+            menu.selectedIndex = index;
+            menu.dispatchEvent(new listEvent("listIndexChange", true, false, index));
+        }
+
+        // A click of Apply or Cancel. Outside the game the exe calls after it
+        // may throw; what the buttons did before them is what is checked.
+        private function click(button:*):void
+        {
+            var buttonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+            try
+            {
+                button.dispatchEvent(new buttonEvent("buttonClick"));
+            }
+            catch (error:Error)
+            {
+            }
+        }
+
         private function tick(e:Event):void
         {
             if (++frames < 10) return;
@@ -68,8 +94,9 @@ package
             var settings:* = root.settings_window;
             var content:MovieClip = settings.settings_content;
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
-            var language:* = domain.getDefinition("SrpLanguage");
-            root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "settings_label", label: "Settings"}]);
+            root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
+                {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
+                {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"}]);
             var settingsList:Array = [];
             for (var i:int = 0; i < 16; ++i) settingsList.push({label: "option " + i});
             root.set_settings(0, settingsList);
@@ -102,14 +129,56 @@ package
             }
             require(heading != null && heading.visible, "the heading shows the label");
             require(note != null && note.visible, "the note shows while the saved language is not the running one");
+
+            for each (var unsupported:String in ["_setter_static_use_seed", "_upload_speed", "_setter_static_allow_statistics"])
+            {
+                require(content[unsupported] != null && !content[unsupported].visible, unsupported + " is hidden");
+            }
+            var panel:Rectangle = content.bottomContainer.getBounds(content);
+            for each (var part:DisplayObject in [heading, menu, note])
+            {
+                var bounds:Rectangle = part.getBounds(content);
+                require(panel.containsRect(bounds), "in the bottom panel " + panel + ": " + part.name + " " + bounds);
+            }
+            var middle:Number = panel.x + panel.width / 2;
+            require(Math.abs(menu.x + menu.width / 2 - middle) < 4, "the list centred in the panel");
+            var model:TextFormat = content._upload_speed.textField.defaultTextFormat;
+            var format:TextFormat = heading.defaultTextFormat;
+            require(format.font == model.font && format.size == model.size && format.color == model.color,
+                "the label styled as the \"Limit upload speed:\" label");
+            require(heading.text.charAt(heading.text.length - 1) == ":", "the label ends with a colon: " + heading.text);
+            trace("LANGUAGE label " + heading.text + " " + format.font + " " + format.size + " #" + uint(format.color).toString(16)
+                + " at " + heading.x + "," + heading.y + "; list at " + menu.x + "," + menu.y + " w " + menu.width
+                + "; note at " + note.x + "," + note.y + "; panel " + panel);
+
+            var english:int = 0;
+            require(!settings.btn_accept.enabled, "nothing to apply before a pick");
+            pick(menu, english);
+            require(settings.btn_accept.enabled && settings.btn_cancel.label == "Cancel", "a pick enables Apply and Cancel");
+            require(note.visible, "the note follows the saved language, not a pending pick");
+            pick(menu, czech);
+            require(!settings.btn_accept.enabled && settings.btn_cancel.label == "Exit", "picking the saved one back: nothing to apply");
+            pick(menu, english);
+            click(settings.btn_cancel);
+            require(menu.selectedIndex == czech && !settings.btn_accept.enabled && settings.btn_cancel.label == "Exit",
+                "Cancel puts the saved language back");
+            pick(menu, english);
+            click(settings.btn_accept);
+            require(menu.selectedIndex == english && !settings.btn_accept.enabled && !note.visible,
+                "Apply saves the pick (saved and running are one: no note)");
+            trace("LANGUAGE a pick is pending until Apply; Cancel drops it");
+
             answer[2] = "english";
             root.srp_language.apply(null, answer);
             require(!note.visible && menu.selectedIndex == 0, "no note once saved and running are one");
+            // A tab change binds the tab's content again (create_content);
+            // Settings' own tab change calls the exe first, which a test
+            // player lacks, so the frame is changed here and bound again.
             content.gotoAndStop(2);
-            language.apply(settings);
+            root.set_settings(0, settingsList);
             require(!menu.visible && !heading.visible && !note.visible, "nothing of it on another tab");
             content.gotoAndStop(1);
-            language.apply(settings);
+            root.set_settings(0, settingsList);
             require(menu.visible && heading.visible, "back on the gameplay tab");
             trace("LANGUAGE list, saved pick, note and tabs pass");
 

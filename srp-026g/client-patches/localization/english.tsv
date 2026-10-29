@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Not enough gold
 st_srp_exchange_short_silver	Not enough silver
 st_srp_exchange_title	Exchange
 st_srp_inventory_search	Search
-st_srp_language_option	Language
+st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon
 st_srp_loadout_block_locked	This profile is locked
@@ -2363,10 +2363,10 @@ st_srp_weapon_draw_time	Draw time
 st_srp_weapon_full_damage	Full damage up to
 st_srp_weapon_hip_spread	Hip-fire spread
 st_srp_weapon_holster_time	Holster time
-st_srp_weapon_kick_side	Initial sideways kick
-st_srp_weapon_kick_side_variability	Sideways variability
-st_srp_weapon_kick_up	Initial upward kick
-st_srp_weapon_kick_up_variability	Upward variability
+st_srp_weapon_kick_side	Horizontal recoil
+st_srp_weapon_kick_side_variability	Horizontal recoil variation
+st_srp_weapon_kick_up	Vertical recoil
+st_srp_weapon_kick_up_variability	Vertical recoil variation
 st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway

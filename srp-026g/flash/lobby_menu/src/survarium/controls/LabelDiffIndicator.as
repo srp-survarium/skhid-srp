@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormatAlign;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.utils.Constraints;
@@ -177,6 +178,17 @@ package survarium.controls
             if(mc_diff_negative_ghost) mc_diff_negative_ghost.visible = false;
             if(!_detailValue.length)
                textFieldLabel.width = textFieldValue.x + textFieldValue.width - textFieldLabel.x;
+            else
+            {
+               // A long (translated) label wraps before the value's text
+               // instead of running under it; WeaponDetailsView gives the
+               // row its lines.
+               var align:String = textFieldValue.getTextFormat().align;
+               var valueStart:Number = textFieldValue.x;
+               if(align == TextFormatAlign.RIGHT) valueStart += textFieldValue.width - textFieldValue.textWidth - 4;
+               else if(align == TextFormatAlign.CENTER) valueStart += (textFieldValue.width - textFieldValue.textWidth) / 2 - 2;
+               textFieldLabel.width = Math.max(1,valueStart - 6 - textFieldLabel.x);
+            }
             textFieldLabel.multiline = textFieldLabel.wordWrap = true;
             textFieldLabel.autoSize = TextFieldAutoSize.LEFT;
          }

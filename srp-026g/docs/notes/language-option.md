@@ -7,11 +7,16 @@ the main menu movie (`flash/main_menu/src/SrpLanguage.as`).
 
 ## The choice
 
-- **Where:** Settings, Gameplay tab, bottom right: the heading "Language", a list of every registered
-  language by its own name (English, Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar,
-  Suomi, ...), the saved one selected (in Ruffle: `../images/language-option.png`).
-- **A pick is saved at once** (no Apply): user.cfg is written at the pick, not only when the game
-  closes.
+- **Where:** Settings, Gameplay tab, the bottom panel, centred: the label "Language:" (styled as
+  the tab's option labels), a list of every registered language by its own name (English,
+  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, ...), the saved one selected
+  (in Ruffle: `../images/language-option.png`).
+- **The panel's old options are hidden:** "Enable seeding", "Limit upload speed" (the old launcher's
+  torrent) and "Enable statistics collection" (nothing in the 0.26g exe reads it). Hidden, not
+  removed: the exe binds the gameplay options by their index in the movie's `_element_map`.
+- **Apply saves a pick**, as any option of the tab: a pick enables Apply and Cancel; Apply sends it
+  to the exe, which writes user.cfg at once (not only when the game closes); Cancel, or leaving the
+  tab or Settings without Apply, puts the saved language back.
 - **Applies after restart:** the note "Applies after restart." shows while the saved language is not
   the running one. No live switch: the engine reads its language once, before the dictionary, the
   Flash texts, the swear filter and the chat language load.
