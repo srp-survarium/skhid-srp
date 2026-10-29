@@ -3,7 +3,7 @@
 use super::check::message_check;
 use super::report::Output;
 use super::run::Todo;
-use super::step::{Group, Size, Step};
+use super::step::{Group, Seat, Size, Step};
 
 /// Packages that only show the API: `all` leaves them out (2 x 90 s of the owner's time), naming one runs it.
 const EXAMPLES: &[&str] = &["sample"];
@@ -50,6 +50,30 @@ impl Plan {
         if let Some(bad) = steps.iter().find_map(|s| s.check().err()) {
             return Err(format!("SRP_CLIENT_TEST: {bad}"));
         }
+        // One role a seat: two steps of one match that want two cannot both have their match.
+        for (i, a) in steps.iter().enumerate() {
+            for b in &steps[i + 1..] {
+                if a.group.level != b.group.level || a.group.mode != b.group.mode {
+                    continue;
+                }
+                if matches!((a.group.size, b.group.size), (Size::PerTeam(x), Size::PerTeam(y)) if x != y) {
+                    continue;
+                }
+                for x in &a.roster {
+                    if let Some(y) = b.roster.iter().find(|y| y.side == x.side && y.nth == x.nth && y.role != x.role) {
+                        return Err(format!(
+                            "SRP_CLIENT_TEST: steps {} and {} want different roles ({:?}, {:?}) for the {} bot {} of one match",
+                            a.id,
+                            b.id,
+                            x.role,
+                            y.role,
+                            x.side.name(),
+                            x.nth
+                        ));
+                    }
+                }
+            }
+        }
         // A stable sort: the registration order stays within a group.
         steps.sort_by_key(|s| s.group);
         // The first thing the owner is asked: can he read what the server says (`check.rs`).
@@ -87,6 +111,17 @@ impl Plan {
             .iter()
             .find(|s| !s.group.fits(played) && self.left(s, output))
             .map(|s| s.group)
+    }
+
+    /// The roles the steps of a match of group `played` ask for.
+    pub fn roster_for(&self, played: Group) -> Vec<Seat> {
+        let mut roster: Vec<Seat> = Vec::new();
+        for seat in self.steps.iter().filter(|s| s.group.fits(played)).flat_map(|s| s.roster.iter()) {
+            if !roster.iter().any(|r| r.side == seat.side && r.nth == seat.nth) {
+                roster.push(*seat);
+            }
+        }
+        roster
     }
 
     /// The matches the plan needs, in the order they run, each with the steps it runs. A step of any size runs in the first match of
