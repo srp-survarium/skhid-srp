@@ -241,6 +241,36 @@ try {
     assert.ok(Number(await evaluate("document.querySelector('#wpn_pkp_pecheneg .sim-time').value")) > 0, `card play ${i}`);
     assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]');
   }
+  // The equipment: a link straight to the helmets, one-click slots, search,
+  // grouping by set, a card's protection, an icon on every row, EN/UK, mobile.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki/equipment?lang=en&slot=helmet');
+  assert.equal(await evaluate("document.querySelector('.gear-tools').hidden"), false, 'equipment script works under the real CSP');
+  assert.equal(await evaluate("document.querySelector('.slot-filter [aria-pressed=true]').dataset.slot"), 'helmet', 'the address picks the slot');
+  const helmets = (await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).map(e=>e.dataset.slot).join()")).split(',');
+  assert.ok(helmets.length > 5 && helmets.every(slotName => slotName === 'helmet'), 'only helmets');
+  assert.equal(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.querySelector('summary img.weapon-image')).map(e=>e.id).join()"), '', 'every piece has its icon');
+  assert.ok(await evaluate("document.querySelectorAll('.gear[data-slot=helmet][data-flies=\"1\"] .flies-off').length") >= 8, 'the helmets that fly off are marked');
+  await screenshot('equipment-helmets');
+  await evaluate("document.querySelector('.slot-filter [data-slot=mask]').click()");
+  assert.ok((await evaluate("location.search")).includes('slot=mask'), 'the slot kept in the address');
+  assert.ok(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).every(e=>e.dataset.slot==='mask')"));
+  await evaluate("document.querySelector('.slot-filter [data-slot=\"\"]').click();{const g=document.getElementById('gear-group');g.value='set';g.dispatchEvent(new Event('change'))}");
+  assert.ok(await evaluate("document.querySelectorAll('#gear-list h2.gear-group').length") > 10, 'grouped by set');
+  await evaluate("{const q=document.getElementById('gear-search');q.value=document.querySelector('.gear .weapon-title strong').textContent.slice(0,6);q.dispatchEvent(new Event('input'))}");
+  assert.ok(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).length") >= 1, 'search finds');
+  await evaluate("{const q=document.getElementById('gear-search');q.value='';q.dispatchEvent(new Event('input'));const g=document.getElementById('gear-group');g.value='';g.dispatchEvent(new Event('change'))}");
+  await evaluate("{const card=[...document.querySelectorAll('.gear')].find(e=>e.dataset.slot==='body');card.open=true;card.scrollIntoView()}");
+  assert.equal(await evaluate("!![...document.querySelectorAll('.gear')].find(e=>e.open).querySelector('table.protection')"), true, 'a card shows its protection');
+  await screenshot('equipment-card');
+  await navigate('/wiki/equipment?lang=en&faction=1');
+  assert.equal(await evaluate("document.getElementById('gear-faction').value"), '1', 'the address picks the faction');
+  assert.equal(await evaluate("[...document.querySelectorAll('.gear')].filter(e=>!e.hidden).every(e=>e.dataset.faction==='1')"), true, 'only that faction');
+  await navigate('/wiki/equipment?lang=uk&slot=boots');
+  assert.equal(await evaluate("document.documentElement.lang"), 'uk');
+  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
+  await screenshot('equipment-mobile-uk');
   console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
   await send('session.end');
 } finally {

@@ -5,6 +5,7 @@
 
 use binary_config_parser::tree::ConfigValue;
 
+use super::armour;
 use super::awards::Awards;
 use super::dictionary::{self, Dictionary};
 use super::drops::{self, Drops};
@@ -103,6 +104,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         )));
     }
     modifications::derive_item_mods(data, &dictionary)?;
+    armour::derive(data, &dictionary)?;
     // A variant left out is logged when the table is first used
     // ([`ScopeFits::shared`]); only a scope config that does not read stops
     // srp.
