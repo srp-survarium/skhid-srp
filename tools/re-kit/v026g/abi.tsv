@@ -1994,3 +1994,9 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
+0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
+0x000e3c10	vostok::core::preinitialize	manual		
+0x000ddeb0	vostok::command_line::key<string>::is_set	manual	0	AL: 1 when the key is on the command line (its value then copied into EAX's buffer_string), 0 when not
+0x001e9030	survarium::game::save_user_config	manual	0	void: console_commands::save (0xEBE60) of user.cfg in the user data folder (vtable+50h of the engine world [0x1F1D63C], else "")
+0x000ec860	vostok::console_commands::cc_string::cc_string	manual	16	
+0x001ff5d0	survarium::game_options::scaleform_callback	manual	16	void: an unknown method name returns at 0x1FF96E (pop edi / esi / ebp, ret 10h at 0x1FF971)

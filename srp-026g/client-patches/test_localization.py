@@ -61,7 +61,7 @@ class LocalizationTests(unittest.TestCase):
 
     def catalog(self, strings=None):
         strings = strings or {'st_test': 'Hello %d'}
-        for language, _ in LANGUAGES:
+        for language, *_ in LANGUAGES:
             (self.root / f'{language}.tsv').write_text('key\ttext\n' + ''.join(
                 key + '\t' + text + '\n' for key, text in sorted(strings.items())), encoding='utf-8')
 
@@ -84,7 +84,7 @@ class LocalizationTests(unittest.TestCase):
             compile_catalog(self.root, {'english': source})
         self.catalog({'st_test': 'Hello %d', 'st_new_item': 'New item'})
         compiled = compile_catalog(self.root, {'english': source})
-        self.assertEqual(set(compiled), {name for name, _ in LANGUAGES} | {'original'})
+        self.assertEqual(set(compiled), {name for name, *_ in LANGUAGES} | {'original'})
         self.assertEqual(compiled['original'], compiled['russian'])
         self.assertEqual(read_strings(compiled['english']), (read_strings(source)[0], []))
 
@@ -155,7 +155,7 @@ class LocalizationTests(unittest.TestCase):
 
     def test_compiled_resource_audit_rejects_stale_translation(self):
         self.catalog()
-        for language, _ in LANGUAGES:
+        for language, *_ in LANGUAGES:
             self.dictionary(language, {'st_test': 'Hello %d'})
         args = [str(self.root), '--catalog', str(self.root)]
         with contextlib.redirect_stdout(io.StringIO()):
@@ -243,7 +243,7 @@ class LocalizationTests(unittest.TestCase):
         friends = table('lobby_menu/src/survarium/rooms/RoomsText.as', 'FRIENDS')
         cancel = table('lobby_menu/src/survarium/messages/MessageMoneyExchange.as', 'CANCEL')
         login = (flash / 'login_menu/src/SrpLoginHint.as').read_text(encoding='utf-8')
-        for index, (language, code) in enumerate(LANGUAGES[5:], 5):
+        for index, (language, code, *_) in enumerate(LANGUAGES[5:], 5):
             with self.subTest(language=language):
                 translated = read_translations(here / f'localization/{language}.tsv')
                 self.assertEqual(translated['st_btn_friends'], friends[index])
@@ -257,7 +257,7 @@ class LocalizationTests(unittest.TestCase):
     def test_all_dictionaries_cover_the_same_keys_and_formats(self):
         here = Path(__file__).resolve().parent / 'localization'
         baseline = read_translations(here / 'english.tsv')
-        for language, _ in LANGUAGES:
+        for language, *_ in LANGUAGES:
             with self.subTest(language=language):
                 translated = read_translations(here / f'{language}.tsv')
                 report = checker.compare(baseline, translated)
@@ -283,7 +283,7 @@ class LocalizationTests(unittest.TestCase):
         run = subprocess.run([sys.executable, '-I', '-S', str(script), str(edit), str(self.root), str(output)],
                              capture_output=True, text=True)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        for language, _ in LANGUAGES:
+        for language, *_ in LANGUAGES:
             expected = read_translations(self.root / f'{language}.tsv')
             self.assertEqual(read_strings(output / f'localization/{language}/localization'), (expected, []))
         self.assertEqual((output / 'localization/original/localization').read_bytes(),

@@ -53,7 +53,6 @@ kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 SOURCE = os.path.join(HERE, "..", "exe", "src")
 ID = "0a1b2c3d"
 TOKEN = "0123456789abcdef" * 2
-LANGUAGES = ["english", "russian", "ukrainian", "german", "polish"]
 # A word of each message in each launcher language (logic/src/replay.rs).
 WORDS = {
     "BadLink": ["not valid", "недействительна", "недійсне", "ungültig", "nieprawidłowy"],
@@ -235,7 +234,8 @@ class ReplayTest(unittest.TestCase):
         self.assertIsNotNone(started, "the game was not started")
         command, folder = started
         game = os.path.join(self.x86, "survarium_skhid.exe")
-        self.assertEqual(command, f'"{game}" -localization={LANGUAGES[LANGUAGE]} -mt_allocator=768 '
+        # No -localization: the game keeps its own language (game patch 79).
+        self.assertEqual(command, f'"{game}" -mt_allocator=768 '
                                   f'-minimum_resources_memory_size=768 -match_replay="{replay_path}"')
         self.assertEqual(os.path.normcase(folder.rstrip("\\")), os.path.normcase(self.x86))
 

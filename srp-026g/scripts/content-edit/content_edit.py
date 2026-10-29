@@ -819,7 +819,7 @@ def main():
         from build_localization_026g import compile_catalog
         from localization_026g import LANGUAGES, read_config, read_translations
         directory = Path(edits_file).resolve().parent / edits['localization']
-        languages = [language for language, _ in LANGUAGES] + ['original']
+        languages = [language for language, *_ in LANGUAGES] + ['original']
         # New languages inherit opaque support files (EULA/profanity data) from
         # English. Every dictionary, old or new, is compiled from its own TSV.
         for language in languages:

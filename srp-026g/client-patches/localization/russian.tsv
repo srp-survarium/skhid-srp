@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
 st_srp_attachments	Обвес
+st_srp_language_option	Язык
+st_srp_language_restart	Применится после перезапуска.
 st_srp_optics	Оптика
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
 st_stamina_boost_name	Второе дыхание

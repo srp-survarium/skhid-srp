@@ -116,6 +116,21 @@ class ReleaseTests(unittest.TestCase):
                 self.assertIn(f'set LANGUAGE={language}\r\n'.encode(), windows)
                 self.assertIn(f'localization={language}\n'.encode(), linux)
 
+    def test_scripts_pass_no_language_by_default(self):
+        output = self.root / 'default'
+        args = ['make_client_026g.py', str(self.game), str(output), '--server=release.example:2234',
+                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater)]
+        launcher = mock.patch.object(overlay.L, 'build', return_value=(b'patched launcher fixture', 'test launcher'))
+        with mock.patch.object(overlay.P, 'build', return_value=(b'patched fixture', 'test patch')), launcher, \
+                mock.patch('sys.argv', args), contextlib.redirect_stdout(io.StringIO()):
+            overlay.main()
+        windows = (output / 'game/binaries/x86/play_skhid.bat').read_bytes()
+        linux = (output / overlay.LINUX_LAUNCHER).read_bytes()
+        self.assertIn(b'set LANGUAGE=\r\n', windows)
+        self.assertIn(b'if defined LANGUAGE set LANGUAGE_OPTION=-localization=%LANGUAGE%\r\n', windows)
+        self.assertIn(b'start "" survarium_skhid.exe %LANGUAGE_OPTION% ', windows)
+        self.assertIn(b'\nlocalization=\n', linux)
+
     def test_folder_and_zip_ship_identical_player_files(self):
         folder, archive = self.root / 'overlay', self.root / 'release.zip'
         self.build(folder)

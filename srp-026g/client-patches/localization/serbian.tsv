@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Dodaci
+st_srp_language_option	Jezik
+st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
 st_srp_optics	Optika
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
 st_stamina_boost_name	Drugi dah

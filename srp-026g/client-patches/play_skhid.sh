@@ -4,8 +4,11 @@
 # (it looks for newer Skhid files, and its PLAY button starts the game).
 set -euo pipefail
 
-# Game language; server is empty when the executable has an embedded default.
-localization=english
+# Game language: empty for the one chosen in the game's Settings (it applies
+# at the next start), or english, russian, ukrainian, german, polish, serbian
+# (Latin), czech, hungarian or finnish. Server: empty when the executable has
+# an embedded default.
+localization=
 server=
 
 die() { echo "Error: $*" >&2; exit 1; }
@@ -138,7 +141,8 @@ Start the launcher (bash Skhid.sh launcher, or bash play_skhid.sh launcher): it 
 Details: game/binaries/x86/updater_skhid.log"
 fi
 echo "Starting Survarium. Log: $log"
-args=("-localization=$localization" -mt_allocator=768 -minimum_resources_memory_size=768)
+args=(-mt_allocator=768 -minimum_resources_memory_size=768)
+[[ -z "$localization" ]] || args=("-localization=$localization" "${args[@]}")
 [[ -z "$server" ]] || args+=("-server=$server")
 "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 \
     || die "Game exited with an error. See $log"

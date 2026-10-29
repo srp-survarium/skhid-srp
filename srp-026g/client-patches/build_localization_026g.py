@@ -17,7 +17,7 @@ def compile_catalog(directory, sources):
                          f'missing languages: {report["missing_languages"]}; '
                          f'unregistered languages: {report["unexpected_languages"]}')
     dictionaries = {language: read_translations(directory / f'{language}.tsv')
-                    for language, _ in LANGUAGES}
+                    for language, *_ in LANGUAGES}
     # `original` is the engine's internal Russian alias, not another translation.
     dictionaries['original'] = dictionaries['russian']
     for language, source in sources.items():

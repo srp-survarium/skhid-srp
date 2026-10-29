@@ -456,6 +456,7 @@ package survarium.menu
       protected function create_content(settings:Array) : void
       {
          SrpFovSlider.apply(this);
+         SrpLanguage.apply(this);
          var key:Object;
          var tabIndex:uint;
          var i:int;

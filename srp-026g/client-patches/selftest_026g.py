@@ -3955,6 +3955,58 @@ def test_blackout(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_language(original, image, before):
+    """Check 79: the game language is a setting kept in user.cfg (patch 79,
+    the Rust patch `language`, three lohooks of language.toml;
+    ../docs/notes/language-option.md). check_language_026g.py runs each from
+    the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    text_at = lambda at: bytes(original[stock.offset(at):original.index(b"\0", stock.offset(at))])
+    check(rows(0x1EA2C0, 7) == ["mov eax,edi", "call 0x1ec380"]
+          and rows(0x1EA2FF, 0x13) == ["mov eax,edi", "call 0x1ec380", "lea eax,[edi+0x52a8]", "push eax",
+                                       "call 0x1feed0"]
+          and rows(0x1EA210, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"],
+          "game::on_configs_loaded (0x1EA210) runs load_cc_script twice (startup.cfg, user.cfg) and then "
+          "load_text_localization with the game's text translator (+52A8h): the variable is registered at its "
+          "start, the language resolved between the two (0x1EA306)")
+    check(rows(0x1FEED6, 5) == ["mov eax,[0x21e75e0]"] and rows(0x1EA868, 6) == ["mov edx,[dword 0x21e75e0]"]
+          and rows(0xE3C48, 10) == ["mov eax,0x21e75e0", "mov ecx,0xa81a88"]
+          and text_at(0x9E654C) == b"original" and text_at(0x9FC7F4) == b"resources/localization/",
+          "the game language is the buffer_string 0x21E75E0 (default \"original\"), which core::preinitialize "
+          "fills from -localization= (key 0xA81A88) and the dictionary's and the swear filter's paths read")
+    check(rows(0x1FF5D0, 6) == ["push ebp", "push esi", "mov esi,[esp+0x10]"]
+          and rows(0x1FF96E, 6) == ["pop edi", "pop esi", "pop ebp", "ret 0x10"]
+          and stock.read(0x9FCCD0, 15) == b"accept_changes\0",
+          "game_options::scaleform_callback (0x1FF5D0, the method's name at [esp+8]) compares the name with its "
+          "methods and returns at 0x1FF96E (`ret 10h` at 0x1FF971) for one it does not know")
+    table = imports(stock)
+    check(table.get(0xAEFDDC) == ("ADVAPI32.dll", "RegOpenKeyExW")
+          and table.get(0xAEFDE4) == ("ADVAPI32.dll", "RegQueryValueExW")
+          and table.get(0xAEFDE0) == ("ADVAPI32.dll", "RegCloseKey"),
+          "0xAEFDDC, 0xAEFDE4 and 0xAEFDE0 are the delay-loaded ADVAPI32 RegOpenKeyExW, RegQueryValueExW and "
+          "RegCloseKey (the launcher's language)")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "language"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted(h["site_name"] for h in hooks) == ["configs.start", "configs.texts", "options.callback"]
+          and all(h["kind"] == "lohook" for h in hooks),
+          "language.toml's three hooks are lohooks at configs.start, configs.texts and options.callback")
+    for h in hooks:
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4130,7 +4182,7 @@ def test_artefacts(original, image, before):
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
     from localization_026g import CATALOG, LANGUAGES, read_translations
     hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
-             for language, _ in LANGUAGES]
+             for language, *_ in LANGUAGES]
     check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
           and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 and "75" in h for h in hints),
@@ -6489,6 +6541,7 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
+    test_language(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

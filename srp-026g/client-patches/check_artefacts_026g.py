@@ -65,7 +65,7 @@ MESSAGE = 0x2375C0                       # set_parameterized_message (ecx = the 
 LOCALIZE = 0x1FEF90                      # its text's last step: eax = the text, ecx = the output; (game), `ret 4`
 from localization_026g import CATALOG, LANGUAGES, read_translations
 HINTS = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
-         for language, _ in LANGUAGES]
+         for language, *_ in LANGUAGES]
 # The release's Onyx (artefacts-1.json): passive x0.95, active x0.25 for 3 s,
 # absorb_total 5; its loader's fields at +C7Ch (+26Ch.. of 0x33B780).
 ONYX = {0xEE8: 7, 0xEF0: 0.95, 0xEF8: 0.95, 0xF00: 0.25, 0xF08: 0.25, 0xF0C: 5.0, 0xF10: 3000}

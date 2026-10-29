@@ -56,16 +56,29 @@ global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
 global engine_point_to_screen
+global engine_cc_string
+global engine_setlocale
+global engine_save_user_config
+global engine_translate_text
+global engine_reg_open_key_ex_w
+global engine_reg_query_value_ex_w
+global engine_reg_close_key
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
-engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
-engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
-engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (kernel32, stdcall)
+engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
+engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
+engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
 engine_match_options equ 0x219990   ; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
 engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
-engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
-engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
-engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
+engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
+engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (an import, stdcall)
+engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly
+engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
+engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
+engine_reg_open_key_ex_w equ 0xaefddc   ; the IAT slot 0xaefddc (an import, stdcall)
+engine_reg_query_value_ex_w equ 0xaefde4   ; the IAT slot 0xaefde4 (an import, stdcall)
+engine_reg_close_key equ 0xaefde0   ; the IAT slot 0xaefde0 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -791,6 +804,25 @@ engine_point_to_screen:
     push dword [esp + 28]   ; game -> 4
     call 0x23dec0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_string:
+    ; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; saved -> 16
+    push dword [esp + 36]   ; size -> 12
+    push dword [esp + 36]   ; buffer -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0xec860
     pop edi
     pop esi
     pop ebx

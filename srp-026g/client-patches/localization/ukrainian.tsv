@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	Набір СР-3М "Вихор"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	СР-3М "Вихор"
 st_srp_attachments	Обвіс
+st_srp_language_option	Мова
+st_srp_language_restart	Застосується після перезапуску.
 st_srp_optics	Оптика
 st_srp_scope_screen_hint	Перетягніть приціл з вашого інвентарю у слот модифікації зброї
 st_stamina_boost_name	Друге дихання

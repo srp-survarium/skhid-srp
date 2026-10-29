@@ -118,13 +118,13 @@ unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsign
 /* 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly */
 unsigned char __attribute__((stdcall)) engine_action_present(void *handler, unsigned int action, unsigned int *state);
 
-/* the IAT slot 0x870048 (kernel32, stdcall) */
+/* the IAT slot 0x870048 (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_create_file_a)(const char * name, unsigned int access, unsigned int share, void * security, unsigned int disposition, unsigned int flags, void * template_file);
 
-/* the IAT slot 0x870108 (kernel32, stdcall) */
+/* the IAT slot 0x870108 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_write_file)(void * file, const void * bytes, unsigned int size, unsigned int * written, void * overlapped);
 
-/* the IAT slot 0x870040 (kernel32, stdcall) */
+/* the IAT slot 0x870040 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void * handle);
 
 /* 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32 */
@@ -151,13 +151,13 @@ void *__attribute__((thiscall)) engine_match_options(void *client);
 /* 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly */
 unsigned int *__attribute__((thiscall)) engine_active_player(void *client, unsigned int *out, unsigned int place);
 
-/* the IAT slot 0x870158 (kernel32, stdcall) */
+/* the IAT slot 0x870158 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_counter)(unsigned int * count);
 
-/* the IAT slot 0x870150 (kernel32, stdcall) */
+/* the IAT slot 0x870150 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_frequency)(unsigned int * frequency);
 
-/* the IAT slot 0x870118 (kernel32, stdcall) */
+/* the IAT slot 0x870118 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_id)(void);
 
 /* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
@@ -165,5 +165,26 @@ void engine_update_skeleton(void *scene_renderer, void *instance, const float *b
 
 /* 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL */
 unsigned int engine_point_to_screen(void *game, const float *point, float *out);
+
+/* 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16 */
+void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved);
+
+/* 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly */
+char *__attribute__((cdecl)) engine_setlocale(unsigned int category, const char *locale);
+
+/* 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_save_user_config(void);
+
+/* 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_translate_text(void *translator, const char *key, char *out);
+
+/* the IAT slot 0xaefddc (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_reg_open_key_ex_w)(void * key, const void * sub_key, unsigned int options, unsigned int access, void ** result);
+
+/* the IAT slot 0xaefde4 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_reg_query_value_ex_w)(void * key, const void * name, unsigned int * reserved, unsigned int * kind, void * data, unsigned int * size);
+
+/* the IAT slot 0xaefde0 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_reg_close_key)(void * key);
 
 #endif

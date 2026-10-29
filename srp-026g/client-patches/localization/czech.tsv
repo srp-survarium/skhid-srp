@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	Balíček SR-3M Vichr
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Příslušenství
+st_srp_language_option	Jazyk
+st_srp_language_restart	Projeví se po restartu.
 st_srp_optics	Optiky
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
 st_stamina_boost_name	Druhý dech

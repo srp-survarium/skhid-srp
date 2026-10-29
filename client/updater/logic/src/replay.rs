@@ -35,8 +35,9 @@ pub const GAME_ARGUMENTS: &str = "-mt_allocator=768 -minimum_resources_memory_si
 pub const MAX_GAME_PATH: usize = 259;
 
 /// The launcher's languages, by the number it keeps
-/// (`HKCU\Software\Vostok Games\Survarium`, `language`): the game's
-/// `-localization=` word.
+/// (`HKCU\Software\Vostok Games\Survarium`, `language`): the order of the
+/// messages' languages. The game keeps its own (user.cfg, game patch 79): a
+/// replay is started with none.
 pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "polish"];
 
 /// A replay link that passed every check.
@@ -178,32 +179,24 @@ pub fn to_delete(files: &[(String, u64)], current: &str, keep: usize) -> Vec<Str
     out
 }
 
-/// The game's command line: the launcher's PLAY with `-match_replay=` after
-/// it. The game reads a value in double quotes up to the next quote (its
+/// The game's command line: the launcher's PLAY (no `-localization=`: the
+/// game's own language) with `-match_replay=` after it. The game reads a value in double quotes up to the next quote (its
 /// command-line parser, 0xDF1E3), so a path with spaces is one value. `None`
 /// for a path the game would read otherwise: one with a quote or a control
 /// character, one that ends with a backslash, one too long, one that is
 /// not a full path (the game takes a name without `:` or `\\` for a name in
 /// its own replays folder).
-pub fn game_command(game: &str, localization: &str, replay: &str) -> Option<String> {
+pub fn game_command(game: &str, replay: &str) -> Option<String> {
     let bad = |text: &str| text.chars().any(|c| c == '"' || c.is_control());
     if bad(game)
         || bad(replay)
         || replay.ends_with('\\')
         || replay.len() > MAX_GAME_PATH
         || !(replay.starts_with("\\\\") || replay.get(1..3) == Some(":\\"))
-        || !LANGUAGES.contains(&localization)
     {
         return None;
     }
-    Some(format!(
-        "\"{game}\" -localization={localization} {GAME_ARGUMENTS} -match_replay=\"{replay}\""
-    ))
-}
-
-/// The game's `-localization=` word for the launcher's language number.
-pub fn localization(language: Option<u32>) -> &'static str {
-    LANGUAGES[language.filter(|&n| (n as usize) < LANGUAGES.len()).unwrap_or(0) as usize]
+    Some(format!("\"{game}\" {GAME_ARGUMENTS} -match_replay=\"{replay}\""))
 }
 
 /// What went wrong, for the player.
@@ -460,34 +453,25 @@ mod tests {
         let game = r"D:\My Games\Survarium\game\binaries\x86\survarium_skhid.exe";
         let replay = r"D:\My Games\Survarium\game\replays\srp_0a1b2c3d.sur";
         assert_eq!(
-            game_command(game, "ukrainian", replay).unwrap(),
-            format!(
-                "\"{game}\" -localization=ukrainian -mt_allocator=768 -minimum_resources_memory_size=768 \
-                 -match_replay=\"{replay}\""
-            )
+            game_command(game, replay).unwrap(),
+            format!("\"{game}\" -mt_allocator=768 -minimum_resources_memory_size=768 -match_replay=\"{replay}\"")
         );
-        assert!(game_command(game, "english", r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
-        assert!(game_command(game, "english", r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());
+        assert!(game_command(game, r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
+        assert!(game_command(game, r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());
         for replay in [
             "D:\\a\"b\\srp_0a1b2c3d.sur", "D:\\a\\b\\", "srp_0a1b2c3d", "replays\\srp_0a1b2c3d.sur",
             "D:\\a\tb\\x.sur", "D:\\a\nb\\x.sur",
         ] {
-            assert_eq!(game_command(game, "english", replay), None, "{replay}");
+            assert_eq!(game_command(game, replay), None, "{replay}");
         }
         let long = format!("C:\\{}", "d".repeat(MAX_GAME_PATH - 3));
-        assert!(game_command(game, "english", &long).is_some());
-        assert!(game_command(game, "english", &(long + "d")).is_none());
-        assert!(game_command("C:\\a\"b.exe", "english", replay).is_none());
-        assert!(game_command(game, "klingon", replay).is_none());
+        assert!(game_command(game, &long).is_some());
+        assert!(game_command(game, &(long + "d")).is_none());
+        assert!(game_command("C:\\a\"b.exe", replay).is_none());
     }
 
     #[test]
     fn the_language_is_the_launchers() {
-        assert_eq!(localization(None), "english");
-        assert_eq!(localization(Some(2)), "ukrainian");
-        assert_eq!(localization(Some(4)), "polish");
-        assert_eq!(localization(Some(5)), "english");
-        assert_eq!(localization(Some(u32::MAX)), "english");
         let problems = [
             Problem::BadLink, Problem::AlreadyRunning, Problem::Network("h.example".into()), Problem::Expired,
             Problem::Busy("h.example".into()), Problem::Status("h.example".into(), 302), Problem::Damaged,

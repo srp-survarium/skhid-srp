@@ -112,15 +112,15 @@ extern engine_binded_action
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_action_present
 ; void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
-; the IAT slot 0x870048 (kernel32, stdcall)
+; the IAT slot 0x870048 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_create_file_a
 ; unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)
-; the IAT slot 0x870108 (kernel32, stdcall)
+; the IAT slot 0x870108 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_write_file
 ; unsigned int engine_close_handle(void *handle)
-; the IAT slot 0x870040 (kernel32, stdcall)
+; the IAT slot 0x870040 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_close_handle
 ; void engine_ray_test(void *world, void *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)
@@ -151,15 +151,15 @@ extern engine_match_options
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_active_player
 ; unsigned int engine_query_performance_counter(unsigned int *count)
-; the IAT slot 0x870158 (kernel32, stdcall)
+; the IAT slot 0x870158 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_query_performance_counter
 ; unsigned int engine_query_performance_frequency(unsigned int *frequency)
-; the IAT slot 0x870150 (kernel32, stdcall)
+; the IAT slot 0x870150 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_query_performance_frequency
 ; unsigned int engine_get_current_thread_id(void)
-; the IAT slot 0x870118 (kernel32, stdcall)
+; the IAT slot 0x870118 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_current_thread_id
 ; void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)
@@ -168,3 +168,30 @@ extern engine_update_skeleton
 ; unsigned int engine_point_to_screen(void *game, const float *point, float *out)
 ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
 extern engine_point_to_screen
+; void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved)
+; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+extern engine_cc_string
+; char *engine_setlocale(unsigned int category, const char *locale)
+; 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_setlocale
+; void engine_save_user_config(void)
+; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_save_user_config
+; void engine_translate_text(void *translator, const char *key, char *out)
+; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_translate_text
+; unsigned int engine_reg_open_key_ex_w(void *key, const void *sub_key, unsigned int options, unsigned int access, void **result)
+; the IAT slot 0xaefddc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_reg_open_key_ex_w
+; unsigned int engine_reg_query_value_ex_w(void *key, const void *name, unsigned int *reserved, unsigned int *kind, void *data, unsigned int *size)
+; the IAT slot 0xaefde4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_reg_query_value_ex_w
+; unsigned int engine_reg_close_key(void *key)
+; the IAT slot 0xaefde0 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_reg_close_key

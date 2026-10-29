@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
 st_srp_attachments	Dodatki
+st_srp_language_option	Język
+st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_optics	Optyka
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
 st_stamina_boost_name	Drugi oddech

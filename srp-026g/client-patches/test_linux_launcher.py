@@ -181,6 +181,16 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(self.exe.read_bytes(), PATCHED_FIXTURE)
         self.assertFalse(self.exe.with_name(self.exe.name + '.before-memory-patch').exists())
 
+    def test_generated_launcher_without_a_language_passes_none(self):
+        self.copy_exe()
+        self.exe.write_bytes(PATCHED_FIXTURE)
+        self.script.write_bytes(overlay.sh('release.example:2234', None, True))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
+            '-mt_allocator=768', '-minimum_resources_memory_size=768'])
+
     def test_a_db_the_updater_finds_not_updated_keeps_the_game_from_starting(self):
         self.copy_exe()
         self.script.write_bytes(overlay.sh('release.example:2234', 'polish', True))
@@ -308,7 +318,8 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
         self.assertEqual(calls[3]['cwd'], str(self.bin))
-        self.assertEqual(calls[3]['args'], ['survarium_skhid.exe', '-localization=english',
+        # No language set: none passed, the game keeps the one chosen in its Settings.
+        self.assertEqual(calls[3]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
         self.assertIn('qwave=', calls[3]['dll'])
         self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))

@@ -1,0 +1,323 @@
+//! The game's language as the engine keeps it (patch 79,
+//! docs/notes/language-option.md): the name every dictionary reader takes
+//! (`raw::image::LOCALIZATION`), the console variable that user.cfg keeps a
+//! choice in, the C locale the engine's start-up sets from the name, the
+//! launcher's own choice in the registry, and the Settings' call
+//! (`game_options::scaleform_callback`) with the movie it answers.
+
+use core::cell::UnsafeCell;
+use core::ffi::{CStr, c_void};
+use core::ptr::NonNull;
+
+use super::context::{Context, Reg};
+use super::hook::Thread;
+use super::ui::{GFX_MANAGED, GFX_STRING, GfxString, GfxValue, Movie};
+use crate::raw;
+
+/// The C string at `text`, read up to `limit` bytes for its zero (none in
+/// them: not a string here). core's `CStr::from_ptr` would call a strlen the
+/// arena does not have.
+///
+/// # Safety
+/// `text` is readable up to its zero or `limit` bytes, alive for `'a`.
+unsafe fn c_string<'a>(text: *const u8, limit: usize) -> Option<&'a CStr> {
+    if text.is_null() {
+        return None;
+    }
+    let mut len = 0;
+    // SAFETY: the caller's: readable up to the zero or `limit`.
+    while len < limit && unsafe { *text.add(len) } != 0 {
+        len += 1;
+    }
+    // SAFETY: as above; `len` bytes and the zero after them.
+    (len < limit).then(|| unsafe { CStr::from_bytes_with_nul_unchecked(core::slice::from_raw_parts(text, len + 1)) })
+}
+
+/// The longest text a GFx argument or the engine's name may be here.
+const TEXT_LIMIT: usize = 0x200;
+
+/// A copy of the game language's name (the engine keeps at most 15 bytes).
+pub struct LanguageName {
+    bytes: [u8; 16],
+}
+
+impl LanguageName {
+    pub fn as_bytes(&self) -> &[u8] {
+        let end = self.bytes.iter().position(|&b| b == 0).unwrap_or(self.bytes.len());
+        &self.bytes[..end]
+    }
+}
+
+/// The game language's name, the engine's buffer_string at
+/// `raw::image::LOCALIZATION` (16 bytes): "original" or the command line's
+/// `-localization=` until the patch writes it, before the dictionary loads.
+pub fn current(_: &Thread) -> LanguageName {
+    let mut bytes = [0u8; 16];
+    // SAFETY: a static buffer_string of the image whose begin is its 16-byte
+    // buffer, zero-terminated (its initializer 0x84E3E0, every writer
+    // buffer_string::assign); the game's own thread reads it here.
+    let name = unsafe {
+        let begin = *raw::buffer_string::begin(raw::image::LOCALIZATION as usize as *mut c_void);
+        c_string(begin as usize as *const u8, 16)
+    };
+    let name = name.map_or(&[][..], CStr::to_bytes);
+    let len = name.len().min(15);
+    bytes[..len].copy_from_slice(&name[..len]);
+    LanguageName { bytes }
+}
+
+/// Makes `name` the game language before the dictionary loads
+/// (`configs.texts`), with the C locale the engine's start-up would have set
+/// for it: what a start with `-localization=<name>` gives.
+pub fn set_current(_: &Thread, name: &CStr) {
+    // SAFETY: buffer_string::assign on the image's string; a registered name
+    // has at most 15 bytes (localization_026g.py), so it fits the buffer.
+    unsafe { raw::engine_string_assign(raw::image::LOCALIZATION as usize as *mut c_void, name.as_ptr().cast()) };
+    apply_locale(name);
+}
+
+const LC_ALL: u32 = 0;
+const LC_COLLATE: u32 = 1;
+const LC_NUMERIC: u32 = 4;
+
+/// core::preinitialize's code page of a language (0xE3C5D..0xE3D17):
+/// original and russian 1251, english 1252, polish 1250, any other none.
+fn code_page(name: &CStr) -> Option<&'static CStr> {
+    match name.to_bytes() {
+        b"original" | b"russian" => Some(c".1251"),
+        b"english" => Some(c".1252"),
+        b"polish" => Some(c".1250"),
+        _ => None,
+    }
+}
+
+/// The C locale core::preinitialize sets for a language (0xE3C20..0xE3D2C):
+/// LC_COLLATE ".ACP", then LC_ALL to its code page when it has one, then
+/// LC_NUMERIC "C"; from "C", as the process started.
+fn apply_locale(name: &CStr) {
+    let set = |category: u32, locale: &CStr| {
+        // SAFETY: the CRT's setlocale with a category it takes and a C string.
+        unsafe { raw::engine_setlocale(category, locale.as_ptr().cast()) };
+    };
+    set(LC_ALL, c"C");
+    set(LC_COLLATE, c".ACP");
+    if let Some(page) = code_page(name) {
+        set(LC_ALL, page);
+    }
+    set(LC_NUMERIC, c"C");
+}
+
+/// UTF-16 of an ASCII text, at compile time.
+const fn wide<const N: usize>(text: &[u8; N]) -> [u16; N] {
+    let mut out = [0u16; N];
+    let mut i = 0;
+    while i < N {
+        out[i] = text[i] as u16;
+        i += 1;
+    }
+    out
+}
+
+/// The launcher's language (`HKCU\Software\Vostok Games\Survarium`, the
+/// DWORD `language`, its menu's index: docs/notes/launcher.md section 10),
+/// when it has one.
+pub fn launcher_language(_: &Thread) -> Option<u32> {
+    // HKEY_CURRENT_USER (winreg.h), a predefined key: no address of the game.
+    const CURRENT_USER: usize = (1 << 31) | 1;
+    const KEY_QUERY_VALUE: u32 = 1;
+    const REG_DWORD: u32 = 4;
+    static PATH: [u16; 32] = wide(b"Software\\Vostok Games\\Survarium\0");
+    static VALUE: [u16; 9] = wide(b"language\0");
+    let mut key: *mut c_void = core::ptr::null_mut();
+    let (mut kind, mut value, mut size) = (0u32, 0u32, 4u32);
+    // SAFETY: advapi32's RegOpenKeyExW, RegQueryValueExW and RegCloseKey
+    // through the exe's delay-load slots (the first call loads advapi32);
+    // zero-terminated UTF-16 names, a DWORD and its size for the value.
+    unsafe {
+        if (raw::engine_reg_open_key_ex_w)(CURRENT_USER as *mut c_void, PATH.as_ptr().cast(), 0, KEY_QUERY_VALUE,
+                                            &mut key) != 0 {
+            return None;
+        }
+        let read = (raw::engine_reg_query_value_ex_w)(key, VALUE.as_ptr().cast(), core::ptr::null_mut(), &mut kind,
+                                                      (&raw mut value).cast(), &mut size);
+        (raw::engine_reg_close_key)(key);
+        (read == 0 && kind == REG_DWORD && size == 4).then_some(value)
+    }
+}
+
+/// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does
+/// when it closes), so a choice survives a crash.
+pub fn save_user_config(_: &Thread) {
+    // SAFETY: the game's own save of every saved console variable.
+    unsafe { raw::engine_save_user_config() }
+}
+
+/// Whether a console variable is in the engine's list yet.
+enum Registration {
+    Unregistered,
+    Registered,
+}
+
+/// The console variable object, a cc_string (0x48 bytes, cc_string::cc_string
+/// 0xEC860), and its value's buffer.
+#[repr(C)]
+struct Storage<const N: usize> {
+    object: [u32; 18],
+    buffer: [u8; N],
+}
+
+/// A console variable of text the engine saves in user.cfg and sets from it
+/// (`<name> <value>`, a line game::on_configs_loaded runs before the
+/// dictionary loads). The engine writes the buffer itself (executing the
+/// line); a patch reads and writes it inside a hook. `N` bounds a value: the
+/// engine's execute (0xEC8C0) copies with strncpy_s(buffer, N, value, N).
+pub struct ConsoleString<const N: usize> {
+    storage: UnsafeCell<Storage<N>>,
+    registration: UnsafeCell<Registration>,
+}
+
+// SAFETY: the game drives every hook, and the console's reads and writes of
+// the buffer, on its one thread (Thread is not Send).
+unsafe impl<const N: usize> Sync for ConsoleString<N> {}
+
+impl<const N: usize> ConsoleString<N> {
+    pub const fn new() -> ConsoleString<N> {
+        ConsoleString {
+            storage: UnsafeCell::new(Storage { object: [0; 18], buffer: [0; N] }),
+            registration: UnsafeCell::new(Registration::Unregistered),
+        }
+    }
+
+    /// Puts the variable in the engine's list once, saved in user.cfg, so the
+    /// file's line sets it and the game's save writes it.
+    pub fn register(&'static self, _: &Thread, name: &'static CStr) {
+        // SAFETY: on the game's thread; the object and the buffer are this
+        // static's (never moved or freed), a cc_string's size and the size
+        // given; the name lives as long.
+        unsafe {
+            if matches!(*self.registration.get(), Registration::Registered) {
+                return;
+            }
+            let storage = self.storage.get();
+            raw::engine_cc_string((&raw mut (*storage).object).cast(), name.as_ptr().cast(),
+                                  (&raw mut (*storage).buffer).cast(), N as u32, 1);
+            *self.registration.get() = Registration::Registered;
+        }
+    }
+
+    /// The value: the bytes before its zero (all of them when none).
+    pub fn get(&self, _: &Thread) -> &[u8] {
+        // SAFETY: on the game's thread, the buffer's only user while the
+        // borrow lasts (a hook).
+        let buffer = unsafe { &(*self.storage.get()).buffer };
+        let end = buffer.iter().position(|&b| b == 0).unwrap_or(N);
+        &buffer[..end]
+    }
+
+    /// Sets the value (cut to fit, zero-terminated).
+    pub fn set(&self, _: &Thread, value: &[u8]) {
+        // SAFETY: as get.
+        let buffer = unsafe { &mut (*self.storage.get()).buffer };
+        let len = value.len().min(N - 1);
+        buffer[..len].copy_from_slice(&value[..len]);
+        buffer[len..].fill(0);
+    }
+}
+
+impl<const N: usize> Default for ConsoleString<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The Settings' call to the exe at `options.callback`: the movie's
+/// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
+/// start (0x1FF5D0), before the options match the method's name.
+pub struct OptionsCall<'c, 't> {
+    ctx: &'c Context<'t>,
+    method: &'c CStr,
+    frame: NonNull<c_void>,
+}
+
+impl<'c, 't> OptionsCall<'c, 't> {
+    pub fn at(ctx: &'c Context<'t>) -> Option<OptionsCall<'c, 't>> {
+        // the site's ESP: the entry pushed its dispatch slot and the flags
+        // before `pushad` saved ESP (hooks_026g.lohook_entry)
+        let frame = NonNull::new(ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void)?;
+        // SAFETY: the call's method name, a C string the movie gave
+        // (options_callback_frame, by the site's ESP).
+        let method = unsafe {
+            c_string(*raw::options_callback_frame::method(frame.as_ptr()) as usize as *const u8, TEXT_LIMIT)
+        }?;
+        Some(OptionsCall { ctx, method, frame })
+    }
+
+    pub fn method(&self) -> &CStr {
+        self.method
+    }
+
+    /// The call's argument `index` when it is a string.
+    pub fn string_argument(&self, index: u32) -> Option<&CStr> {
+        // SAFETY: the callback's arguments and count (options_callback_frame,
+        // by the site's ESP); each argument a GFx value; a string's value a C
+        // string (managed: a pointer to its pointer), alive for the call.
+        unsafe {
+            let count = *raw::options_callback_frame::count(self.frame.as_ptr());
+            let values = *raw::options_callback_frame::arguments(self.frame.as_ptr()) as usize as *const GfxValue;
+            if index >= count || values.is_null() {
+                return None;
+            }
+            let value = &*values.add(index as usize);
+            if value.kind & 0x3F != GFX_STRING {
+                return None;
+            }
+            let mut text = value.value as usize as *const u8;
+            if value.kind & GFX_MANAGED != 0 && !text.is_null() {
+                text = *(text as *const *const u8);
+            }
+            c_string(text, TEXT_LIMIT)
+        }
+    }
+
+    /// A dictionary text of the running language (text_translator::
+    /// translate_text 0x1FF0F0, the key itself when the dictionary has none)
+    /// into `out`.
+    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
+        out[0] = 0;
+        // SAFETY: ECX is the options' interface (game_options+4), its +30h the
+        // game, whose text translator is at +52A8h; translate_text copies a
+        // text shorter than 200h bytes with its zero into `out` (0x1FF15D)
+        // and leaves it alone otherwise.
+        unsafe {
+            let options = self.ctx.reg(Reg::Ecx) as usize as *mut c_void;
+            let game = *raw::game_options_interface::game(options) as usize as *mut c_void;
+            if !game.is_null() {
+                raw::engine_translate_text(raw::game::text_translator(game).cast(), key.as_ptr().cast(),
+                                           out.as_mut_ptr());
+            }
+        }
+        out[0x1FF] = 0;
+        CStr::from_bytes_until_nul(out).unwrap_or(c"")
+    }
+
+    /// Answers the movie that called (main_menu): invokes its `method` with
+    /// these strings (UTF-8, as the dictionaries are), at most
+    /// [`MAX_STRINGS`]; whether the movie took it.
+    pub fn answer(&self, method: &CStr, values: &[&CStr]) -> bool {
+        // SAFETY: the callback's first argument, the GFx movie, alive for the
+        // call, on the hook's thread.
+        let movie = unsafe {
+            Movie::of_callback(self.ctx.thread(), *raw::options_callback_frame::movie(self.frame.as_ptr()))
+        };
+        let Some(movie) = movie else { return false };
+        let count = values.len().min(MAX_STRINGS);
+        let mut arguments: [GfxString<'_>; MAX_STRINGS] = core::array::from_fn(|_| GfxString::of(c""));
+        for (slot, value) in arguments.iter_mut().zip(&values[..count]) {
+            *slot = GfxString::of(value);
+        }
+        movie.invoke_strings(method, &arguments[..count])
+    }
+}
+
+/// Up to this many strings in one answer to the movie.
+pub const MAX_STRINGS: usize = 64;

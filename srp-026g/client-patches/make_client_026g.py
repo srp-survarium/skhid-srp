@@ -6,7 +6,9 @@ USAGE
 
     cd srp-026g/client-patches
     python make_client_026g.py <game folder> <output> --server=<host>:<port>
-        [--localization=ukrainian]   english, russian, ukrainian, german, polish, serbian, czech, hungarian, finnish
+        [--localization=<language>]  english, russian, ukrainian, german, polish, serbian, czech, hungarian,
+                                     finnish: the scripts' language; by default none (the game keeps the
+                                     one chosen in its Settings, patch 79)
         [--cert-only | --cave=hash-mismatch]   another build of the exe (see patch_026g.py)
         [--no-late-join]             the exe without the late join: patch revision 4,
                                      for a server that asks for no later one
@@ -49,7 +51,7 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/play_skhid.bat
         starts it from that folder (the client finds its certificate by a
         path relative to the working directory) with the launch line:
-        survarium_skhid.exe -localization=<..>
+        survarium_skhid.exe [-localization=<..>]
             -mt_allocator=768 -minimum_resources_memory_size=768
         Full builds use the embedded server; -server=host:port can still
         override it. Cert-only passes -server= at launch as before.
@@ -172,7 +174,7 @@ NETWORK_SETUP = "Skhid-network-setup.cmd"
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
 # Resource directory names accepted by the client. Additional dictionaries ship
 # through release/content.tsv; legacy chat-language bytes use the default mapping.
-LOCALIZATIONS = tuple(name for name, _ in LANGUAGES)
+LOCALIZATIONS = tuple(name for name, *_ in LANGUAGES)
 
 
 def sha256(data):
@@ -254,8 +256,11 @@ def game_arguments(server, embedded=False):
             + "-mt_allocator=768 -minimum_resources_memory_size=768")
 
 
-def launch_line(server, localization, embedded=False):
-    return f"survarium_skhid.exe -localization={localization} " + game_arguments(server, embedded)
+def launch_line(server, language_option, embedded=False):
+    """`language_option`: "" (the game's own language, from its Settings),
+    `-localization=<name>` or the script's variable holding one."""
+    return "survarium_skhid.exe " + (f"{language_option} " if language_option else "") \
+        + game_arguments(server, embedded)
 
 
 def bat(server, localization, embedded=False):
@@ -269,8 +274,11 @@ def bat(server, localization, embedded=False):
         lines += ["rem Put the server address (host:1234) here, as given on the server page.",
                   f"set SERVER={server}"]
     lines += [
-        "rem Game language: english, russian, ukrainian, german, polish, serbian, czech, hungarian or finnish.",
-        f"set LANGUAGE={localization}",
+        "rem Game language: empty for the one chosen in the game's Settings, or english, russian,",
+        "rem ukrainian, german, polish, serbian, czech, hungarian or finnish (Settings can change it then).",
+        f"set LANGUAGE={localization or ''}",
+        "set LANGUAGE_OPTION=",
+        "if defined LANGUAGE set LANGUAGE_OPTION=-localization=%LANGUAGE%",
         "rem It must run from this folder (game\\binaries\\x86): the game finds",
         "rem ..\\..\\resources\\ssl\\survarium_login_server.crt from where it is started.",
         'cd /d "%~dp0"',
@@ -282,7 +290,7 @@ def bat(server, localization, embedded=False):
         '"updater_skhid.exe" ready',
         "if errorlevel 1 goto not_ready",
         ":play",
-        'start "" ' + launch_line("%SERVER%", "%LANGUAGE%", embedded),
+        'start "" ' + launch_line("%SERVER%", "%LANGUAGE_OPTION%", embedded),
         "exit /b 0",
         ":not_ready",
         "echo Skhid has not finished updating the game's files (game\\resources.db.patch_*),",
@@ -350,7 +358,7 @@ def sh(server, localization, embedded=False):
     with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
         # Windows checkouts may use CRLF; Bash and the substitutions need LF.
         script = source.read().replace(b"\r\n", b"\n")
-    return script.replace(b"localization=english\n", f"localization={localization}\n".encode("ascii"), 1).replace(
+    return script.replace(b"localization=\n", f"localization={localization or ''}\n".encode("ascii"), 1).replace(
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 
 
@@ -428,8 +436,9 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "original archive first. It needs no administrator rights. What it did is in",
             "game\\binaries\\x86\\updater_skhid.log. If it cannot reach the server but the",
             "files are complete, PLAY still works.",
-            "The language is chosen in the launcher. A changed play_skhid.bat or",
-            "play_skhid.sh is kept until the server offers a newer archive.",
+            "The game's language is chosen in its Settings (Language), the launcher's",
+            "at its top. A changed play_skhid.bat or play_skhid.sh is kept until the",
+            "server offers a newer archive.",
             "",
         ]
     else:
@@ -452,18 +461,19 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "",
         ]
     lines += [
-        "To change the language without the launcher, open play_skhid.bat in a text" if site
-        else "To change the language, open play_skhid.bat in a text editor and set",
-        "editor and set LANGUAGE. On Linux, edit localization near the top of" if site
-        else "LANGUAGE. On Linux, edit localization near the top of play_skhid.sh;",
-        "play_skhid.sh; set server=host:port there to override the login address." if site
-        else "set server=host:port there to override the embedded login address.",
+        "The game's language is chosen in its Settings (Language); it applies at the",
+        "next start. LANGUAGE in play_skhid.bat (localization near the top of",
+        "play_skhid.sh) starts it in another one. On Linux, set server=host:port" if site
+        else "play_skhid.sh) starts it in another one. On Linux, set server=host:port",
+        "there to override the login address." if site
+        else "there to override the embedded login address.",
         "",
         "OPTIONS (in play_skhid.bat)",
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -localization=   language: english, russian, ukrainian, german, polish, serbian, czech, hungarian or finnish",
+        "  -localization=   start in this language (english, russian, ukrainian, german, polish,",
+        "                   serbian, czech, hungarian or finnish); Settings can change it then",
         "  -mt_allocator=768, -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",
@@ -487,7 +497,7 @@ def readme(server, localization, description, files, embedded=False, site=None):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = [a for a in sys.argv[1:] if a.startswith("--")]
-    mode, check, server, localization = "section", False, None, "ukrainian"
+    mode, check, server, localization = "section", False, None, None
     bugtrap_path = BUGTRAP_DLL
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
@@ -615,7 +625,8 @@ def main():
     print(f"exe: {description}")
     if launcher_description:
         print(f"launcher: {launcher_description}")
-    print(f"launch line: {launch_line(server, localization, embedded)}")
+    print("launch line: " + launch_line(server, "" if localization is None else f"-localization={localization}",
+                                        embedded))
     if check:
         print("--check: nothing was written")
 

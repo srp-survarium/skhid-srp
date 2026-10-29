@@ -27,7 +27,9 @@ global symbol of its own, which the link resolves for every caller):
                thunk, below), "stdcall", "cdecl" or "thiscall" (directly, in
                that convention, which the re-kit's rows must be: the symbol
                is the real VA, no thunk), "import" (va is the exe's IAT slot
-               of a kernel32 function, stdcall; the symbol is the slot;
+               of an imported function, stdcall: kernel32's, or a
+               delay-loaded one's slot (advapi32's registry functions),
+               whose first call loads it; the symbol is the slot;
                arguments "-", no re-kit row)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
@@ -35,9 +37,10 @@ field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
 address, for the `vostok` layer (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
-itself: its rows are VAs of the game's data (a vtable), generated as
-constants `raw::image::<FIELD>`, the address only (vostok compares it, never
-reads through it).
+itself: its rows are VAs of the game's data, generated as constants
+`raw::image::<FIELD>`, the address only: a vtable vostok compares with, or a
+global it reads and writes through (the game language's string), up to the
+end of .data.
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -215,7 +218,7 @@ def function(row, abi=None, inputs=None):
             raise Refused(f"{name}: an import's arguments are \"-\" (stdcall, its prototype's)")
         return {"symbol": name, "va": va, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params,
                 "ret": ret, "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
-                "name": "kernel32 (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
+                "name": "an import (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
                 "vostok": vostok}
     tokens = [] if row["arguments"].strip() == "-" else [a.partition(":") for a in row["arguments"].split()]
     if any(not word for _, _, word in tokens):
@@ -291,7 +294,7 @@ def functions(spec=None, abi=None, inputs=None):
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA2B6000          # through .data (its zero-filled tail too)
 
 
 def fields(path=None):
@@ -317,7 +320,7 @@ def fields(path=None):
 
 def describe(f):
     if f["call"] == "import":
-        return f"the IAT slot {f['va']:#x} (kernel32, stdcall)"
+        return f"the IAT slot {f['va']:#x} (an import, stdcall)"
     where = describe_args(f["params"], f["args"])
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
             + (f"; {f['result']}" if f["result"] else "")
@@ -441,8 +444,8 @@ def rust_text(fs, fields_=()):
     lines = [f"// The Rust patches' `raw` layer ({GENERATED}, and fields_026g.tsv).",
              "//",
              "// The game's functions as the link gives them: a thunk (cdecl, block",
-             "// engine.code) or the function itself in its own convention; kernel32's",
-             "// imports (their IAT slots); the address of each field. Unsafe, no logic:",
+             "// engine.code) or the function itself in its own convention; the",
+             "// imports (their IAT slots, delay-loaded ones too); the address of each field. Unsafe, no logic:",
              "// only `vostok` calls these (rust_patches.md).",
              "",
              "#[allow(unused_imports)]",

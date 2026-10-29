@@ -108,6 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
+| `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -3633,6 +3634,22 @@ site from the game's code on the game's own static baker:
   "previous weapon" bit from a player who holds something other than its two
   weapons can crash every client of a match
   (`../docs/OPEN-ISSUES.md`, 26-24).
+
+## Language in Settings (patch 79)
+
+The game language is a setting (`../docs/notes/language-option.md`). The Rust
+`language` patch registers the console variable `localization` (a saved
+string, so user.cfg keeps it) at game::on_configs_loaded's start; after the
+file runs and before the dictionary loads it resolves the language once: a
+registered `-localization=` (then saved as the choice), else the saved choice,
+else the launcher's menu language (its registry value), else English; the
+engine's language string and C locale are set as a start with that flag sets
+them. The main menu's Settings (Gameplay) call `srp_language` (a pick, or a
+query): the patch saves a registered pick and writes user.cfg at once, and
+answers `root.srp_language` with the two texts, the saved and the running
+language and every registered language by its own name. The launcher's PLAY,
+the replay start and the scripts pass no language by default. See
+`check_language_026g.py` and `../scripts/language-option/check.sh`.
 
 ## Medical consumable countdown (patch 77)
 

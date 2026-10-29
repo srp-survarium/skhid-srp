@@ -114,16 +114,34 @@ pub struct Movie<'t> {
 }
 
 /// A GFx value (Scaleform::GFx::Value, 24 bytes): its type at +4, a bool's
-/// value at +8 (0x2384E2).
+/// value at +8 (0x2384E2); a string's (type 6) its text, or with the managed
+/// bit (40h) a pointer to the text's pointer (0x1FF611).
 #[repr(C)]
-struct GfxValue {
-    object: u32,
-    kind: u32,
-    value: u32,
-    rest: [u32; 3],
+pub(super) struct GfxValue {
+    pub(super) object: u32,
+    pub(super) kind: u32,
+    pub(super) value: u32,
+    pub(super) rest: [u32; 3],
 }
 
 const GFX_BOOL: u32 = 2;
+pub(super) const GFX_STRING: u32 = 6;
+pub(super) const GFX_MANAGED: u32 = 0x40;
+
+/// A GFx string argument of an Invoke (unmanaged: the text the caller keeps
+/// alive for the call), borrowing its text.
+#[repr(transparent)]
+pub(super) struct GfxString<'a> {
+    value: GfxValue,
+    text: PhantomData<&'a CStr>,
+}
+
+impl<'a> GfxString<'a> {
+    pub(super) fn of(text: &'a CStr) -> GfxString<'a> {
+        let value = GfxValue { object: 0, kind: GFX_STRING, value: text.as_ptr() as usize as u32, rest: [0; 3] };
+        GfxString { value, text: PhantomData }
+    }
+}
 
 impl Movie<'_> {
     /// Which movie this is (a new game world's is another), to tell it once.
@@ -141,6 +159,28 @@ impl Movie<'_> {
         let taken = unsafe {
             raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
                                      (&raw const argument).cast(), 1)
+        };
+        taken & 0xFF != 0
+    }
+}
+
+impl<'t> Movie<'t> {
+    /// The movie a Scaleform callback was given (its first argument).
+    ///
+    /// # Safety
+    /// `movie` is a callback's GFx movie or 0, alive on the thread for the hook.
+    pub(super) unsafe fn of_callback(_: &'t Thread, movie: u32) -> Option<Movie<'t>> {
+        NonNull::new(movie as usize as *mut c_void).map(|this| Movie { this, thread: PhantomData })
+    }
+
+    /// Invokes the movie's `method` with these strings (Movie::Invoke
+    /// 0x511600, no result); whether the movie took it.
+    pub(super) fn invoke_strings(&self, method: &CStr, values: &[GfxString<'_>]) -> bool {
+        // SAFETY: a live movie on the hook's thread; the name a C string and
+        // the arguments GFx string values whose texts outlive the call.
+        let taken = unsafe {
+            raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
+                                     values.as_ptr().cast(), values.len() as u32)
         };
         taken & 0xFF != 0
     }

@@ -13,7 +13,7 @@ import re
 import sys
 
 from localization_026g import (CATALOG, EMPTY_KEYS, LANGUAGES, discover, encode_strings,
-                              read_config, read_strings, read_translations)
+                              read_config, read_strings, read_translations, rust_table_issue)
 from check_flash_localization_026g import audit_flash, audit_native_labels
 
 
@@ -47,7 +47,7 @@ def compare(reference, translated):
 
 def audit_catalog(root=CATALOG):
     root = Path(root)
-    expected = {name for name, _ in LANGUAGES}
+    expected = {name for name, *_ in LANGUAGES}
     paths = {p.stem: p for p in sorted(root.glob('*.tsv'))}
     dictionaries = {name: read_translations(path) for name, path in paths.items()}
     if 'english' not in dictionaries:
@@ -144,7 +144,8 @@ def audit(root, required=(), reference='english'):
 
 
 def failed(report):
-    return bool(report['missing_languages'] or report.get('unexpected_languages') or report.get('source_issues') or any(
+    return bool(report['missing_languages'] or report.get('unexpected_languages') or report.get('source_issues')
+                or report.get('rust_table') or any(
         result.get(field) for result in report['languages'].values()
         for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
                       'too_long', 'non_latin', 'key_order', 'catalog_mismatch'))
@@ -163,6 +164,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         report = audit_catalog(args.catalog)
+        report['rust_table'] = rust_table_issue()
         report['flash'] = audit_flash(args.flash_source)
         if args.catalog.resolve() == CATALOG:
             report['flash']['issues'].extend(audit_native_labels(args.flash_source, args.catalog))
@@ -170,7 +172,7 @@ def main(argv=None):
                                         read_translations(CATALOG / 'english.tsv').keys())
         if args.resources:
             report['resources'] = audit(args.resources, args.require or
-                                        [name for name, _ in LANGUAGES], args.reference)
+                                        [name for name, *_ in LANGUAGES], args.reference)
             for language, path in discover(args.resources).items():
                 table = args.catalog / f'{"russian" if language == "original" else language}.tsv'
                 if table.exists():
@@ -200,6 +202,8 @@ def main(argv=None):
             print(f'UNREGISTERED LANGUAGE: {language}')
         for issue in report.get('source_issues', []):
             print(f'CONTENT: {issue}')
+        if report['rust_table']:
+            print(f"EXE TABLE: {report['rust_table']}")
         if 'resources' in report:
             print('Compiled resources: ' + ('FAIL' if failed(report['resources']) else 'PASS'))
             if failed(report['resources']):

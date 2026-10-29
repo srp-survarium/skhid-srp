@@ -2,7 +2,7 @@
 
 All nine native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
 Russian, German, Polish, Serbian Latin, Czech, Hungarian and Finnish. Every file
-has the same 2,313 keys, sorted by full key name. These are the build sources,
+has the same 2,315 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.
@@ -83,15 +83,20 @@ Key coverage does not mean those descriptions have been authored.
 
 ## Select or add a language
 
-Start the game with, for example, `-localization=czech`, or set
-`LANGUAGE=czech` in `play_skhid.bat` / `localization=czech` in `play_skhid.sh`.
-The overlay builder accepts `--localization=czech` and the other resource names.
-The original Windows launcher's dropdown still has its five original choices;
-use the game script for the added languages. Website and launcher UI translations
-are separate.
+Players choose the language in the game's Settings (Gameplay, Language), which
+lists every registered language by its own name and keeps the choice in user.cfg;
+it applies at the next start (exe patch 79, `../../docs/notes/language-option.md`).
+`-localization=czech` on the command line (or `LANGUAGE=czech` in
+`play_skhid.bat` / `localization=czech` in `play_skhid.sh`) starts the game in it
+and saves it as the choice. The overlay builder accepts `--localization=czech`
+and the other resource names (the scripts' default; none by default). The
+launcher's dropdown keeps its five choices for its own texts. Website and
+launcher UI translations are separate.
 
-To add a language, register its resource name and Flash constant in `LANGUAGES`
-in `localization_026g.py`, add its complete TSV here, and extend custom Flash
+To add a language, register its resource name, Flash constant and own name in
+`LANGUAGES` in `localization_026g.py`, run `python3 localization_026g.py --write`
+(the exe's table, `languages_026g.rs`), add its complete TSV here (with the
+Settings' two texts `st_srp_language_option` and `st_srp_language_restart`), and extend custom Flash
 language tables/detectors and their runtime checks. The content compiler
 creates its resource directory automatically. Existing languages retain their
 support files; new languages inherit English EULA and profanity data, which

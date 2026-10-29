@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Lisävarusteet
+st_srp_language_option	Kieli
+st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
 st_srp_optics	Optiikka
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
 st_stamina_boost_name	Uusi puhti

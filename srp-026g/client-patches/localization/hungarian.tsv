@@ -2142,6 +2142,8 @@ st_sr3m_bundle_name	SR-3M Vihr csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Szerelékek
+st_srp_language_option	Nyelv
+st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_optics	Távcsövek
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_stamina_boost_name	Újult erő

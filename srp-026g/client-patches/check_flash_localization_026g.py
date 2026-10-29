@@ -32,7 +32,7 @@ def audit_native_labels(root, catalog):
     login = (root / 'login_menu/src/SrpLoginHint.as').read_text(encoding='utf-8')
     detectors = [(path, (root / 'lobby_menu/src/survarium' / path).read_text(encoding='utf-8'))
                  for path in ('gsearch/MatchMakingSettings.as', 'controls/NotificationListScrollContent.as')]
-    for index, (language, code) in enumerate(LANGUAGES):
+    for index, (language, code, *_) in enumerate(LANGUAGES):
         path = catalog / f'{language}.tsv'
         if not path.exists():
             continue  # The catalog audit reports missing language files.
@@ -64,7 +64,7 @@ def audit_flash(root):
     constants = (root / 'lobby_menu/src/survarium/constants/Language.as').read_text(encoding='utf-8')
     actual = {name: int(index) for name, index in re.findall(
         r'public static const ([A-Z]+):int\s*=\s*(\d+);', constants)}
-    expected = {code: index for index, (_, code) in enumerate(LANGUAGES)}
+    expected = {code: index for index, (_, code, *_) in enumerate(LANGUAGES)}
     if actual != expected:
         issues.append(f'Language.as: expected language indices {expected}, got {actual}')
 

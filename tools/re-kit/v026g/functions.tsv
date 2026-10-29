@@ -1819,3 +1819,4 @@ va	status	ref_021d	name
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
 0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent
+0x00426ae1	verified		setlocale
