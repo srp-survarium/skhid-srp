@@ -222,6 +222,10 @@ pub enum TargetRef {
     /// A battery spawner's spot, by index (`MapData::battery_spawners`):
     /// looked at for a battery, with the battery cheat off.
     Spawner(usize),
+    /// A held threat spot of the team, by its number (`threat::Spot::id`):
+    /// the job's plays (K2) follow the spot as its place moves with his
+    /// kills.
+    ThreatSpot(u32),
 }
 
 /// A play's claim that only one bot of a team may hold (research B1
@@ -613,6 +617,7 @@ impl Ctx<'_> {
                 .side
                 .and_then(|side| self.enemy_side(side))
                 .and_then(|enemy| self.tactics.exits(enemy).get(index).copied()),
+            TargetRef::ThreatSpot(id) => self.team.threat.line(id).map(|l| l.at),
             TargetRef::Spawner(index) => self
                 .tactics
                 .world
@@ -805,7 +810,7 @@ impl Ctx<'_> {
         let mates: Vec<&PlaceView> = self
             .view
             .team(self.me.team)
-            .filter(|mate| mate.place != self.me.place && mate.carrying.is_none())
+            .filter(|mate| mate.place != self.me.place && !self.view.objective().is_actor(mate))
             .collect();
         let sees: Vec<Vec<bool>> = threats
             .iter()
@@ -972,6 +977,18 @@ impl Ctx<'_> {
         self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
     }
 
+    /// A team job's candidate (K2, `threat::Job`): scored by the role, `ThreatTuning::job_score` times the
+    /// health gate `health` (a play's own gate), in the objective band with `job_objective`.
+    pub fn job_candidate(&self, kind: PlayKind, target: TargetRef, slot: u32, health: f32) -> Option<Candidate> {
+        let gate = [considerations::health_above(health)];
+        let mut c = self.candidate_with(kind, target, Some(slot), &gate, &[])?;
+        c.score = Score::new(c.score.get() * self.tuning.threat.job_score);
+        if self.tuning.threat.job_objective {
+            c.rank = Rank::Objective;
+        }
+        (!c.score.is_zero()).then_some(c)
+    }
+
     /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
     /// graded rule has its curve in `HealTuning`).
     pub fn candidate_with(
@@ -1053,7 +1070,7 @@ pub fn spawner_worth_checking(
     };
     let fresh = match known.spawner_seen(index) {
         None => true,
-        Some(seen) if view.mode.rechecks_spawners() => {
+        Some(seen) if view.objective().refills_on_a_clock() => {
             view.clock >= seen + tuning.sense.spawner_recheck_ms
         }
         Some(_) => false,

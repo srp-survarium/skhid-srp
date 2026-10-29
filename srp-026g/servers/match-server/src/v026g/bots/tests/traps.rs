@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::v026g::bots::objective::Mode;
 use crate::v026g::bots::traps::{Habit, TrapKit};
 
 /// One bot of team 0 on the stand-in field, with a human of team 1 far off,
@@ -180,7 +181,7 @@ pub(crate) fn the_landing_rule_is_read_from_the_bots_own_teams_tuning() {
     tunings.give_team1(Arc::new(off));
     let bots = Bots::new_with(
         0x7A96,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &[0u8, 1],
         &[true, true],

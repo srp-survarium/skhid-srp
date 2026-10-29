@@ -1721,8 +1721,12 @@ pub const GRENADE_ARCS: usize = 3;
 /// and arc kind (flat, another pitch, another yaw).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GrenadeStats {
-    /// Thinks that reached the roll: the reflex's age, to tell a new life's
-    /// counts from the last one's.
+    /// Which reflex counted this (one is made for each life, [`Reflex::armed`]): the readings of the same reflex are told from
+    /// those of the next life by it. The reflex's age ([`Self::thinks`]) cannot tell them: a throw under way changes the counts
+    /// (the release, a give-up, a timeout) while no think reaches the roll, so a reading with the same age and other counts was
+    /// taken for a new life's and its whole counts were added again.
+    pub born: u32,
+    /// Thinks that reached the roll: the reflex's age.
     pub thinks: u32,
     /// Rolls with at least one place in range (what starts the lockout of
     /// `grenade_roll_ms`), and those the chance sent away.
@@ -1765,18 +1769,17 @@ pub struct GrenadeStats {
 
 impl GrenadeStats {
     /// The change from `before`, the last reading of the same reflex, and
-    /// whether this reading is a new life's: the whole of `self` then (its
-    /// age went back, or there was no reading before).
+    /// whether this reading is a new life's: the whole of `self` then (another
+    /// reflex counted it, or there was no reading before).
     pub fn since(&self, before: Option<&Self>) -> (Self, bool) {
-        let Some(before) = before.filter(|b| {
-            self.thinks > b.thinks || (self.thinks == b.thinks && self == *b)
-        }) else {
+        let Some(before) = before.filter(|b| b.born == self.born && self.thinks >= b.thinks) else {
             return (*self, true);
         };
         fn sub<const N: usize>(a: [u32; N], b: [u32; N]) -> [u32; N] {
             std::array::from_fn(|i| a[i].saturating_sub(b[i]))
         }
         let change = Self {
+            born: self.born,
             thinks: self.thinks.saturating_sub(before.thinks),
             rolls: self.rolls.saturating_sub(before.rolls),
             chance_no: self.chance_no.saturating_sub(before.chance_no),
@@ -2771,8 +2774,13 @@ fn along(from: Vec3, bearing: f32, m: f32) -> Vec3 {
 impl Reflex {
     /// A reflex for a bot carrying `arms` (`None`: [`Arms::fallback`]).
     pub fn armed(arms: Option<&'static Arms>) -> Self {
+        static BORN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
         Self {
             arms,
+            grenade_stats: GrenadeStats {
+                born: BORN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                ..GrenadeStats::default()
+            },
             ..Self::default()
         }
     }
@@ -3186,7 +3194,7 @@ impl Reflex {
         // keeps its way home.
         if self.outranged
             && now >= self.next_outranged
-            && me.carrying.is_none()
+            && !sit.view.objective().is_actor(me)
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
@@ -4055,7 +4063,7 @@ impl Reflex {
             && let Some(toward) = threat.bearing
         {
             // A carrier keeps its way home.
-            if me.carrying.is_some() || !c.hit_cover {
+            if sit.view.objective().is_actor(me) || !c.hit_cover {
                 return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
@@ -5834,7 +5842,7 @@ mod tests {
     fn view_of(places: Vec<PlaceView>) -> MatchView {
         MatchView {
             clock: 0,
-            mode: Mode::TeamDeathmatch,
+            mode: Mode::Batteries,
             time_left_s: 600.0,
             total_s: 900.0,
             points: [0, 0],
@@ -8224,12 +8232,23 @@ mod tests {
         assert_eq!((change.volley[1], change.near[0]), (2, 1));
         // A younger reflex is a new life's: its whole counts; so is the first reading.
         let young = GrenadeStats {
+            born: 7,
             thinks: 3,
             rolls: 1,
             ..GrenadeStats::default()
         };
         assert_eq!(young.since(Some(&b)), (young, true));
         assert_eq!(young.since(None), (young, true));
+        // The same reflex whose counts changed while no think reached the roll (a throw under way: the release, a give-up) is
+        // the same life: only the change is added, nothing counted twice.
+        let mut held = b;
+        held.nth[0] += 1;
+        held.thrown_from[3] += 1;
+        let (later, new_life) = held.since(Some(&b));
+        assert!(!new_life);
+        assert_eq!((later.thinks, later.rolls, later.places[1], later.nth[0], later.thrown_from[3]), (0, 0, 0, 1, 1));
+        // Every reflex made for a life has its own number.
+        assert_ne!(Reflex::armed(None).grenade_stats().born, Reflex::armed(None).grenade_stats().born);
         // Added up, the changes make the last reading.
         let mut sum = GrenadeStats::default();
         sum.add(&a);

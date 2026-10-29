@@ -709,7 +709,7 @@ mod tests {
     /// `(0, bot)` and `(1, human)` standing at the origin facing +z, placed by a world at 500 ms.
     fn stand(pockets: Option<Pockets>) -> Tracker {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         for place in 0..2 {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
@@ -932,7 +932,7 @@ mod tests {
         tracker.fixed(1, fix(4_000, 11), Some(1.0), &kin, None);
         press(&mut tracker, 1, 6_000, key::GRENADE);
         assert_eq!(tracker.live_grenades().len(), 2, "a new life, a full pocket");
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.fixed(1, fix(500, 10), Some(1.0), &kin, None);
         press(&mut tracker, 1, 1_000, key::GRENADE);
         assert!(tracker.live_grenades().is_empty());
@@ -967,7 +967,7 @@ mod tests {
     /// `(0, bot)` and `(1, human)` with the pockets given, a bot's now read like a human's.
     fn stand_pockets(bot: Option<Pockets>, human: Option<KitPockets>) -> Tracker {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         for place in 0..2 {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
@@ -1013,7 +1013,7 @@ mod tests {
     #[test]
     fn a_place_nothing_was_told_of_has_its_throw_key_by_its_kind() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         for place in 0..2 {
             tracker.entered(place, true);
             tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);

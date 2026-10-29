@@ -71,6 +71,7 @@ mod smoke;
 mod spacing;
 mod stamina;
 mod stock;
+mod threat_answer;
 mod topic;
 mod worth;
 
@@ -99,6 +100,7 @@ use smoke::*;
 use spacing::*;
 use stamina::*;
 use stock::*;
+use threat_answer::*;
 use topic::*;
 use worth::*;
 

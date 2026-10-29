@@ -521,6 +521,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
+    // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`), as `Bots::poll` does.
+    bots.tell_frags_left();
     bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
@@ -699,10 +701,11 @@ pub(crate) fn real_bot_cost() {
             // The bots as the lobby gives them (`bench_roster`): each its role and the tier's kits, read back from its
             // profile as the match server does, built with its team's pocket store.
             let roster = bench_roster(&teams, bench_equipment(), &tunings);
+            let throws = bench_throws(&roster, &tunings);
             let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
-                mode,
+                crate::v026g::bots::objective::Mode::parse(mode).unwrap(),
                 level,
                 &teams,
                 &driven,
@@ -714,6 +717,10 @@ pub(crate) fn real_bot_cost() {
             // kits and its skill.
             bots = bots.with_tiers(&roster.equipments);
             bots.set_pantries(roster.profiles.iter().map(super::stock::Pantry::of_profile).collect());
+            // The tracker reads every body's pockets from its profile, as the live server does for its bots
+            // (`game/driven.rs`): a throw key lists a frag only from a kit that holds one, and the bots' frag rolls go by
+            // the frags their kit holds (`aim.combat.grenade_kit_cap`).
+            bots.set_throws(throws);
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
             // ms): known to the clock less a ping drawn for each place, and
             // reckoned on from there (`Tracker::seen_late`). Off, the
@@ -976,8 +983,10 @@ pub(crate) fn real_bot_cost() {
             let mut threat_changes = 0u32;
             let mut detour_deaths = 0u32;
             let (mut bot_deaths, mut bot_ticks, mut detour_ticks) = (0u32, 0u64, 0u64);
+            threat::new_match();
             let threat_searches_before = threat::searches();
             let threat_checks_before = threat::checks();
+            let threat_spent_before = threat::spents();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             events.containers(&game);
@@ -986,6 +995,7 @@ pub(crate) fn real_bot_cost() {
             let mut push = PushTally::start(&world, game.bodies.len());
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
+            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
@@ -1210,6 +1220,19 @@ pub(crate) fn real_bot_cost() {
                     }
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
+                    }
+                    if let Some(habit) = &mut smoke_habit {
+                        let (place, now) = (habit.place(), game.tick);
+                        let fresh: Vec<bool> = (0..game.bodies.len())
+                            .map(|enemy| {
+                                bots.bots[place].as_ref().is_some_and(|me| {
+                                    me.memory.tracks().iter().any(|t| {
+                                        t.who == enemy && super::fairness::Basis::of(t, now) == super::fairness::Basis::Fresh
+                                    })
+                                })
+                            })
+                            .collect();
+                        habit.tick(&game, &mut bots.tracker, now, |enemy| fresh[enemy]);
                     }
                     let mut holding = [false; 2];
                     for bot in bots.bots.iter().flatten() {
@@ -1750,7 +1773,7 @@ pub(crate) fn real_bot_cost() {
             );
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
-                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
+                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {} search_floors {} exposed_asked_m {:.1} exposed_kept_m {:.1}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
                 detour_ticks as f64 * f64::from(TICK_MS) / 1000.0,
                 threat::checks()[0] - threat_checks_before[0],
@@ -1758,7 +1781,10 @@ pub(crate) fn real_bot_cost() {
                 threat::searches()[0] - threat_searches_before[0],
                 threat::searches()[1] - threat_searches_before[1],
                 threat::searches()[2] - threat_searches_before[2],
-                threat::searches()[3] - threat_searches_before[3]
+                threat::searches()[3] - threat_searches_before[3],
+                threat::spents()[0] - threat_spent_before[0],
+                (threat::spents()[1] - threat_spent_before[1]) as f64 / 10.0,
+                (threat::spents()[2] - threat_spent_before[2]) as f64 / 10.0
             );
             let perched = super::plays::goals::perch_counts();
             eprintln!(
@@ -1779,6 +1805,9 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  hold_switch: {}", super::hold_trace::line());
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
+            }
+            if let Some(habit) = &smoke_habit {
+                eprintln!("  {}", habit.line());
             }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
@@ -2155,6 +2184,21 @@ fn frag_pockets(kit: &survarium::v026g::loadouts::Loadout) -> standin_grenade::K
             count: sum.count + item.count,
             stored: sum.stored + item.stored,
         })
+}
+
+/// What each bench body's throw keys throw: its profile's pockets, read as a server bot's
+/// ([`super::live_grenades::Throws::of_profile`]), with the kit-in-use rule of the match-wide tuning (`avoid.kit_in_use`).
+pub(crate) fn bench_throws(
+    roster: &BenchRoster,
+    tunings: &super::tuning::TeamTunings,
+) -> Vec<super::live_grenades::Throws> {
+    use super::live_grenades::{Player, Throws};
+    let all_kits = tunings.match_wide().avoid.kit_in_use;
+    roster
+        .profiles
+        .iter()
+        .map(|profile| Throws::of_profile(profile, Player::Bot, all_kits))
+        .collect()
 }
 
 pub(crate) fn bench_roster(
