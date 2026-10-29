@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 use survarium::v026g::dictionary::{Dictionary, Item};
 use survarium::v026g::item_params::{self, ItemParams};
 use survarium::v026g::localization::{self, Language};
-use survarium::v026g::modifications::{self, Modification, Modifications};
+use survarium::v026g::modifications::{Modification, Modifications};
 use survarium::v026g::ui_properties::{Change, UiProperties, UiProperty};
 
 use crate::icons::{self, IconSet};
@@ -229,8 +229,12 @@ fn kinds() -> &'static [Kind] {
                 let kind = rows[0].kind;
                 let ids: Vec<u32> = rows.iter().map(|row| row.id).collect();
                 let takes = |params: &ItemParams| match source {
-                    Source::Rolled => modifications::item_mods(params.dict_id)
-                        .is_some_and(|mods| mods.modifications & (1 << kind) != 0),
+                    // What a roll may give the item: the server's own candidates,
+                    // which leave out a kind the item already comes with.
+                    Source::Rolled => Modifications::shared()
+                        .candidates(params.dict_id, &[])
+                        .iter()
+                        .any(|row| row.kind == kind),
                     Source::BuiltIn => params
                         .default_modifications
                         .iter()
@@ -640,6 +644,28 @@ mod tests {
 
     fn dict_id(name: &str) -> u16 {
         Dictionary::shared().item_named(name).unwrap().dict_id
+    }
+
+    #[test]
+    fn a_kind_an_item_comes_with_is_not_one_it_can_roll() {
+        let data = Modifications::shared();
+        for choice in grouped() {
+            let built_in: Vec<u8> = choice
+                .params
+                .default_modifications
+                .iter()
+                .filter_map(|&id| data.modification(id))
+                .map(|modification| modification.kind)
+                .collect();
+            for kind in kinds().iter().filter(|kind| kind.source == Source::Rolled) {
+                assert!(
+                    !(kind.takes(choice.item.dict_id) && built_in.contains(&kind.id)),
+                    "{} comes with kind {} and is listed as rolling it",
+                    choice.item.name,
+                    kind.id
+                );
+            }
+        }
     }
 
     #[test]
