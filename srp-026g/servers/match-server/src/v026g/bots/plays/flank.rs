@@ -125,6 +125,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if !has_spot {
             let why = JOB_SPOTS_WHY.with(|m| m.borrow().get(&(cx.bot.side, line.id)).copied()).unwrap_or("unknown");
             crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Flanker, why);
+            crate::v026g::bots::threat::no_spot_centre(Role::Flanker, &cx.tactics.world.grid, line.at);
         }
         out.extend(cx.job_offer(Role::Flanker, PlayKind::Flank, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }

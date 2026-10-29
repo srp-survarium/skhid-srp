@@ -129,6 +129,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         #[cfg(test)]
         if !has_spot {
             crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Pinner, why_no_fine_spot(cx, &choke));
+            crate::v026g::bots::threat::no_spot_centre(Role::Pinner, &cx.tactics.world.grid, line.at);
         }
         out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }

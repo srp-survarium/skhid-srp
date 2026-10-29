@@ -578,6 +578,25 @@ pub fn no_spot_why(place: Place, role: Role, why: &'static str) {
 #[cfg(not(test))]
 pub fn no_spot_why(_: Place, _: Role, _: &'static str) {}
 
+/// Where a no-spot held spot's point lies (the bench's class, by poll, `nospot_<role>_centre_<where>`): on a floor
+/// (within 0.6 m: a place he could stand), over the nearest floor within 30 m by 0.6-3 m or more (a mean between
+/// storeys, a sill, a roof edge), under one, or with no floor near.
+#[cfg(test)]
+pub fn no_spot_centre(role: Role, grid: &mapdata::WalkGrid, at: Vec3) -> &'static str {
+    let place = if grid.locate(at, 0.6).is_some() {
+        "on_floor"
+    } else {
+        match grid.locate(at, 30.0).map(|n| at.y - grid.position(n).y) {
+            None => "no_floor_near",
+            Some(dy) if dy >= 3.0 => "over_floor_3m_plus",
+            Some(dy) if dy > 0.0 => "over_floor_under_3m",
+            Some(_) => "under_floor",
+        }
+    };
+    offer_count(format!("nospot_{}_centre_{place}", role_name(role)));
+    place
+}
+
 /// The tally of the first test each spot failed, as [`no_spot_why`] names it: the test that left the most out.
 pub fn most_failed(fails: &[&'static str]) -> &'static str {
     let mut by: Vec<(&'static str, usize)> = Vec::new();
