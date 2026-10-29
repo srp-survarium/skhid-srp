@@ -1089,6 +1089,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     if bot.features.traps.habit.may_plan(t).is_err() {
         return;
     }
+    #[cfg(test)]
+    let waiting = bot.features.traps.pass_wait.is_some();
     let facts = Facts {
         now: due.now,
         play: bot.assignment.as_ref().map(|a| a.kind),
@@ -1108,18 +1110,33 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     gates::count(gates::THINKS);
     if let Err(_refusal) = gate(&facts, t) {
         #[cfg(test)]
-        gates::count(gates::of(_refusal));
+        {
+            gates::count(gates::of(_refusal));
+            if waiting {
+                onpass::count(me.team, onpass::LOST_GATE);
+            }
+        }
         return;
     }
     if bot.rng.unit() >= t.chance {
         #[cfg(test)]
-        gates::count(gates::CHANCE);
+        {
+            gates::count(gates::CHANCE);
+            if waiting {
+                onpass::count(me.team, onpass::LOST_CHANCE);
+            }
+        }
         return;
     }
     let (ahead, jump) = route_ahead(bot, me, t);
     if jump {
         #[cfg(test)]
-        gates::count(gates::JUMP);
+        {
+            gates::count(gates::JUMP);
+            if waiting {
+                onpass::count(me.team, onpass::LOST_JUMP);
+            }
+        }
         return;
     }
     let mates: Vec<(Vec3, [f32; 2])> = due
@@ -1168,8 +1185,50 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     };
     let chosen = choose(&search);
     #[cfg(test)]
+    if waiting {
+        if chosen.is_none() {
+            onpass::count(me.team, onpass::LOST_NO_SPOT);
+        }
+        if bot.features.traps.pass_wait.is_some_and(|(_, since)| due.now.saturating_sub(since) >= PASS_WAIT_MS) {
+            onpass::count(me.team, onpass::LOST_STALE);
+        }
+    }
+    let lanes = &state.knowledge.humans;
+    let here = chosen.map(|c| presence(lanes, c.spot, due.now));
+    // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
+    if let Some(pass) = t.on_the_pass.filter(|_| !staying) {
+        let last = (pass.route_ahead_m as usize).min(ahead.len().saturating_sub(1));
+        let cells: Vec<(usize, f32)> = (PASS_FIRST_M..=last)
+            .step_by(PASS_STRIDE_M)
+            .map(|k| (k, presence(lanes, ahead[k], due.now)))
+            .collect();
+        #[cfg(test)]
+        onpass::count(me.team, onpass::WEIGHED);
+        if let Pass::Wait(i) = on_the_pass(here, &cells.iter().map(|c| c.1).collect::<Vec<_>>(), pass.gain) {
+            #[cfg(test)]
+            {
+                onpass::count(me.team, onpass::WAIT);
+                if waiting {
+                    onpass::count(me.team, onpass::WAITED_AGAIN);
+                }
+            }
+            bot.features.traps.pass_wait = Some((ahead[cells[i].0], due.now));
+            return;
+        }
+    }
+    #[cfg(test)]
     gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
     if let Some(chosen) = chosen {
+        #[cfg(test)]
+        {
+            let on_pass = bot
+                .features
+                .traps
+                .pass_wait
+                .is_some_and(|(at, since)| due.now.saturating_sub(since) < PASS_WAIT_MS && at.distance_xz(chosen.spot) < PASS_NEAR_M);
+            onpass::placed(me.team, on_pass, here.unwrap_or(0.0));
+        }
+        bot.features.traps.pass_wait = None;
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         if bot.tracing {
             bot.traced.push(serde_json::json!({
@@ -1177,6 +1236,101 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
                 "score": chosen.score,
             }));
         }
+    }
+}
+
+/// The first cell of the route ahead the pass rule looks at, and the metres between the cells it looks at.
+const PASS_FIRST_M: usize = 3;
+const PASS_STRIDE_M: usize = 2;
+/// A wait for a richer cell is good for this long, ms, and the spot placed counts as on the pass within this of it, metres.
+#[cfg(test)]
+const PASS_WAIT_MS: u32 = 20_000;
+#[cfg(test)]
+const PASS_NEAR_M: f32 = 4.0;
+
+/// What the pass rule says at a think.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pass {
+    /// Place the spot at the feet (or none, if there is none).
+    Here,
+    /// Wait: the cell `.0` of the cells looked at is richer.
+    Wait(usize),
+}
+
+/// The pass rule (`TrapTuning::on_the_pass`): `here` the lane presence of the spot at the feet (none: no spot), `ahead`
+/// that of the cells along the route; wait for the richest cell ahead when it exceeds `here` by `gain` (and, with no spot
+/// at the feet, when it is above `gain` itself).
+pub fn on_the_pass(here: Option<f32>, ahead: &[f32], gain: f32) -> Pass {
+    let Some((i, best)) = ahead
+        .iter()
+        .copied()
+        .enumerate()
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+    else {
+        return Pass::Here;
+    };
+    if best > here.unwrap_or(0.0) + gain {
+        Pass::Wait(i)
+    } else {
+        Pass::Here
+    }
+}
+
+/// The bench's counts of the pass rule, by team (A169): thinks that looked along the route, waits, traps placed on the
+/// pass and at the feet, and the lane presence of the cells they were placed at (hundredths, summed).
+#[cfg(test)]
+pub mod onpass {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const WEIGHED: usize = 0;
+    pub const WAIT: usize = 1;
+    pub const ON_PASS: usize = 2;
+    pub const AT_FEET: usize = 3;
+    pub const PRESENCE_ON_PASS: usize = 4;
+    pub const PRESENCE_AT_FEET: usize = 5;
+    /// A bot that was waiting at the next think: refused by the gate (a play, an enemy, a hit, ...), missed the chance,
+    /// a jump ahead, no look, no spot there, or waited again.
+    pub const LOST_GATE: usize = 6;
+    pub const LOST_CHANCE: usize = 7;
+    pub const LOST_JUMP: usize = 8;
+    pub const LOST_NO_SPOT: usize = 9;
+    pub const WAITED_AGAIN: usize = 10;
+    pub const LOST_STALE: usize = 11;
+    static COUNTS: [[AtomicU64; 12]; 2] = [const { [const { AtomicU64::new(0) }; 12] }; 2];
+
+    pub fn count(team: u8, kind: usize) {
+        COUNTS[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn placed(team: u8, on_pass: bool, presence: f32) {
+        let (n, sum) = if on_pass { (ON_PASS, PRESENCE_ON_PASS) } else { (AT_FEET, PRESENCE_AT_FEET) };
+        count(team, n);
+        COUNTS[usize::from(team & 1)][sum].fetch_add((presence * 100.0) as u64, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        (0..2)
+            .map(|team| {
+                let c = |k: usize| COUNTS[team][k].load(Ordering::Relaxed);
+                let mean = |sum: usize, n: usize| if c(n) == 0 { 0.0 } else { c(sum) as f64 / 100.0 / c(n) as f64 };
+                format!(
+                    "team {team}: weighed {}, waited {}, placed on the pass {} (lane presence {:.2}), at the feet {} (lane presence {:.2}); a waiting bot's next think: gate {}, chance {}, jump {}, no spot {}, waited again {}, stale {}",
+                    c(WEIGHED),
+                    c(WAIT),
+                    c(ON_PASS),
+                    mean(PRESENCE_ON_PASS, ON_PASS),
+                    c(AT_FEET),
+                    mean(PRESENCE_AT_FEET, AT_FEET),
+                    c(LOST_GATE),
+                    c(LOST_CHANCE),
+                    c(LOST_JUMP),
+                    c(LOST_NO_SPOT),
+                    c(WAITED_AGAIN),
+                    c(LOST_STALE)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 }
 
@@ -1555,6 +1709,8 @@ pub struct BotState {
     pub field: std::sync::Arc<super::trap_know::TrapField>,
     /// The version of the team's traps its route was last looked at against the ring for (`keep_off`).
     pub ringed: u64,
+    /// The richer cell ahead the habit is waiting to pass, and since when (`TrapTuning::on_the_pass`).
+    pub pass_wait: Option<(mapdata::Vec3, u32)>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
     /// ([`passes`]).
     #[cfg(test)]
@@ -1565,6 +1721,7 @@ impl super::features::Feature for BotState {
     fn new_life(&mut self, _life: &super::features::Life) {
         self.habit.new_life();
         self.react.new_life();
+        self.pass_wait = None;
         #[cfg(test)]
         {
             self.near = None;
@@ -1955,6 +2112,39 @@ mod tests {
         bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 1.3));
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
+    }
+
+    #[test]
+    fn the_pass_rule_waits_for_a_richer_cell_ahead_and_places_here_otherwise() {
+        // Nothing ahead to look at: here.
+        assert_eq!(on_the_pass(Some(1.0), &[], 1.0), Pass::Here);
+        // A cell ahead richer by more than the gain: wait for the richest one.
+        assert_eq!(on_the_pass(Some(0.5), &[0.2, 2.0, 3.0, 1.0], 1.0), Pass::Wait(2));
+        // By exactly the gain or less: here.
+        assert_eq!(on_the_pass(Some(1.0), &[0.2, 2.0, 1.5], 1.0), Pass::Here);
+        // No spot at the feet: a cell above the gain itself is waited for, a poor one is not.
+        assert_eq!(on_the_pass(None, &[0.4, 1.5], 1.0), Pass::Wait(1));
+        assert_eq!(on_the_pass(None, &[0.4, 0.9], 1.0), Pass::Here);
+        // The first of equal cells is not preferred over a later richer one.
+        assert_eq!(on_the_pass(Some(0.0), &[2.0, 2.0, 2.5], 1.0), Pass::Wait(2));
+    }
+
+    #[test]
+    fn the_pass_rule_is_on_by_default_off_in_the_all_off_patch_validated_and_read_from_a_patch() {
+        use crate::v026g::bots::tuning::{PassTuning, Tuning};
+        assert_eq!(Tuning::default().traps.on_the_pass, Some(PassTuning::default()));
+        assert_eq!(Tuning::all_off().traps.on_the_pass, None);
+        assert_eq!(Tuning::default().traps.enemy_near_m, 20.0);
+        assert_eq!(Tuning::all_off().traps.enemy_near_m, 50.0);
+        let mut tuning = Tuning::all_off();
+        tuning.traps.on_the_pass = Some(PassTuning::default());
+        tuning.validate().unwrap();
+        tuning.traps.on_the_pass = Some(PassTuning { route_ahead_m: 30.0, gain: 1.0 });
+        assert!(tuning.validate().is_err(), "further than the route ahead the habit reads");
+        tuning.traps.on_the_pass = Some(PassTuning { route_ahead_m: 12.0, gain: -1.0 });
+        assert!(tuning.validate().is_err());
+        let patched = Tuning::parse(r#"{"traps":{"on_the_pass":{"route_ahead_m":8.0,"gain":0.5}}}"#).unwrap();
+        assert_eq!(patched.traps.on_the_pass, Some(PassTuning { route_ahead_m: 8.0, gain: 0.5 }));
     }
 
     #[test]
