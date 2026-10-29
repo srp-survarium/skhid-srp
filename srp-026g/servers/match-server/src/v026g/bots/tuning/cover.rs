@@ -68,6 +68,43 @@ impl From<BulletPierce> for f32 {
     }
 }
 
+/// What a bot pays, in spot score, for each whole share of an enemy's bullet that reaches a spot it could hide at
+/// (`SpotQuery::out_of_fire_of`): positive and finite, or the file is refused with the reason. The spot score is
+/// metres-scale (`-0.01` a metre of walk), so 0.5 means a spot a third of a bullet reaches costs as much as 17 m of walk.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "f32", into = "f32")]
+pub struct SpotCost(f32);
+
+impl SpotCost {
+    /// For a default: a value out of range does not compile.
+    pub const fn of(value: f32) -> Self {
+        assert!(value > 0.0 && value < f32::INFINITY, "a spot cost is positive and finite");
+        Self(value)
+    }
+
+    pub const fn get(self) -> f32 {
+        self.0
+    }
+}
+
+impl TryFrom<f32> for SpotCost {
+    type Error = String;
+
+    fn try_from(value: f32) -> Result<Self, String> {
+        if value > 0.0 && value.is_finite() {
+            Ok(Self(value))
+        } else {
+            Err(format!("{value} is not a spot cost (positive and finite)"))
+        }
+    }
+}
+
+impl From<SpotCost> for f32 {
+    fn from(cost: SpotCost) -> Self {
+        cost.0
+    }
+}
+
 /// Cover that stops bullets, by the game's own rule: a bullet of this `pierce` goes through crates, cars,
 /// sandbags, thin metal and most building walls at full or high damage (`bullet::try_pierce`, an-sight 2.2), so
 /// a spot behind them is in the line of fire.
@@ -95,6 +132,9 @@ impl Default for PierceCover {
 pub struct CoverRule {
     pub pierce: mapdata::Pierce,
     pub max_share: f32,
+    /// A hiding spot's score falls by this much for each whole share of the bullet that reaches it (A142: the
+    /// spots under `max_share` are not all as good); none: any spot under `max_share` is as good as another.
+    pub spot_cost: Option<SpotCost>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -106,17 +146,27 @@ pub struct CoverTuning {
     /// cover, as it was (the mesh had no materials). Tests of sight (will he fire at me, is this spot out of his
     /// sight) do not read it. On by default.
     pub pierce: Option<PierceCover>,
+    /// Hiding spots (`SpotQuery::out_of_fire_of`: the outranged hide, the heal cover) are weighed, not only filtered
+    /// (Killzone's cover evaluation weighs partial cover by degree): of the spots under `pierce.max_share`, the one
+    /// that a smaller share of the enemy's bullet reaches scores higher, by this much for a whole share. `None`
+    /// (off): every spot under `max_share` is as good as the next, the nearest first. Reads `pierce`: with that off
+    /// there is no share to weigh. On by default.
+    pub spot_cost: Option<SpotCost>,
 }
 
 impl Default for CoverTuning {
     fn default() -> Self {
-        Self { pierce: Some(PierceCover::default()) }
+        Self { pierce: Some(PierceCover::default()), spot_cost: Some(SpotCost::of(0.5)) }
     }
 }
 
 impl CoverTuning {
     /// The rule the cover tests go by, or none (cover is whatever the mesh shows).
     pub fn rule(&self) -> Option<CoverRule> {
-        self.pierce.map(|cover| CoverRule { pierce: cover.pierce.0, max_share: cover.max_share.get() })
+        self.pierce.map(|cover| CoverRule {
+            pierce: cover.pierce.0,
+            max_share: cover.max_share.get(),
+            spot_cost: self.spot_cost,
+        })
     }
 }

@@ -23,7 +23,8 @@
     "hold_to_arrival": false
   },
   "cover": {
-    "pierce": null
+    "pierce": null,
+    "spot_cost": null
   },
   "feel": {
     "band_jump_gate": false,
