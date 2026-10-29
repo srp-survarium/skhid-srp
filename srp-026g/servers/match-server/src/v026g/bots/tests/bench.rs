@@ -521,6 +521,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
+    // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`), as `Bots::poll` does.
+    bots.tell_frags_left();
     bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
@@ -699,6 +701,7 @@ pub(crate) fn real_bot_cost() {
             // The bots as the lobby gives them (`bench_roster`): each its role and the tier's kits, read back from its
             // profile as the match server does, built with its team's pocket store.
             let roster = bench_roster(&teams, bench_equipment(), &tunings);
+            let throws = bench_throws(&roster, &tunings);
             let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
@@ -714,6 +717,10 @@ pub(crate) fn real_bot_cost() {
             // kits and its skill.
             bots = bots.with_tiers(&roster.equipments);
             bots.set_pantries(roster.profiles.iter().map(super::stock::Pantry::of_profile).collect());
+            // The tracker reads every body's pockets from its profile, as the live server does for its bots
+            // (`game/driven.rs`): a throw key lists a frag only from a kit that holds one, and the bots' frag rolls go by
+            // the frags their kit holds (`aim.combat.grenade_kit_cap`).
+            bots.set_throws(throws);
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
             // ms): known to the clock less a ping drawn for each place, and
             // reckoned on from there (`Tracker::seen_late`). Off, the
@@ -2172,6 +2179,21 @@ fn frag_pockets(kit: &survarium::v026g::loadouts::Loadout) -> standin_grenade::K
             count: sum.count + item.count,
             stored: sum.stored + item.stored,
         })
+}
+
+/// What each bench body's throw keys throw: its profile's pockets, read as a server bot's
+/// ([`super::live_grenades::Throws::of_profile`]), with the kit-in-use rule of the match-wide tuning (`avoid.kit_in_use`).
+pub(crate) fn bench_throws(
+    roster: &BenchRoster,
+    tunings: &super::tuning::TeamTunings,
+) -> Vec<super::live_grenades::Throws> {
+    use super::live_grenades::{Player, Throws};
+    let all_kits = tunings.match_wide().avoid.kit_in_use;
+    roster
+        .profiles
+        .iter()
+        .map(|profile| Throws::of_profile(profile, Player::Bot, all_kits))
+        .collect()
 }
 
 pub(crate) fn bench_roster(

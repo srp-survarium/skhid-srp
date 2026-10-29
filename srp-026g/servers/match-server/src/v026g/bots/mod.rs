@@ -1735,6 +1735,14 @@ impl Bots {
     }
 
     /// The inputs due with the clock at `clock`.
+    /// What each bot's kit holds in frags, told to its grenade logic (`CombatTuning::grenade_kit_cap`): at the start of
+    /// every poll (`poll`, and the bench's `timed_poll`).
+    pub(crate) fn tell_frags_left(&mut self) {
+        for bot in self.bots.iter_mut().flatten() {
+            bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));
+        }
+    }
+
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         #[cfg(test)]
         bench_work::set(bench_work::Who::Shared);
@@ -1747,10 +1755,7 @@ impl Bots {
         // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
         let avoid = &self.tunings.match_wide().avoid;
         self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
-        // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`).
-        for bot in self.bots.iter_mut().flatten() {
-            bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));
-        }
+        self.tell_frags_left();
         self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
