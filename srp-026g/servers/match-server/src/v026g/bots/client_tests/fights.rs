@@ -108,10 +108,10 @@ impl CustomMeter for StealMeter {
                 self.first_aimed.get_or_insert(frame.clock);
             }
         }
-        if let Some(pools) = frame.owner.as_ref().and_then(|o| o.pools) {
-            if pools.hands.iter().any(|&h| h <= POOL_ZERO) {
-                self.hand_zero = true;
-            }
+        if let Some(pools) = frame.owner.as_ref().and_then(|o| o.pools)
+            && pools.hands.iter().any(|&h| h <= POOL_ZERO)
+        {
+            self.hand_zero = true;
         }
         if self.hand_zero && !carries(frame) && frame.batteries.iter().any(|b| matches!(b, BatteryState::Free(_))) {
             self.free_after = true;
@@ -263,10 +263,11 @@ impl CustomMeter for RangeMeter {
                 let Some(&(_, was_alive, was_feet, was_on_band)) = self.before.iter().find(|b| b.0 == place) else {
                     continue;
                 };
-                if was_alive && !alive {
-                    if let Some(i) = band(was_feet.distance_xz(owner_feet)) {
-                        self.kills[i] += 1;
-                    }
+                if was_alive
+                    && !alive
+                    && let Some(i) = band(was_feet.distance_xz(owner_feet))
+                {
+                    self.kills[i] += 1;
                 }
                 if on_band && !was_on_band && alive && feet.distance_xz(owner.body.feet) < 20.0 {
                     self.step_backs += 1;
