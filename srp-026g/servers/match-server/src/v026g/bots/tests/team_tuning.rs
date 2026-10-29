@@ -240,6 +240,7 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
     assert!(t0 > 0 && t1 == 0, "team 0 (routes) {t0} collect, team 1 (off) {t1}");
     let [t0, t1] = goes_for_it(RouteCrossing::Off, RouteCrossing::Total);
     assert!(t0 == 0 && t1 > 0, "swapped: team 0 (off) {t0} collect, team 1 (routes) {t1}");
+}
 
 /// The cover rule (`cover.pierce`) is a team's: team 1 tests cover as bullets (a crate is no cover from them) when team 1's
 /// tuning says so, whatever team 0's is, and the other way round. The rule reaches the plays and the reflex through
