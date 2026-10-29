@@ -405,9 +405,10 @@ fn drive_tick_inner(
         && !using
         && bot.reflex.target().is_none();
     let reacts = bot.control.reacts();
-    let trap = if reacts { traps::drive(bot, me, time, calm, &tuning.traps) } else { None };
+    let trap = if reacts { traps::drive(bot, me, time, calm, intent.crouch, &tuning.traps) } else { None };
     let aim = match trap.and_then(|trap| trap.look) {
-        Some(point) => Some(aim_at(point)),
+        Some(traps::LookAt::Point(point)) => Some(aim_at(point)),
+        Some(traps::LookAt::Angles { yaw, pitch }) => Some((yaw, pitch)),
         None => aim,
     };
     if let Some(trap) = trap {
@@ -492,6 +493,10 @@ fn drive_tick_inner(
             intent.objective = false;
             intent.straight = false;
         }
+    }
+    // [traps] The crouch of the press is held to the release: the trap lands where the pose at the press said.
+    if let Some(crouch) = trap.and_then(|trap| trap.crouch) {
+        intent.crouch = crouch;
     }
     // A rest point on a lip is moved inward (`ThinkTuning::rest_off_lip`): the walk ends with the centre on the floor.
     if reacts
