@@ -187,3 +187,15 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
+; void engine_visual_insert(void *visual, void *scene)
+; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4
+extern engine_visual_insert
+; void engine_visual_remove(void *visual, void *scene)
+; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4
+extern engine_visual_remove
+; void engine_light_insert(void *light)
+; 0x291790 survarium::object_light::insert: light ECX; pops 0
+extern engine_light_insert
+; void engine_light_remove(void *light)
+; 0x2917d0 survarium::object_light::remove: light ECX; pops 0
+extern engine_light_remove

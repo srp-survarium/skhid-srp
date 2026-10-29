@@ -199,4 +199,16 @@ void __attribute__((thiscall)) engine_translate_text(struct text_translator *tra
 /* the IAT slot 0x87027c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lcid)(void);
 
+/* 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4 */
+void engine_visual_insert(void *visual, void *scene);
+
+/* 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4 */
+void engine_visual_remove(void *visual, void *scene);
+
+/* 0x291790 survarium::object_light::insert: light ECX; pops 0 */
+void engine_light_insert(void *light);
+
+/* 0x2917d0 survarium::object_light::remove: light ECX; pops 0 */
+void engine_light_remove(void *light);
+
 #endif

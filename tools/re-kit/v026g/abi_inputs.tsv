@@ -4726,3 +4726,20 @@ va	name	location	role	basis
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
 0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed
+0x00285540	survarium::simple_game_project::insert_static	EAX	project	observed
+0x002855b0	survarium::simple_game_project::remove_static	ESI	project	observed
+0x00285fa0	survarium::render_visual::insert	ECX	visual	observed
+0x00285fa0	survarium::render_visual::insert	entry ESP+4	scene	observed
+0x00285fe0	survarium::render_visual::remove	ECX	visual	observed
+0x00285fe0	survarium::render_visual::remove	entry ESP+4	scene	observed
+0x00291720	survarium::object_light::load	ECX	light	observed
+0x00291720	survarium::object_light::load	entry ESP+4	config	observed
+0x00291720	survarium::object_light::load	entry ESP+8	unused path	observed
+0x00291720	survarium::object_light::load	entry ESP+12	callback	observed
+0x00291790	survarium::object_light::insert	ECX	light	observed
+0x002917d0	survarium::object_light::remove	ECX	light	observed
+0x00285330	survarium::simple_game_project::~simple_game_project	ECX	project	observed
+0x00285750	survarium::simple_game_project::insert	ECX	project	observed
+0x00285750	survarium::simple_game_project::insert	entry ESP+4	physics world; forwarded to static collision insertion and NPC +1A8h, not scene +98h (camera director)	observed
+0x00285750	survarium::simple_game_project::insert	entry ESP+8	game_world_core; ESI after prologue, owns inserted objects and scheduler	observed
+0x0023daa0	survarium::base_game_scene::base_game_scene	at 0x23DB58	scene +98h receives the camera_director allocated (8Ch bytes) and constructed at 0x2431E0; never a physics world	observed

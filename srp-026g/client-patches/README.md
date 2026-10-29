@@ -3683,3 +3683,15 @@ after the existing confirmation. `KNOWLEDGE_BASE` changes the fixed URL and
 skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
 executes the original and redirected callbacks for every game language.
+
+## Breakable lamps
+
+Bullets break configured lamps on levels 02–08 and the v0.11/v0.21 imported
+maps: the broken model replaces the intact one, its lights and glow cones
+disappear, and the first hit queues glass sound and shards. Lamp state travels in the
+native bullet-history blob, so rollback, late joins and replays preserve it;
+a new match resets it. `lamps_026g.c`/`.asm` own the arena hooks and renderer
+bindings; `check_lamps_026g.py` exercises the native loops in Unicorn.
+Map bindings and broken models ship through `release/content.tsv`.
+See [breakable_lamps.md](../docs/notes/breakable_lamps.md) for coverage,
+content authoring, ABI evidence and validation limits.

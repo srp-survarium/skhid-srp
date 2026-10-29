@@ -61,6 +61,10 @@ global engine_setlocale
 global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
+global engine_visual_insert
+global engine_visual_remove
+global engine_light_insert
+global engine_light_remove
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -819,6 +823,68 @@ engine_cc_string:
     push dword [esp + 36]   ; name -> 4
     mov eax, [esp + 36]   ; object
     call 0xec860
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_visual_insert:
+    ; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; scene -> 4
+    mov ecx, [esp + 24]   ; visual
+    call 0x285fa0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_visual_remove:
+    ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; scene -> 4
+    mov ecx, [esp + 24]   ; visual
+    call 0x285fe0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_light_insert:
+    ; 0x291790 survarium::object_light::insert: light ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; light
+    call 0x291790
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_light_remove:
+    ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; light
+    call 0x2917d0
     pop edi
     pop esi
     pop ebx

@@ -1554,6 +1554,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(va, len(old)) for va, old, _, _ in P.LAMPS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
@@ -4752,6 +4753,20 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_lamps(original, image, before):
+    """Lamp hooks: original bytes, linked targets, and no interior entry.
+    Runtime transitions and native vtable dispatch run in check_lamps_026g.py.
+    """
+    stock, linked = Image(original), P.arena()
+    for va, old, symbol, opcode in P.LAMPS_HOOKS:
+        expected = P.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(old)) == expected,
+              f"lamp hook {symbol}: native without the arena, linked target with it")
+        check(not branches_into(original, va + 1, va + len(old)),
+              f"lamp hook {symbol}: no original branch enters the displaced instructions")
+
+
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
     ../docs/notes/ragdoll.md). Static, on the bytes: the nine sites and what
@@ -6552,6 +6567,7 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
+    test_lamps(original, image, before)
     test_language(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
