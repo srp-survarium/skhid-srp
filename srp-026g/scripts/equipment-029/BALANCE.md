@@ -51,7 +51,7 @@ armour, isolation, face coverage and ammunition capacity than Zubr.
 | Watchman | Stalker equipment / Assault gloves | More isolation with different pocket and recoil bonuses; added weight where the first conversion was too favourable. |
 | Pathfinder | Shturm equipment | 65 rather than 70 body armour, lighter; vest is 9 kg so it also trades weight against the 60-armour Stalker jacket. |
 | Omicron | Molot and OZK-18KB | Hybrid protection: 70/60 body, lighter than heavy armour but weaker ballistically than Molot and less isolated than OZK. Weight raised across the set. |
-| Combat | Molot UM-2 | Same 75 body armour; vest has one ammunition bag plus a pocket versus Molot's two bags. Vest now 12.5 kg; gloves and boots have distinct handling/stamina bonuses. |
+| Combat | Molot UM-2 | 70 body armour against Molot's 75 for 2.5 kg less (12.5 kg); vest has one ammunition bag plus a pocket versus Molot's two bags; gloves and boots have distinct handling/stamina bonuses. |
 | Firefighter | OZK-18KB | Similar environmental role; slightly less vest isolation, different ammunition/pocket bonuses. Boots now 2.8 kg with a modest stamina bonus; helmet matches the existing 35/70, 2 kg option. |
 | Mercenary | Keeper | Same 70 body armour, less isolation and a weaker helmet; lighter with +9% total movement modifiers and a handling bonus. Movement bonuses reduced from the first conversion's +12%. |
 

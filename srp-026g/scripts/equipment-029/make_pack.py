@@ -23,7 +23,7 @@ import bcw
 
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 PACK = 'equipment-029'
-VERSION = '2'
+VERSION = '3'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 MOVIE = 'flash_movies/lobby_menu.swf'
 DONOR_ATLAS = 'flash_movies/textures/ui_items/equipment.png'

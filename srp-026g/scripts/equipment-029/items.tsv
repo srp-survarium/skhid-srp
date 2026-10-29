@@ -55,7 +55,7 @@ donor_id	name	template_id	faction	level	armour	isolation	drop_weight	price	plain
 920	"""Leshy"" pants"	204	4	12	65	25	0	1280	204	10	14			204	Premium
 921	"Jacket ""Berserker"""	141	4	9	60	20	0	1400	742	11	14			742	Premium
 922	"Pants ""Berserker"""	142	4	9	60	20	0	1050	743	12	14			743	Premium
-927	Combat Bulletproof Vest	208	1	12	75	20	40	73500		13	14	12.5	1030,1050	208	Combat
+927	Combat Bulletproof Vest	208	1	12	70	20	40	73500		13	14	12.5	1030,1050	208	Combat
 928	Veteran Bulletproof Vest	208	1	12	75	20	0	1700	927	14	14			927	Premium
 929	Firefighter Bulletproof Vest	137	1	14	70	70	20	94500		15	14	12	1030,1170	137	Firefighter
 930	Big backpack	115	1	12	0	0	40	42970		16	14	6	1030,1171	115	Combat
