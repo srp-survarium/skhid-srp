@@ -131,9 +131,14 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
-    s("SRP_BENCH_ENEMY_HUMAN_LANES", "off", "**model** `on` (or `1`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), as in Player vs Bots, where every enemy of a bot is one; only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
+    s("SRP_BENCH_ENEMY_HUMAN_LANES", "off", "**model** `on` (or `1`, `both`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), for both teams; `team1` (or `team0`): for that team's bots only. Player vs Bots has its one human on team 0, so `team1` is that match (both teams placing traps counted them twice, an-gear-moves 3.3); only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
     s("SRP_BENCH_CAMPER_SPOT", "most", "**model** `hidden`: the camper's spot is one that sees many route points of the other side and is seen from under half of them (else the one that sees the most)"),
     s("SRP_BENCH_CAMPER_CROUCH", "unset", "**model** `1`: the camper crouches once at its spot (and picks it by the crouched eye and body)"),
+    s("SRP_BENCH_CAMPER_MOVE", "unset", "**model** `1`: the camper works an area as a human does (an-anticamper §8.4, `tests/camper_move.rs`): the spot and up to three cover-side points 3-8 m from it, a peek out 0.4-0.45 s every 0.8-1.2 s while an enemy is known, a step to another point 2.5-3.5 m after a kill and 2-2.5 m after a hit, short crouch spells, and he leaves 3-5 s after a stay's second kill with no new one or after the dwell with fewer, to the next best spot 25 m or more away; off: he stands within 0.7 m of one point all match"),
+    s("SRP_BENCH_VIEW_ERROR", "off", "**model** `1`: every world fix the bots are given is moved by the error the live picture has (an-sight §8.1, `tests/view_error.rs`): drawn from the measured quantiles by what the body was doing (still, walking, sprinting, crouched, a height change, a jump) and the fix's age, in a direction drawn evenly, and carried by the reckoning to the next fix. It makes the bots' picture of a body say hidden in about a fifth of the moments it is visible and visible in about a fifth of those it is hidden (the `view_flip` counts of the owner object). Off until those counts show it near the live 22 % / 20 %"),
+    s("SRP_BENCH_VIEW_ERROR_SCALE", "0.7", "with `SRP_BENCH_VIEW_ERROR`: a multiplier on every error; 0.7 puts the flip counts at the live 22 % / 20 % with the bench's pings (the pings alone give 9 %)"),
+    s("SRP_BENCH_CAMPER_AT", "unset: any route point of his side", "**model** where the camper's spot is chosen, among the route points of his side that see the other side: `battery` within 25 m of a battery lying on the map (the camper by an objective, an-anticamper RC3); `container` within 25 m of his own container; `exit` within 25 m of the other team's spawn, the one seen from in the narrowest sector (a spawn exit that cannot be flanked: every sight on him comes from one way); none near: no camper"),
+    s("SRP_BENCH_CAMPER_DWELL_S", "22.5", "with `SRP_BENCH_CAMPER_MOVE`: the seconds he stays at a spot with fewer than two kills (20-25 s in the live holds), drawn within 10 % of this"),
     s("SRP_BENCH_CAMPER_GUN", "unset", "**model** `long`: the camper carries the long gun (bolt, else marksman rifle) of the bench tier's kits"),
     // The game model (the stand-in's rules).
     s("SRP_BENCH_USE_LINE", "off", "**model** a use needs a clear line to the battery"),
@@ -268,6 +273,58 @@ impl BenchSettings {
     /// `var(name).ok().and_then(|v| v.parse().ok())`.
     pub(crate) fn number<T: std::str::FromStr>(&self, name: &str) -> Option<T> {
         self.var(name).ok().and_then(|v| v.parse().ok())
+    }
+
+    /// [`Self::number`], but a value that is set and not a number refuses the run instead of reading as unset.
+    pub(crate) fn number_or_refuse<T: std::str::FromStr>(&self, name: &str) -> Option<T> {
+        parse_number(name, self.var(name).ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
+/// Whose lanes of enemy humans count the other team as human (`SRP_BENCH_ENEMY_HUMAN_LANES`, **model**).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum EnemyLanes {
+    #[default]
+    Off,
+    /// Both teams: every enemy of any bot is a human (the old `on`).
+    Both,
+    /// The bots of this team only. In Player vs Bots the one human is on team 0, so team 1's bots meet a human and team 0's
+    /// meet bots: `team1` is that match; both teams placing traps twice a match was the over-count of an-gear-moves 3.3.
+    OnlyTeam(u8),
+}
+
+/// A setting that is a number: unset is none, a value that is not a number is an error.
+pub(crate) fn parse_number<T: std::str::FromStr>(name: &str, value: Option<&str>) -> Result<Option<T>, String> {
+    match value {
+        None => Ok(None),
+        Some(text) => text.trim().parse().map(Some).map_err(|_| format!("{name}={text:?} is not a number")),
+    }
+}
+
+impl EnemyLanes {
+    /// `off` or `0` or unset: none; `team0` / `team1`: that team's bots; `on`, `1`, `both` or empty: both teams (the old `on`);
+    /// anything else is refused (a typo such as `team2` used to mean both).
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value.map(str::trim) {
+            None | Some("off" | "0") => Ok(Self::Off),
+            Some("team0") => Ok(Self::OnlyTeam(0)),
+            Some("team1") => Ok(Self::OnlyTeam(1)),
+            Some("on" | "1" | "both" | "") => Ok(Self::Both),
+            Some(other) => Err(format!("SRP_BENCH_ENEMY_HUMAN_LANES={other:?}: off, team0, team1 or on")),
+        }
+    }
+
+    pub(crate) fn from_env() -> Self {
+        Self::parse(bench_settings().var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    /// Whether the bots of `team` take every body of the other team for a human.
+    pub(crate) fn applies_to(self, team: u8) -> bool {
+        match self {
+            Self::Off => false,
+            Self::Both => true,
+            Self::OnlyTeam(only) => only & 1 == team & 1,
+        }
     }
 }
 

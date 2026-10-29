@@ -735,16 +735,15 @@ pub struct Bots {
     /// The real-map bench's model of Player vs Bots for the team's lanes of enemy humans (`SRP_BENCH_ENEMY_HUMAN_LANES`,
     /// **model**): every body of the other team counts as a human in [`know::HumanLanes`]; nothing else reads it.
     #[cfg(test)]
-    pub bench_enemy_lanes: bool,
+    pub(crate) bench_enemy_lanes: tests::EnemyLanes,
     /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
     opening_pass: bool,
-    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
-    /// `campers.md` K1 §4): this bot holds one spot all match, and the
-    /// spot once found (with how many route points it sees), or none.
+    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`, `campers.md` K1 §4, `tests/camper_move.rs`): one bot holds a
+    /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
-    pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
+    pub(crate) bench_camper: Option<tests::BenchCamper>,
     tracker: Tracker,
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
@@ -830,7 +829,7 @@ impl Bots {
             #[cfg(test)]
             bench_human: None,
             #[cfg(test)]
-            bench_enemy_lanes: false,
+            bench_enemy_lanes: tests::EnemyLanes::Off,
             opened: [false; 2],
             opening_pass: false,
             #[cfg(test)]
@@ -1567,14 +1566,15 @@ impl Bots {
         self.features.own_traps
     }
 
-    /// Whether the other team's bodies all count as humans for the lanes (the bench's model; never in the game).
-    pub(crate) fn bench_enemy_human_lanes(&self) -> bool {
+    /// Whether the other team's bodies all count as humans for `team`'s lanes (the bench's model; never in the game).
+    pub(crate) fn bench_enemy_human_lanes(&self, team: u8) -> bool {
         #[cfg(test)]
         {
-            self.bench_enemy_lanes
+            self.bench_enemy_lanes.applies_to(team)
         }
         #[cfg(not(test))]
         {
+            let _ = team;
             false
         }
     }
@@ -1758,6 +1758,17 @@ impl Bots {
     /// runs give team 1 another).
     fn tuning_of(&self, team: u8) -> Arc<Tuning> {
         self.tunings.of(team).clone()
+    }
+
+    /// The tuning the bot at `place` of `team` plays by: its team's, except the bench's stand-in camper, who plays by a fixed one
+    /// (`BenchCamper::tuning`) so that the two runs of a head-to-head bench face the same opponent.
+    #[cfg_attr(not(test), allow(unused_variables))]
+    fn tuning_for(&self, place: Place, team: u8) -> Arc<Tuning> {
+        #[cfg(test)]
+        if let Some(camper) = self.bench_camper.as_ref().filter(|camper| camper.place() == place) {
+            return camper.tuning().clone();
+        }
+        self.tuning_of(team)
     }
 
     /// The tuning of what exists once for both teams (see [`tuning::TeamTunings::match_wide`]): for the server's map

@@ -34,6 +34,70 @@ use survarium::v026g::loadouts::BOT_GRENADE;
 use super::standin_damage::Pool;
 use super::{Body, Game, Kill, Place, STAND_IN_LEG_BROKEN_MS};
 
+/// What one kit holds of fragmentation grenades: the units a spawn takes (`count`, the pockets' units) and the profile's store
+/// (`stored`, the item's `amount_in_storage`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct KitGrenades {
+    pub(crate) count: u32,
+    pub(crate) stored: u32,
+}
+
+/// A body's frag grenades, as the client keeps them (PROVEN, `loadouts.rs`: `inventory::setup_from_profile` 0x2FCB70 at every
+/// spawn: a pocket gets `min(its units, the item's storage)` and the storage loses that; `unload_to_profile` 0x2FD2D0 puts what
+/// is left in the hand back into the storage). A bot's store is its count today (once per kit and match: a grenade thrown is
+/// gone), and the profile's `stored` is what A144's store changes, so this follows the profile, not a per-life refill. The
+/// stand-in explodes a throw only when the body has a grenade in hand ([`Self::throw`]); the tally only counts.
+///
+/// Moves to `KitPockets` (`live_grenades.rs`) when that reads the profile's store for the live pockets too.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Stock {
+    /// Not modelled (a made-up match, or a place with no profile): every throw is carried.
+    Unlimited,
+    /// The three kits' grenades, the kit in hand and the units in the hand.
+    Kits { kits: [KitGrenades; 3], kit: usize, next: usize, hand: u32 },
+}
+
+impl Stock {
+    pub(crate) fn of(kits: [KitGrenades; 3]) -> Self {
+        Self::Kits { kits, kit: 0, next: 0, hand: 0 }
+    }
+
+    /// The kit the next spawn uses (the bot's choice for its next life).
+    pub(crate) fn choose(&mut self, kit: usize) {
+        if let Self::Kits { next, .. } = self {
+            *next = kit.min(2);
+        }
+    }
+
+    /// A spawn: the last life's leftovers back in the store, the new kit's pockets filled from it.
+    pub(crate) fn spawn(&mut self) {
+        if let Self::Kits { kits, kit, next, hand } = self {
+            kits[*kit].stored += std::mem::take(hand);
+            *kit = *next;
+            let pockets = &mut kits[*kit];
+            *hand = pockets.count.min(pockets.stored);
+            pockets.stored -= *hand;
+        }
+    }
+
+    /// A throw: whether there was a grenade in the hand (taken).
+    pub(crate) fn throw(&mut self) -> bool {
+        match self {
+            Self::Unlimited => true,
+            Self::Kits { hand, .. } => {
+                let had = *hand > 0;
+                *hand = hand.saturating_sub(1);
+                had
+            }
+        }
+    }
+
+    /// Whether the run models the pockets (else every throw is carried and the carried counts are not given).
+    pub(crate) fn is_modelled(&self) -> bool {
+        matches!(self, Self::Kits { .. })
+    }
+}
+
 /// What one body took from one blast.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Hurt {
