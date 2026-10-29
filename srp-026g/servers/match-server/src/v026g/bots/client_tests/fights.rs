@@ -412,6 +412,7 @@ mod tests {
             batteries,
             heard: Vec::new(),
             sight: None,
+            exits: Default::default(),
         }
     }
 

@@ -143,6 +143,7 @@ macro_rules! packages {
 
 packages! {
     fights,
+    grid,
     sample,
     threat,
     zones,
