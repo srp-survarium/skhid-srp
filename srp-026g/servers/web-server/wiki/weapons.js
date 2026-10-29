@@ -1,9 +1,33 @@
+globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.107,-0.023,0.043,0.09,0.122,0.143,0.151,0.158,0.179,0.209,0.241,0.267,0.287,0.301,0.312,0.319,0.323,0.325,0.286,0.219,0.158,0.108,0.068,0.039,0.018,0.004,-0.004,-0.007,0.018,0.052,0.088,0.118,0.141,0.158,0.17,0.178,0.182,0.185,0.142,0.064,-0.005,-0.063,-0.109,-0.143,-0.167,-0.182,-0.191,-0.195,-0.175,-0.145,-0.117,-0.094,-0.076,-0.063,-0.053,-0.047,-0.044,-0.043,-0.043,-0.044,-0.045,-0.046,-0.048,-0.049,-0.049,-0.049,-0.049,-0.05,-0.056,-0.065,-0.074,-0.081,-0.087,-0.091,-0.093,-0.095,-0.096,-0.098,-0.099,-0.1,-0.101,-0.102,-0.103,-0.104,-0.105,-0.106,-0.106,-0.106,-0.083,-0.046,-0.012,0.016,0.038,0.054,0.066,0.074,0.078,0.08,0.028,-0.063,-0.145,-0.214,-0.267,-0.307,-0.336,-0.355,-0.366,-0.37,-0.28,-0.125,0.019,0.136,0.227,0.297,0.348,0.38,0.397,0.403,0.402,0.398,0.393,0.389,0.385,0.382,0.379,0.378,0.378,0.38,0.382,0.387,0.392,0.396,0.4,0.402,0.404,0.405,0.406,0.406,0.306,0.144,-0.007,-0.127,-0.221,-0.292,-0.344,-0.378,-0.397,-0.403,-0.372,-0.319,-0.271,-0.231,-0.2,-0.177,-0.16,-0.149,-0.143,-0.14,-0.173,-0.228,-0.278,-0.32,-0.352,-0.377,-0.395,-0.406,-0.413,-0.415,-0.307,-0.124,0.047,0.185,0.29,0.371,0.43,0.468,0.489,0.497,0.408,0.253,0.109,-0.007,-0.097,-0.165,-0.215,-0.248,-0.266,-0.273,-0.206,-0.088,0.019,0.107,0.176,0.228,0.265,0.289,0.302,0.308,0.244,0.135,0.034,-0.049,-0.114,-0.163,-0.198,-0.221,-0.234,-0.24,-0.243,-0.244,-0.246,-0.247,-0.249,-0.25,-0.251,-0.251,-0.252,-0.252,-0.253,-0.253,-0.253,-0.252],"yaw":[0.081,0.069,0.027,-0.043,-0.115,-0.174,-0.216,-0.245,-0.262,-0.271,-0.275,-0.251,-0.215,-0.181,-0.155,-0.136,-0.121,-0.111,-0.105,-0.101,-0.1,-0.069,-0.014,0.035,0.075,0.107,0.13,0.147,0.158,0.164,0.167,0.187,0.22,0.251,0.277,0.297,0.313,0.323,0.33,0.334,0.338,0.343,0.349,0.357,0.364,0.368,0.37,0.372,0.373,0.374,0.375,0.377,0.379,0.38,0.379,0.378,0.375,0.373,0.372,0.372,0.373,0.374,0.376,0.377,0.376,0.375,0.373,0.37,0.369,0.369,0.368,0.355,0.335,0.317,0.301,0.289,0.279,0.273,0.269,0.267,0.263,0.251,0.224,0.197,0.173,0.153,0.137,0.125,0.117,0.113,0.11,0.108,0.104,0.097,0.088,0.08,0.074,0.07,0.066,0.064,0.062,0.061,0.058,0.054,0.05,0.046,0.043,0.041,0.041,0.041,0.037,0.022,-0.005,-0.033,-0.056,-0.073,-0.087,-0.097,-0.104,-0.106,-0.11,-0.127,-0.157,-0.188,-0.215,-0.237,-0.254,-0.267,-0.275,-0.28,-0.28,-0.274,-0.262,-0.25,-0.241,-0.235,-0.23,-0.227,-0.224,-0.223,-0.224,-0.226,-0.229,-0.232,-0.235,-0.237,-0.239,-0.24,-0.241,-0.241,-0.243,-0.258,-0.282,-0.305,-0.326,-0.342,-0.353,-0.361,-0.369,-0.372,-0.37,-0.364,-0.355,-0.346,-0.339,-0.336,-0.334,-0.332,-0.331,-0.331,-0.33,-0.316,-0.298,-0.28,-0.266,-0.258,-0.251,-0.246,-0.243,-0.243,-0.239,-0.223,-0.197,-0.172,-0.15,-0.133,-0.121,-0.112,-0.107,-0.103,-0.1,-0.096,-0.09,-0.085,-0.084,-0.085,-0.087,-0.088,-0.089,-0.089,-0.09,-0.064,-0.027,0.007,0.032,0.051,0.063,0.072,0.077,0.08,0.082,0.083,0.084,0.084,0.084,0.083,0.082,0.082,0.081,0.081,0.081,0.081,0.081,0.081,0.081]};
 // Model of 0.26g recoil: shot 0x331C50, ramp 0x331F82, tick 0x331A50,
-// recovery 0x3321E0. Matches bots/recoil.rs at 50 ms ticks. This is not
-// a replay of the native RNG, camera animation or bullet dispersion.
+// recovery 0x3321E0. Matches bots/recoil.rs at 50 ms ticks. With it, from
+// the exe (re-kit rows of those addresses):
+// - the camera shake, a third recoil axis `z` run like the climb (a draw in
+//   [min_shake_recoil, max_shake_recoil] per shot, the same PID back to 0)
+//   weighting the stock clip camerashake_v2 (CAMERA_SHAKE, degrees), which
+//   only plays while firing from the hip, at shake_time_scale x 30 frames/s;
+// - the spread (get_dispersed_bullet_direction 0x2E1D50): D = base_dispersion
+//   aimed, and from the hip + the stance's (idle_dispersion x
+//   from_the_hip_multiplier) + the shots' part (one_shoot_dispersion_amount a
+//   shot, at most max_dispersion, falling at speed_of_aiming a second); a
+//   bullet tilts 0.5 x D x frac(N(0, 0.5)) degrees at a uniform angle.
+// Random draws are this file's own seeded ones, not the game's generator;
+// the kick's draws are the same with or without spread and shake.
 (() => {
   const TOP = 63.735, SIDE = 21.48, TICK = 50;
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const finite = (object, keys) => keys.every(key => typeof object[key] === 'number' && Number.isFinite(object[key]));
+  function parseSpread(raw) {
+    const d = raw.dispersion || {}, stance = raw.stance || {};
+    if (!finite(d, ['base_dispersion', 'one_shoot_dispersion_amount', 'max_dispersion', 'speed_of_aiming']) ||
+        !finite(stance, ['idle_dispersion'])) return null;
+    return Object.freeze({base: d.base_dispersion, perShot: d.one_shoot_dispersion_amount, max: d.max_dispersion,
+      recovery: d.speed_of_aiming, hip: (d.from_the_hip_multiplier ?? 1) * stance.idle_dispersion});
+  }
+  function parseShake(raw) {
+    if (!finite(raw, ['min_shake_recoil', 'max_shake_recoil', 'shake_time_scale'])) return null;
+    return Object.freeze({range: [raw.min_shake_recoil, raw.max_shake_recoil], timeScale: raw.shake_time_scale});
+  }
   function parse(raw) {
     const required = ['rpm', 'magazine', 'recoil_power', 'min_top_recoil', 'max_top_recoil',
       'min_left_recoil', 'max_left_recoil', 'min_right_recoil', 'max_right_recoil',
@@ -14,27 +38,44 @@
     return Object.freeze({interval: 60000 / raw.rpm, magazine: Math.floor(raw.magazine), power: raw.recoil_power,
       top: [raw.min_top_recoil, raw.max_top_recoil], left: [raw.min_left_recoil, raw.max_left_recoil],
       right: [raw.min_right_recoil, raw.max_right_recoil],
-      gains: [raw.compensation_proportional_gain, raw.compensation_integral_gain, raw.compensation_derivational_gain]});
+      gains: [raw.compensation_proportional_gain, raw.compensation_integral_gain, raw.compensation_derivational_gain],
+      spread: parseSpread(raw), shake: parseShake(raw)});
   }
-  function simulate(model, requestedShots, seed = 1) {
+  function generator(seed) {
+    let state = seed >>> 0 || 1;
+    return () => {
+      state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
+      return (state >>> 0) / 4294967296;
+    };
+  }
+  // The shake clip's view turn at `frame` (fractional, looping): [side, up] degrees.
+  function shakeAt(frame) {
+    const clip = globalThis.CAMERA_SHAKE;
+    if (!clip) return [0, 0];
+    const n = clip.period_frames, at = ((frame % n) + n) % n, i = Math.floor(at), f = at - i, j = (i + 1) % n;
+    return [clip.yaw[i] + (clip.yaw[j] - clip.yaw[i]) * f, clip.pitch[i] + (clip.pitch[j] - clip.pitch[i]) * f];
+  }
+  // `hip`: firing from the hip (the spread grows, the shake plays), else aimed.
+  function simulate(model, requestedShots, seed = 1, hip = false) {
     const shots = Math.min(model.magazine, Math.max(1, Math.floor(requestedShots)));
-    let randomState = seed >>> 0 || 1;
-    function random() {
-      randomState ^= randomState << 13; randomState ^= randomState >>> 17; randomState ^= randomState << 5;
-      return (randomState >>> 0) / 4294967296;
-    }
+    const random = generator(seed), extra = generator((seed ^ 0x9e3779b9) >>> 0);
     const draw = range => range[0] + (range[1] - range[0]) * random();
+    // N(0, sigma) by Box-Muller, from the second stream.
+    const normal = sigma => Math.sqrt(-2 * Math.log(1 - extra())) * Math.cos(2 * Math.PI * extra()) * sigma;
     let state = {kind: 'rest'};
-    const at = [0, 0], speed = [0, 0], error = [0, 0], integral = [0, 0];
+    // Axes: side, top, shake.
+    const at = [0, 0, 0], speed = [0, 0, 0], error = [0, 0, 0], integral = [0, 0, 0];
     const frames = [], events = [];
-    let fired = 0;
+    let fired = 0, shotSpread = 0, shakeFrame = 0;
+    const spreadNow = () => model.spread ? model.spread.base + (hip ? model.spread.hip + shotSpread : 0) : 0;
+    const lastShot = (shots - 1) * model.interval;
     const end = Math.ceil((shots * model.interval + 3000) / TICK) * TICK;
     for (let now = 0; now <= end; now += TICK) {
       if (now > 0) {
         const dt = TICK / 1000;
         const ramp = state.kind === 'shot' ? clamp((state.time + model.interval - (now - TICK)) / 1000, 0, dt) : 0;
         const rest = dt - ramp;
-        for (let axis = 0; axis < 2; axis++) {
+        for (let axis = 0; axis < 3; axis++) {
           at[axis] += speed[axis] * ramp;
           if (rest > 0) {
             const e = at[axis]; integral[axis] += e * rest;
@@ -42,23 +83,33 @@
             speed[axis] = -(model.gains[0] * e + model.gains[1] * integral[axis] + model.gains[2] * derivative);
             at[axis] += speed[axis] * rest;
           }
-          at[axis] = clamp(at[axis], -1, 1);
+          at[axis] = axis === 2 ? clamp(at[axis], 0, 1) : clamp(at[axis], -1, 1);
         }
+        if (model.spread) shotSpread = Math.max(0, shotSpread - model.spread.recovery * dt);
+        // The clip runs while the weapon fires from the hip, and stops after.
+        if (hip && model.shake && fired > 0 && now - TICK < lastShot + model.interval) shakeFrame += model.shake.timeScale * 30 * dt;
       }
       while (fired < shots && fired * model.interval <= now + .001) {
         const time = fired * model.interval;
         const top = draw(model.top) / TOP, right = draw(model.right), left = draw(model.left);
         const side = (right - left) / SIDE;
+        const shake = model.shake ? model.shake.range[0] + (model.shake.range[1] - model.shake.range[0]) * extra() : 0;
         const target = [clamp(at[0] + side * (1 - Math.abs(at[0]) ** model.power), -1, 1),
-          clamp(at[1] + top * (1 - Math.max(at[1], 0) ** model.power), -1, 1)];
-        for (let axis = 0; axis < 2; axis++) {
+          clamp(at[1] + top * (1 - Math.max(at[1], 0) ** model.power), -1, 1),
+          clamp(at[2] + shake * (1 - at[2] ** model.power), 0, 1)];
+        for (let axis = 0; axis < 3; axis++) {
           speed[axis] = (target[axis] - at[axis]) / (model.interval / 1000);
           error[axis] = 0; integral[axis] = 0;
         }
+        // The bullet leaves inside the spread of the moment, then the shot adds to it.
+        const spread = spreadNow(), n = normal(.5), tilt = .5 * spread * (n - Math.trunc(n)), angle = 2 * Math.PI * extra();
+        if (model.spread) shotSpread = Math.min(model.spread.max, shotSpread + model.spread.perShot);
         state = {kind: 'shot', time}; fired++;
-        events.push({time: now / 1000, shot: fired});
+        events.push({time: now / 1000, shot: fired, spread, bullet: {side: tilt * Math.cos(angle), up: tilt * Math.sin(angle)}});
       }
-      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired});
+      const [shakeSide, shakeUp] = hip ? shakeAt(shakeFrame).map(value => value * at[2]) : [0, 0];
+      frames.push({time: now / 1000, vertical: at[1] * TOP, horizontal: at[0] * SIDE, shots: fired,
+        spread: spreadNow(), shake: {side: shakeSide, up: shakeUp}});
     }
     return {frames, events, shots, duration: end / 1000};
   }
@@ -314,7 +365,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)}`, `series-${series.side}`));
+        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -354,15 +405,32 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       // weapon's: a target changes nothing of it, only its own size shows the
       // distance (cut by the view's edge when it is the larger).
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
-      const up = Math.max(0, ...frames.map(frame => viewUp(frame.vertical)));
-      const down = Math.max(0, ...frames.map(frame => -viewUp(frame.vertical)));
-      const side = Math.max(0, ...frames.map(frame => Math.abs(viewSide(frame.horizontal))));
+      // The aim (kick and shake), each bullet's hit and the spread around the
+      // aim, in degrees of view: the view holds them all.
+      const aim = frame => ({side: viewSide(frame.horizontal) + frame.shake.side, up: viewUp(frame.vertical) + frame.shake.up});
+      const hit = (series, event) => {
+        const point = aim(sample(series, event.time));
+        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
+      };
+      const points = [...frames.map(frame => ({...aim(frame), r: frame.spread / 2})),
+        ...simulation.series.flatMap(series => series.events.map(event => ({...hit(series, event), r: 0})))];
+      const up = Math.max(0, ...points.map(point => point.up + point.r));
+      const down = Math.max(0, ...points.map(point => point.r - point.up));
+      // The aim's path may be stretched sideways (its side drift is small);
+      // the spread and the hits are drawn at true size around the aim.
+      const side = Math.max(0, ...frames.map(frame => Math.abs(aim(frame).side)));
       const scale = 250 / Math.max(.1, up + down);
       // A weapon with no side kick (bolt-action rifles) keeps one scale: its
       // side values are rounding noise, not drift to magnify.
-      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
+      const room = 140 - Math.max(0, ...points.map(point => point.r)) * scale;
+      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, Math.max(20, room) / side)) : scale;
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
-      const x = h => 150 + viewSide(h) * sideScale, y = v => oy - viewUp(v) * scale;
+      const x = degrees => 150 + degrees * sideScale, y = degrees => oy - degrees * scale;
+      // A hit: its aim point on the stretched path, its bullet's turn at true size.
+      const hitAt = (series, event) => {
+        const point = aim(sample(series, event.time));
+        return [x(point.side) + event.bullet.side * scale, y(point.up + event.bullet.up)];
+      };
       const magnified = Math.round(sideScale / scale);
       const views = simulation.series.map(series => {
         const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${tr('where it aims as the recoil moves it', 'куди цілиться під дією відбою')}`});
@@ -384,13 +452,17 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
         }
         svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
         const past = series.frames.filter(frame => frame.time <= time);
-        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
+        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(aim(frame).side).toFixed(2)},${y(aim(frame).up).toFixed(2)}`).join(' '),
           class:`sim-trail series-${series.side}`}));
         for (const event of series.events.filter(event => event.time <= time)) {
-          const point = sample(series, event.time);
-          svg.append(svgNode('circle', {cx:x(point.horizontal), cy:y(point.vertical), r:2.4, class:`sim-shot series-${series.side}`}));
+          const point = aim(sample(series, event.time)), [hx, hy] = hitAt(series, event);
+          svg.append(svgNode('circle', {cx:x(point.side), cy:y(point.up), r:2, class:`sim-shot series-${series.side}`}));
+          svg.append(svgNode('circle', {cx:hx, cy:hy, r:2.6, class:`sim-hit series-${series.side}`}));
         }
-        const point = sample(series, time), cx = x(point.horizontal), cy = y(point.vertical);
+        const frame = sample(series, time), point = aim(frame), cx = x(point.side), cy = y(point.up);
+        // The spread: the cone's half angle around the aim.
+        const radius = frame.spread / 2;
+        if (radius > 0) svg.append(svgNode('circle', {cx, cy, r:radius * scale, class:`sim-spread series-${series.side}`}));
         const cross = svgNode('g', {class:`sim-cross series-${series.side}`});
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           cross.append(svgNode('line', {x1:cx + dx * 5, y1:cy + dy * 5, x2:cx + dx * 15, y2:cy + dy * 15}));
@@ -436,11 +508,11 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       // A full magazine; with two weapons, the smaller one's from each.
       const shots = Math.min(...ids.map(id => models.get(id).magazine));
       const series = sides.map(({id, side}) => {
-        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value));
+        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value), find('.sim-stance').value === 'hip');
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
         result.events.forEach(event => {event.time += .05;});
-        result.frames.unshift({time:0, vertical:0, horizontal:0, shots:0});
+        result.frames.unshift({...result.frames[0], time:0, vertical:0, horizontal:0, shots:0, shake:{side:0, up:0}});
         return {...result, id, side, duration: result.duration + .05};
       });
       const duration = Math.max(...series.map(series => series.duration));
@@ -449,6 +521,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     }
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
+    find('.sim-stance').addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     find('.sim-reset').addEventListener('click', () => seek(0));
     // Last shot: the whole pattern at once.
     find('.sim-last').addEventListener('click', () => {

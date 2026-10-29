@@ -134,7 +134,7 @@
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)}`, `series-${series.side}`));
+        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -174,15 +174,32 @@
       // weapon's: a target changes nothing of it, only its own size shows the
       // distance (cut by the view's edge when it is the larger).
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
-      const up = Math.max(0, ...frames.map(frame => viewUp(frame.vertical)));
-      const down = Math.max(0, ...frames.map(frame => -viewUp(frame.vertical)));
-      const side = Math.max(0, ...frames.map(frame => Math.abs(viewSide(frame.horizontal))));
+      // The aim (kick and shake), each bullet's hit and the spread around the
+      // aim, in degrees of view: the view holds them all.
+      const aim = frame => ({side: viewSide(frame.horizontal) + frame.shake.side, up: viewUp(frame.vertical) + frame.shake.up});
+      const hit = (series, event) => {
+        const point = aim(sample(series, event.time));
+        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
+      };
+      const points = [...frames.map(frame => ({...aim(frame), r: frame.spread / 2})),
+        ...simulation.series.flatMap(series => series.events.map(event => ({...hit(series, event), r: 0})))];
+      const up = Math.max(0, ...points.map(point => point.up + point.r));
+      const down = Math.max(0, ...points.map(point => point.r - point.up));
+      // The aim's path may be stretched sideways (its side drift is small);
+      // the spread and the hits are drawn at true size around the aim.
+      const side = Math.max(0, ...frames.map(frame => Math.abs(aim(frame).side)));
       const scale = 250 / Math.max(.1, up + down);
       // A weapon with no side kick (bolt-action rifles) keeps one scale: its
       // side values are rounding noise, not drift to magnify.
-      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
+      const room = 140 - Math.max(0, ...points.map(point => point.r)) * scale;
+      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, Math.max(20, room) / side)) : scale;
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
-      const x = h => 150 + viewSide(h) * sideScale, y = v => oy - viewUp(v) * scale;
+      const x = degrees => 150 + degrees * sideScale, y = degrees => oy - degrees * scale;
+      // A hit: its aim point on the stretched path, its bullet's turn at true size.
+      const hitAt = (series, event) => {
+        const point = aim(sample(series, event.time));
+        return [x(point.side) + event.bullet.side * scale, y(point.up + event.bullet.up)];
+      };
       const magnified = Math.round(sideScale / scale);
       const views = simulation.series.map(series => {
         const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${tr('where it aims as the recoil moves it', 'куди цілиться під дією відбою')}`});
@@ -204,13 +221,17 @@
         }
         svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
         const past = series.frames.filter(frame => frame.time <= time);
-        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
+        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(aim(frame).side).toFixed(2)},${y(aim(frame).up).toFixed(2)}`).join(' '),
           class:`sim-trail series-${series.side}`}));
         for (const event of series.events.filter(event => event.time <= time)) {
-          const point = sample(series, event.time);
-          svg.append(svgNode('circle', {cx:x(point.horizontal), cy:y(point.vertical), r:2.4, class:`sim-shot series-${series.side}`}));
+          const point = aim(sample(series, event.time)), [hx, hy] = hitAt(series, event);
+          svg.append(svgNode('circle', {cx:x(point.side), cy:y(point.up), r:2, class:`sim-shot series-${series.side}`}));
+          svg.append(svgNode('circle', {cx:hx, cy:hy, r:2.6, class:`sim-hit series-${series.side}`}));
         }
-        const point = sample(series, time), cx = x(point.horizontal), cy = y(point.vertical);
+        const frame = sample(series, time), point = aim(frame), cx = x(point.side), cy = y(point.up);
+        // The spread: the cone's half angle around the aim.
+        const radius = frame.spread / 2;
+        if (radius > 0) svg.append(svgNode('circle', {cx, cy, r:radius * scale, class:`sim-spread series-${series.side}`}));
         const cross = svgNode('g', {class:`sim-cross series-${series.side}`});
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           cross.append(svgNode('line', {x1:cx + dx * 5, y1:cy + dy * 5, x2:cx + dx * 15, y2:cy + dy * 15}));
@@ -256,11 +277,11 @@
       // A full magazine; with two weapons, the smaller one's from each.
       const shots = Math.min(...ids.map(id => models.get(id).magazine));
       const series = sides.map(({id, side}) => {
-        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value));
+        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value), find('.sim-stance').value === 'hip');
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
         result.events.forEach(event => {event.time += .05;});
-        result.frames.unshift({time:0, vertical:0, horizontal:0, shots:0});
+        result.frames.unshift({...result.frames[0], time:0, vertical:0, horizontal:0, shots:0, shake:{side:0, up:0}});
         return {...result, id, side, duration: result.duration + .05};
       });
       const duration = Math.max(...series.map(series => series.duration));
@@ -269,6 +290,7 @@
     }
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
+    find('.sim-stance').addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     find('.sim-reset').addEventListener('click', () => seek(0));
     // Last shot: the whole pattern at once.
     find('.sim-last').addEventListener('click', () => {

@@ -121,6 +121,10 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-origin { fill:none; stroke:var(--ink-3) }
 .sim-note { font:11px var(--data); fill:var(--ink-3) }
 .sim-target-body { fill:var(--ink-3); opacity:.35 }
+.sim-hit { fill:none; stroke:var(--accent); stroke-width:1.4 }
+.sim-hit.series-1 { stroke:#3684bd }
+.sim-spread { fill:var(--accent); fill-opacity:.08; stroke:var(--accent); stroke-opacity:.5; stroke-dasharray:3 3 }
+.sim-spread.series-1 { fill:#3684bd; stroke:#3684bd }
 .sim-target-pick { display:flex; align-items:center; gap:10px; margin:8px 0 0; font-size:.7rem }
 .sim-target-pick select { flex:1; padding:6px 8px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); font:400 .85rem var(--body); text-transform:none; letter-spacing:normal }
 .doll-source { position:absolute; width:0; height:0; overflow:hidden }

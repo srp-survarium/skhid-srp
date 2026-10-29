@@ -326,8 +326,14 @@ for table in (weapons, armour):
 level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
+# The player's stance spread (character_dispersion_params): the wiki's spread
+# model takes the standing still values, aimed and from the hip.
+stance = load("gameplay__players__default.player.json")["player"]["character_dispersion_params"]
+character_dispersion = {k: r(stance[k]) for k in ("idle_dispersion", "idle_aim_dispersion")}
+
 out = {
     "source": "Survarium 0.26g resources.db (build 0.26g0)",
+    "character_dispersion": character_dispersion,
     "level_names": level_names,
     "mods": mods,
     "drugs": drugs,

@@ -50,8 +50,8 @@ def simulation(tr):
         f'<figure><figcaption>{tr(en, uk)} · {tr("game units", "одиниці гри")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en, uk)}"></svg></figure>'
         for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")])
     return "".join([
-        f'<p class="stat-note">{tr("Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. The plots are in the weapons’ kick units; the crosshair turns them into degrees of view (upward exactly as the game does, sideways estimated).", "Модель поштовху та відновлення без компенсації мишею. Розкид і тремтіння камери не враховано. Графіки — в одиницях відбою зброї; приціл переводить їх у градуси огляду (вгору — точно як у грі, убік — приблизно).")}</p>',
-        f'<div class="sim-inputs"><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
+        f'<p class="stat-note">{tr("Modelled kick, recovery, spread and camera shake (from the hip), standing still, with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.", "Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), стоячи на місці, без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.")}</p>',
+        f'<div class="sim-inputs"><label>{tr("Firing", "Стрільба")}<select class="sim-stance"><option value="aimed">{tr("Aimed", "Прицільно")}</option><option value="hip">{tr("From the hip", "Від стегна")}</option></select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
         f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
@@ -117,7 +117,8 @@ def render(data, code, script_url):
         cls = CLASSES[w["category"]][code == "uk"]
         attrs = {"name": name.casefold(), "search-name": w["name"], "premium": int(bool(w.get("premium"))), "class": cls, "level": w["item_level"],
                  "damage": w["bullet_damage"], "rpm": w["rounds_per_minute"], "weight": w["weight"]}
-        attrs["recoil"] = json.dumps({"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {})})
+        attrs["recoil"] = json.dumps({"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
+                                      "dispersion": w.get("dispersion", {}), "stance": data.get("character_dispersion", {})})
         out.append(f'<details class="weapon" id="{esc(key)}" ' + " ".join(f'data-{k}="{esc(str(v))}"' for k, v in attrs.items()) + '>')
         out.append('<summary>')
         icon = data.get("icons", {}).get(key)
@@ -153,7 +154,10 @@ def build(calculator, out):
     blob = calculator.read_bytes()
     # build_page.py writes a JSON literal. Decode that literal, never execute JS.
     data = json.JSONDecoder().raw_decode(blob.decode().split("const DATA = ", 1)[1])[0]
-    script = b"\n".join((HERE / name).read_bytes() for name in ("recoil.js", "picker.js", "weapons.js"))
+    # The stock camera shake clip (camerashake.json: its source and units).
+    clip = json.loads((HERE / "camerashake.json").read_text())
+    shake = b"globalThis.CAMERA_SHAKE = " + json.dumps({k: clip[k] for k in ("period_frames", "pitch", "yaw")}, separators=(",", ":")).encode() + b";"
+    script = b"\n".join([shake] + [(HERE / name).read_bytes() for name in ("recoil.js", "picker.js", "weapons.js")])
     script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
     out.mkdir(parents=True, exist_ok=True)
     for code in ("en", "uk"):

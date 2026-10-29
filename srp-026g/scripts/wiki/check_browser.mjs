@@ -209,6 +209,13 @@ try {
   assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail);
   await evaluate("document.querySelector('#wpn_ak_74m .sim-sight').scrollIntoView()");
   await screenshot('card-target');
+  // From the hip: the spread circle, a hit per shot fired, the shake.
+  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-stance');s.value='hip';s.dispatchEvent(new Event('change'))}");
+  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
+  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-hit').length"), 30, 'a hit per shot');
+  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-spread').length"), 1, 'the spread circle');
+  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('°'), 'the spread in the legend');
+  await screenshot('card-hip');
   // A rifle with no side kick: its crosshair stays in view, unmagnified.
   await evaluate("const m=document.querySelector('#wpn_mosin_nagant');m.open=true;m.scrollIntoView()");
   await evaluate('new Promise(r=>setTimeout(r,100))');
