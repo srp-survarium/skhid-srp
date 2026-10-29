@@ -395,3 +395,19 @@ fn the_smoke_counts_fire_when_a_cloud_comes_between_two_fighting_teams() {
         assert!(counts.iter().all(|&(_, n)| n > 0), "team {team}: {counts:?}");
     }
 }
+
+/// The spacing switches are a team's too (A151's diagnosis arms): team 1 plays without Buddy and with Seen-only callouts, team
+/// 0 as today. The switches reach the plays and the callouts through `Bots::think`'s one `tuning_of(team)` (`Due::tuning`),
+/// the place the probes above exercise; each switch's own effect is in the tests of its file.
+#[test]
+fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
+    let (team0, mut team1) = (Tuning::default(), Tuning::default());
+    team1.spacing.buddy = false;
+    team1.spacing.callouts = crate::v026g::bots::tuning::Callouts::SeenOnly { steer_age_ms: 8_000 };
+    let (bots, _) = after_one_poll(team0, team1);
+    assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).spacing.buddy), [true, false]);
+    assert_eq!(
+        [0u8, 1].map(|team| bots.tuning_of(team).spacing.callouts.steer_age_ms()),
+        [None, Some(8_000)]
+    );
+}

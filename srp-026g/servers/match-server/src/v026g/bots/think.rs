@@ -366,7 +366,7 @@ pub(super) fn share(
     for percept in &percepts {
         state
             .knowledge
-            .call_out(bot.place, percept, tuning.sense.callout_ms);
+            .call_out(bot.place, percept, tuning.sense.callout_ms, tuning.spacing.callouts);
         // An enemy seen carrying a battery (it is in his hands).
         if percept.source == Source::Seen
             && let Some(battery) = view.place(percept.who).and_then(|p| p.carrying)

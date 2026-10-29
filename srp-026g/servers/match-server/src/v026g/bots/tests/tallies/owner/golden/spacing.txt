@@ -1,0 +1,57 @@
+owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near)]
+{
+  "spacing": {
+    "by_play": {
+      "Collect": {
+        "clumped_samples": 0,
+        "mates_near": 240,
+        "samples": 120
+      },
+      "Crossfire": {
+        "clumped_samples": 0,
+        "mates_near": 230,
+        "samples": 120
+      },
+      "Cut": {
+        "clumped_samples": 0,
+        "mates_near": 220,
+        "samples": 120
+      },
+      "Heal": {
+        "clumped_samples": 0,
+        "mates_near": 210,
+        "samples": 120
+      },
+      "Roam": {
+        "clumped_samples": 0,
+        "mates_near": 240,
+        "samples": 120
+      },
+      "Trade": {
+        "clumped_samples": 0,
+        "mates_near": 220,
+        "samples": 120
+      }
+    },
+    "by_team": {
+      "0": {
+        "clumped_samples": 0,
+        "crowd_enemies": 24,
+        "crowded_deaths": 8,
+        "deaths": 8,
+        "enemies_near": 1017,
+        "mates_near": 640,
+        "samples": 360
+      },
+      "1": {
+        "clumped_samples": 0,
+        "crowd_enemies": 12,
+        "crowded_deaths": 4,
+        "deaths": 4,
+        "enemies_near": 1017,
+        "mates_near": 720,
+        "samples": 360
+      }
+    }
+  }
+}

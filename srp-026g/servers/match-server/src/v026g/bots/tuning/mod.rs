@@ -59,6 +59,8 @@ pub struct Tuning {
     pub grid: GridTuning,
     /// What counts as cover from a bullet (`mapdata`'s materials).
     pub cover: CoverTuning,
+    /// What gathers the team's bots (`plays/buddy.rs`, `plays/crossfire.rs`, the callouts).
+    pub spacing: SpacingTuning,
     pub hazard: HazardTuning,
     /// What smoke hides from the bots (`bots/smoke.rs`).
     pub smoke: SmokeTuning,
@@ -85,6 +87,7 @@ mod play;
 mod report;
 mod sense;
 mod smoke;
+mod spacing;
 mod team;
 mod teams;
 mod traps;
@@ -118,6 +121,8 @@ pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use smoke::SmokeTuning;
+pub use spacing::Callouts;
+pub use spacing::SpacingTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::ModTuning;

@@ -13,7 +13,7 @@
 
 use mapdata::Vec3;
 
-use super::tuning::{CheatTuning, SenseTuning};
+use super::tuning::{Callouts, CheatTuning, SenseTuning};
 use super::view::{BatteryState, MatchView, Place};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -957,8 +957,8 @@ pub struct TeamKnowledge {
 impl TeamKnowledge {
     /// A bot of the team sensed something: its teammates know it after
     /// `delay_ms`. Only first-hand senses are called out.
-    pub fn call_out(&mut self, by: Place, percept: &Percept, delay_ms: u32) {
-        if !matches!(percept.source, Source::Seen | Source::Heard) {
+    pub fn call_out(&mut self, by: Place, percept: &Percept, delay_ms: u32, callouts: Callouts) {
+        if !matches!(percept.source, Source::Seen | Source::Heard) || (percept.source == Source::Heard && !callouts.tells_heard()) {
             return;
         }
         self.callouts.push((
@@ -1765,17 +1765,33 @@ mod tests {
     #[test]
     fn callouts_reach_teammates_later_and_never_cheats() {
         let mut team = TeamKnowledge::default();
-        team.call_out(1, &seen(5, 1_000), 1_000);
+        team.call_out(1, &seen(5, 1_000), 1_000, Callouts::default());
         let cheat = Percept {
             source: Source::Cheat(CheatKind::Radar),
             ..seen(6, 1_000)
         };
-        team.call_out(1, &cheat, 1_000);
+        team.call_out(1, &cheat, 1_000, Callouts::default());
         assert!(team.heard_by(2, 1_500).is_empty());
         let heard = team.heard_by(2, 2_000);
         assert_eq!(heard.len(), 1);
         assert_eq!(heard[0].source, Source::Told { by: 1 });
         assert!(team.heard_by(1, 2_000).is_empty(), "not its own");
+    }
+
+    /// `spacing.callouts` SeenOnly: what a bot saw is told to its teammates, a sound it heard is its own; the
+    /// default tells both.
+    #[test]
+    fn seen_only_callouts_tell_a_sight_and_keep_a_sound_to_the_one_who_heard_it() {
+        let heard = Percept { source: Source::Heard, ..seen(5, 1_000) };
+        let told_to = |callouts: Callouts, percept: &Percept| {
+            let mut team = TeamKnowledge::default();
+            team.call_out(1, percept, 0, callouts);
+            team.heard_by(2, 2_000).len()
+        };
+        let only = Callouts::SeenOnly { steer_age_ms: 8_000 };
+        assert_eq!(told_to(Callouts::default(), &heard), 1, "today a sound is told");
+        assert_eq!(told_to(only, &heard), 0, "a sound stays with the bot that heard it");
+        assert_eq!(told_to(only, &seen(5, 1_000)), 1, "a sight is told");
     }
 
     /// Match 0x5402a730: the human's track in the enemy bots' memories was
@@ -1848,8 +1864,8 @@ mod tests {
     #[test]
     fn a_callout_is_heard_once_and_a_dead_enemys_not_at_all() {
         let mut team = TeamKnowledge::default();
-        team.call_out(1, &seen(5, 1_000), 1_000);
-        team.call_out(1, &seen(6, 1_000), 1_000);
+        team.call_out(1, &seen(5, 1_000), 1_000, Callouts::default());
+        team.call_out(1, &seen(6, 1_000), 1_000, Callouts::default());
         assert_eq!(team.heard_by(2, 2_000).len(), 2);
         assert!(team.heard_by(2, 2_200).is_empty(), "taken already");
         assert_eq!(team.heard_by(3, 2_200).len(), 2, "another bot's own");
