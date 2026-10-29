@@ -574,6 +574,10 @@ pub struct Tracker {
     throws: ThrowCounts,
     /// Smoke grenades in the hand, and the clouds they made ([`super::smoke`]): the clouds' one owner.
     smoke_throws: Vec<SmokeThrow>,
+    /// Whether the listing of a grenade is noted (`grenade listed`, `throw key found no grenade`): on while one of the live
+    /// list's switches is on (`Bots::poll` sets it from `avoid.bot_pockets` / `avoid.kit_in_use`), so a run with both off notes
+    /// nothing new and its decisions digest is the old one's.
+    listing_notes: bool,
     clouds: Vec<Cloud>,
     smoke_counts: SmokeCounts,
     sounds: VecDeque<Sound>,
@@ -640,6 +644,7 @@ impl Tracker {
             grenades: Vec::new(),
             throws: ThrowCounts::default(),
             smoke_throws: Vec::new(),
+            listing_notes: false,
             clouds: Vec::new(),
             smoke_counts: SmokeCounts::default(),
             sounds: VecDeque::new(),
@@ -798,6 +803,11 @@ impl Tracker {
     /// What the throw keys came to so far.
     pub fn throw_counts(&self) -> ThrowCounts {
         self.throws
+    }
+
+    /// Notes the listing decisions from now on, or stops.
+    pub fn note_listings(&mut self, on: bool) {
+        self.listing_notes = on;
     }
 
     /// The fragmentation grenades `place` holds now in its kit in use, where its pockets are known ([`Throws::frags_left`]).
@@ -979,8 +989,10 @@ impl Tracker {
                         }
                         None => {
                             self.throws.human_empty += 1;
-                            self.notes
-                                .push(format!("throw key found no grenade: place {place} pressed {pressed:#x} at {time}, kit {kit}"));
+                            if self.listing_notes {
+                                self.notes
+                                    .push(format!("throw key found no grenade: place {place} pressed {pressed:#x} at {time}, kit {kit}"));
+                            }
                             None
                         }
                     }
@@ -1006,10 +1018,12 @@ impl Tracker {
                     }
                     state.last_throw = Some(time);
                     let whose = Whose::of(basis, state.bot);
-                    self.notes.push(format!(
-                        "grenade listed: place {place} team {} pressed {pressed:#x} at {time}, kit {kit}, {basis:?}, {whose:?}",
-                        state.team
-                    ));
+                    if self.listing_notes {
+                        self.notes.push(format!(
+                            "grenade listed: place {place} team {} pressed {pressed:#x} at {time}, kit {kit}, {basis:?}, {whose:?}",
+                            state.team
+                        ));
+                    }
                     self.grenades.push(LiveGrenade {
                         by: place,
                         team: state.team,

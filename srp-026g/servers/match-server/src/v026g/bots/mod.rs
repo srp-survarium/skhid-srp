@@ -1150,6 +1150,9 @@ impl Bots {
         }
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
+        // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
+        let avoid = &self.tunings.match_wide().avoid;
+        self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
         self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (

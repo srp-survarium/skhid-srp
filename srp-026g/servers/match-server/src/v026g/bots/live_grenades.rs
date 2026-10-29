@@ -972,6 +972,27 @@ mod tests {
         assert_eq!((counts.assumed, counts.no_pockets), (1, 1));
     }
 
+    /// The listing decisions are noted only while one of the list's switches is on, so a run with them off writes the notes
+    /// (and the decisions digest) it always did.
+    #[test]
+    fn the_listing_is_noted_only_while_a_switch_of_the_list_is_on() {
+        let one_frag = || Some(Pockets::new([None, None, Some((Pocketed::Frag, 2)), None, None, None]));
+        let mut tracker = stand_pockets(one_frag(), None);
+        press(&mut tracker, 0, 1_000, key::GRENADE);
+        assert_eq!(tracker.live_grenades().len(), 1);
+        assert!(tracker.take_notes().is_empty(), "off: nothing noted");
+        tracker.note_listings(true);
+        press(&mut tracker, 0, 3_000, key::GRENADE);
+        let notes = tracker.take_notes();
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert!(notes[0].starts_with("grenade listed: place 0 team 0") && notes[0].contains("Pockets, Bot"), "{notes:?}");
+        // A human's throw key that found no grenade is noted the same way.
+        let mut tracker = stand_pockets(None, Some(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into()));
+        tracker.note_listings(true);
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        assert!(tracker.take_notes()[0].starts_with("throw key found no grenade: place 1"));
+    }
+
     /// The grenade logic caps its rolls by the frags the kit holds now (`Throws::frags_left`): a frag is counted, a smoke and a
     /// medkit are not, a thrown one is gone, a new life brings the stack back, and a kit nobody read has none counted.
     #[test]
