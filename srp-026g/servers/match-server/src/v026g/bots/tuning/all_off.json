@@ -53,6 +53,7 @@
     "live_zones": false,
     "price_way_out": false,
     "route_crossing": "off",
+    "zone_intensity": false,
     "zone_pools": "raw"
   },
   "heal": {

@@ -115,7 +115,8 @@ pub struct Hazard {
     /// Its hit (`None`: not in the map file; taken as harmful).
     pub damage: Option<Damage>,
     pub centre: Vec3,
-    /// Its trigger shapes (`mapdata::Zone::shapes`): what the hit at a point is made from ([`Self::hit_rate_at`]).
+    /// Its trigger shapes (`mapdata::Zone::shapes`): what the hit at a point is made from ([`Self::intensity_at`],
+    /// [`Self::hit_rate_at`]).
     pub shapes: Vec<Shape>,
     pub control: Control,
     pub activity: Activity,
@@ -135,25 +136,31 @@ impl Hazard {
         }
     }
 
+    /// The share of its full hit a body whose centre is at `point` takes, `[0, 1]`: the hit curve at the normalised
+    /// distance from its centre ([`mapdata::Damage::intensity`], as `mapdata::Zone::intensity_at`), 1 for a zone with no hit
+    /// given.
+    pub fn intensity_at(&self, point: Vec3) -> f32 {
+        self.damage
+            .as_ref()
+            .map_or(1.0, |damage| damage.intensity(Shape::least_normalised_distance(&self.shapes, point)))
+    }
+
     /// What a body whose centre is at `point` takes a second in the zone while it is on, before armour, by the client's
     /// rule ([`mapdata::Damage::rate_at`] at the normalised distance from the zone's centre, the interval included): what
-    /// the bench's stand-in hurts its bodies with. Infinite when the map file gives no hit ([`Hazard::damage`]). The bots
-    /// still price [`Self::hit_per_s`].
+    /// the bench's stand-in hurts its bodies with, and [`Self::hit_per_s`] times [`Self::intensity_at`]. Infinite when the
+    /// map file gives no hit ([`Hazard::damage`]).
     pub fn hit_rate_at(&self, point: Vec3) -> f32 {
         self.damage
             .as_ref()
             .map_or(f32::INFINITY, |damage| damage.rate_at(Shape::least_normalised_distance(&self.shapes, point)))
     }
 
-    /// Its hit a second while on, at full intensity: a continuous zone's
-    /// raw hit, else a hit's every `interval_ms`. Infinite when the map
-    /// file gives none (taken as harmful, [`Hazard::damage`]).
+    /// Its hit a second while on, at full intensity, the client's rate (`mapdata::Damage::rate_per_s`: the hit over the
+    /// interval, for a continuous zone as for the others; it was the raw hit for a continuous zone, which is the same for
+    /// every shipped one but Vector Laboratory's `death_damage_zone`, 500 ms: 1.6 a second, priced 0.8). Infinite when the
+    /// map file gives none (taken as harmful, [`Hazard::damage`]).
     pub fn hit_per_s(&self) -> f32 {
-        match &self.damage {
-            None => f32::INFINITY,
-            Some(damage) if damage.continuous => damage.raw(),
-            Some(damage) => damage.raw() * 1000.0 / damage.interval_ms.max(1) as f32,
-        }
+        self.damage.as_ref().map_or(f32::INFINITY, mapdata::Damage::rate_per_s)
     }
 }
 
@@ -341,10 +348,9 @@ impl HazardMarks {
     }
 }
 
-/// What a body on a floor loses to the zones there ([`Hazards::hurt_per_s`]). The rule is a team's (its tuning,
-/// `HazardTuning::hurt_by_shape`), so it is an argument of the question, not a field of the shared zones.
+/// Which floors hurt, for [`HurtTest`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum HurtTest {
+pub enum HurtFloors {
     /// The zone's full hit on every floor routes keep off, the margin's marks, as it was (`HazardTuning::hurt_by_shape`
     /// off; what a test with the all-off tuning has).
     #[default]
@@ -355,26 +361,52 @@ pub enum HurtTest {
     Shape { band_permille: u16 },
 }
 
+/// What a body on a floor loses to the zones there ([`Hazards::hurt_per_s`]). The rule is a team's (its tuning,
+/// `HazardTuning::hurt_by_shape`, `zone_intensity`), so it is an argument of the question, not a field of the shared
+/// zones.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct HurtTest {
+    pub floors: HurtFloors,
+    /// The hit is the zone's at the body's place in it ([`Hazard::intensity_at`]), not the full hit
+    /// (`HazardTuning::zone_intensity`).
+    pub by_intensity: bool,
+}
+
 impl HurtTest {
+    /// The margin's marks at the full hit: the rule before the shape and the intensity.
+    pub const MARGIN: Self = Self { floors: HurtFloors::Margin, by_intensity: false };
+
     /// The rule of `tuning` for a body of `radius` metres: the band is the margin less the radius wide, a body in it
     /// drifts `band_drift_m * sqrt(2/pi)` on average (half-normal), so it is inside that share of the band's width of
     /// the time (at most all of it).
     pub fn of(tuning: &super::tuning::HazardTuning, radius: f32) -> Self {
-        if !tuning.hurt_by_shape {
-            return Self::Margin;
-        }
-        let band = tuning.margin_m.get() - radius;
-        let mean_drift = tuning.band_drift_m.get() * (2.0 / std::f32::consts::PI).sqrt();
-        let share = if band > 0.0 { (mean_drift / band).min(1.0) } else { 1.0 };
-        Self::Shape { band_permille: (share * 1000.0).round() as u16 }
+        let floors = if tuning.hurt_by_shape {
+            let band = tuning.margin_m.get() - radius;
+            let mean_drift = tuning.band_drift_m.get() * (2.0 / std::f32::consts::PI).sqrt();
+            let share = if band > 0.0 { (mean_drift / band).min(1.0) } else { 1.0 };
+            HurtFloors::Shape { band_permille: (share * 1000.0).round() as u16 }
+        } else {
+            HurtFloors::Margin
+        };
+        Self { floors, by_intensity: tuning.zone_intensity }
     }
 
     /// The share of a zone's hit a body on a floor only the margin marks loses.
     pub fn band_share(self) -> f32 {
-        match self {
-            Self::Margin => 1.0,
-            Self::Shape { band_permille } => f32::from(band_permille) / 1000.0,
+        match self.floors {
+            HurtFloors::Margin => 1.0,
+            HurtFloors::Shape { band_permille } => f32::from(band_permille) / 1000.0,
         }
+    }
+
+    /// The share of `zone`'s hit a body standing on `node` loses to where in the zone it stands: 1 unless
+    /// [`Self::by_intensity`], else the intensity at the body's centre (the grid body's half height over the floor).
+    fn intensity(self, zone: &Hazard, grid: &WalkGrid, node: NodeId) -> f32 {
+        if !self.by_intensity {
+            return 1.0;
+        }
+        let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
+        zone.intensity_at(centre)
     }
 }
 
@@ -462,9 +494,9 @@ impl Hazards {
     /// The zones that hurt a body standing on `node` ([`HurtTest`]): the zones whose shape it overlaps, or all that mark
     /// it.
     pub fn hurt_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = &Hazard> + '_ {
-        let floor_set = match rule {
-            HurtTest::Shape { .. } => &self.marks.hurt_set,
-            HurtTest::Margin => &self.marks.floor_set,
+        let floor_set = match rule.floors {
+            HurtFloors::Shape { .. } => &self.marks.hurt_set,
+            HurtFloors::Margin => &self.marks.floor_set,
         };
         let set = match floor_set.get(node as usize) {
             Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
@@ -474,12 +506,18 @@ impl Hazards {
     }
 
     /// The zones marking `node` and how much of their hit a body there loses: all of it where the body is hurt
-    /// ([`Self::hurt_zones_at`]), the band's share ([`HurtTest::Shape`]) where only the margin marks it.
-    fn weighted_zones_at(&self, node: NodeId, rule: HurtTest) -> impl Iterator<Item = (&Hazard, f32)> + '_ {
+    /// ([`Self::hurt_zones_at`]), the band's share ([`HurtFloors::Shape`]) where only the margin marks it, either times
+    /// the intensity of its place in the zone ([`HurtTest::by_intensity`]).
+    fn weighted_zones_at<'a>(
+        &'a self,
+        grid: &'a WalkGrid,
+        node: NodeId,
+        rule: HurtTest,
+    ) -> impl Iterator<Item = (&'a Hazard, f32)> + 'a {
         let band = rule.band_share();
         self.zones_at(node).map(move |zone| {
             let hurts = self.hurt_zones_at(node, rule).any(|hurt| hurt.zone == zone.zone);
-            (zone, if hurts { 1.0 } else { band })
+            (zone, if hurts { 1.0 } else { band } * rule.intensity(zone, grid, node))
         })
     }
 
@@ -525,17 +563,38 @@ impl Hazards {
     /// hit of the zones that hurt there, the band's share of the others' that only mark it ([`Self::weighted_zones_at`]),
     /// where [`Self::hit_per_s`] counts every floor routes keep off at the full hit (the gate of what may be crossed,
     /// `crossing::crossable`). A floor over a cylinder's top, in its margin only, costs the band's share.
-    pub fn hurt_per_s(&self, node: NodeId, rule: HurtTest) -> f32 {
-        self.weighted_zones_at(node, rule).map(|(zone, w)| zone.hit_per_s() * w).sum::<f32>() + self.live.hit_per_s(node)
+    pub fn hurt_per_s(&self, grid: &WalkGrid, node: NodeId, rule: HurtTest) -> f32 {
+        self.weighted_zones_at(grid, node, rule).map(|(zone, w)| zone.hit_per_s() * w).sum::<f32>()
+            + self.live.hit_per_s(node)
     }
 
     /// [`Self::hurt_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body pool).
-    pub fn hurt_cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>, rule: HurtTest) -> Cost {
+    pub fn hurt_cost_per_s(&self, grid: &WalkGrid, node: NodeId, armour: Option<&ZoneArmour>, rule: HurtTest) -> Cost {
         match armour {
-            None => Cost::body(self.hurt_per_s(node, rule)),
+            None => Cost::body(self.hurt_per_s(grid, node, rule)),
             Some(armour) => {
-                self.weighted_zones_at(node, rule).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
+                self.weighted_zones_at(grid, node, rule).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
                     + Cost::body(self.live.hit_per_s(node))
+            }
+        }
+    }
+
+    /// What walking over `node` costs a second in the pools that kill, under `armour`: the margin's price of every floor
+    /// routes keep off, the motor's own (`crossing::hurt`), each zone at the intensity of the floor's place in it where
+    /// the rule asks ([`HurtTest::by_intensity`]), else [`Self::cost_per_s`].
+    pub fn leg_cost_per_s(&self, grid: &WalkGrid, node: NodeId, armour: Option<&ZoneArmour>, rule: HurtTest) -> Cost {
+        if !rule.by_intensity {
+            return self.cost_per_s(node, armour);
+        }
+        let live = self.live.hit_per_s(node);
+        match armour {
+            None => {
+                let baked: f32 = self.zones_at(node).map(|zone| zone.hit_per_s() * rule.intensity(zone, grid, node)).sum();
+                Cost::body(baked + live)
+            }
+            Some(armour) => {
+                self.zones_at(node).map(|zone| zone.cost_per_s(armour) * rule.intensity(zone, grid, node)).sum::<Cost>()
+                    + Cost::body(live)
             }
         }
     }
@@ -737,6 +796,9 @@ pub mod damage_zone_fixes {
         /// A routed crossing's way out searched: found (priced), none (priced as the way in).
         OutPriced,
         OutNone,
+        /// A crossing found whose price at the zones' intensity (`HazardTuning::zone_intensity`) is under 99 % of its price
+        /// at the full hit: the fix changed the price (counted by pricing it both ways).
+        CrossingCheaper,
     }
 
     /// The events' key suffixes, in order.
@@ -753,9 +815,10 @@ pub mod damage_zone_fixes {
         "post_none",
         "out_priced",
         "out_none",
+        "cross_cheaper",
     ];
 
-    pub const N: usize = 12;
+    pub const N: usize = 13;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
@@ -769,6 +832,14 @@ pub mod damage_zone_fixes {
         let before = TEAM.replace(team.min(1));
         let out = ask();
         TEAM.set(before);
+        out
+    }
+
+    /// `ask` with its events left uncounted: a question asked a second time only to compare (the counts and the team stay).
+    pub fn quietly<R>(ask: impl FnOnce() -> R) -> R {
+        let before = COUNTS.with_borrow(|counts| *counts);
+        let out = ask();
+        COUNTS.with_borrow_mut(|counts| *counts = before);
         out
     }
 
@@ -794,7 +865,7 @@ mod tests {
     use super::*;
     use mapdata::{MapData, RayTree, Rotation, Shape, ShapeKind, WalkGrid, Zone};
 
-    use crate::v026g::bots::anomalies::tests::{electric_map, zone};
+    use crate::v026g::bots::anomalies::tests::{cylinder, electric_map, zone};
     use crate::v026g::bots::body::tests::floor;
 
     fn world_of(map: MapData) -> World {
@@ -853,7 +924,7 @@ mod tests {
     }
 
     /// A floor over a box's top, inside the margin only, is shut to routes and hurts nobody: the shape's own test
-    /// ([`HurtTest::Shape`]) prices it at the band's share of the zone's hit, the margin's ([`HurtTest::Margin`]) at all
+    /// ([`HurtFloors::Shape`]) prices it at the band's share of the zone's hit, the margin's ([`HurtFloors::Margin`]) at all
     /// of it; a floor the capsule overlaps the zone from costs all of it either way.
     #[test]
     fn a_floor_over_a_zones_top_is_shut_to_routes_and_priced_as_a_band() {
@@ -873,10 +944,10 @@ mod tests {
         assert!(!hazards.allowed(over, 0) && hazards.zone_of(over).is_some(), "shut to routes");
         let full = hazards.hit_per_s(over);
         assert!(full > 0.0);
-        assert_eq!(hazards.hurt_per_s(over, HurtTest::default()), full, "the margin's marks hurt, as they did");
-        let shape = HurtTest::Shape { band_permille: 250 };
+        assert_eq!(hazards.hurt_per_s(grid, over, HurtTest::default()), full, "the margin's marks hurt, as they did");
+        let shape = HurtTest { floors: HurtFloors::Shape { band_permille: 250 }, by_intensity: false };
         assert_eq!(hazards.hurt_zones_at(over, shape).count(), 0, "the capsule does not reach it");
-        assert!((hazards.hurt_per_s(over, shape) - 0.25 * full).abs() < 1e-6, "the band's share");
+        assert!((hazards.hurt_per_s(grid, over, shape) - 0.25 * full).abs() < 1e-6, "the band's share");
         assert_eq!(hazards.hit_per_s(over), full, "the gate of what may be crossed is the full hit");
         // A box whose top reaches the floor does hurt there, whichever test.
         let mut map = electric_map();
@@ -886,19 +957,89 @@ mod tests {
         let world = world_of(map);
         let hazards = Hazards::build(&world, 1.0);
         let on = world.grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
-        assert_eq!(hazards.hurt_per_s(on, HurtTest::Shape { band_permille: 250 }), hazards.hit_per_s(on));
+        let shape = HurtTest { floors: HurtFloors::Shape { band_permille: 250 }, by_intensity: false };
+        assert_eq!(hazards.hurt_per_s(&world.grid, on, shape), hazards.hit_per_s(on));
+    }
+
+    /// A zone whose hit falls off to its rim is priced at the hit of the floor's place in it ([`HurtTest::by_intensity`]):
+    /// the hurt floors, the legs of a crossing and the stand; the gate of what may be crossed
+    /// ([`Hazards::hit_per_s`]) stays at the full hit, and a rule without it prices the full hit everywhere.
+    #[test]
+    fn a_zones_floors_are_priced_at_the_intensity_of_their_place_in_it() {
+        let mut map = electric_map();
+        map.zones.clear();
+        let mut radiation = zone("radiation", cylinder(20.0, 20.0, 8.0), 0.1);
+        radiation.shapes[0].half.y = 3.0;
+        radiation.damage.as_mut().unwrap().hit_curve = vec![(0.0, 1.0), (1.0, 0.0)];
+        map.zones.push(radiation);
+        let world = world_of(map);
+        let hazards = Hazards::build(&world, 1.0);
+        let grid = &world.grid;
+        let at = |x: f32| grid.locate(Vec3::new(x, 0.0, 20.0), 0.3).unwrap();
+        let (near, rim) = (at(21.0), at(26.0));
+        let full = hazards.hit_per_s(near);
+        assert!(full > 0.0 && hazards.hit_per_s(rim) == full, "the gate is the full hit on every marked floor");
+        let flat = HurtTest { floors: HurtFloors::Shape { band_permille: 250 }, by_intensity: false };
+        let falling = HurtTest { by_intensity: true, ..flat };
+        for node in [near, rim] {
+            assert_eq!(hazards.hurt_per_s(grid, node, flat), full, "without the intensity, the full hit");
+            assert_eq!(hazards.leg_cost_per_s(grid, node, None, flat).body, full);
+            let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
+            let share = hazards.zones[0].intensity_at(centre);
+            assert!((hazards.hurt_per_s(grid, node, falling) - full * share).abs() < 1e-6, "the zone's hit times the intensity");
+            assert!((hazards.leg_cost_per_s(grid, node, None, falling).body - full * share).abs() < 1e-6);
+            assert_eq!(hazards.hit_per_s(node), full, "the gate does not move");
+        }
+        assert!(
+            hazards.hurt_per_s(grid, rim, falling) < 0.5 * hazards.hurt_per_s(grid, near, falling),
+            "the rim is dearer than the middle: 6 m of 8 against 1 m"
+        );
+    }
+
+    /// The client's rate at a point is the zone's rate at full intensity times its intensity there, whatever the interval; and
+    /// the bots' full hit is that rate (the interval included: Vector Laboratory's `death_damage_zone` takes 1.6 a second at
+    /// its centre, not 0.8), in the pools that kill too.
+    #[test]
+    fn a_zones_rate_at_a_point_is_its_hit_per_s_times_its_intensity() {
+        use crate::v026g::bots::zone_cost::ZoneArmour;
+        let mut map = electric_map();
+        map.zones.clear();
+        let mut death = zone("death", cylinder(20.0, 20.0, 8.0), 0.2);
+        death.shapes[0].half.y = 3.0;
+        death.damage_type = "radiation".into();
+        {
+            let damage = death.damage.as_mut().unwrap();
+            damage.parts = 4;
+            damage.part_names = ["face", "body", "left_hand", "right_hand"].map(String::from).to_vec();
+            damage.interval_ms = 500;
+            damage.continuous = true;
+            damage.hit_curve = vec![(0.0, 1.0), (1.0, 0.0)];
+        }
+        map.zones.push(death);
+        let world = world_of(map);
+        let hazards = Hazards::build(&world, 1.0);
+        let zone = &hazards.zones[0];
+        assert!((zone.hit_per_s() - 1.6).abs() < 1e-6, "0.2 x 4 parts every 500 ms: {}", zone.hit_per_s());
+        let armour = ZoneArmour::default();
+        for x in [20.0, 23.0, 26.0] {
+            let at = Vec3::new(x, 0.9, 20.0);
+            assert!((zone.hit_rate_at(at) - zone.hit_per_s() * zone.intensity_at(at)).abs() < 1e-6, "x {x}");
+            let (client, full) = (zone.client_cost_per_s(&armour, at), zone.cost_per_s(&armour));
+            let share = zone.intensity_at(at);
+            assert!((client.most() - full.most() * share).abs() < 1e-5, "x {x}: {} against {} x {share}", client.most(), full.most());
+        }
     }
 
     /// The band's share from the tuning: the margin less the body's radius wide, the drift's mean over it.
     #[test]
     fn the_bands_share_is_the_drifts_mean_over_its_width() {
         let tuning = super::super::tuning::Tuning::default().hazard;
-        let HurtTest::Shape { band_permille } = HurtTest::of(&tuning, 0.38) else {
+        let HurtFloors::Shape { band_permille } = HurtTest::of(&tuning, 0.38).floors else {
             panic!("on by default");
         };
         assert_eq!(band_permille, (1000.0 * 0.2 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
         let off = super::super::tuning::Tuning::all_off().hazard;
-        assert_eq!(HurtTest::of(&off, 0.38), HurtTest::Margin);
+        assert_eq!(HurtTest::of(&off, 0.38), HurtTest::MARGIN);
     }
 
     #[test]
@@ -1014,7 +1155,7 @@ mod tests {
                     let (mut marked, mut hurt) = (0, 0);
                     for node in 0..world.grid.len() as NodeId {
                         marked += usize::from(hazards.zones_at(node).any(|z| z.zone == zone.zone));
-                        hurt += usize::from(hazards.hurt_zones_at(node, HurtTest::Shape { band_permille: 0 }).any(|z| z.zone == zone.zone));
+                        hurt += usize::from(hazards.hurt_zones_at(node, HurtTest { floors: HurtFloors::Shape { band_permille: 0 }, by_intensity: false }).any(|z| z.zone == zone.zone));
                     }
                     let shapes = &world.map.zones[zone.zone].shapes;
                     let tops = shapes.iter().map(|s| s.bounds()).map(|(lo, hi)| (lo.y, hi.y)).collect::<Vec<_>>();
@@ -1037,6 +1178,55 @@ mod tests {
     /// ```text
     /// SRP_MAPDATA_DIR=<dir> cargo test -p match-server --release real_hazards -- --ignored --nocapture
     /// ```
+    /// Where on a real map's floors a zone's hit has fallen to a given share: for the zone over Vector Laboratory's lower ring
+    /// (the client-test step `zones-rim-26`), the floors at the ring's height by their normalised distance and intensity
+    /// ([`Hazard::intensity_at`] at the body's centre), nearest the rim first. Prints only.
+    ///
+    /// ```text
+    /// SRP_MAPDATA_DIR=<dir> cargo test -p match-server --release rim_floors -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
+    fn rim_floors_of_the_zone_over_vector_laboratorys_lower_ring() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        let map = MapData::read(&dir.join(mapdata::format::file_name("level_07/day_2"))).unwrap();
+        let world = World::build(map, mapdata::CELL, mapdata::Body::default());
+        let hazards = Hazards::build(&world, 1.0);
+        let grid = &world.grid;
+        let ring = Vec3::new(3.8, 13.8, -8.6);
+        let up = Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
+        let Some(zone) = hazards
+            .zones
+            .iter()
+            .min_by(|a, b| {
+                let d = |z: &Hazard| Shape::least_normalised_distance(&z.shapes, ring + up);
+                d(a).total_cmp(&d(b))
+            })
+        else {
+            panic!("no zone");
+        };
+        eprintln!("zone {} ({} {:?}), curve {:?}", zone.name, zone.damage_type, zone.shapes, zone.damage.as_ref().map(|d| &d.hit_curve));
+        eprintln!("ring: d {:.3}, intensity {:.3}", Shape::least_normalised_distance(&zone.shapes, ring + up), zone.intensity_at(ring + up));
+        let mut rows: Vec<(f32, Vec3, f32, bool)> = (0..grid.len() as NodeId)
+            .filter_map(|n| {
+                let feet = grid.position(n);
+                if (feet.y - ring.y).abs() > 0.6 || !hazards.zones_at(n).any(|z| z.zone == zone.zone) {
+                    return None;
+                }
+                let d = Shape::least_normalised_distance(&zone.shapes, feet + up);
+                let hurt = hazards.hurt_zones_at(n, HurtTest { floors: HurtFloors::Shape { band_permille: 0 }, by_intensity: false }).any(|z| z.zone == zone.zone);
+                Some((d, feet, zone.intensity_at(feet + up), hurt))
+            })
+            .collect();
+        rows.sort_by(|a, b| b.0.total_cmp(&a.0));
+        for (d, feet, share, hurt) in rows.iter().filter(|r| r.3 && r.0 < 0.97).take(16) {
+            eprintln!("rim floor ({:.1}, {:.2}, {:.1}): d {d:.3}, intensity {share:.3}, in the capsule's reach {hurt}", feet.x, feet.y, feet.z);
+        }
+    }
+
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn real_hazards() {
