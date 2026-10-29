@@ -89,6 +89,10 @@ const END: &[u8; 4] = b"END\0";
 pub const VERSION: u32 = 5;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
+/// The first version that carries the bullet armor of the faces: an older file is read with every face of unknown
+/// material, which stops every bullet (so no pierce rule ever opens a line on it).
+pub const FIRST_WITH_ARMOR: u32 = 5;
+const _: () = assert!(FIRST_WITH_ARMOR <= VERSION);
 /// The file name extension.
 pub const EXTENSION: &str = "mapdata";
 
@@ -461,6 +465,19 @@ impl MapData {
     }
 }
 
+/// The version a map data file was written in, read from its first twelve bytes alone (the magic and the version).
+pub fn file_version(path: &Path) -> Result<u32, Error> {
+    use std::io::Read as _;
+    let mut head = [0u8; 12];
+    std::fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut head))
+        .map_err(|error| Error(format!("{}: {error}", path.display())))?;
+    if head[..8] != MAGIC[..] {
+        return Err(Error(format!("{}: not a map data file", path.display())));
+    }
+    Ok(u32::from_le_bytes([head[8], head[9], head[10], head[11]]))
+}
+
 struct Writer(Vec<u8>);
 
 impl Writer {
@@ -788,6 +805,28 @@ mod tests {
         assert_eq!(old.zones, map.zones, "the rest of the map is what the file says");
         let new = MapData::from_bytes(&map.to_bytes()).unwrap();
         assert_eq!(new.libraries[0].faces[0].surface.armor, FaceArmor::Material(Armor::new(0.37).unwrap()));
+    }
+
+    /// The header names the version without reading the map; a file that is not a map data file is an error.
+    #[test]
+    fn the_version_is_read_from_the_header_alone() {
+        let dir = std::env::temp_dir().join(format!("srp-mapdata-version-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let map = sample();
+        for version in [OLDEST, 4, VERSION] {
+            let path = dir.join(format!("v{version}.mapdata"));
+            std::fs::write(&path, map.to_bytes_of(version)).unwrap();
+            assert_eq!(file_version(&path).unwrap(), version);
+        }
+        let short = dir.join("short.mapdata");
+        std::fs::write(&short, b"SRPMAPD\0").unwrap();
+        assert!(file_version(&short).is_err());
+        let other = dir.join("other.mapdata");
+        std::fs::write(&other, b"not a map data file at all").unwrap();
+        assert!(file_version(&other).unwrap_err().to_string().contains("not a map data file"));
+        assert!(file_version(&dir.join("missing.mapdata")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// An armor that is no armor in a file is an error, not a face that anything goes through.

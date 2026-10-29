@@ -201,6 +201,8 @@ pub struct Tactics {
     pub clear_step_sees_lip: bool,
     /// What [`Self::shot_reaches`] answered, and the lines the pierce opened (the logs' counts).
     pub cover_tally: CoverTally,
+    /// What the commander's gang-up cap counted (PR C item 20), by play.
+    pub gang_tally: super::team::GangTally,
 }
 
 /// What [`Tactics::line_of_fire`] finds: whether the line is open to fire and the share of the bullet's damage that reaches its end.
@@ -790,6 +792,7 @@ impl Tactics {
             grass: Default::default(),
             clear_step_sees_lip: false,
             cover_tally: CoverTally::default(),
+            gang_tally: Default::default(),
             base,
         }
     }

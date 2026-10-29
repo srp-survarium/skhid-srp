@@ -437,7 +437,13 @@ impl Bots {
             .map(|&(place, _, _)| place)
             .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
             .collect();
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky) {
+        // [gang-up] The trade partners of the team's bots (not counted as a second bot on one enemy).
+        let partners: Vec<(Place, Place)> = asked
+            .iter()
+            .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
+            .collect();
+        let gang = tuning.threat.gang_rule().map(|rule| team::GangUp { rule, partners: &partners, tally: &tactics.gang_tally });
+        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky, gang.as_ref()) {
             let Some(me) = view.place(place) else {
                 continue;
             };

@@ -20,8 +20,8 @@
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
 //! | `SRP_BENCH_ZONE_INTENSITY` | on: a zone's hit is the client's rule (its hit curve at the body's place in it, the interval included); `0`: the full hit wherever a body stands in it |
 //! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
-//! | `SRP_BENCH_DRAW_TIME` | [`DRAW_MS`], 800 ms for every weapon; `weapon`: its `show_time` |
-//! | `SRP_BENCH_BODY_BLOCK_M` | off: bodies pass through each other; `0.76`: enemy bodies block (friends never) |
+//! | `SRP_BENCH_DRAW_TIME` | `weapon` (live): its `show_time`; `off`: [`DRAW_MS`], 800 ms for every weapon |
+//! | `SRP_BENCH_BODY_BLOCK_M` | `0.76` (live): enemy bodies block (friends never); `off`: bodies pass through each other |
 //! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
 //! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
@@ -126,8 +126,8 @@ pub(crate) fn draw_ms_of(gun: &Gun, from_weapon: bool) -> u32 {
 
 /// How long after a carrier drops a battery his weapon fires again, ms:
 /// the weapon's own `show_time` with `SRP_BENCH_DRAW_TIME=weapon`, else
-/// [`DRAW_MS`] for every weapon (the stand-in as it was; off until a bench
-/// has looked at the moved timings).
+/// [`DRAW_MS`] for every weapon (`off`: the stand-in as it was; `weapon` is the
+/// default, the game's own timing).
 pub(crate) fn draw_ms(gun: &Gun) -> u32 {
     static FROM_WEAPON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let from_weapon = *FROM_WEAPON
