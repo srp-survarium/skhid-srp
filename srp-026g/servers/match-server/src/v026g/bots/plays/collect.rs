@@ -776,8 +776,9 @@ fn traps(tactics: &Tactics, from: mapdata::NodeId, node: mapdata::NodeId) -> boo
     })
 }
 
-/// Health lost walking from `a` to `b` in a line, at [`CROSS_MPS`].
-fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>) -> Cost {
+/// Health lost walking from `a` to `b` in a line, at [`CROSS_MPS`], each floor at the margin's price (the zones'
+/// intensity there where `hurt` asks, [`Hazards::leg_cost_per_s`]).
+fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>, hurt: HurtTest) -> Cost {
     let grid = &tactics.world.grid;
     let d = a.distance_xz(b);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
@@ -786,7 +787,7 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>) -
         .map(|i| {
             let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
             grid.locate(p, 1.5)
-                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                .map_or(Cost::ZERO, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt))
                 * ds
                 / CROSS_MPS
         })
@@ -838,11 +839,11 @@ pub fn crossing_to(
                 };
                 let crossing = Crossing {
                     edge,
-                    leg: line_hurt(tactics, edge, stop, armour),
-                    leg_out: line_hurt(tactics, edge, stop, armour),
+                    leg: line_hurt(tactics, edge, stop, armour, hurt),
+                    leg_out: line_hurt(tactics, edge, stop, armour, hurt),
                     at_per_s: grid
                         .locate(stop, 1.5)
-                        .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, hurt)),
+                        .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(grid, node, armour, hurt)),
                     routed: false,
                     walk_m: d,
                 };
@@ -927,7 +928,7 @@ pub fn routed_crossing_to(
     };
     let cost_at = |s: f32| {
         grid.locate(route.floor_point(s), 1.5)
-            .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, rules.hurt))
+            .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(grid, node, armour, rules.hurt))
     };
     let zone_before_stop = first_zone(end).is_some();
     let (edge, leg, walk_m) = match first_zone(end) {
@@ -940,7 +941,7 @@ pub fn routed_crossing_to(
                 .map(|i| {
                     let point = route.floor_point(s + (i as f32 + 0.5) * ds);
                     grid.locate(point, 0.6)
-                        .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                        .map_or(Cost::ZERO, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, rules.hurt))
                         * ds
                         / CROSS_MPS
                 })
@@ -998,7 +999,7 @@ pub fn routed_crossing_to(
                 (0..n)
                     .map(|i| {
                         grid.locate(back.floor_point((i as f32 + 0.5) * ds), 0.6)
-                            .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                            .map_or(Cost::ZERO, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, rules.hurt))
                             * ds
                             / CROSS_MPS
                     })
@@ -1992,7 +1993,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     if let Some(edge) = crossing
         && !cx.budget().reserve.leaves(
             crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour(), cx.rules().hurt)
-                .map_or_else(|| line_hurt(cx.tactics, me, edge, cx.zone_armour()), |out| out.leg),
+                .map_or_else(|| line_hurt(cx.tactics, me, edge, cx.zone_armour(), cx.rules().hurt), |out| out.leg),
             CROSS_ABORT_LEFT,
         )
     {
@@ -3578,16 +3579,16 @@ mod tests {
     /// much"); the zone's shape does not hurt there, so it is taken, and as before where the body is in the zone.
     #[test]
     fn a_battery_over_a_zones_top_is_priced_by_the_shape_and_not_the_margin() {
-        use crate::v026g::bots::hazards::HurtTest;
+        use crate::v026g::bots::hazards::{HurtFloors, HurtTest};
         let at = Vec3::new(25.0, 0.0, 32.0);
         let mut s = with_slab(2.0);
-        assert_eq!(s.cx(0).rules().hurt, HurtTest::Margin, "the all-off tuning prices by the margin");
+        assert_eq!(s.cx(0).rules().hurt, HurtTest::MARGIN, "the all-off tuning prices by the margin");
         s.battery(BatteryState::Free(at));
         let margin = s.cx(0).crossing(at).expect("a crossing");
         // The tuning's rule: the floor the take is made on, over the top, is a band, priced at the drift's share of the
         // zone's hit; the legs stay at the margin's price, which is the motor's own.
         s.tuning.hazard.hurt_by_shape = true;
-        let HurtTest::Shape { band_permille } = s.cx(0).rules().hurt else {
+        let HurtFloors::Shape { band_permille } = s.cx(0).rules().hurt.floors else {
             panic!("the team's tuning sets the rule");
         };
         let band_share = f32::from(band_permille) / 1000.0;
@@ -3744,7 +3745,7 @@ mod tests {
                     for pair in path.windows(2) {
                         let d = (grid.position(pair[1]) - grid.position(pair[0])).length();
                         metres += d;
-                        cost = cost + s.tactics.hazards.hurt_cost_per_s(pair[1], cx.zone_armour(), cx.rules().hurt) * (d / CROSS_MPS);
+                        cost = cost + s.tactics.hazards.hurt_cost_per_s(&s.tactics.world.grid, pair[1], cx.zone_armour(), cx.rules().hurt) * (d / CROSS_MPS);
                     }
                     (metres, cost)
                 });

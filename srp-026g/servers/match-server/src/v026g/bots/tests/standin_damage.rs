@@ -952,9 +952,9 @@ mod tests {
     }
 
     /// The stand-in hurts a body by the client's rule (`zone_intensity`): the hit curve at the body's place in the zone and the
-    /// interval, `max_hit x intensity x 1000 / interval_ms` a second; off, the full hit with the interval ignored for a
-    /// continuous zone (the stand-in before). A sphere of 10 m with the straight curve of the radiation zones, a body 2.5 m
-    /// from its centre (d 0.25, intensity 0.75), a hit of 0.01 every 500 ms: 0.015 a second against the flat 0.01.
+    /// interval, `max_hit x intensity x 1000 / interval_ms` a second; off, the zone's full hit (`Hazard::hit_per_s`, which reads the
+    /// interval too). A sphere of 10 m with the straight curve of the radiation zones, a body 2.5 m from its centre (d 0.25,
+    /// intensity 0.75), a hit of 0.01 every 500 ms: 0.015 a second against the full 0.02.
     #[test]
     fn the_stand_in_hurts_a_body_by_the_clients_rule_when_asked() {
         use crate::v026g::bots::hazards::Hazards;
@@ -996,6 +996,6 @@ mod tests {
             game.zone_hp
         };
         assert!((hurt_in_10_s(true) - 0.15).abs() < 0.005, "the client's rule: {}", hurt_in_10_s(true));
-        assert!((hurt_in_10_s(false) - 0.10).abs() < 0.005, "the flat hit: {}", hurt_in_10_s(false));
+        assert!((hurt_in_10_s(false) - 0.20).abs() < 0.005, "the full hit: {}", hurt_in_10_s(false));
     }
 }

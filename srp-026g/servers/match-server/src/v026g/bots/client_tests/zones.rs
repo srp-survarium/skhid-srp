@@ -7,6 +7,9 @@
 //! 3. Do the bots take Vector Laboratory's spawner 26 (the one-way trap)? Until the calibration they refuse it; `zones-bots-leave-26`
 //!    says so, and flips to a pass bar for a take once the pools are in `zone_cost`.
 //! 4. Does an escort stay with a carrier who walks over zone floors? `zones-escort-carry`.
+//! 5. Does a zone's hit fall off towards its rim for the owner's own body (the hit curve, PROVEN in the exe and in bots' live losses)?
+//!    `zones-rim-26` stands on the zone's floor near its rim, where the straight curve of the radiation zones gives under a tenth of
+//!    the hit; `zones-lower-ring-*` is the same zone at a third of it.
 //!
 //! The runner cannot place a battery or a bot, so a step that needs a battery asks the owner to do the walk the match offers.
 //! The owner's pools are as the last world showed them: **full is 1.0** (a loss is start minus now).
@@ -23,8 +26,12 @@ const TOP_26: Spot = Spot::at(-1.8, 16.9, -11.3);
 const TOP_W1: Spot = Spot::at(-4.8, 17.3, -11.3);
 const TOP_W2: Spot = Spot::at(-5.8, 17.2, -10.6);
 const TOP_W3: Spot = Spot::at(-6.8, 17.1, -11.0);
-/// The lower ring's floor inside zone 13 (y 13.8), where the owner crossed in match 0x717ab70c.
+/// The lower ring's floor inside zone 13 (y 13.8), where the owner crossed in match 0x717ab70c. Normalised distance 0.66 from the
+/// zone's centre (the hit curve gives 0.34 of the hit there; `hazards::tests::rim_floors_of_the_zone_over_vector_laboratorys_lower_ring`).
 const LOWER_RING: Spot = Spot::at(3.8, 13.8, -8.6);
+/// A floor of the same zone near its rim, 3.9 m from the ring: normalised distance 0.92, the hit curve gives 0.08 of the hit
+/// (the same measurement; the capsule still overlaps the zone's shape there, so the client hurts).
+const RIM_26: Spot = Spot::at(5.5, 13.23, -12.0);
 
 fn group() -> Group {
     Group::new(VECTOR_LABORATORY, BATTERIES)
@@ -108,6 +115,10 @@ fn on_lower_ring(frame: &Frame, _since: Span) -> bool {
     at_height(frame, 13.8)
 }
 
+fn on_rim_floor(frame: &Frame, _since: Span) -> bool {
+    at_height(frame, 13.3)
+}
+
 fn carries(frame: &Frame) -> bool {
     let owner = frame.owner.as_ref().map(|o| o.body.place);
     frame.batteries.iter().any(|b| matches!(b, BatteryState::Carried(p) if *p == owner))
@@ -169,6 +180,22 @@ pub fn steps() -> Vec<Step> {
         .end(&[End::OwnerDied, End::OwnerLeft { at: LOWER_RING, r_m: 3.0 }])
         .measure(pool_measure())
         .bar("infection_per_s", Test::AtLeast(0.01))
+        .budget_s(10)
+        .tries(2),
+        // Z4: the hit curve for the owner's own body. At the rim marker (normalised distance 0.92) the zone takes 0.08 of its hit
+        // (`mapdata::Zone::intensity_at`): the bots price the full hit (0.32 a second raw, 0.13-0.24 through a kit's armour) unless
+        // `hazard.zone_intensity` says otherwise; with the curve it is 0.01-0.02 a second. A flat zone would show 0.1 or more.
+        Step::new(
+            "zones-rim-26",
+            group(),
+            "Stand on the floor at the marker near the zone's edge (about 4 m from the lower ring marker, outwards) for 10 s.",
+        )
+        .start(&[Cond::OwnerNear { at: RIM_26, r_m: 1.0 }, Cond::Custom(WaitFor { describe: "you stand on the rim floor", holds: on_rim_floor })])
+        .end(&[End::OwnerDied, End::OwnerLeft { at: RIM_26, r_m: 3.0 }])
+        .measure(pool_measure())
+        // The zone hurts there (the capsule is in its shape) but far less than on the lower ring: under 0.06, where the full hit through
+        // the same kit would give at least 0.1 (kit armour factors of the live bots: 0.4 to 0.76 of 0.32).
+        .bar("infection_per_s", Test::AtMost(0.06))
         .budget_s(10)
         .tries(2),
         // Z6: the walk the owner made in match 0x717ab70c: from the battery floor down to the lower ring, over the zone's floor, out to the

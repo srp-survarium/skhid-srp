@@ -532,6 +532,25 @@ mod tests {
         assert!(!crossable(&deadly, mid, 1.0));
     }
 
+    /// The gate reads the client's rate, the interval included: a continuous zone of 0.8 a second raw whose interval is 500 ms
+    /// takes 1.6 a second (Vector Laboratory's `death_damage_zone`), more than the walk across its thinnest bears; the
+    /// same hit every 1000 ms is borne.
+    #[test]
+    fn the_gate_reads_a_continuous_zones_rate_over_its_interval() {
+        let gate = |interval_ms: u32| {
+            let world = field_with(|map| {
+                let mut gap = zone("gap", 0.8, (40.0, 32.5), (2.0, 7.5));
+                gap.damage.as_mut().unwrap().interval_ms = interval_ms;
+                map.zones.push(gap);
+            });
+            let tactics = Tactics::new(world, 1.0);
+            let mid = tactics.world.grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
+            crossable(&tactics, mid, 1.0)
+        };
+        assert!(gate(1000), "0.8 a second leaves 0.36 after the thinnest walk");
+        assert!(!gate(500), "1.6 a second does not");
+    }
+
     /// A crossing hurt on the way is stopped once the rest of it would leave
     /// the bot under `CROSS_ABORT_LEFT`; past the zone it is borne.
     #[test]

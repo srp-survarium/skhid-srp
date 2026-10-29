@@ -294,13 +294,7 @@ impl Hazard {
         if damage.part_names.is_empty() {
             return Cost::body(self.hit_per_s());
         }
-        // One part's hit a second: a continuous zone's per `interval`, the others' per hit.
-        let per_part = if damage.continuous {
-            damage.max_hit
-        } else {
-            damage.max_hit * 1000.0 / damage.interval_ms.max(1) as f32
-        };
-        self.cost_of(damage, per_part, armour)
+        self.cost_of(damage, damage.part_rate_per_s(), armour)
     }
 
     /// [`Self::cost_per_s`] by the client's rule for a body whose centre is at `point`: each part's hit
