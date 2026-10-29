@@ -30,6 +30,8 @@ use binary_config_parser::ConfigValue;
 
 use crate::config::{children, float3, float3_or, float3_req, i32_or, str_or};
 use crate::library::{Library, Materials, WalkerBehaviour};
+use crate::pierce::FaceArmor;
+use crate::sight::RayTree;
 use crate::math::{Rotation, Transform, Vec3};
 use crate::resources::{Error, Resources};
 
@@ -459,6 +461,48 @@ pub struct Triangle {
     pub walker: WalkerBehaviour,
 }
 
+/// The bullet mesh in the map frame: the triangles a bullet meets, each with what it is made of (one
+/// armor per triangle, in the same order).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BulletMesh {
+    triangles: Vec<Triangle>,
+    armor: Vec<FaceArmor>,
+}
+
+impl BulletMesh {
+    pub fn triangles(&self) -> &[Triangle] {
+        &self.triangles
+    }
+
+    /// What a bullet meets in each triangle, in the triangles' order.
+    pub fn armor(&self) -> &[FaceArmor] {
+        &self.armor
+    }
+
+    pub fn len(&self) -> usize {
+        self.triangles.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.triangles.is_empty()
+    }
+
+    /// The key of the tree this mesh builds ([`crate::sight_key`]).
+    pub fn key(&self) -> u64 {
+        crate::sight_key(&self.triangles, &self.armor)
+    }
+
+    /// The sight tree, with each triangle's armor.
+    pub fn build_tree(&self) -> RayTree {
+        RayTree::from_armored_corners(
+            self.triangles
+                .iter()
+                .zip(&self.armor)
+                .map(|(t, &armor)| (t.v, armor)),
+        )
+    }
+}
+
 /// Everything this crate knows of one project; what [`crate::format`]
 /// stores.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -634,6 +678,14 @@ impl MapData {
     /// (`player_bots_stuck.md`); the engine's loading of a missing one is
     /// not read.
     pub fn triangles(&self, filter: CollisionFilter) -> Vec<Triangle> {
+        let mut out = Vec::new();
+        self.place_faces(filter, |triangle, _| out.push(triangle));
+        out
+    }
+
+    /// Each triangle a body with `filter` meets, placed in the map frame, with its face's armor
+    /// ([`Self::triangles`] without the armor, [`Self::bullet_mesh`] with it).
+    fn place_faces(&self, filter: CollisionFilter, mut each: impl FnMut(Triangle, FaceArmor)) {
         let walking = filter == CollisionFilter::WALKER;
         let by_name: HashMap<&str, usize> = if walking {
             self.libraries
@@ -646,7 +698,7 @@ impl MapData {
         };
         let library_of = |placement: &Placement| -> &Library {
             let library = &self.libraries[placement.library as usize];
-            if walking && library.triangles.is_empty() {
+            if walking && library.faces.is_empty() {
                 let stand_in = library
                     .name
                     .contains(WALKER_COLLISION)
@@ -658,13 +710,6 @@ impl MapData {
             }
             library
         };
-        let count = self
-            .placements
-            .iter()
-            .filter(|p| filter.meets(p.cgroup, p.cmask))
-            .map(|p| library_of(p).triangles.len())
-            .sum();
-        let mut out = Vec::with_capacity(count);
         for placement in &self.placements {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
@@ -676,14 +721,14 @@ impl MapData {
                 .iter()
                 .map(|&v| transform.apply(v))
                 .collect();
-            for (t, &walker) in library.triangles.iter().zip(&library.walker) {
-                out.push(Triangle {
-                    v: t.map(|i| world[i as usize]),
-                    walker,
-                });
+            for face in &library.faces {
+                let triangle = Triangle {
+                    v: face.corners.map(|i| world[i as usize]),
+                    walker: face.surface.walker,
+                };
+                each(triangle, face.surface.armor);
             }
         }
-        out
     }
 
     /// Where a body is known to get to, for [`crate::WalkGrid::build_kept`]:
@@ -705,6 +750,16 @@ impl MapData {
     /// The bullet world: what stops shots and sight.
     pub fn bullet_triangles(&self) -> Vec<Triangle> {
         self.triangles(CollisionFilter::BULLET)
+    }
+
+    /// [`Self::bullet_triangles`] with what a bullet meets in each ([`FaceArmor`]).
+    pub fn bullet_mesh(&self) -> BulletMesh {
+        let (mut triangles, mut armor) = (Vec::new(), Vec::new());
+        self.place_faces(CollisionFilter::BULLET, |triangle, face_armor| {
+            triangles.push(triangle);
+            armor.push(face_armor);
+        });
+        BulletMesh { triangles, armor }
     }
 
     /// The area a walk grid should cover, as `[x0, z0, x1, z1]`: the
@@ -938,6 +993,7 @@ fn anomaly_of(object: &ConfigValue) -> Anomaly {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::library::Face;
 
     #[test]
     fn filters_follow_the_engine_groups() {
@@ -1170,8 +1226,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
             ],
-            triangles: vec![[0, 1, 2]],
-            walker: vec![WalkerBehaviour::Walk],
+            faces: vec![Face::unknown([0, 1, 2], WalkerBehaviour::Walk)],
             primitives: 0,
         };
         let map = MapData {
@@ -1218,8 +1273,7 @@ mod tests {
                 Vec3::new(0.0, 2.0, 0.0),
                 Vec3::new(0.3, 0.0, 0.0),
             ],
-            triangles: vec![[0, 1, 2]],
-            walker: vec![WalkerBehaviour::BySlope],
+            faces: vec![Face::unknown([0, 1, 2], WalkerBehaviour::BySlope)],
             primitives: 0,
         };
         let placement = |library: u32, cgroup: u16, cmask: u16| Placement {

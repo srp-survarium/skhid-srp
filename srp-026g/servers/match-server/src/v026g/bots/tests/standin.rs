@@ -30,6 +30,7 @@
 //! `DRAW_MS`, `PUT_MS`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
 
 use super::*;
+use mapdata::{DamageShare, FaceArmor, Load};
 
 /// The patched client's take of a battery under the feet: its ray and the
 /// distance across (patch 11, `client_patch.md`).
@@ -151,6 +152,56 @@ pub(crate) struct BoxStrike {
     pub(crate) body: Place,
     pub(crate) along: f32,
     pub(crate) param: standin_hitbox::HitParam,
+    /// What the bullet carries at the body, its damage and its pierce, after the distance and the surfaces it crossed to
+    /// get there (`mapdata::RayTree::fly`: the client's penetration), and the share of the damage that is of what an
+    /// empty line would give.
+    pub(crate) load: Load,
+    pub(crate) share: DamageShare,
+}
+
+/// What the bullets' lines met in the stand-in: the strikes' lines by verdict and the armor that stopped them, and the
+/// bots' shots at their target whose ray met the world short of him by the share the bullet kept. For the
+/// `owner-test pierce` counts ([`super::tallies`]).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PierceStats {
+    /// A strike line (a bullet's way to a body it would hit): nothing in the way or only free armor, through cover
+    /// that took some of it, stopped.
+    pub(crate) strikes_open: u32,
+    pub(crate) strikes_partial: u32,
+    pub(crate) strikes_stopped: u32,
+    /// Front faces the strikes' bullets crossed, in all.
+    pub(crate) faces_crossed: u32,
+    /// The stopped strikes by the face that stopped them (the bits of [`FaceArmor::to_wire`]; the one NaN is a face
+    /// with no material).
+    pub(crate) stopped_by: std::collections::BTreeMap<u32, u32>,
+    /// By team of the shooter, the walled shots by share kept: stopped, up to 0.25, up to 0.5, under 1, all.
+    pub(crate) walled_bands: [[u32; 5]; 2],
+}
+
+impl PierceStats {
+    pub(crate) fn band(share: DamageShare) -> usize {
+        match share.value() {
+            s if s <= 0.0 => 0,
+            s if s <= 0.25 => 1,
+            s if s <= 0.5 => 2,
+            s if s < 1.0 => 3,
+            _ => 4,
+        }
+    }
+
+    pub(crate) fn strike(&mut self, line: &mapdata::Followed) {
+        self.faces_crossed += line.crossed;
+        match line.share.value() {
+            s if s <= 0.0 => {
+                self.strikes_stopped += 1;
+                if let Some(face) = line.stopped_by {
+                    *self.stopped_by.entry(face.to_wire().to_bits()).or_default() += 1;
+                }
+            }
+            s if s < 1.0 => self.strikes_partial += 1,
+            _ => self.strikes_open += 1,
+        }
+    }
 }
 
 /// A body of the stand-in game.
@@ -318,6 +369,17 @@ pub(crate) struct Game {
     pub(crate) hidden: u32,
     /// [PR C] The same by the shooter's team.
     pub(crate) walled_by: [u32; 2],
+    /// Of the `walled` shots, those whose bullet the world did not stop at the target's place (it crossed
+    /// surfaces that let it through, `RayTree::damage_share` over 0), by the shooter's team.
+    pub(crate) walled_through_by: [u32; 2],
+    /// Enemy hits and kills by bullets that had crossed cover on the way (a share under 1), by the shooter's team.
+    pub(crate) cover_hits_by: [u32; 2],
+    pub(crate) cover_kills_by: [u32; 2],
+    /// What the bullets' lines met: [`PierceStats`] (counted where a line is tested, which takes `&self`).
+    pub(crate) pierce_stats: std::cell::RefCell<PierceStats>,
+    /// Whether bullets go through cover by the client's rule ([`Self::cover_flight`]); off, the first surface of the mesh
+    /// stops them, as it did before the mesh had materials (the bench's all-off arm). On by default.
+    pub(crate) pierce: bool,
     pub(crate) hidden_by: [u32; 2],
     /// Rays the counts above cast (not the bots').
     pub(crate) metric_rays: u64,
@@ -586,6 +648,11 @@ impl Game {
             team_hit_pains: Vec::new(),
             walled: 0,
             walled_by: [0; 2],
+            walled_through_by: [0; 2],
+            cover_hits_by: [0; 2],
+            cover_kills_by: [0; 2],
+            pierce_stats: Default::default(),
+            pierce: true,
             hidden_by: [0; 2],
             hidden: 0,
             metric_rays: 0,
@@ -1132,6 +1199,11 @@ impl Game {
             if self.world.sight.ray_cast(eye, dir, reach).is_some() {
                 self.walled += 1;
                 self.walled_by[team] += 1;
+                let kept = self.cover_flight(shooter, eye, dir, reach).share;
+                if kept > DamageShare::NONE {
+                    self.walled_through_by[team] += 1;
+                }
+                self.pierce_stats.borrow_mut().walled_bands[team][PierceStats::band(kept)] += 1;
             }
             self.metric_rays += super::aimpoint::rays_cast() - before;
         }
@@ -1270,10 +1342,39 @@ impl Game {
             if let Some((along, param)) = hit
                 && best.is_none_or(|b| along < b.along)
             {
-                best = Some(BoxStrike { body, along, param });
+                best = Some(BoxStrike { body, along, param, load: Load { damage: 0.0, pierce: 0.0 }, share: DamageShare::ALL });
             }
         }
-        best.filter(|b| self.world.sight.ray_cast(eye, dir, b.along).is_none())
+        // The bullet goes through the surfaces on the way that its pierce gets through, with the share they leave.
+        best.and_then(|b| {
+            let line = self.cover_flight(shooter, eye, dir, b.along);
+            self.pierce_stats.borrow_mut().strike(&line);
+            (line.share > DamageShare::NONE).then_some(BoxStrike { load: line.load, share: line.share, ..b })
+        })
+    }
+
+    /// `shooter`'s bullet `along` m down the line from `eye`: the client's penetration over the bullet mesh's materials,
+    /// the bullet flown from the muzzle ([`mapdata::RayTree::fly`]: the pierce and the damage it has at each wall, what
+    /// each crossing takes off). Without [`Self::pierce`], or for a gun the data does not know, the old rule: the
+    /// first surface stops it (`ray_cast`, faces within a centimetre of the end included).
+    fn cover_flight(&self, shooter: Place, eye: Vec3, dir: Vec3, along: f32) -> mapdata::Followed {
+        let sight = &self.world.sight;
+        let gun = self.bodies[shooter].gun;
+        let flight = standin_damage::flight_of(&self.damage, gun);
+        if let Some(flight) = flight.as_ref().filter(|_| self.pierce) {
+            return sight.fly(eye, eye + dir * along, flight, 0.0, 0.0);
+        }
+        let share = if sight.ray_cast(eye, dir, along).is_none() { DamageShare::ALL } else { DamageShare::NONE };
+        let load = match &flight {
+            Some(flight) if share > DamageShare::NONE => flight(along),
+            _ => Load { damage: 0.0, pierce: 0.0 },
+        };
+        mapdata::Followed {
+            share,
+            load,
+            stopped_by: (share == DamageShare::NONE).then_some(FaceArmor::Unknown),
+            crossed: 0,
+        }
     }
 
     /// [`HitVolume::Boxes`]: a bullet is one ray along `dir`; a shotgun's shot is its `buck_shot` pellets, each
@@ -1341,11 +1442,9 @@ impl Game {
             }
             let target = strike.body;
             bodies.push(target);
-            let landed: Vec<(standin_hitbox::HitParam, f32)> = strikes
-                .iter()
-                .filter(|s| s.body == target)
-                .map(|s| (s.param, s.along))
-                .collect();
+            let landed: Vec<(standin_hitbox::HitParam, Load)> =
+                strikes.iter().filter(|s| s.body == target).map(|s| (s.param, s.load)).collect();
+            let through_cover = strikes.iter().any(|s| s.body == target && s.share < DamageShare::ALL);
             let team_hit = self.bodies[target].team == team;
             if team_hit {
                 self.team_hits += 1;
@@ -1353,20 +1452,27 @@ impl Game {
             } else {
                 enemy_hit = true;
                 self.hit_log.push((tick, shooter, target));
+                if through_cover {
+                    self.cover_hits_by[usize::from(team).min(1)] += 1;
+                }
             }
             let pain_before = self.bodies[target].pools.pain;
             let other = &mut self.bodies[target];
             standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
             other.last_hit = tick;
             for leg in [0, 1] {
-                if landed.iter().any(|(param, _)| param.leg() == Some(leg)) {
+                if landed.iter().any(|(param, ..)| param.leg() == Some(leg)) {
                     other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
                     if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
                         other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
                     }
                 }
             }
+            let was_alive = self.bodies[target].alive;
             self.settle(shooter, target, team_hit, pain_before, tick);
+            if through_cover && !team_hit && was_alive && !self.bodies[target].alive {
+                self.cover_kills_by[usize::from(team).min(1)] += 1;
+            }
         }
         if enemy_hit {
             self.hits += 1;

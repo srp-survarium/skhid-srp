@@ -4,6 +4,7 @@
 //! mapdata-dump --db <resources.db> --out <dir>                  # every playable project
 //! mapdata-dump --db <resources.db> --out <dir> --map 117 --map 87
 //! mapdata-dump --db <resources.db> --out <dir> --project level_01/day_4 --stats 0.5
+//! mapdata-dump --db <resources.db> --solid --out <dir>         # every face stops every bullet (a control)
 //! mapdata-dump --db <resources.db> --patch <resources.db.patch_14> --patch <...> --out <dir> \
 //!     --project level_09/day_2
 //! ```
@@ -46,6 +47,10 @@ struct Cli {
     /// Also build the walk grid with this cell size and print timings.
     #[arg(long)]
     stats: Option<f32>,
+    /// Write every face as of unknown material (it stops every bullet): the files as they were before the bullet mesh
+    /// carried materials, a control for comparing the bench with and without penetration.
+    #[arg(long)]
+    solid: bool,
 }
 
 fn main() -> ExitCode {
@@ -93,7 +98,12 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     for project in &projects {
         let t = Instant::now();
-        let map = MapData::load(&mut resources, &materials, project)?;
+        let mut map = MapData::load(&mut resources, &materials, project)?;
+        if cli.solid {
+            for face in map.libraries.iter_mut().flat_map(|library| library.faces.iter_mut()) {
+                face.surface.armor = mapdata::FaceArmor::Unknown;
+            }
+        }
         let load = t.elapsed().as_secs_f32();
         let path = cli.out.join(format::file_name(project));
         map.write(&path)?;
@@ -123,7 +133,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 fn stats(map: MapData, cell: f32) {
     let t = Instant::now();
     let walker = map.walker_triangles();
-    let bullet = map.bullet_triangles();
+    let bullet = map.bullet_mesh();
     let place = t.elapsed().as_secs_f32();
     let area = map.play_area(mapdata::AREA_MARGIN);
     let t = Instant::now();
@@ -138,7 +148,7 @@ fn stats(map: MapData, cell: f32) {
     );
     let grid_time = t.elapsed().as_secs_f32();
     let t = Instant::now();
-    let sight = mapdata::RayTree::build(&bullet);
+    let sight = bullet.build_tree();
     let sight_time = t.elapsed().as_secs_f32();
     println!(
         "  placed {} walker + {} bullet triangles in {place:.2} s; grid {}x{} of {cell} m: \

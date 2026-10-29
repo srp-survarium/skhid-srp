@@ -219,7 +219,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     // A way point near the spot, out of his sight, so the way there is
     // not across his line.
     let via_query = SpotQuery {
-        hidden_from: Some(him),
+        unseen_by: Some(him),
         side: cx.bot.side,
         samples: num("samples") as usize,
         ..SpotQuery::ring(spot, num("via_min_m"), num("via_max_m"))

@@ -1286,6 +1286,9 @@ pub struct Situation<'a> {
     /// avoidance is on (`grenade_avoid`); none: no throw is made inside the
     /// floor.
     pub retreat: Option<Retreat>,
+    /// What the bot's danger tests of cover go by (`Tuning::cover.rule()`): the hide spot is out of the enemy's
+    /// fire, not only out of his sight.
+    pub cover: Option<super::tuning::CoverRule>,
 }
 
 impl<'a> Situation<'a> {
@@ -1300,6 +1303,7 @@ impl<'a> Situation<'a> {
             weapon: None,
             weapons: &[],
             retreat: None,
+            cover: None,
         }
     }
 }
@@ -3723,7 +3727,8 @@ impl Reflex {
             return Sought::NoEnemy;
         };
         let query = SpotQuery {
-            hidden_from: Some(enemy),
+            out_of_fire_of: Some(enemy),
+            cover: sit.cover,
             side: sit.side,
             samples: 48,
             ..SpotQuery::ring(me.feet, hide_m.0, hide_m.1)

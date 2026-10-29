@@ -57,6 +57,8 @@ pub struct Tuning {
     pub avoid: AvoidTuning,
     pub perch: PerchTuning,
     pub grid: GridTuning,
+    /// What counts as cover from a bullet (`mapdata`'s materials).
+    pub cover: CoverTuning,
     pub hazard: HazardTuning,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
@@ -67,6 +69,7 @@ pub struct Tuning {
 pub use survarium::v026g::loadouts::BotTier;
 
 mod aim;
+mod cover;
 mod grid;
 mod hazard;
 mod heal;
@@ -84,6 +87,11 @@ mod unstick;
 pub use aim::AimTuning;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
+pub use cover::BulletPierce;
+pub use cover::CoverRule;
+pub use cover::CoverTuning;
+pub use cover::PierceCover;
+pub use cover::Share;
 pub use grid::GridTuning;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;

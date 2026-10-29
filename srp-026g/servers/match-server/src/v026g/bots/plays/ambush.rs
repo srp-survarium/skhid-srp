@@ -181,7 +181,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let enemy = cx.ambush_enemy(pickup);
     let query = SpotQuery {
         sight_to: Some(pickup),
-        hidden_from: enemy.map(|t| t.at),
+        unseen_by: enemy.map(|t| t.at),
         side: cx.bot.side,
         samples: num("spot_samples") as usize,
         ..SpotQuery::ring(pickup, num("hide_min_m"), num("hide_max_m"))

@@ -153,7 +153,7 @@ pub(crate) fn a_spot_behind_a_wall_of_1_5_m_is_hidden_from_an_enemys_head() {
     let from = Vec3::new(5.0, 0.0, 20.0);
     let query = super::tactics::SpotQuery {
         sight_to: Some(target),
-        hidden_from: Some(from),
+        unseen_by: Some(from),
         samples: 200,
         ..super::tactics::SpotQuery::ring(target, 6.0, 20.0)
     };

@@ -22,6 +22,9 @@
     "cut_given_crowd": false,
     "hold_to_arrival": false
   },
+  "cover": {
+    "pierce": null
+  },
   "feel": {
     "band_jump_gate": false,
     "carrier_jump_m": null,
