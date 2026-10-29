@@ -161,6 +161,18 @@ pub(crate) enum Kill {
     Own,
 }
 
+/// A teammate's death, for the owner counts of the team kills (`tallies/owner/team_kills.rs`): when, who, by what.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TeamKill {
+    pub(crate) tick: u32,
+    pub(crate) killer: Place,
+    pub(crate) target: Place,
+    /// A grenade's blast; else a bullet.
+    pub(crate) frag: bool,
+    pub(crate) killer_feet: Vec3,
+    pub(crate) target_feet: Vec3,
+}
+
 /// A bullet or pellet that met a body's hit shape: the body, the distance along the ray, the hit box.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BoxStrike {
@@ -445,6 +457,10 @@ pub(crate) struct Game {
     /// Every kill: (tick, the shooter, the killed), for the bench's
     /// events (`SRP_BENCH_EVENTS`).
     pub(crate) kill_log: Vec<(u32, Place, Place)>,
+    /// Every teammate's death ([`TeamKill`]), for the owner counts.
+    pub(crate) team_kill_log: Vec<TeamKill>,
+    /// The next [`Self::kill`] is a grenade's blast (set around its call).
+    pub(crate) kill_by_frag: bool,
     /// Every hit on an enemy: (tick, the shooter, the one hit), for the
     /// bench's hit tally ([`HitTally`]).
     pub(crate) hit_log: Vec<(u32, Place, Place)>,
@@ -730,6 +746,8 @@ impl Game {
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
             kill_log: Vec::new(),
+            team_kill_log: Vec::new(),
+            kill_by_frag: false,
             hit_log: Vec::new(),
             stolen_marks: Vec::new(),
             stolen_drops: Vec::new(),
@@ -1578,7 +1596,17 @@ impl Game {
             tickets[team] = tickets[team].saturating_sub(1);
         }
         match kind {
-            Kill::Mate => self.team_kills += 1,
+            Kill::Mate => {
+                self.team_kills += 1;
+                self.team_kill_log.push(TeamKill {
+                    tick,
+                    killer,
+                    target,
+                    frag: self.kill_by_frag,
+                    killer_feet: self.bodies[killer].feet,
+                    target_feet: self.bodies[target].feet,
+                });
+            }
             Kill::Enemy => {
                 self.stats[killer].0 += 1;
                 self.stats[killer].2 += 1;
