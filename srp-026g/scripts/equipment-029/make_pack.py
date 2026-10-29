@@ -23,7 +23,7 @@ import bcw
 
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 PACK = 'equipment-029'
-VERSION = '3'
+VERSION = '4'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 MOVIE = 'flash_movies/lobby_menu.swf'
 DONOR_ATLAS = 'flash_movies/textures/ui_items/equipment.png'
@@ -123,6 +123,54 @@ def png(pixels, width=171, height=83):
     rows = b''.join(b'\0' + pixels[y * width * 4:(y + 1) * width * 4] for y in range(height))
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
             + chunk(b'IDAT', zlib.compress(rows, 9)) + chunk(b'IEND', b''))
+
+
+def shipped_switches():
+    """The (stage, effect id, switches on) combinations 0.26g has shaders for."""
+    shipped = set()
+    for line in (HERE / 'shader_switches.tsv').read_text().splitlines():
+        if not line.startswith('#'):
+            stage, effect, on = line.split('\t')
+            shipped.add((stage, effect, frozenset(filter(None, on.split(',')))))
+    return shipped
+
+
+def material_switches(material):
+    """Each stage's effect of a material instance: (stage, effect id, switches on)."""
+    for stage, body in material['material'].items():
+        effect = body.get('effect') if isinstance(body, dict) else None
+        if isinstance(effect, dict) and 'effect_id' in effect:
+            on = frozenset(key for key, flag in effect.items()
+                           if key.startswith('use_') and isinstance(flag, dict) and flag.get('value') is True)
+            yield stage, effect['effect_id'], on
+
+
+def drawable_material(path, raw, shipped):
+    """The donor material with the switches 0.26g has no shader for turned off.
+
+    0.29 draws a few switch combinations 0.26g never compiled (the Watchman
+    gloves' subsurface mask, ...): the game stops at "cannot find shader". Of
+    the shipped combinations within the donor's, the one keeping most is kept.
+    """
+    material = bcw.loads(raw)
+    changed = []
+    for stage, effect, on in list(material_switches(material)):
+        if (stage, effect, on) in shipped:
+            continue
+        kept = max((have for s, e, have in shipped if s == stage and e == effect and have <= on),
+                   key=len, default=None)
+        if kept is None:
+            raise ValueError(f'{path}: no shipped {stage} shader within {sorted(on)}')
+        for switch in sorted(on - kept):
+            material['material'][stage]['effect'][switch]['value'] = False
+            changed.append(f'{stage}.{switch}')
+    if not changed:
+        return raw
+    out = bcw.dump(material)
+    if bcw.dump(bcw.loads(out)) != out:
+        raise ValueError(f'{path}: material roundtrip failed')
+    print(f'{path}: off {", ".join(changed)} (no 0.26g shader)')
+    return out
 
 
 def specs():
@@ -268,8 +316,11 @@ def write_pack(inputs, out):
                        'premium': entry['is_premium'], 'template_id': int(spec['template_id'])})
     # Pinned dependency closure. Shared assets are reused from the released game;
     # this list contains only new assets, including implicit camouflage AOAC maps.
+    shipped = shipped_switches()
     for line in (HERE / 'assets.txt').read_text().splitlines():
         raw = inputs.read('assets', line)
+        if line.endswith('.material'):
+            raw = drawable_material(line, raw, shipped)
         files['files/' + line] = raw
         operations.append({'op': 'add_file', 'path': line})
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
