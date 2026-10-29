@@ -33,7 +33,10 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+#[cfg(any(test, feature = "client-test"))]
+pub mod client_tests;
 pub mod contact;
+pub mod control;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -115,6 +118,7 @@ use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
 use commander::*;
+use control::Driver;
 use drive::*;
 use encode::Decision;
 use encode::Encoder;
@@ -258,8 +262,8 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
-    /// Which reflex play had the legs at that tick (the falls probe).
-    #[cfg(test)]
+    /// Which reflex play had the legs at that tick (the falls probe; a client test's `Mind`).
+    #[cfg(any(test, feature = "client-test"))]
     pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
     /// The goal the last motor tick walked to, after every override of the play's (the reflex's legs, the grenade
     /// avoid, the rest point); `None` when the tick walked to none (the stood count reads this, not the play's goal).
@@ -290,10 +294,8 @@ pub struct Bot {
     pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
-    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
-    /// spot, and the reflex never takes its legs.
-    #[cfg(test)]
-    pub(crate) bench_camper: bool,
+    /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
+    pub(crate) control: Driver,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -425,7 +427,7 @@ impl Bot {
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "client-test"))]
             bench_legs_why: None,
             #[cfg(test)]
             bench_go: None,
@@ -447,8 +449,7 @@ impl Bot {
             bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
-            #[cfg(test)]
-            bench_camper: false,
+            control: Driver::Own,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]
@@ -748,6 +749,9 @@ pub struct Bots {
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    /// TEST ONLY: the client-test runner of this match (`client_tests`), when `SRP_CLIENT_TEST` has steps for it.
+    #[cfg(any(test, feature = "client-test"))]
+    pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
@@ -819,6 +823,10 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            #[cfg(feature = "client-test")]
+            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode, teams)),
+            #[cfg(all(test, not(feature = "client-test")))]
+            client_tests: None,
             polls: Default::default(),
             tactics: None,
             memo: Default::default(),
@@ -1130,6 +1138,13 @@ impl Bots {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.features.stock.pools = Some(pools);
         }
+        // A client test reads the human's pools (the owner's): the bots have their own.
+        #[cfg(any(test, feature = "client-test"))]
+        if !self.is_bot(place)
+            && let Some(link) = self.client_tests.as_mut()
+        {
+            link.note_pools(pools);
+        }
     }
 
     /// A trusted world's word on what one place's kits hold of drugs
@@ -1242,7 +1257,9 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick) {
+        } else if bot.control.reacts()
+            && let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick)
+        {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1360,7 +1377,8 @@ impl Bots {
             return notes;
         }
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
-        if let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
+        if bot.control.reacts()
+            && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {
             let length = route.length();
@@ -1696,6 +1714,8 @@ impl Bots {
             }
         }
         self.polls.record(now, &rays);
+        #[cfg(any(test, feature = "client-test"))]
+        self.client_tests_tick(&clock, &view, &notes);
         (made, notes)
     }
 

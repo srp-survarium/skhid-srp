@@ -70,6 +70,11 @@ impl Bots {
             bot.intent = Intent::stay();
             return;
         }
+        // TEST ONLY: a bot a client test scripts plays no play (`client_tests`).
+        #[cfg(any(test, feature = "client-test"))]
+        if client_tests::script_bot(self.client_tests.as_ref(), bot, me) {
+            return;
+        }
         #[cfg(test)]
         if self.bench_camper.as_mut().is_some_and(|camper| camper.drive(&due, bot)) {
             return;

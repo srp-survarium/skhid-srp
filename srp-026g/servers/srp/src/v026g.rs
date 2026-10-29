@@ -458,6 +458,16 @@ impl Stack {
         // results screen not shown yet nor an account's play period.
         let results = Results::attached(&accounts);
         let inbox = Inbox::new();
+        // TEST ONLY: the client tests tell the owner in the game's chat (channel 2, the system's), through the lobby link he
+        // keeps in a match (`docs/notes/client_tests.md`).
+        #[cfg(feature = "client-test")]
+        matches::bots::client_tests::set_say({
+            let inbox = inbox.clone();
+            Box::new(move |account_id, text| {
+                use survarium::v026g::lobby::{channel, chat_text, sender};
+                inbox.push(account_id, vec![chat_text(sender::ACCOUNT, 0, "", "", channel::SYSTEM, text)]);
+            })
+        });
         let stop = Arc::new(AtomicBool::new(false));
         // The lobby (who is a bot when a match is made), the rewards and
         // the ranking read it from the accounts.
