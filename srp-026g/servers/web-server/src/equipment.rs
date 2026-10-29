@@ -69,7 +69,7 @@ fn flying_models() -> &'static [String] {
     })
 }
 
-fn flies_off(armour: &Armour) -> bool {
+pub(crate) fn flies_off(armour: &Armour) -> bool {
     armour
         .model
         .as_ref()
@@ -104,7 +104,7 @@ const SLOTS: [(Group, &str); 7] = [
     (Group::Boots, "boots"),
 ];
 
-fn slot_word(group: Group) -> &'static str {
+pub(crate) fn slot_word(group: Group) -> &'static str {
     SLOTS
         .iter()
         .find(|(slot, _)| *slot == group)
@@ -113,7 +113,7 @@ fn slot_word(group: Group) -> &'static str {
 
 /// The lobby's name of faction `faction` (`parameters.faction`): its
 /// `factions_dict` row's name, or the lobby's independent traders for none.
-fn faction_name(lang: Lang, faction: u8) -> String {
+pub(crate) fn faction_name(lang: Lang, faction: u8) -> String {
     let key = Dictionary::shared()
         .factions
         .iter()
@@ -170,7 +170,7 @@ fn hit_name(lang: Lang, hit: HitType) -> String {
 }
 
 /// A fraction as the lobby's cards print armour: a whole number of 100.
-fn hundredths(value: f32) -> String {
+pub(crate) fn hundredths(value: f32) -> String {
     format!("{:.0}", value * 100.0)
 }
 
@@ -190,13 +190,20 @@ fn one_value(values: &BTreeMap<HitType, f32>, hits: &[HitType]) -> Option<Option
 /// for its physical types and one for its anomaly types: then two columns,
 /// Armour and Isolation as the lobby says; a config that does not gets a
 /// column per hit type.
-fn protection_html(lang: Lang, armour: &Armour) -> String {
+pub(crate) struct Protection {
+    pub(crate) heads: Vec<String>,
+    /// The parts with those values, and the values (fractions).
+    pub(crate) rows: Vec<(Vec<String>, Vec<Option<f32>>)>,
+}
+
+/// `armour`'s protection table; `None` for a piece that protects nothing.
+pub(crate) fn protection(lang: Lang, armour: &Armour) -> Option<Protection> {
     let mut by_part: BTreeMap<BodyPart, BTreeMap<HitType, f32>> = BTreeMap::new();
     for &(part, hit, value) in &armour.protection {
         by_part.entry(part).or_default().insert(hit, value);
     }
     if by_part.is_empty() {
-        return String::new();
+        return None;
     }
     let paired = by_part.values().all(|values| {
         one_value(values, &PHYSICAL).is_some() && one_value(values, &ANOMALIES).is_some()
@@ -233,6 +240,14 @@ fn protection_html(lang: Lang, armour: &Armour) -> String {
             None => rows.push((vec![name], row)),
         }
     }
+    Some(Protection { heads, rows })
+}
+
+/// The protection table of `armour` as its card shows it.
+fn protection_html(lang: Lang, armour: &Armour) -> String {
+    let Some(Protection { heads, rows }) = protection(lang, armour) else {
+        return String::new();
+    };
     let mut html = format!(
         "<section><h2>{}</h2><div class=table-scroll><table class=protection><thead><tr><th></th>",
         lang.tr("Protection", "Захист")
@@ -425,7 +440,7 @@ fn piece_html(
 
 /// Every armour piece with its params and group, in the lobby's slot order,
 /// then by level.
-fn pieces() -> Vec<(&'static Item, &'static ItemParams, &'static Armour, Group)> {
+pub(crate) fn pieces() -> Vec<(&'static Item, &'static ItemParams, &'static Armour, Group)> {
     let dictionary = Dictionary::shared();
     let mut rows: Vec<_> = armour::all()
         .iter()
