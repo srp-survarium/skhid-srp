@@ -4,7 +4,7 @@ switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
 switches ON feel: band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps unclear_aim
 switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops
-switches ON hazard: artefact_know live_zones route_crossing
+switches ON hazard: artefact_know escort_dry_post hurt_by_shape live_zones price_way_out
 switches ON heal: bandages interrupt on
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON perch: on
@@ -21,7 +21,7 @@ switches OFF mods: risk_alive.invert
 switches OFF unstick: fix_gap_ms
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
-switch values hazard: escape=under_start_zone zone_pools=routed
+switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: jump_snap=by_keys
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 changed numbers cheats: sight_hold_ms=450 (default 0)

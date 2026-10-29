@@ -23,6 +23,8 @@
 //! (`LookSpot`, `TargetRef::Point`).
 
 use super::*;
+use crate::v026g::bots::hazards::HurtTest;
+use crate::v026g::bots::tuning::RouteCrossing;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::crossing::START_HEALTH;
 use crate::v026g::bots::view;
@@ -658,7 +660,8 @@ const CROSS_TAKE_S: f32 = 4.0;
 /// this share of the bot's health...
 const CROSS_SHARE: f32 = 0.5;
 /// ... and leaves it at least this. GUESSES: never lethal, the damage is
-/// the zones' raw hit (before armour) and the marks' 1 m margin counts.
+/// the zones' hit in the pools that kill; the margin's cushion the share counted once (a crossing priced at the
+/// zone's full hit on the marks' 1 m margin) is gone with `hurt_by_shape`, whose band is priced at the drift's share.
 const CROSS_LEFT: f32 = 0.4;
 /// In a zone, a take gives up once the walk back out would leave less
 /// than this. GUESS.
@@ -674,6 +677,9 @@ pub struct Crossing {
     pub edge: Vec3,
     /// Health lost on the walk one way, at [`CROSS_MPS`], in the pools that kill ([`Cost`]).
     pub leg: Cost,
+    /// Health lost on the walk back out (the carrier's way home): the leg for a straight crossing; for a routed one the
+    /// same search from the stand to the side's spawn, priced (`HazardTuning::price_way_out`), else the leg.
+    pub leg_out: Cost,
     /// Health lost each second standing where the walk in stops (short of
     /// a battery, [`CROSS_STOP_M`]).
     pub at_per_s: Cost,
@@ -688,7 +694,7 @@ pub struct Crossing {
 impl Crossing {
     /// Health it costs in and out and a take.
     pub fn cost(&self) -> Cost {
-        self.leg * 2.0 + self.at_per_s * CROSS_TAKE_S
+        self.leg + self.leg_out + self.at_per_s * CROSS_TAKE_S
     }
 
     /// Whether a bot with `budget` makes it: at most [`CROSS_SHARE`] of each pool it takes from, leaving
@@ -803,6 +809,7 @@ pub fn crossing_to(
     side: Option<i32>,
     stop_m: f32,
     armour: Option<&ZoneArmour>,
+    hurt: HurtTest,
 ) -> Option<Crossing> {
     let grid = &tactics.world.grid;
     let mut best: Option<Crossing> = None;
@@ -837,9 +844,10 @@ pub fn crossing_to(
                 let crossing = Crossing {
                     edge,
                     leg: line_hurt(tactics, edge, stop, armour),
+                    leg_out: line_hurt(tactics, edge, stop, armour),
                     at_per_s: grid
                         .locate(stop, 1.5)
-                        .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour)),
+                        .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, hurt)),
                     routed: false,
                     walk_m: d,
                 };
@@ -860,17 +868,30 @@ pub fn crossing_to(
 /// (a dry floor every bot of the side reaches), for a battery no straight walk crosses to
 /// ([`crossing_to`] found none: a wall or a drop between it and every dry floor within [`CROSS_MAX_M`]).
 /// `edge` is the last dry floor before the route first enters a zone on all match, `leg` the damage of
-/// the route from there to `stop_m` short of `to`, in the pools that kill under `armour`; `at_per_s` as
-/// for [`crossing_to`]. The bot walks it as a plain walk to the stand with the zones' floors the
+/// the route from there to `stop_m` short of `to`, in the pools that kill under `armour`, on every floor the zones
+/// mark (the margin's price, the motor's own); `leg_out` the same for the way back from the stand to the spawn
+/// (`price_way_out`); `at_per_s` as for [`crossing_to`], where the route meets no zone before its stop the dearer of
+/// the stop's floor and the stand's own. The bot walks it as a plain walk to the stand with the zones' floors the
 /// play's choice, so the route and its cost are the ones its own motor takes
 /// ([`crate::v026g::bots::crossing::choose`]); the survey (`dry_way_spawners_on_the_real_maps`).
+///
+/// Under [`RouteCrossing::Strict`] a route that meets no zone floor before its stop is none ("a plain route, not a
+/// crossing"): a battery whose stand the margin alone marks (a floor 0.27 m over a cylinder's top, with the zone
+/// floors in the stop's last metre) fell between that and `Ctx::needs_crossing`, which had said no plain way leads
+/// there. Under [`RouteCrossing::Total`] the route is the take: `edge` is the last floor before the route's first
+/// zone floor (the floor of its stop if it meets none).
 pub fn routed_crossing_to(
     tactics: &Tactics,
     to: Vec3,
     side: Option<i32>,
     stop_m: f32,
     armour: Option<&ZoneArmour>,
+    rules: memo::RoutedRule,
 ) -> Option<Crossing> {
+    let (rule, way_out) = (rules.route, rules.way_out);
+    if rule == RouteCrossing::Off {
+        return None;
+    }
     let grid = &tactics.world.grid;
     let side = side?;
     let spawn = tactics.world.map.spawns.iter().find(|p| p.team == side)?;
@@ -889,42 +910,128 @@ pub fn routed_crossing_to(
         &mut floors,
     )
     .ok()
-    .flatten()?;
-    let end = (route.length() - stop_m).max(0.0);
+    .flatten();
+    #[cfg(test)]
+    if route.is_none() {
+        crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedNoRoute);
+    }
+    let route = route?;
+    let length = route.length();
+    let end = (length - stop_m).max(0.0);
     let zoned = |s: f32| {
         grid.locate(route.floor_point(s), 0.6)
             .is_some_and(|node| tactics.hazards.only_fixed_at(node))
     };
-    let mut s = 0.0;
-    while s <= end && !zoned(s) {
-        s += CROSS_STEP_M;
-    }
-    if s > end {
-        // The route meets no zone: a plain route, not a crossing.
-        return None;
-    }
-    let edge = route.floor_point((s - CROSS_STEP_M).max(0.0));
-    let n = ((end - s) / CROSS_STEP_M).ceil().max(1.0) as usize;
-    let ds = (end - s).max(0.0) / n as f32;
-    let leg = (0..n)
-        .map(|i| {
-            let point = route.floor_point(s + (i as f32 + 0.5) * ds);
-            grid.locate(point, 0.6)
-                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
-                * ds
-                / CROSS_MPS
+    // The first zone floor on the route up to `to_m` metres along it.
+    let first_zone = |to_m: f32| {
+        let mut s = 0.0;
+        while s <= to_m && !zoned(s) {
+            s += CROSS_STEP_M;
+        }
+        (s <= to_m).then_some(s)
+    };
+    let cost_at = |s: f32| {
+        grid.locate(route.floor_point(s), 1.5)
+            .map_or(Cost::ZERO, |node| tactics.hazards.hurt_cost_per_s(node, armour, rules.hurt))
+    };
+    let zone_before_stop = first_zone(end).is_some();
+    let (edge, leg, walk_m) = match first_zone(end) {
+        Some(s) => {
+            #[cfg(test)]
+            crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedStrict);
+            let n = ((end - s) / CROSS_STEP_M).ceil().max(1.0) as usize;
+            let ds = (end - s).max(0.0) / n as f32;
+            let leg = (0..n)
+                .map(|i| {
+                    let point = route.floor_point(s + (i as f32 + 0.5) * ds);
+                    grid.locate(point, 0.6)
+                        .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                        * ds
+                        / CROSS_MPS
+                })
+                .sum();
+            (route.floor_point((s - CROSS_STEP_M).max(0.0)), leg, end - s)
+        }
+        // The route meets no zone before its stop: a plain route, not a crossing.
+        None if rule == RouteCrossing::Strict => return None,
+        // Its zone floors, if any, lie in the stop's last metre, which the take's own walk covers.
+        None => {
+            #[cfg(test)]
+            crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedTotalOnly);
+            let edge = match first_zone(length) {
+                Some(s) => route.floor_point((s - CROSS_STEP_M).max(0.0)),
+                None => route.floor_point(end),
+            };
+            (edge, Cost::ZERO, 0.0)
+        }
+    };
+    let stop = cost_at(end);
+    // A route that meets no zone before its stop ends on the stand's own zone floors (the margin's band, or the zone):
+    // the dearer of the two. Every other crossing is priced at its stop, as it was.
+    let at_per_s = if zone_before_stop {
+        stop
+    } else {
+        let stand = cost_at(length);
+        if stand.most() > stop.most() { stand } else { stop }
+    };
+    // The way back out, from the stand to the spawn by the same search, in the pools that kill (`price_way_out`).
+    let leg_out = way_out
+        .then(|| {
+            let mut floors = usize::MAX;
+            let back = crate::v026g::bots::crossing::start(
+                tactics,
+                goal,
+                from,
+                0,
+                Some(side),
+                false,
+                1.0,
+                &crate::v026g::bots::route_filter::RouteFilter::open(),
+                &mut floors,
+            )
+            .ok()
+            .flatten();
+            #[cfg(test)]
+            crate::v026g::bots::hazards::damage_zone_fixes::count(if back.is_some() {
+                crate::v026g::bots::hazards::damage_zone_fixes::Ev::OutPriced
+            } else {
+                crate::v026g::bots::hazards::damage_zone_fixes::Ev::OutNone
+            });
+            back.map(|back| {
+                let n = (back.length() / CROSS_STEP_M).ceil().max(1.0) as usize;
+                let ds = back.length() / n as f32;
+                (0..n)
+                    .map(|i| {
+                        grid.locate(back.floor_point((i as f32 + 0.5) * ds), 0.6)
+                            .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                            * ds
+                            / CROSS_MPS
+                    })
+                    .sum::<Cost>()
+            })
         })
-        .sum();
+        .flatten()
+        .unwrap_or(leg);
     let crossing = Crossing {
         edge,
         leg,
-        at_per_s: grid
-            .locate(route.floor_point(end), 1.5)
-            .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour)),
+        leg_out,
+        at_per_s,
         routed: true,
-        walk_m: end - s,
+        walk_m,
     };
     crossing.cost().is_finite().then_some(crossing)
+}
+
+/// `ask` with the damage-zone counters of the bench filed under `team` (tests only).
+#[cfg(test)]
+fn counted_for<R>(team: u8, ask: impl FnOnce() -> R) -> R {
+    crate::v026g::bots::hazards::damage_zone_fixes::asked_by(team, ask)
+}
+
+#[cfg(not(test))]
+fn counted_for<R>(_team: u8, ask: impl FnOnce() -> R) -> R {
+    ask()
 }
 
 impl Ctx<'_> {
@@ -949,14 +1056,22 @@ impl Ctx<'_> {
             return None;
         }
         // Kept for the match (`memo::Memo::crossing`): the same answer.
-        self.memo.crossing(
-            self.tactics,
-            stand,
-            self.bot.side,
-            stop_short(stand, at),
-            self.zone_armour(),
-            self.tuning.hazard.route_crossing,
-        )
+        counted_for(self.me.team, || {
+            self.memo.crossing(
+                self.tactics,
+                stand,
+                self.bot.side,
+                stop_short(stand, at),
+                self.zone_armour(),
+                self.rules(),
+            )
+        })
+    }
+
+    /// The rule of this team's tuning for crossings: how the motor's route is offered, whether the way out is priced,
+    /// what a floor only the margin marks costs. A team's, never the match's (head-to-head runs differ per team).
+    fn rules(&self) -> memo::RoutedRule {
+        memo::RoutedRule::of(&self.tuning.hazard, self.tactics.world.grid.body().radius)
     }
 
     /// The bot's way out of zones on all match when no way leads from where
@@ -966,7 +1081,7 @@ impl Ctx<'_> {
         if !self.needs_crossing(me) {
             return None;
         }
-        crossing_to(self.tactics, me, self.bot.side, 0.0, self.zone_armour())
+        crossing_to(self.tactics, me, self.bot.side, 0.0, self.zone_armour(), self.rules().hurt)
     }
 
     /// The armour a crossing's cost is worked out with: the bot's, with `HazardTuning::zone_pools`
@@ -1439,6 +1554,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
             };
+            // A stand in zones on all match is looked at from its crossing's dry edge, as the take is (`State::Fetch`):
+            // `take_block` admitted the spot by that crossing (`RouteCrossing::Total` offers the motor's route as one), and a
+            // walk to the stand itself has no way (the look ended at once, "no way to it", for every bot that took it).
+            let stand = if cx.tuning.hazard.route_crossing == RouteCrossing::Total && cx.needs_crossing(stand) {
+                match cx.crossing(at) {
+                    Some(crossing) if crossing.fits(&cx.budget()) => crossing.edge,
+                    _ => return Step::Failed("no way to it"),
+                }
+            } else {
+                stand
+            };
             if !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
@@ -1870,7 +1996,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     // the play ends (no `Intent::zone_ok`).
     if let Some(edge) = crossing
         && !cx.budget().reserve.leaves(
-            crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour())
+            crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour(), cx.rules().hurt)
                 .map_or_else(|| line_hurt(cx.tactics, me, edge, cx.zone_armour()), |out| out.leg),
             CROSS_ABORT_LEFT,
         )
@@ -2346,7 +2472,7 @@ mod tests {
         assert!(collects(&off).is_empty());
 
         let mut s = with_hurting(26.0, 0.01);
-        s.tuning.hazard.route_crossing = true;
+        s.tuning.hazard.route_crossing = RouteCrossing::Total;
         s.battery(BatteryState::Free(at));
         let crossing = s.cx(0).crossing(at).expect("a route over the zone");
         assert!(crossing.routed, "{crossing:?}");
@@ -2372,9 +2498,43 @@ mod tests {
         assert!(intent.zone_ok, "{intent:?}");
         // A zone ten times as harsh: refused, as a straight crossing is.
         let mut harsh = with_hurting(26.0, 0.1);
-        harsh.tuning.hazard.route_crossing = true;
+        harsh.tuning.hazard.route_crossing = RouteCrossing::Total;
         harsh.battery(BatteryState::Free(at));
         assert_eq!(harsh.cx(0).take_block(at), Some("its zone hurts too much"));
+    }
+
+    /// A look at a spot whose stand is in zones on all match, admitted by the motor's route over them
+    /// (`RouteCrossing::Total`): the bot walks to the crossing's dry edge to look, where it used to end at once ("no way to
+    /// it") on a walk to the stand itself. With the switch off the spot is not admitted at all.
+    #[test]
+    fn a_look_at_a_spot_in_zones_goes_to_the_crossings_dry_edge() {
+        use crate::v026g::bots::know::LookSpot;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let looked = |route: RouteCrossing| {
+            let mut s = with_hurting(26.0, 0.01);
+            s.tuning.hazard.route_crossing = route;
+            s.battery(BatteryState::Free(at));
+            s.team.add_look(LookSpot {
+                battery: 0,
+                at,
+                time: s.view.clock,
+                until: s.view.clock + crate::v026g::bots::know::LOOK_KEEP_MS,
+                theft: false,
+            });
+            s
+        };
+        let off = looked(RouteCrossing::Off);
+        assert!(!off.cx(0).can_take(at), "not admitted without the routed crossing");
+        let s = looked(RouteCrossing::Total);
+        assert!(s.cx(0).can_take(at));
+        let edge = s.cx(0).crossing(at).expect("a route over the zone").edge;
+        let target = TargetRef::Point(at);
+        let mut rng = Rng::new(1);
+        let mut state = State::Search;
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else {
+            panic!("goes to look");
+        };
+        assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01), "{intent:?} {edge:?}");
     }
 
     /// A carrier in a zone on all match with no way out walks out by its
@@ -3386,6 +3546,240 @@ mod tests {
             }
         }
         eprintln!("no straight crossing (per team) {shut}, a route over the zones {routed}, borne at full health {borne}; the cheapest way found {cheap_found}, borne {cheap_borne}");
+    }
+
+    /// The field with a slab of a harsh zone (always on) whose top lies 0.27 m under the floor, `half` m each way round
+    /// (25, 32): the floors over it are inside the marks' margin of 1 m (routes keep off) and out of the zone itself.
+    fn with_slab(half: f32) -> Scenario {
+        let mut s = Scenario::field(Mode::Batteries);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "slab".into(),
+                team: -1,
+                position: Vec3::new(25.0, -1.27, 32.0),
+                damage_type: "radiation".into(),
+                damage: Some(mapdata::Damage {
+                    max_hit: 0.1,
+                    interval_ms: 1000,
+                    parts: 2,
+                    ..mapdata::Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: Vec3::new(25.0, -1.27, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(half, 1.0, half),
+                }],
+            });
+        });
+        s.tactics = Tactics::new(world, 1.0);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s
+    }
+
+    /// A battery on a floor 0.27 m over a harsh zone's top (Vector Laboratory's spawner 26, the owner's marked
+    /// battery of 2026-10-27): the margin's marks priced a crossing to it as a walk in the zone ("its zone hurts too
+    /// much"); the zone's shape does not hurt there, so it is taken, and as before where the body is in the zone.
+    #[test]
+    fn a_battery_over_a_zones_top_is_priced_by_the_shape_and_not_the_margin() {
+        use crate::v026g::bots::hazards::HurtTest;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let mut s = with_slab(2.0);
+        assert_eq!(s.cx(0).rules().hurt, HurtTest::Margin, "the all-off tuning prices by the margin");
+        s.battery(BatteryState::Free(at));
+        let margin = s.cx(0).crossing(at).expect("a crossing");
+        // The tuning's rule: the floor the take is made on, over the top, is a band, priced at the drift's share of the
+        // zone's hit; the legs stay at the margin's price, which is the motor's own.
+        s.tuning.hazard.hurt_by_shape = true;
+        let HurtTest::Shape { band_permille } = s.cx(0).rules().hurt else {
+            panic!("the team's tuning sets the rule");
+        };
+        let band_share = f32::from(band_permille) / 1000.0;
+        let shape = s.cx(0).crossing(at).expect("a crossing");
+        assert_eq!((shape.leg, shape.leg_out), (margin.leg, margin.leg_out));
+        assert!(shape.at_per_s.most() > 0.0, "{shape:?}");
+        assert!((shape.at_per_s.most() - band_share * margin.at_per_s.most()).abs() < 1e-5, "{shape:?} {margin:?}");
+    }
+
+    /// The motor's route to a battery whose stand the margin alone marks meets the zones' floors only in the last
+    /// metre before its stop: a crossing under [`RouteCrossing::Total`], none under `Strict` ("a plain route, not a
+    /// crossing"), as at 3b3f1a8d, and none under `Off`.
+    #[test]
+    fn a_route_that_meets_the_zone_only_in_its_last_metre_is_a_crossing_when_total() {
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let s = with_slab(0.05);
+        let rule = |route| memo::RoutedRule {
+            route,
+            way_out: false,
+            hurt: crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38),
+        };
+        let stop = 2.0;
+        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Off)), None);
+        assert_eq!(routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Strict)), None);
+        let crossing = routed_crossing_to(&s.tactics, at, Some(0), stop, None, rule(RouteCrossing::Total))
+            .expect("the route is the take");
+        assert!(crossing.routed && crossing.leg == Cost::ZERO && crossing.walk_m == 0.0, "{crossing:?}");
+        let grid = &s.tactics.world.grid;
+        let edge = grid.locate(crossing.edge, 1.5).unwrap();
+        assert!(s.tactics.hazards.hazard_free(edge), "a dry floor: {crossing:?}");
+        assert!(crossing.edge.distance_xz(at) < 4.0, "{crossing:?}");
+        assert!(crossing.fits(&Budget::raw(1.0)), "{crossing:?}");
+    }
+
+    /// The real maps (private files; `SRP_MAPDATA_DIR`; `ZONES_TUNING` a merge patch file over the defaults, none: the
+    /// defaults): for each battery spawner whose stand needs a crossing, per side, on the live grid (the code
+    /// default's body and links) with the anomalies attached and hazard margin 1.0, the first reason a bot at the
+    /// side's spawn may not take it and its crossing's cost. One `zone_survey` line each, to diff between tunings
+    /// (`before`: `{"hazard": {"hurt_by_shape": false, "route_crossing": "strict"}}`). Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn zone_survey_on_the_real_maps() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let tuning = match std::env::var_os("ZONES_TUNING") {
+            Some(path) => crate::v026g::bots::tuning::Tuning::load(std::path::Path::new(&path)).unwrap(),
+            None => crate::v026g::bots::tuning::Tuning::default(),
+        };
+        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let (mut needs, mut open) = (0, 0);
+        for level in 1..=8u8 {
+            for mode in [2u8, 3, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let Ok(map) = mapdata::MapData::read(&path) else {
+                    continue;
+                };
+                let world = std::sync::Arc::new(mapdata::World::build_with_links(
+                    map,
+                    mapdata::CELL,
+                    defaults.grid_body(),
+                    defaults.off_mesh_links(),
+                ));
+                for team in [0u8, 1] {
+                    let Some(spawn) = world.map.spawns.iter().find(|p| p.team == i32::from(team)) else {
+                        continue;
+                    };
+                    let mut s = Scenario::field(Mode::Batteries);
+                    s.tuning = tuning.clone();
+                    s.tactics = Tactics::new(world.clone(), 1.0);
+                    s.tactics.hazards.attach(crate::v026g::bots::anomalies::Anomalies::new(&world.map, 0));
+                    s.side = Some(i32::from(team));
+                    s.bot(0, team, spawn.position);
+                    for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
+                        let cx = s.cx(0);
+                        let at = spawner.item;
+                        let Some(stand) = s.tactics.stand_to_take(at) else {
+                            continue;
+                        };
+                        if !cx.needs_crossing(stand) {
+                            continue;
+                        }
+                        needs += 1;
+                        let block = cx.take_block(at);
+                        open += usize::from(block.is_none());
+                        let crossing = cx.crossing(at);
+                        eprintln!(
+                            "zone_survey level {level} mode {mode} team {team} spawner {i}: block {block:?} crossing {:?}",
+                            crossing.map(|c| (
+                                (c.edge.distance_xz(stand) * 10.0).round() / 10.0,
+                                c.routed,
+                                (c.cost().most() * 1000.0).round() / 1000.0
+                            )),
+                        );
+                    }
+                }
+            }
+        }
+        eprintln!("zone_survey total: needs a crossing {needs}, takeable {open}");
+    }
+
+    /// Vector Laboratory's spawner 26 (the owner's marked battery): the walk in from its crossing's edge, and from the
+    /// floor under it, by the motor's crossing search at full health. Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn spawner_26_walk_in_on_the_real_map() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
+        let world = std::sync::Arc::new(mapdata::World::build_with_links(
+            map,
+            mapdata::CELL,
+            defaults.grid_body(),
+            defaults.off_mesh_links(),
+        ));
+        let at = world.map.battery_spawners[26].item;
+        for team in [0u8, 1] {
+            let spawn = world.map.spawns.iter().find(|p| p.team == i32::from(team)).unwrap().position;
+            let mut s = Scenario::field(Mode::Batteries);
+            s.tuning = defaults.clone();
+            s.tactics = Tactics::new(world.clone(), 1.0);
+            s.tactics.hazards.attach(crate::v026g::bots::anomalies::Anomalies::new(&world.map, 0));
+            s.side = Some(i32::from(team));
+            s.bot(0, team, spawn);
+            let cx = s.cx(0);
+            let stand = s.tactics.stand_to_take(at).unwrap();
+            let crossing = cx.crossing(at).expect("a crossing");
+            eprintln!("walk_in team {team}: stand {stand:?} edge {:?} routed {} walk_m {}", crossing.edge, crossing.routed, crossing.walk_m);
+            let grid = &world.grid;
+            let to = grid.locate(stand, 3.0).unwrap();
+            let under = Vec3::new(crossing.edge.x, crossing.edge.y - 6.0, crossing.edge.z);
+            // The way out: from the stand to the spawn by the same search, and what it costs.
+            if let Some(home) = grid.locate(spawn, 3.0) {
+                let mut floors = usize::MAX;
+                let out = crate::v026g::bots::crossing::start(
+                    &s.tactics,
+                    to,
+                    home,
+                    0,
+                    Some(i32::from(team)),
+                    false,
+                    1.0,
+                    &crate::v026g::bots::route_filter::RouteFilter::open(),
+                    &mut floors,
+                );
+                let hurt = out
+                    .as_ref()
+                    .ok()
+                    .and_then(|r| r.as_ref())
+                    .map(|r| (r.length(), crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length())));
+                eprintln!("walk_in   way out to the spawn: length and hurt {hurt:?}");
+                let cheapest = crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, to, Some(i32::from(team)), cx.zone_armour());
+                let priced = cheapest.path_to(home).map(|path| {
+                    let mut cost = Cost::ZERO;
+                    let mut metres = 0.0;
+                    for pair in path.windows(2) {
+                        let d = (grid.position(pair[1]) - grid.position(pair[0])).length();
+                        metres += d;
+                        cost = cost + s.tactics.hazards.hurt_cost_per_s(pair[1], cx.zone_armour(), cx.rules().hurt) * (d / CROSS_MPS);
+                    }
+                    (metres, cost)
+                });
+                eprintln!("walk_in   cheapest way out (hurt-priced, kit armour): {priced:?}");
+            }
+            for (name, p) in [("edge", crossing.edge), ("under the edge", under)] {
+                let Some(from) = grid.locate(p, 4.0) else {
+                    eprintln!("walk_in   {name}: no floor");
+                    continue;
+                };
+                let mut floors = usize::MAX;
+                let route = crate::v026g::bots::crossing::start(
+                    &s.tactics,
+                    from,
+                    to,
+                    0,
+                    Some(i32::from(team)),
+                    false,
+                    1.0,
+                    &crate::v026g::bots::route_filter::RouteFilter::open(),
+                    &mut floors,
+                );
+                let plain = s.tactics.route(grid.position(from), stand, 0, Some(i32::from(team))).map(|r| r.length());
+                eprintln!(
+                    "walk_in   {name} at {:?}: crossing search {:?}, plain {plain:?}",
+                    grid.position(from),
+                    route.map(|r| r.map(|r| r.length())).map_err(|_| "error"),
+                );
+            }
+        }
     }
 
     #[test]
