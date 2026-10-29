@@ -58,6 +58,10 @@ pub struct SmokeTuning {
     /// enemy); a lane only remembered is crossed fast (`threat.sprint`), not smoked. With 15 s and no line test the
     /// bench's bots threw 15.1 per 100 lives (`h2h-free-vs-radio-20261029T1047`; live 2.97).
     pub lane_sensed_ms: u32,
+    /// A life smokes this many lanes at most (the coordinator's cap, 2026-10-29): a player carries a smoke or two and
+    /// spends it on the crossing that matters. With no cap the bench's bots threw 7.84 per 100 lives on map data
+    /// format 5 (`h2h-on-vs-off-20261029T2004`; live 2.97, the feel bar under 2x live).
+    pub lanes_a_life: u32,
     /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
     /// between them, as near him as the throw reaches. Off: none.
     pub anti_sniper: bool,
@@ -86,6 +90,7 @@ impl Default for SmokeTuning {
             cross_lane: false,
             lane_ahead_m: Metres::of(10.0),
             lane_sensed_ms: 5_000,
+            lanes_a_life: 1,
             anti_sniper: false,
         }
     }

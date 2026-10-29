@@ -629,7 +629,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     }
     // Across the first held lane its route enters ahead, before it steps in.
     let lane = || {
-        if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() {
+        if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
             return None;
         }
         let grid = &tactics.world.grid;

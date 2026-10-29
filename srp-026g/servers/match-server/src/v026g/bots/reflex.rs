@@ -2519,6 +2519,8 @@ pub struct Reflex {
     /// under way.
     smoke_key: Option<u32>,
     smoke_throw: Option<SmokeThrowing>,
+    /// [smoke] The lane smokes begun this life (`smoke.lanes_a_life`; the reflex is made anew each life).
+    lane_smokes: u32,
     /// [smoke] The sniper that outranges its weapon now (play 11's matchup, whatever `outranged_cover`): who, where,
     /// and the match clock it was seen at. Read by `smoke.anti_sniper`; no decision of the reflex reads it.
     outranged_by: Option<(Place, Vec3, u32)>,
@@ -3401,7 +3403,15 @@ impl Reflex {
             started: now,
             phase: SmokePhase::Turning,
         });
+        if plan.for_use == super::smoke::SmokeUse::CrossLane {
+            self.lane_smokes += 1;
+        }
         true
+    }
+
+    /// [smoke] The lane smokes begun this life.
+    pub fn lane_smokes(&self) -> u32 {
+        self.lane_smokes
     }
 
     /// [smoke] A smoke throw's tick ([`SmokeThrowing`]): the bot stands, turns to the plan's view, holds the key the
@@ -9024,6 +9034,7 @@ mod tests {
         reflex.target = Some(1);
         assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "fighting");
         assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "the sniper it is outranged by");
+        assert_eq!(reflex.lane_smokes(), 0, "a sniper's smoke is not a lane's");
         reflex.target = None;
         assert!(!reflex.can_smoke(), "one at a time");
         // Facing the plan's view: pressed at once, held, let go, the look kept to the launch and after.
@@ -9046,6 +9057,7 @@ mod tests {
         assert!(reflex.can_smoke(), "over");
         // Facing away: never pressed, given up.
         assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        assert_eq!(reflex.lane_smokes(), 1, "a lane's smoke counts for the life");
         let away = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
         for now in (0..=c.grenade_give_up_ms).step_by(50) {
             let o = reflex.smoke_throwing(&away, now, &c, 0.1);
