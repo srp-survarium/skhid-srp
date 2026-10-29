@@ -979,6 +979,7 @@ mod tests {
         let one_frag = || Some(Pockets::new([None, None, Some((Pocketed::Frag, 2)), None, None, None]));
         let mut tracker = stand_pockets(one_frag(), None);
         press(&mut tracker, 0, 1_000, key::GRENADE);
+        press(&mut tracker, 0, 1_050, 0);
         assert_eq!(tracker.live_grenades().len(), 1);
         assert!(tracker.take_notes().is_empty(), "off: nothing noted");
         tracker.note_listings(true);
