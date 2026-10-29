@@ -194,6 +194,15 @@ try {
   assert.ok(Number(await evaluate("document.querySelector('#wpn_ak_74m .sim-time').value")) > 0, 'the card plays');
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true, 'the comparison is left alone');
   await screenshot('card-recoil');
+  // Last shot shows the whole pattern; a target is drawn to scale, unmagnified.
+  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
+  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('30/30'), 'last shot');
+  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-last').disabled"), true);
+  await evaluate("const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='50';s.dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-target-body').length"), 1, 'a target at 50 m');
+  assert.equal(await evaluate("!!document.querySelector('#wpn_ak_74m .sim-note')"), false, 'no magnification with a target');
+  await evaluate("document.querySelector('#wpn_ak_74m .sim-sight').scrollIntoView()");
+  await screenshot('card-target');
   // A rifle with no side kick: its crosshair stays in view, unmagnified.
   await evaluate("const m=document.querySelector('#wpn_mosin_nagant');m.open=true;m.scrollIntoView()");
   await evaluate('new Promise(r=>setTimeout(r,100))');

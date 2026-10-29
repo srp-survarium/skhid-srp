@@ -969,7 +969,7 @@ va	name	source	ret_cleanup	result
 0x0023ff50	survarium::player_input_handler::on_mouse_key_action	manual	12	AL: zero at each local return; higher EAX bits unspecified
 0x00240050	survarium::player_input_handler::process_toggle_action	manual	4	
 0x00240170	survarium::player_input_handler::process_dependent_actions	manual	12	
-0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	
+0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	none; yaw delta -= x/180*pi (0xA2D7E8, 0x9CC970) * the horizontal sensitivity (radians); pitch delta -= y/180*pi * the same * window H/W * 3/pi (0xA2DAC4, as 0.10b's 0.95492965): a look-pitch unit is pi/3 rad (60 deg) of mouse turn
 0x00241090	survarium::player_input_handler::on_before_processing	manual	4	
 0x00241170	survarium::player_input_handler::on_after_processing	manual	4	
 0x00241200	survarium::player_input_handler::alt_is_held	manual	0	EAX: 1 when the left or the right Alt key is down
@@ -1197,8 +1197,8 @@ va	name	source	ret_cleanup	result
 0x002e3390	survarium::weapon_core::on_player_death	manual	0	
 0x002e3490	survarium::weapon_core::deserialize	manual	12	
 0x002e3800	survarium::weapon_core::could_be_used	manual	4	
-0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	
-0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	
+0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	ST0 = (0.5 - clamp(0.5*[ECX+474h] (the kick's side axis x) + [ECX+2CCh] if [ECX+5E8h] (breath sway, +288h+44h), -0.5..0.5)) * entry ESP+4 (clip length); get_recoil_expression's lexeme 1, the weapon's recoil_animations[1] (recoil_horiz): kick x = +1 at the clip's start, -1 at its end
+0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	ST0 = (clamp([ECX+2D0h] if [ECX+5E8h] else 0 (breath sway, +288h+48h), -0.5..0.5) + 0.5) * entry ESP+4 (clip length); get_recoil_expression's lexeme 0, recoil_animations[0] (recoil_vert): the sway only, no kick
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
 0x002e3a70		auto	0	
 0x002e3aa0		auto	0	
@@ -2006,3 +2006,5 @@ va	name	source	ret_cleanup	result
 0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
+0x002e0f60	survarium::weapon_core::look_pitch	manual	0	ST0 = clamp([[ECX+8]+48Ch] (the player's base look pitch) + [ECX+474h+4] (the kick's y, recoil object at +468h), -1 (0xA2D778) .. 1 (0xA70884)); weapon_core vtable +8, read by look_time_factor_calculator 0x2FBF90
+0x002fbf90	survarium::base_player::look_time_factor_calculator	manual	24	ST0 = min((look_pitch + 1) * 0.5 (0x927A44), 0.99999 (0xA2D9D8)) * entry ESP+4 (clip length); look_pitch: [ECX+128h]'s vtable +8 (weapon_core::look_pitch 0x2E0F60). Drives the look clips; the first-person camera is bone Item (computed_head_transform 0x2DA4B0, Item's parent is Root), turned only by on_site_camera_look: +67.5 deg at time 0, 0 at the middle, -60.0 deg at the end, linear on each side (decoded from 0.26g's clip, 2026-10-29): 60 deg of view per pitch unit up, 67.5 down

@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -29,6 +30,19 @@ def number(value):
     return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
+DOLL = HERE.parent / "damage-calc" / "assets" / "doll" / "doll_front.svg"
+
+
+def doll():
+    """The game's HUD body doll (hud.swf sprite 119, traced: the calculator's
+    doll_front.svg), its zones as one shape the crosshair view draws as a
+    target."""
+    paths = re.findall(r'<path id="[^"]+" class="zone"[^>]*?transform="([^"]+)"[^>]*?d="([^"]+)"', DOLL.read_text())
+    assert len(paths) == 11, f"{DOLL}: {len(paths)} zones"
+    shape = "".join(f'<path transform="{t}" d="{d}"/>' for t, d in paths)
+    return f'<svg class="doll-source" aria-hidden="true" focusable="false"><g id="doll-shape">{shape}</g></svg>'
+
+
 def simulation(tr):
     """A recoil simulation's controls and plots, for the comparison and each
     weapon card (weapons.js RecoilSim finds its parts by class)."""
@@ -36,13 +50,16 @@ def simulation(tr):
         f'<figure><figcaption>{tr(en, uk)} · {tr("game units", "одиниці гри")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en, uk)}"></svg></figure>'
         for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")])
     return "".join([
-        f'<p class="stat-note">{tr("Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.", "Модель поштовху та відновлення без компенсації мишею. Розкид і тремтіння камери не враховано. Бічний поштовх — внутрішнє значення, а не підтверджений кут на екрані.")}</p>',
+        f'<p class="stat-note">{tr("Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. The plots are in the weapons’ kick units; the crosshair turns them into degrees of view (upward exactly as the game does, sideways estimated).", "Модель поштовху та відновлення без компенсації мишею. Розкид і тремтіння камери не враховано. Графіки — в одиницях відбою зброї; приціл переводить їх у градуси огляду (вгору — точно як у грі, убік — приблизно).")}</p>',
         f'<div class="sim-inputs"><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
-        f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
+        f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
-        f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("game units", "одиниці гри")}</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="{tr("Where each weapon aims as the recoil moves it", "Куди цілиться кожна зброя під дією відбою")}"></svg></figure>',
+        f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="{tr("Where each weapon aims as the recoil moves it", "Куди цілиться кожна зброя під дією відбою")}"></svg>'
+        f'<label class="sim-target-pick">{tr("Target", "Ціль")}<select class="sim-target"><option value="">{tr("None", "Немає")}</option>'
+        + "".join(f'<option value="{m}">{tr(f"Enemy at {m} m", f"Ворог на {m} м")}</option>' for m in (25, 50, 100))
+        + '</select></label></figure>',
         f'<div class="sim-plots">{plots}</div>',
         f'<p class="sim-unavailable" hidden>{tr("Recoil parameters are unavailable for this selection.", "Параметри відбою для вибраної зброї недоступні.")}</p>',
     ])
@@ -88,6 +105,7 @@ def render(data, code, script_url):
     out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div>')
     out.append(f'<section id="recoil-sim" class="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</section></section>')
     # Each weapon card's own simulation is made from this when the card opens.
+    out.append(doll())
     out.append(f'<template id="recoil-template"><h2>{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</template>')
     out.append('<div id="weapon-list">')
 

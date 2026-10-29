@@ -96,6 +96,20 @@
     if (text !== undefined) element.textContent = text;
     return element;
   }
+  // Degrees of view in one plotted unit of kick, from the exe
+  // (servers/match-server/src/v026g/bots/recoil.rs, "the pitch's unit"): a
+  // pitch unit turns the view 60° up and 67.5° down, and the configs' kick is
+  // 63.735 to a pitch unit (PROVEN); the side about 2.33° of yaw per pitch
+  // unit at 21.48 to one (LIKELY).
+  const UP_DEG = 60 / 63.735, DOWN_DEG = 67.5 / 63.735, SIDE_DEG = 2.33 / 21.48;
+  const viewUp = v => v * (v >= 0 ? UP_DEG : DOWN_DEG), viewSide = h => h * SIDE_DEG;
+  // A target's figure: the game's HUD doll, 1.8 m tall, aimed at the chest
+  // (a quarter of its height below the top of the head).
+  const BODY_HEIGHT = 1.8, CHEST = .25;
+  let dollBox = null;
+  function bodyDegrees(distance) {
+    return 2 * Math.atan(BODY_HEIGHT / 2 / distance) * 180 / Math.PI;
+  }
   function sample(series, time) {
     return series.frames[Math.max(0, Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6)))];
   }
@@ -114,7 +128,7 @@
     function draw() {
       if (simulation.kind !== 'ready') return;
       const time = simulation.time;
-      find('.sim-step').disabled = nextShot() === undefined;
+      find('.sim-step').disabled = find('.sim-last').disabled = nextShot() === undefined;
       timeInput.value = time;
       find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
@@ -156,19 +170,28 @@
     function drawSight(time) {
       const svg = find('.sim-sight svg'); svg.replaceChildren();
       const frames = simulation.series.flatMap(series => series.frames);
-      const up = Math.max(0, ...frames.map(frame => frame.vertical));
-      const down = Math.max(0, ...frames.map(frame => -frame.vertical));
-      const side = Math.max(0, ...frames.map(frame => Math.abs(frame.horizontal)));
+      // A target at a distance: drawn to scale, so the side is not magnified.
+      const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
+      // In degrees of view: the kick as the camera turns.
+      const up = Math.max(0, body * CHEST, ...frames.map(frame => viewUp(frame.vertical)));
+      const down = Math.max(0, body * (1 - CHEST), ...frames.map(frame => -viewUp(frame.vertical)));
+      const side = Math.max(0, ...frames.map(frame => Math.abs(viewSide(frame.horizontal))));
       const scale = 250 / Math.max(.1, up + down);
       // A weapon with no side kick (bolt-action rifles) keeps one scale: its
       // side values are rounding noise, not drift to magnify.
-      const sideScale = side > 1e-3 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
+      const sideScale = !distance && side > 1e-4 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
-      const x = h => 150 + h * sideScale, y = v => oy - v * scale;
+      const x = h => 150 + viewSide(h) * sideScale, y = v => oy - viewUp(v) * scale;
       const magnified = Math.round(sideScale / scale);
       if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
       svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
       svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
+      if (distance) {
+        dollBox ??= document.querySelector('#doll-shape').getBBox();
+        const size = body * scale / dollBox.height;
+        svg.append(svgNode('use', {href:'#doll-shape', class:'sim-target-body',
+          transform:`translate(${(150 - (dollBox.x + dollBox.width / 2) * size).toFixed(2)} ${(oy - body * CHEST * scale - dollBox.y * size).toFixed(2)}) scale(${size.toFixed(5)})`}));
+      }
       svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
       for (const series of simulation.series) {
         const past = series.frames.filter(frame => frame.time <= time);
@@ -238,6 +261,12 @@
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     find('.sim-reset').addEventListener('click', () => seek(0));
+    // Last shot: the whole pattern at once.
+    find('.sim-last').addEventListener('click', () => {
+      if (simulation.kind !== 'ready') return;
+      seek(Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time)));
+    });
+    find('.sim-target').addEventListener('change', draw);
     // Next shot stops at the last one: the settling after it is the timeline's.
     find('.sim-step').addEventListener('click', () => {
       const next = nextShot();
