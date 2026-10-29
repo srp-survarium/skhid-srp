@@ -2549,6 +2549,9 @@ pub struct Reflex {
     /// ([`Reflex::take_worth_notes`]).
     worth_stats: WorthStats,
     worth_notes: Vec<String>,
+    /// How far the weapon in hand reaches (the upper end of its band and the slack), as the last think had it: the reach of an
+    /// objective actor's worth ([`WorthTuning::objective_in_band`]); none: no weapon known.
+    reach_m: Option<f32>,
     /// The bullet the bot's cover tests go by, as the last think had it (`Situation::cover`): fire through cover asks the
     /// share of a shot's damage that reaches a place.
     cover_rule: Option<super::tuning::CoverRule>,
@@ -2802,6 +2805,7 @@ fn presses_more(
     if let Some(worth) = worth
         && worth.tuning.switch_m > 0.0
         && worth.of(other.who()) - worth.of(kept.who()) >= worth.tuning.switch_m
+        && worth.pays(other.who(), kept.who(), near, far)
     {
         return true;
     }
@@ -3219,6 +3223,10 @@ impl Reflex {
         }
         self.known = Known::of_enemies(sit.view, sit.team, (me.team, me.place), now, c.worth.told_ms);
         self.cover_rule = sit.cover;
+        self.reach_m = c.worth.objective_in_band.then(|| {
+            let own = if self.hands().pistol_out { Some(WeaponKind::Pistol) } else { sit.weapon };
+            own.map(|kind| c.band(kind).1 + c.band_slack_m)
+        }).flatten();
         self.threats(me, sit.view, memory, now, hit, c, rng);
         self.choose(me, Some(sit.view), memory, now, aim, skill, rng);
         self.glances(me, sit, memory, now, c);
@@ -3476,6 +3484,7 @@ impl Reflex {
             known: &self.known,
             tuning: if hit_lately { &in_a_fight } else { &c.worth },
             hurt_m: c.wounded_bonus_m,
+            reach: self.reach_m.map(|reach| (me.feet, reach)),
         });
         let sight_now = view.map_or(now, |v| v.clock);
         let mut seen = memory.all_seen(now, sight_now);
@@ -3525,7 +3534,8 @@ impl Reflex {
         // Nearer counts, and so does what he is worth (a carrier, a thief of the team's
         // battery, a hurt enemy: [`Worth::of`]).
         let score = |t: &SeenTrack| {
-            t.at().distance_xz(me.feet) - worth.as_ref().map_or(0.0, |w| w.of(t.who()))
+            t.at().distance_xz(me.feet)
+                - worth.as_ref().map_or(0.0, |w| w.of(t.who()) - w.gap_of(t.who()))
         };
         // The enemy who hit it stays its target a while: the worth neither frees him nor outscores him.
         if let Some(shooter) = shooter
@@ -3575,6 +3585,11 @@ impl Reflex {
                         d(track),
                         d(near),
                     ));
+                }
+                if let Some(w) = worth.as_ref()
+                    && seen.iter().filter(in_range).any(|t| w.out_of_reach(t.who()))
+                {
+                    self.worth_stats.out_of_reach += 1;
                 }
                 self.retaken = false;
                 self.reacquired = self
@@ -5289,6 +5304,7 @@ impl Reflex {
                 known: &self.known,
                 tuning: &c.worth,
                 hurt_m: c.wounded_bonus_m,
+                reach: self.reach_m.map(|reach| (me.feet, reach)),
             };
             if seen.iter().any(|t| {
                 t.who() != kept.who()
@@ -10976,6 +10992,54 @@ mod tests {
         let kept = after_hit(3_000);
         assert!(kept[..4].iter().flatten().all(|&t| t == 1) && kept.last() == Some(&Some(2)), "{kept:?}");
         assert_eq!(after_hit(0).last(), Some(&Some(2)));
+    }
+
+    /// The target after a few thinks, a bot with a rifle (reach 53 m) among `enemies` seen as (place, feet, carrying).
+    fn rifle_target(enemies: &[(Place, Vec3, Option<usize>)], worth: WorthTuning) -> (Option<Place>, WorthStats) {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut places = vec![me.clone()];
+        for &(who, at, carrying) in enemies {
+            let mut enemy = body(who, 1, at, 0.0);
+            enemy.carrying = carrying;
+            places.push(enemy);
+        }
+        let view = view_of(places);
+        let sit = Situation { weapon: Some(WeaponKind::Rifle), ..Situation::of(&view) };
+        let mut aim = AimTuning::default();
+        aim.combat.worth = worth;
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(21);
+        for now in [1_000, 1_300, 1_600, 1_900] {
+            let seen: Vec<_> = enemies.iter().map(|&(who, at, _)| percept(who, at, now, Source::Seen)).collect();
+            sense(&mut memory, &seen, now);
+            reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+        }
+        (reflex.target(), reflex.worth_stats())
+    }
+
+    /// A carrier past the reach of the bot's weapon is worth nothing to it: the nearer enemy is its target (a mate inside the reach
+    /// takes the carrier); inside the reach he is worth what he was.
+    #[test]
+    fn a_carrier_past_the_reach_of_the_weapon_is_no_reason_for_a_target() {
+        let (plain, far_carrier) = ((1, Vec3::new(0.0, 0.0, 45.0), None), (2, Vec3::new(0.0, 0.0, 62.0), Some(1)));
+        let on = WorthTuning { objective_in_band: true, ..WorthTuning::parts_on() };
+        assert_eq!(rifle_target(&[plain, far_carrier], WorthTuning::parts_on()).0, Some(2), "without the reach 62 m - 25 m is nearer than 45 m");
+        let (target, stats) = rifle_target(&[plain, far_carrier], on.clone());
+        assert_eq!(target, Some(1));
+        assert_eq!((stats.actor, stats.out_of_reach), (0, 1));
+        let inside = (2, Vec3::new(0.0, 0.0, 52.0), Some(1));
+        assert_eq!(rifle_target(&[plain, inside], on).0, Some(2), "52 m is inside the 50 m band and its slack");
+    }
+
+    /// The real gap: the carrier's extra distance must be paid by the worth with the gap to spare, in a plain choice and in a switch.
+    #[test]
+    fn a_carrier_takes_the_target_only_by_a_real_gap_over_the_nearer_enemy() {
+        let (plain, carrier) = ((1, Vec3::new(0.0, 0.0, 30.0), None), (2, Vec3::new(0.0, 0.0, 45.0), Some(1)));
+        let with = |gap: Option<f32>| WorthTuning { switch_gap_m: gap, ..WorthTuning::parts_on() };
+        assert_eq!(rifle_target(&[plain, carrier], with(None)).0, Some(2), "45 - 25 = 20 m beats 30 m");
+        assert_eq!(rifle_target(&[plain, carrier], with(Some(5.0))).0, Some(2), "20 + 5 still beats 30");
+        assert_eq!(rifle_target(&[plain, carrier], with(Some(12.0))).0, Some(1), "20 + 12 does not");
     }
 
     /// A target taken for his worth is counted once and noted once, with the numbers; one that is the

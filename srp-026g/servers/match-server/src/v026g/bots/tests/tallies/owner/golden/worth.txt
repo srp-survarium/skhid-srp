@@ -1,4 +1,4 @@
-owner-test worth: carrier in a clear line of an enemy bot 359.4 bot-s, of them on another target 262.7 s (73.1 %); hurt to pain 1 lived 1 (100.0 %); dropped by a hurt carrier 0: owners carry it again 0 (mean 0.0 s), thief's side 0 (mean 0.0 s), left 0; blood first, 50 exchanges: the one hit died 26.0 %, the one who hit died 14.0 %; targets taken for their worth: objective threat 0, objective actor 0, hurt 0 (0 from another target); pushes 0 (ended: time 0, seen again 0, another target 0); flank glances 0; target switches for the worth 0 (0 with a hurter in the line), other 0 (0); bot-ticks with a hurter in the line who is not the target 3499 (in the bot's sight 0), switches off a hurter in its sight: for the worth 0 (by the age of his last hit: <1 s 0, 1-2 s 0, >2 s 0), other 0 (<1 s 0, 1-2 s 0, >2 s 0)
+owner-test worth: carrier in a clear line of an enemy bot 359.4 bot-s, of them on another target 262.7 s (73.1 %); hurt to pain 1 lived 1 (100.0 %); dropped by a hurt carrier 0: owners carry it again 0 (mean 0.0 s), thief's side 0 (mean 0.0 s), left 0; blood first, 50 exchanges: the one hit died 26.0 %, the one who hit died 14.0 %; targets taken for their worth: objective threat 0, objective actor 0, hurt 0 (0 from another target); pushes 0 (ended: time 0, seen again 0, another target 0); flank glances 0; targets taken with an objective actor out of the weapon's reach 0; target switches for the worth 0 (0 with a hurter in the line), other 0 (0); bot-ticks with a hurter in the line who is not the target 3499 (in the bot's sight 0), switches off a hurter in its sight: for the worth 0 (by the age of his last hit: <1 s 0, 1-2 s 0, >2 s 0), other 0 (<1 s 0, 1-2 s 0, >2 s 0)
 {
   "blood_first_first_died_pct": 14.0,
   "blood_first_n": 50,
@@ -27,6 +27,22 @@ owner-test worth: carrier in a clear line of an enemy bot 359.4 bot-s, of them o
     0,
     0
   ],
+  "switch_rates": {
+    "by_team": {
+      "0": {
+        "hurter_in_line_ticks": 1690,
+        "hurter_seen_ticks": 0,
+        "switches": 0,
+        "switches_off_seen_hurter": 0
+      },
+      "1": {
+        "hurter_in_line_ticks": 1809,
+        "hurter_seen_ticks": 0,
+        "switches": 0,
+        "switches_off_seen_hurter": 0
+      }
+    }
+  },
   "switches_for_worth": 0,
   "switches_for_worth_off_hurter": 0,
   "switches_for_worth_off_seen_hurter": 0,
@@ -34,6 +50,7 @@ owner-test worth: carrier in a clear line of an enemy bot 359.4 bot-s, of them o
   "switches_other_off_hurter": 0,
   "switches_other_off_seen_hurter": 0,
   "worth_glances": 0,
+  "worth_out_of_reach": 0,
   "worth_push_expired": 0,
   "worth_push_other_target": 0,
   "worth_push_seen_again": 0,

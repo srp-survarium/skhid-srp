@@ -50,6 +50,20 @@ owner-test: dry 25.0 s (deaths 0), reloading 14.0 s (deaths 7), reloads 281 in a
   "fire_past_class_range_pct": 0.0,
   "fire_side_key": 149,
   "fire_side_key_pct": 21.3,
+  "flank_rates": {
+    "by_team": {
+      "0": {
+        "died_unturned": 1,
+        "hits_side": 31,
+        "turned_3s": 28
+      },
+      "1": {
+        "died_unturned": 1,
+        "hits_side": 29,
+        "turned_3s": 26
+      }
+    }
+  },
   "hit_rate_by_class": {
     "rifle": [
       1.385,
