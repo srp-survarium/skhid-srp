@@ -730,13 +730,26 @@ pub(crate) fn a_retaken_battery_is_timed_by_the_hurt_enemy_near_its_drop_and_fil
 #[test]
 pub(crate) fn traps_are_counted_by_the_placers_stance() {
     let (mut game, mut tally) = made_up(&[0, 1]);
-    game.traps.events.push(TrapEvent::Placed { tick: 50, place: 0 });
+    game.traps.events.push(TrapEvent::Placed { tick: 50, place: 0, team: 0, press_m: 1.0, placer_crouched: true, placer_speed: 0.0 });
     play(&mut game, &mut tally, 2, |_, game| {
         put(game, 0, 20.0, 35.0, key::CROUCH);
         put(game, 1, 30.0, 36.0, 0);
         vec![bot_now(); 2]
     });
-    game.traps.events.push(TrapEvent::Caught { tick: 60, placer: 0, victim: 0, kind: KillKind::Own });
+    game.traps.events.push(TrapEvent::Caught {
+        tick: 60,
+        placer: 0,
+        victim: 0,
+        kind: KillKind::Own,
+        placed: 50,
+        placer_crouched: true,
+        press_m: 1.0,
+        eye_m: 1.04,
+        pitch_down: 1.0,
+        placer_team: 0,
+        victim_team: 0,
+        placer_speed: 0.0,
+    });
     play(&mut game, &mut tally, 1, |_, game| {
         put(game, 0, 20.0, 35.0, 0);
         put(game, 1, 30.0, 36.0, 0);

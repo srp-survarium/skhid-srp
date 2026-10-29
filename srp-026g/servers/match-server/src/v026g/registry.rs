@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::PocketStore;
+use survarium::v026g::loadouts::BotPocketKit;
 use survarium::v026g::maps::{self, MapMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
@@ -323,8 +323,8 @@ pub struct MatchRegistry {
     host: String,
     port: u16,
     inner: Mutex<Inner>,
-    /// The store the server's own bots' pocket stacks are made with (`kit.pocket_store` of the bots' tuning).
-    bot_pocket_store: PocketStore,
+    /// The pockets the server's own bots' kits are made with (`kit` of the bots' tuning: the store and the smoke).
+    bot_pockets: BotPocketKit,
 }
 
 impl MatchRegistry {
@@ -337,15 +337,15 @@ impl MatchRegistry {
                 last_id: random() | 1,
                 ..Inner::default()
             }),
-            bot_pocket_store: PocketStore::default(),
+            bot_pockets: BotPocketKit::default(),
         }
     }
 
-    /// The store of the server's own bots' pocket stacks: the lobby builds their profiles with the default
-    /// ([`PocketStore::PerLife`]) and a match made here has them built again with this one. The bots' tuning is not the
-    /// lobby's, so the match server is where `kit.pocket_store` is applied.
-    pub fn with_bot_pocket_store(mut self, store: PocketStore) -> Self {
-        self.bot_pocket_store = store;
+    /// The pockets of the server's own bots: the lobby builds their profiles with the default
+    /// ([`BotPocketKit::default`]) and a match made here has them built again with these. The bots' tuning is not the
+    /// lobby's, so the match server is where `kit` (`pocket_store`, `smoke`) is applied.
+    pub fn with_bot_pockets(mut self, pockets: BotPocketKit) -> Self {
+        self.bot_pockets = pockets;
         self
     }
 
@@ -407,9 +407,9 @@ impl MatchRegistry {
         if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(setup.map_id));
         }
-        if self.bot_pocket_store != PocketStore::default() {
+        if self.bot_pockets != BotPocketKit::default() {
             for player in setup.players.iter_mut().filter(|player| player.driven) {
-                survarium::v026g::loadouts::with_pocket_store(&mut player.profile, self.bot_pocket_store);
+                survarium::v026g::loadouts::with_bot_pockets(&mut player.profile, self.bot_pockets);
             }
         }
         let mut inner = self.inner();

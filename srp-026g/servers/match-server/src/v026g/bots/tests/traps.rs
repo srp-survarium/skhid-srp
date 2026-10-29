@@ -148,6 +148,50 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
     assert!(sent.iter().all(|s| s.1 & key == 0));
 }
 
+/// With the defaults (`press_landing_m` on) the habit looks down at the flatter look its eye allows and still
+/// puts its trap down, once a life, and the head ray of the press lands it at least `press_landing_m` from where
+/// the feet were at the press (a stand-in body walking on, so the feet move a little between the plan and the
+/// press: the check is on the pose at the press).
+#[test]
+pub(crate) fn with_the_defaults_a_bot_still_places_its_trap_and_it_lands_away_from_its_feet() {
+    let key = key::QUICK[1];
+    let kit = TrapKit { count: 2, key };
+    let (sent, bots) = run(Some(kit), Tuning::default(), 60);
+    let down: Vec<usize> = (0..sent.len()).filter(|&i| sent[i].1 & key != 0).collect();
+    assert!(!down.is_empty(), "no press in 60 s");
+    // The pitch at each press is the aimed one (never the steepest look, which lands 0.85 m out at best).
+    for &i in &down {
+        // The view holds the aim through the release: the input that lets go of the key looks no steeper.
+        assert!((sent[i + 1].2 - sent[i].2).abs() < 0.03, "pitch {} then {}", sent[i].2, sent[i + 1].2);
+        assert!(sent[i].2 > -0.99, "pitch {} at the press", sent[i].2);
+    }
+    let bot = bots.bots[0].as_ref().unwrap();
+    assert!(bot.features.traps.habit.placed_this_life() >= 1);
+    assert!(bots.place_counts().placed >= 1);
+}
+
+/// A one-sided run (`SRP_BENCH_ONE_SIDE`) plays team 1 by the side-1 tuning, so `press_landing_m` is read per team:
+/// the habit's think and its drive tick both take the tuning of the bot's own team (`Bots::tuning_of`, `think.rs`).
+#[test]
+pub(crate) fn the_landing_rule_is_read_from_the_bots_own_teams_tuning() {
+    let mut off = Tuning::default();
+    off.traps.press_landing_m = None;
+    let mut tunings = crate::v026g::bots::tuning::TeamTunings::new(Arc::new(Tuning::default()));
+    tunings.give_team1(Arc::new(off));
+    let bots = Bots::new_with(
+        0x7A96,
+        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        0,
+        &[0u8, 1],
+        &[true, true],
+        &[None, None],
+        tunings,
+        Trace::none(0),
+    );
+    assert_eq!(bots.tuning_of(0).traps.press_landing_m, Some(1.0));
+    assert_eq!(bots.tuning_of(1).traps.press_landing_m, None);
+}
+
 /// A world's objects section with one placed trap in it (the record
 /// `survarium::v026g::match_msgs::traps` reads) among other bytes.
 pub(super) fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {

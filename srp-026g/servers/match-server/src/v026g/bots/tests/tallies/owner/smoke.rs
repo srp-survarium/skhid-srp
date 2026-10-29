@@ -5,9 +5,16 @@
 //! `Veil::hides` with the default tuning, a spray's apart), and the bodies' time in a cloud and deaths there.
 //!
 //! **Fairness** (BENCH-DECISIONS D): sightings and fire through smoke, read from outside the bots' sight code so
-//! that a later bypass shows: a bot's `Seen` sensing of an enemy (its memory's track refreshed this tick) whose
-//! line from its eye to his chest the default veil hides, and a shot at a target through smoke that is not a
-//! spray. Both must read 0 with `smoke.sight` on; with it off they count.
+//! that a path that bypasses the veil shows. The definition (coordinator, 2026-10-29): a count is a sighting or a
+//! shot where **every part a look tests is clearly behind smoke**:
+//! - a sighting: a bot's `Seen` track refreshed this tick (its memory's), from its eye in the game to where that track
+//!   has him (the place its view sensed);
+//! - a shot: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen` track had him;
+//! - "every part": each part of `aimpoint::Part::SIGHT_ORDER`, standing and crouched, is hidden;
+//! - "clearly": by [`FAIR_MARGIN_M`] (0.5 m) more smoke than the bots' 2 m rule, so the few tenths of a metre between
+//!   the bot's view and the game's bodies at a cloud's edge do not count as a bypass.
+//!
+//! Both read 0 with `smoke.sight` on and count with it off: the loop test below reads 0 / 0 on and 1500 / 131 off.
 //!
 //! The eyes' counts are the bots' own (`smoke::tally`, this thread's, the change over the match); the rest is
 //! read from the stand-in game, the bots' memories and the tracker's clouds each tick. A smoke throw by a bot comes
@@ -195,7 +202,7 @@ impl SmokeCounts {
         let eyes: [[u64; smoke::tally::EVENTS]; 2] =
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
-        use smoke::tally::Event::{AimLost, NotSeen, SightLost, Spray};
+        use smoke::tally::Event::{AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, SightLost, Spray, WatchBusy};
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
         let json = serde_json::json!({
@@ -209,6 +216,11 @@ impl SmokeCounts {
             "smoke_not_seen": by(NotSeen),
             "smoke_aim_lost": by(AimLost),
             "smoke_spray_ticks": by(Spray),
+            "smoke_edge_watches": by(EdgeWatch),
+            "smoke_watches_busy": by(WatchBusy),
+            "smoke_learnt_seen": by(LearntSeen),
+            "smoke_learnt_heard": by(LearntHeard),
+            "smoke_learnt_told": by(LearntTold),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -218,7 +230,7 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
@@ -229,6 +241,11 @@ impl SmokeCounts {
             by(NotSeen),
             by(AimLost),
             by(Spray),
+            by(EdgeWatch),
+            by(WatchBusy),
+            by(LearntSeen),
+            by(LearntHeard),
+            by(LearntTold),
             self.hits_through,
             self.spray_hits,
             self.kills_through,

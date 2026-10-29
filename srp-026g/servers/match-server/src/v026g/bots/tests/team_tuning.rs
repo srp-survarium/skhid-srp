@@ -130,6 +130,94 @@ fn the_kits_of_team_1_are_built_with_team_1s_pocket_store() {
     }
 }
 
+/// What each team's avoidance made of the throw keys of its first bots, with `throws` given to every place: both teams' first
+/// bots press the throw key, a mate of each stands where it comes to rest. Team 0's tuning reads the bots' pockets
+/// (`avoid.bot_pockets`), team 1's does not.
+fn grenade_probe(throws: impl Fn() -> crate::v026g::bots::live_grenades::Throws) -> [[crate::v026g::bots::grenade_threat::AvoidStats; 4]; 2] {
+    use crate::v026g::bots::live_grenades::Phase;
+    use crate::v026g::drive::key;
+    let mut team1 = Tuning::default();
+    team1.avoid.bot_pockets = false;
+    let (mut bots, mut now) = after_one_poll(Tuning::default(), team1);
+    bots.set_throws((0..4).map(|_| throws()).collect());
+    let fix = |time: u32, feet: Vec3, keys: u32| Fix {
+        time,
+        alive: true,
+        inserted: 100,
+        feet: Some(feet),
+        yaw: 0.0,
+        pitch: 0.0,
+        keys,
+        speed: Some(0.0),
+    };
+    for thrower in [0usize, 2] {
+        bots.tracker.input(thrower, now, key::GRENADE, (0.0, 0.0), 0.0, &crate::v026g::bots::kin::Kinematics::default(), None);
+    }
+    assert_eq!(bots.tracker.live_grenades().len(), 2, "both throw keys are listed");
+    let mut placed = [false; 2];
+    while now < 8_000 {
+        now += 100;
+        bots.poll(Clock { clock: now, time_left_s: 600.0, total_s: 900.0, playing: true });
+        for (i, (thrower, mate)) in [(0usize, 1usize), (2, 3)].into_iter().enumerate() {
+            let flying = bots.tracker.live_grenades().iter().find(|g| g.by == thrower).map(|g| g.phase);
+            if let (false, Some(Phase::Flying { rest, .. })) = (placed[i], flying) {
+                bots.fixed(mate, fix(now - 100, rest, 0), Some(1.0));
+                placed[i] = true;
+            }
+        }
+    }
+    assert_eq!(placed, [true, true], "both grenades flew");
+    bots.grenade_counts()
+}
+
+/// The avoidance of a grenade the live list holds from a bot's key with its pockets read and empty is each team's own switch
+/// (`avoid.bot_pockets`): the team whose tuning reads the bots' pockets (team 0) refuses it, the team whose tuning does not
+/// (team 1) knows of it, as its mates are told from the launch.
+#[test]
+fn an_assumed_grenade_is_refused_by_the_team_whose_tuning_reads_the_bots_pockets() {
+    use crate::v026g::bots::live_grenades::{Pocketed, Pockets, Throws, Whose};
+    let medkit = || Throws::Bot(Pockets::new([Some((Pocketed::Other, 1)), None, None, None, None, None]).into());
+    let counts = grenade_probe(medkit);
+    let assumed = Whose::Assumed.index();
+    let noticed = |team: usize| counts[team].iter().map(|a| a.noticed.iter().sum::<u32>()).sum::<u32>();
+    assert_eq!(noticed(0), 0, "team 0 reads the bots' pockets: it knows of none");
+    assert!(counts[0][assumed].refused >= 1, "and it counts what it refused: {counts:?}");
+    assert!(noticed(1) >= 1, "team 1 knows of its own: {counts:?}");
+    assert_eq!(counts[1][assumed].refused, 0);
+    assert!(counts[1][assumed].noticed_mate >= 1, "a teammate's, told from the launch");
+}
+
+/// A throw key of a bot whose pockets were never read (the bench's bots, which do not call `set_throws`) may throw a frag: every
+/// team dodges it, the team that reads the bots' pockets too, and none is counted as refused. The bench is then as the tip.
+#[test]
+fn a_grenade_of_a_bot_with_unread_pockets_is_dodged_by_every_team() {
+    use crate::v026g::bots::live_grenades::{Throws, Whose};
+    let counts = grenade_probe(|| Throws::GrenadeKeyIsFrag);
+    let unread = Whose::Unread.index();
+    for team in 0..2 {
+        assert!(counts[team][unread].noticed_mate >= 1, "team {team} knows of its mate's: {counts:?}");
+        assert_eq!(counts[team][unread].refused, 0, "team {team} refuses none");
+        assert_eq!(counts[team][Whose::Assumed.index()].refused, 0);
+    }
+}
+
+/// The frag cap's wiring through `Bots::poll`: each poll hands every bot the frags its kit holds (`Throws::frags_left`), none for
+/// a kit nobody read, and the cap itself is the team's own tuning (`aim.combat.grenade_kit_cap`).
+#[test]
+fn the_frags_a_kit_holds_reach_the_reflex_of_each_bot_and_the_cap_is_a_team_switch() {
+    use crate::v026g::bots::live_grenades::{Pocketed, Pockets, Throws};
+    let mut team1 = Tuning::default();
+    team1.aim.combat.grenade_kit_cap = false;
+    let (mut bots, now) = after_one_poll(Tuning::default(), team1);
+    let medkit = || Throws::Bot(Pockets::new([Some((Pocketed::Other, 1)), None, None, None, None, None]).into());
+    let frags = || Throws::Bot(Pockets::new([None, Some((Pocketed::Frag, 2)), None, None, None, None]).into());
+    bots.set_throws(vec![medkit(), frags(), medkit(), Throws::GrenadeKeyIsFrag]);
+    bots.poll(Clock { clock: now + 100, time_left_s: 600.0, total_s: 900.0, playing: true });
+    let held: Vec<_> = (0..4).map(|place| bots.bots[place].as_ref().unwrap().reflex.frags_left()).collect();
+    assert_eq!(held, [Some(0), Some(2), Some(0), None]);
+    assert!(bots.tunings.of(0).aim.combat.grenade_kit_cap && !bots.tunings.of(1).aim.combat.grenade_kit_cap);
+}
+
 /// The facts of a world (`facts.rs`): a team whose battery cheat is on has no HUD of the batteries. Team 1's dropped battery is
 /// on team 1's HUD (as in `a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud`) when team 1's cheat is off, and not
 /// when it is on, whatever team 0's is.
@@ -442,4 +530,93 @@ fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
         [0u8, 1].map(|team| bots.tuning_of(team).spacing.callouts.steer_age_ms()),
         [None, Some(8_000)]
     );
+}
+
+/// The edge watch (`smoke.react_watch`) through the real poll, one team's switch on: a cloud of each team between them
+/// from the start, nobody sees anybody. Only the team whose tuning has it watches, and only the other team's cloud
+/// (its own is told after `told_ms`); its bots look at the edge on the cloud's floor (a note a cloud).
+#[test]
+fn only_the_team_whose_tuning_reads_react_watch_watches_a_clouds_near_edge() {
+    use crate::v026g::bots::smoke::tally::{self, Event};
+    let run = |on: u8| {
+        let before = tally::counts();
+        let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        if on == 0 {
+            team0.smoke.react_watch = true;
+        } else {
+            team1.smoke.react_watch = true;
+        }
+        let mut bots = facing_bots(team0, team1, 0x5E0F);
+        // Team 1's cloud (thrown by place 2) across the middle; team 0's (place 0) beside it.
+        bots.tracker.add_cloud(across_middle(0));
+        bots.tracker.add_cloud(crate::v026g::bots::smoke::Cloud {
+            by: 0,
+            team: 0,
+            centre: Vec3::new(35.0, 0.0, 42.0),
+            ..across_middle(0)
+        });
+        let mut notes = Vec::new();
+        for clock in (1_100..=6_000).step_by(100) {
+            let (_, polled) = bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+            notes.extend(polled);
+        }
+        let after = tally::counts();
+        let watched = [0, 1].map(|team| after[team][Event::EdgeWatch as usize] - before[team][Event::EdgeWatch as usize]);
+        let edges: Vec<String> = notes.iter().filter(|n| n.text.contains("watches the edge")).map(|n| n.text.clone()).collect();
+        (watched, edges)
+    };
+    let (watched, edges) = run(0);
+    assert!(watched[0] > 0 && watched[1] == 0, "{watched:?}");
+    assert_eq!(edges.len(), 2, "one note per bot of team 0: {edges:?}");
+    for edge in &edges {
+        assert!(edge.contains("player 2's smoke"), "only the other team's cloud: {edge}");
+        // On the cloud's floor (y 0): the glance looks a chest's height over it.
+        assert!(edge.contains(", 0.0, "), "{edge}");
+    }
+    let (watched, edges) = run(1);
+    assert!(watched[1] > 0 && watched[0] == 0, "{watched:?}");
+    assert!(edges.iter().all(|edge| edge.contains("player 0's smoke")), "{edges:?}");
+}
+
+/// The kit smoke (`kit.smoke`) of a bench team is built with its own tuning: team 1 on carries a `rdg-m` in its profiles,
+/// team 0's kits are those without the smoke.
+#[test]
+fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::loadouts::{BotEquipment, BotPocketKit, BotTier, RusherKits, bot_kits_kit, bot_equipment_of};
+    let mut team1 = Tuning::default();
+    team1.kit.smoke = survarium::v026g::loadouts::KitSmoke::RadioPlace;
+    let teams = [0u8, 0, 1, 1];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let roster = bench_roster(&teams, equipment, &tunings(Tuning::default(), team1));
+    let dictionary = Dictionary::shared();
+    let mut carried = 0;
+    for (place, &team) in teams.iter().enumerate() {
+        let profile = &roster.profiles[place];
+        let smokes = profile
+            .items
+            .iter()
+            .filter(|item| dictionary.item(item.dict_id).is_some_and(|row| row.name == "rdg-m"))
+            .count();
+        if team == 0 {
+            assert_eq!(smokes, 0, "place {place}");
+            let (equipment, role) = bot_equipment_of(profile).expect("a bot");
+            let plain = bot_kits_kit(equipment, role, BotPocketKit::default());
+            let ids: Vec<Vec<u16>> = plain.iter().map(|kit| kit.items.iter().map(|item| item.dict_id).collect()).collect();
+            let held: Vec<Vec<u16>> = profile
+                .kits
+                .iter()
+                .map(|kit| kit.slots.iter().flatten().map(|&(index, _)| profile.items[usize::from(index)].dict_id).collect())
+                .collect();
+            for (want, have) in ids.iter().zip(&held) {
+                let (mut want, mut have) = (want.clone(), have.clone());
+                want.sort_unstable();
+                have.sort_unstable();
+                assert_eq!(want, have, "place {place}: the kits without the smoke");
+            }
+        } else {
+            carried += smokes;
+        }
+    }
+    assert!(carried > 0, "team 1's kits carry a smoke");
 }

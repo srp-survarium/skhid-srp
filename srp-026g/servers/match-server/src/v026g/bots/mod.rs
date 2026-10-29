@@ -207,6 +207,8 @@ pub struct Note {
 pub struct Bot {
     place: Place,
     team: u8,
+    /// The smoke clouds it knows of, and its watches of their edges (`smoke.rs`).
+    clouds: smoke::KnownClouds,
     rng: Rng,
     encoder: Encoder,
     motor: Motor,
@@ -352,6 +354,9 @@ pub struct Bot {
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
     role: Option<BotRole>,
+    /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
+    /// reflex (which counts its own).
+    frag_rolls_refused: u32,
     /// The kit of this life, and the one it picked for its next (a kit
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
@@ -400,6 +405,7 @@ impl Bot {
         Self {
             place,
             team,
+            clouds: smoke::KnownClouds::default(),
             rng,
             encoder: Encoder::default(),
             motor,
@@ -482,6 +488,7 @@ impl Bot {
             kits,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
+            frag_rolls_refused: 0,
             kit: 0,
             kit_chosen: 0,
             resupplies: 0,
@@ -517,6 +524,7 @@ impl Bot {
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
+        self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -698,6 +706,7 @@ impl Bot {
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
+        self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -912,10 +921,10 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
-    /// Every place's pockets (a human's), for the throw keys
+    /// What every place's throw keys throw, for the live list
     /// ([`live_grenades`]).
-    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
-        self.tracker.set_pockets(pockets);
+    pub fn set_throws(&mut self, throws: Vec<live_grenades::Throws>) {
+        self.tracker.set_throws(throws);
     }
 
     /// Every bot's drugs as its own profile has them ([`stock::Pantry::of_profile`]): the store the profile was built
@@ -1713,6 +1722,13 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tunings.match_wide().sense.sprint_body_mps);
+        // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
+        let avoid = &self.tunings.match_wide().avoid;
+        self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
+        // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`).
+        for bot in self.bots.iter_mut().flatten() {
+            bot.reflex.set_frags_left(self.tracker.frags_left(bot.place));
+        }
         self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);

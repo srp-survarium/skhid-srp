@@ -5,6 +5,7 @@
         "weapon_class_by_data": false
       },
       "grenade_claim": false,
+      "grenade_kit_cap": false,
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_search": false,
@@ -12,7 +13,9 @@
     }
   },
   "avoid": {
-    "grenade_avoid": false
+    "bot_pockets": false,
+    "grenade_avoid": false,
+    "kit_in_use": false
   },
   "cheats": {
     "sight_hold_ms": 0
@@ -92,6 +95,7 @@
     "enemy_quiet_s": 4.0,
     "min_score": 0.2,
     "per_life": 1,
+    "press_landing_m": null,
     "react": {
       "defuse": false,
       "hear": false,

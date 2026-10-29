@@ -5,15 +5,105 @@ use super::*;
 /// one JSON line each, in `<dir>/<level>-<mode>-<n>v<n>.jsonl`. What the
 /// plays' churn, the idle bots with a goal and the trades are counted from
 /// (`player_bots_behaviour.md` §3 "Play choice and trades").
-pub(crate) struct BenchEvents(pub(crate) Option<std::io::BufWriter<std::fs::File>>);
+pub(crate) struct BenchEvents(pub(crate) Option<std::io::BufWriter<std::fs::File>>, Vec<LookTrack>, usize);
+
+/// What the events last saw of one bot's trap habit: whether it was looking, and its outcomes so far.
+#[derive(Clone, Copy, Default)]
+struct LookTrack {
+    looking: bool,
+    outcomes: crate::v026g::bots::traps::LookOutcomes,
+}
 
 impl BenchEvents {
     pub(crate) fn open(level: u8, mode: u8, per_team: usize) -> Self {
-        Self(bench_settings().var_os("SRP_BENCH_EVENTS").map(|dir| {
-            let path = std::path::Path::new(&dir)
-                .join(format!("level_{level:02}-{mode}-{per_team}v{per_team}.jsonl"));
-            std::io::BufWriter::new(std::fs::File::create(path).unwrap())
-        }))
+        Self(
+            bench_settings().var_os("SRP_BENCH_EVENTS").map(|dir| {
+                let path = std::path::Path::new(&dir)
+                    .join(format!("level_{level:02}-{mode}-{per_team}v{per_team}.jsonl"));
+                std::io::BufWriter::new(std::fs::File::create(path).unwrap())
+            }),
+            Vec::new(),
+            0,
+        )
+    }
+
+    /// The traps placed and set off since the last call, one line each, with the trap's floor point (the stand-in's list)
+    /// and, for a catch, who set it off and whose body that is (`kind`: the placer's own, a mate's, an enemy's).
+    pub(crate) fn traps(&mut self, game: &Game) {
+        use super::standin_traps::Event;
+        if self.0.is_none() {
+            return;
+        }
+        let at = |placer: Place, placed: u32| {
+            game.traps
+                .list
+                .iter()
+                .find(|trap| trap.placer == placer && trap.placed == placed)
+                .map(|trap| [(trap.at.x * 10.0).round() / 10.0, (trap.at.z * 10.0).round() / 10.0])
+        };
+        let from = self.2.min(game.traps.events.len());
+        for event in &game.traps.events[from..] {
+            match *event {
+                Event::Placed { tick, place, team, .. } => {
+                    self.line(serde_json::json!({"t": tick, "trap_placed": {"placer": place, "team": team, "at": at(place, tick)}}));
+                }
+                Event::Caught { tick, placer, victim, kind, placed, placer_team, victim_team, .. } => {
+                    self.line(serde_json::json!({"t": tick, "trap_caught": {"placer": placer, "victim": victim, "kind": format!("{kind:?}"), "placer_team": placer_team, "victim_team": victim_team, "at": at(placer, placed)}}));
+                }
+                Event::ShotOff { .. } | Event::DefusedBy { .. } => {}
+            }
+        }
+        self.2 = game.traps.events.len();
+    }
+
+    /// The containers once (team, x, z), for the thefts' distances.
+    pub(crate) fn containers(&mut self, game: &Game) {
+        let at = |v: Vec3| [(v.x * 10.0).round() / 10.0, (v.z * 10.0).round() / 10.0];
+        let list: Vec<serde_json::Value> = game.containers.iter().map(|&(team, pos)| serde_json::json!([team, at(pos)[0], at(pos)[1]])).collect();
+        self.line(serde_json::json!({"containers": list}));
+    }
+
+    /// A theft from `robbed`'s container by `thief` this tick, and whether a holder of the robbed team was alive.
+    pub(crate) fn theft(&mut self, clock: u32, thief: Place, robbed: usize, holder: bool) {
+        self.line(serde_json::json!({"t": clock, "theft": {"thief": thief, "robbed": robbed, "holder": holder}}));
+    }
+
+    /// Each look of the trap habit as it starts and as it ends (placed, called away, gave up and why, or lost to a death),
+    /// one line each, with where the bot stands.
+    pub(crate) fn looks(&mut self, clock: u32, game: &Game, bots: &Bots) {
+        use crate::v026g::bots::traps::{State, Why};
+        if self.0.is_none() {
+            return;
+        }
+        for bot in bots.bots.iter().flatten() {
+            if self.1.len() <= bot.place {
+                self.1.resize(bot.place + 1, LookTrack::default());
+            }
+            let habit = &bot.features.traps.habit;
+            let (outcomes, looking) = (habit.outcomes(), matches!(habit.state(), State::Looking { .. }));
+            let before = self.1[bot.place];
+            let body = &game.bodies[bot.place];
+            let at = [(body.feet.x * 10.0).round() / 10.0, (body.feet.z * 10.0).round() / 10.0];
+            let line = |kind: String| serde_json::json!({"t": clock, "bot": bot.place, "team": bot.team, "look": kind, "at": at});
+            if looking && !before.looking {
+                self.line(line("start".into()));
+            }
+            if outcomes != before.outcomes {
+                let kind = if outcomes.placed > before.outcomes.placed {
+                    "placed".to_owned()
+                } else if outcomes.called_away > before.outcomes.called_away {
+                    "called away".to_owned()
+                } else if let Some(why) = Why::ALL.iter().find(|why| outcomes.gave_up[why.index()] > before.outcomes.gave_up[why.index()]) {
+                    format!("gave up: {}", why.name())
+                } else {
+                    "gave up: unjudged".to_owned()
+                };
+                self.line(line(kind));
+            } else if before.looking && !looking && !body.alive {
+                self.line(line("lost: died".into()));
+            }
+            self.1[bot.place] = LookTrack { looking, outcomes };
+        }
     }
 
     pub(crate) fn line(&mut self, value: serde_json::Value) {
@@ -894,6 +984,7 @@ pub(crate) fn real_bot_cost() {
             let threat_checks_before = threat::checks();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
+            events.containers(&game);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
             let mut push = PushTally::start(&world, game.bodies.len());
@@ -1140,7 +1231,10 @@ pub(crate) fn real_bot_cost() {
                     for &place in &thieves {
                         let robbed = 1 - usize::from(teams[place]);
                         holder_thefts[robbed] += u32::from(holding[robbed]);
+                        events.theft(clock, place, robbed, holding[robbed]);
                     }
+                    events.looks(clock, &game, &bots);
+                    events.traps(&game);
                     for (team, &held) in holding.iter().enumerate() {
                         let home = game.batteries.iter().any(|b| {
                             matches!(*b, Lying::Home(id)
@@ -1635,6 +1729,9 @@ pub(crate) fn real_bot_cost() {
                     habit.armed, habit.placed, habit.died_placing, own.fired, own.own_team_caught
                 );
                 eprintln!("  trap gate: {}", crate::v026g::bots::traps::gates::line());
+                let looks = bots.trap_look_outcomes();
+                eprintln!("  trap looks, team 0: {}", looks[0].line());
+                eprintln!("  trap looks, team 1: {}", looks[1].line());
                 eprintln!("  {}", bots.react_counts().line());
             }
             // The stand-in's bear traps (none carried: no line, the log as it was).
@@ -1643,6 +1740,10 @@ pub(crate) fn real_bot_cost() {
                 eprintln!(
                     "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
                 );
+                eprintln!("{}", game.traps.catch_summary());
+                for line in game.traps.catch_lines() {
+                    eprintln!("{line}");
+                }
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!(
@@ -2055,12 +2156,12 @@ pub(crate) fn bench_roster(
     equipment: survarium::v026g::loadouts::BotEquipment,
     tunings: &super::tuning::TeamTunings,
 ) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile_stored, bot_roles};
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile_kit, bot_roles};
     let profiles: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_profile_stored(n + 1, team, role, equipment, tunings.of(team).kit.store()))
+        .map(|(n, (&team, role))| bot_profile_kit(n + 1, team, role, equipment, tunings.of(team).kit.pockets()))
         .collect();
     let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
@@ -2069,7 +2170,7 @@ pub(crate) fn bench_roster(
             .zip(teams)
             .map(|(bot, &team)| {
                 bot.map_or([standin_grenade::KitGrenades::default(); 3], |(equipment, role)| {
-                    let kits = survarium::v026g::loadouts::bot_kits_stored(equipment, role, tunings.of(team).kit.store());
+                    let kits = survarium::v026g::loadouts::bot_kits_kit(equipment, role, tunings.of(team).kit.pockets());
                     std::array::from_fn(|k| frag_pockets(kits[k]))
                 })
             })
