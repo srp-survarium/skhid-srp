@@ -165,14 +165,6 @@ impl Movie<'_> {
 }
 
 impl<'t> Movie<'t> {
-    /// The movie a Scaleform callback was given (its first argument).
-    ///
-    /// # Safety
-    /// `movie` is a callback's GFx movie or 0, alive on the thread for the hook.
-    pub(super) unsafe fn of_callback(_: &'t Thread, movie: u32) -> Option<Movie<'t>> {
-        NonNull::new(movie as usize as *mut c_void).map(|this| Movie { this, thread: PhantomData })
-    }
-
     /// Invokes the movie's `method` with these strings (Movie::Invoke
     /// 0x511600, no result); whether the movie took it.
     pub(super) fn invoke_strings(&self, method: &CStr, values: &[GfxString<'_>]) -> bool {

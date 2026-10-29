@@ -1220,6 +1220,15 @@ pub mod buffer_string {
 pub mod game_options_interface {
     use core::ffi::c_void;
 
+    /// +0x8 (u32): the main menu's movie holder (game_options+0Ch), the movie the options invoke ([[+8]+108h]+4, 0x1FF98F); not the callback's first argument, a static object
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_options_interface.
+    #[inline(always)]
+    pub unsafe fn menu(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
     /// +0x30 (u32): the game (game_options+34h; game_options::scaleform_callback's ECX is game_options+4)
     ///
     /// # Safety
@@ -1234,15 +1243,6 @@ pub mod game_options_interface {
 #[allow(dead_code)]
 pub mod options_callback_frame {
     use core::ffi::c_void;
-
-    /// +0x4 (u32): game_options::scaleform_callback's movie, by the site's ESP at its start 0x1FF5D0
-    ///
-    /// # Safety
-    /// `this` is a survarium::options_callback_frame.
-    #[inline(always)]
-    pub unsafe fn movie(this: *mut c_void) -> *mut u32 {
-        unsafe { this.byte_add(0x4).cast() }
-    }
 
     /// +0x8 (u32): the method's name (a C string)
     ///

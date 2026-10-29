@@ -11,7 +11,7 @@ use core::ptr::NonNull;
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
-use super::ui::{GFX_MANAGED, GFX_STRING, GfxString, GfxValue, Movie};
+use super::ui::{GFX_MANAGED, GFX_STRING, GfxString, GfxValue, movie_of};
 use crate::raw;
 
 /// The C string at `text`, read up to `limit` bytes for its zero (none in
@@ -288,14 +288,16 @@ impl<'c, 't> OptionsCall<'c, 't> {
         CStr::from_bytes_until_nul(out).unwrap_or(c"")
     }
 
-    /// Answers the movie that called (main_menu): invokes its `method` with
-    /// these strings (UTF-8, as the dictionaries are), at most
+    /// Answers the main menu (the movie that called): invokes its `method`
+    /// with these strings (UTF-8, as the dictionaries are), at most
     /// [`MAX_STRINGS`]; whether the movie took it.
     pub fn answer(&self, method: &CStr, values: &[&CStr]) -> bool {
-        // SAFETY: the callback's first argument, the GFx movie, alive for the
-        // call, on the hook's thread.
+        // SAFETY: ECX is the options' interface; its menu is a movie holder or
+        // 0, alive for the call, on the hook's thread (the options' own
+        // Invoke reads it so, 0x1FF98F).
         let movie = unsafe {
-            Movie::of_callback(self.ctx.thread(), *raw::options_callback_frame::movie(self.frame.as_ptr()))
+            let options = self.ctx.reg(Reg::Ecx) as usize as *mut c_void;
+            movie_of(*raw::game_options_interface::menu(options))
         };
         let Some(movie) = movie else { return false };
         let count = values.len().min(MAX_STRINGS);

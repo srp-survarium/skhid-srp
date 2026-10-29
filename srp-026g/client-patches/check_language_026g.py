@@ -55,7 +55,10 @@ LOCALIZATION, INITIALIZER = 0x21E75E0, 0x84E3E0
 SETLOCALE, TRANSLATE, SAVE = 0x426AE1, 0x1FF0F0, 0x1E9030
 USER_LCID_SLOT = 0x87027C   # GetUserDefaultLCID's import
 DATA, OPTIONS, GAME, ARGS, TEXT = 0x30000000, 0x30001000, 0x30010000, 0x30020000, 0x30021000
-MOVIE = 0x30030000
+MOVIE, HOLDER, VIEW = 0x30030000, 0x30031000, 0x30032000
+# the callback's first argument in the game: a static object, not the menu's
+# movie (the first test's crash, 2026-10-29: Invoke on it read [[+0Ch]+8])
+CALLER = 0xB07018
 USER_LCID = 0x3003F000      # its stub's code
 ENGLISH = {"st_srp_language_option": b"Language", "st_srp_language_restart": b"Applies after restart."}
 
@@ -132,11 +135,16 @@ class Run(hide.Run):
         assert after[UC_X86_REG_EAX] == GAME + 0x52A8 and after[UC_X86_REG_EDI] == GAME
         return self.language(), list(self.locales), list(self.windows_calls)
 
-    def callback(self, method, argument=None, managed=False):
-        """scaleform_callback(movie, method, arguments, count) on the
-        options' interface; the movie's Invokes."""
+    def callback(self, method, argument=None, managed=False, menu=True):
+        """scaleform_callback(caller, method, arguments, count) on the
+        options' interface, whose menu holder's view has the movie
+        ([[[+8]+108h]+4], as the options' own Invoke 0x1FF98F); the movie's
+        Invokes."""
         self.emu.mem_write(OPTIONS, bytes(0x100))
         self.word(OPTIONS + 0x30, GAME)
+        self.word(OPTIONS + 0x08, HOLDER if menu else 0)
+        self.word(HOLDER + 0x108, VIEW)
+        self.word(VIEW + 0x04, MOVIE)
         self.emu.mem_write(TEXT, method.encode() + b"\0")
         count = 0
         if argument is not None:
@@ -149,7 +157,7 @@ class Run(hide.Run):
             self.emu.mem_write(ARGS, struct.pack("<IIIIII", 0, 6 | (0x40 if managed else 0), value, 0, 0, 0))
             count = 1
         self.saves = 0
-        after, popped = self.call_at(CALLBACK, (MOVIE, TEXT, ARGS, count), {UC_X86_REG_ECX: OPTIONS})
+        after, popped = self.call_at(CALLBACK, (CALLER, TEXT, ARGS, count), {UC_X86_REG_ECX: OPTIONS})
         assert popped == 4 + 0x10, popped
         return self.invokes(), self.saves
 
@@ -247,6 +255,9 @@ def main():
                f"answered with the texts, {saved_after}, english and the {len(names)} languages")
         stock_invokes, stock_saves = stock.callback("srp_language", argument, managed)
         expect(stock_invokes == [] and stock_saves == 0, f"the original ignores srp_language ({label})")
+    invokes, count = ours.callback("srp_language", "german", menu=False)
+    expect(invokes == [] and count == 1 and ours.text(buffer).decode() == "german",
+           "srp_language without the menu's movie: german saved, nothing invoked")
     for r, which in ((stock, "the original"), (ours, "the build")):
         invokes, count = r.callback("no_such_method")
         expect(invokes == [] and count == 0, f"{which}: an unknown method returns, nothing invoked or saved")
