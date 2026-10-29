@@ -51,6 +51,7 @@ mod feel;
 mod fight;
 mod golden;
 mod grenades;
+mod grid;
 mod heal;
 mod hit_shapes;
 mod jumps;
@@ -80,6 +81,7 @@ use damage_zones::*;
 use feel::*;
 use fight::*;
 use grenades::*;
+use grid::*;
 use heal::*;
 use hit_shapes::*;
 use jumps::*;
@@ -130,6 +132,10 @@ struct Rec {
     /// The bot's target is a living enemy farther than the top of its
     /// weapon's preferred band ([`target_past_band`]).
     past_band: bool,
+    /// The bot's tick as the FWDREL probe reads it: `Bot::bench_walk`, `Bot::bench_why`, and whether it had a route.
+    walk: u8,
+    why: u16,
+    has_route: bool,
 }
 
 /// The owner counts: the run's record ([`Run`]) and the topics that count from it ([`Topic`], [`topics`]).

@@ -380,7 +380,7 @@ fn every_world_reads_back_from_its_built_files() {
             sight.write(&sight_path, sight_key).unwrap();
         }
         let t = Instant::now();
-        let read_grid = WalkGrid::read(&grid_path, grid_key).unwrap();
+        let read_grid = WalkGrid::read(&grid_path, grid_key, body).unwrap();
         let read_sight = RayTree::read(&sight_path, sight_key).unwrap();
         let read = t.elapsed().as_secs_f32();
         assert_eq!(read_grid.digest(), grid.digest(), "{}", map.project);

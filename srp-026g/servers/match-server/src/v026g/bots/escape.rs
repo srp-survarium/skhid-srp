@@ -534,7 +534,7 @@ fn step(
         match next {
             Some((exit, left, walk)) => {
                 let landing = grid.position(exit.to);
-                *route = Some((walk.then_jump(landing, exit.to), landing));
+                *route = Some((walk.then_jump(landing, exit.to, grid.body().max_jump), landing));
                 state.trying = Some(time);
                 #[cfg(test)]
                 {

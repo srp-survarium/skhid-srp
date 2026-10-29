@@ -102,6 +102,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_DROP_TRUTH", "height", "`links` makes a route's drop the planner's Drop link for every reader of the route's drops (the lip guard's planned landings, the drop aim, the landing watch, the drop walk), from the client's step height on and with no stair or ramp; `height` (the default) is a waypoint a lip's height under the one before it (`Feel::drop_truth`)"),
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
+    s("SRP_BENCH_FWD", "unset", "set: print a `FWDREL` line for every route jump pressed with forward held whose forward key goes up within 5 ticks: the play, the rise, what the route has left past the landing, the bot's walk state and turn over the next ticks (`tallies/owner/jumps.rs`)"),
     // The bots' side: tuning of the bench's bots.
     s("SRP_BENCH_FALL_LOCK", "off", "`on` (or `1`) keeps the stuck watch quiet for 8.5 s after a body landed from a fall of 6 m or more (`ThinkTuning::fall_lock`): such a body cannot move (the J0 worlds), and the watch took it for stuck"),
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),

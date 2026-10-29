@@ -48,7 +48,7 @@ use std::time::Instant;
 use mapdata::{MapData, RayTree, WalkGrid, World};
 
 use super::tactics::TacticsBase;
-use super::tuning::Tuning;
+use super::tuning::{GridTuning, Tuning};
 
 /// How many built maps the store keeps by default, beyond those running
 /// matches hold. With 72 projects the next match is rarely on the last
@@ -140,6 +140,9 @@ pub struct Maps {
     /// each load.
     built: Option<PathBuf>,
     keep: usize,
+    /// The grids' body and off-mesh links: the server's tuning (`SRP_BOT_TUNING`, read once at its start), which
+    /// every match of the server runs on. A grid is the map's, shared by every match on it.
+    grid: GridTuning,
     /// At most this many maps in memory ([`AT_ONCE`]).
     at_once: usize,
     cache: Arc<Mutex<Cache>>,
@@ -175,30 +178,35 @@ enum Entry {
 }
 
 impl Maps {
-    /// A store loading from `dir`; `None`: every project is absent.
+    /// A store loading from `dir`; `None`: every project is absent. Its grids are the code defaults': for tests; the
+    /// server's store is [`Maps::configured`] with the loaded tuning's.
+    #[cfg(test)]
     pub fn new(dir: Option<PathBuf>) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, KEEP, AT_ONCE, built)
+        Self::configured(dir, KEEP, AT_ONCE, built, GridTuning::default())
     }
 
     /// As [`Maps::new`], keeping `keep` maps (at least one), with no bound
     /// on the maps in memory at once.
+    #[cfg(test)]
     pub fn with_keep(dir: Option<PathBuf>, keep: usize) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, keep, usize::MAX, built)
+        Self::configured(dir, keep, usize::MAX, built, GridTuning::default())
     }
 
     /// As [`Maps::with_keep`], at most `at_once` maps in memory (at least
-    /// one), the built files in `built` (none: built at each load).
+    /// one), the built files in `built` (none: built at each load), the grids made as `grid` says.
     pub fn configured(
         dir: Option<PathBuf>,
         keep: usize,
         at_once: usize,
         built: Option<PathBuf>,
+        grid: GridTuning,
     ) -> Arc<Self> {
         Arc::new(Self {
             dir,
             built,
+            grid,
             keep: keep.max(1),
             at_once: at_once.max(1),
             cache: Arc::default(),
@@ -280,13 +288,13 @@ impl Maps {
     fn spawn_build(&self, project: &str, path: PathBuf) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
         let (keep, name) = (self.keep, project.to_owned());
-        let built = self.built.clone();
+        let (built, grid) = (self.built.clone(), self.grid.clone());
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache)
+                    build(&path, built.as_deref(), &cache, &grid)
                 };
                 stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
@@ -487,6 +495,7 @@ fn build(
     path: &Path,
     built: Option<&Path>,
     cache: &Mutex<Cache>,
+    grid_tuning: &GridTuning,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
     stage::set("reading the map file");
@@ -500,14 +509,13 @@ fn build(
     drop(bytes);
     let built = catch_unwind(AssertUnwindSafe(|| {
         stage::set("the grid key");
-        let (cell, body) = (mapdata::CELL, super::tuning::Tuning::default().grid_body());
+        let (cell, body) = (mapdata::CELL, grid_tuning.body());
         let walker = map.walker_triangles();
         let area = map.play_area(mapdata::AREA_MARGIN);
         let seeds = map.grid_seeds();
         let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
-        // With the gap links when the code default has them
-        // (`GridTuning::gap_links`; the live server's tuning is the default).
-        let links = super::tuning::Tuning::default().off_mesh_links();
+        // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
+        let links = grid_tuning.off_mesh_links();
         let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
         stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
@@ -517,7 +525,7 @@ fn build(
                 let (grid, source) = read_or_build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
-                    |path| WalkGrid::read(path, grid_key),
+                    |path| WalkGrid::read(path, grid_key, body),
                     || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
@@ -868,7 +876,7 @@ mod tests {
             let path = dir.join(BUILT_DIR).join(name);
             let key = u64::from_str_radix(&name[name.len() - 20..name.len() - 4], 16).unwrap();
             let fine = if name.starts_with("grid-") {
-                WalkGrid::read(&path, key).is_ok()
+                WalkGrid::read(&path, key, GridTuning::default().body()).is_ok()
             } else if name.starts_with("sight-") {
                 RayTree::read(&path, key).is_ok()
             } else {
@@ -916,6 +924,32 @@ mod tests {
         );
         assert_eq!(rain.world.grid.digest(), alone.grid.digest());
         assert_eq!(rain.world.sight.digest(), alone.sight.digest());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A tuning file's `grid` keys reach the server's grids (A137): the maps are built as the loaded tuning says, not
+    /// as the code's defaults.
+    #[test]
+    fn the_grids_are_built_as_the_servers_tuning_says() {
+        let dir = temp_dir("tuned-grid");
+        tiny_map("tiny/day_4").write(&dir.join(mapdata::format::file_name("tiny/day_4"))).unwrap();
+        let grid_tuning = GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() };
+        assert_ne!(grid_tuning, GridTuning::default());
+        let wait = Duration::from_secs(10);
+        let tuned = wait_ready(
+            &Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, grid_tuning.clone()),
+            "tiny/day_4",
+            wait,
+        );
+        let alone = World::build_with_links(
+            tiny_map("tiny/day_4"),
+            mapdata::CELL,
+            grid_tuning.body(),
+            grid_tuning.off_mesh_links(),
+        );
+        assert_eq!(tuned.world.grid.digest(), alone.grid.digest());
+        let default = wait_ready(&Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default()), "tiny/day_4", wait);
+        assert_ne!(tuned.world.grid.digest(), default.world.grid.digest(), "the body is in the grid");
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -971,7 +1005,7 @@ mod tests {
                 .write(&dir.join(mapdata::format::file_name(project)))
                 .unwrap();
         }
-        let maps = Maps::configured(Some(dir.clone()), 1, 1, None);
+        let maps = Maps::configured(Some(dir.clone()), 1, 1, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let a = wait_ready(&maps, "a/day_4", wait);
         // A match holds a: b waits, and so does it again.
@@ -1029,7 +1063,7 @@ mod tests {
         }
         let at_once = session::v026g::pvb::maps_at_once(AT_ONCE, true, 5);
         assert_eq!(at_once, 5);
-        let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None);
+        let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let mut held: Vec<Arc<TacticsBase>> = projects[..5]
             .iter()
@@ -1086,6 +1120,7 @@ mod tests {
             KEEP,
             session::v026g::pvb::maps_at_once(AT_ONCE, true, projects.len()),
             built,
+            GridTuning::default(),
         );
         let before = resident();
         eprintln!("before any map: {}", show(before));
@@ -1172,11 +1207,11 @@ mod tests {
                 base.digest(),
             )
         };
-        let first = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()));
+        let first = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         let written: Vec<_> = projects.iter().map(|p| digests(&first, p)).collect();
         let build_s = started.elapsed().as_secs_f32();
-        let second = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()));
+        let second = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         for (project, written) in projects.iter().zip(&written) {
             assert_eq!(&digests(&second, project), written, "{project}");

@@ -251,6 +251,26 @@ fn the_frags_a_kit_holds_reach_the_reflex_of_each_bot_and_the_cap_is_a_team_swit
     assert!(bots.tunings.of(0).aim.combat.grenade_kit_cap && !bots.tunings.of(1).aim.combat.grenade_kit_cap);
 }
 
+/// The walk out of a damage zone (`feel.zone_lines`, A136) is the rule of the team whose bot walks: team 1's off, team 0's on.
+#[test]
+fn the_zone_walk_is_the_rule_of_the_team_whose_bot_walks() {
+    let mut team1 = Tuning::default();
+    team1.feel.zone_lines = false;
+    let teams = [0u8, 1];
+    let bots = Bots::new_with(
+        0x7EA5,
+        Mode::TeamDeathmatch,
+        0,
+        &teams,
+        &[true; 2],
+        &[None; 2],
+        tunings(Tuning::default(), team1),
+        Trace::none(0),
+    );
+    assert!(bots.bots[0].as_ref().unwrap().motor.feel.zone_lines);
+    assert!(!bots.bots[1].as_ref().unwrap().motor.feel.zone_lines);
+}
+
 /// The facts of a world (`facts.rs`): a team whose battery cheat is on has no HUD of the batteries. Team 1's dropped battery is
 /// on team 1's HUD (as in `a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud`) when team 1's cheat is off, and not
 /// when it is on, whatever team 0's is.

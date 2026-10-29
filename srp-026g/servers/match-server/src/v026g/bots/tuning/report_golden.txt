@@ -3,8 +3,8 @@ switches ON avoid: bot_pockets grenade_avoid kit_in_use
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
 switches ON cover: spot_cost=0.5
-switches ON feel: band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps unclear_aim
-switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops
+switches ON feel: band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps unclear_aim zone_lines
+switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
@@ -35,6 +35,7 @@ switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
+changed numbers grid: jump_cap_m=0.998 (default 1.05)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)
 changed numbers sense: bush_notice=0.5 (default 0) grass_notice=0.1 (default 0) use_ray_m=1.8 (default 2)
 changed numbers traps: cap_team=6 (default 4) chance=0.7 (default 0.35) enemy_near_m=40 (default 50) enemy_quiet_s=2 (default 4) min_score=0.05 (default 0.2) per_life=2 (default 1)

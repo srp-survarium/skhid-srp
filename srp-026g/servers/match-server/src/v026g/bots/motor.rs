@@ -152,6 +152,10 @@ pub struct Feel {
     /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
     /// back, and plans again from where it stands with none (`Motor::aim_point`).
     pub unclear_aim: bool,
+    /// A body on floors a zone refuses tests the lines of its walk over the refused floors of its first stretch, the way
+    /// out ([`Tactics::clear_line_leaving`]); `false`: over allowed floors only, so with `unclear_aim` it finds no clear
+    /// point in the zone's band and stands there (A136: four `zone_runs` stood in the zone with the defaults).
+    pub zone_lines: bool,
     /// The height of the route's points the walk asks whether the body walks to ([`Motor::aim_point`], the run-up,
     /// the hop's rise) and the threat detour's exposure: `false` on the line between each leg's ends
     /// ([`Route::point_at`]), which over a hump of the floor (Cologne's deck: a long leg between two lower ends) lies
@@ -162,7 +166,7 @@ pub struct Feel {
     /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
     /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
-    /// link of the grid (up to `Body::max_jump`, 1.05).
+    /// link of the grid (up to `Body::max_jump`: 0.998 with the clients' numbers, 1.05 with the exe's).
     pub carrier_jump_m: Option<Positive>,
     /// A planned drop (a lip's height or more) that a sprint would carry past the harmless fall is walked off: the
     /// sprint is let go of [`DROP_WALK_AHEAD_M`] before it, so the body is not carried into the air at 5 m/s over the
@@ -230,6 +234,7 @@ impl Default for Feel {
             lip_look_ahead_m: Metres::of(0.8),
             drop_aim: true,
             unclear_aim: true,
+            zone_lines: true,
             floor_height_clear: false,
             carrier_jump_m: Some(Positive::of(0.998)),
             drop_walk: true,
@@ -348,9 +353,9 @@ pub const LINE_UP_FROM_M: f32 = 2.5;
 /// the jump's line, metres (or half that, or none, where the way back is
 /// not clear).
 pub const RUN_UP_M: f32 = 0.8;
-/// A jump link rising more than this is a sprint jump (the grid makes them only with the clients' numbers, up to
-/// `mapdata::grid::SPRINT_JUMP_LOW_M`; the standing jump tops at 0.998 m, a walking one at about 1.0), metres.
-pub const SPRINT_JUMP_RISE_M: f32 = 1.05;
+/// The sprint jump counters' bands start here, metres ([`sprint_jumps`]): a little under the standing jump's cap, so that the
+/// links of the capped band (the cap to 1.05 m) are counted apart.
+const SPRINT_BAND_FROM_M: f32 = 0.95;
 /// A sprint jump is lined up from this far before its take-off along the route, metres (the run is 2 m and the
 /// take-off's lead), and walked into from this far behind the take-off on its line: a sprint from rest is at speed
 /// by 2 m (the 8e rows).
@@ -1261,8 +1266,8 @@ impl Motor {
             return;
         }
         let points = route.points();
-        let (take_off, landing) = (points[k - 1].at, points[k].at);
-        let sprint_jump = matches!(points[k].jump, Some(Leap::Ledge)) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let take_off = points[k - 1].at;
+        let sprint_jump = route.sprint_ledge(k);
         // The run to the take-off is sprinted too: a sprint-band ledge's run-up, and a sprint gap link's own run.
         let gap = self.feel.sprint_gaps && matches!(points[k].jump, Some(Leap::SprintGap(_)));
         let run_up = if sprint_jump {
@@ -1460,7 +1465,7 @@ impl Motor {
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let leap = points[k].jump.unwrap_or(Leap::Ledge);
-        let sprint_ledge = matches!(leap, Leap::Ledge) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let sprint_ledge = route.sprint_ledge(k);
         let sprint_gap = self.feel.sprint_gaps && matches!(leap, Leap::SprintGap(_));
         let sprint = sprint_ledge || sprint_gap;
         let band = self.feel.band_jump_gate && sprint_ledge && landing.y - take_off.y > WALK_JUMP_TOP_M;
@@ -1575,7 +1580,7 @@ impl Motor {
             // point of the run may be out of sight from where the body is (it arrives along the route, round a corner):
             // then the grid's run is taken and the route is followed to the take-off; only a body that has backed off
             // from the take-off and still has no clear run behind it gives the jump up, so the route is planned again.
-            Leap::Ledge if band => {
+            Leap::Ledge | Leap::SprintLedge if band => {
                 let found = [SPRINT_RUN_UP_M, mapdata::grid::SPRINT_RUN_UP_M].into_iter().find(|&m| clear(at(m)));
                 if found.is_none() && jump.band != BandTry::Approaching && jump.tries < JUMP_TRIES {
                     jump.tries = JUMP_TRIES;
@@ -1590,7 +1595,7 @@ impl Motor {
                 }
                 found.unwrap_or(mapdata::grid::SPRINT_RUN_UP_M)
             }
-            Leap::Ledge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
+            Leap::Ledge | Leap::SprintLedge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
                 .into_iter()
                 .find(|&m| clear(at(m)))
                 .unwrap_or(0.0),
@@ -1696,7 +1701,7 @@ impl Motor {
         // A jump link as it walks over the take-off; a gap link at its own
         // point (where the grid found the client's jump lands it).
         let near = match ahead.leap {
-            Leap::Ledge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
+            Leap::Ledge | Leap::SprintLedge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
             Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres(),
         };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
@@ -2430,17 +2435,17 @@ pub mod band_jumps {
     }
 }
 
-/// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_JUMP_RISE_M`]: pressed, got up, given up, for the
+/// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_BAND_FROM_M`]: pressed, got up, given up, for the
 /// bench's failed-jump counter.
 pub mod sprint_jumps {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    /// The bands: 1.05-1.10, 1.10-1.15, 1.15-1.20, 1.20-1.25, 1.25-1.30, 1.30 and over.
-    pub const BANDS: usize = 6;
+    /// The bands: 0.95-1.00, 1.00-1.05 (the capped band), 1.05-1.10, 1.10-1.15, 1.15-1.20, 1.20-1.25, 1.25-1.30, 1.30 and over.
+    pub const BANDS: usize = 8;
     static COUNTS: [[AtomicU64; BANDS]; 3] = [const { [const { AtomicU64::new(0) }; BANDS] }; 3];
 
     fn band(rise: f32) -> usize {
-        (((rise - super::SPRINT_JUMP_RISE_M) / 0.05).floor().max(0.0) as usize).min(BANDS - 1)
+        (((rise - super::SPRINT_BAND_FROM_M) / 0.05).floor().max(0.0) as usize).min(BANDS - 1)
     }
 
     pub fn pressed(rise: f32) {
@@ -2602,6 +2607,11 @@ pub mod counts {
 mod tests {
     use super::*;
     use crate::v026g::bots::kin::Kinematics;
+
+    /// The label the planner gives a jump link up to height `y` from a take-off at 0: a sprint jump over the exe body's top.
+    fn ledge_to(y: f32) -> Leap {
+        if y > mapdata::Body::default().max_jump { Leap::SprintLedge } else { Leap::Ledge }
+    }
 
     /// The feel with the owner's options off (the bots as they were): what a test of an option's effect starts from.
     fn feel_off() -> Feel {
@@ -2900,7 +2910,7 @@ mod tests {
         let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let (points, way) = if turned {
@@ -2944,7 +2954,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let ledge = Ledge {
@@ -3386,7 +3396,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let mut route = Route::new(vec![
@@ -3429,7 +3439,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let ledge = Ledge {
@@ -3464,7 +3474,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let route = || Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
@@ -3540,7 +3550,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let route = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 1.2, true), p(40.0, 1.2, false)]);
@@ -3596,7 +3606,7 @@ mod tests {
             let p = |x: f32, y: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, y, 0.0),
                 node: 0,
-                jump: jump.then_some(Leap::Ledge),
+                jump: jump.then_some(ledge_to(y)),
                 low: false,
             };
             let mut rng = Rng::new(3);
@@ -3806,7 +3816,7 @@ mod tests {
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump: jump.then_some(Leap::Ledge),
+            jump: jump.then_some(ledge_to(y)),
             low: false,
         };
         let route = || {
