@@ -209,7 +209,9 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         });
     }
     for (place, kind) in deaths {
+        game.kill_by_frag = true;
         game.kill(place, thrower, kind, tick);
+        game.kill_by_frag = false;
     }
     hurt
 }
