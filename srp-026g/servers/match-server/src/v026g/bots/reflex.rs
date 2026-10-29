@@ -3455,7 +3455,10 @@ impl Reflex {
                     t.plan.for_use, at.x, at.y, at.z, t.plan.covers_m
                 ));
                 #[cfg(test)]
-                super::smoke::tally::thrown(me.team, t.plan.for_use, true);
+                {
+                    super::smoke::tally::thrown(me.team, t.plan.for_use, true);
+                    super::smoke::tally::threw(me.place, now);
+                }
             }
             SmokePhase::Released(pressed) if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms => {
                 self.smoke_throw = None;

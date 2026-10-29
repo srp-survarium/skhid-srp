@@ -836,6 +836,21 @@ pub mod tally {
         });
     }
 
+    thread_local! {
+        static THREW: std::cell::RefCell<std::collections::BTreeMap<usize, u32>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` let go of a smoke at `now`.
+    pub fn threw(place: usize, now: u32) {
+        THREW.with(|s| s.borrow_mut().insert(place, now));
+    }
+
+    /// When the bot at `place` last let go of a smoke.
+    pub fn last_threw(place: usize) -> Option<u32> {
+        THREW.with(|s| s.borrow().get(&place).copied())
+    }
+
     /// When the bot at `place` last fired a spray.
     pub fn last_spray(place: usize) -> Option<u32> {
         SPRAYED.with(|s| s.borrow().iter().find(|&&(p, _)| p == place).map(|&(_, t)| t))
