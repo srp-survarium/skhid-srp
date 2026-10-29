@@ -120,7 +120,8 @@ impl BenchEvents {
     }
 
     /// The kills since the last call, and each bot as it is now: [place,
-    /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal].
+    /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal,
+    /// carrying a battery, the place of its target (null: none)].
     pub(crate) fn world(&mut self, clock: u32, game: &mut Game, bots: &Bots) {
         let kills = std::mem::take(&mut game.kill_log);
         if self.0.is_none() {
@@ -171,6 +172,8 @@ impl BenchEvents {
                     bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
                     bot.reflex.target().is_some(),
                     goal,
+                    body.carrying.is_some(),
+                    bot.reflex.target(),
                 ])
             })
             .collect();

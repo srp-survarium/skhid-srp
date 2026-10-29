@@ -73,6 +73,7 @@ mod spacing;
 mod stamina;
 mod stock;
 mod threat_answer;
+mod through;
 mod topic;
 mod worth;
 
@@ -103,6 +104,7 @@ use spacing::*;
 use stamina::*;
 use stock::*;
 use threat_answer::*;
+use through::*;
 use topic::*;
 use worth::*;
 
