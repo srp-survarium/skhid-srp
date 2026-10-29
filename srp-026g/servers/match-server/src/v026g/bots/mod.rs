@@ -1632,6 +1632,17 @@ impl Bots {
         found.len()
     }
 
+    /// The bench's stand-in human put a trap down: his team knows it from that tick, as the players of a team see their own
+    /// team's traps (the same entry a bot's release makes, confirmed by the next world that shows it).
+    #[cfg(test)]
+    pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
+        let state = &mut self.teams[usize::from(team)];
+        state.knowledge.traps.promise(by, at, released);
+        if let Some(tactics) = self.tactics.as_ref() {
+            state.refresh_traps(&tactics.world.grid);
+        }
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).

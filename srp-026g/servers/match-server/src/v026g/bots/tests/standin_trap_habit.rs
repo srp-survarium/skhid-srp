@@ -230,8 +230,19 @@ pub(crate) struct TrapHabitCounts {
     pub(crate) per_life: [u32; 5],
 }
 
+/// A trap the habit put down, for the team to be told of (`Bots::bench_team_knows_trap`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Laid {
+    pub(crate) team: u8,
+    pub(crate) place: Place,
+    pub(crate) at: Vec3,
+    pub(crate) tick: u32,
+}
+
 pub(crate) struct TrapHabit {
     place: Place,
+    /// The traps put down since the bench last took them.
+    pub(crate) laid: Vec<Laid>,
     rng: Rng,
     carry: Carry,
     habit: Habit,
@@ -254,6 +265,7 @@ impl TrapHabit {
         };
         super::standin_traps::model_on().then(|| Self {
             place,
+            laid: Vec::new(),
             rng: Rng::new(super::standin_smoke::habit_seed(0x7_4A9, seed, level, mode, per_team)),
             carry,
             habit: Habit::Idle,
@@ -329,6 +341,7 @@ impl TrapHabit {
             return;
         }
         game.trap_lay(self.place, at, (-dir.y).asin(), tick);
+        self.laid.push(Laid { team, place: self.place, at, tick });
         self.put += 1;
         self.counts.placements.push(Placement {
             tick,
@@ -454,6 +467,7 @@ mod tests {
     fn habit(plans: Vec<Plan>, spawned: u32) -> TrapHabit {
         TrapHabit {
             place: 0,
+            laid: Vec::new(),
             rng: Rng::new(5),
             carry: Carry::Live,
             habit: Habit::Planned { plans },
@@ -503,6 +517,9 @@ mod tests {
         let p = h.counts.placements[0];
         assert_eq!((p.want, p.scored, p.nth), (Third::Middle, Some(Third::Middle), 1));
         assert!((p.since_s - 20.05).abs() < 1e-3);
+        assert_eq!(h.laid.len(), 1, "the bench is told of it, for the team");
+        assert_eq!((h.laid[0].team, h.laid[0].place, h.laid[0].tick), (0, 0, 20_050));
+        assert!(h.laid[0].at.distance_xz(trap.at) < 1e-4);
         assert_eq!(h.habit, Habit::Idle);
         h.tick(&mut game, 20_100);
         assert_eq!(game.traps.list.len(), 1, "one trap a plan");
