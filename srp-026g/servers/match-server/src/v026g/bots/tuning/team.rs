@@ -46,6 +46,34 @@ impl Default for ModTuning {
     }
 }
 
+/// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
+/// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
+/// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GangUp {
+    /// This many teammates (the partner not counted) aimed at an enemy are free. GUESS.
+    pub free: u32,
+    /// The play's score falls by this share for each teammate past `free`. GUESS.
+    pub step: Share,
+    /// ... but to no less than this share of its score. GUESS.
+    pub floor: Share,
+}
+
+impl Default for GangUp {
+    fn default() -> Self {
+        Self { free: 1, step: Share::of(0.5), floor: Share::of(0.25) }
+    }
+}
+
+/// [`GangUp`] parsed once for the commander.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GangRule {
+    pub free: u32,
+    pub step: f32,
+    pub floor: f32,
+}
+
 /// The team's threat spots (K1, `threat.rs`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -160,6 +188,9 @@ pub struct ThreatTuning {
     /// Crossfire on an enemy's last place that is a held spot's centre was
     /// taken for the job's pin; verify-703 should-fix 5).
     pub job_line_by_id: bool,
+    /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
+    /// plays are handed out as before. On by default.
+    pub gang_up: Option<GangUp>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -188,6 +219,13 @@ pub struct CommitTuning {
     /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
     /// `push-record/scripts/human_cover_lastseen.py`).
     pub crossfire_point_s: f32,
+}
+
+impl ThreatTuning {
+    /// The gang-up cap's rule, or none (off).
+    pub fn gang_rule(&self) -> Option<GangRule> {
+        self.gang_up.map(|g| GangRule { free: g.free, step: g.step.get(), floor: g.floor.get() })
+    }
 }
 
 impl Default for CommitTuning {
@@ -227,6 +265,7 @@ impl Default for ThreatTuning {
             job_open_staffed: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
+            gang_up: Some(GangUp::default()),
         }
     }
 }
