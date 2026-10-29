@@ -52,11 +52,23 @@
 //!   when the other is near it). The personality decided about a third of
 //!   the hand-overs, which the margins and the 3 s hold only moved later
 //!   (Game AI Pro 3 ch. 13 §13.5.3).
+//! - **Gang-up cap** (PR C item 20, [`gang_factor`]): a play aimed at one enemy
+//!   ([`GANG_KINDS`] on a `TargetRef::Place`) is scored lower in the choice for each
+//!   teammate (the trade partner and the first mate free) whose play, kept or given
+//!   this pass, is aimed at the same enemy: "we don't want everybody targeting the
+//!   same guy" (Uncharted 2), across plays. A play past the free mates competes in the
+//!   roam band by its scored-down score (as an objective under its floor does), so a
+//!   bot with a roam of its own goes there; with nothing else it still takes the play.
+//!   Never a running play. It reads only the team's own assignments, and the
+//!   enemies the plays are aimed at are the ones the team knows (seen, heard or told).
 //! - The commander says why: each assignment carries the winner's score and
 //!   the runners-up for the trace.
 
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
 use super::curve::{Explain, Input};
 use super::plays::{Candidate, PlayKind, Rank, SlotKey, TargetRef};
+use super::tuning::GangRule;
 use super::view::Place;
 
 /// A candidate of the same band must beat the running play by this.
@@ -330,8 +342,9 @@ pub fn assign_trapped(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
+    gang: Option<&GangUp>,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky)
+    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky, gang)
 }
 
 /// [`assign`] with the bands given.
@@ -341,7 +354,74 @@ pub fn assign_with(
     bands: &Bands,
     gap: f32,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, bands, gap, &[], &[])
+    assign_given_up(asking, now, bands, gap, &[], &[], None)
+}
+
+/// The plays aimed at one enemy that the gang-up cap counts together (PairUp on a top, Crossfire on his last
+/// place, Trade of a death, Intercept, Flank): the ones whose target is a [`TargetRef::Place`].
+const GANG_KINDS: [PlayKind; 5] = [PlayKind::PairUp, PlayKind::Crossfire, PlayKind::Trade, PlayKind::Intercept, PlayKind::Flank];
+
+/// The enemy a play is aimed at, if it is one of [`GANG_KINDS`] on a place.
+fn aimed_at(kind: PlayKind, target: TargetRef) -> Option<Place> {
+    match target {
+        TargetRef::Place(enemy) if GANG_KINDS.contains(&kind) => Some(enemy),
+        _ => None,
+    }
+}
+
+/// What the gang-up cap counted, by play of [`GANG_KINDS`] and for the pass (the bench's `gang_up` topic reads it).
+#[derive(Debug, Default)]
+pub struct GangTally {
+    /// The commander passes counted, the enemies the team's bots were aimed at at the end of a pass, and those with 3 or
+    /// more bots aimed at them.
+    pub passes: AtomicU64,
+    pub enemies_aimed: AtomicU64,
+    pub enemies_3plus: AtomicU64,
+    /// The assignments by the teammates (not the partner) already aimed at the chosen enemy: none, one, two, three or more.
+    pub chosen_on: [[AtomicU64; 4]; GANG_KINDS.len()],
+    /// New plays whose best candidate by its own score was scored down (counted by that play) ...
+    pub penalised: [AtomicU64; GANG_KINDS.len()],
+    /// ... and the ones that lost the pick to another candidate: the bots redirected.
+    pub redirected: [AtomicU64; GANG_KINDS.len()],
+}
+
+impl GangTally {
+    /// The plays' counters, for the bench's report: (play, chosen_on, penalised, redirected).
+    pub fn read(&self) -> Vec<(PlayKind, [u64; 4], u64, u64)> {
+        GANG_KINDS
+            .iter()
+            .enumerate()
+            .map(|(i, &kind)| (kind, self.chosen_on[i].each_ref().map(|c| c.load(Relaxed)), self.penalised[i].load(Relaxed), self.redirected[i].load(Relaxed)))
+            .collect()
+    }
+}
+
+/// What the gang-up cap needs of the team (the commander builds it for a team whose tuning has the switch on).
+pub struct GangUp<'a> {
+    pub rule: GangRule,
+    /// Each bot's trade partner (play 21), if it has one.
+    pub partners: &'a [(Place, Place)],
+    pub tally: &'a GangTally,
+}
+
+impl GangUp<'_> {
+    /// The teammates, `bot` and its partner left out, whose plays (`intents`: place, kind, target) are aimed at `enemy`.
+    fn on_enemy(&self, intents: &[(Place, PlayKind, TargetRef)], bot: Place, enemy: Place) -> usize {
+        let partner = self.partners.iter().find(|(p, _)| *p == bot).map(|&(_, partner)| partner);
+        intents
+            .iter()
+            .filter(|&&(place, kind, target)| place != bot && Some(place) != partner && aimed_at(kind, target) == Some(enemy))
+            .count()
+    }
+}
+
+/// The factor a play aimed at one enemy with `on_enemy` teammates already aimed at him is scored by: 1 up to the
+/// rule's free mates, then `step` less for each one more, never under the floor. One function for the whole team
+/// and for every play aimed at an enemy (PR C item 20); also the form a piling consideration on any other target
+/// takes (`bots/piling`).
+pub fn gang_factor(rule: &GangRule, on_enemy: usize) -> f32 {
+    let over = on_enemy.saturating_sub(rule.free as usize) as f32;
+    (1.0 - rule.step * over).max(rule.floor)
 }
 
 fn assign_given_up(
@@ -351,6 +431,7 @@ fn assign_given_up(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
+    gang: Option<&GangUp>,
 ) -> Vec<(Place, Assignment, bool)> {
     let behind = gap < 0.0;
     for bot in &mut asking {
@@ -394,6 +475,22 @@ fn assign_given_up(
     let mut taken: Vec<SlotKey> = Vec::new();
     // The plays given this tick, by kind and target.
     let mut given: Vec<(PlayKind, TargetRef)> = Vec::new();
+    // The plays the team's bots are aimed at enemies with (PR C item 20): the plays kept from the last tick first,
+    // whatever the order of this pass, each replaced by its bot's new choice.
+    let mut intents: Vec<(Place, PlayKind, TargetRef)> = if gang.is_some() {
+        asking
+            .iter()
+            .filter_map(|bot| {
+                let current = bot.current?;
+                bot.candidates
+                    .iter()
+                    .any(|c| c.kind == current.kind && c.target == current.target)
+                    .then_some((bot.place, current.kind, current.target))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut out = Vec::new();
     for bot in asking {
         let trapped = given_up.contains(&bot.place);
@@ -411,19 +508,35 @@ fn assign_given_up(
                 .is_some_and(|current| c.kind == current.kind && c.target == current.target)
         };
         let band = |c: &Candidate| bands.band(c, is_running(c), on_container(c, &given), behind);
+        // The score a candidate competes by: scored down for the teammates already aimed at its enemy (the gang-up
+        // cap); the band is read from the score as it was, so a candidate stays in its band and only its place in it
+        // moves.
+        let on_enemy = |c: &Candidate| match (gang, aimed_at(c.kind, c.target)) {
+            (Some(g), Some(enemy)) => g.on_enemy(&intents, bot.place, enemy),
+            _ => 0,
+        };
+        let by = |c: &Candidate| match gang {
+            Some(g) if aimed_at(c.kind, c.target).is_some() => c.score.get() * gang_factor(&g.rule, on_enemy(c)),
+            _ => c.score.get(),
+        };
+        // The band a candidate competes in: its own, but a play aimed at an enemy past the free mates in the roam band.
+        let cband = |c: &Candidate| match gang {
+            Some(g) if aimed_at(c.kind, c.target).is_some() && on_enemy(c) > g.rule.free as usize => band(c).min(Rank::Roam),
+            _ => band(c),
+        };
         // The best free candidate, its band read with the plays given so
         // far (the order above is the bands alone).
-        let Some(best) = bot
-            .candidates
-            .iter()
-            .filter(free)
-            .filter(|c| !is_running(c))
-            .fold(None, |best: Option<&Candidate>, c| match best {
-                Some(b) if (band(b), b.score.get()) >= (band(c), c.score.get()) => Some(b),
-                _ => Some(c),
-            })
-            .or_else(|| bot.candidates.iter().find(free))
-        else {
+        let pick = |score: &dyn Fn(&Candidate) -> f32, banded: &dyn Fn(&Candidate) -> Rank| {
+            bot.candidates
+                .iter()
+                .filter(free)
+                .filter(|c| !is_running(c))
+                .fold(None, |best: Option<&Candidate>, c| match best {
+                    Some(b) if (banded(b), score(b)) >= (banded(c), score(c)) => Some(b),
+                    _ => Some(c),
+                })
+        };
+        let Some(best) = pick(&by, &cband).or_else(|| bot.candidates.iter().find(free)) else {
             continue;
         };
         // The running play, if it is still a candidate and its slot free.
@@ -436,17 +549,35 @@ fn assign_given_up(
         });
         let (choice, changed, reason) = match running {
             Some((current, c))
-                if band(c) > band(best)
-                    || (band(c) == band(best)
+                if band(c) > cband(best)
+                    || (band(c) == cband(best)
                         && ((bot.committed && !survival(best))
-                            || best.score.get() < c.score.get() + MARGIN)) =>
+                            || by(best) < c.score.get() + MARGIN)) =>
             {
                 (c, false, current.reason)
             }
-            Some((_, c)) if band(c) == band(best) => (best, true, "a better play by the margin"),
+            Some((_, c)) if band(c) == cband(best) => (best, true, "a better play by the margin"),
             _ if bot.current.is_some() => (best, true, "the play ran out or a higher band came"),
             _ => (best, true, "the best play"),
         };
+        if let Some(g) = gang {
+            if let Some(i) = GANG_KINDS.iter().position(|&k| k == choice.kind).filter(|_| aimed_at(choice.kind, choice.target).is_some()) {
+                g.tally.chosen_on[i][on_enemy(choice).min(3)].fetch_add(1, Relaxed);
+            }
+            // A new play whose best candidate by its own score was scored down; and the ones that lost the pick to
+            // another candidate (the bot redirected).
+            if changed
+                && let Some(plain) = pick(&|c: &Candidate| c.score.get(), &band)
+                && let Some(enemy) = aimed_at(plain.kind, plain.target)
+                && let Some(i) = GANG_KINDS.iter().position(|&k| k == plain.kind)
+                && gang_factor(&g.rule, g.on_enemy(&intents, bot.place, enemy)) < 1.0
+            {
+                g.tally.penalised[i].fetch_add(1, Relaxed);
+                g.tally.redirected[i].fetch_add(u64::from(!std::ptr::eq(plain, choice)), Relaxed);
+            }
+            intents.retain(|&(place, _, _)| place != bot.place);
+            intents.push((bot.place, choice.kind, choice.target));
+        }
         if let Some(slot) = choice.slot {
             taken.push(slot);
         }
@@ -467,6 +598,21 @@ fn assign_given_up(
             },
             changed,
         ));
+    }
+    if let Some(g) = gang {
+        // The enemies the team's bots are aimed at at the end of the pass, and those with three or more.
+        let mut enemies: Vec<(Place, usize)> = Vec::new();
+        for &(_, kind, target) in &intents {
+            if let Some(enemy) = aimed_at(kind, target) {
+                match enemies.iter_mut().find(|(e, _)| *e == enemy) {
+                    Some((_, n)) => *n += 1,
+                    None => enemies.push((enemy, 1)),
+                }
+            }
+        }
+        g.tally.passes.fetch_add(1, Relaxed);
+        g.tally.enemies_aimed.fetch_add(enemies.len() as u64, Relaxed);
+        g.tally.enemies_3plus.fetch_add(enemies.iter().filter(|(_, n)| *n >= 3).count() as u64, Relaxed);
     }
     out
 }
@@ -661,7 +807,7 @@ mod tests {
                     committed: false,
                 });
             }
-            let out = assign_trapped(asking, now, 0.0, &[], shaky);
+            let out = assign_trapped(asking, now, 0.0, &[], shaky, None);
             out.iter().find(|(p, _, _)| *p == 2).unwrap().1.kind
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
@@ -889,7 +1035,7 @@ mod tests {
                     committed: false,
                 },
             ];
-            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[]);
+            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], None);
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
@@ -1269,5 +1415,150 @@ mod tests {
             c(PlayKind::Roam, Rank::Roam, 1.0, None, 2),
         ];
         assert_eq!(one(&off, all, None).0, PlayKind::Raid);
+    }
+
+    // --- PR C item 20: the gang-up cap ---
+
+    fn aimed(kind: PlayKind, rank: Rank, enemy: Place, score: f32) -> Candidate {
+        Candidate { kind, target: TargetRef::Place(enemy), rank, score: Score::new(score), why: Explain::default(), slot: None }
+    }
+
+    fn running(kind: PlayKind, enemy: Place) -> Assignment {
+        Assignment { kind, target: TargetRef::Place(enemy), slot: None, score: 0.5, since: 100, reason: "the best play" }
+    }
+
+    fn rule() -> GangRule {
+        GangRule { free: 1, step: 0.5, floor: 0.25 }
+    }
+
+    fn capped(asking: Vec<Asking>, partners: &[(Place, Place)], tally: &GangTally) -> Vec<(Place, Assignment, bool)> {
+        let gang = GangUp { rule: rule(), partners, tally };
+        assign_given_up(asking, 1_000, &Bands::default(), 0.0, &[], &[], Some(&gang))
+    }
+
+    /// Three bots that each prefer enemy 10 (0.9) to enemy 11 (0.6), as a PairUp, Intercept and Flank.
+    fn three_on_a_top() -> Vec<Asking<'static>> {
+        [PlayKind::PairUp, PlayKind::Intercept, PlayKind::Flank]
+            .into_iter()
+            .enumerate()
+            .map(|(i, kind)| Asking {
+                place: i + 1,
+                candidates: vec![aimed(kind, Rank::Fight, 10, 0.9), aimed(kind, Rank::Fight, 11, 0.6)],
+                current: None,
+                committed: false,
+            })
+            .collect()
+    }
+
+    fn targets(out: &[(Place, Assignment, bool)]) -> Vec<(Place, TargetRef)> {
+        let mut v: Vec<_> = out.iter().map(|(p, a, _)| (*p, a.target)).collect();
+        v.sort_by_key(|&(p, _)| p);
+        v
+    }
+
+    #[test]
+    fn the_third_bot_aimed_at_one_enemy_takes_its_next_best_and_off_is_today() {
+        let tally = GangTally::default();
+        let out = capped(three_on_a_top(), &[], &tally);
+        assert_eq!(
+            targets(&out),
+            vec![(1, TargetRef::Place(10)), (2, TargetRef::Place(10)), (3, TargetRef::Place(11))],
+            "one mate is free, the third is scored 0.9 x 0.5 under 0.6"
+        );
+        let flank = GANG_KINDS.iter().position(|&k| k == PlayKind::Flank).unwrap();
+        assert_eq!(tally.penalised[flank].load(Relaxed), 1);
+        assert_eq!(tally.redirected[flank].load(Relaxed), 1);
+        let pair_up = GANG_KINDS.iter().position(|&k| k == PlayKind::PairUp).unwrap();
+        assert_eq!(tally.chosen_on[pair_up].each_ref().map(|c| c.load(Relaxed)), [1, 0, 0, 0]);
+        // Passes, enemies aimed at and enemies with 3+ at the end of the pass: 2 enemies, none with 3.
+        assert_eq!([&tally.passes, &tally.enemies_aimed, &tally.enemies_3plus].map(|c| c.load(Relaxed)), [1, 2, 0]);
+        let today = assign_given_up(three_on_a_top(), 1_000, &Bands::default(), 0.0, &[], &[], None);
+        assert!(targets(&today).iter().all(|&(_, t)| t == TargetRef::Place(10)), "without the cap all three go");
+    }
+
+    #[test]
+    fn the_trade_partner_is_free_and_other_targets_are_not_counted() {
+        // Bot 3's partner is bot 2: only bot 1 counts, which is free.
+        let out = capped(three_on_a_top(), &[(3, 2)], &GangTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Place(10)));
+        // A Collect on a battery and a Crossfire on an exit are no play aimed at an enemy: bot 3 is not capped.
+        let asking = vec![
+            Asking { place: 1, candidates: vec![aimed(PlayKind::PairUp, Rank::Fight, 10, 0.9)], current: None, committed: false },
+            Asking {
+                place: 2,
+                candidates: vec![Candidate { kind: PlayKind::Crossfire, target: TargetRef::Exit(0), rank: Rank::Fight, score: Score::new(0.8), why: Explain::default(), slot: None }],
+                current: None,
+                committed: false,
+            },
+            Asking {
+                place: 3,
+                candidates: vec![aimed(PlayKind::Flank, Rank::Fight, 10, 0.5), aimed(PlayKind::Flank, Rank::Fight, 11, 0.4)],
+                current: None,
+                committed: false,
+            },
+        ];
+        let out = capped(asking, &[], &GangTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Place(10)));
+    }
+
+    #[test]
+    fn the_cap_keeps_a_candidate_in_its_band_and_a_running_play_and_the_order_of_the_pass() {
+        // Bots 1 and 2 keep their plays on enemy 10; bot 3, served first (its best score is the highest), sees them.
+        let (a, b) = (running(PlayKind::PairUp, 10), running(PlayKind::Crossfire, 10));
+        let asking = vec![
+            Asking {
+                place: 3,
+                candidates: vec![aimed(PlayKind::Flank, Rank::Fight, 10, 0.95), aimed(PlayKind::Flank, Rank::Fight, 11, 0.7)],
+                current: None,
+                committed: false,
+            },
+            Asking { place: 1, candidates: vec![aimed(PlayKind::PairUp, Rank::Fight, 10, 0.9)], current: Some(&a), committed: false },
+            Asking { place: 2, candidates: vec![aimed(PlayKind::Crossfire, Rank::Fight, 10, 0.9)], current: Some(&b), committed: false },
+        ];
+        let out = capped(asking, &[], &GangTally::default());
+        assert_eq!(targets(&out)[2], (3, TargetRef::Place(11)));
+        assert!(out.iter().filter(|(p, ..)| *p != 3).all(|(_, _, changed)| !changed), "a running play is not dropped for the cap");
+        // With nothing else the capped candidate is still taken (a floor, no veto).
+        let lone = vec![
+            Asking { place: 1, candidates: vec![aimed(PlayKind::PairUp, Rank::Fight, 10, 0.9)], current: None, committed: false },
+            Asking { place: 2, candidates: vec![aimed(PlayKind::Flank, Rank::Fight, 10, 0.9)], current: None, committed: false },
+            Asking { place: 3, candidates: vec![aimed(PlayKind::Intercept, Rank::Fight, 10, 0.9)], current: None, committed: false },
+        ];
+        let out = capped(lone, &[], &GangTally::default());
+        assert!(targets(&out).iter().all(|&(_, t)| t == TargetRef::Place(10)), "no other candidate: the third still goes");
+    }
+
+    #[test]
+    fn a_play_past_the_free_mates_competes_in_the_roam_band_by_its_scored_down_score() {
+        // Bots 1 and 2 are aimed at enemy 10 (kept plays); bot 3 has a PairUp on him at 0.9 and a Roam at `roam`.
+        let (a, b) = (running(PlayKind::PairUp, 10), running(PlayKind::Intercept, 10));
+        let kind_of = |roam: f32| {
+            let asking = vec![
+                Asking { place: 1, candidates: vec![aimed(PlayKind::PairUp, Rank::Fight, 10, 0.9)], current: Some(&a), committed: false },
+                Asking { place: 2, candidates: vec![aimed(PlayKind::Intercept, Rank::Fight, 10, 0.9)], current: Some(&b), committed: false },
+                Asking {
+                    place: 3,
+                    candidates: vec![
+                        aimed(PlayKind::Flank, Rank::Fight, 10, 0.9),
+                        Candidate { kind: PlayKind::Roam, target: TargetRef::None, rank: Rank::Roam, score: Score::new(roam), why: Explain::default(), slot: None },
+                    ],
+                    current: None,
+                    committed: false,
+                },
+            ];
+            let out = capped(asking, &[], &GangTally::default());
+            out.iter().find(|(p, ..)| *p == 3).unwrap().1.kind
+        };
+        // 0.9 x 0.5 = 0.45: a roam of 0.6 beats it across the band, a roam of 0.3 does not.
+        assert_eq!(kind_of(0.6), PlayKind::Roam);
+        assert_eq!(kind_of(0.3), PlayKind::Flank);
+    }
+
+    #[test]
+    fn the_gang_factor_never_goes_under_its_floor() {
+        let rule = rule();
+        assert_eq!([gang_factor(&rule, 0), gang_factor(&rule, 1)], [1.0, 1.0]);
+        assert_eq!(gang_factor(&rule, 2), 0.5);
+        assert_eq!(gang_factor(&rule, 9), 0.25);
     }
 }
