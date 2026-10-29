@@ -15,8 +15,10 @@ pub(super) struct TeamState {
 
 /// A team's threat spots at its commander tick ([`threat`]): the
 /// shooters its bots sense now, spots cleared where a bot sees them
-/// empty, a held spot cast at, and the regions his line covers told to
-/// the team's bots when they changed.
+/// empty, a held spot cast at, the regions his line covers told to the
+/// team's bots when they changed, a note per spot event (F4), and the
+/// team's jobs on held spots (K2) with what the plays read of them.
+#[allow(clippy::too_many_arguments)]
 fn threat_tick(
     tactics: &Tactics,
     bots: &mut [Option<Bot>],
@@ -24,9 +26,17 @@ fn threat_tick(
     team: u8,
     view: &MatchView,
     now: u32,
+    tuning: &Tuning,
+    mode: view::Mode,
+    camper: Option<Place>,
     notes: &mut Vec<Note>,
 ) {
-    if state.features.threat.spots.is_empty() && state.features.threat.covered.is_none() {
+    let rules = threat::SpotRules::of(&tuning.threat);
+    let threat = &mut state.features.threat;
+    if threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() {
+        if !state.knowledge.threat.held.is_empty() || !state.knowledge.threat.jobs.is_empty() {
+            state.knowledge.threat = Arc::default();
+        }
         return;
     }
     let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
@@ -38,15 +48,104 @@ fn threat_tick(
                 && now.saturating_sub(time) <= threat::NOW_MS
             {
                 enemies.push(at);
-                state.features.threat.spots.shooter_sensed(track.who, at, time);
+                threat.spots.shooter_sensed(track.who, at, time, rules);
             }
         }
     }
-    state.features.threat.spots.tick(now, &watchers, &enemies, tactics);
-    let mut regions = state.features.threat.spots.covered_regions(now);
+    // The lanes cast by the team's bullets (#705's cover rule), else by sight as it was.
+    if tuning.threat.lanes_pierce {
+        let eyes = threat::FireEyes { tactics, cover: tuning.cover.rule() };
+        threat.spots.tick(now, &watchers, &enemies, &eyes, rules);
+    } else {
+        threat.spots.tick(now, &watchers, &enemies, tactics, rules);
+    }
+    for event in threat.spots.take_events() {
+        notes.push(Note {
+            place: usize::MAX,
+            time: event.time,
+            text: format!("team {team}: {event}"),
+        });
+    }
+    // The jobs (K2) and the picture the plays read, every tick (the bots
+    // move).
+    let held = threat.spots.held_lines(now, rules);
+    if tuning.threat.job {
+        let mates: Vec<threat::Mate> = bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .filter_map(|b| {
+                // The bench's stand-in camper (`camper`, none live) never
+                // steps its plays (it holds its spot): it is given no role,
+                // else it holds one until the job ends (336 of team 0's
+                // 3,109 roles, 5504b7a4).
+                if camper == Some(b.place) {
+                    return None;
+                }
+                let p = view.place(b.place).filter(|p| p.alive)?;
+                // The job play it runs now, if any.
+                let playing = b.assignment.as_ref().and_then(|a| match (a.kind, a.target) {
+                    (plays::PlayKind::Flank, plays::TargetRef::ThreatSpot(id)) => Some((threat::Role::Flanker, id)),
+                    (plays::PlayKind::Crossfire, plays::TargetRef::ThreatSpot(id)) => Some((threat::Role::Pinner, id)),
+                    _ => None,
+                });
+                Some(threat::Mate { place: b.place, feet: p.feet, free: !threat::objective_actor(mode, p.carrying) && !b.reflex.dry(), playing })
+            })
+            .collect();
+        let holds = threat::holds(&held, tuning.threat.job_kills);
+        let areas = threat::objective_areas(&tactics.world.map, mode);
+        let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
+        let spots = &threat.spots;
+        let unheld = |id| spots.unheld_why(id, now);
+        let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, &job_team, &unheld, now);
+        threat.deaths.retain(|d| now.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
+        for event in events {
+            threat::count_job(event);
+            let mut text = format!("team {team}: {event}");
+            match event {
+                threat::JobEvent::Ended { end, life_ms, shooter, .. } => {
+                    threat::job_tally(team, threat::JobTally::of_end(end));
+                    threat::job_life(team, life_ms);
+                    // A holder down: whom to (the job outcome, by team).
+                    if let threat::JobEnd::HolderDown { place, .. } = end {
+                        let killer = threat.deaths.iter().rev().find(|d| d.victim == place).and_then(|d| d.killer);
+                        let (by, said) = match killer {
+                            Some(k) if k == shooter => (threat::JobTally::DownByShooter, "the shooter".to_string()),
+                            Some(k) => (threat::JobTally::DownByOther, format!("another enemy ({k})")),
+                            None => (threat::JobTally::DownUnknown, "not known".to_string()),
+                        };
+                        threat::job_tally(team, by);
+                        text.push_str(&format!(", killed by {said}"));
+                    }
+                }
+                threat::JobEvent::Given { spot, .. } => {
+                    // Fairness: a role on a spot whose shooter the team has
+                    // not sensed for `SEEN_MS`.
+                    let stale = held
+                        .iter()
+                        .find(|l| l.id == spot)
+                        .is_some_and(|l| l.seen.is_none_or(|t| now.saturating_sub(t) > threat::SEEN_MS));
+                    if stale {
+                        threat::job_tally(team, threat::JobTally::GivenUnsensed);
+                    }
+                }
+                threat::JobEvent::Passed { .. } => {}
+            }
+            notes.push(Note {
+                place: usize::MAX,
+                time: now,
+                text,
+            });
+        }
+    }
+    let picture = threat::Picture { held, jobs: threat.jobs.clone() };
+    if *state.knowledge.threat != picture {
+        state.knowledge.threat = Arc::new(picture);
+    }
+    let mut regions = threat.spots.covered_regions(now);
     regions.sort_unstable();
     regions.dedup();
-    let same = match &state.features.threat.covered {
+    let same = match &threat.covered {
         Some(covered) => covered.regions() == &regions[..],
         None => regions.is_empty(),
     };
@@ -59,12 +158,12 @@ fn threat_tick(
         text: format!(
             "team {team}: threat spots keep {} regions out of the routes ({} held)",
             regions.len(),
-            state.features.threat.spots.held(now).count()
+            threat.spots.held(now).count()
         ),
     });
-    state.features.threat.covered = (!regions.is_empty())
+    threat.covered = (!regions.is_empty())
         .then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())));
-    let shared = state.features.threat.covered.clone().unwrap_or_default();
+    let shared = threat.covered.clone().unwrap_or_default();
     for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
         bot.threat = shared.clone();
     }
@@ -218,7 +317,13 @@ impl Bots {
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, notes);
+            let mode = view::Mode::from_id(self.mode);
+            // The bench's stand-in camper's place (`SRP_BENCH_CAMPER`); none live.
+            #[cfg(test)]
+            let camper = self.bench_camper.as_ref().map(|c| c.place());
+            #[cfg(not(test))]
+            let camper = None;
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, mode, camper, notes);
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();

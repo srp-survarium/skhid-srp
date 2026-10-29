@@ -1083,7 +1083,7 @@ impl Tactics {
     /// the floors' would find one (`Regions::route_search`). Its floors
     /// share their zones but lie at different distances: the zones' bounds
     /// give their range, tried every [`REGION_STEP_M`].
-    fn region_allowed_from(
+    pub fn region_allowed_from(
         &self,
         region: u32,
         time: u32,
@@ -1197,6 +1197,7 @@ impl Tactics {
     ) -> Result<Option<Route>, path::Planning> {
         let grid = &self.world.grid;
         let at = grid.position(start);
+        let weight = |node| filter.weight(grid, node);
         path::plan_start(
             grid,
             &self.base.regions,
@@ -1208,6 +1209,7 @@ impl Tactics {
                     && filter.region_open(region)
             },
             filter.max_jump_rise(),
+            filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
             iters,
         )
     }
@@ -1248,6 +1250,7 @@ impl Tactics {
     ) -> Option<Option<Route>> {
         let grid = &self.world.grid;
         let at = grid.position(start);
+        let weight = |node| filter.weight(grid, node);
         planning.resume(
             grid,
             &self.base.regions,
@@ -1256,6 +1259,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
             iters,
         )
     }
@@ -1287,6 +1291,7 @@ impl Tactics {
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
             None,
+            None,
             iters,
         )
     }
@@ -1310,6 +1315,7 @@ impl Tactics {
             &self.base.regions,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }

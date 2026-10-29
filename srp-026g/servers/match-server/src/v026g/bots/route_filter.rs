@@ -50,7 +50,27 @@ pub struct RouteFilter {
     /// The regions a held threat spot sees (soft, K1): kept out but near
     /// the route's ends.
     threat: Option<Arc<Threat>>,
+    /// A cost on floors in place of the soft closures ([`Self::weighing_threat`]).
+    cost: Option<Arc<Weights>>,
 }
+
+/// What a weighed search costs a floor ([`RouteFilter::weight`]): a covered
+/// region's floor `lane` times its length, but near the route's ends; a
+/// floor the soft part shuts (traps it noticed, spots it got stuck at)
+/// [`SOFT_COST`] times.
+#[derive(Debug)]
+pub struct Weights {
+    covered: Arc<Covered>,
+    ends: [Vec3; 2],
+    lane: f32,
+}
+
+/// What a floor the soft part keeps out costs a weighed search, times its
+/// length: the soft part's "only if there is no other way" as a cost, as
+/// Valve's `func_nav_avoid` raises an area's cost (24 times there) rather
+/// than shuts it. GUESS: 10, more than any lane (`ThreatTuning::lane_cost`
+/// 3 makes 4), so a trap is walked round before a lane is.
+pub const SOFT_COST: f32 = 10.0;
 
 /// The regions held threat spots see ([`Covered`]) and the points of a
 /// route's ends, round which nothing is kept out ([`threat::FREE_M`]).
@@ -86,6 +106,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("regions", &self.regions.is_some())
             .field("max_jump_rise", &self.max_jump_rise)
             .field("threat", &self.threat.is_some())
+            .field("cost", &self.cost.is_some())
             .finish()
     }
 }
@@ -130,6 +151,60 @@ impl RouteFilter {
                 free_regions,
             })
         });
+        self
+    }
+
+    /// A weighed search (K1 A2, the owner's best-practice rule): a floor of
+    /// a region `covered` costs `1 + lane_cost` times its length, but within
+    /// [`threat::FREE_M`] of the route's ends `from` and `to`; the soft part
+    /// (the spots and floors it keeps out) shuts nothing and costs
+    /// [`SOFT_COST`] instead; the hard part is as it was. The search reads
+    /// it as a weight on each link ([`Self::weight`]; Detour's
+    /// `dtQueryFilter` area costs, Valve's path cost functor). The regions'
+    /// corridor of the search is not weighed: the coarse pass is
+    /// `threat::costed_corridor`, whose room the search is kept to
+    /// ([`Self::keeping_to`]), and this is the fine pass in it (HPA*'s
+    /// abstract path, then the refined one).
+    pub fn weighing_threat(mut self, covered: Arc<Covered>, from: Vec3, to: Vec3, lane_cost: f32) -> Self {
+        self.cost = Some(Arc::new(Weights { covered, ends: [from, to], lane: 1.0 + lane_cost.max(0.0) }));
+        self
+    }
+
+    /// Whether the search weighs its floors ([`Self::weighing_threat`]).
+    pub fn weighs(&self) -> bool {
+        self.cost.is_some()
+    }
+
+    /// What a link into floor `node` costs times its length, at least 1:
+    /// 1 unless the filter weighs ([`Self::weighing_threat`]).
+    pub fn weight(&self, grid: &WalkGrid, node: NodeId) -> f32 {
+        let Some(w) = self.cost.as_ref() else {
+            return 1.0;
+        };
+        let at = || grid.position(node);
+        let soft = !self.spots.is_empty() && self.spots.iter().any(|&spot| stuck::near(spot, at()))
+            || self.soft_floors.as_ref().is_some_and(|f| !f(node));
+        if soft {
+            return SOFT_COST;
+        }
+        if w.covered.floor(node) && !w.ends.iter().any(|end| end.distance_xz(at()) < threat::FREE_M) {
+            w.lane
+        } else {
+            1.0
+        }
+    }
+
+    /// Keeps the search to the regions `room` gives true (by region) and
+    /// their floors (hard): the room of a way weighed round the threat
+    /// spots' lanes (`threat::costed_corridor`, K1 A2). Floors and regions
+    /// agree, so no stage of the search walks out of the room.
+    pub fn keeping_to(mut self, room: Arc<Vec<bool>>, region_of: threat::RegionOf) -> Self {
+        let inside: RegionRule = Arc::new(move |region: u32| room.get(region as usize).copied().unwrap_or(false));
+        let (rule, of) = (inside.clone(), region_of);
+        let before = self.floors.take();
+        self.floors = Some(Arc::new(move |node| rule(of(node)) && before.as_ref().is_none_or(|f| f(node))));
+        let before = self.regions.take();
+        self.regions = Some(Arc::new(move |region| inside(region) && before.as_ref().is_none_or(|f| f(region))));
         self
     }
 
@@ -182,13 +257,18 @@ impl RouteFilter {
         RouteFilter {
             spots: Vec::new(),
             threat: None,
+            cost: None,
             soft_floors: None,
             ..self.clone()
         }
     }
 
-    /// Whether floor `node` is open to a search (hard and soft).
+    /// Whether floor `node` is open to a search (hard and soft; a weighed
+    /// search costs the soft part instead, [`Self::weight`]).
     pub fn floor_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
+        if self.cost.is_some() {
+            return self.hard_open(grid, node) && self.threat.as_ref().is_none_or(|t| t.floor_open(grid, node));
+        }
         self.hard_open(grid, node)
             && (self.spots.is_empty() || {
                 let at = grid.position(node);
@@ -229,6 +309,9 @@ impl RouteFilter {
         };
         if self.threat.is_none() {
             self.threat = other.threat.clone();
+        }
+        if self.cost.is_none() {
+            self.cost = other.cost.clone();
         }
         if let Some(theirs) = other.soft_floors.clone() {
             let mine = self.soft_floors.take();
@@ -347,6 +430,83 @@ mod tests {
         // And of the two shuts both.
         let both = filter.and(&floors);
         assert!(!both.floor_open(grid, one) && !both.region_open(shut_region));
+    }
+
+    /// A weighed filter (K1 A2): a covered floor costs `1 + lane_cost` but
+    /// near the ends, a soft-shut floor costs `SOFT_COST` and stays open;
+    /// the weighed search goes round a costly strip the plain one crosses.
+    #[test]
+    fn a_weighed_filter_costs_the_lanes_and_the_soft_part_and_the_search_goes_round() {
+        let (world, regions) = field();
+        let grid = &world.grid;
+        // The strip x 20-30, z 0-20 covered (the wall at x 40 leaves the way
+        // round by z 25-40).
+        let strip: Vec<u32> = (0..regions.len() as u32)
+            .filter(|&r| {
+                let m = grid.position(regions.middle(r));
+                (20.0..30.0).contains(&m.x) && m.z < 20.0
+            })
+            .collect();
+        let of = regions.clone();
+        let covered = Arc::new(Covered::build(strip.clone(), regions.len(), Arc::new(move |n| of.of(n))));
+        let (a, b) = (Vec3::new(5.0, 0.0, 10.0), Vec3::new(38.0, 0.0, 10.0));
+        let (na, nb) = (grid.locate(a, 1.5).unwrap(), grid.locate(b, 1.5).unwrap());
+        // A covered floor far from both ends: the middle of the strip's region
+        // nearest (25, 10).
+        let mid = |r: u32| grid.position(regions.middle(r));
+        let r = *strip.iter().min_by(|x, y| mid(**x).distance_xz(Vec3::new(25.0, 0.0, 10.0)).total_cmp(&mid(**y).distance_xz(Vec3::new(25.0, 0.0, 10.0)))).unwrap();
+        let inside = regions.middle(r);
+        let plain = RouteFilter::open();
+        assert!(!plain.weighs() && plain.weight(grid, inside) == 1.0);
+        let weighed = RouteFilter::open().weighing_threat(covered.clone(), a, b, 3.0);
+        assert!(weighed.weighs());
+        assert_eq!(weighed.weight(grid, inside), 4.0);
+        assert_eq!(weighed.weight(grid, na), 1.0, "the start's own ground is free");
+        // The soft part: open, at its cost.
+        let soft = RouteFilter::open().avoiding_floors(move |n| n != inside).weighing_threat(covered.clone(), a, b, 3.0);
+        assert!(soft.floor_open(grid, inside));
+        assert_eq!(soft.weight(grid, inside), SOFT_COST);
+        // The searches: the plain one crosses the strip, a costly one goes round.
+        let search = |filter: &RouteFilter| {
+            let weight = |n| filter.weight(grid, n);
+            let mut iters = usize::MAX;
+            crate::v026g::bots::path::plan_start(
+                grid,
+                &regions,
+                na,
+                nb,
+                |n| filter.floor_open(grid, n),
+                |r| filter.region_open(r),
+                None,
+                filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
+                &mut iters,
+            )
+            .ok()
+            .flatten()
+            .unwrap()
+        };
+        let in_strip = |route: &crate::v026g::bots::path::Route| {
+            route.points().windows(2).any(|w| {
+                (0..=10).any(|k| {
+                    let p = w[0].at + (w[1].at - w[0].at) * (k as f32 / 10.0);
+                    covered.exposed_at(grid, p) && p.distance_xz(a) > threat::FREE_M && p.distance_xz(b) > threat::FREE_M
+                })
+            })
+        };
+        assert!(in_strip(&search(&plain)), "the plain route crosses the strip");
+        // The two passes (K1 A2): the costed regions' corridor gives the room,
+        // the weighed floor search runs in it. The regions' own corridor of
+        // `plan_start` is not weighed: alone, the costly strip is crossed at
+        // its cost when the corridor runs through it.
+        let free = [regions.of(na), regions.of(nb)];
+        let room = threat::costed_corridor(grid, &regions, regions.of(na), regions.of(nb), &covered, &free, 30.0, |_| true).unwrap();
+        let of = regions.clone();
+        let round = search(
+            &RouteFilter::open()
+                .keeping_to(Arc::new(room), Arc::new(move |n| of.of(n)))
+                .weighing_threat(covered.clone(), a, b, 30.0),
+        );
+        assert!(!in_strip(&round), "{round:?}");
     }
 
     /// The regions a held threat spot sees are kept out as a preference,

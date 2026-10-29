@@ -52,6 +52,7 @@
   "hazard": {
     "artefact_know": false,
     "escort_dry_post": false,
+    "escort_reach": false,
     "hurt_by_shape": false,
     "live_zones": false,
     "price_way_out": false,
@@ -80,6 +81,18 @@
   },
   "smoke": {
     "sight": false
+  },
+  "threat": {
+    "area": false,
+    "crossfire_out_of_lines": false,
+    "job": false,
+    "job_objective": false,
+    "lane_weighted": false,
+    "lanes_pierce": false,
+    "pair_up_hidden": false,
+    "recast": false,
+    "trade_out_of_lines": false,
+    "whole_route": false
   },
   "think": {
     "fall_lock": false,

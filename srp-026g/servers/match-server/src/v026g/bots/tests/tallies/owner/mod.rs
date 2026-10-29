@@ -71,6 +71,7 @@ mod smoke;
 mod spacing;
 mod stamina;
 mod stock;
+mod threat_answer;
 mod topic;
 
 use campers::*;
@@ -98,6 +99,7 @@ use smoke::*;
 use spacing::*;
 use stamina::*;
 use stock::*;
+use threat_answer::*;
 use topic::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;

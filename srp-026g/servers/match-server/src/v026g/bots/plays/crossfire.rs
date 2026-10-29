@@ -18,6 +18,16 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::{SpotQuery, Tactics};
+use crate::v026g::bots::threat::{HeldLine, Role};
+
+/// The slot keys of the team job's pinners (K2) start here: one pinner a
+/// held spot.
+pub const JOB_KEY: u32 = 2_000_000;
+/// A pinner of a job holds above this health: the play's own gate.
+const JOB_HEALTH: f32 = 0.35;
+/// The pinner's spot lies this far inside the held spot's reach at most, m:
+/// at the edge of where he kills (his longest kill and 15 m more).
+pub const PIN_DEPTH_M: f32 = 15.0;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the choke, metres.
@@ -105,6 +115,19 @@ fn choke_key(target: TargetRef) -> Option<u32> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    // [K2] The team's job on a held spot gives this bot the pin: hold him
+    // from the edge of his reach, out of his lanes, while the flanker goes
+    // round (F.E.A.R.'s suppress while others flank).
+    // Offered only where a spot is fine for it now, as the plain one
+    // (taking it to find none fails at once, then the cooldown).
+    if cx.tuning.threat.job
+        && let Some((job, Role::Pinner, line)) = cx.team.threat.job_of(cx.me.place)
+        && (matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || has_fine_spot(cx, line.at))
+        && let Some(c) = cx.job_candidate(PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH)
+    {
+        out.push(c);
+    }
     // A crossfire needs two: some teammate alive.
     if cx.view.team(cx.me.team).all(|p| p.place == cx.me.place) {
         return;
@@ -130,6 +153,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     };
     if let Some(t) = running
         && !chokes.contains(&t)
+        && choke_key(t).is_some()
         && cx.point_of(t).is_some()
     {
         chokes.push(t);
@@ -214,16 +238,23 @@ fn halves(cx: &Ctx, choke: Vec3) -> Vec<(Place, Vec3)> {
 /// kept `spots_keep_s`.
 fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Crossfire, name);
-    let key = Tactics::spot_key(PlayKind::Crossfire as u32, cx.bot.side, choke);
+    // A job's pin on a held spot (K2): its own ring, at the edge of his reach.
+    let job = job_line(cx, choke);
+    let kind = PlayKind::Crossfire as u32 + if job.is_some() { 1_000 } else { 0 };
+    let key = Tactics::spot_key(kind, cx.bot.side, choke);
     let keep = (num("spots_keep_s") * 1000.0) as u32;
     cx.tactics.spots_kept(key, cx.now, keep, || {
+        let (min_m, max_m) = match job {
+            Some(line) => pin_ring(cx, line),
+            None => (num("spot_min_m"), num("spot_max_m")),
+        };
         let query = SpotQuery {
             sight_to: Some(choke),
             prefer_high: num("prefer_high"),
             up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
-            ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))
+            ..SpotQuery::ring(choke, min_m, max_m)
         };
         let mut rng = Rng::new(key ^ u64::from(cx.now));
         cx.tactics
@@ -235,17 +266,40 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     })
 }
 
+/// The held spot a job's pin covers, if `choke` is one now (K2; the point
+/// of a `TargetRef::ThreatSpot`, read from the same picture).
+fn job_line<'a>(cx: &Ctx<'a>, choke: Vec3) -> Option<&'a HeldLine> {
+    cx.team.threat.line_by_spot(choke).filter(|_| cx.tuning.threat.job)
+}
+
+/// The pinner's ring round a held spot: from [`PIN_DEPTH_M`] inside his
+/// reach to his reach, never nearer than the play's own nearest.
+fn pin_ring(cx: &Ctx, line: &HeldLine) -> (f32, f32) {
+    let min_m = cx.num(PlayKind::Crossfire, "spot_min_m");
+    let max_m = line.reach_m.max(min_m + 5.0);
+    ((max_m - PIN_DEPTH_M).max(min_m), max_m)
+}
+
 /// Of [`spots_by`], those this bot may take now, best first: fine goals it
 /// has a way to ([`Ctx::reachable`], no search lately proved none),
 /// `apart_deg` round the choke from every teammate in its ring.
 fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     let others = halves(cx, choke);
-    spots_by(cx, choke)
-        .iter()
-        .copied()
-        .filter(|at| is_fine(cx, choke, apart, &others, *at))
-        .collect()
+    let spots = spots_by(cx, choke);
+    // The bench's count: the spots of a pick left out for a held line.
+    #[cfg(test)]
+    if out_of_lines(cx, choke) {
+        let refused = spots.iter().filter(|at| cx.team.threat.line_at(**at).is_some()).count();
+        crate::v026g::bots::threat::count_n(crate::v026g::bots::threat::Count::CrossfireSpotRefused, refused as u64);
+    }
+    spots.iter().copied().filter(|at| is_fine(cx, choke, apart, &others, *at)).collect()
+}
+
+/// Whether this choke's spots keep out of the held lines (K3; a job's pin
+/// always).
+fn out_of_lines(cx: &Ctx, choke: Vec3) -> bool {
+    cx.tuning.threat.crossfire_out_of_lines || job_line(cx, choke).is_some()
 }
 
 /// Whether [`fine_spots`] has one: it stops at the first, where the list
@@ -262,6 +316,9 @@ fn has_fine_spot(cx: &Ctx, choke: Vec3) -> bool {
 /// degrees round the choke from every teammate in its ring (`others`).
 fn is_fine(cx: &Ctx, choke: Vec3, apart: f32, others: &[(Place, Vec3)], at: Vec3) -> bool {
     cx.tactics.fine_goal(at, cx.now, cx.bot.side)
+        // Never in a held spot's lanes (K3, and a job's pin): where he
+        // killed is where the next one dies.
+        && !(out_of_lines(cx, choke) && cx.team.threat.line_at(at).is_some())
         && others.iter().all(|(_, o)| round(choke, at, *o) >= apart)
         && !cx.spot_taken(at, super::goals::APART_M)
         && cx.can_go(at)
@@ -305,11 +362,18 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let Some(choke) = cx.point_of(target) else {
         return Step::Done("the choke is gone");
     };
+    // The team's job ended: the spot is no longer held.
+    if matches!(target, TargetRef::ThreatSpot(_)) && job_line(cx, choke).is_none() {
+        return Step::Done("the spot is no longer held");
+    }
     let every = (num("repick_every_s") * 1000.0) as u32;
     let reach = num("reach_m");
     match state {
+        // A job's pin has one slot a spot and no other half: a teammate by
+        // the spot (its flanker, most often) is no reason to move or end
+        // (the bench: pins ended "no spot apart from the other half" 3 s in).
         State::Going { spot, checked } | State::Hold { spot, checked, .. }
-            if cx.now >= *checked + every && crowded(cx, choke, *spot) =>
+            if cx.now >= *checked + every && job_line(cx, choke).is_none() && crowded(cx, choke, *spot) =>
         {
             *checked = cx.now;
             let Some(new) = pick(cx, choke, rng) else {

@@ -103,21 +103,38 @@ impl Ctx<'_> {
     /// `HazardTuning::escort_dry_post`; off: his own feet, which no route leads
     /// to). `None`: no dry floor that a walk reaches sees him.
     fn escort_post(&self, from: Vec3, dir: (f32, f32), m: f32) -> Option<Vec3> {
+        self.escort_post_by(self.tuning.hazard.escort_reach, from, dir, m)
+    }
+
+    /// [`Self::escort_post`] by the rule `reach` says (`HazardTuning::escort_reach`): a post on his line must be a floor the
+    /// escort's walk reaches too ([`Self::reaches`]), else it is none and the next one in, then the carrier's own floor if
+    /// that is one, then the dry floor on the zone's edge that sees him.
+    fn escort_post_by(&self, reach: bool, from: Vec3, dir: (f32, f32), m: f32) -> Option<Vec3> {
         let wanted = |m: f32| Vec3::new(from.x + dir.0 * m, from.y, from.z + dir.1 * m);
+        let goal = |p: Vec3| self.tactics.fine_goal(p, self.now, self.bot.side) && (!reach || self.reaches(p));
         let mut at = m;
         while at > 1.0 {
-            if self.tactics.fine_goal(wanted(at), self.now, self.bot.side) {
+            if goal(wanted(at)) {
                 return Some(wanted(at));
             }
             at *= 0.5;
         }
-        if !self.tuning.hazard.escort_dry_post || self.tactics.fine_goal(from, self.now, self.bot.side) {
+        if !self.tuning.hazard.escort_dry_post || goal(from) {
             return Some(from);
         }
         let target = wanted(m);
         self.memo.escort_post(self.tactics, from, target, self.now, self.bot.side, || {
             ring_post(self.tactics, from, target, self.now, self.bot.side)
         })
+    }
+}
+
+impl Ctx<'_> {
+    /// Whether a walk gets to `point` over floors no zone on all match marks (`Tactics::past_fixed_zones`): a dry island or a
+    /// stand inside such zones is a floor, and no goal a route leads to.
+    fn reaches(&self, point: Vec3) -> bool {
+        let grid = &self.tactics.world.grid;
+        grid.locate(point, 2.0).is_some_and(|node| self.tactics.past_fixed_zones(node))
     }
 }
 
@@ -154,6 +171,9 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     };
     let home_m = cx.num(PlayKind::Escort, "near_home_m");
+    // A bot that stands in a pocket of zones on all match walks to no post outside it.
+    let reach = cx.tuning.hazard.escort_reach;
+    let stuck_in_pocket = reach && !cx.reaches(cx.me.feet);
     for carrier in cx.objective_actors() {
         let Some(battery) = carrier.carrying else {
             continue;
@@ -170,7 +190,22 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         // candidate asks its own post: ahead of him toward home, behind him away from it.
         let left = carrier.feet.distance_xz(home).max(1.0);
         let ahead = ((home.x - carrier.feet.x) / left, (home.z - carrier.feet.z) / left);
-        let post_ok = |dir: (f32, f32), numbers: &str| cx.escort_post(carrier.feet, dir, cx.num(PlayKind::Escort, numbers)).is_some();
+        let post_ok = |dir: (f32, f32), numbers: &str| {
+            let m = cx.num(PlayKind::Escort, numbers);
+            let ok = !stuck_in_pocket && cx.escort_post(carrier.feet, dir, m).is_some();
+            // What the old rule would have offered and this one refuses, for the bench's tally.
+            #[cfg(test)]
+            if reach && !ok && cx.escort_post_by(false, carrier.feet, dir, m).is_some() {
+                crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || {
+                    crate::v026g::bots::hazards::damage_zone_fixes::count_once(
+                        crate::v026g::bots::hazards::damage_zone_fixes::Ev::EscortUnreachable,
+                        carrier.place as u32 * 64 + cx.me.place as u32,
+                        cx.now,
+                    );
+                });
+            }
+            ok
+        };
         let key = carrier.place as u32 * 2;
         if post_ok(ahead, "ahead_min_m") {
             out.extend(cx.candidate(PlayKind::Escort, TargetRef::Place(carrier.place), Some(key)));
@@ -503,5 +538,65 @@ mod tests {
         assert!(escorts(&wide, 0).is_empty());
         let steps = wide.run(0, PlayKind::Escort, TargetRef::Place(1), 1, 300, 3.5);
         assert_eq!(steps[0], Step::Failed("no dry floor sees him"));
+    }
+
+    /// A dry island ringed by zones on all match (4 x 4 m of floor in a ring of boxes): the carrier stands on it.
+    fn carrier_on_an_island() -> Scenario {
+        use mapdata::{Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let island = Vec3::new(50.0, 0.0, 10.0);
+        let mut s = scene();
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            for (x, z, hx, hz) in [(46.0, 10.0, 1.0, 5.0), (54.0, 10.0, 1.0, 5.0), (50.0, 6.0, 5.0, 1.0), (50.0, 14.0, 5.0, 1.0)] {
+                map.zones.push(Zone {
+                    kind: ZoneKind::Damage,
+                    name: format!("ring {x} {z}"),
+                    team: -1,
+                    position: Vec3::new(x, 0.0, z),
+                    damage_type: "toxic".into(),
+                    damage: None,
+                    shapes: vec![Shape {
+                        kind: ShapeKind::Box,
+                        center: Vec3::new(x, 1.0, z),
+                        rotation: Rotation::IDENTITY,
+                        half: Vec3::new(hx, 1.0, hz),
+                    }],
+                });
+            }
+        });
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        s.tuning.hazard.escort_dry_post = true;
+        s.view.places[1].feet = island;
+        s
+    }
+
+    /// A carrier on a dry island inside zones on all match: a post on his line that is on the island is a goal no walk reaches
+    /// (the bench's "no way to its goal"), so with `escort_reach` the post is the dry floor outside the ring that sees him
+    /// (the zone's edge); off, the island's, as it was. A bot standing on the island itself walks to no post outside it.
+    #[test]
+    fn a_post_for_a_carrier_on_a_dry_island_is_outside_the_zones_when_the_escort_must_reach_it() {
+        let island = Vec3::new(50.0, 0.0, 10.0);
+        let mut on = carrier_on_an_island();
+        on.tuning.hazard.escort_reach = true;
+        let mut off = carrier_on_an_island();
+        off.tuning.hazard.escort_reach = false;
+        // Behind him, 2 m east along the island: on it.
+        let (cx_on, cx_off) = (on.cx(0), off.cx(0));
+        let old = cx_off.escort_post(island, (1.0, 0.0), 1.5).expect("a post");
+        assert!(old.distance_xz(island) < 3.0, "the island's: {old:?}");
+        assert!(!cx_off.reaches(old), "and no walk reaches it");
+        let new = cx_on.escort_post(island, (1.0, 0.0), 1.5).expect("a post outside");
+        assert!(cx_on.reaches(new) && cx_on.tactics.fine_goal(new, cx_on.now, cx_on.bot.side), "{new:?}");
+        assert!(new.distance_xz(island) > 4.0, "outside the ring: {new:?}");
+        // The escort offered by the old rule (bot 0 stands outside) is offered still, with the new post; one standing on
+        // the island is offered none.
+        assert_eq!(escorts(&on, 0).len(), 2);
+        let mut inside = carrier_on_an_island();
+        inside.tuning.hazard.escort_reach = true;
+        inside.view.places[0].feet = Vec3::new(49.0, 0.0, 9.0);
+        assert!(escorts(&inside, 0).is_empty(), "a bot on the island walks to no post outside it");
+        let mut inside_off = carrier_on_an_island();
+        inside_off.tuning.hazard.escort_reach = false;
+        inside_off.view.places[0].feet = Vec3::new(49.0, 0.0, 9.0);
+        assert_eq!(escorts(&inside_off, 0).len(), 2);
     }
 }

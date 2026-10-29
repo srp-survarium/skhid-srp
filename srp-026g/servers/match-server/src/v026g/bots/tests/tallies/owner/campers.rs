@@ -23,6 +23,20 @@ pub(super) struct CamperCounts {
     /// Seconds a shooter's spot was held with two kills or more made, summed over the holders (counted once a second), for the
     /// outcomes' lane entries a 10 s (an-anticamper §8.1: per 10 s of holds of two kills or more).
     pub(super) held2_s: u32,
+    /// The teams' threat spots and their shooters, from the spot notes
+    /// (`team T: threat spot N of shooter S at ...`): a job play's target
+    /// `ThreatSpot(N)` is a counter run on S (K2, `threat.rs`).
+    pub(super) threat_spots: Vec<(u8, u32, Place)>,
+}
+
+/// The team, spot number and shooter of a threat spot note
+/// (`team T: threat spot N of shooter S at (..): ...`).
+fn threat_spot_of(text: &str) -> Option<(u8, u32, Place)> {
+    let rest = text.strip_prefix("team ")?;
+    let (team, rest) = rest.split_once(": threat spot ")?;
+    let (id, rest) = rest.split_once(" of shooter ")?;
+    let shooter = rest.split_whitespace().next()?;
+    Some((team.parse().ok()?, id.parse().ok()?, shooter.parse().ok()?))
 }
 
 /// Campers (`campers.md` Q2, Q6 "How a bench would see it"): a shooter's
@@ -101,6 +115,13 @@ impl Topic for CamperCounts {
     /// A Trade take (the trader, its team, when), and a Flank or Crossfire take on a shooter holding his
     /// kill spot against this bot's side (a counter run).
     fn note(&mut self, _run: &Run, note: &Note, kind: &NoteKind<'_>, game: &Game) {
+        if let Some((team, id, shooter)) = threat_spot_of(&note.text) {
+            match self.threat_spots.iter_mut().find(|s| s.0 == team && s.1 == id) {
+                Some(s) => s.2 = shooter,
+                None => self.threat_spots.push((team, id, shooter)),
+            }
+            return;
+        }
         let NoteKind::Takes { play, target } = *kind else {
             return;
         };
@@ -110,10 +131,13 @@ impl Topic for CamperCounts {
         {
             self.trades.push((note.place, team, note.time));
         }
-        let on = target
-            .strip_prefix("Place(")
-            .and_then(|t| t.strip_suffix(')'))
-            .and_then(|t| t.parse::<Place>().ok());
+        let inside = |prefix: &str| target.strip_prefix(prefix).and_then(|t| t.strip_suffix(')'));
+        // A play on the shooter, or a job's play on his threat spot.
+        let on = inside("Place(").and_then(|t| t.parse::<Place>().ok()).or_else(|| {
+            let id = inside("ThreatSpot(")?.parse::<u32>().ok()?;
+            let team = team?;
+            self.threat_spots.iter().find(|s| s.0 == team && s.1 == id).map(|s| s.2)
+        });
         if matches!(play, "Flank" | "Crossfire")
             && let (Some(who), Some(team)) = (on, team)
             && self.spots.iter().any(|h| h.shooter == who && h.team == team)
@@ -594,4 +618,12 @@ impl CamperCounts {
         );
         Part::new(json, text)
     }
+}
+
+/// A spot note names its team, number and shooter; other notes none.
+#[test]
+fn a_threat_spot_note_names_its_shooter() {
+    assert_eq!(threat_spot_of("team 1: threat spot 3 of shooter 0 at (47.1, 16.7, 115.8): cleared, seen empty"), Some((1, 3, 0)));
+    assert_eq!(threat_spot_of("team 0: job on threat spot 3: Flanker is bot 5"), None);
+    assert_eq!(threat_spot_of("takes Flank ThreatSpot(3) (score 0.70: the best play)"), None);
 }

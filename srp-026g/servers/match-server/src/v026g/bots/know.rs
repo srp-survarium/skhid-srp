@@ -945,6 +945,9 @@ pub struct TeamKnowledge {
     /// take one now (`None`: it may), and since when (match ms), for the
     /// notes (`collect::take_blocks`): a note goes out when it changes.
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
+    /// The team's held threat spots and the jobs on them, as the plays read
+    /// them (the commander's, `threat::Picture`).
+    pub threat: std::sync::Arc<super::threat::Picture>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
