@@ -580,6 +580,32 @@ kept, with a cost on them) is rebuilt on top of this rule: benched alone it
 raised falls on route on every cell, from route legs along the edges and
 from planned drops off them.
 
+### Grid: jumps onto tops the clip carries the body off (`landing_carry`, A166, 2026-10-29)
+
+The client moves a jumping body by the clip's root (PROVEN, `KINEMATICS-CODE.md`): 2.67 m from the press on a walking jump, 4.42 m
+on a sprint jump (after a prepare phase of 0-1.64 m), whatever the body has landed on and whatever keys it holds; the keys act only
+after the clip (a stop from 3.5 m/s takes 0.5 m). So a jump onto a top shorter than what is left of the clip past the ledge's face ends
+with the body off the far side. The bench's stand-in flies it so, and the probe's `ledge-landing` lines showed it: Chemical Plant's
+take-off (94.88, 12.68, 67.12), a sprint jump of 1.08 m onto a wall strip 0.25 m wide and 0.75 m deep, got up 0 of 74; over the 12
+offered maps the walking jumps of 0.9-1.0 m got up 21 % of 1,448 presses onto tops under 1.5 m deep and 75-84 % onto tops of 1.5 m and more.
+The grid asked for 0.5 m of top (`lands`).
+
+`Body::landing_carry` (`grid.landing_carry`, on) takes away a Jump link when no press keeps the body on the top
+(`mapdata::grid::walking_press_lead`, `SPRINT_TOP_M`):
+
+- a walking jump is pressed farther before the take-off for a short top (the clip then ends nearer the face): from the usual 0.85 m up to
+  where the face is past the root's reach (`walking_jump_far`: the root is over a 0.9 m ledge until 2.05 m from the press, over 1.0 m
+  until 1.8 m), less the press's scatter (0.2 m). The planner puts the lead in the route (`Route::ledge_lead`, `WalkGrid::press_lead`)
+  and the motor presses there (`LEAD_RUN_UP_M` more run-up behind);
+- a sprint jump needs 3.0 m of top past the face (the unknown gait phase moves the clip's start 0-1.64 m);
+- a link that is the only way for a spawn (or for the seeds together) to a floor, or back from it, is kept (the best top first): the
+  cut disconnects nothing.
+
+On the 12 offered maps (v4 data) the cut takes the Jump links from 47,253 to 28,170 (standing 29,903 to 23,491, the capped band 5,878
+to 1,486, the sprint 11,472 to 3,193); reached floors, pockets and objectives out of reach are unchanged on every map, no
+spawn-to-seed pair loses its way, and 182 of 19,000 pairs get longer (Chemical Plant 72 pairs by 9.7 m of 150, School 107 by 3.1 m
+of 133, Mamayev Kurgan 3). The client test that settles the press (owner, Chemical Plant): `traces-20261028/fx-grid-a166-landing-carry.md` §6.
+
 ### Route points with the players' height: benched, shelved (2026-10-25)
 
 Play 17's route points carry no height; on stacked floors the server puts a point on the lowest floor round it, often under the floor the players walked. The 3D table gave a point the players' feet height (an optional `heights` per row, no format change), and the server put it on the floor nearest that height (within 3 m; radius 2 m, then 5 m).
