@@ -2535,6 +2535,30 @@ impl Artefact {
     }
 }
 
+/// A survarium::keyboard_action_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyboardActionFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeyboardActionFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): on_keyboard_action's third argument (ebp+10h): 1 down, 2 repeat, 3 up (0x23FE45, 0x23FEC5, 0x23FEF9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::input_entry_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -4125,6 +4149,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<OptionsCallbackFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(OptionsCallbackFrame)
+        }
+    }
+
+    /// carry.key (0x23fe42): player_input_handler::on_keyboard_action after the binder's answer: EDI the key's action (49h none, gone), EBP the frame; before mov esi,[ebp+10h] / cmp esi,1
+    pub mod carry_key {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn action(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+
+        /// EBP: a survarium::keyboard_action_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<KeyboardActionFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(KeyboardActionFrame)
         }
     }
 
