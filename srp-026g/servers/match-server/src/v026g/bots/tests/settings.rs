@@ -129,11 +129,11 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SIGHT_REFRESH", "off", "`on` (or `1`) turns the whole sight refresh on (`SenseTuning::sight_refresh`, with the hold of the cheat, `CheatTuning::sight_hold_ms`, at 450 ms to the bot's next think); off by default, and the bots are then the tip's"),
     s("SRP_BENCH_SIGHT_HOLD", "unset: the hold the refresh setting gives (none without it)", "how long a sight that is not the target's goes on with no test (`CheatTuning`), with the refresh on: `think` (to the bot's next think and a tick, capped at the untested bound), `0` (none), or a number of ms (fixed, from the test; 250 and 450 are the A/B)"),
     s("SRP_BENCH_PING_JITTER", "unset: none", "each place's ping off by a bounded random walk within this many ms either way, a step of at most 14 ms a tick (the live p99 of the lateness's change), seeded by the seed; around none with no SRP_BENCH_PING. Not a live model: the ping is the lateness itself (one way, about twice as bad as a live round trip), and a lateness above the relay's reach (425 ms less twice the largest other ping) counts as discarded, no error"),
-    s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
+    s("SRP_BENCH_WEAPONS", "on (live)", "every place's weapon known as a live match knows it (play 11's matchup, 'outranged by a seen sniper'): the server sets it for every bot (`game/driven.rs`); `off` (or `0`) leaves the bots without it"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_HUMAN_SMOKE", "on", "off: the stand-in human throws no smoke (otherwise at the live rate, standin_smoke.rs)"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
-    s("SRP_BENCH_ENEMY_HUMAN_LANES", "off", "**model** `on` (or `1`, `both`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), for both teams; `team1` (or `team0`): for that team's bots only. Player vs Bots has its one human on team 0, so `team1` is that match (both teams placing traps counted them twice, an-gear-moves 3.3); only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
+    s("SRP_BENCH_ENEMY_HUMAN_LANES", "on", "**model** `off` (or `0`): none. `on` (or `1`, `both`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), for both teams; `team1` (or `team0`): for that team's bots only. Player vs Bots has its one human on team 0, so `team1` is that match (both teams placing traps counted them twice, an-gear-moves 3.3); only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
     s("SRP_BENCH_CAMPER_SPOT", "most", "**model** `hidden`: the camper's spot is one that sees many route points of the other side and is seen from under half of them (else the one that sees the most)"),
     s("SRP_BENCH_CAMPER_CROUCH", "unset", "**model** `1`: the camper crouches once at its spot (and picks it by the crouched eye and body)"),
     s("SRP_BENCH_CAMPER_MOVE", "unset", "**model** `1`: the camper works an area as a human does (an-anticamper §8.4, `tests/camper_move.rs`): the spot and up to three cover-side points 3-8 m from it, a peek out 0.4-0.45 s every 0.8-1.2 s while an enemy is known, a step to another point 2.5-3.5 m after a kill and 2-2.5 m after a hit, short crouch spells, and he leaves 3-5 s after a stay's second kill with no new one or after the dwell with fewer, to the next best spot 25 m or more away; off: he stands within 0.7 m of one point all match"),
@@ -169,8 +169,9 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_STAMINA", "off", "**model** `on`: the stand-in's bodies have the client's stamina bar (the sprint lockout, the jump's cost, a hit's stamina damage: `standin_stamina.rs`); off, they sprint and jump whenever their keys ask and the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
-    s("SRP_BENCH_DRAW_TIME", "DRAW_MS (800)", "**model** `weapon`: a carrier's weapon fires again its own `show_time` after he drops a battery (0.5 s for eight weapons, 1.0 s for two) instead of 800 ms for every weapon (standin.rs `draw_ms`)"),
-    s("SRP_BENCH_BODY_BLOCK_M", "off", "**model** enemy bodies block each other on the ground within this distance, m (0.76 in the game; friends never block)"),
+    s("SRP_BENCH_DRAW_TIME", "weapon (live)", "**model** `weapon`: a carrier's weapon fires again its own `show_time` after he drops a battery (0.5 s for eight weapons, 1.0 s for two) instead of 800 ms for every weapon, which any other value gives (`off`: the stand-in as it was; standin.rs `draw_ms`)"),
+    s("SRP_BENCH_BODY_BLOCK_M", "0.76 (live)", "**model** enemy bodies block each other on the ground within this distance, m (0.76 in the game, PROVEN from the J0 matches' bodies files; friends never block); `off` (or `0`): bodies pass through each other"),
+    s("SRP_BENCH_MAPDATA_OLD", "refuse", "`allow`: a run may read map data older than the format with the bullet armor (`mapdata::format::FIRST_WITH_ARMOR`, 5): every wall of such a file stops every bullet, so the pierce rule never opens a line; by default such a run is refused, naming the file. The format of the files is in the `data files:` line either way"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
     s("SRP_BENCH_TRAPS_MODEL", "on", "**model** `on`/`off`: the stand-in has the bear traps (placing, the sensor, a shot or a use that disarms) or not (standin_traps.rs); with no body carrying a trap it changes nothing"),
@@ -199,6 +200,22 @@ pub(crate) fn models_line(settings: &BenchSettings) -> String {
     format!("bench models: {}", parts.join(" "))
 }
 
+/// The settings a run has the value of a live match for when it does not say otherwise (`off` or `0` turns one off). Each
+/// was off by default before, so a run that did not set them knew nothing of the enemy's weapon, let bodies pass through
+/// each other, drew every weapon in 800 ms and took no enemy for a human; the phase-end sweep set all four itself.
+/// - `SRP_BENCH_WEAPONS`: PROVEN, the server gives every bot its weapon class (`game/driven.rs`, `set_weapons`).
+/// - `SRP_BENCH_BODY_BLOCK_M`: PROVEN, 0.76 m from the J0 matches' bodies files (`standin.rs`).
+/// - `SRP_BENCH_DRAW_TIME`: PROVEN, the weapons' own `show_time` in the configs (`standin.rs`).
+/// - `SRP_BENCH_ENEMY_HUMAN_LANES`: LIKELY, not exact: in a live Player vs Bots match only team 1's bots meet a human
+///   (`team1`, `player_bots.md` section 8); `on` gives both teams the lanes, as the sweep did (sides swap in a head to
+///   head, so no team has them alone).
+const LIVE_DEFAULTS: [(&str, &str); 4] = [
+    ("SRP_BENCH_WEAPONS", "1"),
+    ("SRP_BENCH_BODY_BLOCK_M", "0.76"),
+    ("SRP_BENCH_DRAW_TIME", "weapon"),
+    ("SRP_BENCH_ENEMY_HUMAN_LANES", "on"),
+];
+
 /// The read environment: each setting of [`SETTINGS`] (and `SRP_BENCH_<name>` and
 /// `SRP_BENCH_SIDE1_<name>` of [`TUNING_NAMES`]) as `std::env::var_os` gave it.
 pub(crate) struct BenchSettings {
@@ -223,9 +240,18 @@ impl BenchSettings {
         names
     }
 
-    /// The process's environment, read once for every listed name.
+    /// The process's environment, read once for every listed name, with the live value for each of [`LIVE_DEFAULTS`]
+    /// that it does not set.
     pub(crate) fn from_env() -> Self {
-        Self::from_getter(|name| std::env::var_os(name))
+        Self::from_getter(|name| std::env::var_os(name)).with_live_defaults()
+    }
+
+    /// Each of [`LIVE_DEFAULTS`] that is not set, set to its live value. `off` (or `0`) is how a run turns one off.
+    fn with_live_defaults(mut self) -> Self {
+        for (name, value) in LIVE_DEFAULTS {
+            self.raw.entry(name.to_owned()).or_insert_with(|| OsString::from(value));
+        }
+        self
     }
 
     fn from_getter(get: impl Fn(&str) -> Option<OsString>) -> Self {
@@ -271,6 +297,11 @@ impl BenchSettings {
     /// Set at all, even empty: `std::env::var_os(name).is_some()`.
     pub(crate) fn flag(&self, name: &str) -> bool {
         self.get(name).is_some()
+    }
+
+    /// [`Self::flag`] for a setting that is on by default ([`LIVE_DEFAULTS`]): set, and not `off` or `0`.
+    pub(crate) fn is_on(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|value| value != "off" && value != "0")
     }
 
     /// `var(name).ok().and_then(|v| v.parse().ok())`.
@@ -331,6 +362,25 @@ impl EnemyLanes {
     }
 }
 
+/// What a run does with a map data file written in `version`: `Ok(None)` reads it, `Ok(Some(warning))` reads it though it has
+/// no bullet armor (`SRP_BENCH_MAPDATA_OLD=allow`), `Err` refuses it. A file before the armor stops every bullet at every
+/// wall, so the pierce rule never opens a line and a bench on it measures a world no live match has.
+pub(crate) fn mapdata_format_verdict(path: &std::path::Path, version: u32, allow_old: bool) -> Result<Option<String>, String> {
+    let first = mapdata::format::FIRST_WITH_ARMOR;
+    if version >= first {
+        return Ok(None);
+    }
+    let what = format!(
+        "{}: map data format {version}, which has no bullet armor (format {first} has): every wall stops every bullet, so the pierce rule never opens a line",
+        path.display()
+    );
+    if allow_old {
+        Ok(Some(format!("WARNING: {what} (SRP_BENCH_MAPDATA_OLD=allow)")))
+    } else {
+        Err(format!("{what}. Dump the maps again (mapdata-dump) or set SRP_BENCH_MAPDATA_OLD=allow to run on it anyway."))
+    }
+}
+
 /// The bench's settings, read from the environment the first time they are asked.
 pub(crate) fn bench_settings() -> &'static BenchSettings {
     static SETTINGS_READ: OnceLock<BenchSettings> = OnceLock::new();
@@ -340,6 +390,60 @@ pub(crate) fn bench_settings() -> &'static BenchSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A run that says nothing has the live value of each of the four; `off` or `0` turns one off; a value of its own wins.
+    #[test]
+    fn the_live_defaults_hold_unless_a_run_says_otherwise() {
+        let unset = BenchSettings::from_pairs(&[]).with_live_defaults();
+        assert!(unset.is_on("SRP_BENCH_WEAPONS"));
+        assert_eq!(unset.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), Some(0.76));
+        assert_eq!(unset.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
+        assert_eq!(EnemyLanes::parse(unset.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Both));
+        // A reading that does not go through `from_env` (the other tests of this file) has none of them.
+        assert!(!BenchSettings::from_pairs(&[]).is_on("SRP_BENCH_WEAPONS"));
+        let off = BenchSettings::from_pairs(&[
+            ("SRP_BENCH_WEAPONS", "off"),
+            ("SRP_BENCH_BODY_BLOCK_M", "off"),
+            ("SRP_BENCH_DRAW_TIME", "off"),
+            ("SRP_BENCH_ENEMY_HUMAN_LANES", "off"),
+        ])
+        .with_live_defaults();
+        assert!(!off.is_on("SRP_BENCH_WEAPONS"));
+        assert_eq!(off.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), None);
+        assert_ne!(off.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
+        assert_eq!(EnemyLanes::parse(off.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Off));
+        let zero = BenchSettings::from_pairs(&[("SRP_BENCH_WEAPONS", "0")]).with_live_defaults();
+        assert!(!zero.is_on("SRP_BENCH_WEAPONS"));
+        let own = BenchSettings::from_pairs(&[("SRP_BENCH_BODY_BLOCK_M", "0.5"), ("SRP_BENCH_ENEMY_HUMAN_LANES", "team1")]).with_live_defaults();
+        assert_eq!(own.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), Some(0.5));
+        assert_eq!(EnemyLanes::parse(own.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::OnlyTeam(1)));
+    }
+
+    /// The table words each live default as the value the code gives, and the models line shows the value the run has.
+    #[test]
+    fn the_table_and_the_models_line_name_the_live_defaults() {
+        for (name, _) in LIVE_DEFAULTS {
+            let row = SETTINGS.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{name} is not in the table"));
+            assert!(row.default.starts_with("on") || row.default.contains("live"), "{name}: {}", row.default);
+        }
+        let line = models_line(&BenchSettings::from_pairs(&[]).with_live_defaults());
+        for part in [" WEAPONS=1", " BODY_BLOCK_M=0.76", " DRAW_TIME=weapon", " ENEMY_HUMAN_LANES=on"] {
+            assert!(line.contains(part), "{part} is not in `{line}`");
+        }
+    }
+
+    /// A map data file before the bullet armor is refused by name, unless the run allows it and then it says so.
+    #[test]
+    fn a_map_data_file_without_bullet_armor_is_refused_unless_allowed() {
+        let path = std::path::Path::new("level_01_day_2.mapdata");
+        let first = mapdata::format::FIRST_WITH_ARMOR;
+        assert_eq!(mapdata_format_verdict(path, first, false), Ok(None));
+        assert_eq!(mapdata_format_verdict(path, first + 1, false), Ok(None));
+        let refused = mapdata_format_verdict(path, first - 1, false).unwrap_err();
+        assert!(refused.contains("level_01_day_2.mapdata") && refused.contains("no bullet armor"), "{refused}");
+        let warned = mapdata_format_verdict(path, first - 1, true).unwrap().unwrap();
+        assert!(warned.starts_with("WARNING:") && warned.contains("SRP_BENCH_MAPDATA_OLD=allow"), "{warned}");
+    }
 
     /// An empty value is a value: a flag is on, a number is none, a text is empty.
     /// (The same answers `std::env` gave at the places this replaced.)
