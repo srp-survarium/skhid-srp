@@ -111,6 +111,19 @@ class LocalizationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     compile_catalog(self.root, {})
 
+    def test_belarusian_is_cyrillic_without_russian_or_ukrainian_letters(self):
+        self.catalog()
+        (self.root / 'belarusian.tsv').write_text('key\ttext\nst_test\tЎсё гатова, іграць %d\n', encoding='utf-8')
+        result = checker.audit_catalog(self.root)['languages']['belarusian']
+        self.assertEqual((result['non_latin'], result['foreign_letters']), ([], []))
+        for value in ('Играть %d', 'Щось %d', 'Грає %d', 'Объём %d'):
+            (self.root / 'belarusian.tsv').write_text('key\ttext\nst_test\t' + value + '\n', encoding='utf-8')
+            with self.subTest(value=value):
+                self.assertEqual(checker.audit_catalog(self.root)['languages']['belarusian']['foreign_letters'],
+                                 ['st_test'])
+                with self.assertRaisesRegex(ValueError, 'foreign_letters'):
+                    compile_catalog(self.root, {})
+
     def test_ui_mapping_detects_keys_missing_even_from_reference(self):
         self.dictionary('english', {'a': 'One'})
         self.dictionary('serbian', {'a': 'Jedan'})
@@ -206,13 +219,17 @@ class LocalizationTests(unittest.TestCase):
 
     def test_flash_check_catches_omitted_columns_and_bad_text_in_each_added_language(self):
         row = ['Play {n}', 'Грати {n}', 'Играть {n}', 'Spielen {n}', 'Graj {n}',
-               'Igraj {n}', 'Hrát {n}', 'Játék {n}', 'Pelaa {n}']
+               'Igraj {n}', 'Hrát {n}', 'Játék {n}', 'Pelaa {n}', 'Гуляць {n}']
         self.flash_fixture(row[:-1])
-        self.assertTrue(any('expected 9 language columns' in issue
+        self.assertTrue(any('expected 10 language columns' in issue
                             for issue in audit_flash(self.root)['issues']))
+        self.flash_fixture(row)
+        self.assertEqual(audit_flash(self.root)['issues'], [])
         for index in range(5, len(LANGUAGES)):
+            # A Latin language must not take Cyrillic; Belarusian must not take Russian letters.
+            wrong = 'Cyrillic' if LANGUAGES[index][0] != 'belarusian' else 'Russian or Ukrainian letters'
             for replacement, error in [('', 'empty'), ('Play', 'substitutions'),
-                                        ('Играть {n}', 'Cyrillic')]:
+                                        ('Играть {n}', wrong)]:
                 with self.subTest(language=LANGUAGES[index][0], error=error):
                     changed = row.copy()
                     changed[index] = replacement
@@ -229,9 +246,9 @@ class LocalizationTests(unittest.TestCase):
     def test_flash_numbered_labels_without_cyrillic_still_require_all_languages(self):
         row = ['Loadout {n}', '{n}', '{n}', '{n}', '{n}', 'Komplet {n}']
         self.flash_fixture(row)
-        self.assertTrue(any('expected 9 language columns' in issue
+        self.assertTrue(any('expected 10 language columns' in issue
                             for issue in audit_flash(self.root)['issues']))
-        self.flash_fixture(row + ['Výbava {n}', '{n}. összeállítás', 'Varustesetti {n}'])
+        self.flash_fixture(row + ['Výbava {n}', '{n}. összeállítás', 'Varustesetti {n}', '{n}'])
         self.assertEqual(audit_flash(self.root)['issues'], [])
 
     def test_added_dictionary_labels_match_flash_detectors(self):
@@ -267,7 +284,7 @@ class LocalizationTests(unittest.TestCase):
                 self.assertEqual(read_strings(encoded), (translated, []))
 
     def test_new_language_alphabets_survive_native_roundtrip(self):
-        text = 'ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ áčďéěíňóřšťúůýž ÁÉÍÓÖŐÚÜŰ áéíóöőúüű ÅÄÖ åäö'
+        text = 'ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ áčďéěíňóřšťúůýž ÁÉÍÓÖŐÚÜŰ áéíóöőúüű ÅÄÖ åäö ЎўІіЁёЫыЭэ\''
         self.assertEqual(read_strings(encode_strings({'st_letters': text})), ({'st_letters': text}, []))
 
     def test_content_edit_compiles_dictionary_and_copies_support_files_exactly(self):

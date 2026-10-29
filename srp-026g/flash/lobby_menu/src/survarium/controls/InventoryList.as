@@ -183,7 +183,7 @@ package survarium.controls
       private static const SEARCH_ICON_GAP:int = 4;
       
       // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl, sr)
-      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj", "Pretraga", "Hledat", "Keresés", "Hae"];
+      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj", "Pretraga", "Hledat", "Keresés", "Hae", "Пошук"];
       
       // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
       // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
@@ -214,15 +214,15 @@ package survarium.controls
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet"],group:SuperCategory.ITEMS},
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
          {words:["helmet","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
          {words:["mask","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari"],category:ItemCategory.BODY_ARMOR},
+         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
          {words:["rig","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet"],category:ItemCategory.GLOVES},
+         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
          {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat"],category:ItemCategory.BOOTS}];
+         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;
@@ -259,7 +259,7 @@ package survarium.controls
          "ź":"z","ż":"z","ž":"z","Ź":"z","Ż":"z","Ž":"z",
          "а":"a","б":"b","в":"v","г":"g","ґ":"g","д":"d","е":"e","ё":"e","є":"e","ж":"zh","з":"z",
          "и":"i","і":"i","ї":"i","й":"i","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
-         "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
+         "с":"s","т":"t","у":"u","ў":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
          "ы":"y","ь":"","э":"e","ю":"yu","я":"ya"
       };
       

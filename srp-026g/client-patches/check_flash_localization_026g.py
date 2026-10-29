@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import re
 
-from localization_026g import LANGUAGES, read_translations
+from localization_026g import CYRILLIC, FOREIGN_LETTERS, LANGUAGES, read_translations
 
 STR = r'"(?:[^"\\]|\\.)*"'
 ROWS = re.compile(r'\[\s*' + STR + r'(?:\s*,\s*' + STR + r'){4,}\s*\]')
@@ -76,6 +76,7 @@ def audit_flash(root):
             return
         # The shipped legacy translations have their own pre-existing defects.
         # Require every added language, including Serbian, to match English.
+        # Added Latin languages must stay Latin; Cyrillic ones keep their own alphabet.
         for index in range(5, len(LANGUAGES)):
             language = LANGUAGES[index][0]
             en, translated = row[0], row[index]
@@ -90,7 +91,11 @@ def audit_flash(root):
                 continue
             if en.strip() and not translated.strip():
                 issues.append(f'{where}: empty translation')
-            if re.search('[\u0400-\u04ff]', translated):
+            if language in CYRILLIC:
+                foreign = FOREIGN_LETTERS.get(language)
+                if foreign and re.search('[' + foreign + ']', translated):
+                    issues.append(f'{where}: Russian or Ukrainian letters in {language} text')
+            elif re.search('[\u0400-\u04ff]', translated):
                 issues.append(f'{where}: Cyrillic in Latin text')
             if sorted(TOKENS.findall(en)) != sorted(TOKENS.findall(translated)):
                 issues.append(f'{where}: changed substitutions')

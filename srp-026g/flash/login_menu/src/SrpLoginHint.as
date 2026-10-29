@@ -33,7 +33,7 @@ package
                 menu.panelContainer.addChild(hint);
             }
             // Match the stock localized registration string supplied by the
-            // native client. This covers all nine supported client languages.
+            // native client. This covers all ten supported client languages.
             var translations:Object = {
                 "Create account": "Account created on first sign-in",
                 "Створити новий акаунт": "Акаунт створюється під час першого входу",
@@ -43,7 +43,8 @@ package
                 "Napravi nalog": "Nalog se pravi pri prvoj prijavi",
                 "Vytvořit účet": "Účet se vytvoří při prvním přihlášení",
                 "Fiók létrehozása": "A fiók az első belépéskor jön létre",
-                "Luo tili": "Tili luodaan ensimmäisellä kirjautumisella"
+                "Luo tili": "Tili luodaan ensimmäisellä kirjautumisella",
+                "Стварыць акаўнт": "Акаўнт ствараецца пры першым уваходзе"
             };
             var text:String = translations[LocalizationData.getName("registration_str")];
             hint.text = text != null ? text : "Account created on first sign-in";

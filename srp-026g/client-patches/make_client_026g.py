@@ -7,7 +7,7 @@ USAGE
     cd srp-026g/client-patches
     python make_client_026g.py <game folder> <output> --server=<host>:<port>
         [--localization=<language>]  english, russian, ukrainian, german, polish, serbian, czech, hungarian,
-                                     finnish: the scripts' language; by default none (the game keeps the
+                                     finnish, belarusian: the scripts' language; by default none (the game keeps the
                                      one chosen in its Settings, patch 79)
         [--cert-only | --cave=hash-mismatch]   another build of the exe (see patch_026g.py)
         [--no-late-join]             the exe without the late join: patch revision 4,
@@ -275,7 +275,7 @@ def bat(server, localization, embedded=False):
                   f"set SERVER={server}"]
     lines += [
         "rem Game language: empty for the one chosen in the game's Settings, or english, russian,",
-        "rem ukrainian, german, polish, serbian, czech, hungarian or finnish (Settings can change it then).",
+        "rem ukrainian, german, polish, serbian, czech, hungarian, finnish or belarusian (Settings can change it then).",
         f"set LANGUAGE={localization or ''}",
         "set LANGUAGE_OPTION=",
         "if defined LANGUAGE set LANGUAGE_OPTION=-localization=%LANGUAGE%",
@@ -473,7 +473,7 @@ def readme(server, localization, description, files, embedded=False, site=None):
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
         "  -localization=   start in this language (english, russian, ukrainian, german, polish,",
-        "                   serbian, czech, hungarian or finnish); Settings can change it then",
+        "                   serbian, czech, hungarian, finnish or belarusian); Settings can change it then",
         "  -mt_allocator=768, -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",

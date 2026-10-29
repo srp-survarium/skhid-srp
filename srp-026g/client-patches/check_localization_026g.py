@@ -12,8 +12,9 @@ from pathlib import Path
 import re
 import sys
 
-from localization_026g import (CATALOG, EMPTY_KEYS, LANGUAGES, discover, encode_strings,
-                              read_config, read_strings, read_translations, rust_table_issue)
+from localization_026g import (CATALOG, CYRILLIC, EMPTY_KEYS, FOREIGN_LETTERS, LANGUAGES, discover,
+                              encode_strings, read_config, read_strings, read_translations,
+                              rust_table_issue)
 from check_flash_localization_026g import audit_flash, audit_native_labels
 
 
@@ -62,11 +63,15 @@ def audit_catalog(root=CATALOG):
         result['key_order'] = [] if list(strings) == sorted(strings) else ['keys must be sorted']
         result['too_long'] = sorted(k for k, v in strings.items() if len(v.encode('utf-8')) >= 512)
         result['non_latin'] = sorted(k for k, v in strings.items()
-            if language not in ('ukrainian', 'russian') and re.search('[\u0400-\u04ff]', v))
+            if language not in CYRILLIC and re.search('[\u0400-\u04ff]', v))
         # Old Latin dictionaries contain unfinished Russian descriptions; preserve
         # those existing texts. Added Latin languages must remain fully Latin.
         if language in ('english', 'german', 'polish'):
             result['non_latin'] = []
+        # Russian or Ukrainian letters left in a translation from those dictionaries.
+        foreign = FOREIGN_LETTERS.get(language)
+        result['foreign_letters'] = sorted(k for k, v in strings.items()
+                                           if foreign and re.search('[' + foreign + ']', v))
         if read_strings(encode_strings(strings)) != (strings, []):
             raise ValueError(f'{language}: compiled dictionary did not read back exactly')
         report['languages'][language] = result
@@ -148,7 +153,7 @@ def failed(report):
                 or report.get('rust_table') or any(
         result.get(field) for result in report['languages'].values()
         for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                      'too_long', 'non_latin', 'key_order', 'catalog_mismatch'))
+                      'too_long', 'non_latin', 'foreign_letters', 'key_order', 'catalog_mismatch'))
         or any(report['ui_missing'].values()) or report.get('flash', {}).get('issues'))
 
 
@@ -191,7 +196,7 @@ def main(argv=None):
                 f'{len(result[field])} {field}' for field in
                 ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8', 'unchanged')))
             for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                          'too_long', 'non_latin', 'key_order'):
+                          'too_long', 'non_latin', 'foreign_letters', 'key_order'):
                 for key in result[field]:
                     print(f'  {field}: {key}')
             for key in report['ui_missing'].get(language, []):

@@ -19,7 +19,12 @@ LANGUAGES = (
     ('english', 'EN', 'English'), ('ukrainian', 'UK', 'Українська'), ('russian', 'RU', 'Русский'),
     ('german', 'DE', 'Deutsch'), ('polish', 'PL', 'Polski'), ('serbian', 'SR', 'Srpski'),
     ('czech', 'CS', 'Čeština'), ('hungarian', 'HU', 'Magyar'), ('finnish', 'FI', 'Suomi'),
+    ('belarusian', 'BE', 'Беларуская'),
 )
+# Languages written in Cyrillic; every other dictionary is Latin.
+CYRILLIC = frozenset({'ukrainian', 'russian', 'belarusian'})
+# Letters of the neighbouring Cyrillic alphabets that standard Belarusian does not use.
+FOREIGN_LETTERS = {'belarusian': 'иИщЩъЪїЇєЄґҐ'}
 CATALOG = Path(__file__).resolve().parent / 'localization'
 # These unused directional controls intentionally have no visible label.
 EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
