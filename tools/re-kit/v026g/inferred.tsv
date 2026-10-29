@@ -3139,3 +3139,7 @@ va	status	ref_021d	name
 0x00336a50	inferred-high		survarium::player_logic_stand_sprint_state::finalize
 0x0025d590	inferred-medium		survarium::trap_cook::query_for_derived_resources
 0x0025e030	inferred-medium		survarium::grenade_cook::query_for_derived_resources
+0x00303d10	inferred-medium		survarium::grenade_core::stop_fuse
+0x00303d50	inferred-high		survarium::grenade_core::remove_from_physics_world
+0x003576c0	inferred-medium		vostok::physics::rigid_body::set_linear_velocity
+0x00357750	inferred-medium		vostok::physics::rigid_body::set_angular_velocity

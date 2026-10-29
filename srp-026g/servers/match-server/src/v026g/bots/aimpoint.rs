@@ -861,7 +861,7 @@ mod tests {
         for k in 0..60 {
             let now = 1_300 + k * 50;
             if turning && now >= hides_at {
-                let way = if (now - hides_at) / 200 % 2 == 0 { 5.0 } else { -5.0 };
+                let way = if ((now - hides_at) / 200).is_multiple_of(2) { 5.0 } else { -5.0 };
                 enemy.velocity = [way, 0.0];
                 enemy.feet.x += way * 0.05;
             }

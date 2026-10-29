@@ -44,6 +44,9 @@ impl MatchMs {
 /// the alpha keys; seconds LIKELY). The model: a vertical cylinder of the puffs' centres' radius, hiding once
 /// the overlapping puffs are dense enough, its radius shrinking as they fade (the rim, with fewer puffs on a
 /// line, clears first).
+///
+/// These are code constants read off the content (`particles/fx/explosions/smoke_grenade.particle`, which the server's
+/// game data does not hold): a content patch that changes that effect must change them with it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CloudShape {
     /// From the press to the blast, ms: the grenade's fuse (`ttl_ms` 4000, PROVEN; from the press LIKELY, as the
