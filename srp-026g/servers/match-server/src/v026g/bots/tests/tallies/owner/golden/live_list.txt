@@ -1,0 +1,340 @@
+owner-test live grenade list: frags from pockets 0, assumed from a bot's key with its pockets read 0, from a bot's key with its pockets unread 0, smokes 0, no pockets known 0, launched 0, unplaced 0, thrower dead 0; frag rolls refused, none in the kit: team 0 0, team 1 0; team 0 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0; team 1 noticed 0 (a mate's 0) stepped 0 no way out 0 escaped 0 caught 0 refused 0
+{
+  "live_list_assumed": 0,
+  "live_list_died_throwing": 0,
+  "live_list_frag_rolls_refused_team0": {
+    "camper": 0,
+    "flanker": 0,
+    "rusher": 0,
+    "support": 0
+  },
+  "live_list_frag_rolls_refused_team1": {
+    "camper": 0,
+    "flanker": 0,
+    "rusher": 0,
+    "support": 0
+  },
+  "live_list_frags": 0,
+  "live_list_launched": 0,
+  "live_list_no_pockets": 0,
+  "live_list_quick_rules_differ": 0,
+  "live_list_smokes": 0,
+  "live_list_team0": {
+    "assumed": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "bot": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "human": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "unread": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "live_list_team1": {
+    "assumed": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "bot": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "human": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    },
+    "unread": {
+      "already_out": [
+        0,
+        0,
+        0
+      ],
+      "caught": [
+        0,
+        0,
+        0
+      ],
+      "escaped": [
+        0,
+        0,
+        0
+      ],
+      "no_way": [
+        0,
+        0,
+        0
+      ],
+      "noticed": [
+        0,
+        0,
+        0
+      ],
+      "noticed_a_mates": 0,
+      "out_at_act": [
+        0,
+        0,
+        0
+      ],
+      "refused": 0,
+      "stepped": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "live_list_unplaced": 0,
+  "live_list_unread": 0
+}

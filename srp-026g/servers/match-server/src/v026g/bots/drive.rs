@@ -481,9 +481,17 @@ fn drive_tick_inner(
             me,
             grenades: &view.grenades,
         };
-        if let grenade_threat::Action::Go(to) =
-            bot.features.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
+        let action = bot.features.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around);
+        // One trace line for each decision of the avoidance (noticed, set out, no way out, refused).
+        if let Some(decision) = bot.features.avoid.decided.take()
+            && bot.tracing
         {
+            let mut line = decision.trace();
+            line["t"] = time.into();
+            line["bot"] = bot.place.into();
+            bot.traced.push(line);
+        }
+        if let grenade_threat::Action::Go(to) = action {
             intent.go = Go::To {
                 at: to,
                 within_m: AVOID_ARRIVE_M,

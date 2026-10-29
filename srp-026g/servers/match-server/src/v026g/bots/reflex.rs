@@ -416,6 +416,12 @@ pub struct CombatTuning {
     /// the same match: they neither avoid nor seek it; the claim keeps the
     /// bots at 0, under the humans'.
     pub grenade_claim: bool,
+    /// A roll for a grenade is made only if the kit holds a frag now (`Throws::frags_left` of the live list): the throw key
+    /// throws from the first pocket holding any grenade (0x2FE8B0, PROVEN), so a bot of a role that carries none (the trap
+    /// roles) rolled throws that do nothing, in a stance of `grenade_hold_ms` with the view turned off the fight, and with a
+    /// smoke in the kit would have thrown the smoke at a frag target. A kit not read (the bench) goes by `grenades` as
+    /// before. Off: the roll goes by `grenades` alone.
+    pub grenade_kit_cap: bool,
     /// ... 8 m: C, PROVEN: the blast's damage at 8 m is 0.3 of a body's
     /// health (linear to 10 m). G for the exact value; swept: 5 m and 12 m.
     pub grenade_claim_m: f32,
@@ -1105,6 +1111,7 @@ impl Default for CombatTuning {
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
             grenade_claim: true,
+            grenade_kit_cap: true,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
             grenade_repick: true,
@@ -2458,6 +2465,10 @@ pub struct Reflex {
     pub heal_walks: u32,
     thrown: u8,
     next_grenade_roll: u32,
+    /// The fragmentation grenades the kit holds now, where known (`Throws::frags_left`, set each poll); none where not.
+    frags_left: Option<u16>,
+    /// Rolls for a grenade refused because the kit held no frag (`grenade_kit_cap`), this life.
+    refused_no_frag: u32,
     /// [measure] What the grenade logic did this life ([`GrenadeStats`]).
     grenade_stats: GrenadeStats,
     /// A grenade decided on at this place, for the team's claim
@@ -2985,6 +2996,21 @@ impl Reflex {
     /// ran; nothing decides by it.
     pub fn grenade_stats(&self) -> GrenadeStats {
         self.grenade_stats
+    }
+
+    /// The kit's frags now, as the last poll told (none: the kit was not read).
+    pub fn frags_left(&self) -> Option<u16> {
+        self.frags_left
+    }
+
+    /// The kit's frags now, for the grenade logic ([`CombatTuning::grenade_kit_cap`]).
+    pub fn set_frags_left(&mut self, frags: Option<u16>) {
+        self.frags_left = frags;
+    }
+
+    /// Rolls for a grenade refused this life because the kit held no frag.
+    pub fn refused_no_frag(&self) -> u32 {
+        self.refused_no_frag
     }
 
     /// Grenades thrown this life.
@@ -3991,9 +4017,12 @@ impl Reflex {
         let (view, team) = (sit.view, sit.team);
         let c = &aim.combat;
         self.grenade_stats.thinks += 1;
+        let no_frag = c.grenade_kit_cap && self.frags_left == Some(0);
         // [C20] The window of a throw let go: a second grenade at its place.
         if let Some(volley) = self.volley {
-            if !c.grenade_volley || self.thrown >= c.grenades || now >= volley.until {
+            if !c.grenade_volley || self.thrown >= c.grenades || now >= volley.until || no_frag {
+                // A second grenade the kit cannot give is a refused roll, counted once as the window closes.
+                self.refused_no_frag += u32::from(no_frag && c.grenade_volley && self.thrown < c.grenades && now < volley.until);
                 self.volley = None;
             } else if self.throw.is_none() && self.target.is_none() && now >= volley.next {
                 self.volley_roll(&look, volley, aim, skill, rng);
@@ -4080,6 +4109,13 @@ impl Reflex {
         }
         self.grenade_stats.claimed += dropped;
         if places.is_empty() {
+            return;
+        }
+        if no_frag {
+            // A roll with a place in range that the kit cannot throw: refused (counted once), and the next one waits as a
+            // roll would have.
+            self.refused_no_frag += 1;
+            self.next_grenade_roll = now + c.grenade_roll_ms;
             return;
         }
         places.sort_by(|a, b| {
@@ -7346,6 +7382,12 @@ mod tests {
     /// A bot that saw a camper 18 m off and lost him, through 12 s: the
     /// times a grenade was let go, and the counts.
     fn volley_run(combat: CombatTuning) -> (Vec<u32>, GrenadeStats) {
+        let (throws, stats, _) = kit_run(combat, None);
+        (throws, stats)
+    }
+
+    /// [`volley_run`] with the kit's frags now known to the reflex (`set_frags_left`), and the rolls it refused for them.
+    fn kit_run(combat: CombatTuning, frags: Option<u16>) -> (Vec<u32>, GrenadeStats, u32) {
         let camper_at = Vec3::new(0.0, 0.0, 18.0);
         let mut camper = body(1, 1, camper_at, 0.0);
         camper.keys = key::CROUCH | key::AIM;
@@ -7357,6 +7399,7 @@ mod tests {
         };
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
+        reflex.set_frags_left(frags);
         let mut rng = Rng::new(10);
         for now in [1_000, 1_300] {
             sense(&mut memory, &[percept(1, camper_at, now, Source::Seen)], now);
@@ -7382,7 +7425,27 @@ mod tests {
             }
             now += 50;
         }
-        (throws, reflex.grenade_stats())
+        (throws, reflex.grenade_stats(), reflex.refused_no_frag())
+    }
+
+    /// A bot whose kit holds no frag (a trap role's) rolls no grenade, and counts the roll it refused; with the cap off it throws
+    /// one that does nothing; a kit not read (none) and a kit with a frag throw as before.
+    #[test]
+    fn a_roll_is_refused_when_the_kit_holds_no_frag_and_only_with_the_cap_on() {
+        let combat = |cap| CombatTuning {
+            grenade_chance: 1.0,
+            grenade_roll_ms: 60_000,
+            grenade_kit_cap: cap,
+            ..CombatTuning::default()
+        };
+        let (throws, _, refused) = kit_run(combat(true), Some(0));
+        assert_eq!((throws.len(), refused), (0, 1), "no frag: no throw, one refused roll");
+        let (throws, _, refused) = kit_run(combat(false), Some(0));
+        assert_eq!((throws.len(), refused), (1, 0), "the cap off: the roll goes by `grenades` alone");
+        let (throws, _, refused) = kit_run(combat(true), None);
+        assert_eq!((throws.len(), refused), (1, 0), "a kit not read goes by `grenades`");
+        let (throws, _, refused) = kit_run(combat(true), Some(2));
+        assert_eq!((throws.len(), refused), (1, 0), "a kit with frags throws");
     }
 
     /// [C20] With the roll's lockout out of the way, a second grenade

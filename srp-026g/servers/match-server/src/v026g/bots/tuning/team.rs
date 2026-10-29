@@ -156,6 +156,20 @@ pub struct AvoidTuning {
     /// A bot steps out of the blast of every grenade it knows of (below). Off: no bot knows of one, the
     /// list is not read.
     pub grenade_avoid: bool,
+    /// The server's live list always reads a server bot's pockets from its profile, as a human's; this decides whether a team
+    /// dodges a grenade the list holds from a bot's throw key with its pockets read and empty (the client throws nothing).
+    /// Off: the team dodges it as a frag, so mates stepped out of blasts that never came (155 of 204 bot throws in the owner's
+    /// matches of 2026-10-28 had empty pockets). A key of a bot whose pockets were not read (the bench's) may throw a frag:
+    /// every team dodges it.
+    pub bot_pockets: bool,
+    /// The server's live list takes a player's pockets from the kit a world says he is in (`players::Supplies::kit`),
+    /// not always the profile's first kit: a throw from kit 2 or 3 is then listed. Off: kit 1 whatever a world says,
+    /// as before. Read where the profiles are read (`game/driven.rs`), once a match, and **not per team** on purpose: it
+    /// decides what the server's one list of grenades holds for every throw of a player (which kit's pockets a human's
+    /// key acts on), not what a team's bots do with the list, so two teams would see different lists for the same human
+    /// throw, which has no meaning in the game. The match-wide tuning's value is the one used (a one-sided head-to-head
+    /// bench leaves it the same on both sides; `bot_pockets` and `grenade_avoid` are the per-team switches).
+    pub kit_in_use: bool,
     /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
     /// human team can call it, few do); they step out after this long, ms, drawn.
     pub told_ms: (u32, u32),
@@ -182,6 +196,8 @@ impl Default for AvoidTuning {
     fn default() -> Self {
         Self {
             grenade_avoid: true,
+            bot_pockets: true,
+            kit_in_use: true,
             told_ms: (200, 400),
             notice_ms: (400, 900),
             see_m: 30.0,
