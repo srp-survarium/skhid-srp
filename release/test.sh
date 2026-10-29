@@ -1011,6 +1011,9 @@ for dir in maps damage; do
     { echo "# The patches the $dir page was built from: name, sha256."; grep . <<<"$rows"; } >"$tree/srp-026g/servers/web-server/$dir/built-from.tsv"
     printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/$dir/page.js"
 done
+# The wiki's files the calculator's build makes.
+mkdir -p "$tree/srp-026g/servers/web-server/wiki"
+printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/wiki/page.js"
 echo "the Maps tab and the calculator: built"
 STANDIN
 chmod +x "$T/build-site"
@@ -1245,6 +1248,8 @@ for dir in maps damage; do
     grep -v '^#' "$T/patches.tsv" | cut -f1,2 >"$src/servers/web-server/$dir/built-from.tsv"
     echo "built by hand" >"$src/servers/web-server/$dir/page.js"
 done
+mkdir -p "$src/servers/web-server/wiki"
+echo "built by hand" >"$src/servers/web-server/wiki/page.js"
 commit "the site's pages, built"
 pages_commit=$(git -C "$T/repo" rev-parse HEAD)
 : >"$T/state/admin.log"
@@ -1263,7 +1268,7 @@ check "release --resources: ... the server's source carries them" bash -c \
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
     "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
 check "release --resources: ... no worktree of the rebuild left" bash -c "! git -C $T/repo worktree list | grep -q '/site\$'"
 check "release --resources: publishes the patch" cmp -s "$T/r13/resources.db.patch_13" "$T/patches/resources.db.patch_13"
 check "release --resources: adds its row to the list" test "$(rows "$T/patches.tsv")" = "resources.db.patch_3 resources.db.patch_12 resources.db.patch_13"

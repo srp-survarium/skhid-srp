@@ -32,10 +32,14 @@ fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
 }
 
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
-    (path == "/wiki/weapons.js").then_some(("text/javascript; charset=utf-8", SCRIPT))
+    (path == "/wiki/weapons.js")
+        .then_some(("text/javascript; charset=utf-8", SCRIPT))
+        .or_else(|| modifiers::file(path))
 }
 
-pub(crate) fn page(path: &str, lang: Lang, header: &str) -> Response {
+/// The wiki's page at `path` in `lang` under `header`; `query`: the
+/// request's text after `?` (the modifiers page's chosen item).
+pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Response {
     let (title, body) = if path == WEAPONS {
         let body = match lang {
             Lang::En => include_str!("../wiki/weapons.en.html"),
@@ -43,7 +47,10 @@ pub(crate) fn page(path: &str, lang: Lang, header: &str) -> Response {
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == MODIFIERS {
-        (lang.tr("Modifiers", "Модифікатори"), modifiers::body(lang))
+        (
+            lang.tr("Modifiers", "Модифікатори"),
+            modifiers::body(lang, modifiers::chosen(query)),
+        )
     } else {
         (
             lang.tr("Wiki", "Вікі"),
@@ -118,7 +125,7 @@ mod tests {
     #[test]
     fn both_languages_have_weapon_stats_and_comparison() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(WEAPONS, lang, "site header");
+            let page = page(WEAPONS, "", lang, "site header");
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));

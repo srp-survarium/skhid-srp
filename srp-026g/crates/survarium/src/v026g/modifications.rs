@@ -167,11 +167,13 @@ pub struct Modification {
 }
 
 /// A modification's line in the lobby: `ui_desc.props_list`'s one row, a
-/// property of [`super::ui_properties`] and the value printed beside it.
+/// property of [`super::ui_properties`] and the value printed beside it,
+/// and its icon (`ui_desc.icon`, a cell of the lobby's `modifiers` atlas).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shown {
     pub property: u32,
     pub value: f32,
+    pub icon: u32,
 }
 
 /// The item parameters of its wear: what a "reliability" modification
@@ -437,6 +439,7 @@ fn shown_of(row: &ConfigValue) -> Result<Shown, ConfigError> {
     Ok(Shown {
         property: number(prop.req("prop_id")?)?,
         value,
+        icon: number(row.req("ui_desc")?.req("icon")?)?,
     })
 }
 

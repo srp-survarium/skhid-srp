@@ -41,6 +41,7 @@
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
 mod damage;
+mod icons;
 mod launcher;
 mod maps;
 mod moderation;
@@ -671,7 +672,8 @@ impl Web {
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
                 .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)));
+                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
@@ -967,7 +969,7 @@ impl Web {
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
                     path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS) => {
-                        return wiki_page(path, request.lang);
+                        return wiki_page(path, &request.target, request.lang);
                     }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
@@ -1621,12 +1623,13 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
-fn wiki_page(path: &str, lang: Lang) -> Response {
+fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
-    wiki::page(path, lang, &format!("{header}{notice}"))
+    let query = target.split_once('?').map_or("", |(_, query)| query);
+    wiki::page(path, query, lang, &format!("{header}{notice}"))
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the

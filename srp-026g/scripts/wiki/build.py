@@ -128,6 +128,9 @@ def build(calculator, out):
     for code in ("en", "uk"):
         (out / f"weapons.{code}.html").write_text(render(data, code, script_url))
     (out / "weapons.js").write_bytes(script)
+    # The modifiers page is the web server's (servers/web-server/src/modifiers.rs);
+    # its script is the same chooser and its own part.
+    (out / "modifiers.js").write_bytes(b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "modifiers.js")))
     (out / "source.sha256").write_text(hashlib.sha256(blob).hexdigest() + "\n")
     print(f"{out}: {len(data['weapons'])} weapons, EN/UK, from {calculator}")
 

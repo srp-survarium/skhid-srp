@@ -109,7 +109,31 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 #sim-legend .series-1 { color:#3684bd }
 .modifiers { margin:32px 0 } .modifiers>h2 { font-size:1.5rem; border-bottom:2px solid var(--ink); padding-bottom:8px; margin-bottom:8px }
 .modifier { display:grid; grid-template-columns:minmax(150px,1fr) minmax(220px,1.2fr) 2fr; gap:8px 20px; align-items:start; padding:12px 0; border-bottom:1px solid var(--rule) }
-.modifier h3 { margin:0; font:700 1.05rem/1.3 var(--display); text-transform:none; letter-spacing:normal }
+.modifier h3 { margin:0; font:700 1.05rem/1.3 var(--display); text-transform:none; letter-spacing:normal; display:flex; align-items:center; gap:8px }
+.glyph { display:inline-block; width:22px; height:22px; flex:none; vertical-align:middle; background:currentColor; -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat }
+.modifier h3 .glyph { width:26px; height:26px; color:var(--accent) }
+.group { display:inline-flex; align-items:center; gap:4px; color:var(--ink-2) }
+.group .glyph { width:46px; height:20px }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap }
+.fit-items a { display:flex; align-items:center; gap:8px; color:var(--ink-2); text-decoration:none; padding:2px 0 }
+.fit-items a:hover { color:var(--accent) }
+.fit-items img { width:64px; height:31px; object-fit:contain; flex:none }
+.count { color:var(--accent); font-size:.8rem }
+.item-modifiers { margin:28px 0 8px; padding:18px; border:1px solid var(--rule); background:var(--panel) }
+.item-modifiers>h2 { font-size:1.2rem; margin:0 0 10px }
+.item-modifiers .compare-field { max-width:420px }
+.item-card { margin-top:18px; border-top:1px solid var(--rule); padding-top:14px }
+.item-head { display:flex; align-items:center; gap:14px }
+.item-head img { width:128px; height:62px; object-fit:contain }
+.item-head strong { display:block; font:700 1.3rem var(--display) }
+.item-head span { color:var(--ink-3); font-size:.85rem }
+.item-head .group .glyph { width:40px; height:18px }
+.item-card h3 { font-size:.85rem; margin:16px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+.item-kinds { list-style:none; margin:0; padding:0 }
+.item-kinds>li { display:grid; grid-template-columns:minmax(180px,1fr) 2fr; gap:6px 16px; align-items:center; margin:0; padding:6px 0; border-bottom:1px solid var(--rule) }
+.item-kinds .kind { display:flex; align-items:center; gap:8px; color:var(--ink); text-decoration:none; font-weight:700 }
+.item-kinds a.kind:hover { color:var(--accent) }
+.item-kinds .glyph { color:var(--accent) }
 .strengths,.fits,.fit-items { list-style:none; margin:0; padding:0 }
 .strengths li,.fits li,.fit-items li,.fit details { margin:0 }
 .strengths { display:flex; flex-wrap:wrap; gap:6px; font:.85rem var(--data) }
@@ -118,9 +142,10 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .fit summary { cursor:pointer; color:var(--ink-2); font:inherit; text-transform:none; letter-spacing:normal }
 .fit summary span { color:var(--accent); font-size:.8rem }
 .fit:has(details[open]) { flex-basis:100% }
-.fit-items { margin:4px 0 4px 14px; columns:2 180px; font-size:.82rem; color:var(--ink-3) }
+.fit-items { margin:6px 0 4px 14px; columns:2 220px; font-size:.82rem; color:var(--ink-3) }
 @media(max-width:700px) {
  .modifier { grid-template-columns:1fr }
+ .item-kinds>li { grid-template-columns:1fr }
  .sim-plots { grid-template-columns:1fr }
  .weapon-comparison th,.weapon-comparison td { padding:8px 6px; font-size:.75rem }
  .weapon-comparison thead th { font-size:.9rem }

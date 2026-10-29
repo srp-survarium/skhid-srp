@@ -1,20 +1,45 @@
 //! The wiki's modifiers, `/wiki/modifiers` on the 0.26g site: every kind of
 //! modification an item can roll or comes with, its strengths and the items
-//! that take it. Made from the server's own game data
+//! that take it; and, for the item `?item=` names, what it can roll and what
+//! it comes with. Made from the server's own game data
 //! ([`survarium::v026g`]), the tables and the roll rule
 //! ([`Modification::rolls`]) the lobby gives modifications by, so the page
-//! says what drops, whatever a release changes.
+//! says what drops, whatever a release changes. The icons are the lobby's
+//! ([`crate::icons`]).
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params;
+use survarium::v026g::dictionary::{Dictionary, Item};
+use survarium::v026g::item_params::{self, ItemParams};
 use survarium::v026g::localization::{self, Language};
 use survarium::v026g::modifications::{self, Modification, Modifications};
 use survarium::v026g::ui_properties::{Change, UiProperties, UiProperty};
 
+use crate::icons::{self, IconSet};
 use crate::{Lang, escape};
+
+/// The page's script: the weapons page's chooser and the page's own part,
+/// built by `srp-026g/scripts/wiki/build.py`.
+const SCRIPT: &[u8] = include_bytes!("../wiki/modifiers.js");
+pub(crate) const SCRIPT_PATH: &str = "/wiki/modifiers.js";
+
+/// The page's script, by [`SCRIPT_PATH`].
+pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
+    (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT))
+}
+
+/// The script's address with its version, so it can be kept for good.
+fn script_url() -> &'static str {
+    static URL: OnceLock<String> = OnceLock::new();
+    URL.get_or_init(|| {
+        let digest: String = openssl::sha::sha256(SCRIPT)[..6]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!("{SCRIPT_PATH}?v={digest}")
+    })
+}
 
 /// The lobby's kinds of item that take modifications: its shop filters,
 /// weapons first, then the kit slots.
@@ -54,6 +79,25 @@ impl Group {
             7 => Self::Boots,
             _ => return None,
         })
+    }
+
+    /// Its `item_category`, which names its icon.
+    fn category(self) -> u8 {
+        match self {
+            Self::AssaultRifle => 8,
+            Self::SubmachineGun => 15,
+            Self::MachineGun => 16,
+            Self::SniperRifle => 13,
+            Self::Shotgun => 14,
+            Self::Pistol => 17,
+            Self::Helmet => 1,
+            Self::Mask => 2,
+            Self::Jacket => 3,
+            Self::Back => 4,
+            Self::Gloves => 6,
+            Self::Pants => 5,
+            Self::Boots => 7,
+        }
     }
 
     fn is_weapon(self) -> bool {
@@ -99,7 +143,10 @@ enum Source {
 /// One kind of modification (`type_mask`): what the lobby prints for it,
 /// at each strength, and the items that take it.
 struct Kind {
+    id: u8,
     property: &'static UiProperty,
+    /// Its `ui_desc.icon`.
+    icon: u32,
     /// The values the lobby prints, the commonest first.
     strengths: Vec<f32>,
     source: Source,
@@ -110,34 +157,55 @@ impl Kind {
     fn for_weapons(&self) -> bool {
         self.fits.iter().all(|fit| fit.group.is_weapon())
     }
+
+    fn takes(&self, dict_id: u16) -> bool {
+        self.fits.iter().any(|fit| fit.items.contains(&dict_id))
+    }
+}
+
+/// An item that takes a kind, with its group: what the chooser offers.
+struct Choice {
+    group: Group,
+    item: &'static Item,
+    params: &'static ItemParams,
+}
+
+/// Every item of a group, by group, level and dictionary order.
+fn grouped() -> &'static [Choice] {
+    static ITEMS: OnceLock<Vec<Choice>> = OnceLock::new();
+    ITEMS.get_or_init(|| {
+        let mut items: Vec<Choice> = Dictionary::shared()
+            .items
+            .iter()
+            .filter_map(|item| {
+                Some(Choice {
+                    group: Group::of(item.category)?,
+                    item,
+                    params: item_params::item_params(item.dict_id)?,
+                })
+            })
+            .collect();
+        items.sort_by_key(|choice| (choice.group, choice.params.item_level, choice.item.dict_id));
+        items
+    })
 }
 
 /// Every kind an item takes, in the game's order.
 fn kinds() -> &'static [Kind] {
     static KINDS: OnceLock<Vec<Kind>> = OnceLock::new();
     KINDS.get_or_init(|| {
-        let data = Modifications::shared();
         let properties = UiProperties::shared();
-        let dictionary = Dictionary::shared();
         let mut by_kind: BTreeMap<u8, Vec<&Modification>> = BTreeMap::new();
-        for modification in &data.modifications {
+        for modification in &Modifications::shared().modifications {
             by_kind
                 .entry(modification.kind)
                 .or_default()
                 .push(modification);
         }
         let mut group_size: BTreeMap<Group, usize> = BTreeMap::new();
-        let mut items: Vec<(Group, &item_params::ItemParams)> = Vec::new();
-        for item in &dictionary.items {
-            if let (Some(group), Some(params)) = (
-                Group::of(item.category),
-                item_params::item_params(item.dict_id),
-            ) {
-                *group_size.entry(group).or_default() += 1;
-                items.push((group, params));
-            }
+        for choice in grouped() {
+            *group_size.entry(choice.group).or_default() += 1;
         }
-        items.sort_by_key(|&(group, params)| (group, params.item_level, params.dict_id));
         by_kind
             .into_values()
             .filter_map(|mut rows| {
@@ -160,7 +228,7 @@ fn kinds() -> &'static [Kind] {
                 });
                 let kind = rows[0].kind;
                 let ids: Vec<u32> = rows.iter().map(|row| row.id).collect();
-                let takes = |params: &item_params::ItemParams| match source {
+                let takes = |params: &ItemParams| match source {
                     Source::Rolled => modifications::item_mods(params.dict_id)
                         .is_some_and(|mods| mods.modifications & (1 << kind) != 0),
                     Source::BuiltIn => params
@@ -169,16 +237,18 @@ fn kinds() -> &'static [Kind] {
                         .any(|id| ids.contains(id)),
                 };
                 let mut fits: Vec<Fit> = Vec::new();
-                for &(group, params) in &items {
-                    if !takes(params) {
+                for choice in grouped() {
+                    if !takes(choice.params) {
                         continue;
                     }
                     match fits.last_mut() {
-                        Some(fit) if fit.group == group => fit.items.push(params.dict_id),
+                        Some(fit) if fit.group == choice.group => {
+                            fit.items.push(choice.item.dict_id);
+                        }
                         _ => fits.push(Fit {
-                            group,
-                            items: vec![params.dict_id],
-                            of: group_size[&group],
+                            group: choice.group,
+                            items: vec![choice.item.dict_id],
+                            of: group_size[&choice.group],
                         }),
                     }
                 }
@@ -186,9 +256,11 @@ fn kinds() -> &'static [Kind] {
                     return None;
                 }
                 Some(Kind {
+                    id: kind,
                     property: properties
                         .get(rows[0].shown.property)
                         .expect("srp checked every modification's property at start"),
+                    icon: rows[0].shown.icon,
                     strengths: rows.iter().map(|row| row.shown.value).collect(),
                     source,
                     fits,
@@ -196,6 +268,24 @@ fn kinds() -> &'static [Kind] {
             })
             .collect()
     })
+}
+
+/// The items the chooser offers: those that take a kind.
+fn choices() -> impl Iterator<Item = &'static Choice> {
+    grouped()
+        .iter()
+        .filter(|choice| kinds().iter().any(|kind| kind.takes(choice.item.dict_id)))
+}
+
+/// The item `query` (a request's text after `?`) names by `item=`, its
+/// `items_dict` name, if the chooser offers it.
+pub(crate) fn chosen(query: &str) -> Option<u16> {
+    let name = query
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("item="))?;
+    choices()
+        .find(|choice| choice.item.name == name)
+        .map(|choice| choice.item.dict_id)
 }
 
 fn language(lang: Lang) -> Language {
@@ -233,10 +323,22 @@ fn strength(lang: Lang, property: &UiProperty, value: f32) -> String {
     }
 }
 
+/// The name the lobby prints for `property`.
+fn property_name(lang: Lang, property: &UiProperty) -> String {
+    text(
+        lang,
+        property
+            .name
+            .as_deref()
+            .expect("srp checked every modification's property names itself"),
+    )
+}
+
 /// An item's name for the lists.
 fn item_name(lang: Lang, dict_id: u16) -> String {
-    let dictionary = Dictionary::shared();
-    let item = dictionary.item(dict_id).expect("an item of the dictionary");
+    let item = Dictionary::shared()
+        .item(dict_id)
+        .expect("an item of the dictionary");
     let name = item_params::item_params(dict_id)
         .and_then(|params| params.name_key)
         .map_or_else(|| item.name.clone(), |key| text(lang, key));
@@ -247,54 +349,224 @@ fn item_name(lang: Lang, dict_id: u16) -> String {
     }
 }
 
-fn kind_html(lang: Lang, kind: &Kind) -> String {
-    let name = text(
-        lang,
-        kind.property
-            .name
-            .as_deref()
-            .expect("srp checked every modification's property names itself"),
-    );
+/// A lobby glyph drawn in the text's colour (a CSS mask), or nothing if the
+/// build made no icon for it.
+fn glyph(set: IconSet, key: &str) -> String {
+    icons::url(set, key).map_or_else(String::new, |url| {
+        format!(
+            "<span class=glyph style=\"--icon:url('{}')\" aria-hidden=true></span>",
+            escape(&url)
+        )
+    })
+}
+
+/// An item's lobby picture, or nothing.
+fn picture(dict_id: u16) -> String {
+    let item = Dictionary::shared()
+        .item(dict_id)
+        .expect("an item of the dictionary");
+    icons::url(IconSet::Item, &item.name).map_or_else(String::new, |url| {
+        format!(
+            "<img src=\"{}\" alt=\"\" width=86 height=42 loading=lazy>",
+            escape(&url)
+        )
+    })
+}
+
+/// A group's icon with its name for the reader and as a tip; its name as
+/// text if the build made no icon.
+fn group_label(lang: Lang, group: Group) -> String {
+    let name = escape(&text(lang, group.name_key()));
+    match icons::url(IconSet::Group, &group.category().to_string()) {
+        Some(_) => format!(
+            "<span class=group title=\"{name}\">{}<span class=sr>{name}</span></span>",
+            glyph(IconSet::Group, &group.category().to_string())
+        ),
+        None => format!("<span class=group>{name}</span>"),
+    }
+}
+
+/// A kind's icon and name.
+fn kind_title(lang: Lang, kind: &Kind) -> String {
+    format!(
+        "{}<span>{}</span>",
+        glyph(IconSet::Modifier, &kind.icon.to_string()),
+        escape(&property_name(lang, kind.property))
+    )
+}
+
+fn strengths_html(lang: Lang, kind: &Kind) -> String {
     let strengths: Vec<String> = kind
         .strengths
         .iter()
         .map(|&value| format!("<li>{}</li>", escape(&strength(lang, kind.property, value))))
         .collect();
+    format!("<ol class=strengths>{}</ol>", strengths.concat())
+}
+
+/// An item of a list: its picture and name, a link to its own modifiers.
+fn item_link(lang: Lang, dict_id: u16) -> String {
+    let item = Dictionary::shared()
+        .item(dict_id)
+        .expect("an item of the dictionary");
+    format!(
+        "<li><a href=\"?lang={}&amp;item={}#item\">{}<span>{}</span></a></li>",
+        lang.code(),
+        escape(&item.name),
+        picture(dict_id),
+        escape(&item_name(lang, dict_id))
+    )
+}
+
+fn kind_html(lang: Lang, kind: &Kind) -> String {
     let fits: Vec<String> = kind
         .fits
         .iter()
         .map(|fit| {
-            let group = escape(&text(lang, fit.group.name_key()));
+            let group = group_label(lang, fit.group);
             if fit.items.len() == fit.of {
                 format!("<li class=fit>{group}</li>")
             } else {
-                let names: Vec<String> = fit
+                let items: Vec<String> = fit
                     .items
                     .iter()
-                    .map(|&dict_id| format!("<li>{}</li>", escape(&item_name(lang, dict_id))))
+                    .map(|&dict_id| item_link(lang, dict_id))
                     .collect();
                 format!(
-                    "<li class=fit><details><summary>{group} <span>{}</span></summary>\
+                    "<li class=fit><details><summary>{group} <span class=count>{}</span></summary>\
                      <ul class=fit-items>{}</ul></details></li>",
                     lang.tr(
                         &format!("{} of {}", fit.items.len(), fit.of),
                         &format!("{} з {}", fit.items.len(), fit.of),
                     ),
-                    names.concat(),
+                    items.concat(),
                 )
             }
         })
         .collect();
     format!(
-        "<div class=modifier><h3>{}</h3><ol class=strengths>{}</ol><ul class=fits>{}</ul></div>",
-        escape(&name),
-        strengths.concat(),
+        "<div class=modifier id=kind-{}><h3>{}</h3>{}<ul class=fits>{}</ul></div>",
+        kind.id,
+        kind_title(lang, kind),
+        strengths_html(lang, kind),
         fits.concat(),
     )
 }
 
-/// The page's body in `lang`, under the wiki's breadcrumb.
-pub(crate) fn body(lang: Lang) -> String {
+/// The chooser and, for `item`, what it can roll and what it comes with.
+fn item_html(lang: Lang, item: Option<u16>) -> String {
+    let options: Vec<String> = choices()
+        .map(|choice| {
+            let dict_id = choice.item.dict_id;
+            format!(
+                "<div id=choice-{dict_id} data-key=\"{}\" data-class=\"{}\" data-level={} \
+                 data-title=\"{}\" data-search-name=\"{}\">{}</div>",
+                escape(&choice.item.name),
+                escape(&text(lang, choice.group.name_key())),
+                choice.params.item_level,
+                escape(&item_name(lang, dict_id)),
+                escape(&choice.item.name),
+                picture(dict_id),
+            )
+        })
+        .collect();
+    let select_options: Vec<String> = choices()
+        .map(|choice| {
+            let dict_id = choice.item.dict_id;
+            format!(
+                "<option value=choice-{dict_id}{}>{}</option>",
+                if item == Some(dict_id) {
+                    " selected"
+                } else {
+                    ""
+                },
+                escape(&item_name(lang, dict_id))
+            )
+        })
+        .collect();
+    let chooser = format!(
+        "<div class=compare-field><label id=item-choice-label for=item-choice-btn>{}</label>\
+         <div class=wpick id=item-choice-picker></div><select id=item-choice hidden>\
+         <option value=\"\">{}</option>{}</select></div><div id=item-options hidden>{}</div>",
+        lang.tr("Item", "Предмет"),
+        lang.tr("Choose an item…", "Виберіть предмет…"),
+        select_options.concat(),
+        options.concat(),
+    );
+    let Some(dict_id) = item else {
+        return format!(
+            "<section class=item-modifiers id=item><h2>{}</h2>{chooser}</section>",
+            lang.tr("By item", "За предметом")
+        );
+    };
+    let params = item_params::item_params(dict_id).expect("an offered item has its parameters");
+    let rolls: Vec<String> = kinds()
+        .iter()
+        .filter(|kind| kind.source == Source::Rolled && kind.takes(dict_id))
+        .map(|kind| {
+            format!(
+                "<li><a class=kind href=\"#kind-{}\">{}</a>{}</li>",
+                kind.id,
+                kind_title(lang, kind),
+                strengths_html(lang, kind)
+            )
+        })
+        .collect();
+    let properties = UiProperties::shared();
+    let built_in: Vec<String> = params
+        .default_modifications
+        .iter()
+        .filter_map(|&id| Modifications::shared().modification(id))
+        .filter(|modification| !modification.only_changes_wear())
+        .filter_map(|modification| {
+            let property = properties.get(modification.shown.property)?;
+            Some(format!(
+                "<li><span class=kind>{}<span>{}</span></span><ol class=strengths><li>{}</li></ol></li>",
+                glyph(IconSet::Modifier, &modification.shown.icon.to_string()),
+                escape(&property_name(lang, property)),
+                escape(&strength(lang, property, modification.shown.value)),
+            ))
+        })
+        .collect();
+    let list = |title: String, rows: Vec<String>| {
+        if rows.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "<h3>{}</h3><ul class=item-kinds>{}</ul>",
+                escape(&title),
+                rows.concat()
+            )
+        }
+    };
+    format!(
+        "<section class=item-modifiers id=item><h2>{}</h2>{chooser}\
+         <div class=item-card><div class=item-head>{}<div><strong>{}</strong><span>{} · {}</span></div></div>{}{}</div></section>",
+        lang.tr("By item", "За предметом"),
+        picture(dict_id),
+        escape(&item_name(lang, dict_id)),
+        group_label(
+            lang,
+            Group::of(
+                Dictionary::shared()
+                    .item(dict_id)
+                    .expect("an item")
+                    .category
+            )
+            .expect("an offered item has a group")
+        ),
+        lang.tr(
+            &format!("level {}", params.item_level),
+            &format!("рівень {}", params.item_level)
+        ),
+        list(lang.tr("Can roll", "Може отримати"), rolls),
+        list(lang.tr("Comes with", "Має від початку"), built_in),
+    )
+}
+
+/// The page's body in `lang`, under the wiki's breadcrumb, with `item`'s
+/// modifiers if one is chosen.
+pub(crate) fn body(lang: Lang, item: Option<u16>) -> String {
     let code = lang.code();
     let section = |title: String, note: String, wanted: &dyn Fn(&Kind) -> bool| {
         let rows: Vec<String> = kinds()
@@ -312,7 +584,7 @@ pub(crate) fn body(lang: Lang) -> String {
     format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><p class=eyebrow>{}</p><h1>{}</h1></div></div>\
-         <p class=wiki-intro>{}</p>{}{}{}",
+         <p class=wiki-intro>{}</p>{}{}{}{}<script src=\"{}\"></script>",
         lang.tr("Wiki", "Вікі"),
         lang.tr("Modifiers", "Модифікатори"),
         lang.tr("Equipment reference", "Довідник спорядження"),
@@ -321,6 +593,7 @@ pub(crate) fn body(lang: Lang) -> String {
             "An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.",
             "Предмет отримує до трьох модифікаторів, кожен іншого виду. Що сильніший, то рідший.",
         ),
+        item_html(lang, item),
         section(
             lang.tr("Weapons", "Зброя"),
             lang.tr("Strengths from common to rare.", "Сила від звичайної до рідкісної."),
@@ -336,6 +609,7 @@ pub(crate) fn body(lang: Lang) -> String {
             lang.tr("These never roll.", "Ці не випадають."),
             &|kind| kind.source == Source::BuiltIn,
         ),
+        script_url(),
     )
 }
 
@@ -349,6 +623,10 @@ mod tests {
             .iter()
             .find(|kind| kind.property.id == id)
             .unwrap_or_else(|| panic!("property {id}"))
+    }
+
+    fn dict_id(name: &str) -> u16 {
+        Dictionary::shared().item_named(name).unwrap().dict_id
     }
 
     #[test]
@@ -375,6 +653,9 @@ mod tests {
         assert!(sniper.items.len() < sniper.of);
         let page = kind_html(Lang::En, rate);
         assert!(page.contains(&format!("{} of {}", sniper.items.len(), sniper.of)));
+        // Each listed item links to its own modifiers.
+        let first = Dictionary::shared().item(sniper.items[0]).unwrap();
+        assert!(page.contains(&format!("href=\"?lang=en&amp;item={}#item\"", first.name)));
     }
 
     #[test]
@@ -402,11 +683,41 @@ mod tests {
     }
 
     #[test]
-    fn both_languages_have_the_three_sections() {
+    fn an_item_is_chosen_by_its_dictionary_name_only() {
+        let ak = dict_id("ak_74m");
+        assert_eq!(chosen("lang=en&item=ak_74m"), Some(ak));
+        assert_eq!(chosen("item=ak_74m"), Some(ak));
+        assert_eq!(chosen("item=no_such_item"), None);
+        assert_eq!(chosen("lang=uk"), None);
+        // An item that takes nothing (ammunition) is not offered.
+        let ammo = Dictionary::shared()
+            .items
+            .iter()
+            .find(|item| item.name.starts_with("ammo_"))
+            .unwrap();
+        assert_eq!(chosen(&format!("item={}", ammo.name)), None);
+    }
+
+    #[test]
+    fn a_chosen_weapon_lists_what_it_rolls() {
+        let page = item_html(Lang::En, Some(dict_id("ak_74m")));
+        assert!(page.contains("<div class=item-card>"));
+        assert!(page.contains("Can roll"));
+        // Damage rolls on it; chambering (bolt-action only) does not.
+        assert!(page.contains(&format!("href=\"#kind-{}\"", kind_shown_as(1).id)));
+        assert!(!page.contains(&format!("href=\"#kind-{}\"", kind_shown_as(119).id)));
+        assert!(page.contains("<option value=choice-") && page.contains(" selected>"));
+    }
+
+    #[test]
+    fn both_languages_have_the_chooser_and_the_three_sections() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = body(lang);
+            let page = body(lang, None);
             assert_eq!(page.matches("<section class=modifiers>").count(), 3);
+            assert!(page.contains("id=item-choice"));
+            assert!(!page.contains("<div class=item-card>"));
             assert!(page.contains(&format!("href=\"/wiki?lang={}\"", lang.code())));
+            assert!(page.contains(&format!("<script src=\"{}\"></script>", script_url())));
         }
     }
 }
