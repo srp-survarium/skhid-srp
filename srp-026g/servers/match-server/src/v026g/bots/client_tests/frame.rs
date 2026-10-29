@@ -78,6 +78,18 @@ impl PartialEq for Sight {
     }
 }
 
+/// What the match has counted of grenades and traps so far (the counters of the match-end log lines, taken every poll): a step reads a
+/// try's change as the difference of the first and the last frame.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Counters {
+    /// What the live grenade list made of the throw keys (`live_grenades::ThrowCounts`).
+    pub throws: crate::v026g::bots::live_grenades::ThrowCounts,
+    /// What the avoidance of each team's bots counted, by team and by whose grenade it was (`Whose::index`: human, bot, assumed, unread).
+    pub avoid: [[crate::v026g::bots::grenade_threat::AvoidStats; 4]; 2],
+    /// How the teams' own traps went off.
+    pub traps: crate::v026g::bots::trap_know::OwnTrapCounts,
+}
+
 /// One poll.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Frame {
@@ -97,6 +109,8 @@ pub struct Frame {
     /// The exits of each team's base (`Tactics::exits`: points 30-60 m out on the ways from its spawns toward the other side's), by
     /// team; empty until the map is built.
     pub exits: [Vec<Vec3>; 2],
+    /// The grenade and trap counters of the match so far.
+    pub counters: Counters,
 }
 
 impl Frame {
@@ -113,6 +127,13 @@ impl Frame {
     /// Whether nothing lies between `from` and `to` on the bullet mesh; none until the map is built.
     pub fn clear_line(&self, from: Vec3, to: Vec3) -> Option<bool> {
         self.sight.as_ref().map(|sight| sight.0.visible(from, to))
+    }
+
+    /// The share of a bullet's damage of pierce `pierce` that reaches `to` from `from` through the bullet mesh's surfaces (the client's
+    /// penetration rule); none until the map is built or for a pierce that is none.
+    pub fn damage_share(&self, from: Vec3, to: Vec3, pierce: f32) -> Option<f32> {
+        let pierce = mapdata::pierce::Pierce::new(pierce)?;
+        Some(self.sight.as_ref()?.0.damage_share(from, to, pierce).value())
     }
 
     pub fn bot(&self, place: Place) -> Option<&BotView> {

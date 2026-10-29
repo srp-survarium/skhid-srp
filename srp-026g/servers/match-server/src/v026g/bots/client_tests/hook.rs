@@ -1,6 +1,6 @@
 //! The runner's reach into the bots: the poll hands it the frame, a think asks it what a scripted bot does.
 
-use super::frame::{Body, BotView, Frame, Heard, Mind, Owner, Sight};
+use super::frame::{Body, BotView, Counters, Frame, Heard, Mind, Owner, Sight};
 use super::run::Act;
 use super::step::{Fight, Gait};
 use super::time::At;
@@ -67,6 +67,7 @@ impl Bots {
                 .collect(),
             sight,
             exits: exits.unwrap_or_default(),
+            counters: Counters { throws: self.tracker.throw_counts(), avoid: self.grenade_counts(), traps: self.own_trap_counts() },
         }
     }
 
