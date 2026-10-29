@@ -162,6 +162,18 @@ pub struct Modification {
     pub modifiers: Vec<Modifier>,
     /// `lobby_info`: what the lobby shows it changes, by its own names.
     pub lobby_info: Vec<(String, f32)>,
+    /// What the lobby prints for it.
+    pub shown: Shown,
+}
+
+/// A modification's line in the lobby: `ui_desc.props_list`'s one row, a
+/// property of [`super::ui_properties`] and the value printed beside it,
+/// and its icon (`ui_desc.icon`, a cell of the lobby's `modifiers` atlas).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shown {
+    pub property: u32,
+    pub value: f32,
+    pub icon: u32,
 }
 
 /// The item parameters of its wear: what a "reliability" modification
@@ -407,6 +419,28 @@ fn modifiers(row: &ConfigValue) -> Result<Vec<Modifier>, ConfigError> {
 
 fn name_of(row: &ConfigValue) -> Result<String, ConfigError> {
     Ok(row.req("ui_desc")?.str_at("name")?.to_owned())
+}
+
+/// `ui_desc.props_list`: one row, its `prop_value` a number as text.
+fn shown_of(row: &ConfigValue) -> Result<Shown, ConfigError> {
+    let props = row.req("ui_desc")?.req("props_list")?.children();
+    let [prop] = props[..] else {
+        return Err(ConfigError(format!(
+            "`ui_desc.props_list` has {} rows, not one",
+            props.len()
+        )));
+    };
+    let value = prop.req("prop_value")?;
+    let value = value
+        .as_str()
+        .and_then(|text| text.trim().parse::<f32>().ok())
+        .or_else(|| value.as_f32())
+        .ok_or_else(|| ConfigError("`prop_value` is not a number".into()))?;
+    Ok(Shown {
+        property: number(prop.req("prop_id")?)?,
+        value,
+        icon: number(row.req("ui_desc")?.req("icon")?)?,
+    })
 }
 
 fn prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
@@ -677,6 +711,7 @@ impl Modifications {
                         .iter()
                         .filter_map(|(name, value)| Some((name.clone(), value.as_f32()?)))
                         .collect(),
+                    shown: shown_of(row)?,
                 })
             })
             .collect::<Result<_, ConfigError>>()?;

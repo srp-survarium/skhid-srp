@@ -17,6 +17,7 @@ pub mod scopes;
 pub mod shop_offers;
 pub mod skills;
 pub mod tables;
+pub mod ui_properties;
 
 // Wire helpers.
 pub mod lzma2;
