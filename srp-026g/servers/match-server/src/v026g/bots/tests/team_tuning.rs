@@ -126,6 +126,14 @@ fn the_bench_reads_every_bodys_pockets_from_its_profile() {
     let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0x5E10);
     bots.set_throws(crate::v026g::bots::tests::bench::bench_throws(&bench_roster(&[0, 0, 1, 1], equipment, &tunings), &tunings));
     assert!((0..4).all(|place| bots.tracker.frags_left(place).is_some()));
+    // The bench's own poll tells each bot's grenade logic what its kit holds, as `Bots::poll` does (it did not:
+    // the bench's bots rolled frags their kit did not hold).
+    let mut times = crate::v026g::bots::tests::bench::Times::default();
+    crate::v026g::bots::tests::bench::timed_poll(&mut bots, Clock { clock: 1_100, time_left_s: 600.0, total_s: 900.0, playing: true }, &mut times);
+    for place in 0..4 {
+        let bot = bots.bots[place].as_ref().unwrap();
+        assert_eq!(bot.reflex.frags_left(), bots.tracker.frags_left(place), "place {place}");
+    }
 }
 
 /// The kits of a bench team are built with its own tuning's pocket store (`kit.pocket_store`): team 1 on the old store has
