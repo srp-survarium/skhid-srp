@@ -433,6 +433,38 @@ mod tests {
     }
 
     #[test]
+    fn a_world_that_shows_the_smoke_grenade_puts_its_cloud_where_the_grenade_is() {
+        use crate::v026g::bots::smoke::Placed;
+        use survarium::v026g::match_msgs::grenades::GrenadeBody;
+        let world = floor_world();
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
+        let mut tracker = stand(Some(pockets));
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        press(&mut tracker, 1, 1_050, 0);
+        tracker.launch_grenades(2_100, Some(&*world));
+        let predicted = tracker.clouds()[0];
+        assert_eq!(predicted.placed, Placed::Arc);
+        let body = |explode_ms, at: [f32; 3]| GrenadeBody {
+            explode_ms,
+            id: 7,
+            position: at,
+            velocity: [0.1, 0.0, 0.0],
+        };
+        // Another grenade's blast (a frag thrown 2 s later): not this cloud.
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 2_000, [3.0, 0.4, 20.0])], Some(&*world), 4_000);
+        assert_eq!(tracker.clouds()[0], predicted);
+        // Its own, on the 50 ms grid 50 ms after the press's fuse, 0.4 m over the floor 6 m off the arc's rest.
+        let seen = [predicted.centre.x + 6.0, 0.4, predicted.centre.z];
+        tracker.grenade_bodies(&[body(predicted.pours.0 + 50, seen)], Some(&*world), 4_000);
+        let cloud = tracker.clouds()[0];
+        assert_eq!(cloud.placed, Placed::Seen { world_ms: 4_000 });
+        assert!((cloud.centre.x - seen[0]).abs() < 1e-4 && cloud.centre.y.abs() < 1e-3, "{cloud:?}");
+        let counts = tracker.smoke_counts();
+        assert_eq!((counts.bodies_seen, counts.moved_dm), ([0, 1], [0, 60]));
+        assert!(tracker.take_notes().iter().any(|n| n.contains("put on its grenade")));
+    }
+
+    #[test]
     fn a_new_life_fills_the_pockets_and_a_human_with_none_known_lists_nothing() {
         let kin = Kinematics::default();
         let one_frag = Pockets::new([Some((Pocketed::Frag, 1)), None, None, None, None, None]);

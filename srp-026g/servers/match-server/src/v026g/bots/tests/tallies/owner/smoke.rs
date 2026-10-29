@@ -155,6 +155,8 @@ impl SmokeCounts {
             "smoke_clouds": self.thrown.clouds,
             "smoke_dropped": self.thrown.dropped,
             "smoke_unknown_pockets": self.unknown_pockets,
+            "smoke_bodies_seen": self.thrown.bodies_seen,
+            "smoke_moved_dm": self.thrown.moved_dm,
             "smoke_sight_lost": by(SightLost),
             "smoke_not_seen": by(NotSeen),
             "smoke_aim_lost": by(AimLost),
@@ -168,11 +170,13 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}); looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
             self.unknown_pockets,
+            self.thrown.bodies_seen,
+            self.thrown.moved_dm,
             by(SightLost),
             by(NotSeen),
             by(AimLost),
@@ -241,6 +245,7 @@ mod tests {
         Cloud {
             by: 1,
             team: 1,
+            placed: crate::v026g::bots::smoke::Placed::Arc,
             centre: Vec3::new(x, 0.0, z),
             thrown: MatchMs(0),
             pours: MatchMs(0),

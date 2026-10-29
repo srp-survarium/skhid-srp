@@ -834,6 +834,7 @@ mod tests {
         view.smoke = Clouds::new(vec![Cloud {
             by: 1,
             team: 1,
+            placed: crate::v026g::bots::smoke::Placed::Arc,
             centre: Vec3::new(0.0, 0.0, 10.0),
             thrown: MatchMs(pours.0.saturating_sub(shape.fuse_ms)),
             pours,

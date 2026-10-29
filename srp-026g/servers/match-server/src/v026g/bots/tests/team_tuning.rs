@@ -202,6 +202,7 @@ fn across_middle(pours: u32) -> crate::v026g::bots::smoke::Cloud {
     Cloud {
         by: 2,
         team: 1,
+        placed: crate::v026g::bots::smoke::Placed::Arc,
         centre: Vec3::new(35.0, 0.0, 30.0),
         thrown: MatchMs(pours.saturating_sub(4_000)),
         pours: MatchMs(pours),

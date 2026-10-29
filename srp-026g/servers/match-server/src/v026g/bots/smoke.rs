@@ -142,11 +142,36 @@ impl SmokeGrenade {
     }
 }
 
+/// Where a cloud's centre comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Placed {
+    /// The arc model's rest from the thrower's view at the launch (`arc.rs`: median 2 m off, P80 8 m).
+    Arc,
+    /// The grenade's body as a trusted world showed it (`match_msgs::grenades`), the world's time.
+    Seen { world_ms: u32 },
+}
+
+/// A world's grenade is a cloud's when its blast is the cloud's within this, ms (the world's blast time is the press
+/// plus the fuse on the 50 ms grid; the server's press is the relayed input's time).
+pub const BLAST_MATCH_MS: u32 = 100;
+/// A later sighting that moves a cloud this far or more is noted, metres.
+pub const BODY_NOTE_M: f32 = 1.0;
+
+/// The floor under `at`: the first surface of the bullet mesh straight down from just over it, within
+/// [`FLOOR_BELOW_M`].
+pub fn floor_under(mesh: &mapdata::RayTree, at: Vec3) -> Option<f32> {
+    let from = at + Vec3::new(0.0, 0.2, 0.0);
+    mesh.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), FLOOR_BELOW_M)
+        .map(|t| from.y - t)
+}
+
 /// A smoke cloud: where, whose, when it begins to pour, and its shape.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cloud {
     pub by: Place,
     pub team: u8,
+    /// Where its centre comes from: the arc's prediction until a world shows the grenade.
+    pub placed: Placed,
     /// The floor under where the grenade rests (`SmokeThrow::cloud_at`): the cloud's centre on the ground.
     pub centre: Vec3,
     /// When the grenade was thrown (the key went down), and when the smoke begins.
@@ -350,6 +375,7 @@ impl SmokeThrow {
         Cloud {
             by: self.by,
             team: self.team,
+            placed: Placed::Arc,
             centre,
             thrown: self.press,
             pours: self.press.plus(self.grenade.cloud.fuse_ms),
@@ -367,6 +393,10 @@ pub struct SmokeCounts {
     pub clouds: [u32; 2],
     /// Dropped: the thrower died before the launch, or the arc found no ground.
     pub dropped: [u32; 2],
+    /// Clouds whose grenade a world showed, and how far the first sighting moved them from the arc's rest, decimetres
+    /// summed (the arc's error, measured live).
+    pub bodies_seen: [u32; 2],
+    pub moved_dm: [u32; 2],
 }
 
 /// The bench's counts of what smoke did to the bots' eyes, by the bot's team, on this thread (a bench match
@@ -575,6 +605,7 @@ mod scenarios {
                     .map(|&centre| Cloud {
                         by: 1,
                         team: 1,
+                        placed: Placed::Arc,
                         centre,
                         thrown: MatchMs(0),
                         pours: MatchMs(0),

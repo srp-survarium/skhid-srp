@@ -38,6 +38,7 @@ use super::live_grenades::{
     LiveGrenade, LAUNCH_MS, Phase, Pocketed, Pockets, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
 };
 use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
+use survarium::v026g::match_msgs::grenades::GrenadeBody;
 use crate::v026g::drive::key;
 
 /// A body this far over or under another is not beside it, metres.
@@ -794,6 +795,47 @@ impl Tracker {
         self.smoke_counts
     }
 
+    /// The launched grenades a trusted world shows (`match_msgs::grenades`): a smoke's cloud is put where its body
+    /// really is (on the floor under it), in place of the arc's prediction. The body is the throw's whose blast is
+    /// its blast (the press + the fuse, the world's on the 50 ms grid), the nearest predicted centre among ties. The
+    /// latest sighting wins: a grenade still rolling is placed where it was then. One note for the first sighting
+    /// of each cloud, and for any later one that moves it [`super::smoke::BODY_NOTE_M`] or more.
+    pub fn grenade_bodies(&mut self, bodies: &[GrenadeBody], world: Option<&World>, time: u32) {
+        for body in bodies {
+            let at = Vec3::from_array(body.position);
+            let Some(cloud) = self
+                .clouds
+                .iter_mut()
+                .filter(|c| c.pours.0.abs_diff(body.explode_ms) <= super::smoke::BLAST_MATCH_MS)
+                .min_by(|a, b| a.centre.distance_xz(at).total_cmp(&b.centre.distance_xz(at)))
+            else {
+                continue;
+            };
+            let floor = world.and_then(|world| super::smoke::floor_under(&world.sight, at));
+            let centre = floor.map_or(at, |y| Vec3::new(at.x, y, at.z));
+            let moved = cloud.centre.distance_xz(centre);
+            let first = cloud.placed == super::smoke::Placed::Arc;
+            let team = usize::from(cloud.team & 1);
+            if first {
+                self.smoke_counts.bodies_seen[team] += 1;
+                self.smoke_counts.moved_dm[team] += (moved * 10.0).round() as u32;
+            }
+            if first || moved >= super::smoke::BODY_NOTE_M {
+                self.notes.push(format!(
+                    "smoke cloud by player {} put on its grenade seen at ({:.1}, {:.1}, {:.1}) moving {:.1} m/s in the world at {time} ms: {moved:.1} m from {}",
+                    cloud.by,
+                    at.x,
+                    at.y,
+                    at.z,
+                    body.speed(),
+                    if first { "the arc's rest" } else { "its last sighting" },
+                ));
+            }
+            cloud.centre = centre;
+            cloud.placed = super::smoke::Placed::Seen { world_ms: time };
+        }
+    }
+
     /// A cloud put in the match as if thrown (tests: a bench or a probe with no human thrower).
     #[cfg(test)]
     pub fn add_cloud(&mut self, cloud: Cloud) {
@@ -995,13 +1037,7 @@ impl Tracker {
             match self.launch_of(throw.by, throw.grenade.flight, world) {
                 Launch::Lands(landing) => {
                     // The floor under the rest: straight down the bullet mesh from just over it.
-                    let cloud = throw.cloud_at(landing.rest, |rest| {
-                        let from = rest + Vec3::new(0.0, 0.2, 0.0);
-                        world
-                            .sight
-                            .ray_cast(from, Vec3::new(0.0, -1.0, 0.0), super::smoke::FLOOR_BELOW_M)
-                            .map(|t| from.y - t)
-                    });
+                    let cloud = throw.cloud_at(landing.rest, |rest| super::smoke::floor_under(&world.sight, rest));
                     let c = cloud.centre;
                     self.notes.push(format!(
                         "smoke cloud by player {} (team {}) at ({:.1}, {:.1}, {:.1}), pours at {} ms, gone at {} ms",

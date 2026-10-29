@@ -1347,6 +1347,7 @@ mod tests {
         let cloud = |x: f32| Cloud {
             by: 1,
             team: 1,
+            placed: crate::v026g::bots::smoke::Placed::Arc,
             centre: Vec3::new(x, 0.0, 15.0),
             thrown: MatchMs(0),
             pours: MatchMs(0),
