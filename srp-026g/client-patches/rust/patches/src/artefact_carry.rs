@@ -5,7 +5,7 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
+use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -15,10 +15,14 @@ mod pose;
 
 #[derive(Clone, Copy)]
 struct Attachment { item: u32, token: Token }
+/// What a player's hands held when its life ended: a carrier's gun is
+/// lowered and out of the scene, so its hands held the artefact, not the gun.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Hands { Gun, Artefact }
 #[derive(Clone, Copy)]
-struct Owner { key: Key, carry: Carry, attachment: Option<Attachment> }
+struct Owner { key: Key, carry: Carry, attachment: Option<Attachment>, death: Option<Hands> }
 impl Owner {
-    const fn new(key: Key) -> Self { Self { key, carry: Carry::NEW, attachment: None } }
+    const fn new(key: Key) -> Self { Self { key, carry: Carry::NEW, attachment: None, death: None } }
 }
 struct Owners([Option<Owner>; 60]);
 impl Owners {
@@ -91,10 +95,27 @@ fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
 pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> { on_death(ctx) }
 pub fn on_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
-        if let Some(artefact) = machine(&player, ctx).artefact() { player.drop_carried(artefact); }
+        let carry = machine(&player, ctx);
+        // The first of the two death hooks decides, before Gone stows the hand.
+        if let Some(key) = player.carry_key() {
+            let hands = if carry.presentation(player.carry_time()).hide_weapon { Hands::Artefact } else { Hands::Gun };
+            OWNERS.with(ctx.thread(), |owners| { owners.get_mut(key).death.get_or_insert(hands); });
+        }
+        if let Some(artefact) = carry.artefact() { player.drop_carried(artefact); }
         event(&player, ctx, Event::Gone);
     }
     Flow::Continue
+}
+
+fn death_hands(player: &Player<'_>, thread: &Thread) -> Option<Hands> {
+    let key = player.carry_key()?;
+    OWNERS.with(thread, |owners| owners.get(key)?.death)
+}
+
+/// Whether a dead player's gun was in its hands when it died: the ragdoll
+/// drops a gun only then (a carrier's hands held the artefact).
+pub fn gun_in_hands_at_death(player: &Player<'_>, thread: &Thread) -> bool {
+    death_hands(player, thread) != Some(Hands::Artefact)
 }
 pub fn on_ground_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     crate::vostok::carry_ground::save(ctx); Flow::Continue
@@ -275,8 +296,12 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWeaponExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Weapon) else { return Flow::Continue };
     // A dead body's weapon is drawn natively (its optics update their
-    // models): the models go back here before it, never left out.
-    let hide = player.alive() && machine(&player, ctx).presentation(player.carry_time()).hide_weapon;
+    // models): its models go back here before it, unless it died carrying,
+    // when they stay out and the native draw is skipped, as while alive.
+    let hide = match death_hands(&player, ctx.thread()) {
+        Some(hands) => hands == Hands::Artefact,
+        None => player.alive() && machine(&player, ctx).presentation(player.carry_time()).hide_weapon,
+    };
     let hidden = HIDDEN.with(ctx.thread(), |weapons| native::weapon_visibility(ctx, hide, weapons));
     if hidden { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }
 }

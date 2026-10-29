@@ -452,10 +452,13 @@ def main():
 
 
 def death_with_optics_hidden(built):
-    """A carrier killed with the gun and its optics out of the scene: the
-    native draw of the body updates the optics' models (0x245012) and the
-    renderer asserts on one not in the scene. Likewise a new owner of the
-    place (a respawn, a new kit) must still put back what the old one took."""
+    """A carrier killed with the gun and its optics out of the scene: its
+    hands held the artefact, so the gun stays out (no gun on the corpse, and
+    the ragdoll drops none) and the native draw of the body, which updates
+    the optics' models (0x245012, the renderer asserts on one not in the
+    scene), is skipped as while alive; native on_hide still gets them back
+    before it removes them. A new owner of the place (a respawn, a new kit)
+    puts back what the old one took, before the native draw."""
     for case in ('death', 'new owner'):
         g = Run(built); p = g.players[0]
         _, weapon = g.renderer()
@@ -470,18 +473,29 @@ def death_with_optics_hidden(built):
         hidden = [weapon] + models
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
         if case == 'death':
+            g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)  # the native death entry
             g.emu.mem_write(p + 0x33C, b'\0')
         else:
             g.site(0x2D6990, [0x2D6995], (p,))
         g.rendered.clear()
         g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        if case == 'death':
+            assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477DF, 'death: the native draw met the removed models'
+            assert not any(op == 'add' for op, _, _ in g.rendered), ('death: the gun came back', g.rendered)
+            assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
+            g.rendered.clear()
+            g.site(0x243FA0, [STOP], (1,), ecx=gun)
+            assert sorted((op, m) for op, m, _ in g.rendered if op == 'add') == sorted(('add', m) for m in hidden), \
+                ('death: native on_hide removed models not in the scene', g.rendered)
+            continue
         assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the native weapon draw was skipped'
         assert sorted((op, m) for op, m, _ in g.rendered) == sorted(('add', m) for m in hidden), (case, g.rendered)
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\1' for m in hidden), case
         g.rendered.clear()
         g.site(0x243FA0, [STOP], (1,), ecx=gun)
         assert ('add', weapon) not in [(op, m) for op, m, _ in g.rendered], f'{case}: restored twice'
-    print('ok: a death or a new owner with the gun and optics hidden puts all three back before the native draw')
+    print('ok: a carrier\'s death keeps its gun and optics out with the native draw skipped (on_hide still gets them '
+          'back); a new owner puts all three back before the native draw')
 
 
 def moving_draw(built):
