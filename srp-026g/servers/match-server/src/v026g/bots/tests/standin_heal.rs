@@ -504,6 +504,11 @@ impl Game {
 /// Tells the bots the world of `tick` as the game shows it: each bot's
 /// pools and drugs; and the stand-in learns the kit each picked for its next life.
 pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
+    for (place, body) in game.bodies.iter_mut().enumerate() {
+        if let Some(Some(bot)) = bots.bots.get(place) {
+            body.grenades.choose(bot.kit_chosen);
+        }
+    }
     if !model_on() {
         return;
     }

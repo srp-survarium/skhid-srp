@@ -66,8 +66,9 @@ pub(super) trait Topic: Any {
 pub(super) type Shared = BTreeMap<&'static str, serde_json::Value>;
 
 /// The topics (`n` places), in the order of the `owner-test` lines of the bench log (the first line, `owner-test:`, is
-/// the fight's: the log tools read it) and of the hooks' calls: campers last, for their kills are read once the tick's
-/// hits are in.
+/// the fight's: the log tools read it) and of the hooks' calls: the campers' kills are read once the tick's
+/// hits are in (their topic is after the fight's, which takes the hits); the outcomes are last, for they read what the topics
+/// before them publish.
 pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
     vec![
         Box::new(FightCounts::new(n)),
@@ -82,6 +83,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(SightCounts::new(n)),
         Box::new(ShotOffsets::default()),
         Box::new(HitShapes::default()),
+        Box::new(OutcomeCounts::default()),
     ]
 }
 

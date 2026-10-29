@@ -9,6 +9,9 @@ workspace = true
 [features]
 # TEST ONLY (grid-record.md J0): the jump test for the real client. Off by default, so normal and live builds do not compile it.
 jump-test = []
+# TEST ONLY (`bots/client_tests`): the client-test runner, inert unless `SRP_CLIENT_TEST=<plan>` is set on a local server. Off by
+# default, so normal and live builds do not compile it, and a server built without it refuses to start with the variable set.
+client-test = []
 
 [dependencies]
 crc32fast = { workspace = true }

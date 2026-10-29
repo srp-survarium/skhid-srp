@@ -33,7 +33,10 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+#[cfg(any(test, feature = "client-test"))]
+pub mod client_tests;
 pub mod contact;
+pub mod control;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -115,6 +118,7 @@ use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
 use commander::*;
+use control::Driver;
 use drive::*;
 use encode::Decision;
 use encode::Encoder;
@@ -258,8 +262,8 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
-    /// Which reflex play had the legs at that tick (the falls probe).
-    #[cfg(test)]
+    /// Which reflex play had the legs at that tick (the falls probe; a client test's `Mind`).
+    #[cfg(any(test, feature = "client-test"))]
     pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
     /// The goal the last motor tick walked to, after every override of the play's (the reflex's legs, the grenade
     /// avoid, the rest point); `None` when the tick walked to none (the stood count reads this, not the play's goal).
@@ -290,10 +294,8 @@ pub struct Bot {
     pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
-    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
-    /// spot, and the reflex never takes its legs.
-    #[cfg(test)]
-    pub(crate) bench_camper: bool,
+    /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
+    pub(crate) control: Driver,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -425,7 +427,7 @@ impl Bot {
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "client-test"))]
             bench_legs_why: None,
             #[cfg(test)]
             bench_go: None,
@@ -447,8 +449,7 @@ impl Bot {
             bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
-            #[cfg(test)]
-            bench_camper: false,
+            control: Driver::Own,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]
@@ -735,20 +736,22 @@ pub struct Bots {
     /// The real-map bench's model of Player vs Bots for the team's lanes of enemy humans (`SRP_BENCH_ENEMY_HUMAN_LANES`,
     /// **model**): every body of the other team counts as a human in [`know::HumanLanes`]; nothing else reads it.
     #[cfg(test)]
-    pub bench_enemy_lanes: bool,
+    pub(crate) bench_enemy_lanes: tests::EnemyLanes,
     /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
     opening_pass: bool,
-    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
-    /// `campers.md` K1 §4): this bot holds one spot all match, and the
-    /// spot once found (with how many route points it sees), or none.
+    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`, `campers.md` K1 §4, `tests/camper_move.rs`): one bot holds a
+    /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
-    pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
+    pub(crate) bench_camper: Option<tests::BenchCamper>,
     tracker: Tracker,
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    /// TEST ONLY: the client-test runner of this match (`client_tests`), when `SRP_CLIENT_TEST` has steps for it.
+    #[cfg(any(test, feature = "client-test"))]
+    pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
@@ -820,6 +823,10 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            #[cfg(feature = "client-test")]
+            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode, teams)),
+            #[cfg(all(test, not(feature = "client-test")))]
+            client_tests: None,
             polls: Default::default(),
             tactics: None,
             memo: Default::default(),
@@ -830,7 +837,7 @@ impl Bots {
             #[cfg(test)]
             bench_human: None,
             #[cfg(test)]
-            bench_enemy_lanes: false,
+            bench_enemy_lanes: tests::EnemyLanes::Off,
             opened: [false; 2],
             opening_pass: false,
             #[cfg(test)]
@@ -1131,6 +1138,13 @@ impl Bots {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.features.stock.pools = Some(pools);
         }
+        // A client test reads the human's pools (the owner's): the bots have their own.
+        #[cfg(any(test, feature = "client-test"))]
+        if !self.is_bot(place)
+            && let Some(link) = self.client_tests.as_mut()
+        {
+            link.note_pools(pools);
+        }
     }
 
     /// A trusted world's word on what one place's kits hold of drugs
@@ -1243,7 +1257,9 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick) {
+        } else if bot.control.reacts()
+            && let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick)
+        {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1361,7 +1377,8 @@ impl Bots {
             return notes;
         }
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
-        if let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
+        if bot.control.reacts()
+            && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {
             let length = route.length();
@@ -1567,14 +1584,15 @@ impl Bots {
         self.features.own_traps
     }
 
-    /// Whether the other team's bodies all count as humans for the lanes (the bench's model; never in the game).
-    pub(crate) fn bench_enemy_human_lanes(&self) -> bool {
+    /// Whether the other team's bodies all count as humans for `team`'s lanes (the bench's model; never in the game).
+    pub(crate) fn bench_enemy_human_lanes(&self, team: u8) -> bool {
         #[cfg(test)]
         {
-            self.bench_enemy_lanes
+            self.bench_enemy_lanes.applies_to(team)
         }
         #[cfg(not(test))]
         {
+            let _ = team;
             false
         }
     }
@@ -1696,6 +1714,8 @@ impl Bots {
             }
         }
         self.polls.record(now, &rays);
+        #[cfg(any(test, feature = "client-test"))]
+        self.client_tests_tick(&clock, &view, &notes);
         (made, notes)
     }
 
@@ -1758,6 +1778,17 @@ impl Bots {
     /// runs give team 1 another).
     fn tuning_of(&self, team: u8) -> Arc<Tuning> {
         self.tunings.of(team).clone()
+    }
+
+    /// The tuning the bot at `place` of `team` plays by: its team's, except the bench's stand-in camper, who plays by a fixed one
+    /// (`BenchCamper::tuning`) so that the two runs of a head-to-head bench face the same opponent.
+    #[cfg_attr(not(test), allow(unused_variables))]
+    fn tuning_for(&self, place: Place, team: u8) -> Arc<Tuning> {
+        #[cfg(test)]
+        if let Some(camper) = self.bench_camper.as_ref().filter(|camper| camper.place() == place) {
+            return camper.tuning().clone();
+        }
+        self.tuning_of(team)
     }
 
     /// The tuning of what exists once for both teams (see [`tuning::TeamTunings::match_wide`]): for the server's map
