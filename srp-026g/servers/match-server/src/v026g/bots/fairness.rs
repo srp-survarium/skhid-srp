@@ -48,10 +48,14 @@ pub enum Site {
     Near,
     /// The known threats, nearest first (`Ctx::threats`).
     Threats,
+    /// The place a push on a hurt enemy goes to (`Reflex::finish`).
+    Push,
+    /// A teammate's callout a bot holding a target glances at (`Reflex::flank_glance`).
+    Glance,
 }
 
 /// The sites.
-pub const SITES: usize = 3;
+pub const SITES: usize = 5;
 
 /// The counts, by team, site and basis.
 pub type Counts = [[[u64; BASES]; SITES]; 2];

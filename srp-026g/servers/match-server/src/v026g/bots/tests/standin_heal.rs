@@ -513,6 +513,8 @@ pub(crate) fn advance(body: &mut Body, tick: u32) {
 pub(crate) struct Seen {
     pub(crate) pools: crate::v026g::bots::pools::Pools,
     pub(crate) readings: Readings,
+    /// The tick of its last bullet hit (`m_last_hit_time_ms`; 0: none).
+    pub(crate) last_hit_ms: u32,
 }
 
 /// A press of a quick-use key: the tick, the place, what it did, and the
@@ -569,6 +571,7 @@ pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
     };
     for (place, seen) in seen.iter().enumerate() {
         bots.pools(place, seen.pools);
+        bots.bullet_hit(place, seen.last_hit_ms);
         bots.stock(place, tick, &seen.readings);
     }
 }
@@ -593,6 +596,7 @@ pub(crate) fn seen(body: &Body) -> Seen {
             infection: pools.value(Pool::Infection),
         },
         readings: body.heal.readings(body.alive),
+        last_hit_ms: body.last_hit,
     }
 }
 

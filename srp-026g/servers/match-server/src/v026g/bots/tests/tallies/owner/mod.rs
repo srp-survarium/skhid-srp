@@ -72,6 +72,7 @@ mod spacing;
 mod stamina;
 mod stock;
 mod topic;
+mod worth;
 
 use campers::*;
 use damage_zones::*;
@@ -99,6 +100,7 @@ use spacing::*;
 use stamina::*;
 use stock::*;
 use topic::*;
+use worth::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.

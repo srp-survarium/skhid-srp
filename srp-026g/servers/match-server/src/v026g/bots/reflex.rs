@@ -60,6 +60,14 @@
 //!   sees him from another angle, never the one it last fought from;
 //! - **play 10's other half:** between seen targets, a wounded one counts
 //!   nearer (`wounded_bonus_m`);
+//! - **worth ([`super::worth`]):** a seen carrier (his hands hold the battery), above all a thief of the
+//!   team's battery, counts nearer still and takes the target from a plainer one at once; a wounded one is
+//!   read from what the team saw land (every pool, pain included, mended as the game mends), not from his
+//!   true body pool;
+//! - **finish the hurt:** a bot that fired at a hurt enemy who broke sight within 30 m goes on his last
+//!   place for a few seconds, two bots at most ([`Reflex::finish`]);
+//! - **flank glance:** holding a target, a teammate's callout of an enemy outside the view is looked at
+//!   for a moment ([`Reflex::flank_glance`]);
 //! - **play 11, weapon matchup:** the distance band its weapon wants
 //!   against the enemy's ([`preferred_band`]), stepped into while it duels;
 //! - **play 19, spot:** a newly noticed enemy is spotted (bit 28, key down
@@ -96,6 +104,7 @@ use super::route_filter::RouteFilter;
 use super::tactics::{SpotQuery, Tactics};
 use super::tuning::{AimTuning, SenseTuning};
 use super::view::{CHEST, MatchView, Place, PlaceView, SoundKind, still_eye};
+use super::worth::{Known, Worth, WorthStats, WorthTuning};
 use crate::v026g::drive::key;
 
 /// A weapon's kind as the matchup (play 11) reads it.
@@ -674,6 +683,9 @@ pub struct CombatTuning {
     pub sniper_crouch_chance: f32,
     /// How each kind of weapon is fired ([`FireTuning`]).
     pub fire: FireTuning,
+    /// What a seen enemy is worth shooting first beyond his distance, and the push on a hurt one who broke
+    /// sight ([`super::worth`]).
+    pub worth: super::worth::WorthTuning,
     /// The target kept while seen gives way to another seen enemy nearer
     /// than `switch_share` of its distance, or nearer than
     /// `switch_near_m` and `switch_margin_m` nearer than it (match
@@ -1166,6 +1178,7 @@ impl Default for CombatTuning {
             clear_step_slides_along: false,
             sniper_crouch_chance: 0.25,
             fire: FireTuning::default(),
+            worth: super::worth::WorthTuning::default(),
             switch_share: 0.65,
             switch_near_m: 25.0,
             switch_margin_m: 5.0,
@@ -1337,6 +1350,9 @@ pub enum LegsWhy {
     /// Play 20: standing still from the press to the launch, for the throw
     /// leaves from where the thrower is then.
     Throwing,
+    /// A hurt enemy who broke sight: on his last place while he cannot mend
+    /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
+    Finish(Place),
 }
 
 /// The legs as the reflex wants them this tick, instead of the play's go,
@@ -2474,6 +2490,23 @@ pub struct Reflex {
     /// A grenade decided on at this place, for the team's claim
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
+    /// The enemy and the time it last fired at him: the team's hit marker on him
+    /// ([`Reflex::fired_at`]).
+    last_fired: Option<(Place, u32)>,
+    /// What the team's knowledge made of each enemy at the last think ([`Known`]).
+    known: Vec<Known>,
+    /// [measure] What the worth, the push and the flank glance did this life, and the bot notes owed
+    /// ([`Reflex::take_worth_notes`]).
+    worth_stats: WorthStats,
+    worth_notes: Vec<String>,
+    /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
+    /// worth of the others (`worth.hurter_keep_ms`).
+    hurter: Option<(Place, u32)>,
+    /// The time of the last bullet that hit it, a limb's too (the world's `m_last_hit_time_ms`): `hit_at` sees only a fall of the
+    /// body's health.
+    bullet_hit_at: Option<u32>,
+    /// Not before this, a flank glance ([`Reflex::flank_glance`]); the threat looks have their own pace.
+    next_flank_glance: u32,
     /// [C20] The window for a second grenade at the place of the last one
     /// let go (`grenade_volley`).
     volley: Option<Volley>,
@@ -2691,6 +2724,7 @@ fn hip_cone_fits(me: &PlaceView, gun: &Gun, strafing: bool, distance: f32, c: &C
 fn presses_more(
     me: &PlaceView,
     view: Option<&MatchView>,
+    worth: Option<&Worth>,
     kept: &SeenTrack,
     other: &SeenTrack,
     held_ms: u32,
@@ -2705,6 +2739,14 @@ fn presses_more(
     }
     if held_ms < c.switch_hold_ms {
         return false;
+    }
+    // Worth more by the margin (an objective actor who cannot shoot back, a thief of the team's battery): after the
+    // hold, not in the middle of a duel.
+    if let Some(worth) = worth
+        && worth.tuning.switch_m > 0.0
+        && worth.of(other.who()) - worth.of(kept.who()) >= worth.tuning.switch_m
+    {
+        return true;
     }
     if near < c.switch_near_m && near + c.switch_margin_m <= far {
         return true;
@@ -2986,6 +3028,48 @@ impl Reflex {
             .is_some_and(|p| p.why == LegsWhy::AfterGrenade && p.from <= now && now < p.until)
     }
 
+    /// Whether the last shot of this bot at `victim` left within `window_ms` before a bullet hit on him made at the
+    /// world's time `hit_ms` (the bot decides up to the encoder's lead ahead of the world, so a shot that far past it
+    /// still counts): the hit marker of its own bullet. When it did, the time of the shot and the share of a body's
+    /// pool the nominal damage of the weapon it fires is ([`Gun::bullet_damage`]).
+    pub fn shot_landed(&self, victim: Place, hit_ms: u32, window_ms: u32) -> Option<(u32, f32)> {
+        let lead = (super::encode::LEAD_TICKS + 1) * survarium::v026g::match_msgs::TICK_MS;
+        self.last_fired
+            .filter(|&(who, at)| who == victim && at <= hit_ms.saturating_add(lead) && hit_ms.saturating_sub(at) <= window_ms)
+            .map(|(_, at)| (at, self.held_gun().bullet_damage.clamp(0.0, 1.0)))
+    }
+
+    /// [measure] What the worth, the push and the flank glance did this life.
+    pub fn worth_stats(&self) -> WorthStats {
+        self.worth_stats
+    }
+
+    /// The notes of the decisions the worth made since the last call (a target taken for what he is
+    /// worth, a flank glance): one per decision.
+    pub fn take_worth_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.worth_notes)
+    }
+
+    /// TEST ONLY: this bot fired at `victim` at `at`.
+    #[cfg(test)]
+    pub(crate) fn fired_on(&mut self, victim: Place, at: u32) {
+        self.last_fired = Some((victim, at));
+    }
+
+    /// The world's word on the last bullet that hit this bot (none: no hit in its life so far).
+    pub fn bullet_hit(&mut self, last_hit_ms: Option<u32>) {
+        self.bullet_hit_at = last_hit_ms;
+    }
+
+    /// The hurt enemy it pushes on now and until when: the team's cap counts this bot while it does
+    /// (`Wounds::push_claim`), and not after (`Wounds::push_release`).
+    pub fn pushing(&self) -> Option<(Place, u32)> {
+        match self.push {
+            Some(Push { why: LegsWhy::Finish(victim), until, .. }) => Some((victim, until)),
+            _ => None,
+        }
+    }
+
     /// The place a grenade was decided on since the last call: the team's
     /// claim on it (`TeamKnowledge::claim_throw`).
     pub fn take_throw_claim(&mut self) -> Option<Vec3> {
@@ -3061,6 +3145,7 @@ impl Reflex {
         if hit {
             self.hit_at = Some(now);
         }
+        self.known = Known::of_enemies(sit.view, sit.team, (me.team, me.place), now, c.worth.told_ms);
         self.threats(me, sit.view, memory, now, hit, c, rng);
         self.choose(me, Some(sit.view), memory, now, aim, skill, rng);
         self.glances(me, sit, memory, now, c);
@@ -3076,6 +3161,7 @@ impl Reflex {
         if !memory.all_seen(now, sit.view.clock).is_empty() {
             self.last_seen = now;
         }
+        self.finish(me, sit, memory, now, c);
         if hit {
             // Shot at: the side step turns the other way at once.
             if self.target.is_some() {
@@ -3302,6 +3388,22 @@ impl Reflex {
         rng: &mut Rng,
     ) {
         let c = &aim.combat;
+        // Hit a moment ago: the fight is with whoever is hitting the bot, and the worth's own terms steer nothing in it (an
+        // objective actor neither frees the target nor outscores the others: `worth.hurter_keep_ms`, 0: the tip's one think).
+        // The wounded enemy's bonus is the tip's and stays.
+        let hit_lately = c.worth.hurter_keep_ms > 0
+            && self
+                .hit_at
+                .into_iter()
+                .chain(self.bullet_hit_at)
+                .any(|hit| now < hit.saturating_add(c.worth.hurter_keep_ms));
+        let in_a_fight = WorthTuning { objective_actor_m: 0.0, objective_threat_m: 0.0, switch_m: 0.0, ..c.worth.clone() };
+        let worth = view.map(|view| Worth {
+            view,
+            known: &self.known,
+            tuning: if hit_lately { &in_a_fight } else { &c.worth },
+            hurt_m: c.wounded_bonus_m,
+        });
         let sight_now = view.map_or(now, |v| v.clock);
         let mut seen = memory.all_seen(now, sight_now);
         // A target taken back before he is noticed again stays one.
@@ -3322,7 +3424,8 @@ impl Reflex {
             .and_then(|target| seen.iter().filter(in_range).find(|t| t.who() == target))
             .filter(|kept| {
                 !seen.iter().filter(in_range).any(|t| {
-                    t.who() != kept.who() && presses_more(me, view, kept, t, held_ms, c)
+                    t.who() != kept.who()
+                        && presses_more(me, view, worth.as_ref(), kept, t, held_ms, c)
                 })
             });
         // A threat's shooter seen: him before any other.
@@ -3346,14 +3449,22 @@ impl Reflex {
         if shooter.is_some() {
             self.threat = None;
         }
-        let bonus = view.map_or(0.0, |_| aim.combat.wounded_bonus_m);
+        // Nearer counts, and so does what he is worth (a carrier, a thief of the team's
+        // battery, a hurt enemy: [`Worth::of`]).
         let score = |t: &SeenTrack| {
-            let health = view
-                .and_then(|v| v.place(t.who()))
-                .map_or(1.0, |p| p.health.clamp(0.0, 1.0));
-            t.at().distance_xz(me.feet) - bonus * (1.0 - health)
+            t.at().distance_xz(me.feet) - worth.as_ref().map_or(0.0, |w| w.of(t.who()))
         };
-        let choice = shooter.or(keep).or_else(|| {
+        // The enemy who hit it stays its target a while: the worth neither frees him nor outscores him.
+        if let Some(shooter) = shooter
+            && c.worth.hurter_keep_ms > 0
+        {
+            self.hurter = Some((shooter.who(), now + c.worth.hurter_keep_ms));
+        }
+        let hurter = self
+            .hurter
+            .filter(|&(_, until)| now < until)
+            .and_then(|(who, _)| seen.iter().filter(in_range).find(|t| t.who() == who));
+        let choice = shooter.or(hurter).or(keep).or_else(|| {
             seen.iter()
                 .filter(in_range)
                 .min_by(|a, b| score(a).total_cmp(&score(b)))
@@ -3372,6 +3483,26 @@ impl Reflex {
                 self.retaken = false;
             }
             Some(track) if Some(track.who()) != self.target => {
+                // Taken for what he is worth, not for being the nearest: counted and noted once.
+                let nearest = seen
+                    .iter()
+                    .filter(in_range)
+                    .min_by(|a, b| d(a).total_cmp(&d(b)));
+                if let (Some(w), Some(near), None) = (worth.as_ref(), nearest, shooter)
+                    && near.who() != track.who()
+                    && let Some(why) = w.why(track.who())
+                {
+                    self.worth_stats.count(why, self.target.is_some());
+                    self.worth_notes.push(format!(
+                        "targets {} ({}) over the nearer {}: worth {:.0} m, {:.0} m away against {:.0} m",
+                        track.who(),
+                        why.name(),
+                        near.who(),
+                        w.of(track.who()),
+                        d(track),
+                        d(near),
+                    ));
+                }
                 self.retaken = false;
                 self.reacquired = self
                     .lost
@@ -3561,6 +3692,79 @@ impl Reflex {
                 bearing: None,
             });
             self.next_threat = now + c.glance_ms + c.threat_again_ms;
+            return;
+        }
+        self.flank_glance(me, memory, now, target_at, c);
+    }
+
+    /// How long the trigger stays up from `now`, ms: between bursts the rest of the pause (none in a burst), for a weapon
+    /// pressed a round at a time the time to the next press.
+    fn trigger_free_ms(&mut self, now: u32) -> u32 {
+        let handling = self.hands().held().gun.handling;
+        match handling {
+            Handling::Burst(_) if now < self.burst_until => 0,
+            Handling::Burst(_) => self.pause_until.saturating_sub(now),
+            _ => self.next_press.saturating_sub(now),
+        }
+    }
+
+    /// R4: a target held, and a teammate's callout says an enemy is near on a side the view does not
+    /// cover: a moment's look there. A player holding a man in his sights hears his mate shout; the tip
+    /// looked at a callout only with no target (and a step heard has its own look above, with its own
+    /// distances, which this leaves as they are). Not in a close duel
+    /// (`flank_glance_min_m`) nor within a second and a half of a hit (the hit's own look is the answer).
+    fn flank_glance(
+        &mut self,
+        me: &PlaceView,
+        memory: &Memory,
+        now: u32,
+        target_at: Option<Vec3>,
+        c: &CombatTuning,
+    ) {
+        let w = &c.worth;
+        let d = |at: Vec3| at.distance_xz(me.feet);
+        let Some(target_at) = target_at.filter(|_| w.flank_glance_m > 0.0) else {
+            return;
+        };
+        if now < self.next_flank_glance || d(target_at) <= w.flank_glance_min_m || self.hit_at.is_some_and(|hit| now < hit + 1_500) {
+            return;
+        }
+        let flank = memory
+            .tracks()
+            .iter()
+            .filter(|t| {
+                Some(t.who) != self.target
+                    && matches!(t.source, Source::Told { .. })
+                    && t.time + c.glance_told_fresh_ms >= now
+                    && d(t.at) <= w.flank_glance_m
+                    && !super::sense::in_view(me.feet, me.yaw, t.at, c.threat_off_deg * 2.0)
+            })
+            .min_by(|a, b| d(a.at).total_cmp(&d(b.at)));
+        // The look lasts the pause of the trigger, so it costs no shot.
+        let free_ms = self.trigger_free_ms(now);
+        if w.flank_glance_min_pause_ms > 0 && free_ms < w.flank_glance_min_pause_ms {
+            return;
+        }
+        let look_ms = if w.flank_glance_min_pause_ms > 0 { w.flank_glance_ms.min(free_ms) } else { w.flank_glance_ms };
+        if let Some(track) = flank {
+            super::fairness::read(me.team, super::fairness::Site::Glance, track, now);
+            self.worth_stats.glances += 1;
+            self.worth_notes.push(format!(
+                "glances at the callout of {} at ({:.0}, {:.0}), {:.0} m away, holding a target {:.0} m away",
+                track.who,
+                track.at.x,
+                track.at.z,
+                d(track.at),
+                d(target_at),
+            ));
+            self.threat = Some(Threat {
+                at: track.at,
+                error_m: track.error_m,
+                until: now + look_ms,
+                hit: false,
+                bearing: None,
+            });
+            self.next_flank_glance = now + look_ms + w.flank_glance_again_ms;
         }
     }
 
@@ -3744,6 +3948,76 @@ impl Reflex {
                 self.cover = Cover::Open;
             }
         }
+    }
+
+    /// R2: a hurt enemy this bot fired at has broken sight within `push_m`: it goes on his last place
+    /// while his pain cannot have mended (`push_ms` from the hit, the pain refills from 8 s), one bot
+    /// of the team or two (`push_bots`, the team's claim), the others hold their angles. By what the team
+    /// saw land ([`super::worth::Wounds`]), never the enemy's pools. Not a carrier, not a bot that sees
+    /// an enemy, not one hiding or already pushing; a seen enemy ends it (the fight is the reflex's).
+    fn finish(&mut self, me: &PlaceView, sit: &Situation, memory: &Memory, now: u32, c: &CombatTuning) {
+        let w = &c.worth;
+        // The push is the legs' state ([`LegsWhy::Finish`]): it ends with its time, or with a target.
+        if let Some((victim, until)) = self.pushing()
+            && (now >= until || self.target.is_some())
+        {
+            if now >= until {
+                self.worth_stats.push_expired += 1;
+            } else if self.target == Some(victim) {
+                self.worth_stats.push_seen_again += 1;
+            } else {
+                self.worth_stats.push_other_target += 1;
+            }
+            self.push = None;
+        }
+        if w.push_m <= 0.0
+            || self.push.is_some_and(|p| now < p.until)
+            || self.target.is_some()
+            || !matches!(self.cover, Cover::Open)
+            || super::objective_actor::is_actor(me)
+            || self.dry()
+        {
+            return;
+        }
+        let (Some(team), Some((victim, fired))) = (sit.team, self.last_fired) else {
+            return;
+        };
+        let Some(enemy) = sit.view.place(victim).filter(|p| p.alive && p.team != me.team) else {
+            return;
+        };
+        let Some(last_hit) = team.wounds.last_hit(victim, enemy.spawned, now, me.place, w.told_ms) else {
+            return;
+        };
+        if now >= last_hit.saturating_add(w.push_ms)
+            || fired.abs_diff(last_hit) > w.credit_ms
+            || team.wounds.hurt(victim, enemy.spawned, now, me.place, w.told_ms) < w.push_hurt
+            || !team.wounds.may_push(victim, me.place, now, w.push_bots)
+            || !memory.all_seen(now, sit.view.clock).is_empty()
+        {
+            return;
+        }
+        // By the team's own senses (seen, heard, told; never a cheat's place) within the fairness bound.
+        let Some(track) = memory.tracks().iter().find(|t| {
+            t.who == victim
+                && t.source.own()
+                && now.saturating_sub(t.time) <= super::worth::SENSED_WITHIN_MS
+        }) else {
+            return;
+        };
+        super::fairness::read(me.team, super::fairness::Site::Push, track, now);
+        let at = track.own.map_or(track.at, |(at, _)| at);
+        if at.distance_xz(me.feet) > w.push_m {
+            return;
+        }
+        let until = last_hit + w.push_ms;
+        self.push = Some(Push {
+            toward: at,
+            from: now,
+            until,
+            why: LegsWhy::Finish(victim),
+        });
+        self.worth_stats.pushes += 1;
+        self.worth_notes.push(format!("pushes on hurt enemy {victim}"));
     }
 
     /// Play 7: hit in a duel: to a spot near by hidden from the enemy
@@ -4584,6 +4858,9 @@ impl Reflex {
         let load = self.hands().held_mut();
         load.rounds = load.rounds.saturating_sub(shots);
         self.fired = (now, shots);
+        if shots > 0 {
+            self.last_fired = self.target.map(|target| (target, now));
+        }
         true
     }
 
@@ -4925,10 +5202,16 @@ impl Reflex {
             // once, not a think later.
             let held_ms = now.saturating_sub(self.since);
             let seen = memory.all_seen(now, view.clock);
+            let worth = Worth {
+                view,
+                known: &self.known,
+                tuning: &c.worth,
+                hurt_m: c.wounded_bonus_m,
+            };
             if seen.iter().any(|t| {
                 t.who() != kept.who()
                     && t.at().distance_xz(me.feet) <= aim.range_m
-                    && presses_more(me, Some(view), &kept, t, held_ms, c)
+                    && presses_more(me, Some(view), Some(&worth), &kept, t, held_ms, c)
             }) {
                 self.choose(me, Some(view), memory, now, aim, skill, rng);
             }
@@ -7039,7 +7322,9 @@ mod tests {
         let mut far = body(2, 1, Vec3::new(3.0, 0.0, 25.0), 0.0);
         far.health = 0.2;
         let view = view_of(vec![me.clone(), near.clone(), far.clone()]);
-        let aim = AimTuning::default();
+        // The tip's rule: the true body pool (the default reads what the team saw land).
+        let mut aim = AimTuning::default();
+        aim.combat.worth.hurt_from = crate::v026g::bots::worth::HurtFrom::Body;
         let mut memory = Memory::default();
         let mut rng = Rng::new(5);
         for now in [1_000, 1_400] {
@@ -10337,6 +10622,277 @@ mod tests {
         }
     }
 
+    /// The aim with the worth, the keep of the enemy who hit the bot and the push on ([`WorthTuning::parts_on`]): off by default.
+    fn worth_on() -> AimTuning {
+        let mut aim = AimTuning::default();
+        aim.combat.worth = WorthTuning::parts_on();
+        aim
+    }
+
+    /// The target the reflex takes after a few thinks, with `enemies` seen as (place, feet, carrying).
+    fn target_among(
+        enemies: &[(Place, Vec3, Option<usize>)],
+        team: Option<&TeamKnowledge>,
+        aim: &AimTuning,
+    ) -> Option<Place> {
+        reflex_among(enemies, team, aim).target()
+    }
+
+    /// The reflex after those thinks.
+    fn reflex_among(
+        enemies: &[(Place, Vec3, Option<usize>)],
+        team: Option<&TeamKnowledge>,
+        aim: &AimTuning,
+    ) -> Reflex {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut places = vec![me.clone()];
+        for &(who, at, carrying) in enemies {
+            let mut enemy = body(who, 1, at, 0.0);
+            enemy.carrying = carrying;
+            places.push(enemy);
+        }
+        let view = view_of(places);
+        let sit = Situation { team, ..Situation::of(&view) };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(21);
+        for now in [1_000, 1_300, 1_600] {
+            let seen: Vec<_> = enemies
+                .iter()
+                .map(|&(who, at, _)| percept(who, at, now, Source::Seen))
+                .collect();
+            sense(&mut memory, &seen, now);
+            reflex.think_with(&me, &sit, &memory, now, aim, 0.5, &mut rng);
+        }
+        reflex
+    }
+
+    /// The enemy who hit the bot stays its target for `hurter_keep_ms`: a carrier farther out takes him neither by the
+    /// worth gap nor by the score. With the keep off (the tip: the shooter goes first for one think) the carrier takes the target
+    /// at the next think.
+    #[test]
+    fn the_enemy_who_hit_the_bot_is_not_given_up_for_a_carrier() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let hurter_at = Vec3::new(0.0, 0.0, 25.0);
+        let carrier_at = Vec3::new(0.0, 0.0, 30.0);
+        let mut carrier = body(2, 1, carrier_at, 0.0);
+        carrier.carrying = Some(1);
+        let view = view_of(vec![me.clone(), body(1, 1, hurter_at, 0.0), carrier]);
+        let sit = Situation::of(&view);
+        let run = |keep_ms: u32| {
+            let mut aim = worth_on();
+            aim.combat.worth.hurter_keep_ms = keep_ms;
+            let mut memory = Memory::default();
+            let mut reflex = Reflex { threat: Some(Threat { at: hurter_at, error_m: 1.0, until: 5_000, hit: true, bearing: None }), ..Reflex::default() };
+            let mut rng = Rng::new(25);
+            let mut targets = Vec::new();
+            for now in [1_000, 1_300, 1_600, 1_900, 2_200, 2_500, 2_800] {
+                let seen = [percept(1, hurter_at, now, Source::Seen), percept(2, carrier_at, now, Source::Seen)];
+                sense(&mut memory, &seen, now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+                targets.push(reflex.target());
+            }
+            targets
+        };
+        let kept = run(3_000);
+        assert!(kept.iter().flatten().all(|&t| t == 1) && kept.last() == Some(&Some(1)), "the hurter is kept: {kept:?}");
+        let off = run(0);
+        assert!(off.contains(&Some(1)) && off.last() == Some(&Some(2)), "the shooter first, then the carrier: {off:?}");
+        // Hit a moment ago by someone it could not place: the worth steers nothing in the fight (the nearer enemy is taken),
+        // and after the window the carrier is.
+        let after_hit = |keep_ms: u32| {
+            let mut aim = worth_on();
+            aim.combat.worth.hurter_keep_ms = keep_ms;
+            let mut memory = Memory::default();
+            let mut reflex = Reflex { hit_at: Some(900), ..Reflex::default() };
+            let mut rng = Rng::new(26);
+            let mut targets = Vec::new();
+            for now in [1_000, 1_300, 1_600, 1_900, 4_500, 4_800] {
+                let seen = [percept(1, hurter_at, now, Source::Seen), percept(2, carrier_at, now, Source::Seen)];
+                sense(&mut memory, &seen, now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+                targets.push(reflex.target());
+            }
+            targets
+        };
+        let kept = after_hit(3_000);
+        assert!(kept[..4].iter().flatten().all(|&t| t == 1) && kept.last() == Some(&Some(2)), "{kept:?}");
+        assert_eq!(after_hit(0).last(), Some(&Some(2)));
+    }
+
+    /// A target taken for his worth is counted once and noted once, with the numbers; one that is the
+    /// nearest anyway is neither.
+    #[test]
+    fn a_target_taken_for_his_worth_is_counted_and_noted_once() {
+        let aim = worth_on();
+        let plain = (1, Vec3::new(0.0, 0.0, 12.0), None);
+        let carrier = (2, Vec3::new(0.0, 0.0, 18.0), Some(1));
+        let mut reflex = reflex_among(&[plain, carrier], None, &aim);
+        let notes = reflex.take_worth_notes();
+        assert_eq!(reflex.target(), Some(2));
+        assert_eq!(reflex.worth_stats().actor, 1);
+        assert_eq!(reflex.worth_stats().total(), 1);
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert!(notes[0].contains("targets 2 (objective actor (carrier)) over the nearer 1"), "{notes:?}");
+        let mut near = reflex_among(&[(1, Vec3::new(0.0, 0.0, 12.0), Some(1)), (2, Vec3::new(0.0, 0.0, 30.0), None)], None, &aim);
+        assert_eq!(near.worth_stats().total(), 0, "the carrier is the nearest anyway");
+        assert!(near.take_worth_notes().is_empty());
+    }
+
+    /// The Cologne steal (match 0x72dafb5b, 80-103 s): a carrier walked past ten bots who shot his
+    /// escorts. A carrier cannot shoot back and a thief is on the HUD: both come before a nearer plain
+    /// enemy, the thief before a carrier of the enemy's own battery; with the worth off, the nearest.
+    #[test]
+    fn a_carrier_and_a_thief_are_shot_before_a_nearer_plain_enemy() {
+        let (plain, carrier, thief) = (
+            (1, Vec3::new(0.0, 0.0, 12.0), None),
+            (2, Vec3::new(0.0, 0.0, 18.0), Some(1)),
+            (3, Vec3::new(5.0, 0.0, 24.0), Some(0)),
+        );
+        let on = worth_on();
+        let mut off = AimTuning::default();
+        off.combat.worth = crate::v026g::bots::worth::WorthTuning {
+            objective_actor_m: 0.0,
+            objective_threat_m: 0.0,
+            switch_m: 0.0,
+            ..off.combat.worth
+        };
+        let mut team = TeamKnowledge::default();
+        team.thefts.push(crate::v026g::bots::know::Theft {
+            battery: 0,
+            at: Vec3::ZERO,
+            time: 900,
+            thief: Some(3),
+        });
+        assert_eq!(target_among(&[plain, carrier], None, &on), Some(2));
+        assert_eq!(target_among(&[plain, carrier], None, &off), Some(1));
+        assert_eq!(target_among(&[plain, carrier, thief], Some(&team), &on), Some(3));
+        assert_eq!(target_among(&[plain, carrier, thief], Some(&team), &off), Some(1));
+        // No theft noticed: he is a carrier like the other, and the nearer one is taken.
+        team.thefts.clear();
+        assert_eq!(target_among(&[plain, carrier, thief], Some(&team), &on), Some(2));
+    }
+
+    /// An enemy the team saw hit to pain (a hand and a leg: the body pool shows nothing) counts nearer;
+    /// one the team saw nothing land on does not, whatever his true pools are.
+    #[test]
+    fn an_enemy_the_team_saw_hurt_is_taken_before_a_nearer_whole_one() {
+        use crate::v026g::bots::worth::HurtFrom;
+        let near = (1, Vec3::new(0.0, 0.0, 12.0), None);
+        let hurt = (2, Vec3::new(0.0, 0.0, 18.0), None);
+        let mut team = TeamKnowledge::default();
+        team.wounds.landed(2, 0, 0.9, 0, 1_000);
+        let aim = AimTuning::default();
+        assert_eq!(target_among(&[near, hurt], Some(&team), &aim), Some(2));
+        assert_eq!(target_among(&[near, hurt], None, &aim), Some(1), "nothing seen of him");
+        // The tip read the true body pool: both whole there, the nearer.
+        let mut tip = AimTuning::default();
+        tip.combat.worth.hurt_from = HurtFrom::Body;
+        assert_eq!(target_among(&[near, hurt], Some(&team), &tip), Some(1));
+    }
+
+    /// A hurt enemy this bot fired at breaks sight within 30 m: it goes on his last place, two bots at
+    /// most; a bot that did not fire at him, a whole enemy, and a team already at the cap do not.
+    #[test]
+    fn a_bot_that_hit_a_hurt_enemy_goes_after_him_two_at_most() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy_at = Vec3::new(0.0, 0.0, 20.0);
+        let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        let aim = worth_on();
+        let run = |share: f32, fired: Option<(Place, u32)>, others: usize| {
+            let mut team = TeamKnowledge::default();
+            team.wounds.landed(1, 0, share, 0, 1_000);
+            for other in 0..others {
+                team.wounds.push_claim(1, 10 + other, 6_000);
+            }
+            let sit = Situation { team: Some(&team), ..Situation::of(&view) };
+            let mut memory = Memory::default();
+            sense(&mut memory, &[percept(1, enemy_at, 1_100, Source::Heard)], 1_100);
+            let mut reflex = Reflex { last_fired: fired, ..Reflex::default() };
+            let mut rng = Rng::new(22);
+            reflex.think_with(&me, &sit, &memory, 1_500, &aim, 0.5, &mut rng);
+            let legs = reflex.tick(&me, &view, &memory, 1_550, true, &aim, 0.5, &mut rng).legs;
+            (reflex.pushing(), legs.map(|l| (l.why, l.at)))
+        };
+        let (claim, legs) = run(0.9, Some((1, 990)), 1);
+        assert_eq!(claim, Some((1, 7_000)));
+        assert_eq!(legs, Some((LegsWhy::Finish(1), enemy_at)));
+        assert_eq!(run(0.9, Some((1, 990)), 2).0, None, "two bots push already");
+        assert_eq!(run(0.9, None, 0).0, None, "it did not fire at him");
+        assert_eq!(run(0.9, Some((3, 990)), 0).0, None, "it fired at another");
+        assert_eq!(run(0.2, Some((1, 990)), 0).0, None, "not hurt enough");
+    }
+
+    /// Fairness: an enemy no sense of the team gave (a cheat's radar place only) is not pushed on, however hurt the team saw him
+    /// get, nor is one last sensed more than 15 s ago; and a hurt enemy who is not in sight changes no choice of a target.
+    #[test]
+    fn the_worth_and_the_push_use_only_what_the_team_sensed() {
+        use crate::v026g::bots::know::CheatKind;
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy_at = Vec3::new(0.0, 0.0, 20.0);
+        let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        let aim = worth_on();
+        let pushes = |source: Source, sensed_at: u32| {
+            let mut team = TeamKnowledge::default();
+            team.wounds.landed(1, 0, 0.9, 0, 1_000);
+            let sit = Situation { team: Some(&team), ..Situation::of(&view) };
+            let mut memory = Memory::default();
+            sense(&mut memory, &[percept(1, enemy_at, sensed_at, source)], sensed_at);
+            let mut reflex = Reflex { last_fired: Some((1, 990)), ..Reflex::default() };
+            let mut rng = Rng::new(24);
+            reflex.think_with(&me, &sit, &memory, 1_500, &aim, 0.5, &mut rng);
+            reflex.pushing().is_some()
+        };
+        assert!(pushes(Source::Heard, 1_100), "heard by the team: the push");
+        assert!(!pushes(Source::Cheat(CheatKind::Radar), 1_100), "a cheat's place is not a sense");
+        let mut team = TeamKnowledge::default();
+        team.wounds.landed(1, 0, 0.9, 0, 1_000);
+        // A hurt enemy nobody sees: the target among the seen ones is the nearest, with no note of a worth.
+        let seen = (2, Vec3::new(0.0, 0.0, 30.0), None);
+        let mut reflex = reflex_among(&[seen], Some(&team), &aim);
+        assert_eq!(reflex.target(), Some(2));
+        assert!(reflex.take_worth_notes().is_empty());
+        assert_eq!(reflex.worth_stats().total(), 0);
+    }
+
+    /// A target held, a mate's callout of an enemy behind: a glance there; off, none.
+    #[test]
+    fn a_bot_holding_a_target_glances_at_a_callout_behind() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let ahead = Vec3::new(0.0, 0.0, 25.0);
+        let behind = Vec3::new(0.0, 0.0, -15.0);
+        let view = view_of(vec![me.clone(), body(1, 1, ahead, 0.0), body(2, 1, behind, 0.0)]);
+        let sit = Situation::of(&view);
+        let run = |aim: &AimTuning| {
+            let mut memory = Memory::default();
+            let mut reflex = Reflex { pause_until: 100_000, next_press: 100_000, ..Reflex::default() };
+            let mut rng = Rng::new(23);
+            for now in [1_000, 1_300, 1_600, 1_900] {
+                sense(
+                    &mut memory,
+                    &[
+                        percept(1, ahead, now, Source::Seen),
+                        percept(2, behind, now, Source::Told { by: 5 }),
+                    ],
+                    now,
+                );
+                reflex.think_with(&me, &sit, &memory, now, aim, 0.5, &mut rng);
+            }
+            (reflex.target(), reflex.threat.map(|t| (t.at, t.hit)))
+        };
+        // Off by default (no source found for it, and no effect of its own in the bench); on at 40 m.
+        assert_eq!(run(&AimTuning::default()), (Some(1), None));
+        let mut on = worth_on();
+        on.combat.worth.flank_glance_m = 40.0;
+        assert_eq!(run(&on), (Some(1), Some((behind, false))));
+        // In a pause shorter than the least, none; with the least off, at any time.
+        let mut short = on.clone();
+        short.combat.worth.flank_glance_min_pause_ms = 200_000;
+        assert_eq!(run(&short), (Some(1), None));
+        short.combat.worth.flank_glance_min_pause_ms = 0;
+        assert_eq!(run(&short), (Some(1), Some((behind, false))));
+    }
+
     /// Audit issue 4's numbers, explicit (the tests hold whatever the
     /// defaults become).
     fn issue_4_aim() -> AimTuning {
@@ -10449,8 +11005,8 @@ mod tests {
                 let (kept, by) = (memory.seen(1, 2_200, 2_200), memory.seen(2, 2_200, 2_200));
                 let (kept, by) = (kept.unwrap(), by.unwrap());
                 let c = &aim.combat;
-                assert!(presses_more(&me, Some(&view), &kept, &by, c.switch_hold_ms, c));
-                assert!(!presses_more(&me, Some(&view), &kept, &by, c.switch_hold_ms - 1, c));
+                assert!(presses_more(&me, Some(&view), None, &kept, &by, c.switch_hold_ms, c));
+                assert!(!presses_more(&me, Some(&view), None, &kept, &by, c.switch_hold_ms - 1, c));
             }
         }
     }

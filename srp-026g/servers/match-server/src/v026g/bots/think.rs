@@ -610,6 +610,8 @@ pub(super) fn react(
         }),
         cover: tuning.cover.rule(),
     };
+    // A bullet that hit it, a limb's too (the hit marker and the stagger), as the world last showed.
+    bot.reflex.bullet_hit(bot.hurt.last_hit_ms);
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
@@ -619,6 +621,14 @@ pub(super) fn react(
         bot.note(notes, now, text);
     }
     smoke_react(due, bot, notes);
+    for text in bot.reflex.take_worth_notes() {
+        bot.note(notes, now, text);
+    }
+    // A push on a hurt enemy: the team's cap on it counts this bot while it goes on, and not after.
+    match bot.reflex.pushing() {
+        Some((victim, until)) => state.knowledge.wounds.push_claim(victim, bot.place, until),
+        None => state.knowledge.wounds.push_release(bot.place),
+    }
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);
