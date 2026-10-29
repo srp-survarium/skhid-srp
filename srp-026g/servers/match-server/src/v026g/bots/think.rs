@@ -446,7 +446,7 @@ pub(super) fn sense_batteries(
     } = *due;
     // With the battery cheat off, the batteries and spawners' spots it
     // sees become its team's knowledge.
-    if !tuning.cheats.batteries && view.mode.has_batteries() {
+    if !tuning.cheats.batteries && view.objective().has_homes() {
         // Spawners only while some battery is missing.
         let missing = plays::batteries_unaccounted(view, bot.team, &state.knowledge) > 0;
         let worth: Vec<bool> = (0..tactics.world.map.battery_spawners.len())
@@ -663,7 +663,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         life_ms: now.saturating_sub(me.spawned),
         match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
         carrying: me.carrying.is_some(),
-        tickets: view.mode.is_deathmatch().then(|| view.points[usize::from(bot.team & 1)]),
+        tickets: view.objective().tickets(view, bot.team),
         since_last_ms: bot.self_killed_at.map(|at| now.saturating_sub(at)),
         team_last_minute: state.features.stuck.self_kills.len() as u32,
     };

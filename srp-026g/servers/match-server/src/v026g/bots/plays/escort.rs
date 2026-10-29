@@ -84,7 +84,7 @@ impl Ctx<'_> {
     fn objective_actors(&self) -> impl Iterator<Item = &PlaceView> {
         self.view
             .team(self.me.team)
-            .filter(|p| p.place != self.me.place && p.carrying.is_some())
+            .filter(|p| p.place != self.me.place && self.view.objective().is_actor(p))
     }
 
     /// Our carrier the target stands for, alive and carrying.
@@ -164,7 +164,7 @@ fn ring_post(tactics: &Tactics, from: Vec3, target: Vec3, now: u32, side: Option
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+    if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
     }
     let Some(home) = cx.view.container_of(cx.me.team).map(|c| c.at) else {

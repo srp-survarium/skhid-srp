@@ -356,7 +356,7 @@ impl Ctx<'_> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+    if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
     }
     let recent = (cx.num(PlayKind::Intercept, "theft_recent_s") * 1000.0) as u32;

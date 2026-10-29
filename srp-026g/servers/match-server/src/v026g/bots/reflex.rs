@@ -3100,7 +3100,7 @@ impl Reflex {
         // keeps its way home.
         if self.outranged
             && now >= self.next_outranged
-            && me.carrying.is_none()
+            && !sit.view.objective().is_actor(me)
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
@@ -3781,7 +3781,7 @@ impl Reflex {
             && let Some(toward) = threat.bearing
         {
             // A carrier keeps its way home.
-            if me.carrying.is_some() || !c.hit_cover {
+            if sit.view.objective().is_actor(me) || !c.hit_cover {
                 return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
@@ -5551,7 +5551,7 @@ mod tests {
     fn view_of(places: Vec<PlaceView>) -> MatchView {
         MatchView {
             clock: 0,
-            mode: Mode::TeamDeathmatch,
+            mode: Mode::Batteries,
             time_left_s: 600.0,
             total_s: 900.0,
             points: [0, 0],

@@ -1490,7 +1490,7 @@ mod tests {
         use crate::v026g::bots::kin::Kinematics;
         use crate::v026g::bots::view::{Clock, Tracker};
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         let start = Fix {
             time: 1_000,

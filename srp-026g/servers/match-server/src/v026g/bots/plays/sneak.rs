@@ -77,7 +77,7 @@ pub fn tuning() -> PlayTuning {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() {
+    if !cx.view.objective().has_homes() {
         return;
     }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
