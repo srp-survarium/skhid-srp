@@ -62,6 +62,10 @@ pub struct SmokeTuning {
     /// spends it on the crossing that matters. With no cap the bench's bots threw 7.84 per 100 lives on map data
     /// format 5 (`h2h-on-vs-off-20261029T2004`; live 2.97, the feel bar under 2x live).
     pub lanes_a_life: u32,
+    /// A lane is smoked only where the route its shooter sees runs this far from the crossing on, metres: a shorter
+    /// gap is sprinted (5 m/s) before his answer (the bench's median first sight to first shot, about 1.0 s,
+    /// `h2h-on-vs-off-20261029T2103`). Players sprint short gaps and smoke the wide ones.
+    pub lane_open_m: Metres,
     /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
     /// between them, as near him as the throw reaches. Off: none.
     pub anti_sniper: bool,
@@ -91,6 +95,7 @@ impl Default for SmokeTuning {
             lane_ahead_m: Metres::of(10.0),
             lane_sensed_ms: 5_000,
             lanes_a_life: 1,
+            lane_open_m: Metres::of(5.0),
             anti_sniper: false,
         }
     }

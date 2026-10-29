@@ -579,6 +579,9 @@ fn smoke_react(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     }
 }
 
+/// [smoke] How far past a lane's crossing the open stretch is looked for, metres (`smoke.lane_open_m`'s test).
+const LANE_OPEN_LOOK_M: f32 = 20.0;
+
 /// [smoke use] A smoke from the kit for one of its uses, each its own switch (`SmokeTuning`): against the sniper that
 /// outranges it (`anti_sniper`), or across a held lane its route enters ahead (`cross_lane`). Only against an enemy
 /// the team sensed within [`super::smoke::FAIR_SENSED_MS`], with a smoke in the kit and the hands free; one note
@@ -646,11 +649,11 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         let heights = bot.motor.heights();
         let start = route.walked();
         let end = (start + t.lane_ahead_m.get()).min(route.length());
-        let crossing = (1..)
+        let (crossing_s, crossing) = (1..)
             .map(|k| start + k as f32 * 2.0)
             .take_while(|&s| s <= end)
-            .map(|s| route.at(s, heights))
-            .find(|&p| bot.threat.exposed_at(grid, p))?;
+            .map(|s| (s, route.at(s, heights)))
+            .find(|&(_, p)| bot.threat.exposed_at(grid, p))?;
         // The shooter known to be there now, with a line onto the crossing.
         let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
         let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
@@ -662,6 +665,18 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
         // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.
         if view.smoke.covers(view.clock, t, held.at + eye_over, chest) {
+            return None;
+        }
+        // A short gap is sprinted, not smoked: the route he sees from the crossing on, 1 m steps, must run at least
+        // `lane_open_m` (what a sprint covers in a shooter's answer).
+        let open_end = (route.length() - crossing_s).min(LANE_OPEN_LOOK_M);
+        let open_m = (1..)
+            .map(|k| k as f32)
+            .take_while(|&d| d <= open_end)
+            .take_while(|&d| tactics.sees(held.at + eye_over, route.at(crossing_s + d, heights) + Vec3::new(0.0, 1.3, 0.0)))
+            .last()
+            .unwrap_or(0.0);
+        if open_m < t.lane_open_m.get() {
             return None;
         }
         smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
