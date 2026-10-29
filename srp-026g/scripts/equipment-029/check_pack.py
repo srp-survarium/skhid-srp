@@ -6,7 +6,24 @@ import math
 from pathlib import Path
 import re
 
-from make_pack import bcw, movie_metadata, specs, HERE
+from make_pack import bcw, material_switches, missing_maps, movie_metadata, shipped_switches, shipped_textures, specs, HERE
+
+
+def check_shaders(pack):
+    """Every material draws with a shader the released game has compiled, and
+    every map it switches on has its texture in the game or the pack."""
+    shipped = shipped_switches()
+    files = pack / 'files'
+    textures = shipped_textures(str(path.relative_to(files)) for path in files.glob('textures/**/*.dds'))
+    materials = sorted(files.glob('material_instances/**/*.material'))
+    assert materials, 'no materials in the pack'
+    for path in materials:
+        material = bcw.loads(path.read_bytes())
+        for combination in material_switches(material):
+            assert combination in shipped, (str(path.relative_to(pack)), 'no 0.26g shader', combination)
+        missing = list(missing_maps(material, textures))
+        assert not missing, (str(path.relative_to(pack)), 'map switched on without its texture', missing)
+    return len(materials)
 
 
 def check(pack, base):
@@ -75,7 +92,8 @@ def check(pack, base):
         texts = config(row['dict_id'])['ui_desc']['text_descriptions']
         assert set(texts.values()) <= keys
         assert all(op['strings'][texts['name']] for op in localizations), row['dict_id']
-    print('84 equipment configs, 22 exact premium counterparts, icons and six localizations checked')
+    shaded = check_shaders(pack)
+    print(f'84 equipment configs, 22 exact premium counterparts, icons, six localizations and {shaded} materials\' shaders checked')
 
 
 if __name__ == '__main__':

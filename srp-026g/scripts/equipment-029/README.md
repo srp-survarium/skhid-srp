@@ -1,6 +1,6 @@
 # Equipment through 0.29
 
-`equipment-029@3` adds 84 equipment pieces absent from the released 0.26g
+`equipment-029@4` adds 84 equipment pieces absent from the released 0.26g
 dictionary: 62 regular pieces and 22 premium/reskinned or special pieces,
 including Keeper of the Sun. The donor is retail **0.29c**, from
 `Survarium_archives/Survarium29c/game/resources.00.db` through `.18.db` in the
@@ -43,6 +43,16 @@ columns 12–15. Texts use their own namespace in all six supported languages;
 descriptions absent from the donor are explicitly empty. Shared assets
 already present in the released game are reused, not overwritten.
 
+0.26g ships its shaders compiled, one per combination of a material's `use_*`
+switches, and compiles none: a donor material whose combination 0.26g never
+drew stops the game with "cannot find shader" (the Watchman gloves did, in
+@3). `shader_switches.tsv` lists every stage's combination of the stock
+resources.db and the released patches (`shader_switches.py` makes it), and
+`make_pack.py` turns off the switches that leave a donor material outside it,
+keeping the most it can: the Watchman gloves' subsurface mask, the Omicron
+mask's and vests' masked diffuse colour, the Animal skin pants' fuzziness.
+`check_pack.py` checks every material against the list.
+
 ## Rebuild
 
 Run from the repository root with Python 3 and Pillow. The extracted inputs
@@ -63,13 +73,13 @@ python srp-026g/scripts/equipment-029/make_pack.py \
   --donor private/equipment-029/inputs/donor \
   --assets private/equipment-029/inputs/assets \
   --base private/equipment-029/inputs/base \
-  --out private/content-packs/equipment-029-3
-cmp private/content-packs/equipment-029-3/ui/Equipment029.as \
+  --out private/content-packs/equipment-029-4
+cmp private/content-packs/equipment-029-4/ui/Equipment029.as \
   srp-026g/flash/lobby_menu/src/survarium/constants/Equipment029.as
 python srp-026g/scripts/equipment-029/check_pack.py \
-  private/content-packs/equipment-029-3 private/equipment-029/inputs/base
+  private/content-packs/equipment-029-4 private/equipment-029/inputs/base
 python srp-026g/scripts/equipment-029/balance_audit.py \
-  private/content-packs/equipment-029-3 private/equipment-029/inputs/base \
+  private/content-packs/equipment-029-4 private/equipment-029/inputs/base \
   --out private/equipment-029/balance-audit.json
 ```
 
