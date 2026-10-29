@@ -57,6 +57,14 @@ pub struct HazardTuning {
     /// carrier's own feet in a zone ("no way to its goal" 18 and 54 times in a match). Off: the line, then the
     /// carrier's feet.
     pub escort_dry_post: bool,
+    /// A zone's hit falls off towards its rim: the client scales it by the zone's hit curve at the body's normalised
+    /// distance from the zone's centre (`damage_zone_core::damage_of_body` 0x31A410, PROVEN; the shipped curves, Vector
+    /// Laboratory's radiation zones `(0, 1)` to `(1, 0)`, levels 3 to 6 at the rim), and live bots lose exactly that (the
+    /// clients simulate them). A floor is priced at the hit its place in the zone makes (`Hazard::intensity_at`, the
+    /// curve `mapdata::Zone::intensity_at` has): the legs of a crossing, its stand and its way out. What may be crossed at
+    /// all (`crossing::crossable`, the margin's marks) stays at the zone's full hit. Off: the full hit on every floor, as
+    /// it was. (The zones' rate itself is the client's, the interval included, whatever this says: `Hazard::hit_per_s`.)
+    pub zone_intensity: bool,
 }
 
 /// How a battery no straight walk crosses to is offered a crossing by the motor's own route over the zones' floors
@@ -140,6 +148,7 @@ impl Default for HazardTuning {
             band_drift_m: Metres::of(0.2),
             price_way_out: true,
             escort_dry_post: true,
+            zone_intensity: true,
         }
     }
 }

@@ -2009,7 +2009,10 @@ va	name	source	ret_cleanup	result
 0x002e4100	survarium::weapon_core::melee_pred	manual	0	AL 1 when the input mask has bit 27 (melee)
 0x002e4140	survarium::weapon_core::jump_blocks_reload	manual	0	AL 1 when the jump blocks a reload: selector state 4, or the jump action, or is_trying_to_jump (0x2FC230)
 0x002e4170	survarium::weapon_core::sprint_blocks_reload	manual	0	AL 1 when the sprint blocks a reload
+0x002fe7f0	survarium::inventory::quick_use_slot	manual	8	EAX: slot of the n-th counted item of QUICK_USE_ORDER (an item object present, item+24Ch != 0, vtable+58h()==0; the stack count is not read), 17h none
+0x002fe8b0	survarium::inventory::first_grenade_pocket	manual	4	EAX: first slot of 13..18 holding a grenade item with units (non-stack, or count != 0, vtable+64h != 0); [inventory+17Ch] if none
 0x00307870	survarium::collision_sensor::min_normalised_distance	manual	4	xmm0: the least damage_zone_shape::normalised_distance over the shapes (array +14h, count +18h), from 1.0
+0x00309dc0	survarium::grenade_set_core::want_throw	manual	8	
 0x0030ef80	survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl	manual	8	calls reload_one_round (0x2E1A00: one round from the ammo stack into the magazine) with EDI the weapon_core, then sets the byte at the first stack argument to 1
 0x0030f070	survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl	manual	8	sets the byte at [this+168h] and the byte at the first stack argument to 1; with chamber_a_round_on_reload (+5F2h) and a round in the magazine takes one into the chamber
 0x0031a410	survarium::damage_zone_core::damage_of_body	manual	4	xmm0: c2 x c1, the zone curve at d (zone+168h) times the curve at [body+334h] (zone+188h), each clamped to [0, 1]

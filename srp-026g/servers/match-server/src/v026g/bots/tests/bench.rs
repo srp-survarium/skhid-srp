@@ -542,31 +542,25 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         }
     }
     let commanded = Instant::now();
-    let (mut think, mut ticks) = (0.0, 0.0);
+    let mut think = 0.0;
     let mut rays = RayBudget::new(bots.match_wide_tuning().think.rays_per_poll);
     rays.thinks_left = bots.thinks_due(&view);
-    bots.features.searching.left = SEARCHES_PER_POLL;
-    bots.features.searching.floors = bots.match_wide_tuning().think.search_floors_per_poll as usize;
     let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
-    let a = Instant::now();
-    bots.go_on_searching();
-    ticks += a.elapsed().as_secs_f64();
-    for index in 0..bots.bots.len() {
-        if bots.bots[index].is_none() {
-            continue;
-        }
+    // The poll's own loop (`Bots::each_bot`: the route-search queue's order, its poll and the searches under way),
+    // each bot's think timed; the ticks are the rest of the loop, the searches under way with them (they are drive
+    // work, as the drive's own searches are).
+    let looped = Instant::now();
+    bots.each_bot(&view, |bots, index| {
         let a = Instant::now();
-        super::bench_work::set(super::bench_work::Who::Team(bots.bots[index].as_ref().map_or(0, |bot| bot.team)));
         // Before play begins: only rest.
         if clock.playing {
             bots.think(index, &view, &mut rays, &mut notes);
         }
         bots.sync_route_claim(index, now, claims_on);
-        let b = Instant::now();
+        think += a.elapsed().as_secs_f64();
         bots.ticks(index, &clock, &view, &mut made);
-        think += (b - a).as_secs_f64();
-        ticks += b.elapsed().as_secs_f64();
-    }
+    });
+    let ticks = looped.elapsed().as_secs_f64() - think;
     super::bench_work::set(super::bench_work::Who::Idle);
     bots.polls.record(clock.clock, &rays);
     let parts = [
@@ -2022,6 +2016,15 @@ fn say_the_switches() {
         eprintln!("{line}");
     }
     if settings.flag("SRP_BENCH_ONE_SIDE") {
+        // A match-wide setting is read from team 0's tuning (`TeamTunings::match_wide`): one the sides set apart
+        // flips between the two runs of a head-to-head, so the bench says so loudly.
+        let (zero, one) = (bench_tuning_of(false), bench_tuning_of(true));
+        if zero.think.search_queue != one.think.search_queue {
+            eprintln!(
+                "WARNING: the sides differ in the match-wide think.search_queue ({:?} vs {:?}): the match runs team 0's",
+                zero.think.search_queue, one.think.search_queue
+            );
+        }
         for line in bench_tuning_of(true).switch_report().lines() {
             eprintln!("side1 {line}");
         }

@@ -4662,8 +4662,14 @@ va	name	location	role	basis
 0x0032a4b0	survarium::body_part::regenerate	pool thresholds	regrows only while Hmax x threshold (+A8h) > H: body 0.5, head 0.2 (x 0.4), each leg and hand 0.1 (x 0.5), pain to full, infection never (speed 0); 8 s after the last hit (+B0h + timeout +ACh)	observed
 0x002fffe0	survarium::inventory_item::inventory_item	EAX	this (item base, filled in place): byte +0Eh is set to 0 (+0Ch 0FFh, +0Dh 1); only weapon_core::weapon_core (0x2DF100) and empty_hands (0x299851) set it to 1, no victory_item_core code does	observed
 0x002d8bb0	survarium::base_player::process_quick_slots	[[player+128h]+0Eh]	byte of the active (hands) object; 0 stops the quick pockets 13..18 (0x2D8DA0) and the grenade key (0x2D8E0B); the drop of a carried battery (0x2D8E73) does not test it	observed
+0x002fe7f0	survarium::inventory::quick_use_slot	stack+4	inventory	observed
+0x002fe7f0	survarium::inventory::quick_use_slot	stack+8	n: 0-based rank among the counted items (quick-use key n+1)	observed
+0x002fe8b0	survarium::inventory::first_grenade_pocket	stack+4	inventory	observed
 0x003000a0	survarium::victory_item_core::victory_item_core	EAX/stack+4	builds the battery on the item base 0x2FFFE0; nothing in it sets byte +0Eh, so it stays 0 (that the carried battery is the active object, and so blocks quick use, is inferred from the carry states and 'weapon away', not traced)	inferred
 0x00307870	survarium::collision_sensor::min_normalised_distance	EDI	the sensor (shapes array +14h, count +18h)	observed
 0x00307870	survarium::collision_sensor::min_normalised_distance	entry ESP+4	the point tested	observed
+0x00309dc0	survarium::grenade_set_core::want_throw	ECX	the grenade item (item+250h owner, +254h its slot)	observed
+0x00309dc0	survarium::grenade_set_core::want_throw	stack+4	pressed (byte): stack with count 0 or released sets owner+17Ch to 17h (none), else to the item's own slot	observed
+0x00309dc0	survarium::grenade_set_core::want_throw	stack+8	second forwarded item-action argument, unused	observed
 0x0031a410	survarium::damage_zone_core::damage_of_body	ESI	the damage zone core (curves at +168h and +188h, sensor at +108h)	observed
 0x0031a410	survarium::damage_zone_core::damage_of_body	entry ESP+4	the body (position through its vtable +28h at +118h; the second curve reads [body+334h])	observed

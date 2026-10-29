@@ -1,4 +1,5 @@
 use super::*;
+use super::tuning::SearchQueue;
 
 /// A goal no way was found to is not planned to again for this long, ms.
 pub(super) const NO_WAY_RETRY_MS: u32 = 500;
@@ -22,26 +23,388 @@ pub const TEAM_NO_WAY_KEEP_MS: u32 = 60_000;
 /// ([`tuning::ThinkTuning::search_floors_per_poll`], [`Searching`]).
 pub(super) const SEARCHES_PER_POLL: u32 = 2;
 
-/// A poll's route searches, as Detour's crowd runs its path queue: at most
-/// [`SEARCHES_PER_POLL`] searches and `floors` floors expanded, all the
-/// match's bots together. A search that runs past the floors is left under
-/// way (`pending`, one a match) and goes on first at the next polls; no
-/// other search starts meanwhile, and its bot keeps its old route. The
-/// floors are counted, not timed, so the bots stay deterministic.
+/// A poll's route searches for the bots' drive, as Detour's crowd runs its
+/// path queue: at most [`SEARCHES_PER_POLL`] searches and `floors` floors
+/// expanded a poll. A search that runs past its floors is left under way
+/// and goes on first at the next polls; no other search of its queue starts
+/// meanwhile, and its bot walks the way so far. The floors are counted, not
+/// timed, so the bots stay deterministic. (The plays' own route questions,
+/// such as `Tactics::route`, are not drawn from it.)
+///
+/// The one owner of the drive's budget: a search starts only through
+/// [`Self::grant`], goes on only through [`Self::resume`], and the floors it
+/// spends are booked when its [`Grant`] drops. How the match's bots share it
+/// is [`SearchQueue`]:
+/// - `FirstCome` (as it was): one pool and one search under way for the
+///   whole match, taken by place order, so the first places (team 0 on the
+///   bench, the first to join live) claim first, and one bot's long search
+///   holds every other bot's;
+/// - `Fair`: the poll's searches are the match's, but the bots go in turn
+///   by team, one of each, the team that did not get the last search first,
+///   and each team round robin from the bot after its last served one (a
+///   bot that keeps asking is served within its team's size of grants); the
+///   floors are each team's by its living bots (a team's costly searches
+///   starve only its own bots), a team whose bots have all gone lending the
+///   rest to the other; each team has its own search under way, which after
+///   the poll's bots goes on with what both teams left.
 pub(super) struct Searching {
-    pub(super) left: u32,
-    pub(super) floors: usize,
-    pub(super) pending: Option<Pending>,
+    queue: Queue,
+}
+
+/// [`Searching`]'s state by [`SearchQueue`].
+enum Queue {
+    /// One pool: the poll's searches and floors left, the match's search
+    /// under way.
+    FirstCome { left: u32, floors: usize, pending: Option<Box<Pending>> },
+    /// The poll's searches left (the match's), each team's part, and the
+    /// team that goes first (the one that did not get the last search).
+    Fair { left: u32, teams: [Share; 2], first: u8 },
+}
+
+/// A team's part of a fair queue.
+struct Share {
+    /// Its floors left this poll.
+    floors: usize,
+    /// Its search under way (boxed: it is large, and most polls have none).
+    pending: Option<Box<Pending>>,
+    /// The place after its last served bot: its round robin goes on there.
+    cursor: usize,
+    /// Whether its bots have all gone this poll (its rest is the other's).
+    going: Going,
+    /// The bench's: a bot of it wanted a search this poll and had none.
+    #[cfg(test)]
+    starved: bool,
+}
+
+impl Share {
+    fn new() -> Self {
+        Self {
+            floors: 0,
+            pending: None,
+            cursor: 0,
+            going: Going::Going,
+            #[cfg(test)]
+            starved: false,
+        }
+    }
+}
+
+/// Whether a team's bots still go this poll.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Going {
+    Going,
+    Done,
+}
+
+/// The bench's counts of the queue, by team (`tests/tallies/owner/search_queue.rs`):
+/// - searches granted (started on a grant), bot ticks starved (a search wanted and none to be had), floors spent
+///   (by the team of the search's bot, each slice), the polls a bot waited before its search (their sum, and the
+///   grants after a wait);
+/// - floors handed over (drawn from the other team's rest once its bots had all gone); floors left idle at a poll's
+///   end while the team had a starved bot or a search under way;
+/// - searches under way dropped: their goal moved, the hazards changed, their bot left;
+/// - drive ticks walked on a search's way so far (a partial route); unstick jumps, and those within 5 s of walking a
+///   partial route.
+#[cfg(test)]
+pub mod queue {
+    use std::cell::Cell;
+
+    pub const GRANTED: usize = 0;
+    pub const STARVED: usize = 1;
+    pub const FLOORS: usize = 2;
+    pub const WAITED_POLLS: usize = 3;
+    pub const WAITED: usize = 4;
+    pub const HANDED_OVER: usize = 5;
+    pub const IDLE_WITH_DEMAND: usize = 6;
+    pub const DROPPED_MOVED: usize = 7;
+    pub const DROPPED_HAZARDS: usize = 8;
+    pub const DROPPED_GONE: usize = 9;
+    pub const PARTIAL_TICKS: usize = 10;
+    pub const UNSTICKS: usize = 11;
+    pub const UNSTICKS_PARTIAL: usize = 12;
+    pub const NAMES: [&str; 13] = [
+        "granted",
+        "starved",
+        "floors",
+        "waited_polls",
+        "waited",
+        "handed_over",
+        "idle_with_demand",
+        "dropped_moved",
+        "dropped_hazards",
+        "dropped_gone",
+        "partial_ticks",
+        "unsticks",
+        "unsticks_partial",
+    ];
+    /// An unstick jump within this of walking a partial route counts as on one, ms.
+    pub const PARTIAL_RECENT_MS: u32 = 5_000;
+
+    thread_local! {
+        static COUNTS: Cell<[[u64; 13]; 2]> = const { Cell::new([[0; 13]; 2]) };
+    }
+
+    /// `n` of count `what` for team `team`.
+    pub fn add(team: u8, what: usize, n: u64) {
+        COUNTS.with(|c| {
+            let mut all = c.get();
+            all[usize::from(team & 1)][what] += n;
+            c.set(all);
+        });
+    }
+
+    /// The counts so far, by team.
+    pub fn counted() -> [[u64; 13]; 2] {
+        COUNTS.with(Cell::get)
+    }
 }
 
 impl Default for Searching {
     fn default() -> Self {
-        Self {
-            left: SEARCHES_PER_POLL,
-            floors: 0,
-            pending: None,
+        Self { queue: Queue::FirstCome { left: SEARCHES_PER_POLL, floors: 0, pending: None } }
+    }
+}
+
+/// A search granted on a [`Searching`]: the floors it may expand
+/// ([`Self::floors`], spent as the search runs); left under way with
+/// [`Self::leave_under_way`]. When it drops, what it spent is taken off its
+/// team's floors first, then the lending team's.
+pub(super) struct Grant<'a> {
+    searching: &'a mut Searching,
+    team: u8,
+    lent: usize,
+    pub(super) floors: usize,
+}
+
+impl Grant<'_> {
+    /// Its search goes on at the next polls, in its team's slot.
+    pub(super) fn leave_under_way(&mut self, pending: Pending) {
+        *self.searching.slot_mut(self.team) = Some(Box::new(pending));
+    }
+}
+
+impl Drop for Grant<'_> {
+    fn drop(&mut self) {
+        let spent = self.lent - self.floors.min(self.lent);
+        #[cfg(test)]
+        queue::add(self.team, queue::FLOORS, spent as u64);
+        match &mut self.searching.queue {
+            Queue::FirstCome { floors, .. } => *floors -= spent.min(*floors),
+            Queue::Fair { teams, .. } => {
+                let own = usize::from(self.team & 1);
+                let from_own = spent.min(teams[own].floors);
+                teams[own].floors -= from_own;
+                let rest = spent - from_own;
+                teams[1 - own].floors -= rest.min(teams[1 - own].floors);
+                #[cfg(test)]
+                queue::add(self.team, queue::HANDED_OVER, rest as u64);
+            }
         }
     }
+}
+
+impl Searching {
+    /// A new poll's searches and `floors` by `queue`, for the living bots of
+    /// each team `living` (`Fair` shares the floors by them; a team with none,
+    /// such as the humans' side of a PvB match, has none and is done).
+    pub(super) fn new_poll(&mut self, queue: SearchQueue, floors: usize, living: [usize; 2]) {
+        let left = SEARCHES_PER_POLL;
+        match (queue, &mut self.queue) {
+            (SearchQueue::FirstCome, Queue::FirstCome { left: l, floors: f, .. }) => (*l, *f) = (left, floors),
+            (SearchQueue::FirstCome, _) => self.queue = Queue::FirstCome { left, floors, pending: None },
+            (SearchQueue::Fair, Queue::FirstCome { .. }) => {
+                self.queue = Queue::Fair { left, teams: [Share::new(), Share::new()], first: 0 };
+                self.new_poll(queue, floors, living);
+            }
+            (SearchQueue::Fair, Queue::Fair { left: l, teams, .. }) => {
+                *l = left;
+                let all = living[0] + living[1];
+                let zero = (floors * living[0]).checked_div(all).unwrap_or(0);
+                let shares = [zero, if all == 0 { 0 } else { floors - zero }];
+                for (t, share) in teams.iter_mut().enumerate() {
+                    share.floors = shares[t];
+                    share.going = if living[t] == 0 { Going::Done } else { Going::Going };
+                    #[cfg(test)]
+                    {
+                        share.starved = false;
+                    }
+                }
+            }
+        }
+    }
+
+    /// The places of `bots` in the order the poll takes them: by place
+    /// (`FirstCome`); in turn by team, one of each, the team that goes first
+    /// first, each team from its round robin's place on (`Fair`).
+    pub(super) fn order(&self, bots: &[Option<Bot>]) -> Vec<usize> {
+        let teams: Vec<Option<u8>> = bots.iter().map(|b| b.as_ref().map(|b| b.team & 1)).collect();
+        self.order_of(&teams)
+    }
+
+    /// [`Self::order`] for each place's team (`None`: no bot there).
+    fn order_of(&self, place_teams: &[Option<u8>]) -> Vec<usize> {
+        let Queue::Fair { teams, first, .. } = &self.queue else {
+            return (0..place_teams.len()).collect();
+        };
+        let by_team = [0u8, 1].map(|team| {
+            let mut places: Vec<usize> = (0..place_teams.len()).filter(|&p| place_teams[p] == Some(team)).collect();
+            let cursor = teams[usize::from(team)].cursor;
+            let k = places.iter().position(|&p| p >= cursor).unwrap_or(0);
+            places.rotate_left(k);
+            places
+        });
+        let first = usize::from(*first & 1);
+        let (a, b) = (&by_team[first], &by_team[1 - first]);
+        let mut order = Vec::with_capacity(place_teams.len());
+        for i in 0..a.len().max(b.len()) {
+            order.extend(a.get(i));
+            order.extend(b.get(i));
+        }
+        order
+    }
+
+    /// Team `team`'s bots have all gone this poll: its rest is the other's to draw on (`Fair`).
+    pub(super) fn team_done(&mut self, team: u8) {
+        if let Queue::Fair { teams, .. } = &mut self.queue {
+            teams[usize::from(team & 1)].going = Going::Done;
+        }
+    }
+
+    /// The searches under way's slots: one (the match's) or one a team.
+    pub(super) fn slots(&self) -> u8 {
+        match self.queue {
+            Queue::FirstCome { .. } => 1,
+            Queue::Fair { .. } => 2,
+        }
+    }
+
+    /// The search under way of team `team`'s queue.
+    fn slot_mut(&mut self, team: u8) -> &mut Option<Box<Pending>> {
+        match &mut self.queue {
+            Queue::FirstCome { pending, .. } => pending,
+            Queue::Fair { teams, .. } => &mut teams[usize::from(team & 1)].pending,
+        }
+    }
+
+    fn slot(&self, team: u8) -> Option<&Pending> {
+        match &self.queue {
+            Queue::FirstCome { pending, .. } => pending.as_deref(),
+            Queue::Fair { teams, .. } => teams[usize::from(team & 1)].pending.as_deref(),
+        }
+    }
+
+    /// The floors a search of team `team` may draw now: the match's
+    /// (`FirstCome`); its team's, with the other's rest once that team's bots
+    /// have all gone (`Fair`).
+    fn available(&self, team: u8) -> usize {
+        match &self.queue {
+            Queue::FirstCome { floors, .. } => *floors,
+            Queue::Fair { teams, .. } => {
+                let (own, other) = (&teams[usize::from(team & 1)], &teams[usize::from(!team & 1)]);
+                own.floors + if other.going == Going::Done { other.floors } else { 0 }
+            }
+        }
+    }
+
+    fn left_mut(&mut self) -> &mut u32 {
+        match &mut self.queue {
+            Queue::FirstCome { left, .. } | Queue::Fair { left, .. } => left,
+        }
+    }
+
+    /// Whether a search of team `team` may start now: a search and floors
+    /// left to it, and no search of its queue under way.
+    pub(super) fn may_start(&self, team: u8) -> bool {
+        let left = match self.queue {
+            Queue::FirstCome { left, .. } | Queue::Fair { left, .. } => left,
+        };
+        left > 0 && self.available(team) > 0 && self.slot(team).is_none()
+    }
+
+    /// A search for team `team`'s bot at `place`, if one may start
+    /// ([`Self::may_start`]): one of the poll's searches is taken, and in a
+    /// fair queue its team's round robin moves past `place` and the other
+    /// team goes first next.
+    pub(super) fn grant(&mut self, team: u8, place: Place) -> Option<Grant<'_>> {
+        if !self.may_start(team) {
+            return None;
+        }
+        *self.left_mut() -= 1;
+        if let Queue::Fair { teams, first, .. } = &mut self.queue {
+            teams[usize::from(team & 1)].cursor = place + 1;
+            *first = !team & 1;
+        }
+        let lent = self.available(team);
+        Some(Grant { searching: self, team, lent, floors: lent })
+    }
+
+    /// The search under way in slot `slot`, taken out to go on (`None`: none).
+    pub(super) fn take_under_way(&mut self, slot: u8) -> Option<Pending> {
+        self.slot_mut(slot).take().map(|pending| *pending)
+    }
+
+    /// The search under way of team `team` (or the match's), taken back
+    /// when there is no search left to this poll, else given one of the
+    /// poll's searches and its team's floors to go on with (the bot's
+    /// `team`, for the books).
+    pub(super) fn resume(&mut self, slot: u8, team: u8, pending: Pending) -> Option<(Pending, Grant<'_>)> {
+        if *self.left_mut() == 0 {
+            *self.slot_mut(slot) = Some(Box::new(pending));
+            return None;
+        }
+        *self.left_mut() -= 1;
+        let lent = self.available(team);
+        Some((pending, Grant { searching: self, team, lent, floors: lent }))
+    }
+
+    /// Team `team`'s search under way for the bot at `place`, if that bot's: its goal.
+    pub(super) fn own_under_way(&self, team: u8, place: Place) -> Option<Vec3> {
+        self.slot(team).filter(|p| p.place == place).map(|p| p.goal)
+    }
+
+    /// Team `team`'s search under way is dropped (its goal moved on).
+    pub(super) fn drop_own(&mut self, team: u8) {
+        *self.slot_mut(team) = None;
+        #[cfg(test)]
+        queue::add(team, queue::DROPPED_MOVED, 1);
+    }
+
+    /// The bench's: a bot of team `team` wanted a search and had none.
+    #[cfg(test)]
+    pub(super) fn starved(&mut self, team: u8) {
+        if let Queue::Fair { teams, .. } = &mut self.queue {
+            teams[usize::from(team & 1)].starved = true;
+        }
+    }
+
+    /// The bench's count at a poll's end: floors left while a team had demand.
+    #[cfg(test)]
+    pub(super) fn count_idle(&self) {
+        if let Queue::Fair { teams, .. } = &self.queue {
+            for (t, share) in teams.iter().enumerate() {
+                if share.floors > 0 && (share.starved || share.pending.is_some()) {
+                    queue::add(t as u8, queue::IDLE_WITH_DEMAND, share.floors as u64);
+                }
+            }
+        }
+    }
+
+    /// Whether the poll's end gives the searches under way another go on
+    /// what both teams left (`Fair`).
+    pub(super) fn goes_on_at_poll_end(&self) -> bool {
+        matches!(self.queue, Queue::Fair { .. })
+    }
+}
+
+/// The living bots of each team (entered, alive in `view`), for the poll's fair shares.
+pub(super) fn living(bots: &[Option<Bot>], view: &MatchView) -> [usize; 2] {
+    let mut n = [0usize; 2];
+    for bot in bots.iter().flatten() {
+        if bot.entered.is_some() && view.place(bot.place).is_some_and(|p| p.alive) {
+            n[usize::from(bot.team & 1)] += 1;
+        }
+    }
+    n
 }
 
 /// A match's hold on its thread's search arrays (8 bytes a floor of the
@@ -106,34 +469,42 @@ impl Bots {
     /// Detour's path queue goes on with its head): its answer to its bot,
     /// for its next tick. Dropped when its bot left or the hazards changed.
     pub(super) fn go_on_searching(&mut self) {
-        // TEST ONLY: the work counters count the pending search for the team of the bot it is for.
-        #[cfg(test)]
-        if let Some(team) = self.features.searching.pending.as_ref().and_then(|p| self.bots.get(p.place)?.as_ref()).map(|bot| bot.team) {
-            super::bench_work::set(super::bench_work::Who::Team(team));
+        for slot in 0..self.features.searching.slots() {
+            let Some(pending) = self.features.searching.take_under_way(slot) else {
+                continue;
+            };
+            let team = self.bots.get(pending.place).and_then(Option::as_ref).map(|bot| bot.team);
+            // TEST ONLY: the work counters count a pending search for the team of the bot it is for.
+            #[cfg(test)]
+            if let Some(team) = team {
+                super::bench_work::set(super::bench_work::Who::Team(team));
+            }
+            self.go_on_searching_with(slot, team, pending);
+            #[cfg(test)]
+            super::bench_work::set(super::bench_work::Who::Shared);
         }
-        self.go_on_searching_inner();
-        #[cfg(test)]
-        super::bench_work::set(super::bench_work::Who::Shared);
     }
 
-    fn go_on_searching_inner(&mut self) {
-        let Some(mut pending) = self.features.searching.pending.take() else {
-            return;
-        };
+    /// The search under way of slot `slot` (its bot's `team`, none when the
+    /// bot left) goes on, on a search and the floors its grant lends.
+    fn go_on_searching_with(&mut self, slot: u8, team: Option<u8>, pending: Pending) {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
-        if tactics.hazards.version() != pending.hazards
-            || self.bots.get(pending.place).is_none_or(Option::is_none)
-        {
+        let Some(team) = team else {
+            #[cfg(test)]
+            queue::add(slot, queue::DROPPED_GONE, 1);
+            return;
+        };
+        if tactics.hazards.version() != pending.hazards {
+            #[cfg(test)]
+            queue::add(team, queue::DROPPED_HAZARDS, 1);
             return;
         }
-        if self.features.searching.left == 0 {
-            self.features.searching.pending = Some(pending);
+        let Some((mut pending, mut grant)) = self.features.searching.resume(slot, team, pending) else {
             return;
-        }
-        self.features.searching.left -= 1;
-        let floors = &mut self.features.searching.floors;
+        };
+        let floors = &mut grant.floors;
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
         let filter = pending.filter.clone();
         let start = pending.ends.0;
@@ -162,7 +533,7 @@ impl Bots {
             )
         };
         let Some(mut route) = ended else {
-            self.features.searching.pending = Some(pending);
+            grant.leave_under_way(pending);
             return;
         };
         let mut crossed = false;
@@ -193,7 +564,7 @@ impl Bots {
                     Err(planning) => {
                         pending.planning = planning;
                         pending.filter = through;
-                        self.features.searching.pending = Some(pending);
+                        grant.leave_under_way(pending);
                         return;
                     }
                 }
@@ -224,7 +595,7 @@ impl Bots {
                             plain: route,
                             health,
                         });
-                        self.features.searching.pending = Some(pending);
+                        grant.leave_under_way(pending);
                         return;
                     }
                 }
@@ -294,5 +665,99 @@ pub(super) mod asks {
         }
         asked.last = time;
         asked.total += 1;
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    /// As it was: one pool of the poll's searches and floors for both teams, one search under way, places in order.
+    #[test]
+    fn first_come_is_one_pool_one_search_under_way_and_the_place_order() {
+        let mut s = Searching::default();
+        s.new_poll(SearchQueue::FirstCome, 10_000, [3, 3]);
+        assert_eq!(s.slots(), 1);
+        assert_eq!(s.order_of(&[Some(1), None, Some(0), Some(1)]), [0, 1, 2, 3]);
+        let g = s.grant(1, 0).expect("a search");
+        assert_eq!(g.floors, 10_000);
+        drop(g);
+        let mut g = s.grant(0, 2).expect("the second");
+        g.floors -= 4_000;
+        drop(g);
+        assert!(!s.may_start(0) && !s.may_start(1), "one pool: both searches spent for both teams");
+        s.new_poll(SearchQueue::FirstCome, 10_000, [3, 3]);
+        assert_eq!(s.order_of(&[Some(1), Some(0), Some(0)]), [0, 1, 2], "no rotation");
+    }
+
+    /// Fair: the floors by living bots; a team's rest lent once its bots are done; a botless team none; a grant books
+    /// its floors off its own first.
+    #[test]
+    fn fair_shares_by_the_living_and_lends_a_done_teams_rest() {
+        let mut s = Searching::default();
+        s.new_poll(SearchQueue::Fair, 10_000, [3, 7]);
+        assert_eq!(s.slots(), 2);
+        assert_eq!((s.available(0), s.available(1)), (3_000, 7_000));
+        let mut g = s.grant(0, 0).expect("team 0");
+        assert_eq!(g.floors, 3_000);
+        g.floors = 0;
+        drop(g);
+        assert_eq!(s.available(0), 0);
+        s.team_done(1);
+        assert_eq!(s.available(0), 7_000, "team 1 done: its rest is team 0's to draw");
+        let mut g = s.grant(0, 1).expect("team 0 again, on team 1's rest");
+        g.floors -= 500;
+        drop(g);
+        assert_eq!(s.available(1), 6_500, "taken off team 1's rest");
+        assert!(!s.may_start(0) && !s.may_start(1), "both searches spent");
+        // A botless team (the humans' side of a PvB match): the other's floors are the whole, and it is done.
+        s.new_poll(SearchQueue::Fair, 10_000, [4, 0]);
+        assert_eq!((s.available(0), s.available(1)), (10_000, 0), "a botless team never draws");
+    }
+
+    /// Fair, round robin by grant: with every bot asking at every drive poll, each team's bots are served in turn (a
+    /// bot within its team's size of grants), and the teams alternate first, for team sizes 1 to 10 each.
+    #[test]
+    fn fair_serves_every_bot_within_its_teams_size_of_grants() {
+        for n0 in 1..=10usize {
+            for n1 in 1..=10usize {
+                let mut place_teams = vec![Some(0u8); n0];
+                place_teams.extend(vec![Some(1u8); n1]);
+                let mut s = Searching::default();
+                let mut served: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+                for _ in 0..2 * (n0 + n1) {
+                    s.new_poll(SearchQueue::Fair, 10_000, [n0, n1]);
+                    for place in s.order_of(&place_teams) {
+                        let team = place_teams[place].unwrap();
+                        if let Some(mut g) = s.grant(team, place) {
+                            g.floors -= 1;
+                            served[usize::from(team)].push(place);
+                        }
+                    }
+                }
+                for (t, n) in [(0usize, n0), (1, n1)] {
+                    for window in served[t].windows(n) {
+                        let mut seen = window.to_vec();
+                        seen.sort_unstable();
+                        seen.dedup();
+                        assert_eq!(seen.len(), n, "team {t} of {n} (other {}): {:?}", if t == 0 { n1 } else { n0 }, served[t]);
+                    }
+                }
+                // Equal claims: each team about half of the grants.
+                let (g0, g1) = (served[0].len() as i64, served[1].len() as i64);
+                assert!((g0 - g1).abs() <= 1, "{n0} v {n1}: {g0} vs {g1}");
+                // Each grant's floor is booked to its team when it drops.
+                let floors = queue::counted();
+                assert!(floors[0][queue::FLOORS] >= g0 as u64 && floors[1][queue::FLOORS] >= g1 as u64);
+            }
+        }
+    }
+
+    /// The pending slot of team t holds only team t's search; its search under way holds only its own team.
+    #[test]
+    fn fair_starts_with_each_teams_slot_free() {
+        let mut s = Searching::default();
+        s.new_poll(SearchQueue::Fair, 10_000, [2, 2]);
+        assert!(s.own_under_way(0, 0).is_none() && s.may_start(0) && s.may_start(1));
     }
 }
