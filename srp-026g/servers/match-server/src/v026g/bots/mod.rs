@@ -1641,6 +1641,18 @@ impl Bots {
         found.len()
     }
 
+    /// The bench's stand-in human put a trap down: his team knows it from that tick, as the players of a team see their own
+    /// team's traps (the same entry a bot's release makes, confirmed by the next world that shows it).
+    #[cfg(test)]
+    pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
+        let ring_m = self.tuning_of(team).traps.ring_m;
+        let state = &mut self.teams[usize::from(team)];
+        state.knowledge.traps.promise(by, at, released);
+        if let Some(tactics) = self.tactics.as_ref() {
+            state.refresh_traps(&tactics.world.grid, ring_m);
+        }
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
@@ -1662,12 +1674,13 @@ impl Bots {
             Vec::new()
         });
         let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        let rings = [self.tuning_of(0).traps.ring_m, self.tuning_of(1).traps.ring_m];
         for (team, state) in self.teams.iter_mut().enumerate() {
             if own {
                 let fired = state.knowledge.traps.sync(time, &found);
                 went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
                 if let Some(tactics) = self.tactics.as_ref() {
-                    state.refresh_traps(&tactics.world.grid);
+                    state.refresh_traps(&tactics.world.grid, rings[team & 1]);
                 }
             }
             state.features.traps.world_traps = armed.clone();
@@ -1732,6 +1745,22 @@ impl Bots {
                         .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
             });
             self.features.own_traps.own_team_caught += u32::from(caught);
+            #[cfg(test)]
+            for bot in self.bots.iter().flatten().filter(|bot| bot.team == team && bot.hurt.leg_broken) {
+                if view
+                    .place(bot.place)
+                    .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
+                    && bot.features.traps.near.is_some_and(|(trap, _, _)| trap.distance_xz(at) < 1.0)
+                {
+                    let placer = self.teams[usize::from(team)]
+                        .knowledge
+                        .traps
+                        .all()
+                        .iter()
+                        .any(|known| known.at.distance_xz(at) < 1.0 && known.by == bot.place);
+                    traps::passes::caught(bot, at, placer, view.place(bot.place).map_or(at, |p| p.feet));
+                }
+            }
         }
     }
 

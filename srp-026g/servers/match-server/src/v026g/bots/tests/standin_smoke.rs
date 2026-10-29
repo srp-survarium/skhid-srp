@@ -22,6 +22,11 @@ use mapdata::Vec3;
 use super::*;
 use crate::v026g::bots::smoke::{MatchMs, SmokeGrenade, SmokeThrow, floor_under};
 
+/// A stand-in habit's random seed: the bench seed and the map, the mode and the size, with a salt of the habit.
+pub(crate) fn habit_seed(salt: u64, seed: u32, level: u8, mode: u8, per_team: usize) -> u64 {
+    salt + u64::from(seed) + (u64::from(level) << 40) + (u64::from(mode) << 48) + ((per_team as u64) << 56)
+}
+
 /// Live throws per life (2.97 per 100).
 pub(crate) const THROW_PER_LIFE: f32 = 0.0297;
 /// The share of the lives that draw a throw and make it: the rest end before the nearest enemy is at the drawn distance and fresh at or
@@ -140,7 +145,7 @@ impl SmokeHabit {
     /// The habit's random seed: the bench seed and the map, the mode and the size, so that two cells of one seed on two maps do not
     /// draw the same lives (they did: a batch of 4 maps x 28 seeds was 28 draws repeated, not 112).
     fn seed_of(seed: u32, level: u8, mode: u8, per_team: usize) -> u64 {
-        0x5_B0CE + u64::from(seed) + (u64::from(level) << 40) + (u64::from(mode) << 48) + ((per_team as u64) << 56)
+        habit_seed(0x5_B0CE, seed, level, mode, per_team)
     }
 
     /// One tick: a new life draws whether it throws, and when and at what range; a waiting life throws when the nearest enemy is at that

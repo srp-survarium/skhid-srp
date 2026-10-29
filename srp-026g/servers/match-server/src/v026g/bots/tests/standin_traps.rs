@@ -121,8 +121,9 @@ pub(crate) enum Event {
     Placed { tick: u32, place: Place, team: u8, press_m: f32, placer_crouched: bool, placer_speed: f32 },
     /// `victim` set `placer`'s trap off: whose body that is, as a kill's kinds say.
     Caught { tick: u32, placer: Place, victim: Place, kind: Kill, placed: u32, placer_crouched: bool, press_m: f32, eye_m: f32, pitch_down: f32, placer_team: u8, victim_team: u8, placer_speed: f32 },
-    ShotOff { tick: u32, shooter: Place, placer: Place },
-    DefusedBy { tick: u32, by: Place, placer: Place },
+    /// `placed` is the tick the trap was put down, which names it with its placer.
+    ShotOff { tick: u32, shooter: Place, placer: Place, placed: u32 },
+    DefusedBy { tick: u32, by: Place, placer: Place, placed: u32 },
 }
 
 /// A body's part of the model: what it carries and how a catch slows it.
@@ -363,43 +364,65 @@ impl Game {
             let [fx, fz] = forward(body.yaw);
             let pitch = body.recoil.view(body.pitch);
             let dir = Vec3::new(fx * pitch.cos(), pitch.sin(), fz * pitch.cos());
-            let walker = self.walker();
-            let Some(hit) = walker.ray_hit(eye, dir, PLACE_REACH_M) else {
+            let Some(at) = self.trap_land(eye, dir) else {
                 continue;
             };
-            if hit.normal.y < FLAT_NORMAL_Y {
-                continue;
-            }
-            let at = eye + dir * hit.t;
-            let on_a_sensor = self.traps.list.iter().any(|t| {
-                t.phase == Phase::Armed
-                    && t.at.distance_xz(at) <= SENSOR_M
-                    && (at.y - t.at.y).abs() <= SENSOR_TOP_M
-            });
-            if on_a_sensor {
-                continue;
-            }
-            let team = self.bodies[place].team;
-            let body = &self.bodies[place];
-            let (placer_crouched, press_m) = (body.keys & key::CROUCH != 0, body.feet.distance_xz(at));
-            let (eye_m, pitch_down) = (eye.y - body.feet.y, -pitch);
-            let placer_speed = body.step_m / TICK_S;
             self.bodies[place].trap.stock -= 1;
-            self.traps.list.push(Trap {
-                at,
-                placer: place,
-                team,
-                placed: tick,
-                placer_crouched,
-                press_m,
-                eye_m,
-                pitch_down,
-                placer_speed,
-                phase: Phase::Armed,
-                defusing: None,
-            });
-            self.traps.events.push(Event::Placed { tick, place, team, press_m, placer_crouched, placer_speed });
+            self.trap_lay(place, at, -pitch, tick);
         }
+    }
+
+    /// Where a trap let go of from `eye` along `dir` lies: the walk geometry within [`PLACE_REACH_M`], on flat ground, not on an armed
+    /// trap's sensor.
+    pub(crate) fn trap_land(&mut self, eye: Vec3, dir: Vec3) -> Option<Vec3> {
+        let walker = self.walker();
+        let hit = walker.ray_hit(eye, dir, PLACE_REACH_M)?;
+        if hit.normal.y < FLAT_NORMAL_Y {
+            return None;
+        }
+        let at = eye + dir * hit.t;
+        let on_a_sensor = self.traps.list.iter().any(|t| {
+            t.phase == Phase::Armed && t.at.distance_xz(at) <= SENSOR_M && (at.y - t.at.y).abs() <= SENSOR_TOP_M
+        });
+        (!on_a_sensor).then_some(at)
+    }
+
+    /// Puts `place`'s trap down at `at` (the floor point [`Game::trap_land`] found) with the view `pitch_down` radians down.
+    pub(crate) fn trap_lay(&mut self, place: Place, at: Vec3, pitch_down: f32, tick: u32) {
+        let body = &self.bodies[place];
+        let eye = Self::eye(body);
+        let team = body.team;
+        let (placer_crouched, press_m) = (body.keys & key::CROUCH != 0, body.feet.distance_xz(at));
+        let eye_m = eye.y - body.feet.y;
+        let placer_speed = body.step_m / TICK_S;
+        self.traps.list.push(Trap {
+            at,
+            placer: place,
+            team,
+            placed: tick,
+            placer_crouched,
+            press_m,
+            eye_m,
+            pitch_down,
+            placer_speed,
+            phase: Phase::Armed,
+            defusing: None,
+        });
+        self.traps.events.push(Event::Placed { tick, place, team, press_m, placer_crouched, placer_speed });
+    }
+
+    /// The eye and the unit direction to the floor `ahead_m` from `place` (metres on the ground, `turn` radians from its heading, to
+    /// the left), for a stand-in that lets a trap go where it stands: the same eye the key's release would use.
+    pub(crate) fn trap_aim_ahead(&self, place: Place, ahead_m: f32, turn: f32) -> (Vec3, Vec3) {
+        let body = &self.bodies[place];
+        let eye = Self::eye(body);
+        // No farther than the ray from the eye reaches the floor (0.1 m of slack under the reach).
+        let eye_m = eye.y - body.feet.y;
+        let ahead_m = ahead_m.min(((PLACE_REACH_M - 0.1).powi(2) - eye_m.powi(2)).max(0.01).sqrt());
+        let [fx, fz] = forward(body.yaw + turn);
+        let target = Vec3::new(body.feet.x + fx * ahead_m, body.feet.y, body.feet.z + fz * ahead_m);
+        let to = target - eye;
+        (eye, to * (1.0 / to.length().max(1e-3)))
     }
 
     /// The traps' tick: the spent ones go, a body on a sensor is caught, a use held on one runs on.
@@ -483,8 +506,8 @@ impl Game {
         {
             trap.phase = Phase::Disarmed { at: tick };
             trap.defusing = None;
-            let placer = trap.placer;
-            self.traps.events.push(Event::DefusedBy { tick, by, placer });
+            let (placer, placed) = (trap.placer, trap.placed);
+            self.traps.events.push(Event::DefusedBy { tick, by, placer, placed });
         }
     }
 
@@ -515,8 +538,8 @@ impl Game {
         let trap = &mut self.traps.list[t];
         trap.phase = Phase::Disarmed { at: tick };
         trap.defusing = None;
-        let placer = trap.placer;
-        self.traps.events.push(Event::ShotOff { tick, shooter, placer });
+        let (placer, placed) = (trap.placer, trap.placed);
+        self.traps.events.push(Event::ShotOff { tick, shooter, placer, placed });
     }
 
     /// The world of this tick keeps the objects section it shows.
@@ -746,7 +769,7 @@ mod tests {
         // On it: the enemy's bullet.
         game.trap_shot(1, eye, toward(trap.middle()), Some(30.0), tick);
         assert_eq!(game.traps.list[0].phase, Phase::Disarmed { at: tick });
-        assert_eq!(game.traps.events.last(), Some(&Event::ShotOff { tick, shooter: 1, placer: 0 }));
+        assert_eq!(game.traps.events.last(), Some(&Event::ShotOff { tick, shooter: 1, placer: 0, placed: game.traps.list[0].placed }));
         // A disarmed trap is no target, and is gone after 8 s.
         game.trap_shot(0, eye, toward(trap.middle()), None, tick);
         assert_eq!(game.traps.counts()[4], 1);
