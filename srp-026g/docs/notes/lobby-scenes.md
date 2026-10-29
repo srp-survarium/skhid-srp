@@ -54,12 +54,23 @@ stool, on a flat grass terrain.
   `props/light/bonefire_fire`. The window panes use the native
   `tiled/window/glass_tile_forward` as it is. Only the slots a template reads are
   filled (diffuse, normal; specular where the template uses it).
-- Lights and sounds: the classic lobby's sky, sun, environment probe and its four lights
-  about the character (`point_light` lowered under the hut's ceiling to y 2.3,
-  `point_light(2)`, `point_light(4)`, `point_light(5)`, unmoved: the character is lit as
-  in the classic room), a warm point light over the fire (range 6 m, intensity 3), a cool
-  fill under the ceiling (STK2's sphere_light spot), two warm ambient fills, and the
-  lobby's `fire`, `lobby_background` and `lobby_room_tone` sounds.
+- Lighting as STK2 authored it (the owner, 2026-10-29), not the classic lobby's: the
+  lobby_scene project's own lights (the ceiling's white sphere light, intensity 5.51,
+  range 5; the campfire composite's warm sphere light, 0.98, range 7; the two outside
+  the hut), their colours, ranges, attenuations and shadows as authored, and its
+  environment's post-process (`default_post_process`) on the 0.26g environment: fog
+  colour and distances, sun colour, no bloom, no colour grading, no grain, aberration,
+  vignette, god rays or lens flares (STK2's has none). The project has no sun: the sun
+  object is there with intensity 0. Two changes, the same for every STK2 lobby: every
+  STK2 light at twice its intensity, and one dim warm fill in front of the character
+  (`character_fill`, intensity 1, range 3.5). STK2 lit its rooms with light propagation
+  volumes (bounce light) and a tonemap median exposure; 0.26g has neither, and the
+  lights alone left the rooms and the character near black.
+- No counterpart in 0.26g (in pack.json's notes): STK2's ambient and skylight colours,
+  its tonemap median and thresholds, levels (frame lights and shadows), shadow
+  transparency, bloom's maximum colour, depth of field. 0.26g's day sky stays behind the
+  windows (STK2's `sky_default` is not ported). No environment probe (STK2 has none).
+- Sounds: the lobby's `fire` (at the campfire), `lobby_background` and `lobby_room_tone`.
 - Not ported: STK2's own particle effect `campfire_middle` (an editor-format source
   particle; 0.26g's are compiled in another schema): the native `fx/lights/bonfire`
   burns there instead, as the STALKER map ports do. STK2's terrain (four 64 m cells, all
