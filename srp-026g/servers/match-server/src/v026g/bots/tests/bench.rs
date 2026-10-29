@@ -2055,12 +2055,12 @@ pub(crate) fn bench_roster(
     equipment: survarium::v026g::loadouts::BotEquipment,
     tunings: &super::tuning::TeamTunings,
 ) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile_stored, bot_roles};
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile_kit, bot_roles};
     let profiles: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_profile_stored(n + 1, team, role, equipment, tunings.of(team).kit.store()))
+        .map(|(n, (&team, role))| bot_profile_kit(n + 1, team, role, equipment, tunings.of(team).kit.pockets()))
         .collect();
     let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
@@ -2069,7 +2069,7 @@ pub(crate) fn bench_roster(
             .zip(teams)
             .map(|(bot, &team)| {
                 bot.map_or([standin_grenade::KitGrenades::default(); 3], |(equipment, role)| {
-                    let kits = survarium::v026g::loadouts::bot_kits_stored(equipment, role, tunings.of(team).kit.store());
+                    let kits = survarium::v026g::loadouts::bot_kits_kit(equipment, role, tunings.of(team).kit.pockets());
                     std::array::from_fn(|k| frag_pockets(kits[k]))
                 })
             })
