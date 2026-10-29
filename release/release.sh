@@ -43,7 +43,8 @@
 #      revision, and patch_12 (the menus) in it from revision 12 on (or the
 #      --resources file); with
 #      --resources, the file is resources.db.patch_<the release's revision>,
-#      srp-game-data reads it, and it is neither published nor listed yet;
+#      srp-game-data reads it, and it is not listed yet (published already
+#      with these same bytes: a run stopped before its go; taken as it is);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
@@ -150,7 +151,8 @@
 # lock: the maintenance cancelled when it was planned, the staged files
 # removed (the folder stays, state stopped), the image tag put back; the
 # server is as it was (a published patch stays, with its row in the list:
-# none is ever deleted).
+# none is ever deleted; before the go its row goes, as no server offered
+# it, and a run with the same --resources takes the file as it is).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
 #   --revision <n>      the release's revision instead of the target exe's + 1;
@@ -300,7 +302,7 @@ say "working in $work"
 # ahead, nothing moved: a stop puts things back), swapping (a stop rolls
 # back), finished. maint_planned: the maintenance was asked for (a stop
 # cancels it). ENDED: with --now, the matches the stop ended.
-phase=preflight start=0 end=0 image_tagged=0 maint_planned=0 ENDED=''
+phase=preflight start=0 end=0 image_tagged=0 maint_planned=0 go_given=0 ENDED=''
 
 clock() { date -u -d "@$1" +%H:%M:%S; }
 span() { local s=$1; printf '%d:%02d' $((s / 60)) $((s % 60)); }
@@ -819,6 +821,17 @@ record_release() {
     git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
 }
 
+# A stop before the go: the row upload-patch added goes from the list
+# (no server offered the patch); the file stays on the patches server.
+unlist_patch() {
+    local name=$1
+    if awk -F '\t' -v n="$name" '$1 != n' "$PATCH_LIST" >"$PATCH_LIST.new" && mv "$PATCH_LIST.new" "$PATCH_LIST"; then
+        say "$name: its row is out of $PATCH_LIST again (stopped before the go, never offered); the file stays on $PATCHES_LABEL, and a run with the same --resources takes it as it is"
+    else
+        say "$name: its row is NOT out of $PATCH_LIST: take it out by hand before the next run with --resources"
+    fi
+}
+
 # What a stop does, by phase.
 on_exit() {
     local status=$?
@@ -845,7 +858,11 @@ on_exit() {
             fi
         fi
         if ((maint_planned)); then cancel_maintenance; fi
-        if [[ -n $resources && -n ${published:-} ]]; then
+        if [[ -n $resources && -n ${published:-} ]] && ((!go_given)); then
+            # Before the go no server offered it: its row goes, the file
+            # stays, and a run with the same --resources takes it as it is.
+            unlist_patch "${resources##*/}"
+        elif [[ -n $resources && -n ${published:-} ]]; then
             say "${resources##*/} stays published on $PATCHES_LABEL, with its row in $PATCH_LIST (patches are never deleted); the server does not offer it yet. Next time: no --resources."
         fi
         ;;
@@ -1035,7 +1052,7 @@ if [[ -n $resources ]]; then
         if [[ $there == none ]]; then
             okay "--resources: not on $PATCHES_LABEL yet"
         elif [[ ${there%% *} == "$(sha256_of "$resources")" ]]; then
-            problem "--resources: $name is already published, these same bytes, but not in $PATCH_LIST: add its row with release/upload-patch${step_flags[*]:+ ${step_flags[*]}} $resources, then run without --resources"
+            okay "--resources: on $PATCHES_LABEL already, these same bytes, not in $PATCH_LIST (a run stopped before its go): taken as it is"
         else
             problem "--resources: $name is already published with OTHER bytes (${there%% *}); a published patch is never replaced: make the next revision"
         fi
@@ -1526,6 +1543,7 @@ else
         say "the swap at its end, once no match runs, after one more y/N. From the plan on, a stop cancels it."
     fi
     wait_for_go "$after_go"
+    go_given=1
     start=$(date +%s)
     if ((no_maint)); then
         progress "3. the go: swapping next$( ((now)) && printf ' (--now: NO maintenance, NO notice)' || printf ' (--no-maintenance)')"

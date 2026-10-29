@@ -310,7 +310,9 @@ The order, as it runs:
    `docker compose build srp26` run on it, its compilers reniced to 19
    (the running container is not touched). The local builds run at nice
    10. A failure here stops before the go: the staged files removed, the
-   image tag put back, nothing planned.
+   image tag put back, nothing planned, and the new patch's row taken out
+   of the list again (no server offered it; the file stays on the patches
+   server, and a run with the same `--resources` takes it as it is).
 3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
    or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
