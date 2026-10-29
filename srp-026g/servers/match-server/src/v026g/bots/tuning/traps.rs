@@ -32,6 +32,14 @@ pub struct TrapTuning {
     pub lateral_m: f32,
     /// How far ahead the route is kept clear of it, metres.
     pub route_ahead_m: f32,
+    /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
+    /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
+    /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
+    /// came within 3 m of a standing trap of their team's, 33 % of those whose route cleared it by under 0.8 m,
+    /// 13 % under 1.0 m, 4.6 % under 1.3 m and under 1 % beyond were caught (A165): a body walks 0.2-0.7 m off its
+    /// route and a foot point 0.6 m from the centre sets it off. On at 1.3 m (112 pairs, v5 map data: the mates'
+    /// catches -70 %, the placer's -62 %, the enemies' +66 %, no cost in play); 0: none (the field as it was).
+    pub ring_m: f32,
     /// A mate's place, or where it is in 2 and 4 s, this near the spot
     /// forbids it, metres.
     pub friend_m: f32,
@@ -207,6 +215,7 @@ impl Default for TrapTuning {
             press_landing_m: Some(1.0),
             lateral_m: 0.9,
             route_ahead_m: 12.0,
+            ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
             open_floors: 12,
@@ -240,7 +249,10 @@ impl Check for TrapTuning {
             "traps.press_landing_m",
         )?;
         check(
-            self.friend_m >= 0.0 && self.near_own_m >= 0.0 && self.jump_ahead_m >= 0.0,
+            self.friend_m >= 0.0
+                && self.near_own_m >= 0.0
+                && self.jump_ahead_m >= 0.0
+                && (self.ring_m == 0.0 || (super::super::traps::FIELD_M..=4.0).contains(&self.ring_m)),
             "traps.*_m",
         )?;
         check(

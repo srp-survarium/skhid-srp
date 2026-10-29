@@ -982,12 +982,12 @@ pub fn press_of(
 
 impl TeamState {
     /// The team's field again if its list changed; whether it did.
-    pub(super) fn refresh_traps(&mut self, grid: &WalkGrid) -> bool {
+    pub(super) fn refresh_traps(&mut self, grid: &WalkGrid, ring_m: f32) -> bool {
         let version = self.knowledge.traps.version();
         if version == self.features.traps.field_version {
             return false;
         }
-        self.features.traps.field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
+        self.features.traps.field = Arc::new(TrapField::of_ringed(&self.knowledge.traps, grid, ring_m));
         self.features.traps.field_version = version;
         true
     }
@@ -1006,17 +1006,34 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
     let field = bot.features.traps.field.clone();
     if route_hits(bot, &field, due.me.feet) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
+        return;
     }
+    // The ring: a route planned before the trap, or before this change of the traps, that runs within it is
+    // searched again once (the search keeps the ring out as a preference, `soften`); not again for the same
+    // change, so a corridor with no way round is not searched for ever.
+    if field.has_ring() && bot.features.traps.ringed != field.stamp() && near_a_disc(&field, due.me.feet) {
+        bot.features.traps.ringed = field.stamp();
+        if route_within(bot, &field, due.me.feet, field.ring_m() - 0.05) {
+            bot.end_route(RouteEnd::TrapAhead, due.now);
+        }
+    }
+}
+
+/// Whether a disc of `field` is within [`KEEP_OFF_M`] of `feet`.
+fn near_a_disc(field: &TrapField, feet: Vec3) -> bool {
+    field.discs().iter().any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
 }
 
 /// Whether the route of the bot runs over a disc of `field` within
 /// [`KEEP_OFF_M`] ahead of `feet`.
 pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
-    if !field
-        .discs()
-        .iter()
-        .any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
-    {
+    route_within(bot, field, feet, FIELD_M - 0.05)
+}
+
+/// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
+/// `feet`.
+fn route_within(bot: &Bot, field: &TrapField, feet: Vec3, reach: f32) -> bool {
+    if !near_a_disc(field, feet) {
         return false;
     }
     let Some((route, _)) = bot.route.as_ref() else {
@@ -1028,18 +1045,19 @@ pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
     let points: Vec<Vec3> = (0..=KEEP_OFF_M as usize)
         .map(|k| route.point_at((s + k as f32).min(route.length())))
         .collect();
-    field.hits(&points)
+    field.discs().iter().any(|disc| off_route_m(&points, *disc) < reach)
 }
 
 /// `filter` with the floors of the traps the bot noticed kept out as a
 /// preference (soft): a way round them where that is not much longer, else
 /// over them. Not the floor the body stands on (`start`).
 pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> RouteFilter {
-    if bot.features.traps.react.field().is_empty() {
+    let noticed = bot.features.traps.react.field().clone();
+    let team = bot.features.traps.field.clone();
+    if noticed.is_empty() && !team.has_ring() {
         return filter;
     }
-    let field = bot.features.traps.react.field().clone();
-    filter.avoiding_floors(move |node| Some(node) == start || field.open(node))
+    filter.avoiding_floors(move |node| Some(node) == start || (noticed.open(node) && team.ring_open(node)))
 }
 
 /// The hard part of a search's filter: the landings it gave up shut, and the
@@ -1062,10 +1080,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     // the field built again, the bot keeping off it from this think on.
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
-        state.refresh_traps(&due.tactics.world.grid);
+        state.refresh_traps(&due.tactics.world.grid, t.ring_m);
         bot.features.traps.field = state.features.traps.field.clone();
     }
     keep_off(bot, due);
+    #[cfg(test)]
+    passes::observe(bot, due, state);
     if bot.features.traps.habit.may_plan(t).is_err() {
         return;
     }
@@ -1157,6 +1177,140 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
                 "score": chosen.score,
             }));
         }
+    }
+}
+
+/// The bench's count of how bodies come to the team's standing traps (A165): each time a body of the team comes within
+/// 3 m of a standing trap of its team's, its class (the route it walks: none / clear of the discs / over one; whether its
+/// field has this trap; whether the route's goal lies in the trap's disc), seen and, when the trap then went off under it,
+/// caught. Decisions are not touched.
+#[cfg(test)]
+pub mod passes {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use mapdata::Vec3;
+
+    use super::{Bot, Due, FIELD_M, TeamState, route_hits};
+
+    /// route (none, clear, over a disc) x field has the trap x goal in the disc.
+    pub const CLASSES: usize = 12;
+    /// Of the placer (1) or of a mate (0).
+    static SEEN: [[AtomicU64; CLASSES]; 2] = [const { [const { AtomicU64::new(0) }; CLASSES] }; 2];
+    static CAUGHT: [[AtomicU64; CLASSES]; 2] = [const { [const { AtomicU64::new(0) }; CLASSES] }; 2];
+    static UNSEEN: AtomicU64 = AtomicU64::new(0);
+    /// The route's ground clearance from the disc's centre at the first sight (<0.8, <1.0, <1.3, <2.0, more, no
+    /// route), mates only: seen and caught; and the body's distance from its route at the catch (<0.2, <0.4, <0.7,
+    /// <1.2, more, no route).
+    static CLEAR_SEEN: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static CLEAR_CAUGHT: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static DEVIATION: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    fn bin(value: f32, edges: [f32; 4]) -> usize {
+        edges.iter().position(|&e| value < e).unwrap_or(4)
+    }
+
+    fn clearance_bin(bot: &Bot, feet: Vec3, at: Vec3) -> usize {
+        let Some((route, _)) = bot.route.as_ref() else {
+            return 5;
+        };
+        let mut route = route.clone();
+        let (s, _) = route.progress(feet);
+        let points: Vec<Vec3> = (0..=15).map(|k| route.point_at((s + k as f32).min(route.length()))).collect();
+        bin(super::off_route_m(&points, at), [0.8, 1.0, 1.3, 2.0])
+    }
+
+    pub fn class(route: usize, field_has: bool, goal_in: bool) -> usize {
+        route * 4 + usize::from(field_has) * 2 + usize::from(goal_in)
+    }
+
+    pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState) {
+        let feet = due.me.feet;
+        let nearest = state
+            .knowledge
+            .traps
+            .standing()
+            .map(|trap| (trap, trap.at.distance_xz(feet)))
+            .filter(|&(_, d)| d < 3.0)
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        let Some((trap, _)) = nearest else {
+            if bot
+                .features
+                .traps
+                .near
+                .is_some_and(|(at, _, _)| at.distance_xz(feet) > 4.0)
+            {
+                bot.features.traps.near = None;
+            }
+            return;
+        };
+        if bot
+            .features
+            .traps
+            .near
+            .is_some_and(|(at, _, _)| at.distance_xz(trap.at) < 0.3)
+        {
+            return;
+        }
+        let field = bot.features.traps.field.clone();
+        let field_has = field.discs().iter().any(|d| d.distance_xz(trap.at) < 0.3);
+        let (route, goal_in) = match bot.route.as_ref() {
+            None => (0, false),
+            Some((_, goal)) => (
+                if route_hits(bot, &field, feet) { 2 } else { 1 },
+                goal.distance_xz(trap.at) < FIELD_M,
+            ),
+        };
+        let class = class(route, field_has, goal_in);
+        let clear = clearance_bin(bot, feet, trap.at);
+        bot.features.traps.near = Some((trap.at, class, clear));
+        SEEN[usize::from(trap.by == bot.place)][class].fetch_add(1, Ordering::Relaxed);
+        if trap.by != bot.place {
+            CLEAR_SEEN[clear].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// A trap of the team at `at` went off under `victim`'s feet: its class when it had been seen.
+    pub fn caught(bot: &Bot, at: Vec3, placer: bool, feet: Vec3) {
+        match bot.features.traps.near {
+            Some((trap, class, clear)) if trap.distance_xz(at) < 1.0 => {
+                CAUGHT[usize::from(placer)][class].fetch_add(1, Ordering::Relaxed);
+                if !placer {
+                    CLEAR_CAUGHT[clear].fetch_add(1, Ordering::Relaxed);
+                    let deviation = bot.route.as_ref().map_or(5, |(route, _)| {
+                        let mut route = route.clone();
+                        bin(route.progress(feet).1, [0.2, 0.4, 0.7, 1.2])
+                    });
+                    DEVIATION[deviation].fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            _ => {
+                UNSEEN.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn line() -> String {
+        let row6 = |counts: &[AtomicU64; 6]| {
+            counts.iter().map(|c| c.load(Ordering::Relaxed).to_string()).collect::<Vec<_>>().join(",")
+        };
+        let row = |counts: &[AtomicU64; CLASSES]| {
+            counts
+                .iter()
+                .map(|c| c.load(Ordering::Relaxed).to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        format!(
+            "classes [route none/clear/over x field-has-trap no/yes x goal-in-disc no/yes]; mates seen [{}] caught [{}]; placer seen [{}] caught [{}]; caught unseen {}; mates' route clearance (<0.8,<1.0,<1.3,<2.0,more,no route) seen [{}] caught [{}]; body off its route at the catch (<0.2,<0.4,<0.7,<1.2,more,no route) [{}]",
+            row(&SEEN[0]),
+            row(&CAUGHT[0]),
+            row(&SEEN[1]),
+            row(&CAUGHT[1]),
+            UNSEEN.load(Ordering::Relaxed),
+            row6(&CLEAR_SEEN),
+            row6(&CLEAR_CAUGHT),
+            row6(&DEVIATION)
+        )
     }
 }
 
@@ -1399,12 +1553,22 @@ pub struct BotState {
     pub placed: Option<(mapdata::Vec3, u32)>,
     pub react: super::trap_react::React,
     pub field: std::sync::Arc<super::trap_know::TrapField>,
+    /// The version of the team's traps its route was last looked at against the ring for (`keep_off`).
+    pub ringed: u64,
+    /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
+    /// ([`passes`]).
+    #[cfg(test)]
+    pub near: Option<(mapdata::Vec3, usize, usize)>,
 }
 
 impl super::features::Feature for BotState {
     fn new_life(&mut self, _life: &super::features::Life) {
         self.habit.new_life();
         self.react.new_life();
+        #[cfg(test)]
+        {
+            self.near = None;
+        }
     }
 }
 
@@ -1734,6 +1898,76 @@ mod tests {
         ));
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
+    }
+
+    #[test]
+    fn a_route_within_the_ring_is_searched_again_once_for_each_change_of_the_traps() {
+        use crate::v026g::bots::path::{Route, Waypoint};
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(15.0, 0.0, 10.0));
+        let me = s.view.places[0].clone();
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let due = Due {
+            now: 1_000,
+            view: &s.view,
+            me: &me,
+            tactics: &s.tactics,
+            tuning: &tuning,
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let waypoint = |x: f32, z: f32| Waypoint {
+            at: Vec3::new(x, 0.0, z),
+            node: 0,
+            jump: None,
+            low: false,
+        };
+        let mut list = TrapList::default();
+        list.promise(0, Vec3::new(25.0, 0.0, 10.0), 500);
+        let goal = Vec3::new(35.0, 0.0, 10.0);
+        // A route 1.0 m off the centre: clear of the hard field (0.75 m), within the ring of 1.3 m.
+        let near = |bot: &mut Bot| {
+            bot.route = Some((Route::new(vec![waypoint(15.0, 11.0), waypoint(35.0, 11.0)]), goal));
+        };
+        // Ring off: kept, as it was.
+        bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 0.0));
+        near(&mut bot);
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some());
+        // Ring on: dropped once ...
+        bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 1.3));
+        near(&mut bot);
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none());
+        // ... and a route of the same kind, planned after it (a corridor with no way round), is kept.
+        near(&mut bot);
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some(), "not searched again for the same change");
+        // A change of the traps looks again.
+        list.promise(1, Vec3::new(30.0, 0.0, 30.0), 600);
+        bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 1.3));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none());
+        // A route 2 m off is never looked at.
+        bot.route = Some((Route::new(vec![waypoint(15.0, 12.0), waypoint(35.0, 12.0)]), goal));
+        list.promise(2, Vec3::new(30.0, 0.0, 33.0), 700);
+        bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 1.3));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some());
+    }
+
+    #[test]
+    fn the_ring_is_on_by_default_off_in_the_all_off_patch_and_validated() {
+        assert_eq!(crate::v026g::bots::tuning::Tuning::default().traps.ring_m, 1.3);
+        let mut tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        assert_eq!(tuning.traps.ring_m, 0.0);
+        tuning.traps.ring_m = 1.3;
+        tuning.validate().unwrap();
+        tuning.traps.ring_m = 0.5;
+        assert!(tuning.validate().is_err(), "inside the hard field");
+        tuning.traps.ring_m = 9.0;
+        assert!(tuning.validate().is_err(), "a ring this wide shuts the map");
     }
 
     #[test]
