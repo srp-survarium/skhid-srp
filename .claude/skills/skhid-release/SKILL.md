@@ -267,6 +267,9 @@ The order, as it runs:
    its ID, main's source (with the rebuilt pages) unpacked in the folder's `src/` and
    `docker compose build srp26` run on it (the running container is not
    touched). The local builds run at nice 10.
+   A release whose patches change a map, a model or `game.materials` also gets new bot map data:
+   `dump-mapdata --out <dir> --compare <the last dump>` on Linux, the changed maps named in the release record
+   (the armor of every material is in the dump; the bench's v5 files were dumped from the stock db only).
 5. **The swap, at the later of the planned time and the end of the
    staging**: staged before the planned time, it waits for it; staged
    after it, it goes on at once. Then, once the launcher page says the
@@ -492,6 +495,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
+| `release/dump-mapdata --out <dir> [--compare <dir>] [--test]` | the bots' `.mapdata` files from the stock db and exactly the list's patches (the same `read_patch_list` and `cache_patches` as `build-server-db`: ~/.cache/skhid-release/patches/, each checked by sha256; the owner's go before a download); run on Linux (a Windows dump differs in the last bit of its floats); `--compare` names the maps whose file differs from an earlier dump, so a patch that changes a map or a material is named in the release record | a new folder |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
