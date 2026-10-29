@@ -1,0 +1,21 @@
+# made by survey_046.py: device name, the 0.26g weapons it fits (<dictionary name>:<dict id>)
+srp_flash_hider_04	a9_91:303 ak_74u:13 ak_74u_premium:2243 hk416:2218 kriss_vector:2223 msbs_carbine:2219 socom16:366 ump45:324 valmet:2214 vityaz:19 vityaz_premium:334 vz58:2213
+srp_muzzle_brake_04	aps:126 fn_p90:2224 kriss_vector:2223 magnum:56 mp7:2220 mp7_silencer:2221 pp2000:367 sr2m:321 sr3m:309 sr3m_premium:336 ump45:324 vepr:216 vepr_premium:2244
+srp_flash_hider_01	aek_919k:2212 sr2m:321
+srp_flash_hider_02	aps:126 magnum:56 mp7:2220 mp7_silencer:2221 pm:89
+srp_flash_hider_03	fort_17:64 kedr:2211 kiparis:88 kiparis_premium:332 pp2000:367 uzi:55 uzi_premium:333 uzi_premium_2:2252
+srp_flash_hider_05	ash_12:364 vepr:216 vepr_premium:2244
+srp_flash_hider_06	akmn:80 akmn_premium:2241 akmn_premium_2:2242 fn_p90:2224 rpd:77 rpk:222 sr3m:309 sr3m_premium:336 vsk_94:305 vsk_94_premium:2248
+srp_flash_hider_07	a_545:220 ak_12:363 ak_12_premium:2245 ak_74m:3 ak_74n:306 ak_74n_premium:338 pkp_pecheneg:2229
+srp_flash_hider_08	fn_fnc:2216
+srp_flash_hider_09	m4a1:2217
+srp_muzzle_brake_01	a_545:220 ak_74m:3 ak_74n:306 ak_74n_premium:338 ak_74u:13 ak_74u_premium:2243 pkp_pecheneg:2229 rpd:77 rpk:222 vz58:2213
+srp_muzzle_brake_02	kriss_vector:2223 rpd:77 sks:109 sks_premium:2246 sks_premium_2:2247 ump45:324
+srp_muzzle_brake_03	a9_91:303 akmn:80 akmn_premium:2241 akmn_premium_2:2242 pp2000:367 soc_vepr:2215 svd:63 vsk_94:305 vsk_94_premium:2248
+srp_muzzle_brake_05	vityaz:19 vityaz_premium:334
+srp_muzzle_brake_06	a9_91:303 sr2m:321 valmet:2214 vityaz:19 vityaz_premium:334
+srp_muzzle_brake_07	ak_12:363 ak_12_premium:2245 fn_fnc:2216 fn_p90:2224 hk416:2218 m4a1:2217 mp7:2220 mp7_silencer:2221 msbs_carbine:2219 pkp_pecheneg:2229 rpk:222 socom16:366
+srp_muzzle_brake_10fh	ash_12:364
+srp_compensator_09	rem_700:14 rem_700_premium:2249
+srp_compensator_10	toz_122:12
+srp_compensator_11	sv_98:149

@@ -539,6 +539,17 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- a weapon's attachments in at most three upgrade records, the weapon kit
+  (patch 68, with the late join; docs/notes/weapon-kit.md):
+  weapon_kit_026g.asm and weapon_kit_026g.c (the arena's block
+  weapon_kit.code). The item config cook's translate_query (0x2F1750,
+  `call 0x2F2060` at 0x2F1771) builds a weapon whose records hold a kit from
+  a list of the records and one for each dict id the kit names (its own
+  stack, per call), so up to six (two decals, camouflage, scope, muzzle,
+  grip) go through the client's three-record item; the lobby's upgrades to
+  Flash (0x2882E3) give a kit's object its value as kit_lo and kit_hi; patch
+  48's preview applies its queue through weapon_kit_preview_apply (its
+  slot, written by the build);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1939,6 +1950,7 @@ UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
+UPGRADE_PREVIEW_KIT_APPLY = 0x23  # a dword after the entries: patch 68's weapon_kit_preview_apply, the build's (0: none)
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
@@ -2149,6 +2161,72 @@ def hide_ui_table_writes(linked):
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
+
+# A weapon's attachments in at most three upgrade records, the weapon kit
+# (patch 68, README; client_patch.md section 3.56; the layout:
+# ../docs/notes/weapon-kit.md): weapon_kit_026g.asm and weapon_kit_026g.c in
+# the arena's block weapon_kit.code (ARENA below), two entries:
+# - item_config_cook::translate_query (0x2F1750), `call 0x2F2060` at 0x2F1771
+#   (the query's {dict id, modifications*, upgrades*, dictionary} to
+#   [ebp+38h]): query calls it, then, when the item's records hold a kit,
+#   points [ebp+40h] (the upgrades' buffer_vector, read at 0x2F1799 and
+#   0x2F18D0 only) at a list on translate_query's stack: the records and one
+#   {0, dict id, 0, slot} for each dict id the kit names; back at 0x2F1776;
+# - the lobby's upgrades to Flash (0x287E30, its loop 0x2881E0), `mov ecx,[esp+48h] / mov
+#   eax,[ecx]` at 0x2882E3 after the object's `param`: bridge gives a kit
+#   record's object kit_lo and kit_hi (its value), then the two instructions,
+#   back at 0x2882E9 (the PushBack);
+# - setup_inventory_data's (0x288520) push of a record's {item id, host}
+#   pair, `call 0x28B0F0` at 0x2885C9 (the map each item's is_attached_to is
+#   read from): attached_pair pushes it, then for a kit a pair for each dict
+#   id it names (the inventory's item of that id, the lowest item id), so a
+#   camouflage a scoped weapon's kit names shows worn on it.
+# Patch 48's apply calls weapon_kit_preview_apply through the dword at
+# UPGRADE_PREVIEW_KIT_APPLY of its code, which the build writes.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_KIT_HOOKS = (
+    (0x2F1771, bytes.fromhex("e8ea080000"), "weapon_kit_query", 0xE9),        # translate_query's call of 0x2F2060
+    (0x2882E3, bytes.fromhex("8b4c24488b01"), "weapon_kit_bridge", 0xE9),     # the upgrades to Flash: after `param`
+    (0x2885C9, bytes.fromhex("e8222b0000"), "weapon_kit_attached_pair", 0xE8),  # setup_inventory_data's pair push
+)
+WEAPON_KIT_BACKS = (0x2F1776, 0x2882E9)
+# The muzzle device (patch 68, ../docs/notes/weapon-kit.md):
+# weapon_muzzle_026g.asm and .c in the same block. A weapon config with
+# data/srp_muzzle_model (a muzzle device's modification) loads that model
+# with the weapon and draws it at barrel_point, data/srp_muzzle_offset
+# metres forward:
+# - the weapon cook's requests (0x24A920): one more place in their alloca
+#   (WEAPON_MUZZLE_SIZES, 0x24AA04 `lea eax,[ecx+eax+1]` -> +2), and request
+#   (0x24ABF9, after the last one) asks for the model (class 0Fh);
+# - weapon_cook 0x24A780: the weapon WEAPON_MUZZLE_EXTENSION bytes more
+#   (0x24A7A5's `lea eax,[eax*4+4710h]`), made (0x24A8F7) zeroes its own part
+#   after the last array;
+# - loaded (0x24ACF0, the query's callback entry): the model, the last
+#   result, kept with its count up;
+# - add (on_show 0x243F37, remove_aimed_rifle_scope_to_scene 0x244CF5),
+#   remove (on_hide 0x244012, add_aimed_rifle_scope_to_scene 0x244C08) and
+#   update (draw 0x244F3A): the weapon model's call, then the device's;
+# - release (0x24B23A, delete_resource): the model released.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_MUZZLE_EXTENSION = 0x50
+WEAPON_MUZZLE_HOOKS = (
+    (0x24ABF9, bytes.fromhex("8b4df00fb74916"), "weapon_muzzle_request", 0xE9),     # the cook's last request
+    (0x24A8F7, bytes.fromhex("8dbba00600008bf0"), "weapon_muzzle_made_hook", 0xE9), # weapon_cook 0x24A780's end
+    (0x24ACF0, bytes.fromhex("83ec245355"), "weapon_muzzle_loaded_hook", 0xE9),      # the query's callback
+    (0x243F37, bytes.fromhex("e894ddddff"), "weapon_muzzle_add", 0xE8),             # on_show's add_model
+    (0x244CF5, bytes.fromhex("e8d6cfddff"), "weapon_muzzle_add", 0xE8),             # remove_aimed's add_model
+    (0x244012, bytes.fromhex("e829dfddff"), "weapon_muzzle_remove", 0xE8),          # on_hide's remove_model
+    (0x244C08, bytes.fromhex("e833d3ddff"), "weapon_muzzle_remove", 0xE8),          # add_aimed's remove_model
+    (0x244F3A, bytes.fromhex("e841d3ddff"), "weapon_muzzle_update", 0xE8),          # draw's update_model
+    (0x24B23A, bytes.fromhex("8b9f18180000"), "weapon_muzzle_release", 0xE9),       # delete_resource
+)
+WEAPON_MUZZLE_SIZES = (
+    (0x24A7A5, bytes.fromhex("8d048510470000"),
+     bytes.fromhex("8d0485") + struct.pack("<I", 0x4710 + WEAPON_MUZZLE_EXTENSION)),  # the weapon's size
+    (0x24AA04, bytes.fromhex("8d440101"), bytes.fromhex("8d440102")),                # the requests' alloca
+)
+WEAPON_MUZZLE_BACKS = (0x24AC00, 0x24A8FF, 0x24ACF5, 0x24B240)
+WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
@@ -2388,6 +2466,29 @@ INSTALLS = {
                      "function (or the function, then the waiting queries made again)", None, None),
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
+    # the weapon kit, patch 68 (in `.srpx`)
+    0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
+                     "ebp+38h): query, which calls it and, for a kit, points [ebp+40h] at a list on the stack "
+                     "below; back at 0x2F1776", None, None),
+    0x2882E3: (JUMP, "the lobby's upgrades to Flash (0x287E30's loop), `mov ecx,[esp+48h] / mov eax,[ecx]` after an "
+                     "object's `param`: bridge, back at 0x2882E9", None, None),
+    # the muzzle device, patch 68 (in `.srpx`)
+    0x24ABF9: (JUMP, "the weapon cook 0x24A920 after its last request (ebx the config's root, [ebp-40h] the "
+                     "requests): request, back at 0x24AC00", None, None),
+    0x24A8F7: (JUMP, "weapon_cook 0x24A780's end (ebx the weapon, its arrays made): made, back at 0x24A8FF",
+               None, None),
+    0x24ACF0: (ENTRY, "the weapon cook's query callback 0x24ACF0 (thiscall: results, config, weapon; `ret 14h`): "
+                      "loaded, which goes on in it at 0x24ACF5", None, None),
+    0x243F37: (CALLEE, "on_show's add_model of the weapon's model (eax its render model; `ret 10h`): add", None,
+               None),
+    0x244CF5: (CALLEE, "remove_aimed_rifle_scope_to_scene's add_model of the weapon's model: add", None, None),
+    0x244012: (CALLEE, "on_hide's remove_model of the weapon's model (`ret 8`): remove", None, None),
+    0x244C08: (CALLEE, "add_aimed_rifle_scope_to_scene's remove_model of the weapon's model: remove", None, None),
+    0x244F3A: (CALLEE, "draw's update_model of the weapon's model (`ret 10h`): update", None, None),
+    0x24B23A: (JUMP, "the weapon cook's delete_resource 0x24B190 after the shot effects' pointers (edi the "
+                     "weapon): release, back at 0x24B240", None, None),
+    0x2885C9: (CALLEE, "setup_inventory_data's push of a record's {item id, host} pair (0x28B0F0: edi the pair, "
+                       "esi the vector): attached_pair, which pushes it and a kit's named items' pairs", None, None),
 }
 # Explain weight in the lobby; presentation only, no simulation changes.
 WEIGHT_UI_HOOKS = (
@@ -2607,6 +2708,8 @@ ARENA = (
     # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
     ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
+    ArenaBlock("weapon_kit.code", "code", 0x1000, ("weapon_kit_026g.asm", "weapon_muzzle_026g.asm",
+                                                     "weapon_kit_026g.c", "weapon_muzzle_026g.c")),  # patch 68
 )
 
 
@@ -3584,6 +3687,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        # `.srpx`, the arena, linked here: patch 48's slot takes patch 68's
+        # weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        linked = arena(arena_blocks) if arena_blocks != () else None
+        upgrade_preview = with_kit_apply(upgrade_preview, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -3651,10 +3758,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # `.srpx`, the arena: its blocks linked from their sources
             # (link_026g.py), each hook's target taken from the link by
             # its symbol.
-            linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + WEAPON_KIT_HOOKS \
+                        + WEAPON_MUZZLE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3664,6 +3771,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                for va, old, new in WEAPON_MUZZLE_SIZES:
+                    patch(data, va, old, new)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
@@ -3729,6 +3838,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
+                     "a weapon's upgrades (two decals, camouflage, scope, muzzle device, grip) in at most three "
+                     "records (the weapon kit), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3918,6 +4029,18 @@ def artefacts_backs(linked):
                       None)
         backs.append(target)
     return backs
+
+
+def with_kit_apply(code, linked):
+    """upgrade_preview_026g.section.bin (`code`) with its kit_apply slot
+    (UPGRADE_PREVIEW_KIT_APPLY, zeros in the file) holding patch 68's
+    weapon_kit_preview_apply of the arena `linked`; as it is without one."""
+    if code[UPGRADE_PREVIEW_KIT_APPLY:UPGRADE_PREVIEW_KIT_APPLY + 4] != bytes(4):
+        sys.exit("upgrade_preview_026g.section.bin: its kit_apply slot (+23h) is not the zeros the build fills")
+    if linked is None or WEAPON_KIT_PREVIEW_APPLY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, WEAPON_KIT_PREVIEW_APPLY))
+    return code[:UPGRADE_PREVIEW_KIT_APPLY] + target + code[UPGRADE_PREVIEW_KIT_APPLY + 4:]
 
 
 def upgrade_preview_targets(code, va):

@@ -1,0 +1,6 @@
+{
+ "_about": "The AK-74M's muzzle brake (pack ak74m-brake; srp-026g/docs/notes/weapon-kit.md, The AK-74M's brake): one items_compatibility row, the brake srp_ak74_m24x15 (2621) fits the AK-74M (3). The device is drawn at barrel_point with no offset: the pack cut the stock brake out of the gun's mesh and made the device of the same vertices in barrel_point's frame.",
+ "add_value": [
+  {"files": ["gameplay/db_static_dictionaries"], "table": "items_compatibility", "key": "compatibility_262100003", "value": {"first_item": 3, "second_item": 2621}}
+ ]
+}

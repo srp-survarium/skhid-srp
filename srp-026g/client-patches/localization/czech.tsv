@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 náb
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Svislý zpětný ráz -10 %.
+st_srp_ak74_m24x15_name	Úsťová brzda AK-74
 st_srp_attachments	Příslušenství
 st_srp_equipment029_bm_back_6_desc	Popis zatím není k dispozici.
 st_srp_equipment029_bm_back_6_name	Hlídačův batoh
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Dostaneš
 st_srp_exchange_short_gold	Nedostatek zlata
 st_srp_exchange_short_silver	Nedostatek stříbra
 st_srp_exchange_title	Směnit
+st_srp_grip_slot	Rukojeť
 st_srp_inventory_search	Hledat
 st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Ochranné zařízení: nabíječky
 st_srp_mode_protective_device	Ochranné zařízení
 st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
+st_srp_muzzle_slot	Ústí
 st_srp_optics	Optika
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu

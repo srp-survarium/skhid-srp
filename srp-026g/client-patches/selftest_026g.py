@@ -1556,7 +1556,10 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_KIT_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_MUZZLE_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.WEAPON_MUZZLE_SIZES]
 
 
 def pickup_sites():
@@ -2034,15 +2037,20 @@ def test_upgrade_preview(original, image, before):
                       0x0E4F90, 0x420789, 0x111ED0, 0x111860, stash_find}
           and all(t in starts for t in targets - outside)
           and all(code_va + at in starts and image.read(code_va + at, 1) == b"\xE9" for at in P.UPGRADE_PREVIEW_ENTRIES)
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
-          and image.read(code_va, len(code)) == code
+          and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
+          == [f"call [dword {code_va + P.UPGRADE_PREVIEW_KIT_APPLY:#x}]"]
+          and image.read(code_va, len(code)) == P.with_kit_apply(code, P.arena())
+          and image.read(code_va + P.UPGRADE_PREVIEW_KIT_APPLY, 4)
+          == struct.pack("<I", P.arena().symbols[P.WEAPON_KIT_PREVIEW_APPLY])
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
           "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
-          "call outside itself, and every branch inside it lands on an instruction")
+          "call outside itself, and every branch inside it lands on an instruction; its one indirect call is "
+          f"apply's through its kit_apply slot (+{P.UPGRADE_PREVIEW_KIT_APPLY:#x}), which the build filled with "
+          "patch 68's weapon_kit_preview_apply")
 
 
 def test_research(original, image, before):
@@ -4323,6 +4331,151 @@ def test_match_keys(original, image, before):
           "release/content.tsv labels it (localization-1.json)")
 
 
+def test_weapon_kit(original, image, before):
+    """Check 68: the weapon kit (patch 68, WEAPON_KIT_HOOKS;
+    ../docs/notes/weapon-kit.md). check_weapon_kit_026g.py runs
+    translate_query from its call of 0x2F2060 through the game's own code to
+    the end of its record loop, the bridge, and patch 48's apply."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    tq = rows(stock, 0x2F1750, 0x6A)
+    loop = rows(stock, 0x2F18D0, 0x0E)
+    check(tq[:11] == ["push ebp", "lea ebp,[esp-0x74]", "sub esp,0x108", "mov eax,[ebp+0x7c]", "push ebx",
+                      "push esi", "push edi", "mov dword [ebp+0x34],0x0", "mov esi,[eax+0x108]",
+                      "lea edi,[ebp+0x38]", "call 0x2f2060"]
+          and rows(stock, 0x2F1799, 9)[:3] == ["mov eax,[ebp+0x40]", "mov edx,[eax+0x4]", "sub edx,[eax]"]
+          and loop[:4] == ["mov eax,[ebp+0x40]", "mov ecx,[eax]", "mov edx,[ebp+0x70]", "mov eax,[edx+ecx+0x4]"]
+          and rows(stock, 0x2F1938, 6) == ["mov ecx,[esi+0x8]", "mov esi,[esi+0xc]"]
+          and rows(stock, 0x2F2041, 6) == ["lea esp,[ebp-0xa0]"]
+          and [(a, t) for a, _, t in ndisasm(stock.read(0x2F1750, 0x8F0), 0x2F1750) if "[ebp+0x40]" in t]
+          == [(0x2F1799, "mov eax,[ebp+0x40]"), (0x2F18D0, "mov eax,[ebp+0x40]"),
+              (0x2F1F1F, "mov [ebp+0x40],ebx"), (0x2F1F29, "movq xmm0,[ebp+0x40]")]
+          and rows(stock, 0x2F20E5, 0x17) == ["movq xmm0,[esi+0x8]", "movq [edi],xmm0", "movq xmm0,[esi+0x10]",
+                                              "movq [edi+0x8],xmm0", "mov al,0x1", "pop ecx", "ret"],
+          "translate_query (0x2F1750) reads the upgrades' buffer_vector at [ebp+40h] twice and nowhere else "
+          "(its size at 0x2F1799, each record's dict id and value in its loop 0x2F18D0..0x2F193B; 0x2F1F1F "
+          "writes the slot anew for its own use after the loop), which "
+          "0x2F2060 copies from the query's +8..+17h (al 1); its epilogue takes esp from ebp (0x2F2041)")
+    check(rows(stock, 0x2885B7, 0x25)[:12] == ["lea edx,[eax+eax*2]", "mov eax,[ebx+0x60]", "mov ecx,[eax+edx*8]",
+                                          "lea edi,[ebp-0x1c]", "lea esi,[ebp-0x28]", "mov [ebp-0x1c],ecx",
+                                          "call 0x28b0f0", "mov al,[ebp-0x5]", "inc al", "mov [ebp-0x5],al",
+                                          "movzx eax,al", "cmp eax,[ebp-0x10]"]
+          and rows(stock, 0x288541, 0x0C) == ["mov ecx,[edi+0x1ea97c]", "mov ebx,[edi+0x1ea978]"]
+          and rows(stock, 0x288553, 3) == ["mov [ebp-0xc],ecx"] and rows(stock, 0x288573, 3) == ["mov [ebp-0x14],edi"]
+          and rows(stock, 0x2885AC, 3) == ["mov [ebp-0x18],ecx"]
+          and rows(stock, 0x28B0F0, 0x11)[:4] == ["push ecx", "mov eax,[esi+0x4]", "cmp eax,[esi+0x8]", "jc 0x28b14e"]
+          and rows(stock, 0x28856B, 6) == ["lea esi,[eax+eax*4]", "shl esi,byte 0x4"],
+          "setup_inventory_data (0x288520) pushes an {item id, host} pair for each upgrade record of each "
+          "inventory item (0x2885C9, 0x28B0F0: edi the pair, esi the vector, eax the host's records, edx the "
+          "index x 3), into an alloca of 50h bytes an item; [ebp-14h] the inventory's vector, [ebp-0Ch] its "
+          "end, [ebp-18h] the host's id")
+    check(rows(stock, 0x2882D2, 0x11)[-2:] == ["push eax", "call edx"]
+          and rows(stock, 0x2882E3, 0x09) == ["mov ecx,[esp+0x48]", "mov eax,[ecx]", "mov eax,[eax+0x3c]"]
+          and rows(stock, 0x28820C, 0x0F)[:1] == ["mov eax,[esi+0x60]"]
+          and stock.read(0xA0A43C, 15) == b"is_attached_to\0" and stock.read(0xA023DC, 6) == b"param\0",
+          "0x2882E3, after an upgrade object's SetMember(param) (0x2882E1), reads the array for its PushBack "
+          "(esi the item record, its upgrades at +60h)")
+    linked = P.arena()
+    block = linked.blocks["weapon_kit.code"]
+    for va, old, symbol, opcode in P.WEAPON_KIT_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of weapon_kit.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.WEAPON_KIT_HOOKS)]
+    hits = [h for va, old, _, _ in P.WEAPON_KIT_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "weapon_kit.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's weapon_kit.code ({len(code)} bytes)")
+    entry = linked.symbols["weapon_kit_query"]
+    asm_end = min(v for k, v in linked.symbols.items() if block.va <= v < block.va + block.size
+                  and k not in ("weapon_kit_query", "weapon_kit_bridge", "weapon_kit_attached_pair")
+                  and v > entry)
+    texts = [t for _, _, t in ndisasm(image.read(entry, asm_end - entry), entry)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    check(outside == sorted({0x2F2060, 0x28B0F0} | set(P.WEAPON_KIT_BACKS))
+          and "call [eax+0x14]" in texts and "weapon_kit.state" not in linked.blocks
+          and linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY] > asm_end,
+          "the entries go on at 0x2F1776 and 0x2882E9 or return to setup_inventory_data, call 0x2F2060, "
+          "0x28B0F0 (the original's pair), the C code and the object's SetMember and nothing else, and keep no "
+          "state of their own (the list is on translate_query's stack)")
+
+
+def test_weapon_muzzle(original, image, before):
+    """Check 68, the muzzle device (patch 68, WEAPON_MUZZLE_HOOKS and
+    WEAPON_MUZZLE_SIZES). check_weapon_muzzle_026g.py runs the cook's request,
+    weapon_cook 0x24A780, the query's callback entry, the weapon model's five
+    calls and delete_resource with the game's own code."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x24A7A5, 7) == ["lea eax,[eax*4+0x4710]"]
+          and rows(stock, 0x24A7AC, 5) == ["call 0xe4f90"]
+          and rows(stock, 0x24A7C1, 5) == ["call 0x243640"]
+          and rows(stock, 0x24A859, 0x0F) == ["mov [ebx+0x824],cl", "movzx ecx,cl", "mov [ebx+0x81c],eax"]
+          and rows(stock, 0x24A8F7, 8) == ["lea edi,[ebx+0x6a0]", "mov esi,eax"]
+          and rows(stock, 0x24A906, 11) == ["pop edi", "pop esi", "mov eax,ebx", "pop ebx", "mov esp,ebp",
+                                          "pop ebp", "ret 0x14"],
+          "weapon_cook 0x24A780 asks the allocator for 4710h bytes and 4 a user animation, shell and shot effect "
+          "(0x24A7A5), makes the weapon (0x243640), keeps the shot effects' array at +81Ch and their count at "
+          "+824h, and ends at 0x24A8F7 with ebx the weapon")
+    check(rows(stock, 0x24AA04, 4) == ["lea eax,[ecx+eax+0x1]"]
+          and rows(stock, 0x24AAB4, 0x0E)[:2] == ["lea esi,[eax*8+0x0]", "mov eax,esi"]
+          and rows(stock, 0x24ABF9, 7) == ["mov ecx,[ebp-0x10]", "movzx ecx,word [ecx+0x16]"]
+          and rows(stock, 0x24AC84, 0x11)[-3:] == ["mov eax,[ebp-0x40]", "sub ecx,eax", "sar ecx,byte 0x3"]
+          and rows(stock, 0x24AC3D, 5) == ["mov ecx,0x24acf0"]
+          and rows(stock, 0x258672, 8) == ["mov dword [esp+0x1c],0xf"],
+          "the weapon cook (0x24A920) sizes its requests' alloca by the shells' and shots' counts and one for the "
+          "model (0x24AA04), its last request before 0x24ABF9 (ebx the config's root), the query's count from "
+          "the vector [ebp-40h] (0x24AC84); its callback 0x24ACF0; a static model's class 0Fh (the scope cook's)")
+    check(rows(stock, 0x24ACF0, 5) == ["sub esp,byte +0x24", "push ebx", "push ebp"]
+          and rows(stock, 0x24ACF5, 0x0D) == ["mov ebp,[esp+0x30]", "mov eax,[ebp+0x20]", "push esi", "push edi",
+                                              "mov edi,[esp+0x3c]"]
+          and rows(stock, 0x24ADC8, 0x10)[:3] == ["mov edx,ebx", "imul edx,edx,dword 0x2e0", "lea ecx,[edx+ebp+0x50]"],
+          "the callback 0x24ACF0 (the results, the config's resource, the weapon): result n at +50h + 2E0h n, "
+          "its resource at +0DCh")
+    check(rows(stock, 0x243F14, 0x28)[-1] == "call 0x21cd0"
+          and rows(stock, 0x243F14, 6) == ["mov eax,[esi+0x1810]"]
+          and rows(stock, 0x243FEF, 0x28)[-1] == "call 0x21f40"
+          and rows(stock, 0x244BF5, 0x18)[-1] == "call 0x21f40"
+          and rows(stock, 0x244CE8, 0x12)[-1] == "call 0x21cd0"
+          and rows(stock, 0x244F27, 0x18)[-1] == "call 0x22280"
+          and rows(stock, 0x244E5D, 0x1C)[-1] == "rep movsd"
+          and rows(stock, 0x24B23A, 6) == ["mov ebx,[edi+0x1818]"]
+          and rows(stock, 0x24B220, 0x1A)[:2] == ["mov ecx,[edi+0x81c]", "lea ecx,[ecx+esi*4]"],
+          "the weapon model's (+1810h) add_model in on_show (0x243F37) and remove_aimed (0x244CF5), remove_model in "
+          "on_hide (0x244012) and add_aimed (0x244C08) with esi the weapon, update_model in draw (0x244F3A) with "
+          "ebx the weapon after barrel_point's matrix went to +620h; delete_resource 0x24B23A with edi the weapon")
+    linked = P.arena()
+    block = linked.blocks["weapon_kit.code"]
+    for va, old, symbol, opcode in P.WEAPON_MUZZLE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}) here")
+    for va, old, new in P.WEAPON_MUZZLE_SIZES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} -> {new.hex()}")
+    sites = P.WEAPON_MUZZLE_HOOKS + tuple((va, old, None, None) for va, old, _ in P.WEAPON_MUZZLE_SIZES)
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in sites)]
+    hits = [h for va, old, _, _ in sites for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    check(P.WEAPON_MUZZLE_SIZES[0][2] == bytes.fromhex("8d0485") + struct.pack("<I", 0x4710 + P.WEAPON_MUZZLE_EXTENSION)
+          and P.WEAPON_MUZZLE_EXTENSION == 0x50,
+          "the weapon 50h bytes more: the device's model, its offset, its state and its matrix")
+
+
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
     HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
@@ -6355,7 +6508,8 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
-    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) \
+        + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -6553,6 +6707,8 @@ def test_late_join(original, without, server, source):
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_language(original, image, before)
+    test_weapon_kit(original, image, before)
+    test_weapon_muzzle(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

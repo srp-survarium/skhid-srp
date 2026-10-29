@@ -122,6 +122,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
+| `weapon_muzzle_026g.asm`, `weapon_muzzle_026g.c`, `check_weapon_muzzle_026g.py` | Patch 68's muzzle device: a weapon config with `data/srp_muzzle_model` loads that model with the weapon (one more request of the weapon cook) and draws it at barrel_point, `data/srp_muzzle_offset` metres forward, wherever the weapon's model is added, removed or moved, and moves the shot's flash to its fire point (`data/srp_muzzle_fire_mm`); the weapon 50h bytes more for it; its check runs the cook's request, weapon_cook, the callback's entry, the model calls and delete_resource with the game's own code (needs Unicorn) |
+| `weapon_kit_026g.asm`, `weapon_kit_026g.c`, `check_weapon_kit_026g.py` | Patch 68: a weapon's upgrades (two decals, camouflage, scope, muzzle device, grip) in at most three records, the weapon kit (the arena's block `weapon_kit.code`): item_config_cook::translate_query builds a weapon from the records and each dict id a kit record names, the lobby's upgrades to Flash give a kit's object `kit_lo`/`kit_hi`, and patch 48's preview applies its queue through `weapon_kit_preview_apply`; its check runs translate_query from its call of 0x2F2060 to the end of its record loop with the game's own code, the bridge, and patch 48's apply (needs Unicorn) |
+| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -129,7 +132,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears two decals (the bake patch 44 asks for paints them; the server's two slots since patch 68's weapon kit) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -2912,6 +2915,8 @@ the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and b
   called at once. A scope's record holds the variant made for the weapon, as the server's
   (`ScopeFits`): the first category-22 entry of the items dictionary whose config's
   `srp_scope_fit` names the scope and the weapon (by name or dict id); none: nothing is queued.
+  A muzzle device or grip (category 22 too, dict ids 2601..2699: the weapon kit's, patch 68)
+  holds its own dict id, no variant looked for.
 - **account** (+0Ah): the 0x87 reader's last call (`call 0x270320` at 0x270313): each account
   answers the oldest queued change (srp pushes the account after every `46 01` / `46 02`, a
   refusal too).
@@ -3624,6 +3629,92 @@ site from the game's code on the game's own static baker:
   random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
 - any other query's finish goes straight through.
 **Not run:** a game.
+### 68. A weapon's upgrades in at most three records: the weapon kit (the next release's revision)
+
+The owner (2026-10-25): "at least 6 slots there for weapons only": two decals, camouflage, scope,
+a grip and a muzzle device. The client keeps three upgrade records an item (the item record's
+inline array, 0x2F7C10; a fourth is the fatal assert at 0x1F1655) and the config builder
+(0x2F14C0) checksums three values on its stack; weapons had no slots in the stock game, so theirs
+are srp's own. The rules and the record's layout: `../docs/notes/weapon-kit.md`.
+
+The server keeps a weapon's upgrades in logical slots (decals 0 and 1, camouflage 2, scope 3,
+muzzle 4, grip 5) and sends at most three records: the decals, then a **kit** in slot 3, the
+first of scope, camouflage, muzzle, grip (its own item and dict id), its value naming the others
+by dict id (bits 0..15 the camouflage, 16..31 the muzzle device, 32..47 the grip, 48..55 its own
+slot, 56..63 0xA7).
+
+`weapon_kit_026g.asm` and `weapon_kit_026g.c`, the arena's block `weapon_kit.code`, three entries
+(`WEAPON_KIT_HOOKS`):
+
+- **query** (0x2F1771, `call 0x2F2060` -> `jmp weapon_kit_query`): item_config_cook::translate_query
+  (0x2F1750) reads the item's records only through [ebp+40h] (0x2F1799, 0x2F18D0); query calls
+  0x2F2060, and when a record is a kit, lowers esp by B0h (translate_query's epilogue takes esp from
+  ebp, as after its own allocas) and puts there the records and one `{0, dict id, 0, slot}` for
+  each dict id the kit names (`weapon_kit_expand`: at most six; none the dictionary lacks, the list
+  holds, or a slot a record that is no kit is in), [ebp+40h] pointing at it; back at 0x2F1776.
+  Without a kit, or 0x2F2060 refusing (another thread's query), the original's way and stack. The
+  item record is never written: every copy (the inventory, the kits, a match's static info, a late
+  join's, a replay's) carries the three records as they are.
+- **bridge** (0x2882E3, `mov ecx,[esp+48h] / mov eax,[ecx]` -> `jmp weapon_kit_bridge` + nop):
+  after the upgrade object's `param` (0x2882E1), a kit record's object gets `kit_lo` and `kit_hi`
+  (uint, the value's halves; SetMember as the bridge's own), then the two instructions; back at
+  0x2882E9 (the PushBack). The movie's `UpgradeWindow.kitUpgrades` makes the window's slots of them.
+- **attached_pair** (0x2885C9, setup_inventory_data's `call 0x28B0F0` -> `call
+  weapon_kit_attached_pair`, CALLEE): the {item id, host} pair the item's `is_attached_to` is read
+  from, then for a kit one pair for each dict id it names (the inventory's item of that id, the
+  lowest item id), so a scoped weapon's camouflage shows worn on it.
+
+Patch 48 (`upgrade_preview_026g.asm`): a dword `kit_apply` after its seven entries (+23h, zeros in
+the file) that the build writes with `weapon_kit_preview_apply`'s address (`with_kit_apply`);
+`apply` calls it (cdecl: the record, the queue, its count): the queue applied on the logical slots
+as the server applies it, packed again. Without it (a build with no arena) the old `apply`.
+
+**The muzzle device** (`weapon_muzzle_026g.asm` and `.c`, the same block; `WEAPON_MUZZLE_HOOKS`,
+`WEAPON_MUZZLE_SIZES`): a weapon config with `data/srp_muzzle_model` (a muzzle device's
+modification) loads that model with the weapon and draws it at barrel_point,
+`data/srp_muzzle_offset` metres forward:
+
+- the weapon cook's requests: one more place in their alloca (0x24AA04, `lea eax,[ecx+eax+1]` ->
+  `+2`), and **request** (0x24ABF9, after the last one, JUMP) asks for the model (class 0Fh);
+- weapon_cook 0x24A780: the weapon 50h bytes more (0x24A7A5, `lea eax,[eax*4+4710h]` -> `+4760h`)
+  and **made** (0x24A8F7, its end, JUMP) zeroes its own part after the last array;
+- **loaded** (0x24ACF0, the query's callback, ENTRY): the model (the last result) kept, its count up;
+- **add** (on_show 0x243F37, remove_aimed 0x244CF5), **remove** (on_hide 0x244012, add_aimed
+  0x244C08) and **update** (draw 0x244F3A), each CALLEE in place of the weapon model's own call:
+  that call, then the device's with its own matrix (barrel_point's of the frame, the point moved
+  forward), once while the device is in the scene; after the update, barrel_point's point moved
+  on to the device's fire point (`data/srp_muzzle_fire_mm`, the device modification's, millimetres): the shot's
+  flash (update_pfx_transform 0x244570, the shot effects 0x244120) at the device's front;
+- **release** (0x24B23A, delete_resource, JUMP): the model released.
+
+The server answers a weapon's `46 01` and `46 02` with the inventory and the account alone (the
+client's own copy of the record could be a fourth). A camouflage, decals and a scope change
+nothing a match computes; a muzzle brake's modification does (`parameters/recoil_modifier`), its
+words in the `next` row of `../crates/session/src/v026g/simulation_changes.tsv`. A client without patch 68 shows the kit's own and the decals, not what the kit names.
+
+Checked: `selftest_026g.py` check 68 (the sites in the original and the builds, translate_query's
+two reads of [ebp+40h] and 0x2F2060's copy, the hooks into `weapon_kit.code`, no relocation or
+branch into them, the entries' calls) and check 48 (patch 48's slot holds `weapon_kit_preview_apply`,
+its one indirect call); `check_weapon_kit_026g.py` (Unicorn): translate_query from 0x2F1771 to the
+end of its record loop (0x2F1960) with the game's own alloca and entry push, the dictionary's
+item_by_id and the configs' lookup stubbed: five lists without a kit give the original's entries
+and stack, six with a kit the records and what it names (at most six; a dict id the dictionary
+lacks, one held already, a slot taken left out), the item's records unchanged; 0x2F2060's refusal
+the original's way; the bridge's six cases (kit_lo/kit_hi on the kit's object only, registers and
+stack the original's); patch 48's apply in nine cases against the packing model and literal
+records; setup_inventory_data's loop with the game's own pair map: a scoped weapon's camouflage
+attached to it (the original: to nothing); `check_upgrade_preview_026g.py` with the kit's records.
+**Not run in a game.**
+
+The muzzle device, checked: `selftest_026g.py` check 68 (the sites, the sizes, the weapon's
+layout, the cook's requests and callback); `check_weapon_muzzle_026g.py` (Unicorn, 53 cases): the
+cook's request with the game's own push (a config naming a model: one more {path, 0Fh}; none:
+the original's), weapon_cook 0x24A780 from its entry with the game's own code (the size asked
+50h more, the part after the arrays zeroed), the callback's entry (the last result kept, after a
+scope's, the animations, shells and shots; the offset and the fire point a float or an int), the
+five model calls (the original's call, then the device's at barrel_point's matrix moved forward,
+once in and once out of the scene; after the update only, barrel_point moved to the fire point)
+and delete_resource (released, the part's pointer zero). **Not run in a game.**
 
 ## Not ported, not done
 

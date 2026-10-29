@@ -1,0 +1,48 @@
+# Files of the pack besides the devices' models: how prepare_donor.sh takes each from 0.46c2
+#   config    a binary config, written again in 0.26g's layout
+#   particle  a particle's config, so, its TargetColor actions made InitColor (widen_config.rs)
+#   raw       as it is (a texture's .dds)
+#   material  a material instance made again on the 0.26g template named
+# how	path	template
+particle	particles/fx/weapons/attach/arrestor4.particle	-
+particle	particles/fx/weapons/attach/arrestor5_6_7_8.particle	-
+particle	particles/fx/weapons/attach/pp_arrest1.particle	-
+particle	particles/fx/weapons/attach/pp_arrest2_3.particle	-
+particle	particles/fx/weapons/m4a1.particle	-
+material	material_instances/fx/weapons/arrestor_front.material	material_instances/fx/weapons/rifles_front.material
+material	material_instances/fx/weapons/arrestor_side.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/front_m_3th.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/m4a1.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/pp_arrestor.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/pp_arrestor_front.material	material_instances/fx/weapons/rifles_front.material
+material	material_instances/fx/weapons/pp_arrestor_side.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/pp_arrestor_side2.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/pp_arrestor_side3.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/pp_arrestor_up.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/side_3th.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/small_front_muzzle.material	material_instances/fx/weapons/ak_side.material
+material	material_instances/fx/weapons/small_side.material	material_instances/fx/weapons/ak_side.material
+raw	textures/fx/weapons/arrestor.dds	-
+raw	textures/fx/weapons/arrestor_front.dds	-
+raw	textures/fx/weapons/front_muzzle_3th.dds	-
+raw	textures/fx/weapons/m4a1_v1.dds	-
+raw	textures/fx/weapons/pp_front_muzzle.dds	-
+raw	textures/fx/weapons/pp_front_muzzle_3th.dds	-
+raw	textures/fx/weapons/pp_side_muzzle.dds	-
+raw	textures/fx/weapons/pp_side_muzzle_3th.dds	-
+raw	textures/fx/weapons/pp_side_muzzle_3th_new.dds	-
+raw	textures/fx/weapons/side_muzzle.dds	-
+raw	textures/fx/weapons/small_front_mazzle.dds	-
+raw	textures/fx/weapons/up_muzzle.dds	-
+config	textures/fx/weapons/arrestor.options	-
+config	textures/fx/weapons/arrestor_front.options	-
+config	textures/fx/weapons/front_muzzle_3th.options	-
+config	textures/fx/weapons/m4a1_v1.options	-
+config	textures/fx/weapons/pp_front_muzzle.options	-
+config	textures/fx/weapons/pp_front_muzzle_3th.options	-
+config	textures/fx/weapons/pp_side_muzzle.options	-
+config	textures/fx/weapons/pp_side_muzzle_3th.options	-
+config	textures/fx/weapons/pp_side_muzzle_3th_new.options	-
+config	textures/fx/weapons/side_muzzle.options	-
+config	textures/fx/weapons/small_front_mazzle.options	-
+config	textures/fx/weapons/up_muzzle.options	-

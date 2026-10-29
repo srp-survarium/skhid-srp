@@ -30,6 +30,8 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [weapon-kit.md](weapon-kit.md) | A weapon's six upgrades (two decals, camouflage, scope, muzzle device, grip) in the client's three records: the kit record's layout, client patch 68, the server's packing; the AK-74M's brake, the first muzzle device |
+| [muzzle-cut.md](muzzle-cut.md) | Which guns' stock muzzle devices can be cut out of their meshes, so a device replaces them instead of stacking |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |

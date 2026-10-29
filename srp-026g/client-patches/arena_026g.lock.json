@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 422260,
-  "sha256": "228998ebbd0b9091a2fa65f24b13545796b4dba25024da64a68d4bf5c183b722",
+  "size": 429804,
+  "sha256": "5127a1c36950b80bf33b70096836b88134a1f27c36442034f51a7cfe3282f728",
   "blocks": {
     "weight_ui.code": {
       "kind": "code",
@@ -83,6 +83,11 @@
       "kind": "state",
       "va": "0xa494000",
       "size": 372
+    },
+    "weapon_kit.code": {
+      "kind": "code",
+      "va": "0xa495000",
+      "size": 3820
     }
   },
   "symbols": {
@@ -93,6 +98,7 @@
     "__rodata_match_keys_code": "0xa436154",
     "__rodata_patches_code": "0xa46b48d",
     "__rodata_research_code": "0xa431f45",
+    "__rodata_weapon_kit_code": "0xa495e54",
     "__rodata_weight_ui_code": "0xa42d364",
     "artefacts_fire": "0xa434014",
     "artefacts_lifebone": "0xa43400f",
@@ -251,6 +257,26 @@
     "rn_tick": "0xa42f100",
     "suicide_key_on_spot": "0xa46b40a",
     "text_input_on_char": "0xa46b427",
+    "weapon_kit_attached": "0xa495ab6",
+    "weapon_kit_attached_pair": "0xa4950ec",
+    "weapon_kit_bridge": "0xa495050",
+    "weapon_kit_expand": "0xa495399",
+    "weapon_kit_holds": "0xa495354",
+    "weapon_kit_preview_apply": "0xa495563",
+    "weapon_kit_query": "0xa495000",
+    "weapon_muzzle_add": "0xa495183",
+    "weapon_muzzle_extension": "0xa495bf6",
+    "weapon_muzzle_fire": "0xa495dd7",
+    "weapon_muzzle_loaded": "0xa495c62",
+    "weapon_muzzle_loaded_hook": "0xa495163",
+    "weapon_muzzle_made": "0xa495c3e",
+    "weapon_muzzle_made_hook": "0xa49514b",
+    "weapon_muzzle_model": "0xa495c0e",
+    "weapon_muzzle_place": "0xa495d59",
+    "weapon_muzzle_release": "0xa49527c",
+    "weapon_muzzle_remove": "0xa4951dd",
+    "weapon_muzzle_request": "0xa495120",
+    "weapon_muzzle_update": "0xa495221",
     "weight_ui_config": "0xa42d000",
     "weight_ui_display": "0xa42d034",
     "weight_ui_invoke": "0xa42d133",

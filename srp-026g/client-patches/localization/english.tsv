@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vik
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Vertical recoil -10 %.
+st_srp_ak74_m24x15_name	AK-74 muzzle brake
 st_srp_attachments	Attachments
 st_srp_equipment029_bm_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_srp_equipment029_bm_back_6_name	Watchman backpack
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Receive
 st_srp_exchange_short_gold	Not enough gold
 st_srp_exchange_short_silver	Not enough silver
 st_srp_exchange_title	Exchange
+st_srp_grip_slot	Grip
 st_srp_inventory_search	Search
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_muzzle_slot	Muzzle
 st_srp_optics	Optics
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute

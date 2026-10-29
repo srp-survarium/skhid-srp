@@ -117,6 +117,8 @@ ORG CAVE
 %define CONFIG_ROOT     0x108
 %define ENTRY_CATEGORY  0x228
 %define SCOPE_CATEGORY  22
+%define KIT_DEVICE_FIRST 2601       ; muzzle devices 2601..2649, grips 2650..2699 (the lobby movie's ItemDictId)
+%define KIT_DEVICE_LAST 2699
 %define NODE_TYPE       0x14        ; config node: +0 value or children, u16 type, u16 count
 %define NODE_COUNT      0x16
 %define NODE_SIZE       0x18
@@ -153,6 +155,8 @@ ORG CAVE
     jmp near again                  ; +14h 0x284B89 (setup_profile past its early return)
     jmp near made                   ; +19h 0x284F7F (on_player_ready)
     jmp near early                  ; +1Eh 0x284B7C (setup_profile's early return)
+kit_apply:
+    dd 0                            ; +23h patch 68's weapon_kit_preview_apply, written by the build (0: none)
 
 ; 0x29A9B2 `mov edx,[esi+4620h]` -> call relocate + nop: edi = the host,
 ; ebx = the upgrade, cl = the slot, esi = the account's profile, eax = the
@@ -275,7 +279,9 @@ item_dict:
 ; eax = an upgrade's dict id, edi = the host's id, ebp = the account's
 ; profile: CF clear and eax = the dict id its record on the host holds: a
 ; scope's (category 22) the variant made for the host's weapon, any other
-; upgrade's its own. CF set: no variant. Every other register kept.
+; upgrade's its own (a muzzle device's and a grip's too: category 22, dict
+; ids 2601..2699, the weapon kit's, weapon-kit.md). CF set: no variant.
+; Every other register kept.
 record_dict:
     pushad
     mov esi, [ebp+CLIENT_PLAYERS]
@@ -287,6 +293,12 @@ record_dict:
     jz .no
     cmp byte [eax+ENTRY_CATEGORY], SCOPE_CATEGORY
     jne .own
+    mov ecx, [esp+28]               ; the dict id (pushad's eax)
+    cmp ecx, KIT_DEVICE_FIRST
+    jb .scope
+    cmp ecx, KIT_DEVICE_LAST
+    jbe .own
+.scope:
     sub esp, 16                     ; the scope's dict id and name, the weapon's
     mov ecx, [esp+16+28]
     mov [esp], ecx
@@ -535,11 +547,27 @@ find:
     ret
 
 ; edi = a record, ebx = the state: the queue applied in order, as the
-; server does: "put" (slot 0..3) leaves a record of the same upgrade, slot
-; and dict id as it is, else takes the upgrade and what is in the slot off
-; and adds {upgrade, dict id, 0, slot} when there is room; "take off" takes
-; the upgrade off. Every register kept.
+; server does. With patch 68 (kit_apply, written by the build): its
+; weapon_kit_preview_apply (cdecl: the record, the queue, its count), on the
+; weapon kit's logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle
+; 4, grip 5), packed again into at most three records. Without it (a build
+; with no arena): "put" (slot 0..3) leaves a record of the same upgrade,
+; slot and dict id as it is, else takes the upgrade and what is in the slot
+; off and adds {upgrade, dict id, 0, slot} when there is room; "take off"
+; takes the upgrade off. Every register kept.
 apply:
+    cmp dword [kit_apply], 0
+    je apply_plain
+    pushad
+    push dword [ebx+COUNT]
+    lea eax, [ebx+OPS]
+    push eax
+    push edi
+    call [kit_apply]
+    add esp, 12
+    popad
+    ret
+apply_plain:
     pushad
     lea esi, [ebx+OPS]
     mov ecx, [ebx+COUNT]

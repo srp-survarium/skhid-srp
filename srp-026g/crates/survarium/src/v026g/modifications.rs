@@ -92,15 +92,15 @@ pub const PRICE_LEVELS: usize = 16;
 /// The modifications a reroll offers (`83 46 07`).
 pub const REROLL_CHOICES: usize = 3;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
-/// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
+/// for `decal_available`, 0x28779F; a weapon's, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
-/// [srp] A weapon's one decal slot ([`WEAPON_DECAL_SLOTS`]): the client
-/// keeps at most three upgrade records an item (`limits::UPGRADES`, an
-/// inline array of the item record; past it a fatal assert), and a scoped
-/// weapon holds its scope (3) and camouflage (2) besides. The owner,
-/// 2026-10-21: one decal on weapons for now. Patch 47 bakes it.
-pub const WEAPON_DECAL_SLOTS: [u8; 1] = [0];
+/// [srp] A weapon's two decal slots, as armour's: a weapon holds up to six
+/// upgrades in logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle
+/// 4, grip 5, [`super::weapon_kit`]), which go to the client packed into at
+/// most three records (the client keeps three an item, `limits::UPGRADES`;
+/// client patch 68 reads the kit). Patch 47 bakes both decals.
+pub const WEAPON_DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
 /// `camo_available`, `srp-026g/scripts/weapon-camo`): 2, since a weapon's 3
@@ -622,6 +622,9 @@ pub fn upgrade_slots_in(
         return &[];
     }
     let host_kind = item_params(host_dict_id).map_or("", |params| params.kind);
+    if upgrade.kind == MUZZLE_KIND && !Dictionary::shared().compatible(host_dict_id, upgrade_dict_id) {
+        return &[];
+    }
     cosmetic_slots(host, host_kind, upgrade.kind)
 }
 
@@ -629,7 +632,8 @@ pub fn upgrade_slots_in(
 /// of type `host_kind`: a camouflage (`*_camo`) into [`CAMO_SLOT`] of one
 /// with `camo_available` ([`WEAPON_CAMO_SLOT`] on a weapon, [`camo_slot`]),
 /// a decal (`*_decl`) into the [`DECAL_SLOTS`] of one with
-/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon).
+/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon), a muzzle device
+/// ([`MUZZLE_KIND`]) into a weapon's muzzle slot.
 pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &'static [u8] {
     if upgrade_kind.ends_with("_camo") && host.camo {
         if camo_slot(host_kind) == WEAPON_CAMO_SLOT {
@@ -643,10 +647,24 @@ pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &
         } else {
             &DECAL_SLOTS
         }
+    } else if upgrade_kind == MUZZLE_KIND && host.camo && is_weapon_kind(host_kind) {
+        &[super::weapon_kit::MUZZLE_SLOT]
     } else {
         &[]
     }
 }
+
+/// [srp] The `type` of a muzzle device (a flash hider, a brake, a
+/// compensator: the pack weapon-attachments,
+/// `srp-026g/scripts/weapon-attachments`): it goes into a weapon's muzzle
+/// slot ([`super::weapon_kit::MUZZLE_SLOT`]), on a weapon whose config has
+/// its `data` table (the weapon camouflage's data patch, which every weapon
+/// that takes upgrades has) and that an `items_compatibility` row pairs with
+/// it ([`upgrade_slots_in`]: 0.46c2's fit, `weapon-muzzle-fit-1.json`); its
+/// modification adds `data/srp_muzzle_model`, the model client patch 68
+/// draws at the weapon's barrel_point. Sold by seller 0 at no rank, at its
+/// `base_cost` (`prices::sellers_of_in`).
+pub const MUZZLE_KIND: &str = "srp_muzl";
 
 /// The dict id an upgrade record of `upgrade_dict_id` on `host_dict_id`
 /// holds: for a scope item, the variant made for that weapon (the client

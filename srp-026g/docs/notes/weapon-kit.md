@@ -1,0 +1,202 @@
+# The weapon kit: six upgrades on a weapon in three records
+
+**Version scope:** client 0.26g (build 2777), srp's lobby and match servers, client patch 68
+(`../../client-patches/weapon_kit_026g.asm`, `weapon_kit_026g.c`). Tags: PROVEN (read at the
+address or run with Unicorn), [srp] for srp's own choice.
+
+## The ask
+
+The owner (2026-10-25): weapons should hold two decals, a camouflage, a scope, a grip ("hand") and
+a muzzle device ("fire podavitel'"), "at least 6 slots there for weapons only". Stock 0.26g gave
+weapons no upgrade slots at all; srp's camouflage (patch 44), decal (patch 47) and scope (#153) use
+the armour's upgrade records.
+
+## Why three records
+
+- The client keeps at most three upgrade records an item: the item record (0xB4 bytes, built at
+  0x2F7C10) holds them inline at +0x6C..+0xB4, its buffer_vector at +0x60; the reader
+  (inventory_item_descr 0x1F1350 → 0x1F13D0, the lobby's and a match profile's alike) sizes it
+  at 0x1F147F, and more than three is the fatal assert at 0x1F1655 / 0x1F16C4. PROVEN.
+- The item config builder (0x2F14C0, six callers) keeps the records' values in a stack array of
+  three (0x2F157F..0x2F161F) for its cache key's checksum. PROVEN.
+- Growing the record is out of reach (its size is a stride at about a hundred sites and the
+  profile's item table is inline, profile+0x1568).
+
+## The slots and the record [srp]
+
+A weapon's upgrades are kept by the server in **logical slots**, one upgrade a slot:
+
+| slot | what | on the wire |
+|---|---|---|
+| 0, 1 | a decal (its value its place) | a record of its own, as now |
+| 2 | the camouflage | named by the kit, or the kit's own |
+| 3 | the scope (a variant, `weapon_scopes.md`) | the kit's own |
+| 4 | a muzzle device (flash hider, brake) | named by the kit, or the kit's own |
+| 5 | a grip | named by the kit, or the kit's own |
+
+The account stores them so (no rewrite: slots 0, 2 and 3 are those weapons had before). They go
+to the client packed (`survarium::v026g::weapon_kit::pack`, `session::v026g::wire::upgrades_descr`):
+the decals of slots 0 and 1 in that order, then one **kit** record in slot 3. The kit is the first
+of scope, camouflage, muzzle, grip the weapon wears (its item id and record dict id, as that one's
+own record would be); its value:
+
+```text
+bits  0..15  the camouflage's dict id (0: none, or it is the kit's own)
+bits 16..31  the muzzle device's dict id
+bits 32..47  the grip's dict id
+bits 48..55  the kit's own logical slot (2, 3, 4 or 5)
+bits 56..63  0xA7, the kit's mark
+```
+
+So a weapon is sent at most three records whatever it wears. Armour is sent as before.
+
+## The client (patch 68)
+
+- **The config.** item_config_cook::translate_query (0x2F1750) builds an item's config from the
+  records its query points at: 0x2F2060 copies the query's {dict id, modifications*, upgrades*,
+  dictionary} to [ebp+38h..44h], and the function reads the upgrades' buffer_vector at [ebp+40h]
+  twice only, its size at 0x2F1799 and each record's dict id and value in its loop
+  0x2F18D0..0x2F195A (each record: its item's `parameters.modification`, the value as the
+  modification's `<low_param>`/`<high_param>`, 0x3584E0). PROVEN. Patch 68 jumps from its `call
+  0x2F2060` (0x2F1771): when a record is a kit, a list on translate_query's own stack (below its
+  frame, as its allocas; its epilogue takes esp from ebp, 0x2F2041) holds the records and one
+  `{0, dict id, 0, slot}` for each dict id the kit names, and [ebp+40h] points at it. At most six.
+  A dict id is left out when the dictionary lacks it, when the list holds it already (its
+  modification would add a second `camouflage`: the config's duplicate-name assert), or when a
+  record that is no kit is in its slot. Without a kit nothing changes (the original's stack too);
+  nothing is shared between two cooks.
+- **Every copy carries the kit.** The item record is never written: the lobby's inventory and
+  kits, a match's static info (its profiles, a late join's), a replay's recorded static info all
+  carry the three records as they are. The config builder's cache key checksums the kit's value,
+  so each combination is its own config.
+- **The lobby movie.** The upgrades to Flash (0x287E30, its loop 0x2881E0) give each record's object `id` and
+  `param`; patch 68 (0x2882E3) gives a kit's object `kit_lo` and `kit_hi` (its value's halves).
+  `UpgradeWindow.kitUpgrades` makes the window's slots of them: the kit's own item in its own slot,
+  each dict id it names as the inventory's item of that id (`InventoryList.getInventoryItemOf`).
+- **What a cosmetic is attached to.** setup_inventory_data (0x288520) maps each record's item id
+  to its host ({id, host} pairs pushed at 0x2885C9, an alloca of 50h bytes an item) and gives each
+  item its `is_attached_to` from them. Patch 68 pushes, after a kit's own pair, one for each dict
+  id the kit names: the inventory's item of that id with the lowest item id (as the movie's
+  `getInventoryItemOf`). A scoped weapon's camouflage shows worn on it.
+- **The preview (patch 48).** Its `apply` calls `weapon_kit_preview_apply` through a dword the
+  build writes: the queued change on the logical slots, packed again as the server packs. A muzzle
+  device's or grip's record holds its own dict id (patch 48 looks for a scope's variant only
+  outside 2601..2699).
+- **The window** (the lobby movie, `UpgradeWindow`): the Attachments page has the scope's, the
+  muzzle device's and the grip's slots (`weapon-camo.md`, the weapon's window: two pages). Muzzle
+  devices are dict ids 2601..2649, grips 2650..2699 (`ItemDictId`, `devices.tsv`): category 22 as
+  the scopes, told apart by the range.
+- **The client never writes a weapon's record itself**: srp answers a weapon's `46 01` and `46 02`
+  with the inventory and the account only (no `83 46 01` / `02`, whose own copy of the record would
+  be a fourth, or take the kit off for its own).
+
+## The muzzle device (slot 4)
+
+[srp, the owner's rules of 2026-10-25] One slot takes any muzzle device: flash hiders and brakes
+(no silencers). A device is an item of category 22 (the lobby's attachments filter) whose
+`parameters/type` is `srp_muzl` (the server's, `modifications::MUZZLE_KIND`: slot 4 of a weapon
+with a `data` table and an `items_compatibility` row) and whose modification adds
+`srp_muzzle_model` = its model to the weapon config's `data` (type 3, as a camouflage adds
+`camouflage`).
+
+The first device that ships is the AK-74M's brake (below). The 0.46c2 devices
+(`scripts/weapon-attachments`, pack `weapon-attachments`) do not ship: they stacked in front of
+the stock brakes the guns keep in their meshes (the owner, 2026-10-29: they look bad); a gun gets
+devices once its stock one is cut out (`muzzle-cut.md`).
+
+### The AK-74M's brake (pack ak74m-brake@1, `scripts/ak74m-brake`) [the owner, 2026-10-29]
+
+- **The item:** `srp_ak74_m24x15`, "AK-74 muzzle brake" (2621, category 22), sold by seller 0
+  at no rank for 9,000 [srp's guess, the owner's to set]; its icon drawn from its model
+  (`render_icons.py`'s renderer, `LobbyMenu_AmmoIcons` row 1, column 5).
+- **Fits:** the AK-74M alone (content-edit `ak74m-brake-1`, one `items_compatibility` row).
+- **The stat** [srp's proposal, the owner's to set]: vertical kick -10 %: `recoil/min_top_recoil`
+  and `max_top_recoil` x0.9 (type 2: base x (1 + sum), the keys the recoil loader 0x331840 reads,
+  as weapon-rolls-1's recoil rolls). The card: "Vertical recoil -10 %."
+- **The gun:** the stock brake is a closed part of the AK-74M's surface `ak74lpsg4` (255 vertices,
+  260 triangles, `muzzle-cut.md` class c). The pack drops its triangles from the index block of
+  the three AK-74M bodies (plain, Cobra, EOTech: the same mesh file); vertices, skinning and the
+  other files stay. **An AK-74M without the brake shows its bare barrel** (the brake is bought).
+- **The device's model:** `weapons/attach/muzzle_brake/ak74_m24x15`, a static model of the cut
+  part's own vertices (0.69d0's `ak74_m24x15_muzzlebrake` module is the same mesh, 255/260), moved
+  into barrel_point's frame (bone `offset`, bound pi about y: (-x, y, -z) of the model's space,
+  less barrel_point), with the gun's material `weapons/ak_74m`: fitted, the gun looks as the
+  stock one. It spans 5.2 cm behind barrel_point to 2.9 cm past it, so no `srp_muzzle_offset`;
+  `srp_muzzle_fire_mm` 29 puts the shot's flash at its front.
+- **Camouflage:** the brake is not part of the gun's mesh, so a camouflage does not paint it (the
+  stock brake took it).
+
+### How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run in a game)
+
+- **Loading.** The weapon cook (0x24A920) asks for a weapon's sub-resources in one query: the
+  scope's config when it names one (class 4Dh), the model (10h), each user animation (31h), the
+  bullet shells' and shot effects' particles (3Dh). With `data/srp_muzzle_model` it asks for
+  that model too (class 0Fh, a static model's instance, as the scope cook asks for its models),
+  last; the requests' alloca has one more place (0x24AA04). The query's callback (0x24ACF0)
+  finds it last among the results and keeps it.
+- **The weapon's own part.** The weapon (weapon_cook 0x24A780: 4710h bytes and a pointer for each
+  animation, shell and shot effect) is 50h bytes more; after its last array: the device's model,
+  its offset, whether it is in the scene, its matrix. Zeroed when the weapon is made, the model
+  released when the weapon is (delete_resource 0x24B190).
+- **Drawing.** Wherever the game adds, removes or moves the weapon's model (on_show, on_hide,
+  the aimed scope's add and remove that hide the weapon, draw), the device's model goes with it,
+  at barrel_point's matrix of the frame (+0x620) moved `data/srp_muzzle_offset` metres forward
+  along the barrel (default 0).
+- **The shot's flash.** Each device's modification also adds `data/srp_muzzle_fire_mm`, the
+  device's `fire_point` locator in millimetres (its model's: 42 for flash hider 04, 48 for brake
+  04; an int, as every type-3 value of 0.26g's is an int or a string).
+  After the device's update in draw, barrel_point's point (+0x620) moves `offset + fire` forward:
+  update_pfx_transform (0x244570, right after) and the shot effects (0x244120) take the flash
+  from there, at the device's front as in 0.46c2. barrel_point is computed again at each draw
+  (0x244E68), so it never moves twice; a weapon hidden by its aimed scope keeps the stock point.
+
+## A muzzle device's stats and effect [srp, the owner's rules of 2026-10-25]
+
+A device's own modifiers, after the model's (`devices.tsv`, `make_pack.py`; modifier types from
+the modification's apply 0x358560: 0 sets the node's value, 1 adds, 2 multiplies, 3 adds a key):
+
+| kind | 0.46c2 | 0.26g modifier |
+|---|---|---|
+| brake (horizontal) | modification 502 grade 0: recoil -0.05 | `parameters/recoil_modifier` +(-0.05), type 1 |
+| brake (vertical) | 502 grade 1: recoil -0.1 | `parameters/recoil_modifier` +(-0.1), type 1 |
+| compensator | 501 grade 4: effective distance +0.05 | `parameters/max_damage_distance` x(1 + 0.05), type 2 |
+| flash hider | no stats; `effects_override.particles.shoot` | `particles/shoot` = the effect, type 0 |
+
+- `recoil_modifier` is the stock weapon modifications' own (1150 "player recoil" -0.02, type 1
+  on `parameters/recoil_modifier`): the kick of a shot is times `max(0, 1 + recoil_modifier)`
+  (0x331C50, `bots/recoil.rs`). 2602 is a horizontal brake (dtk_04 is 0.46c2's model of 20
+  weapons' horizontal brake).
+- A flash hider's effect is 0.46c2's for that model (fire_arrestor_04: `arrestor4`), ported with
+  its materials (made again on 0.26g's `fx/weapons/ak_side`) and textures. 0.26g's particles lack
+  0.46c2's TargetColor action (construct_action 0x364F10 has no case for type index 14 and
+  leaves it out): each of arrestor4's seven gives one constant colour (white, alpha 0.23 to
+  0.24), so it becomes an InitColor property of that colour (`widen_config.rs --particle`).
+- A match computes a shot's kick from the weapon's config, so the brake changes the simulation
+  (`simulation_changes.tsv`, its `next` row). Every client builds the weapon from the same
+  records and pack: no server rule.
+
+## What it changes
+
+- Two decals on a weapon (`WEAPON_DECAL_SLOTS` 0 and 1, the window's `WEAPON_DECALS` 2): visual
+  only. Patch 47 bakes both.
+- The camouflage on a scoped weapon now travels in the kit: visual only.
+- Slot 4: the AK-74M's brake (vertical kick -10 %; the AK-74M's own brake leaves its mesh). Slot 5
+  has no item yet (a later step: grips).
+- A camouflage, decals and a scope change nothing a match computes; the brake's recoil does: the
+  `next` row of `simulation_changes.tsv`.
+
+## Old clients
+
+A client without patch 68 shows a kit's own (the scope, or the camouflage when there is none) and
+the decals, not what the kit names (a scoped weapon's camouflage): never a crash, never a fourth
+record. The release that ships the server change requires patch 68 (`SRP_MIN_PATCH_REVISION` the
+release's revision; the exe and server ship together).
+
+## Not done
+
+- A player holding two items of one camouflage sees the lower item id as the one worn (the kit
+  names the dict id, not the item).
+- arrestor4's TargetColor actions are InitColor of their colour, set at a particle's birth; how
+  0.46c2's action reaches it over a particle's life is not known (to be seen in a game).
+- The 0.46c2 devices (above): not shipped.
+- Not run in a game.

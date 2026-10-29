@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Містить наступні предмети:\n-
 st_sr3m_bundle_name	Набір СР-3М "Вихор"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	СР-3М "Вихор"
+st_srp_ak74_m24x15_description	Вертикальна віддача -10 %.
+st_srp_ak74_m24x15_name	Дульне гальмо АК-74
 st_srp_attachments	Обвіс
 st_srp_equipment029_bm_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_srp_equipment029_bm_back_6_name	Рюкзак Вартового
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Отримуєте
 st_srp_exchange_short_gold	Недостатньо золота
 st_srp_exchange_short_silver	Недостатньо срібла
 st_srp_exchange_title	Обмін
+st_srp_grip_slot	Руків'я
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Застосується після перезапуску.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Захисний пристрій: зарядники
 st_srp_mode_protective_device	Захисний пристрій
 st_srp_mode_research	Дослідження
 st_srp_mode_team_deathmatch	Командний бій
+st_srp_muzzle_slot	Дуло
 st_srp_optics	Оптика
 st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
 st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину

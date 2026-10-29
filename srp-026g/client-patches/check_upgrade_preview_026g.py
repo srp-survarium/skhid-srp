@@ -20,7 +20,7 @@ game's log (0x111ED0, 0x111860) and, for the armour shown worn,
 can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
 - a camouflage dropped on the window's weapon (a kit's, or one only in the
   stash): the character is made again at once from the scratch profile,
-  whose weapon record has {camouflage, its dict id, 0, slot} added, the
+  whose weapon records have the camouflage as the weapon kit (patch 68), the
   other upgrades kept, a kit revision no server sends; the account's
   profile and inventory are not written; the handler's registers are the
   original's (edx / ecx loaded as before), the stack kept;
@@ -29,10 +29,14 @@ can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
   made, a refresh returns at setup_profile's own early return;
 - a refusal (the account without it): the character goes back to the
   account's (a revision of its own again, a waiting setup_profile);
-- a camouflage in the slot of another: it replaces it; the record full:
-  nothing added; a take-off (drop_upgrade_item): the upgrade goes;
+- a camouflage in the slot of another: it replaces it; a scope beside two
+  decals and a camouflage: all four in three records, the weapon kit
+  (patch 68's weapon_kit_preview_apply through apply's slot); a take-off
+  (drop_upgrade_item): the upgrade goes;
 - a scope: its record holds the variant made for the weapon, found by
   `srp_scope_fit` (names, or dict ids); no variant: nothing previewed;
+  a muzzle device (category 22, dict id 2601..2649) its own dict id, named
+  by the kit (slot 4);
 - not the window's item, no weapon shown, a character without its window:
   nothing previewed, nothing made;
 - `again` for a squad mate's character and the 0x87 site with nothing
@@ -108,6 +112,10 @@ WEAPON_1, WEAPON_2 = 7, 10
 RIFLE, CAMO_CATEGORY, SCOPE_CATEGORY = 15, 25, 22
 COPY_SIZE = 0x4634
 KIT_WORD = 0xABCD0001                          # the profile's +4620h
+
+# A weapon kit record's value (patch 68, check_weapon_kit_026g.py): its own
+# logical slot, the dict ids it names or'ed in by the caller.
+KIT = lambda own: 0xA7 << 56 | own << 48
 
 SENTINELS = {UC_X86_REG_EBX: 0x11111111, UC_X86_REG_EBP: 0x22222222, UC_X86_REG_ESI: 0x33333333,
              UC_X86_REG_EDI: 0x44444444}
@@ -242,8 +250,8 @@ class Emu:
         self.u16(at + 4, dict_id)
         self.u32(at + 8, 1000000)
         begin = self.u32(at + 0x60)
-        for i, (up, up_dict, slot) in enumerate(upgrades):
-            self.emu.mem_write(begin + 0x18 * i, struct.pack("<IIQB7x", up, up_dict, 0, slot))
+        for i, (up, up_dict, slot, *value) in enumerate(upgrades):
+            self.emu.mem_write(begin + 0x18 * i, struct.pack("<IIQB7x", up, up_dict, value[0] if value else 0, slot))
         self.u32(at + 0x64, begin + 0x18 * len(upgrades))
 
     def upgrades(self, at):
@@ -500,8 +508,9 @@ def main():
         print(("ok    " if ok else "FAIL  ") + text)
 
     AK, SVD, STASH, CAMO, CAMO2, DECAL, SCOPE, SCOPE2, VEST = 1501, 1502, 1504, 1601, 1602, 1603, 1604, 1605, 1505
+    MUZZLE = 1607
     inventory = [(AK, 501, [(DECAL, 603, 0)]), (SVD, 502, []), (STASH, 504, []), (VEST, 505, []),
-                 (CAMO, 601, []), (CAMO2, 602, []), (DECAL, 603, []), (SCOPE, 2101, []), (SCOPE2, 2102, [])]
+                 (CAMO, 601, []), (CAMO2, 602, []), (DECAL, 603, []), (SCOPE, 2101, []), (SCOPE2, 2102, []), (MUZZLE, 2601, [])]
     items = [(501, RIFLE, "ak_x", None), (502, RIFLE, "svd_x", None), (504, RIFLE, "rifle_x", None),
              (505, 2, "vest_x", None), (601, CAMO_CATEGORY, "camo_a", None), (602, CAMO_CATEGORY, "camo_b", None),
              (603, 26, "decal_a", None), (2101, SCOPE_CATEGORY, "shop_scope_pso_1", None),
@@ -509,7 +518,8 @@ def main():
              (2001, SCOPE_CATEGORY, "fit_svd_pso_1", ("shop_scope_pso_1", ["svd_x"])),
              (2002, SCOPE_CATEGORY, "fit_ak_pso_1", ("shop_scope_pso_1", ["ak_x_premium", "ak_x"])),
              (2003, SCOPE_CATEGORY, "fit_ak_pso_1_b", ("shop_scope_pso_1", ["ak_x"])),
-             (2004, SCOPE_CATEGORY, "fit_rifle_acog", (2102, [504]))]
+             (2004, SCOPE_CATEGORY, "fit_rifle_acog", (2102, [504])),
+             (2601, SCOPE_CATEGORY, "srp_flash_hider_04", None)]
     kits = [{WEAPON_1: AK, 2: VEST}, {WEAPON_2: SVD}, {}]
     table = [(AK, [(DECAL, 603, 0)]), (VEST, []), (SVD, [])]
 
@@ -527,19 +537,20 @@ def main():
     copy1 = e.copy(1)
     rec = e.table_record(copy1, AK)
     say(kept and queries == [("query", CHARACTER, 1, 0)] and rec is not None
-        and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO, 601, 2)]
+        and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))]
         and e.u32(copy1 + REVISIONS) == 0x80000001 and e.u32(copy1 + REVISIONS + 4) == 4
         and account_before() == before and e.count() == 1
         and [c for c in e.calls if c[0] == "log"] == [("log", 0x9FA4E4, 4,
                                                        f"srp: upgrade preview: item {AK}, upgrade {CAMO}, slot 2")],
         "a camouflage dropped on kit 1's AK (chosen kit 2): the character is made again at once, from the "
-        "scratch: the AK's record with the camouflage added after its decal, kit 1's revision 0x80000001, the "
+        "scratch: the AK's record with the camouflage after its decal, as the weapon kit (patch 68: slot 3, its own "
+        "logical slot 2 in the value), kit 1's revision 0x80000001, the "
         "other kits' the account's; one log line; the account's profile and inventory untouched; the "
         "handler's registers and stack as the original leaves them")
 
     # 2. the server's account confirms it while the player is being made
     e.calls = []
-    e.record(e.table_record(PROFILE, AK), AK, 501, [(DECAL, 603, 0), (CAMO, 601, 2)])
+    e.record(e.table_record(PROFILE, AK), AK, 501, [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))])
     e.u32(PROFILE + REVISIONS, 4)
     kept = e.account()
     e.refresh()
@@ -559,7 +570,7 @@ def main():
     e.relocate(AK, CAMO2, 2)
     q = e.queries()
     rec = e.table_record(e.copy(2), AK)
-    ok1 = q == [("query", CHARACTER, 2, 0)] and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO2, 602, 2)] \
+    ok1 = q == [("query", CHARACTER, 2, 0)] and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO2, 602, 3, KIT(2))] \
         and e.u32(e.copy(2) + REVISIONS) == 0x80000002
     e.calls = []
     e.account()                                # refused: the account as it was
@@ -567,7 +578,7 @@ def main():
     waiting = e.u8(CHARACTER + 0xD2C8)
     copy_w = e.copy(0)                         # the shown copy is 1, the one made 2, the waiting one 0
     rec_w = e.table_record(copy_w, AK)
-    say(ok1 and not e.queries() and waiting == 1 and e.upgrades(rec_w) == [(DECAL, 603, 0), (CAMO, 601, 2)]
+    say(ok1 and not e.queries() and waiting == 1 and e.upgrades(rec_w) == [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))]
         and e.u32(copy_w + REVISIONS) == 0x80000003,
         "another camouflage into slot 2 replaces the first at once; refused, the account's refresh while it "
         "is being made waits for it with the account's upgrades and a revision of its own (on_player_ready "
@@ -581,27 +592,30 @@ def main():
     say(kept and e.queries() == [("query", CHARACTER, 1, 0)] and e.upgrades(rec) == [],
         "drop_upgrade_item(AK, decal): made again at once without the decal; the handler's registers (ecx "
         "loaded, eax kept for patch 30) and stack the original's")
-    full = [(AK, [(DECAL, 603, 0), (1606, 603, 1), (CAMO, 601, 2)]), (VEST, []), (SVD, [])]
+    full = [(AK, [(DECAL, 603, 0), (1606, 603, 1), (CAMO, 601, 3, KIT(2))]), (VEST, []), (SVD, [])]
     e.setup(kits, full, inventory, items, chosen=1, window=AK)
     e.relocate(AK, CAMO2, 2)
     rec = e.table_record(e.copy(1), AK)
-    replaced = e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (CAMO2, 602, 2)]
+    replaced = e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (CAMO2, 602, 3, KIT(2))]
     e.made()
     e.calls = []
     e.relocate(AK, SCOPE, 3)
-    say(replaced and not e.queries() and e.count() == 2,
-        "three upgrades held: a camouflage into slot 2 replaces the one there; a scope into slot 3 then finds "
-        "no room (the server refuses it): the same upgrades, the same revision, nothing made again")
+    rec = e.table_record(e.copy(2), AK)
+    say(replaced and e.queries() == [("query", CHARACTER, 2, 0)] and e.count() == 2
+        and e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (SCOPE, 2002, 3, KIT(3) | 602)],
+        "three records held (two decals, the kit): a camouflage into slot 2 replaces the one the kit holds; a "
+        "scope into slot 3 then goes in too, four upgrades in three records (the kit its own, the camouflage "
+        "named in its value), made again at once")
 
     # 5. scopes: the variant made for the weapon
     fresh()
     e.relocate(AK, SCOPE, 3)
     rec = e.table_record(e.copy(1), AK)
-    by_name = e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3)]
+    by_name = e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3, KIT(3))]
     fresh(window=STASH, chosen=0)
     e.relocate(STASH, SCOPE2, 3)
     rec = e.table_record(e.copy(1), STASH)
-    by_id = rec is not None and e.upgrades(rec) == [(SCOPE2, 2004, 3)] \
+    by_id = rec is not None and e.upgrades(rec) == [(SCOPE2, 2004, 3, KIT(3))] \
         and e.u16(e.copy(1) + KIT0 + SLOTS + 4 * WEAPON_1) == (rec - e.copy(1) - TABLE) // ITEM_SIZE
     fresh(window=SVD, chosen=0)
     e.relocate(SVD, SCOPE2, 3)
@@ -610,6 +624,19 @@ def main():
         "a scope's record holds the variant: the AK's PSO-1 the first (lowest) entry naming the scope and the "
         "weapon by name (2002, not 2003); a rifle only in the stash, shown in the chosen kit's hands, its "
         "ACOG by dict ids (2004); the SVD and the ACOG, no variant: nothing previewed, nothing made")
+
+    # 5b. a muzzle device: its own dict id, alone the kit's own; with a scope named by the kit
+    fresh()
+    e.relocate(AK, MUZZLE, 4)
+    rec = e.table_record(e.copy(1), AK)
+    alone = e.upgrades(rec) == [(DECAL, 603, 0), (MUZZLE, 2601, 3, KIT(4))]
+    e.made()
+    e.calls = []
+    e.relocate(AK, SCOPE, 3)
+    rec = e.table_record(e.copy(2), AK)
+    say(alone and e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3, KIT(3) | 2601 << 16)],
+        "a muzzle device (category 22, dict id 2601) into slot 4: its own dict id, no variant looked for, the kit's "
+        "own; a scope then: the kit the scope's, the device named in its value (bits 16..31)")
 
     # 6. nothing previewed
     for name, prepare, args in (

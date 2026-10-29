@@ -4726,3 +4726,12 @@ va	name	location	role	basis
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
 0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed
+0x002f2060	survarium::item_config_query::get_item	ESI	the query's holder ([translate_query's [ebp+7Ch]]+108h): +8 dict id, +0Ch modifications*, +10h upgrades* (the item record's +14h and +60h buffer_vectors), +14h the items dictionary, +2Ch its thread	observed
+0x002f2060	survarium::item_config_query::get_item	EDI	where the four dwords go (translate_query's ebp+38h)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	EDI	the buffer_vector (begin, end, capacity end)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	ECX	the new count	observed
+0x0005fcb0	vostok::buffer_vector<vostok::resources::request>::push_back	EDI	the request {path, class}	observed
+0x0005fcb0	vostok::buffer_vector<vostok::resources::request>::push_back	ESI	the vector {begin, end, capacity end}	observed
+0x0024a780	survarium::weapon_cook::allocate_weapon	EAX	the user animations' count	observed
+0x0024a780	survarium::weapon_cook::allocate_weapon	entry ESP+12	the bullet shells' count (byte)	observed
+0x0024a780	survarium::weapon_cook::allocate_weapon	entry ESP+16	the shot effects' count (byte)	observed

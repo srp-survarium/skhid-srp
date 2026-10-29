@@ -3139,3 +3139,11 @@ va	status	ref_021d	name
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
 0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
+0x002f1750	inferred-high		survarium::item_config_cook::translate_query
+0x002f2060	inferred-medium		survarium::item_config_query::get_item
+0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body
+0x001f1610	inferred-medium		vostok::buffer_vector<survarium::upgrade>::resize
+0x003584e0	inferred-medium		survarium::item_config_cook::substitute_upgrade_params
+0x00287e30	inferred-medium		survarium::lobby_menu::fill_inventory_item
+0x00357f10	inferred-medium		vostok::configs::apply_set_modifiers
+0x00358aa0	inferred-medium		survarium::item_config_cook::apply_modifications

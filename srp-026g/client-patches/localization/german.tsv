@@ -2141,6 +2141,8 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ak74_m24x15_description	Vertikaler Rückstoß -10 %.
+st_srp_ak74_m24x15_name	AK-74-Mündungsbremse
 st_srp_attachments	Anbauteile
 st_srp_equipment029_bm_back_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
 st_srp_equipment029_bm_back_6_name	Wächterrucksack
@@ -2309,6 +2311,7 @@ st_srp_exchange_receive	Sie erhalten
 st_srp_exchange_short_gold	Nicht genug Gold
 st_srp_exchange_short_silver	Nicht genug Silber
 st_srp_exchange_title	Tausch
+st_srp_grip_slot	Griff
 st_srp_inventory_search	Suche
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
@@ -2367,6 +2370,7 @@ st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
 st_srp_mode_protective_device	Schutzeinrichtung
 st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
+st_srp_muzzle_slot	Mündung
 st_srp_optics	Optik
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut

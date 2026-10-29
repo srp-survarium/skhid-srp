@@ -290,6 +290,13 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
+
+## ak74m-brake-1.json (2026-10-29)
+
+| change | why |
+|---|---|
+| One `items_compatibility` row of `gameplay/db_static_dictionaries`, `compatibility_262100003`: the AK-74M's brake `srp_ak74_m24x15` (2621, pack `ak74m-brake`) on the AK-74M (3) | the server puts a muzzle device only on a weapon of such a row; the lobby movie greys the others (`../../docs/notes/weapon-kit.md`, The AK-74M's brake) |
+
 ## battery-respawn-1.json (2026-10-21)
 
 | change | why |
