@@ -59,6 +59,41 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
 - Another lobby costs one more query at the start (its config, the lobby's movies with it).
 - Never a black scene, never a crash.
 
+## After a match (the owner's rule, not built yet)
+
+The owner (2026-10-29): "for lobbies the switch should happen after joining a faction and then
+playing a game": after a change of faction, the new faction's lobby from the first frame back from
+the next match. Not in this PR yet; what it needs, read from the code (PROVEN unless tagged):
+
+- **One state machine:** (the lobby shown, the lobby wanted) and three events: a faction (`8E`,
+  the wanted lobby; user.cfg as now), the match entered (`lobby_menu::on_deactivate` 0x21D4A0:
+  the lobby not drawn; when wanted is not shown, ask), back in the lobby (`on_activate`
+  0x21D2E0). The scene stays loaded across a match (nothing unloads it); a swap while the match
+  runs is not seen.
+- **The new project:** the lobby's own query asked again (0x21E450, the probe first as at a
+  start), its other seven requests made cheap (a small binary config each, no user data) so no
+  second render scene, sound scene or movie is made; its results taken at
+  `lobby_menu.scenes_ready` and on_render_scenes_ready not run.
+- **The old project out** (`lobby_menu::clear_resources` 0x21D080's project half): `remove`
+  0x2855B0 (ESI the project: its game objects' vtable+24h, its render visuals); each static
+  collision (project+28h, +2Ch of them, 50h bytes, one class: vtable 0xA029A8, remove 0x2F8970,
+  insert 0x2F8850, thiscall with the physics world, lobby menu+3104h); the game effect player
+  (lobby menu+118h) stopped (0x2DE7F0, EDI player+8; +118h then 0); lobby menu+114h 0 and the
+  project's reference let go (its count +108h; at 0 engine_release_object with ECX project+38h).
+- **The new project in** (on_render_scenes_ready's project half): its reference taken, lobby menu
+  +114h; its vtable+0Ch (simple_game_project 0xA0A064: 0x2F8720, thiscall); the game effect player
+  restarted with the project's emitter (project+1E4h): the effect made by the emitter's
+  vtable+20h (thiscall: out, 0.0, 1.0; ret 0Ch), played by 0x2DE090 (EDI the player; the effect,
+  0, 1, 0, the menu's listener +684h; ret 14h), the made effect let go (its count +1Ch; at 0 its
+  owner's (+0Ch) vtable+1Ch); `insert` 0x285540 (EAX the project); each static collision's insert.
+  The project's `camera` (0x242770) is not needed: every lobby's character is at the origin.
+- **Two true virtual calls:** the emitter is polymorphic (game_effect_emitter: composite,
+  random permutation, hud, ... cooks), so the effect's making and letting go are vtable calls;
+  the engine-function library has no virtual kind yet (`engine_026g.tsv`: a function is a VA).
+  That kind (a slot offset, thiscall, its thunk `mov eax,[ecx] / call [eax+slot]`) comes first.
+- **Not known:** what the lobby's emitter plays (an ambient game effect; GUESS), and how long a
+  project's cook takes against a short match (a swap that comes after the return would show).
+
 ## Why not live
 
 - The scene is loaded once per run, with the lobby's movies, and is never unloaded until exit
