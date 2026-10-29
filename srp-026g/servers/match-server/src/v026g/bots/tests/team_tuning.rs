@@ -152,6 +152,21 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
     let at = Vec3::new(25.0, 0.0, 32.0);
     let goes_for_it = |route0: RouteCrossing, route1: RouteCrossing| -> [usize; 2] {
         let world = super::tactics::tests::field_with(|map| {
+            for (id, team, x) in [(0, 0, 12.0), (1, 1, 68.0)] {
+                let position = Vec3::new(x, 0.0, 30.0);
+                map.containers.push(mapdata::Container {
+                    position,
+                    team,
+                    id,
+                    use_shapes: vec![Shape {
+                        kind: ShapeKind::Box,
+                        center: position + Vec3::new(0.0, 1.0, 0.0),
+                        rotation: Rotation::IDENTITY,
+                        half: Vec3::new(1.0, 0.85, 0.65),
+                    }],
+                });
+            }
+            map.battery_spawners = vec![mapdata::BatterySpawner { position: at, item: at, layer: "default".into() }];
             map.zones.push(Zone {
                 kind: ZoneKind::Damage,
                 name: "toxic".into(),
@@ -202,7 +217,7 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
         let facts = WorldFacts { time: 1_000, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() };
         bots.facts(facts);
         let mut count = [0usize; 2];
-        for clock in (1_100..=12_000).step_by(100) {
+        for clock in (1_100..=20_000).step_by(100) {
             bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
         }
         for (place, team) in teams.iter().enumerate() {
@@ -211,6 +226,10 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
                 .and_then(|bot| bot.assignment.as_ref())
                 .is_some_and(|a| a.kind == PlayKind::Collect);
             count[usize::from(*team)] += usize::from(collects);
+            eprintln!(
+                "place {place} team {team}: {:?}",
+                bots.bots[place].as_ref().and_then(|bot| bot.assignment.as_ref()).map(|a| (a.kind, a.target, a.reason))
+            );
         }
         count
     };

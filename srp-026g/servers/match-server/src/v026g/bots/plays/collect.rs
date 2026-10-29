@@ -3563,7 +3563,7 @@ mod tests {
     #[test]
     fn a_route_that_meets_the_zone_only_in_its_last_metre_is_a_crossing_when_total() {
         let at = Vec3::new(25.0, 0.0, 32.0);
-        let mut s = with_slab(0.05);
+        let s = with_slab(0.05);
         let rule = |route| memo::RoutedRule {
             route,
             way_out: false,
