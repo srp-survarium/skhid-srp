@@ -90,6 +90,7 @@ mod standin_heal;
 mod standin_hitbox;
 mod standin_jump;
 mod standin_smoke;
+mod standin_trap_habit;
 mod standin_stamina;
 mod standin_traps;
 mod standin_weapon;

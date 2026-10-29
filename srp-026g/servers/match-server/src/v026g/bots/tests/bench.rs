@@ -1008,6 +1008,7 @@ pub(crate) fn real_bot_cost() {
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
+            let mut trap_habit = human.as_ref().and_then(|h| standin_trap_habit::TrapHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
@@ -1245,6 +1246,10 @@ pub(crate) fn real_bot_cost() {
                             })
                             .collect();
                         habit.tick(&game, &mut bots.tracker, now, |enemy| fresh[enemy]);
+                    }
+                    if let Some(habit) = &mut trap_habit {
+                        let now = game.tick;
+                        habit.tick(&mut game, now);
                     }
                     let mut holding = [false; 2];
                     for bot in bots.bots.iter().flatten() {
@@ -1820,6 +1825,12 @@ pub(crate) fn real_bot_cost() {
             }
             if let Some(habit) = &smoke_habit {
                 eprintln!("  {}", habit.line());
+            }
+            if let Some(habit) = &mut trap_habit {
+                eprintln!("  {}", habit.line(&game));
+                for line in habit.placement_lines(&game) {
+                    eprintln!("{line}");
+                }
             }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
