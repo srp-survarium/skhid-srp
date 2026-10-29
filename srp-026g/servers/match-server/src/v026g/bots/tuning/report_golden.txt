@@ -21,11 +21,13 @@ switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_
 switches OFF cheats: batteries
 switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
+switches OFF smoke: react_watch
 switches OFF unstick: fix_gap_ms
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: jump_snap=by_keys
+switch values kit: smoke=off
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
 changed numbers cheats: sight_hold_ms=450 (default 0)

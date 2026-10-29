@@ -496,7 +496,7 @@ impl Stack {
         let match_addr = match_socket.local_addr()?;
         let registry = Arc::new(
             MatchRegistry::new(&options.match_public_host, match_addr.port())
-                .with_bot_pocket_store(bot_tuning.tuning().kit.store()),
+                .with_bot_pockets(bot_tuning.tuning().kit.pockets()),
         );
 
         // One for the process: the match server converts, the lobby gives

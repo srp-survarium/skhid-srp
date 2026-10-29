@@ -232,3 +232,38 @@ pub(crate) fn soak_volume(
     }
     out
 }
+
+/// [smoke review S1] `aim.combat.aim_last_known` over many soaks: the fallback point's use (aims at a target with no
+/// part seen, and how far the remembered place is from his true chest) and the outcome, paired by seed, with the disc
+/// and with the hit boxes. `cargo test -p match-server --release aim_last_known_soaks -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn aim_last_known_soaks() {
+    for volume in [HitVolume::Disc, HitVolume::ON] {
+        let mut sums = [[0u64; 4]; 2];
+        for seed in 1..=12u64 {
+            for (arm, on) in [false, true].into_iter().enumerate() {
+                let mut tuning = bench_tuning();
+                tuning.aim.combat.aim_last_known = on;
+                let before = super::aimpoint::fallback_aims();
+                let out = soak_volume(4, 0, 12, None, 120, seed, tuning, volume);
+                let after = super::aimpoint::fallback_aims();
+                let (n, metres) = (after.0 - before.0, after.1 - before.1);
+                sums[arm][0] += u64::from(out.shots);
+                sums[arm][1] += u64::from(out.hits);
+                sums[arm][2] += n;
+                sums[arm][3] += (metres * 10.0) as u64;
+                println!(
+                    "{volume:?} seed {seed} on {on}: shots {} hits {} kills {:?} walled {} hidden {}; fallback aims {n}, mean {:.1} m off his chest",
+                    out.shots, out.hits, out.kills, out.walled, out.hidden, if n > 0 { metres / n as f64 } else { 0.0 }
+                );
+            }
+        }
+        for (arm, s) in sums.iter().enumerate() {
+            println!(
+                "{volume:?} on {}: shots {} hits {} rate {:.3}; fallback aims {} mean {:.1} m",
+                arm == 1, s[0], s[1], s[1] as f64 / s[0].max(1) as f64, s[2], s[3] as f64 / 10.0 / s[2].max(1) as f64
+            );
+        }
+    }
+}

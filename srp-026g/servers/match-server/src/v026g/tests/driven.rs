@@ -234,7 +234,8 @@ fn a_registry_makes_the_bots_kits_with_the_store_of_the_bot_tuning() {
     use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, PocketStore, RusherKits, bot_profile};
     let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
     for (store, stored) in [(PocketStore::PerMatch, None), (PocketStore::PerLife, Some(100))] {
-        let registry = MatchRegistry::new("127.0.0.1", 1236).with_bot_pocket_store(store);
+        let registry = MatchRegistry::new("127.0.0.1", 1236)
+            .with_bot_pockets(survarium::v026g::loadouts::BotPocketKit::stored(store));
         let mut setup = setup(4, MAP_TDM);
         let human = setup.players[0].profile.clone();
         let team = setup.players[2].profile.team;

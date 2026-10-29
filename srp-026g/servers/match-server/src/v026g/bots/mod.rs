@@ -207,6 +207,8 @@ pub struct Note {
 pub struct Bot {
     place: Place,
     team: u8,
+    /// The smoke clouds it knows of, and its watches of their edges (`smoke.rs`).
+    clouds: smoke::KnownClouds,
     rng: Rng,
     encoder: Encoder,
     motor: Motor,
@@ -400,6 +402,7 @@ impl Bot {
         Self {
             place,
             team,
+            clouds: smoke::KnownClouds::default(),
             rng,
             encoder: Encoder::default(),
             motor,
