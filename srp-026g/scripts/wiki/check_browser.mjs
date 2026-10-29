@@ -52,6 +52,7 @@ try {
   assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
   await screenshot('wiki');
   await navigate('/wiki/weapons');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
   const total = await evaluate("document.querySelectorAll('.weapon').length");
   assert.ok(total > 50);
   assert.equal(await evaluate(`${visible}.length`), total);
@@ -193,6 +194,23 @@ try {
   assert.ok(Number(await evaluate("document.querySelector('#wpn_ak_74m .sim-time').value")) > 0, 'the card plays');
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true, 'the comparison is left alone');
   await screenshot('card-recoil');
+  // A rifle with no side kick: its crosshair stays in view, unmagnified.
+  await evaluate("const m=document.querySelector('#wpn_mosin_nagant');m.open=true;m.scrollIntoView()");
+  await evaluate('new Promise(r=>setTimeout(r,100))');
+  await evaluate("const t=document.querySelector('#wpn_mosin_nagant .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate("!!document.querySelector('#wpn_mosin_nagant .sim-note')"), false, 'no side magnification');
+  const cx = Number(await evaluate("document.querySelector('#wpn_mosin_nagant .sim-cross circle').getAttribute('cx')"));
+  assert.ok(cx >= 0 && cx <= 300, `crosshair in view (${cx})`);
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors ?? [])"), '[]', 'no script errors (since the last weapons page load)');
+  // Play from a fresh card, several times: its first frame may come before the press.
+  for (let i = 0; i < 5; i++) {
+    await navigate('/wiki/weapons?lang=en');
+    await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message));const c=document.querySelector('#wpn_pkp_pecheneg');c.open=true");
+    await evaluate("new Promise(r=>setTimeout(r,50)).then(()=>document.querySelector('#wpn_pkp_pecheneg .sim-play').click())");
+    await evaluate('new Promise(r=>setTimeout(r,300))');
+    assert.ok(Number(await evaluate("document.querySelector('#wpn_pkp_pecheneg .sim-time').value")) > 0, `card play ${i}`);
+    assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]');
+  }
   console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
   await send('session.end');
 } finally {

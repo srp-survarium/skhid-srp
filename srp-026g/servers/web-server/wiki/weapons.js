@@ -277,7 +277,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     return element;
   }
   function sample(series, time) {
-    return series.frames[Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6))];
+    return series.frames[Math.max(0, Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6)))];
   }
   // One recoil simulation in `root` (the comparison's, or a weapon card's):
   // its own controls, plots and crosshair view, every lookup inside `root`.
@@ -332,7 +332,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     // The crosshair as the kick moves it: the kick climbing from the origin,
     // the path so far and each shot's mark. The side kick is far smaller than
     // the climb (and not a confirmed screen angle): it fills the width, its
-    // magnification written in the corner.
+    // magnification (at most ×100) written in the corner.
     function drawSight(time) {
       const svg = find('.sim-sight svg'); svg.replaceChildren();
       const frames = simulation.series.flatMap(series => series.frames);
@@ -340,7 +340,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       const down = Math.max(0, ...frames.map(frame => -frame.vertical));
       const side = Math.max(0, ...frames.map(frame => Math.abs(frame.horizontal)));
       const scale = 250 / Math.max(.1, up + down);
-      const sideScale = Math.max(scale, 120 / Math.max(side, 1e-6));
+      // A weapon with no side kick (bolt-action rifles) keeps one scale: its
+      // side values are rounding noise, not drift to magnify.
+      const sideScale = side > 1e-3 ? Math.min(scale * 100, Math.max(scale, 120 / side)) : scale;
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
       const x = h => 150 + h * sideScale, y = v => oy - v * scale;
       const magnified = Math.round(sideScale / scale);
@@ -378,7 +380,8 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       playButton.textContent = tr('Pause', 'Пауза');
       const tick = now => {
         if (simulation.kind !== 'ready') { stop(); return; }
-        simulation.time = Math.min(last, from + (now - start) / 1000); draw();
+        // A frame's timestamp can precede the press: never before `from`.
+        simulation.time = Math.min(last, from + Math.max(0, now - start) / 1000); draw();
         if (simulation.time >= last) stop(); else playing.frame = requestAnimationFrame(tick);
       };
       playing = {frame: requestAnimationFrame(tick)};
