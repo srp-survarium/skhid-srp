@@ -618,6 +618,46 @@ lobby_scene_on_activate_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x21d2e6
 
+; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]; ret 4), the game closing: it deactivates the active scene (0x1ED0B0, the scene's vtable+4: the lobby menu's on_deactivate when it is the lobby) and clears the lobby menu: lohook -> lobby_scene_on_game_closing
+global lobby_scene_on_game_closing
+extern hook_lobby_scene_on_game_closing
+lobby_scene_on_game_closing:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_game_closing
+lobby_scene_on_game_closing_flow:
+    mov edx, lobby_scene_on_game_closing_replay
+    cmp eax, 0
+    je lobby_scene_on_game_closing_go
+    mov edx, 0x1ed03a
+    cmp eax, 1
+    je lobby_scene_on_game_closing_go
+    ud2
+lobby_scene_on_game_closing_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_game_closing_replay:
+    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
+    jmp 0x1ed03a
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

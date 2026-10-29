@@ -18,6 +18,7 @@ runs the same (test_engine). For every function of engine_026g.tsv:
   result marker in EAX (EDX, XMM0): the thunk must come back to its caller
   with the stack balanced, the four registers kept and the result where C
   takes it (EAX, AL widened, EDX:EAX, ST0);
+- every vtables.tsv row: the vtable holds that function at that slot;
 - a virtual function (`call` virtual: `[[this]+slot]`): each of its
   vtables.tsv rows is the exe's (the vtable holds that function at that
   slot) and each function's `ret`s pop what abi.tsv says; the thunk, called
@@ -335,6 +336,11 @@ def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=
     if not out[0][0]:
         return out
     run = Run(original, library)
+    rows = engine.read_tsv(engine.REKIT / "vtables.tsv") if vtables is None else vtables
+    wrong = [f"{row['class']} {row['vtable']}+{row['slot']}: {run.read(engine.number(row['vtable']) + engine.number(row['slot'])):#x}"
+             for row in rows if run.read(engine.number(row["vtable"]) + engine.number(row["slot"])) != engine.number(row["va"])]
+    out.append((not wrong, f"every vtables.tsv row ({len(rows)}) is the original exe's: the vtable holds the function "
+                "at the slot" + "".join(f"; not {w}" for w in wrong)))
     for f in fs:
         if f["call"] == "virtual":
             out += virtual(run, original, f, symbols[f["symbol"]])

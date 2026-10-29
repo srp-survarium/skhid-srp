@@ -4027,7 +4027,7 @@ def test_language(original, image, before):
 def test_lobby_scene(original, image, before):
     """Check 81: the lobby's scene follows the player's quest faction, the
     last one kept in user.cfg, swapped while a match is up (patch 81, the
-    Rust patch `lobby_scene`, six lohooks of lobby_scene.toml, one in a
+    Rust patch `lobby_scene`, seven lohooks of lobby_scene.toml, one in a
     chain after patch 79's;
     ../docs/notes/lobby-scenes.md). check_lobby_scene_026g.py runs each from
     the game's code on made-up objects, the original beside."""
@@ -4060,6 +4060,12 @@ def test_lobby_scene(original, image, before):
           and vtable(0x9FFE74, 2) == [0x21D2E0, 0x21D4A0] and vtable(0x9FFE74 + 0x28, 1) == [0x21D080],
           "the lobby menu's vtable (0x9FFE74) is on_activate (0x21D2E0), on_deactivate (0x21D4A0), ..., "
           "clear_resources (+28h, 0x21D080); both start push ebp / mov ebp,esp / and esp,-8")
+    check(rows(0x1ED030, 0xA) == ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x535c]"]
+          and rows(0x1ED0B0, 0x11) == ["mov ecx,[esi+0x539c]", "cmp ecx,ebx", "jz 0x1ed0c1", "mov eax,[ecx]",
+                                        "mov edx,[eax+0x4]", "call edx"]
+          and vtable(0x9FAC8C + 0x10, 1) == [0x1ED030],
+          "game::clear_resources (the game's vtable 0x9FAC8C+10h, the game closing) starts push ebx / push esi / "
+          "mov esi,ecx / mov ecx,[esi+535Ch] and deactivates the active scene (+539Ch, its vtable+4) at 0x1ED0B0")
     # the swap redoes these halves (vostok::lobby::ScenesReady::swap)
     check(rows(0x21D085, 6) == ["mov esi,[ebp+0x114]"] and rows(0x21D093, 5) == ["call 0x2855b0"]
           and rows(0x21D0B1, 0xF) == ["mov edx,[edx+0x4]", "lea ecx,[eax+esi]", "mov eax,[ebp+0x3104]", "push eax",
@@ -4088,15 +4094,15 @@ def test_lobby_scene(original, image, before):
     heads = {h["site_name"]: h for h in every if h.get("chain")}
     linked = P.arena()
     block = linked.blocks["patches.code"]
-    check(sorted(hooks) == ["configs.start", "lobby_client.faction", "lobby_menu.activate", "lobby_menu.deactivate",
-                            "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
+    check(sorted(hooks) == ["configs.start", "game.clear_resources", "lobby_client.faction", "lobby_menu.activate",
+                            "lobby_menu.deactivate", "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
           and hooks["configs.start"].get("chained") and heads["configs.start"]["patch"] == "language"
           and heads["configs.start"]["chain"][-1] == hooks["configs.start"]["shim"],
-          "lobby_scene.toml's six hooks are lohooks; at configs.start in the chain after patch 79's handler "
+          "lobby_scene.toml's seven hooks are lohooks; at configs.start in the chain after patch 79's handler "
           "(one entry, language's, calls both shims)")
     for site in ("lobby_client.faction", "lobby_menu.scene_request", "lobby_menu.scenes_ready", "lobby_menu.activate",
-                 "lobby_menu.deactivate"):
+                 "lobby_menu.deactivate", "game.clear_resources"):
         h = hooks[site]
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]

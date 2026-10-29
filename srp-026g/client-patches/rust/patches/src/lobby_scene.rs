@@ -157,6 +157,9 @@ pub enum View {
     Drawn,
     /// A match (or any other scene) is: from on_deactivate to on_activate.
     Hidden,
+    /// The game is closing (game::clear_resources): never drawn again, and
+    /// the lobby menu not to be touched (its own clear_resources comes).
+    Closed,
 }
 
 /// A swap's query in flight: the lobby it is for (the faction's when it
@@ -193,6 +196,9 @@ pub enum Event {
     Hidden { wanted: Lobby },
     /// The lobby is shown again (`lobby_menu.activate`).
     Shown,
+    /// The game closes (`game.clear_resources`: it deactivates the active
+    /// scene, the lobby too, and clears the lobby menu).
+    Closing,
 }
 
 /// What the site does.
@@ -248,8 +254,8 @@ impl Scene {
                 (Loaded { shown: lobby, view: View::Drawn, fetch: None }, Action::Original)
             }
             (Starting(Ask::Project(_)), Event::Ready { .. }) => (Starting(Ask::Project(Lobby::Classic)), Action::AskAgain),
-            (Loaded { shown, view: View::Drawn, fetch: Some(_) }, Event::Ready { .. }) => {
-                (Loaded { shown, view: View::Drawn, fetch: None }, Action::LetGo)
+            (Loaded { shown, view: view @ (View::Drawn | View::Closed), fetch: Some(_) }, Event::Ready { .. }) => {
+                (Loaded { shown, view, fetch: None }, Action::LetGo)
             }
             (Loaded { shown, view: View::Hidden, fetch: Some(fetch) }, Event::Ready { loaded, wanted }) => {
                 let hidden = |fetch| Loaded { shown, view: View::Hidden, fetch };
@@ -265,6 +271,9 @@ impl Scene {
                 }
             }
 
+            (Loaded { view: View::Closed, .. }, Event::Hidden { .. } | Event::Shown | Event::Closing) => (self, Action::Original),
+            (Loaded { shown, fetch, .. }, Event::Closing) => (Loaded { shown, view: View::Closed, fetch }, Action::Original),
+            (Unasked | Starting(_), Event::Closing) => (self, Action::Original),
             (Loaded { shown, fetch: None, .. }, Event::Hidden { wanted }) if wanted != shown => {
                 (Loaded { shown, view: View::Hidden, fetch: Some(Fetch { wanted, ask: Ask::first(wanted) }) }, Action::Query)
             }
@@ -357,6 +366,13 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// The lobby shown again: a swap's results that come from now on are let go.
 pub fn on_activate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     step(ctx.thread(), Event::Shown);
+    Flow::Continue
+}
+
+/// The game closes: nothing asked from now on (its on_deactivate of the
+/// lobby comes next), a swap's results let go without the lobby menu.
+pub fn on_game_closing(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    step(ctx.thread(), Event::Closing);
     Flow::Continue
 }
 
@@ -485,6 +501,9 @@ mod tests {
 
         fn event(&mut self, event: Event) -> Action {
             let (scene, action) = self.scene.step(event);
+            if matches!(action, Action::Swap | Action::Query) {
+                assert!(matches!(self.scene, Scene::Loaded { view: View::Hidden | View::Drawn, .. }), "{action:?} once closed");
+            }
             if action == Action::Swap {
                 assert!(matches!(self.scene, Scene::Loaded { view: View::Hidden, .. }), "a swap while drawn: {:?}", self.scene);
             }
@@ -666,10 +685,28 @@ mod tests {
     }
 
     #[test]
+    fn closing_asks_nothing_and_lets_a_swap_go() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.event(Event::Closing);
+        game.match_entered();
+        assert_eq!(game.actions, [Action::Original, Action::Original], "the exit's on_deactivate asks nothing");
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.match_entered();
+        game.event(Event::Closing);
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+        assert_eq!(*game.actions.last().unwrap(), Action::LetGo, "results after the close: let go");
+        assert!(matches!(game.scene, Scene::Loaded { view: View::Closed, fetch: None, .. }));
+    }
+
+    #[test]
     fn hidden_and_shown_before_the_scene_change_nothing() {
         for scene in [Scene::Unasked, Scene::Starting(Ask::Config(Lobby::Camp069))] {
             assert_eq!(scene.step(Event::Hidden { wanted: Lobby::Hangar046 }), (scene, Action::Original));
             assert_eq!(scene.step(Event::Shown), (scene, Action::Original));
+            assert_eq!(scene.step(Event::Closing), (scene, Action::Original));
         }
     }
 
@@ -682,21 +719,24 @@ mod tests {
         const LOADS: [fn(SceneRequest) -> bool; 3] = [|_| true, |_| false, |r| matches!(r, SceneRequest::Project(_))];
         let steps = 6;
         for loads in LOADS {
-            for code in 0..(6usize.pow(steps)) {
+            for code in 0..(7usize.pow(steps)) {
                 let mut game = Game::new(Lobby::Classic, loads);
                 let mut factions = std::vec![Lobby::Classic];
                 let mut c = code;
                 for _ in 0..steps {
-                    match c % 6 {
+                    match c % 7 {
                         0 => game.faction(Lobby::Hangar046),
                         1 => game.faction(Lobby::Classic),
                         2 => game.match_entered(),
                         3 => game.back(),
                         4 => game.results(),
+                        5 => {
+                            game.event(Event::Closing);
+                        }
                         _ => game.faction(Lobby::Camp069),
                     }
                     factions.push(game.wanted);
-                    c /= 6;
+                    c /= 7;
                 }
                 game.results();
                 assert!(factions.contains(&game.shown()) || game.shown() == Lobby::Classic, "{code}: {:?}", game.scene);

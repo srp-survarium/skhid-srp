@@ -28,3 +28,7 @@ handler = "on_deactivate"
 [[hook]]
 site = "lobby_menu.activate"
 handler = "on_activate"
+
+[[hook]]
+site = "game.clear_resources"
+handler = "on_game_closing"
