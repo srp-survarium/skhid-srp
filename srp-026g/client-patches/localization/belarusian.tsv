@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Чакаем гульцоў
 st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_unit_meters	%1$sм
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$sс
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Базавае павелічэнне
+st_srp_weapon_draw_time	Час даставання
+st_srp_weapon_full_damage	Поўная шкода да
+st_srp_weapon_hip_spread	Раскід ад сцягна
+st_srp_weapon_holster_time	Час прыбірання
+st_srp_weapon_kick_side	Пачатковы бакавы штуршок
+st_srp_weapon_kick_side_variability	Зменлівасць бакавога штуршка
+st_srp_weapon_kick_up	Пачатковы штуршок угору
+st_srp_weapon_kick_up_variability	Зменлівасць штуршка ўгору
+st_srp_weapon_minimum_damage	Мінімальная шкода
+st_srp_weapon_minimum_damage_from	Мін. шкода ад
+st_srp_weapon_recoil_heading	Аддача, раскід і разгойдванне
+st_srp_weapon_reload	Перазарадка
+st_srp_weapon_shift_hint	Утрымлівайце Shift: падрабязнасці
+st_srp_weapon_spread_growth	Хуткасць росту раскіду
+st_srp_weapon_spread_max	Максімальны дадатковы раскід
+st_srp_weapon_spread_per_shot	Раскід ад стрэлу
+st_srp_weapon_spread_recovery	Хуткасць аднаўлення дакладнасці
+st_srp_weapon_stamina_damage	Шкода вынослівасці
+st_srp_weapon_stats	Характарыстыкі зброі
+st_srp_weapon_sway_cycle	Перыяд разгойдвання
+st_srp_weapon_sway_horizontal	Гарызантальнае разгойдванне
+st_srp_weapon_sway_vertical	Вертыкальнае разгойдванне
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар
 st_srp_weather_night	ноч
 st_srp_weather_rain	дождж
+st_srp_weight_no_sprint_heavyweight	Спрынт недаступны праз уменне цяжкавагавіка.
+st_srp_weight_no_sprint_limit	Спрынт недаступны: дасягнута мяжа вагі.
+st_srp_weight_speed	Хуткасць перамяшчэння: %1$s
+st_srp_weight_sprint_stamina	Выдаткі вынослівасці падчас спрынту: %1$s
+st_srp_weight_title	Уплыў вагі
 st_stamina_boost_name	Другое дыханне
 st_stamina_boost_time_description	Аднаўленне энергіі пры забойстве праціўніка:
 st_stamina_loss_on_hit_description	Страта энергіі пры раненні:

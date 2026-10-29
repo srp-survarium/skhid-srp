@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Waiting for players
 st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Base aim zoom
+st_srp_weapon_draw_time	Draw time
+st_srp_weapon_full_damage	Full damage up to
+st_srp_weapon_hip_spread	Hip-fire spread
+st_srp_weapon_holster_time	Holster time
+st_srp_weapon_kick_side	Initial sideways kick
+st_srp_weapon_kick_side_variability	Sideways variability
+st_srp_weapon_kick_up	Initial upward kick
+st_srp_weapon_kick_up_variability	Upward variability
+st_srp_weapon_minimum_damage	Minimum damage
+st_srp_weapon_minimum_damage_from	Minimum damage from
+st_srp_weapon_recoil_heading	Recoil, spread and sway
+st_srp_weapon_reload	Reload
+st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_spread_growth	Spread growth rate
+st_srp_weapon_spread_max	Maximum extra spread
+st_srp_weapon_spread_per_shot	Spread added per shot
+st_srp_weapon_spread_recovery	Spread recovery rate
+st_srp_weapon_stamina_damage	Stamina damage
+st_srp_weapon_stats	Weapon stats
+st_srp_weapon_sway_cycle	Sway cycle
+st_srp_weapon_sway_horizontal	Horizontal sway
+st_srp_weapon_sway_vertical	Vertical sway
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening
 st_srp_weather_night	night
 st_srp_weather_rain	rain
+st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
+st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.
+st_srp_weight_speed	Movement speed: %1$s
+st_srp_weight_sprint_stamina	Sprint stamina use: %1$s
+st_srp_weight_title	Weight effects
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
 st_stamina_loss_on_hit_description	Stamina penalty when wounded.

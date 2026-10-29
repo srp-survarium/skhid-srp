@@ -1,39 +1,13 @@
 package survarium.item
 {
-   import survarium.rooms.RoomsText;
+   import survarium.data.LocalizationData;
 
    // Read-only weapon stats from weapon-details-ui-1.json. These are not item
    // modifications and must never be added to an item's bonus/modifier sums.
    public final class WeaponDetails
    {
       private var values:Object;
-      private static const WORDS:Object = {
-         base:["Weapon stats","Характеристики зброї","Характеристики оружия","Waffenwerte","Statystyki broni","Osobine oružja"],
-         reload:["Reload","Перезаряджання","Перезарядка","Nachladen","Przeładowanie","Punjenje"],
-         full:["Full damage up to","Повна шкода до","Полный урон до","Voller Schaden bis","Pełne obrażenia do","Puna šteta do"],
-         minimum:["Minimum damage from","Мін. шкода від","Мин. урон от","Minimalschaden ab","Min. obrażenia od","Minimalna šteta od"],
-         floor:["Minimum damage","Мінімальна шкода","Минимальный урон","Minimalschaden","Minimalne obrażenia","Minimalna šteta"],
-         hint:["Hold Shift for details","Утримуйте Shift: подробиці","Удерживайте Shift: подробности","Shift halten: Details","Przytrzymaj Shift: szczegóły","Držite Shift za detalje"],
-         draw:["Draw time","Час діставання","Время доставания","Ziehzeit","Czas wyciągnięcia","Vreme vađenja"],
-         holster:["Holster time","Час прибирання","Время убирания","Wegsteckzeit","Czas schowania","Vreme odlaganja"],
-         zoom:["Base aim zoom","Базове збільшення","Базовое увеличение","Basis-Zielzoom","Bazowe przybliżenie","Osnovno uvećanje"],
-         stamina:["Stamina damage","Шкода витривалості","Урон выносливости","Ausdauerschaden","Obrażenia wytrzymałości","Šteta izdržljivosti"],
-         hip:["Hip-fire spread","Розкид від стегна","Разброс от бедра","Hüftfeuer-Streuung","Rozrzut z biodra","Rasipanje sa boka"],
-         reference:["Recoil, spread and sway","Відбій, розкид і хитання","Отдача, разброс и качание","Rückstoß, Streuung, Schwanken","Odrzut, rozrzut i kołysanie","Trzaj, rasipanje i njihanje"],
-         up:["Initial upward kick","Початковий поштовх угору","Начальный толчок вверх","Anfänglicher Rückstoß oben","Początkowy odrzut w górę","Početni trzaj nagore"],
-         upVariation:["Upward variability","Мінливість поштовху вгору","Изменчивость толчка вверх","Vertikale Variabilität","Zmienność odrzutu w górę","Promenljivost trzaja nagore"],
-         side:["Initial sideways kick","Початковий бічний поштовх","Начальный боковой толчок","Anfänglicher Seitenstoß","Początkowy odrzut boczny","Početni bočni trzaj"],
-         sideVariation:["Sideways variability","Мінливість бічного поштовху","Изменчивость бокового толчка","Seitliche Variabilität","Zmienność odrzutu bocznego","Promenljivost bočnog trzaja"],
-         shot:["Spread added per shot","Розкид від пострілу","Разброс от выстрела","Streuung pro Schuss","Rozrzut na strzał","Rasipanje po hicu"],
-         recovery:["Spread recovery rate","Швидкість відновлення точності","Скорость восстановления точности","Erholung der Präzision","Tempo odzyskania celności","Brzina oporavka preciznosti"],
-         growth:["Spread growth rate","Швидкість зростання розкиду","Скорость роста разброса","Zunahme der Streuung","Tempo wzrostu rozrzutu","Brzina rasta rasipanja"],
-         cap:["Maximum extra spread","Максимальний додатковий розкид","Максимальный доп. разброс","Maximale Zusatzstreuung","Maksymalny dodatkowy rozrzut","Maksimalno dodatno rasipanje"],
-         swayH:["Horizontal sway","Горизонтальне хитання","Горизонтальное качание","Horizontales Schwanken","Kołysanie poziome","Vodoravno njihanje"],
-         swayV:["Vertical sway","Вертикальне хитання","Вертикальное качание","Vertikales Schwanken","Kołysanie pionowe","Uspravno njihanje"],
-         cycle:["Sway cycle","Період хитання","Период качания","Schwankungsperiode","Cykl kołysania","Ciklus njihanja"]
-      };
       public function WeaponDetails(data:Object) { values = data; }
-      private static function word(key:String) : String { return WORDS[key][RoomsText.language()]; }
       public static function read(item:Object) : WeaponDetails
       {
          if(item == null || !item.isWeapon) return null;
@@ -90,11 +64,13 @@ package survarium.item
          var precision:Number = n > 0 && n < 0.1 ? 1000 : 100;
          return (Math.round(n * precision) / precision).toString();
       }
-      private function scalar(result:Array, id:int, key:String, direction:String, suffix:String = "", multiplier:Number = 1) : void
+      // `unit` is the dictionary text of the value with its unit (%1$s the number).
+      private function scalar(result:Array, id:int, key:String, direction:String, unit:String = null, multiplier:Number = 1) : void
       {
          if(!has(id)) return;
          var n:Number = values[id] * multiplier;
-         result.push({kind:"stat",id:id,label:word(key),value:number(n) + suffix,
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),
+            value:unit == null ? number(n) : LocalizationData.format(unit,number(n)),
             comparison:direction == "neutral" ? {kind:"neutral"} : {kind:direction,value:Number(number(n))}});
       }
       private static function recoilNumber(n:Number) : String
@@ -103,12 +79,12 @@ package survarium.item
       }
       private function kickRange(result:Array, id:int, key:String, low:Number, high:Number, comparison:Object) : void
       {
-         result.push({kind:"stat",id:id,label:word(key),value:recoilNumber(low) + "…" + recoilNumber(high),comparison:comparison});
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:recoilNumber(low) + "…" + recoilNumber(high),comparison:comparison});
       }
       private function variability(result:Array, id:int, key:String, variance:Number) : void
       {
          var value:String = recoilNumber(Math.sqrt(variance));
-         result.push({kind:"stat",id:id,label:word(key),value:value,comparison:{kind:"lower",value:Number(value)}});
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:value,comparison:{kind:"lower",value:Number(value)}});
       }
       private function recoil(result:Array) : void
       {
@@ -116,40 +92,40 @@ package survarium.item
          // recovery. Each axis setting is an independent uniform draw.
          if(has(146) && has(147) && values[146] <= values[147])
          {
-            kickRange(result,146,"up",values[146],values[147],{kind:"lower-range",
+            kickRange(result,146,"st_srp_weapon_kick_up",values[146],values[147],{kind:"lower-range",
                low:Number(recoilNumber(values[146])),high:Number(recoilNumber(values[147]))});
-            variability(result,147,"upVariation",Math.pow(values[147] - values[146],2) / 12);
+            variability(result,147,"st_srp_weapon_kick_up_variability",Math.pow(values[147] - values[146],2) / 12);
          }
          if(has(148) && has(149) && has(150) && has(151) && values[148] <= values[149] && values[150] <= values[151])
          {
             // The engine subtracts left from right. A signed range has no
             // universal better direction; compare its variability separately.
-            kickRange(result,148,"side",values[150] - values[149],values[151] - values[148],{kind:"neutral"});
-            variability(result,149,"sideVariation",(Math.pow(values[149] - values[148],2) + Math.pow(values[151] - values[150],2)) / 12);
+            kickRange(result,148,"st_srp_weapon_kick_side",values[150] - values[149],values[151] - values[148],{kind:"neutral"});
+            variability(result,149,"st_srp_weapon_kick_side_variability",(Math.pow(values[149] - values[148],2) + Math.pow(values[151] - values[150],2)) / 12);
          }
       }
       public function rows(expanded:Boolean) : Array
       {
-         var result:Array = [{kind:"heading",text:word("base")}];
-         scalar(result,138,"reload","lower","s");
-         scalar(result,139,"full","higher","m");
-         scalar(result,140,"minimum","higher","m");
-         scalar(result,141,"floor","higher","%",100);
-         if(!expanded) { result.push({kind:"hint",text:word("hint")}); return result; }
-         scalar(result,142,"draw","lower","s");
-         scalar(result,143,"holster","lower","s");
-         scalar(result,144,"zoom","neutral","x");
-         scalar(result,145,"stamina","higher");
-         scalar(result,152,"hip","lower","x");
-         scalar(result,158,"cycle","neutral","s");
-         result.push({kind:"heading",text:word("reference")});
+         var result:Array = [{kind:"heading",text:LocalizationData.getName("st_srp_weapon_stats")}];
+         scalar(result,138,"st_srp_weapon_reload","lower","st_srp_unit_seconds");
+         scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
+         scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
+         scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
+         if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
+         scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
+         scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");
+         scalar(result,144,"st_srp_weapon_aim_zoom","neutral","st_srp_unit_times");
+         scalar(result,145,"st_srp_weapon_stamina_damage","higher");
+         scalar(result,152,"st_srp_weapon_hip_spread","lower","st_srp_unit_times");
+         scalar(result,158,"st_srp_weapon_sway_cycle","neutral","st_srp_unit_seconds");
+         result.push({kind:"heading",text:LocalizationData.getName("st_srp_weapon_recoil_heading")});
          recoil(result);
-         scalar(result,153,"shot","lower");
-         scalar(result,154,"recovery","higher");
-         scalar(result,155,"growth","lower");
-         scalar(result,159,"cap","lower");
-         scalar(result,156,"swayH","lower");
-         scalar(result,157,"swayV","lower");
+         scalar(result,153,"st_srp_weapon_spread_per_shot","lower");
+         scalar(result,154,"st_srp_weapon_spread_recovery","higher");
+         scalar(result,155,"st_srp_weapon_spread_growth","lower");
+         scalar(result,159,"st_srp_weapon_spread_max","lower");
+         scalar(result,156,"st_srp_weapon_sway_horizontal","lower");
+         scalar(result,157,"st_srp_weapon_sway_vertical","lower");
          return result;
       }
    }

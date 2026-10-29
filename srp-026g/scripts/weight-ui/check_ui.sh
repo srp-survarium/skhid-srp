@@ -12,9 +12,11 @@ main=$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')
 tools=${SRP_AS_TOOLS:-$main/private/actionscript/tools.json}
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$(dirname "$harness")" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$(dirname "$harness")" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=960,720 \
     -output="$work/$harness_name.swf" "$harness" >"$work/compile.log" 2>&1 \
     || { cat "$work/compile.log"; exit 1; }

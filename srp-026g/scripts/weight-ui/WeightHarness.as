@@ -20,6 +20,8 @@ package {
    loader.load(new URLRequest("lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
   }
   private function require(ok:Boolean,why:String):void {if(!ok)throw new Error(why);}
+  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock key it reads.
+  private function texts(language:String):Object {var t:Object={btn_friends:"Friends"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];return t;}
   private function label(s:String,x:Number,y:Number):void {var t:TextField=new TextField();t.defaultTextFormat=new TextFormat("Arial",18,0xBCCBCB);t.text=s;t.x=x;t.y=y;t.width=800;t.height=40;addChild(t);}
   private function loaded(e:Event):void {
    try {
@@ -32,7 +34,7 @@ package {
     var Container:Class=domain.getDefinition("survarium.data.IconContainer") as Class;
     Icons=new Container("modifiers",38,38,bitmap.bitmapData,true,0,0,0,false);
     Tip=domain.getDefinition("survarium.player.WeightTipRenderer") as Class;
-    Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData({btn_friends:"Friends"});
+    Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData(texts("english"));
     checkWeaponMovement();
     checkShopMovement();
     var Tool:Object=domain.getDefinition("scaleform.clik.controls.ToolTip");Tool.tipContainer=overlay;
@@ -168,12 +170,14 @@ package {
     if(frame==110) {
      rendered();removeChild(widgets[1]);require(overlay.numChildren==0,"removal cleans tooltip");
      addChildAt(widgets[1],numChildren-1);
-     var names:Array=["Friends","Друзі","Друзья","Freunde","Znajomi","Prijatelji"];
-     for each(var name:String in names) {
-      Loc.setData({btn_friends:name});indicators[1].refresh();
-      for each(var entry:Object in target(1).tipData.effects.rows())require(entry.label.indexOf("undefined")<0,"localized explanation");
+     for each(var language:String in HarnessText.LANGUAGES) {
+      Loc.setData(texts(language));indicators[2].refresh();
+      var title:String=target(2).tipData.effects.title;
+      require(title==HarnessText.DATA[language].st_srp_weight_title,"translated title: "+language);
+      for each(var entry:Object in target(2).tipData.effects.rows())require(entry.label.indexOf("undefined")<0 && entry.label.indexOf("#st_")<0 && entry.label.indexOf("%1$s")<0,"localized explanation: "+language+" "+entry.label);
+      require(target(2).tipData.effects.rows()[0].label.indexOf("-20")>=0,"value in the translated line: "+language);
      }
-     Loc.setData({btn_friends:"Friends"});indicators[1].refresh();show(1);
+     Loc.setData(texts("english"));indicators[2].refresh();show(1);
     }
     if(frame==155) {
      rendered();finish(null);

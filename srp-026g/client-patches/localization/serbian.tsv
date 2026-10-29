@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Osnovno uvećanje
+st_srp_weapon_draw_time	Vreme vađenja
+st_srp_weapon_full_damage	Puna šteta do
+st_srp_weapon_hip_spread	Rasipanje sa boka
+st_srp_weapon_holster_time	Vreme odlaganja
+st_srp_weapon_kick_side	Početni bočni trzaj
+st_srp_weapon_kick_side_variability	Promenljivost bočnog trzaja
+st_srp_weapon_kick_up	Početni trzaj nagore
+st_srp_weapon_kick_up_variability	Promenljivost trzaja nagore
+st_srp_weapon_minimum_damage	Minimalna šteta
+st_srp_weapon_minimum_damage_from	Minimalna šteta od
+st_srp_weapon_recoil_heading	Trzaj, rasipanje i njihanje
+st_srp_weapon_reload	Punjenje
+st_srp_weapon_shift_hint	Držite Shift za detalje
+st_srp_weapon_spread_growth	Brzina rasta rasipanja
+st_srp_weapon_spread_max	Maksimalno dodatno rasipanje
+st_srp_weapon_spread_per_shot	Rasipanje po hicu
+st_srp_weapon_spread_recovery	Brzina oporavka preciznosti
+st_srp_weapon_stamina_damage	Šteta izdržljivosti
+st_srp_weapon_stats	Osobine oružja
+st_srp_weapon_sway_cycle	Ciklus njihanja
+st_srp_weapon_sway_horizontal	Vodoravno njihanje
+st_srp_weapon_sway_vertical	Uspravno njihanje
 st_srp_weather_before_rain	pred kišu
 st_srp_weather_day	dan
 st_srp_weather_evening	veče
 st_srp_weather_night	noć
 st_srp_weather_rain	kiša
+st_srp_weight_no_sprint_heavyweight	Sprint nije moguć zbog veštine Teškaš.
+st_srp_weight_no_sprint_limit	Sprint nije moguć: dostignuta je nosivost.
+st_srp_weight_speed	Brzina kretanja: %1$s
+st_srp_weight_sprint_stamina	Potrošnja izdržljivosti pri sprintu: %1$s
+st_srp_weight_title	Uticaj težine
 st_stamina_boost_name	Drugi dah
 st_stamina_boost_time_description	Energija obnovljena ubistvom neprijatelja:
 st_stamina_loss_on_hit_description	Gubitak izdržljivosti pri ranjavanju:

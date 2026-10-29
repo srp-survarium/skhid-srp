@@ -19,6 +19,8 @@ package {
    loader.load(new URLRequest("lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
   }
   private function require(ok:Boolean,message:String):void {if(!ok)throw new Error(message);}
+  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock keys the card reads.
+  private function texts(language:String):Object {var t:Object={btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];return t;}
   private function item(pkp:Boolean):Object {
    var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
    var d:Object=new Data();d.dictId=pkp?2229:3;d.name=pkp?"PKP Pecheneg":"AK-74M";d.isWeapon=true;d.category=16;d.superCategory=2;d.itemLevel=15;d.modifiers=[];d.modifiersDefault=[];d.ammoText="7.62x54";d.properties=[];
@@ -59,7 +61,7 @@ package {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
     var css:StyleSheet=new StyleSheet();css.setStyle("red",{color:"#CF4242"});css.setStyle("white",{color:"#D7DEDC"});css.setStyle("gray",{color:"#8A9490"});Scene.textStyleSheet=css;
-    Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData({btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"});
+    Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData(texts("english"));
     Details=domain.getDefinition("survarium.item.WeaponDetails");
     DetailsView=domain.getDefinition("survarium.item.WeaponDetailsView") as Class;
     Caption=domain.getDefinition("survarium.item.WeaponDetailCaption") as Class;
@@ -192,14 +194,16 @@ package {
     if(frame==120)require(color(cards[0],"Reload")==9834254,"Ctrl-first chord restores comparisons");
 
     if(frame==130){
-     var languages:Array=["Friends","Друзі","Друзья","Freunde","Znajomi","Prijatelji"];
-     for each(var language:String in languages){
-      Loc.setData({btn_friends:language});cards[0].data=items[0];cards[1].data=items[1];
+     for each(var language:String in HarnessText.LANGUAGES){
+      Loc.setData(texts(language));cards[0].data=items[0];cards[1].data=items[1];
       require(cards[0].height<900,"expanded translated card fits: "+language);
-      require(text(cards[0]).indexOf("undefined")<0,"complete translation: "+language);
+      var translated:String=text(cards[0]);
+      require(translated.indexOf("undefined")<0 && translated.indexOf("#st_")<0 && translated.indexOf("%1$s")<0,"complete translation: "+language);
+      require(translated.indexOf(HarnessText.DATA[language].st_srp_weapon_kick_up+": 2.5…3")>=0,"translated label and value: "+language);
+      require(translated.indexOf(HarnessText.DATA[language].st_srp_weapon_reload+": "+HarnessText.DATA[language].st_srp_unit_seconds.split("%1$s").join("10"))>=0,"translated unit: "+language);
       aligned();
      }
-     Loc.setData({btn_friends:"Friends"});cards[0].data=items[0];cards[1].data=items[1];
+     Loc.setData(texts("english"));cards[0].data=items[0];cards[1].data=items[1];
      recoilChecks();
      var baseRange:String=text(cards[0]);
      var defaultRange:Object={props:[{prop_id:24,prop_value:"0.10"}],isDefault:true,icon:33,textValue:"Range: +10%"};

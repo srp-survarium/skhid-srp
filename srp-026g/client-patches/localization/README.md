@@ -3,7 +3,7 @@
 All ten native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
 Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish and Belarusian
 (Cyrillic, standard orthography). Every file
-has the same 2,528 keys, sorted by full key name. These are the build sources,
+has the same 2,560 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.
@@ -43,10 +43,12 @@ python3 -m unittest discover -s srp-026g/client-patches -p test_localization.py
 ## Flash menus' own texts
 
 srp's own menu texts (the rooms, the Matches window, Player vs Bots, the replay
-prompt, the gold exchange, loadouts, the reroll rule, the search box, the login hint)
-are dictionary keys like any other text: `st_srp_<menu>_<name>` (`st_srp_rooms_*`,
-`st_srp_matches_*`, `st_srp_pvb_*`, `st_srp_replay_*`, `st_srp_exchange_*`,
-`st_srp_loadout_*`, `st_srp_login_*`; maps, modes and weathers `st_srp_map_*`,
+prompt, the gold exchange, loadouts, the reroll rule, the search box, the login hint,
+the weapon cards' details, the weight tooltip) are dictionary keys like any other text:
+`st_srp_<menu>_<name>` (`st_srp_rooms_*`, `st_srp_matches_*`, `st_srp_pvb_*`,
+`st_srp_replay_*`, `st_srp_exchange_*`, `st_srp_loadout_*`, `st_srp_login_*`,
+`st_srp_weapon_*`, `st_srp_weight_*`; a value with its unit `st_srp_unit_*`, as the
+stock cards write it: `%1$ss`, `%1$sс`; maps, modes and weathers `st_srp_map_*`,
 `st_srp_mode_*`, `st_srp_weather_*`). No movie holds language text, and adding or
 changing a language never touches an `.as` file.
 

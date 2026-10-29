@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Základní zvětšení
+st_srp_weapon_draw_time	Doba tasení
+st_srp_weapon_full_damage	Plné poškození do
+st_srp_weapon_hip_spread	Rozptyl od boku
+st_srp_weapon_holster_time	Doba schování
+st_srp_weapon_kick_side	Počáteční boční ráz
+st_srp_weapon_kick_side_variability	Proměnlivost bočního rázu
+st_srp_weapon_kick_up	Počáteční ráz vzhůru
+st_srp_weapon_kick_up_variability	Proměnlivost rázu vzhůru
+st_srp_weapon_minimum_damage	Minimální poškození
+st_srp_weapon_minimum_damage_from	Min. poškození od
+st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
+st_srp_weapon_reload	Přebíjení
+st_srp_weapon_shift_hint	Podrž Shift pro podrobnosti
+st_srp_weapon_spread_growth	Rychlost růstu rozptylu
+st_srp_weapon_spread_max	Maximální přídavný rozptyl
+st_srp_weapon_spread_per_shot	Rozptyl za výstřel
+st_srp_weapon_spread_recovery	Rychlost obnovy přesnosti
+st_srp_weapon_stamina_damage	Poškození výdrže
+st_srp_weapon_stats	Statistiky zbraně
+st_srp_weapon_sway_cycle	Perioda chvění
+st_srp_weapon_sway_horizontal	Vodorovné chvění
+st_srp_weapon_sway_vertical	Svislé chvění
 st_srp_weather_before_rain	před deštěm
 st_srp_weather_day	den
 st_srp_weather_evening	večer
 st_srp_weather_night	noc
 st_srp_weather_rain	déšť
+st_srp_weight_no_sprint_heavyweight	Nelze sprintovat: dovednost Těžká váha.
+st_srp_weight_no_sprint_limit	Nelze sprintovat: dosažena nosnost.
+st_srp_weight_speed	Rychlost pohybu: %1$s
+st_srp_weight_sprint_stamina	Spotřeba výdrže při sprintu: %1$s
+st_srp_weight_title	Vliv hmotnosti
 st_stamina_boost_name	Druhý dech
 st_stamina_boost_time_description	Výdrž obnovená zabitím nepřítele:
 st_stamina_loss_on_hit_description	Ztráta výdrže při zranění:

@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Alap célzási nagyítás
+st_srp_weapon_draw_time	Elővételi idő
+st_srp_weapon_full_damage	Teljes sebzés hatótávja
+st_srp_weapon_hip_spread	Csípőlövés szórása
+st_srp_weapon_holster_time	Elrakási idő
+st_srp_weapon_kick_side	Kezdeti oldalirányú rúgás
+st_srp_weapon_kick_side_variability	Oldalirányú rúgás ingadozása
+st_srp_weapon_kick_up	Kezdeti felfelé rúgás
+st_srp_weapon_kick_up_variability	Felfelé rúgás ingadozása
+st_srp_weapon_minimum_damage	Minimális sebzés
+st_srp_weapon_minimum_damage_from	Minimális sebzés kezdete
+st_srp_weapon_recoil_heading	Visszarúgás, szórás és kilengés
+st_srp_weapon_reload	Újratöltés
+st_srp_weapon_shift_hint	Részletek: tartsd nyomva a Shiftet
+st_srp_weapon_spread_growth	Szórás növekedési sebessége
+st_srp_weapon_spread_max	Maximális többletszórás
+st_srp_weapon_spread_per_shot	Szórásnövekedés lövésenként
+st_srp_weapon_spread_recovery	Pontosság visszaállási sebessége
+st_srp_weapon_stamina_damage	Állóképesség-sebzés
+st_srp_weapon_stats	A fegyver statisztikái
+st_srp_weapon_sway_cycle	Kilengési ciklus
+st_srp_weapon_sway_horizontal	Vízszintes kilengés
+st_srp_weapon_sway_vertical	Függőleges kilengés
 st_srp_weather_before_rain	eső előtt
 st_srp_weather_day	nappal
 st_srp_weather_evening	este
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
+st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
+st_srp_weight_no_sprint_limit	Nem sprintelhetsz: elérted a teherbírásod határát.
+st_srp_weight_speed	Mozgási sebesség: %1$s
+st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
+st_srp_weight_title	A súly hatásai
 st_stamina_boost_name	Újult erő
 st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:
 st_stamina_loss_on_hit_description	Állóképesség-büntetés sérüléskor.

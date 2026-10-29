@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Tähtäyksen perussuurennus
+st_srp_weapon_draw_time	Esillenottoaika
+st_srp_weapon_full_damage	Täyden vahingon kantama
+st_srp_weapon_hip_spread	Lonkkatulen hajonta
+st_srp_weapon_holster_time	Poislaittoaika
+st_srp_weapon_kick_side	Alkurekyyli sivuttain
+st_srp_weapon_kick_side_variability	Sivurekyylin vaihtelu
+st_srp_weapon_kick_up	Alkurekyyli ylöspäin
+st_srp_weapon_kick_up_variability	Pystyrekyylin vaihtelu
+st_srp_weapon_minimum_damage	Vähimmäisvahinko
+st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
+st_srp_weapon_recoil_heading	Rekyyli, hajonta ja heilunta
+st_srp_weapon_reload	Lataaminen
+st_srp_weapon_shift_hint	Lisätiedot: pidä Shift pohjassa
+st_srp_weapon_spread_growth	Hajonnan kasvunopeus
+st_srp_weapon_spread_max	Suurin lisähajonta
+st_srp_weapon_spread_per_shot	Hajonnan kasvu laukausta kohden
+st_srp_weapon_spread_recovery	Tarkkuuden palautumisnopeus
+st_srp_weapon_stamina_damage	Kestävyysvahinko
+st_srp_weapon_stats	Asetilastot
+st_srp_weapon_sway_cycle	Heiluntajakso
+st_srp_weapon_sway_horizontal	Vaakasuora heilunta
+st_srp_weapon_sway_vertical	Pystysuora heilunta
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
 st_srp_weather_night	yö
 st_srp_weather_rain	sade
+st_srp_weight_no_sprint_heavyweight	Et voi sprintata: Raskassarjalainen-taito.
+st_srp_weight_no_sprint_limit	Et voi sprintata: kantokyky täynnä.
+st_srp_weight_speed	Liikenopeus: %1$s
+st_srp_weight_sprint_stamina	Kestävyyden kulutus sprintatessa: %1$s
+st_srp_weight_title	Painon vaikutukset
 st_stamina_boost_name	Uusi puhti
 st_stamina_boost_time_description	Vihollisen taposta palautuva energia:
 st_stamina_loss_on_hit_description	Kestävyyshaitta haavoittuessa.

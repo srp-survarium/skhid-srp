@@ -2396,7 +2396,7 @@ the old support site's language and path. Their argument pushes and cdecl stack
 cleanup remain paired. ShellExecuteA, `AL=1`, and `ret 4` stay unchanged. The wiki
 uses browser language selection and its own language switch. No new code arena
 is needed for these constant-data/in-place removals. `check_knowledge_base_026g.py`
-executes the original and patched callback in all six game languages, capturing
+executes the original and patched callback in every game language, capturing
 the browser call and checking its URL, arguments, preserved ESI and stack.
 
 ### Weapon detail cards
@@ -2445,7 +2445,8 @@ formatter and only substitutes the read-only value string and hides bars (these
 base fields have no comparison ranges). Native unit spacing is retained; long
 notes wrap at the original columns. The harness compares font, size, boldness,
 alignment, color, global text scale, columns and row spacing against the card's
-original rows, as well as checking value and frame bounds in all six languages.
+original rows, as well as checking value and frame bounds in every language (the texts are
+`st_srp_weapon_*` and `st_srp_unit_*` dictionary keys, localization/README.md).
 
 Headings and the Shift hint are separate caption entries,
 rendered with native embedded-font fields by `WeaponDetailCaption`; headings

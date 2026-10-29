@@ -2354,11 +2354,43 @@ st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_unit_meters	%1$sм
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$sс
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Базовое увеличение
+st_srp_weapon_draw_time	Время доставания
+st_srp_weapon_full_damage	Полный урон до
+st_srp_weapon_hip_spread	Разброс от бедра
+st_srp_weapon_holster_time	Время убирания
+st_srp_weapon_kick_side	Начальный боковой толчок
+st_srp_weapon_kick_side_variability	Изменчивость бокового толчка
+st_srp_weapon_kick_up	Начальный толчок вверх
+st_srp_weapon_kick_up_variability	Изменчивость толчка вверх
+st_srp_weapon_minimum_damage	Минимальный урон
+st_srp_weapon_minimum_damage_from	Мин. урон от
+st_srp_weapon_recoil_heading	Отдача, разброс и качание
+st_srp_weapon_reload	Перезарядка
+st_srp_weapon_shift_hint	Удерживайте Shift: подробности
+st_srp_weapon_spread_growth	Скорость роста разброса
+st_srp_weapon_spread_max	Максимальный доп. разброс
+st_srp_weapon_spread_per_shot	Разброс от выстрела
+st_srp_weapon_spread_recovery	Скорость восстановления точности
+st_srp_weapon_stamina_damage	Урон выносливости
+st_srp_weapon_stats	Характеристики оружия
+st_srp_weapon_sway_cycle	Период качания
+st_srp_weapon_sway_horizontal	Горизонтальное качание
+st_srp_weapon_sway_vertical	Вертикальное качание
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
 st_srp_weather_evening	вечер
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
+st_srp_weight_no_sprint_heavyweight	Спринт недоступен из-за навыка тяжеловеса.
+st_srp_weight_no_sprint_limit	Спринт недоступен: достигнут предел веса.
+st_srp_weight_speed	Скорость движения: %1$s
+st_srp_weight_sprint_stamina	Расход выносливости при спринте: %1$s
+st_srp_weight_title	Влияние веса
 st_stamina_boost_name	Второе дыхание
 st_stamina_boost_time_description	Восстановление энергии при убийстве противника:
 st_stamina_loss_on_hit_description	Потеря энергии при ранении:

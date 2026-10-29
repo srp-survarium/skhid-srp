@@ -3680,4 +3680,4 @@ The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`
 after the existing confirmation. `KNOWLEDGE_BASE` changes the fixed URL and
 skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
-executes the original and redirected callbacks for all six game languages.
+executes the original and redirected callbacks for every game language.

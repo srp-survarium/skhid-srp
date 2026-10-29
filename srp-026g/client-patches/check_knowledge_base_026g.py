@@ -11,6 +11,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP, UC_X86_REG_ESI
 
 import patch_026g as P
+from localization_026g import LANGUAGES
 from check_artefacts_026g import Game, STACK, STOP
 
 HANDLER, LANGUAGE, SHELL_EXECUTE = 0x28CAB0, 0x21E75E0, 0xAEFE74
@@ -52,7 +53,7 @@ def check(original):
     for site in P.KNOWLEDGE_BASE:
         P.patch_section_value(patched, *site)
     for image, redirected in [(original, False), (patched, True)]:
-        for language in ["english", "ukrainian", "russian", "german", "polish", "serbian"]:
+        for language, _ in LANGUAGES:
             game = BrowserGame(image, language)
             game.call(HANDLER, (0x12345678,), esi=0x76543210)
             code = "ru" if language in ("ukrainian", "russian") else "en"
@@ -62,7 +63,7 @@ def check(original):
             assert game.emu.reg_read(UC_X86_REG_EAX) & 0xFF == 1
             assert game.emu.reg_read(UC_X86_REG_ESI) == 0x76543210
             assert game.emu.reg_read(UC_X86_REG_ESP) == STACK - 0x100
-    print("PASS: Knowledge database opens Skhid wiki in all six languages; native browser call, stack and return preserved")
+    print("PASS: Knowledge database opens Skhid wiki in every game language; native browser call, stack and return preserved")
 
 
 if __name__ == "__main__":
