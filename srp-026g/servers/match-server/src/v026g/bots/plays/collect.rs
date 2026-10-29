@@ -2523,7 +2523,7 @@ mod tests {
             });
             s
         };
-        let off = looked(RouteCrossing::Strict);
+        let off = looked(RouteCrossing::Off);
         assert!(!off.cx(0).can_take(at), "not admitted without the routed crossing");
         let s = looked(RouteCrossing::Total);
         assert!(s.cx(0).can_take(at));
