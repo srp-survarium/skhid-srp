@@ -683,4 +683,129 @@ mod tests {
         assert_eq!((v(0), v(1), v(2), v(3)), (2.0, 3.0, 9.0, 1.0), "the enemy's own take is not a mate's");
         assert!(picked_up(&frame(0, 0, Vec::new(), Vec::new(), vec![BatteryState::Carried(Some(1))]), &Progress { since_start: Span::s(1), owner_kills: 0, owner_deaths: 0 }));
     }
+
+    // ---- dry runs: the runner given a made-up match (dry.rs) ----
+
+    fn named(id: &str) -> Step {
+        steps().into_iter().find(|s| s.id == id).unwrap_or_else(|| panic!("no step {id}")).tries(1)
+    }
+
+    fn owner_at(at: Vec3, kills: u32, crouched: bool) -> Body {
+        let mut owner = super::super::dry::body(0, 0, at);
+        owner.kills = kills;
+        owner.crouched = crouched;
+        owner
+    }
+
+    fn dry_frame(ms: u32, owner: Body) -> Frame {
+        super::super::dry::frame_at(ms, owner)
+    }
+
+    /// He holds the spot and kills two bots to the east (2 s and 3 s); a flanker from the north stands 20 m off at 6 s with a job note at
+    /// 4 s and a take note at 5 s; at 40 s he walks away. PASS: a take, an arrival.
+    #[test]
+    fn dry_run_the_held_spot_passes_with_a_flank() {
+        let (results, said) = super::super::dry::run(named("threat-flank-held"), 90, |ms| {
+            let owner = owner_at(HELD_SPOT.vec(), u32::from(ms >= 2_000) + u32::from(ms >= 3_000), false);
+            let owner = if ms >= 40_000 { Body { feet: HELD_SPOT.vec() + Vec3::new(30.0, 0.0, 0.0), ..owner } } else { owner };
+            let mut f = dry_frame(ms, owner);
+            let east = |alive| bot(10, alive, HELD_SPOT.vec() + Vec3::new(20.0, 0.0, 0.0));
+            let east2 = |alive| bot(12, alive, HELD_SPOT.vec() + Vec3::new(25.0, 0.0, 0.0));
+            let north = bot(11, ms >= 6_000, HELD_SPOT.vec() + Vec3::new(0.0, 0.0, 20.0));
+            f.bots = vec![east(ms < 2_000), east2(ms < 3_000), north];
+            if ms == 4_000 {
+                f.heard.push(say(ms, usize::MAX, "job on threat spot 1: Flanker is bot 11"));
+            }
+            if ms == 5_000 {
+                f.heard.push(say(ms, 11, "takes Flank ThreatSpot(1)"));
+            }
+            f
+        });
+        assert!(results.contains("threat-flank-held") && results.contains("PASS"), "{results}");
+        assert!(results.contains("flank_arrivals=1") && results.contains("flank_takes=1"), "{results}");
+        assert!(said.iter().any(|l| l.contains("Hold the spot")), "{said:?}");
+    }
+
+    /// Crouched and still at the spot starts the crouched step; it ends when he leaves and is an INFO row (no bar).
+    #[test]
+    fn dry_run_the_crouched_hold_starts_only_crouched() {
+        let (results, _) = super::super::dry::run(named("threat-flank-crouched"), 60, |ms| {
+            let crouched = (5_000..30_000).contains(&ms);
+            let at = if ms >= 30_000 { HELD_SPOT.vec() + Vec3::new(40.0, 0.0, 0.0) } else { HELD_SPOT.vec() };
+            dry_frame(ms, owner_at(at, 0, crouched))
+        });
+        assert!(results.contains("threat-flank-crouched") && results.contains("INFO"), "{results}");
+    }
+
+    /// Paths: nobody enters his lanes in 20 s after his 2nd kill: 0 entries a 10 s passes the bar.
+    #[test]
+    fn dry_run_the_paths_step_passes_with_no_lane_entry() {
+        let (results, _) = super::super::dry::run(named("threat-paths-lanes"), 90, |ms| {
+            let owner = owner_at(HELD_SPOT.vec(), u32::from(ms >= 2_000) + u32::from(ms >= 3_000), false);
+            let owner = if ms >= 40_000 { Body { feet: HELD_SPOT.vec() + Vec3::new(30.0, 0.0, 0.0), ..owner } } else { owner };
+            let mut f = dry_frame(ms, owner);
+            f.bots = vec![bot(10, ms < 2_000, HELD_SPOT.vec() + Vec3::new(20.0, 0.0, 0.0)), bot(11, ms < 3_000, HELD_SPOT.vec() + Vec3::new(25.0, 0.0, 0.0))];
+            f
+        });
+        assert!(results.contains("threat-paths-lanes") && results.contains("PASS") && results.contains("lane_entries_per_10s=0"), "{results}");
+    }
+
+    /// Spot clearing: a clear note for a spot 90 m off is no wrong clear; one beside him is, and fails the bar.
+    #[test]
+    fn dry_run_spot_clearing_fails_on_a_clear_beside_him() {
+        let run = |text: &'static str| {
+            super::super::dry::run(named("threat-spot-clearing"), 60, move |ms| {
+                let owner = owner_at(HELD_SPOT.vec() + if ms >= 30_000 { Vec3::new(60.0, 0.0, 0.0) } else { Vec3::ZERO }, 2, false);
+                let mut f = dry_frame(ms, owner);
+                if ms == 10_000 {
+                    f.heard.push(say(ms, usize::MAX, text));
+                }
+                f
+            })
+            .0
+        };
+        let far = run("threat spot 1 of shooter 0 at (200.0, 0.0, 200.0): cleared, seen empty");
+        assert!(far.contains("PASS") && far.contains("clears=1") && far.contains("wrong_clears=0"), "{far}");
+        let near = run("threat spot 1 of shooter 0 at (47.0, 17.0, 116.0): cleared, seen empty");
+        assert!(near.contains("FAIL") && near.contains("wrong_clears=1"), "{near}");
+    }
+
+    /// The bait battery: it lies 18 m away from 4 s; one bot walks up to it at 20 s and falls at 30 s; the budget ends the try at 120 s.
+    #[test]
+    fn dry_run_the_bait_battery_counts_the_bots_at_it() {
+        let battery = HELD_SPOT.vec() + Vec3::new(18.0, 0.0, 0.0);
+        let (results, _) = super::super::dry::run(named("threat-bait-battery"), 150, |ms| {
+            let mut f = dry_frame(ms, owner_at(HELD_SPOT.vec(), 1, false));
+            if ms >= 4_000 {
+                f.batteries = vec![BatteryState::Free(battery)];
+            }
+            let at = if ms >= 20_000 { battery } else { battery + Vec3::new(40.0, 0.0, 0.0) };
+            f.bots = vec![bot(10, ms < 30_000, at)];
+            f
+        });
+        assert!(results.contains("threat-bait-battery") && results.contains("PASS"), "{results}");
+        assert!(results.contains("bots_at_battery=1") && results.contains("deaths_by_battery=1"), "{results}");
+    }
+
+    /// The contested battery: after 20 s two mates say they take it, someone has it at 45 s: PASS, ended by the pick-up.
+    #[test]
+    fn dry_run_the_contested_battery_passes_with_two_takes() {
+        let (results, _) = super::super::dry::run(named("threat-contested-battery"), 120, |ms| {
+            let mut f = dry_frame(ms, owner_at(Vec3::ZERO, 0, false));
+            let mate = |place| {
+                let mut b = bot(place, true, Vec3::new(10.0, 0.0, 0.0));
+                b.body.team = 0;
+                b
+            };
+            f.bots = vec![mate(1), mate(2), bot(10, true, Vec3::new(30.0, 0.0, 0.0))];
+            f.batteries = vec![if ms >= 45_000 { BatteryState::Carried(Some(1)) } else { BatteryState::Free(Vec3::new(20.0, 0.0, 0.0)) }];
+            if ms == 25_000 {
+                f.heard.push(say(ms, 1, "takes Collect Battery(3)"));
+                f.heard.push(say(ms, 2, "takes Support"));
+            }
+            f
+        });
+        assert!(results.contains("threat-contested-battery") && results.contains("PASS" ) && results.contains("picked_up"), "{results}");
+        assert!(results.contains("mate_takes=2"), "{results}");
+    }
 }

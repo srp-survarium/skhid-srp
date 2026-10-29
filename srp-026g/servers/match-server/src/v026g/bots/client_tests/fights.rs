@@ -514,4 +514,64 @@ mod tests {
         assert_eq!(band(10.0), Some(1));
         assert_eq!(band(30.0), None);
     }
+
+    // ---- dry runs: the runner given a made-up match (dry.rs) ----
+
+    fn named<'a>(steps: &'a [Step], id: &str) -> &'a Step {
+        steps.iter().find(|s| s.id == id).unwrap_or_else(|| panic!("no step {id}"))
+    }
+
+    fn mind(target: Option<Place>) -> Mind {
+        Mind { target, gates: Gates::default(), legs: None }
+    }
+
+    /// The steal: he picks a battery up at 5 s, an enemy 15 m off aims at him and fires from 8 s, another at 30 m looks elsewhere; at 40 s the
+    /// battery is home. The try reads about three seconds to the first aimed shot and a share of 1.0 within 25 m: PASS, ended by the carry.
+    #[test]
+    fn dry_run_the_steal_passes_when_the_enemy_turns_to_the_carrier() {
+        let step = named(&steps(), "fights-steal").clone().tries(1);
+        let (results, said) = super::super::dry::run(step, 60, |ms| {
+            let mut f = super::super::dry::frame_at(ms, super::super::dry::body(0, 0, Vec3::ZERO));
+            let carried = (5_000..40_000).contains(&ms);
+            f.batteries = vec![if carried { BatteryState::Carried(Some(0)) } else { BatteryState::Home(0) }];
+            let near = BotView { body: body(10, 1, true, Vec3::new(15.0, 0.0, 0.0), if ms >= 8_000 { key::FIRE } else { 0 }), mind: mind(Some(0)), role: None };
+            let far = BotView { body: body(11, 1, true, Vec3::new(30.0, 0.0, 0.0), 0), mind: mind(None), role: None };
+            f.bots = vec![near, far];
+            f
+        });
+        assert!(results.contains("fights-steal"), "{results}");
+        assert!(results.contains("\tPASS\thome_or_dropped\t"), "{results}");
+        assert!(results.contains("first_aimed_s=2.9") && results.contains("close_share=1"), "{results}");
+        assert!(said.iter().any(|l| l.contains("Take a battery")), "{said:?}");
+    }
+
+    /// Hurt and hide: his pain is 0.2 and nobody sees him from the start; a note says an enemy pushes at 3 s and it stands 8 m off from 4 s.
+    #[test]
+    fn dry_run_hurt_and_hide_reads_the_push() {
+        let step = named(&steps(), "fights-hurt-hide").clone().tries(1);
+        let (results, _) = super::super::dry::run(step, 40, |ms| {
+            let mut f = super::super::dry::frame_at(ms, super::super::dry::body(0, 0, Vec3::ZERO));
+            f.owner.as_mut().unwrap().pools = Some(Pools { pain: 0.2, ..Pools::FULL });
+            let at = if ms >= 4_000 { Vec3::new(8.0, 0.0, 0.0) } else { Vec3::new(100.0, 0.0, 0.0) };
+            f.bots = vec![BotView { body: body(10, 1, true, at, 0), mind: mind(None), role: None }];
+            if ms == 3_000 {
+                f.heard.push(Heard { place: 10, time: At(ms), text: "pushes on hurt enemy 0".to_string() });
+            }
+            f
+        });
+        assert!(results.contains("fights-hurt-hide") && results.contains("\tPASS\t"), "{results}");
+        assert!(results.contains("pushers=1") && results.contains("reached_10m_by_8s=1"), "{results}");
+    }
+
+    /// The range steps end on the tenth exchange: his kills and deaths count, ten of them end the try as an INFO row.
+    #[test]
+    fn dry_run_the_range_step_ends_on_ten_exchanges() {
+        let step = named(&steps(), "fights-range-close").clone();
+        let (results, _) = super::super::dry::run(step, 80, |ms| {
+            let mut owner = super::super::dry::body(0, 0, Vec3::ZERO);
+            owner.kills = (ms / 4_000).saturating_sub(1);
+            super::super::dry::frame_at(ms, owner)
+        });
+        assert!(results.contains("\tINFO\tten_exchanges\t"), "{results}");
+    }
 }

@@ -99,6 +99,8 @@
 //! reaching the screen is LIKELY, not seen: hence the first step.
 
 mod check;
+#[cfg(test)]
+mod dry;
 mod frame;
 mod hook;
 mod plan;
