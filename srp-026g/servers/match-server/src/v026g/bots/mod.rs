@@ -37,6 +37,7 @@ pub mod cheats;
 pub mod client_tests;
 pub mod contact;
 pub mod control;
+pub mod corridor;
 pub mod crossing;
 pub mod curve;
 pub mod encode;

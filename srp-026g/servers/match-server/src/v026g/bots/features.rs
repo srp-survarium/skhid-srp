@@ -67,6 +67,8 @@ features! {
     pub(super) struct BotFeatures reset new_life {
         /// Stepping out of the live grenades it knows of, and what it did (`grenade_threat`).
         avoid: grenade_threat::Avoid,
+        /// Where its team's bodies were lately, for its first way after a respawn (`corridor`).
+        corridor: corridor::BotState,
         /// Crossing zones (`crossing`).
         crossing: crossing::BotState,
         /// What its plays remember between runs (`plays::memory`).
@@ -104,6 +106,8 @@ features! {
 features! {
     /// A team's states, by feature.
     pub(super) struct TeamFeatures {
+        /// Where its bodies were lately (`corridor`).
+        corridor: corridor::TeamTrails,
         /// Where its bots got stuck, and the goals they proved no way to (`stuck`).
         stuck: stuck::TeamStuck,
         /// Where a shooter killed its bots from (`threat`).

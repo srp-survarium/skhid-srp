@@ -1160,8 +1160,26 @@ fn drive_tick_inner(
                         }
                     }
                 }
-                if detour.is_some() {
+                let detoured = detour.is_some();
+                if detoured {
                     route = detour;
+                }
+                // [A151] The first way after a respawn: the regions its mates were in lately cost more
+                // (`corridor.rs`), kept when not much longer and through fewer of them.
+                if let Some(rule) = tuning.spacing.first_leg_rule()
+                    && !escaping
+                    && !there
+                    && left.is_none()
+                    && !detoured
+                    && bot.control.reacts()
+                    && me.spawned > corridor::OPENING_MS
+                    && time.saturating_sub(me.spawned) < rule.young_ms
+                    && !bot.features.corridor.traffic.is_empty()
+                    && let Some(plain) = route.as_ref()
+                    && let Some(ends) = ends.filter(|(from, to)| from != to)
+                    && let Some(costed) = corridor::costed_way(tactics, bot, rule, plain, ends, time, side, objective, &filter, floors, overdraft)
+                {
+                    route = Some(costed);
                 }
                 // No way, or a long one past zones on all match: a crossing's
                 // search (`crossing.rs`).

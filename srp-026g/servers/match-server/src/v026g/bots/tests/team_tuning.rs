@@ -595,6 +595,18 @@ fn the_gang_up_switch_is_the_switch_of_the_team_that_asks() {
     assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).threat.gang_rule().is_some()), [true, false]);
 }
 
+/// The first-leg corridor cost (A151) is a team's switch: team 0 as today (on) is told where its bodies were by its commander,
+/// team 1 without it is told nothing (its bots plan the plain way).
+#[test]
+fn the_first_leg_switch_is_the_switch_of_the_team_that_asks() {
+    let (team0, mut team1) = (Tuning::default(), Tuning::default());
+    team1.spacing.first_leg = None;
+    let (bots, _) = after_one_poll(team0, team1);
+    assert_eq!([0u8, 1].map(|team| bots.tuning_of(team).spacing.first_leg_rule().is_some()), [true, false]);
+    let told = |team: u8| bots.bots.iter().flatten().filter(|b| b.team == team).any(|b| !b.features.corridor.traffic.is_empty());
+    assert_eq!([told(0), told(1)], [true, false]);
+}
+
 /// The edge watch (`smoke.react_watch`) through the real poll, one team's switch on: a cloud of each team between them
 /// from the start, nobody sees anybody. Only the team whose tuning has it watches, and only the other team's cloud
 /// (its own is told after `told_ms`); its bots look at the edge on the cloud's floor (a note a cloud).

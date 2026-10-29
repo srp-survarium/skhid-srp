@@ -198,6 +198,9 @@ impl Bots {
         };
         let tuning = self.tuning_of(team);
         let now = view.clock;
+        if let Some(rule) = tuning.spacing.first_leg_rule() {
+            corridor::tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, rule);
+        }
         let state = &mut self.teams[usize::from(team)];
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);

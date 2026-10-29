@@ -91,6 +91,9 @@
   "smoke": {
     "sight": false
   },
+  "spacing": {
+    "first_leg": null
+  },
   "threat": {
     "area": false,
     "crossfire_out_of_lines": false,

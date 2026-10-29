@@ -1,0 +1,6 @@
+owner-test first leg: 0 young plans, 0 searched, 0 kept (team 0 0 / team 1 0), floors 0, detour 0 m, shared 0 -> 0 m
+{
+  "first_leg": {
+    "by_team_0_1": {}
+  }
+}

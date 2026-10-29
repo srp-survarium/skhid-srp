@@ -1740,6 +1740,22 @@ pub fn costed_corridor(
     lane_cost: f32,
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Vec<bool>> {
+    let in_lane = |r: u32| covered.region(r) && !free.contains(&r);
+    weighed_corridor(grid, regions, from, to, |r| if in_lane(r) { 1.0 + lane_cost } else { 1.0 }, in_lane, region_ok)
+}
+
+/// [`costed_corridor`] for any cost: a walk into region `v` costs `weight(v)` (at least 1) times its length, and the
+/// regions next to the way that are `costly` are left out of the room (the first-leg corridor cost, `corridor.rs`, weighs
+/// the regions a body's mates were in lately).
+pub fn weighed_corridor(
+    grid: &mapdata::WalkGrid,
+    regions: &mapdata::regions::Regions,
+    from: u32,
+    to: u32,
+    weight: impl Fn(u32) -> f32,
+    costly: impl Fn(u32) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+) -> Option<Vec<bool>> {
     use std::cmp::Reverse;
     use std::collections::BinaryHeap;
     let n = regions.len();
@@ -1748,7 +1764,7 @@ pub fn costed_corridor(
     }
     let goal = grid.position(regions.middle(to));
     let h = |r: u32| grid.position(regions.middle(r)).distance_xz(goal);
-    let in_lane = |r: u32| covered.region(r) && !free.contains(&r);
+    let in_lane = costly;
     let mut cost = vec![f32::INFINITY; n];
     let mut parent: Vec<Option<u32>> = vec![None; n];
     let mut closed = vec![false; n];
@@ -1771,7 +1787,7 @@ pub fn costed_corridor(
             if closed[v as usize] || (v != to && !region_ok(v)) {
                 continue;
             }
-            let c = cu + step * if in_lane(v) { 1.0 + lane_cost } else { 1.0 };
+            let c = cu + step * weight(v);
             if c < cost[v as usize] {
                 cost[v as usize] = c;
                 parent[v as usize] = Some(u);

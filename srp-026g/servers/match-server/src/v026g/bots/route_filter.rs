@@ -24,8 +24,10 @@ use std::sync::Arc;
 use mapdata::regions::Regions;
 use mapdata::{NodeId, Vec3, WalkGrid};
 
+use super::corridor;
 use super::stuck;
 use super::threat::{self, Covered};
+use super::view::Place;
 
 type FloorRule = Arc<dyn Fn(NodeId) -> bool + Send + Sync>;
 type RegionRule = Arc<dyn Fn(u32) -> bool + Send + Sync>;
@@ -54,6 +56,19 @@ pub struct RouteFilter {
     /// What the soft part (`spots`, `soft_floors`) does to a floor: shuts it,
     /// or costs it in a weighed search ([`Self::weighing_threat`]).
     soft: Soft,
+    /// The regions the body's mates were in lately cost more (the first-leg corridor cost,
+    /// [`Self::weighing_traffic`]).
+    traffic: Option<Arc<TrafficCost>>,
+}
+
+/// What the first-leg corridor cost asks of a weighed search: a floor's region costs `1 + step` times its length for each
+/// mate of `who` that was in it lately, up to `max`.
+pub struct TrafficCost {
+    traffic: Arc<corridor::Traffic>,
+    who: Place,
+    step: f32,
+    max: u32,
+    region_of: threat::RegionOf,
 }
 
 /// What a filter's soft part does to the floors it keeps out.
@@ -120,6 +135,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("max_jump_rise", &self.max_jump_rise)
             .field("threat", &self.threat.is_some())
             .field("soft", &self.soft)
+            .field("traffic", &self.traffic.is_some())
             .finish()
     }
 }
@@ -183,27 +199,36 @@ impl RouteFilter {
         self
     }
 
-    /// Whether the search weighs its floors ([`Self::weighing_threat`]).
+    /// With the regions `who`'s mates were in lately ([`corridor::Traffic`]) costing `1 + step` times their length for each
+    /// mate, up to `max`: a weighed search (the first-leg corridor cost, `corridor.rs`). The soft part keeps shutting what
+    /// it shut, unless [`Self::weighing_threat`] costs it.
+    pub fn weighing_traffic(mut self, traffic: Arc<corridor::Traffic>, who: Place, step: f32, max: u32, region_of: threat::RegionOf) -> Self {
+        self.traffic = Some(Arc::new(TrafficCost { traffic, who, step, max, region_of }));
+        self
+    }
+
+    /// Whether the search weighs its floors ([`Self::weighing_threat`], [`Self::weighing_traffic`]).
     pub fn weighs(&self) -> bool {
-        matches!(self.soft, Soft::Costed(_))
+        matches!(self.soft, Soft::Costed(_)) || self.traffic.is_some()
     }
 
     /// What a link into floor `node` costs times its length, at least 1:
     /// 1 unless the filter weighs ([`Self::weighing_threat`]).
     pub fn weight(&self, grid: &WalkGrid, node: NodeId) -> f32 {
+        let crowd = self.traffic.as_ref().map_or(1.0, |t| t.traffic.weight((t.region_of)(node), t.who, t.step, t.max));
         let Soft::Costed(w) = &self.soft else {
-            return 1.0;
+            return crowd;
         };
         let at = || grid.position(node);
         let soft = !self.spots.is_empty() && self.spots.iter().any(|&spot| stuck::near(spot, at()))
             || self.soft_floors.as_ref().is_some_and(|f| !f(node));
         if soft {
-            return SOFT_COST;
+            return SOFT_COST * crowd;
         }
         if w.covered.floor(node) && !w.ends.iter().any(|end| end.distance_xz(at()) < threat::FREE_M) {
-            w.lane
+            w.lane * crowd
         } else {
-            1.0
+            crowd
         }
     }
 
@@ -326,6 +351,9 @@ impl RouteFilter {
         if let Soft::Shut = self.soft {
             self.soft = other.soft.clone();
         }
+        if self.traffic.is_none() {
+            self.traffic = other.traffic.clone();
+        }
         if let Some(theirs) = other.soft_floors.clone() {
             let mine = self.soft_floors.take();
             self.soft_floors = Some(Arc::new(move |node| {
@@ -377,6 +405,34 @@ mod tests {
         assert!(!hard.has_soft() && hard.floor_open(&world.grid, one));
         let both = filter.and(&RouteFilter::open().avoiding_floors(move |n| n != one + 1));
         assert!(!both.floor_open(&world.grid, one) && !both.floor_open(&world.grid, one + 1));
+    }
+
+    #[test]
+    fn a_region_the_mates_were_in_costs_their_step_and_a_filter_without_traffic_costs_nothing() {
+        let (world, regions) = field();
+        let grid = &world.grid;
+        let node = nodes(grid).nth(10).unwrap();
+        let region = regions.of(node);
+        let other = nodes(grid).find(|&n| regions.of(n) != region).unwrap();
+        let mut trails = corridor::TeamTrails::default();
+        let traffic = Arc::new(trails.tick(0, 15_000, &[(1, region), (2, region)]));
+        let of = {
+            let regions = regions.clone();
+            let of: threat::RegionOf = Arc::new(move |n| regions.of(n));
+            of
+        };
+        let plain = RouteFilter::open();
+        assert!(!plain.weighs() && plain.weight(grid, node) == 1.0);
+        // Place 3 plans: two mates were in the region (1.0 + 0.5 x 2), none in the other.
+        let costed = plain.clone().weighing_traffic(traffic.clone(), 3, 0.5, 3, of.clone());
+        assert!(costed.weighs());
+        assert_eq!(costed.weight(grid, node), 2.0);
+        assert_eq!(costed.weight(grid, other), 1.0);
+        // Place 1 plans: his own trail is not a mate (1.0 + 0.5 x 1).
+        assert_eq!(plain.clone().weighing_traffic(traffic, 1, 0.5, 3, of).weight(grid, node), 1.5);
+        // The soft part still shuts what it shut: a weight does not open a floor.
+        let soft = RouteFilter::open().avoiding_floors(move |n| n != node).weighing_traffic(Arc::new(corridor::Traffic::default()), 3, 0.5, 3, Arc::new(|_| 0));
+        assert!(!soft.floor_open(grid, node) && soft.weighs());
     }
 
     #[test]
