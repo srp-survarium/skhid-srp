@@ -1,4 +1,4 @@
-owner-test pierce: bullet mesh 4 faces (0 with armor, 0 free, 4 no material = unknown, stops all); strikes' lines open 0 through cover 0 stopped 0 (by armor {}), 0 faces crossed; shots into cover by the share kept, team 0 [stopped 0 / <=0.25 0 / <=0.5 0 / <1 0 / all 0], team 1 [stopped 0 / <=0.25 0 / <=0.5 0 / <1 0 / all 0]; hits through cover [0, 0] kills [0, 0]; cover tests: sight-only 0 clear 0 opened by the pierce 0 shut with some damage 0 shut and stopped 0 (0 opened lines noted)
+owner-test pierce: bullet mesh 4 faces (0 with armor, 0 free, 4 no material = unknown, stops all); strikes' lines open 0 through cover 0 stopped 0 (by armor {}), 0 faces crossed; shots into cover by the share kept, team 0 [stopped 0 / <=0.25 0 / <=0.5 0 / <1 0 / all 0], team 1 [stopped 0 / <=0.25 0 / <=0.5 0 / <1 0 / all 0]; hits through cover [0, 0] kills [0, 0]; cover tests: sight-only 0 clear 0 opened by the pierce 0 shut with some damage 0 shut and stopped 0 (0 opened lines noted); hiding spots weighed 0 (the pick changed 0; share reaching the spot, thousandths: filter 0 weighed 0)
 {
   "pierce_cover_hits": [
     0,
@@ -14,6 +14,10 @@ owner-test pierce: bullet mesh 4 faces (0 with armor, 0 free, 4 no material = un
   "pierce_mesh_free": 0,
   "pierce_mesh_unknown": 4,
   "pierce_open_events": 0,
+  "pierce_spots_changed": 0,
+  "pierce_spots_share_filter_milli": 0,
+  "pierce_spots_share_weighed_milli": 0,
+  "pierce_spots_weighed": 0,
   "pierce_stopped_by": {},
   "pierce_strikes_open": 0,
   "pierce_strikes_partial": 0,

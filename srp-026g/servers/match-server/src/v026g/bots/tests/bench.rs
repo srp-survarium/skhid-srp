@@ -49,6 +49,20 @@ impl BenchEvents {
                     "cover_open": {"from": at(event.from), "to": at(event.to), "share": (event.share * 100.0).round() / 100.0, "crossed": event.crossed},
                 }));
             }
+            // One line for each hiding spot the weighing changed (A142): the bot, the enemy, the spot the filter alone gives and
+            // the one given, each with the share of the bullet that reaches it.
+            for event in tactics.cover_tally.drain_spot_events() {
+                let share = |s: f32| (s * 100.0).round() / 100.0;
+                self.line(serde_json::json!({
+                    "t": clock,
+                    "spot_pick": {
+                        "around": at(event.around),
+                        "from": at(event.from),
+                        "filter": [at(event.filter.0), share(event.filter.1)],
+                        "weighed": [at(event.weighed.0), share(event.weighed.1)],
+                    },
+                }));
+            }
         }
         let each: Vec<serde_json::Value> = bots
             .bots

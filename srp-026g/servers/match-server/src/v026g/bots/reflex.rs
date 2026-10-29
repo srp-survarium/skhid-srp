@@ -2737,6 +2737,16 @@ impl Reflex {
         self.arms
     }
 
+    /// Where play 7 (the hide from an outranging enemy) is: "open", "hiding" (walking to the spot or waiting at it) or
+    /// "peeking" (back at another angle). For the bench's tallies.
+    pub fn cover_state(&self) -> &'static str {
+        match self.cover {
+            Cover::Open => "open",
+            Cover::Hiding { .. } => "hiding",
+            Cover::Peeking { .. } => "peeking",
+        }
+    }
+
     /// The rounds of weapon 1 its kit has left, in it and to load.
     pub fn left(&self) -> u32 {
         match &self.hands {

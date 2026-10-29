@@ -13,6 +13,8 @@ pub(super) struct Doing {
     pub(super) step: Option<String>,
     pub(super) goal_m: Option<f32>,
     pub(super) jump: Option<(&'static str, Option<(Vec3, Vec3)>)>,
+    /// Where the reflex's hide from an outranging enemy is ([`crate::v026g::bots::reflex::Reflex::cover_state`]).
+    pub(super) cover: &'static str,
 }
 
 impl Doing {
@@ -33,6 +35,7 @@ impl Doing {
                 Go::Stay => None,
             },
             jump: watch.map(|w| (w.by, w.route.map(|r| (r.take_off, r.landing)))),
+            cover: bot.reflex.cover_state(),
         }
     }
 }
@@ -197,6 +200,7 @@ impl Run {
                 by: doing.jump.map_or("other", |(by, _)| by),
                 route: doing.jump.and_then(|(_, route)| route),
                 carrying: rec.carrying,
+                cover: doing.cover,
             });
         }
         (rec, prev)

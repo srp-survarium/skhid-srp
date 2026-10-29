@@ -2,6 +2,7 @@ switches ON aim: combat.aim_carry combat.aim_in_first combat.band_hold_on_carrie
 switches ON avoid: grenade_avoid
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
+switches ON cover: spot_cost=0.5
 switches ON feel: band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps unclear_aim
 switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops
 switches ON hazard: artefact_know escort_dry_post hurt_by_shape live_zones price_way_out

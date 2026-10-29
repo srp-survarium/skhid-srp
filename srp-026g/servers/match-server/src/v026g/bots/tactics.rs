@@ -197,6 +197,13 @@ pub struct Tactics {
     pub cover_tally: CoverTally,
 }
 
+/// What [`Tactics::line_of_fire`] finds: whether the line is open to fire and the share of the bullet's damage that reaches its end.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fire {
+    pub open: bool,
+    pub share: f32,
+}
+
 /// The verdicts of [`Tactics::shot_reaches`] and the lines it opened where the solid mesh had shut them.
 #[derive(Debug, Default)]
 pub struct CoverTally {
@@ -212,6 +219,16 @@ pub struct CoverTally {
     pub shut_stopped: std::sync::atomic::AtomicU64,
     /// The first [`COVER_EVENTS`] of `open_through`, drained by the bench's event file.
     events: std::sync::Mutex<Vec<CoverEvent>>,
+    /// Hiding-spot queries weighed by the share that reaches (`CoverRule::spot_cost`) that found a spot.
+    pub spot_weighed: std::sync::atomic::AtomicU64,
+    /// Of those, the ones where the weighed best is not the spot the filter alone would have given first (the
+    /// nearest by the base score that passes).
+    pub spot_changed: std::sync::atomic::AtomicU64,
+    /// The share (thousandths) that reaches the first spot the filter alone would have given, summed over `spot_weighed`.
+    pub spot_share_filter_milli: std::sync::atomic::AtomicU64,
+    /// The share (thousandths) that reaches the spot given, summed over `spot_weighed`.
+    pub spot_share_weighed_milli: std::sync::atomic::AtomicU64,
+    spot_events: std::sync::Mutex<Vec<SpotEvent>>,
     /// All of them, drained or not.
     pub events_seen: std::sync::atomic::AtomicU64,
     /// Those kept for the logs, drained or not ([`COVER_EVENTS`] at most).
@@ -228,13 +245,31 @@ pub struct CoverEvent {
     pub crossed: u32,
 }
 
+/// A hiding spot the weighing changed: the spot the filter alone gives and the one given, and the share of the bullet
+/// that reaches each (`around` is where the bot stands, `from` the enemy).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpotEvent {
+    pub around: Vec3,
+    pub from: Vec3,
+    pub filter: (Vec3, f32),
+    pub weighed: (Vec3, f32),
+}
+
 /// Events kept for the logs per match.
 const COVER_EVENTS: usize = 100;
+
+/// Changed hiding spots kept for the logs per match.
+const SPOT_EVENTS: usize = 300;
 
 impl CoverTally {
     /// The events not yet drained.
     pub fn drain_events(&self) -> Vec<CoverEvent> {
         std::mem::take(&mut *self.events.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    /// The changed hiding spots not yet drained.
+    pub fn drain_spot_events(&self) -> Vec<SpotEvent> {
+        std::mem::take(&mut *self.spot_events.lock().unwrap_or_else(|e| e.into_inner()))
     }
 }
 
@@ -1881,13 +1916,30 @@ impl Tactics {
     /// `RayTree::damage_share`): the line is open when the share of the damage that reaches `b` is over the rule's.
     /// Without one, as [`Self::sees`].
     pub fn shot_reaches(&self, cover: Option<CoverRule>, a: Vec3, b: Vec3) -> bool {
+        self.line_of_fire(cover, a, b).open
+    }
+
+    /// [`Self::shot_reaches`] with the share of the damage that reaches `b` (1 for a clear line and 0 for a shut one
+    /// when there is no rule).
+    pub fn line_of_fire(&self, cover: Option<CoverRule>, a: Vec3, b: Vec3) -> Fire {
+        self.fire_line(cover, a, b, false)
+    }
+
+    /// [`Self::line_of_fire`] with the flight followed to its end: the share of a shut line is what really reaches
+    /// (the plain one gives up as soon as the share is under the rule's, so a shut line's share is only an upper bound).
+    pub fn line_of_fire_exact(&self, cover: Option<CoverRule>, a: Vec3, b: Vec3) -> Fire {
+        self.fire_line(cover, a, b, true)
+    }
+
+    fn fire_line(&self, cover: Option<CoverRule>, a: Vec3, b: Vec3, exact: bool) -> Fire {
         use std::sync::atomic::Ordering::Relaxed;
         let tally = &self.cover_tally;
-        let Some(CoverRule { pierce, max_share }) = cover else {
+        let Some(CoverRule { pierce, max_share, .. }) = cover else {
             tally.plain.fetch_add(1, Relaxed);
-            return self.sees(a, b);
+            let open = self.sees(a, b);
+            return Fire { open, share: if open { 1.0 } else { 0.0 } };
         };
-        let line = self.world.sight.follow(a, b, pierce, max_share);
+        let line = self.world.sight.follow(a, b, pierce, if exact { 0.0 } else { max_share });
         let share = line.share.value();
         if share > max_share {
             // Open. Through cover where the solid mesh has a wall: the lines the pierce opens.
@@ -1903,14 +1955,14 @@ impl Tactics {
                     events.push(CoverEvent { from: a, to: b, share, crossed: line.crossed });
                 }
             }
-            true
+            Fire { open: true, share }
         } else {
             if share > 0.0 {
                 tally.shut_partial.fetch_add(1, Relaxed);
             } else {
                 tally.shut_stopped.fetch_add(1, Relaxed);
             }
-            false
+            Fire { open: false, share }
         }
     }
 
@@ -1989,8 +2041,12 @@ impl Tactics {
         // Rays lazily, from the best down.
         let mut out = Vec::new();
         let mut by_walk: Option<Arc<WalkUp>> = None;
-        for spot in found {
-            if out.len() >= n {
+        // A hiding spot is weighed by the share of his bullet that reaches it, not only filtered: every candidate is
+        // tried, the first to pass in the base order is what the filter alone gives.
+        let mut shares: Vec<f32> = Vec::new();
+        let cost = query.cover.and_then(|rule| rule.spot_cost).filter(|_| query.out_of_fire_of.is_some());
+        for mut spot in found {
+            if out.len() >= n && cost.is_none() {
                 break;
             }
             // A spot on a storey over the anchor is one a walk up gets to (stairs,
@@ -2018,12 +2074,47 @@ impl Tactics {
             {
                 continue;
             }
-            if let Some(from) = query.out_of_fire_of
-                && self.shot_reaches(query.cover, still_eye(from, false), still_eye(spot.at, false))
-            {
-                continue;
+            if let Some(from) = query.out_of_fire_of {
+                let (from, to) = (still_eye(from, false), still_eye(spot.at, false));
+                match cost {
+                    Some(cost) => {
+                        let fire = self.line_of_fire_exact(query.cover, from, to);
+                        if fire.open {
+                            continue;
+                        }
+                        spot.score -= cost.get() * fire.share;
+                        shares.push(fire.share);
+                    }
+                    None if self.shot_reaches(query.cover, from, to) => continue,
+                    None => {}
+                }
             }
             out.push(spot);
+        }
+        if cost.is_some() && !out.is_empty() {
+            use std::sync::atomic::Ordering::Relaxed;
+            // `shares[i]` is `out[i]`'s; the filter alone gives out[0]. Best first by the weighed score.
+            let tally = &self.cover_tally;
+            let mut ranked: Vec<(Spot, f32)> = out.into_iter().zip(shares).collect();
+            let filter_first = ranked[0];
+            ranked.sort_by(|a, b| b.0.score.total_cmp(&a.0.score));
+            tally.spot_weighed.fetch_add(1, Relaxed);
+            if ranked[0].0.node != filter_first.0.node
+                && tally.spot_changed.fetch_add(1, Relaxed) < SPOT_EVENTS as u64
+                && let Some(from) = query.out_of_fire_of
+            {
+                let mut events = tally.spot_events.lock().unwrap_or_else(|e| e.into_inner());
+                events.push(SpotEvent {
+                    around: query.around,
+                    from,
+                    filter: (filter_first.0.at, filter_first.1),
+                    weighed: (ranked[0].0.at, ranked[0].1),
+                });
+            }
+            tally.spot_share_filter_milli.fetch_add((filter_first.1 * 1000.0) as u64, Relaxed);
+            tally.spot_share_weighed_milli.fetch_add((ranked[0].1 * 1000.0) as u64, Relaxed);
+            ranked.truncate(n);
+            out = ranked.into_iter().map(|(spot, _)| spot).collect();
         }
         out
     }
@@ -2871,6 +2962,56 @@ pub(super) mod tests {
             // Behind the wall from the enemy's side: x < 40.
             assert!(spot.at.x < 40.0, "{spot:?}");
         }
+    }
+
+    /// A hiding spot is weighed by the share of the enemy's bullet that reaches it (A142), not only filtered: behind a
+    /// crate a third of the bullet goes through (under the rule's 0.5) the spot is allowed, and a spot behind a wall
+    /// that stops it is better. With `spot_cost` off the nearest allowed spot is the answer, as it was.
+    #[test]
+    fn a_hiding_spot_behind_what_stops_the_bullet_beats_one_behind_what_lets_a_third_through() {
+        use crate::v026g::bots::tuning::{CoverRule, SpotCost};
+        use mapdata::{Armor, FaceArmor, RayTree, World};
+        let base = field();
+        let (points, triangles) = mapdata::library::PrimitiveShape::Box { half: Vec3::new(0.3, 2.0, 3.0) }.tessellate();
+        let boxes = [
+            (Vec3::new(38.0, 2.0, 20.0), FaceArmor::Material(Armor::new(0.28).unwrap())),
+            (Vec3::new(38.0, 2.0, 28.0), FaceArmor::Material(Armor::new(5.0).unwrap())),
+        ];
+        let tree = RayTree::from_armored_corners(boxes.iter().flat_map(|&(centre, armor)| {
+            let points = &points;
+            triangles.iter().map(move |t| (t.map(|i| points[i as usize] + centre), armor))
+        }));
+        let tactics = Tactics::new(Arc::new(World::assemble(base.map.clone(), base.grid.clone(), tree.into())), 1.0);
+        let rule = |spot_cost| CoverRule {
+            pierce: mapdata::Pierce::new(0.3125).unwrap(),
+            max_share: 0.5,
+            spot_cost,
+        };
+        let enemy = Vec3::new(50.0, 0.0, 22.0);
+        let query = |cover| SpotQuery {
+            out_of_fire_of: Some(enemy),
+            cover: Some(cover),
+            samples: 96,
+            ..SpotQuery::ring(Vec3::new(30.0, 0.0, 22.0), 2.0, 12.0)
+        };
+        let share = |spot: &Spot| {
+            tactics.line_of_fire_exact(Some(rule(None)), still_eye(enemy, false), still_eye(spot.at, false)).share
+        };
+        let (mut lower, mut partial_filter_picks) = (0, 0);
+        for seed in 0..24 {
+            let filter = tactics.spots(&query(rule(None)), 0, 1, &mut Rng::new(seed));
+            let weighed = tactics.spots(&query(rule(Some(SpotCost::of(0.5)))), 0, 1, &mut Rng::new(seed));
+            let (Some(filter), Some(weighed)) = (filter.first(), weighed.first()) else { continue };
+            assert!(share(weighed) <= share(filter) + 1e-4, "seed {seed}: the weighed spot is never more exposed");
+            if share(filter) > 0.05 {
+                partial_filter_picks += 1;
+                if share(weighed) < share(filter) - 0.05 {
+                    lower += 1;
+                }
+            }
+        }
+        assert!(partial_filter_picks > 0, "the filter alone picks a spot a part of the bullet reaches");
+        assert!(lower > 0, "and the weighed answer is a less exposed one");
     }
 
     fn end_node_y(tactics: &Tactics, node: NodeId) -> f32 {

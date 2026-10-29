@@ -285,6 +285,13 @@ fn the_cover_rule_is_the_rule_of_the_team_that_asks() {
         let (bots, _) = after_one_poll(team0, team1);
         [0u8, 1].map(|team| bots.tuning_of(team).cover.rule().is_some())
     };
+    // The spot cost is a team's too: team 1 weighs its hiding spots, team 0 only filters them.
+    let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+    team0.cover.spot_cost = None;
+    team1.cover.spot_cost = crate::v026g::bots::tuning::SpotCost::try_from(1.0).ok();
+    let (bots, _) = after_one_poll(team0, team1);
+    let costs = [0u8, 1].map(|team| bots.tuning_of(team).cover.rule().and_then(|rule| rule.spot_cost).map(|c| c.get()));
+    assert_eq!(costs, [None, Some(1.0)], "each team's own spot cost");
     assert_eq!(rules(false, true), [false, true], "team 1 pierce-aware, team 0 solid");
     assert_eq!(rules(true, false), [true, false], "team 1 solid, team 0 pierce-aware");
 }

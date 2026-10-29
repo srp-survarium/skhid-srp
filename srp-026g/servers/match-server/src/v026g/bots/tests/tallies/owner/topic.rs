@@ -134,6 +134,7 @@ impl BotNow {
             step: self.step.clone(),
             goal_m: self.goal_m,
             jump: self.jump,
+            cover: "",
         }
     }
 }

@@ -173,6 +173,8 @@ pub(crate) struct Press {
     /// The route's take-off and landing, for a route jump.
     pub(crate) route: Option<(Vec3, Vec3)>,
     pub(crate) carrying: bool,
+    /// The reflex's hide at the press (`open`, `hiding`, `peeking`).
+    pub(crate) cover: &'static str,
 }
 
 /// The run-up before a press at record `ri` (§9.2): the forward run's
@@ -613,6 +615,7 @@ impl JumpCounts {
         let n = run.recs.len();
         // Jumps: the flags of every press, the stalls.
         let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
+        let mut released_by: BTreeMap<String, u32> = BTreeMap::new();
         let (mut wrong, mut failed) = (0u32, 0u32);
         let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
         let mut route_landed = [0u32; 2];
@@ -624,6 +627,12 @@ impl JumpCounts {
             let flags = run.press_flags(presses, i);
             for &f in &flags {
                 *flag_n.entry(f).or_default() += 1;
+            }
+            // Who was running the route jump whose forward key went up right after (A142's guard): the play and the hide.
+            if flags.contains(&"FWD_RELEASED") {
+                let recs = &run.recs[p.place];
+                let play = recs.get(run.index(p.t).min(recs.len().saturating_sub(1))).map_or("none", |r| run.plays[usize::from(r.play)].as_str());
+                *released_by.entry(format!("{play}/{}", p.cover)).or_default() += 1;
             }
             if flags.contains(&"NOT_FREED") {
                 not_freed_pre.add(run, p.by, p.place, run.index(p.t));
@@ -773,6 +782,7 @@ impl JumpCounts {
             "route_landed_down": route_landed[1],
             "sprint_jumps": sprint_jumps,
             "band_jumps": band,
+            "fwd_released_by_play_and_hide": released_by,
         });
         if let Some(g) = &gaps {
             json["gaps"] = g.json();
@@ -782,6 +792,11 @@ impl JumpCounts {
             .filter(|(_, c)| **c > 0)
             .map(|(f, c)| format!("{f} {c}"))
             .collect();
+        let released_text = if released_by.is_empty() {
+            String::new()
+        } else {
+            format!("; FWD_RELEASED by play/hide {released_by:?}")
+        };
         let mut text = format!(
             "owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}; the 5 s before a missed jump: {}; before a press that freed nothing: {}",
             presses.len(),
@@ -798,6 +813,7 @@ impl JumpCounts {
             missed_pre.text(),
             not_freed_pre.text(),
         );
+        text.push_str(&released_text);
         if let Some(g) = &gaps {
             text.push_str(&g.text());
         }

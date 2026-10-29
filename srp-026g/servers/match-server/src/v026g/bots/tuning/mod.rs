@@ -98,6 +98,7 @@ pub use cover::CoverRule;
 pub use cover::CoverTuning;
 pub use cover::PierceCover;
 pub use cover::Share;
+pub use cover::SpotCost;
 pub use grid::GridTuning;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
