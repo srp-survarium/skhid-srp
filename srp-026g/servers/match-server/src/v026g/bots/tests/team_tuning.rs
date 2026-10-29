@@ -686,7 +686,7 @@ fn a_hit_is_a_teams_own_by_its_own_credit_window() {
     other.aim.combat.worth.credit_ms = 1;
     let mut bots = Bots::new_with(
         0x7EA6,
-        survarium::v026g::maps::mode::BATTERIES,
+        Mode::Batteries,
         6,
         &[0, 1],
         &[true, true],
