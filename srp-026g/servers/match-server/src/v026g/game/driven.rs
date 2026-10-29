@@ -53,8 +53,7 @@ use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
-use crate::v026g::bots::arc::Grenade;
-use crate::v026g::bots::live_grenades::{KitPockets, Pocketed, Pockets, Throws};
+use crate::v026g::bots::live_grenades::{KitPockets, Throws};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -374,51 +373,19 @@ fn weapon_in_slot_7(
     WeaponKind::of_item(kind, category)
 }
 
-/// What a place's throw keys throw (`live_grenades::Throws`), decided here from its profile: for each kit (slots
-/// 13..=18) what each pocket holds, a frag (a grenade whose blast hurts, with its own fuse and radius: the game data's
-/// `rgd-5`), a smoke (another grenade item, `rdg-m`) or something else the quick-use keys count, the units of the slot
-/// and the item's storage behind it. The kit in use is the one a world names (`Bots::kit_in_use`, from
-/// `players::Supplies::kit`) when `all_kits` is on (`AvoidTuning::kit_in_use`); with it off only the profile's first
-/// kit is read, as before. A server bot's pockets are read like a human's whatever the switch: `AvoidTuning::bot_pockets`
-/// decides only whether a team dodges the grenades listed from a bot's key alone.
+/// What a place's throw keys throw (`live_grenades::Throws`), decided here from its profile with
+/// [`KitPockets::of_profile`], the one reader of the live server and the bench. The kit in use is the one a world
+/// names (`Bots::kit_in_use`, from `players::Supplies::kit`) when `all_kits` is on (`AvoidTuning::kit_in_use`); with it
+/// off only the profile's first kit is read, as before. A server bot's pockets are read like a human's whatever the
+/// switch: `AvoidTuning::bot_pockets` decides only whether a team dodges the grenades listed from a bot's key alone.
 fn throws_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
     all_kits: bool,
 ) -> Throws {
-    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
-    let kits = profile
-        .kits
-        .iter()
-        .take(if all_kits { usize::MAX } else { 1 })
-        .map(|kit| {
-            let item_of = |i: usize| {
-                let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
-                let (index, units) = kit.slots[slot]?;
-                let item = profile.items.get(usize::from(index))?;
-                let name = dictionary.item(item.dict_id)?.name.as_str();
-                Some((item, name, units))
-            };
-            let slots = std::array::from_fn(|i| {
-                let (_, name, units) = item_of(i)?;
-                // By the game data: a frag is a grenade whose blast hurts (with its own fuse and radius), a
-                // smoke any other grenade item.
-                let held = match (Grenade::named(name), survarium::v026g::weapons::is_grenade_item(name)) {
-                    (Some(_), _) => Pocketed::Frag,
-                    (None, true) => Pocketed::Smoke,
-                    (None, false) => Pocketed::Other,
-                };
-                Some((held, units))
-            });
-            let grenades = std::array::from_fn(|i| Grenade::named(item_of(i)?.1).copied());
-            // A stack's storage is the profile item's count; the first spawn has filled the slot from it.
-            let stored = std::array::from_fn(|i| {
-                let (item, _, _) = item_of(i)?;
-                dictionary.is_stack(item.dict_id).then_some(item.condition_or_stack)
-            });
-            Pockets::new(slots).with_grenades(grenades).with_storage(stored)
-        })
-        .collect();
-    match (KitPockets::new(kits), survarium::v026g::loadouts::bot_role_of(profile).is_some()) {
+    match (
+        KitPockets::of_profile(profile, all_kits),
+        survarium::v026g::loadouts::bot_role_of(profile).is_some(),
+    ) {
         (Some(pockets), _) => Throws::Pockets(pockets),
         (None, true) => Throws::GrenadeKeyIsFrag,
         (None, false) => Throws::Unknown,
