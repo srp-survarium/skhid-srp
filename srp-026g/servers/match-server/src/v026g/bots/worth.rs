@@ -15,6 +15,7 @@
 
 use super::objective_actor;
 use super::view::{MatchView, Place};
+use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::know::TeamKnowledge;
@@ -57,6 +58,16 @@ pub struct WorthTuning {
     /// nearness (an objective actor 25 over a plain enemy takes it, a hurt one over a whole one does not until he is
     /// fully hurt: `wounded_bonus_m` is 20); 0: worth never takes a target.
     pub switch_m: f32,
+    /// An objective actor or a thief is worth something only inside the reach of the bot's own weapon (the upper end of its
+    /// band and the slack: `CombatTuning::band`); farther he is the bot's target only as the nearest enemy, and the band's step
+    /// closes in on him. A mate inside the reach takes him. The A158 trace: half of the switches onto a carrier were at the top of
+    /// the rifle band or past it, where a hit is rare. `false`: the worth has no reach.
+    pub objective_in_band: bool,
+    /// A real gap (A158: the enemy a carrier was taken over was nearer by 9 m at the median): the extra distance of an objective
+    /// actor over the one he is taken from must be paid by the worth with this much to spare, metres: a switch to him needs
+    /// `worth - extra distance >= gap` and a plain choice counts the gap against his worth. `None`: the worth alone, as the
+    /// first version had it.
+    pub switch_gap_m: Option<f32>,
     /// A bullet hit counts as the team's when one of its bots fired at the enemy this long before it, ms (the world
     /// that shows the hit reaches the bots up to 1.5 s late).
     pub credit_ms: u32,
@@ -95,6 +106,8 @@ impl Default for WorthTuning {
             objective_actor_m: 0.0,
             objective_threat_m: 0.0,
             switch_m: 0.0,
+            objective_in_band: false,
+            switch_gap_m: None,
             credit_ms: 2_000,
             told_ms: 400,
             hurter_keep_ms: 0,
@@ -129,6 +142,7 @@ impl WorthTuning {
     pub fn valid(&self) -> bool {
         let metres = [self.objective_actor_m, self.objective_threat_m, self.switch_m, self.push_m, self.flank_glance_m];
         metres.iter().all(|m| m.is_finite() && *m >= 0.0)
+            && self.switch_gap_m.is_none_or(|gap| gap.is_finite() && gap >= 0.0)
             && (0.0..=1.0).contains(&self.push_hurt)
             && self.credit_ms > 0
     }
@@ -311,6 +325,8 @@ pub struct Worth<'a> {
     pub tuning: &'a WorthTuning,
     /// Worth of a fully hurt enemy, metres (`CombatTuning::wounded_bonus_m`).
     pub hurt_m: f32,
+    /// The asking bot's feet and the reach of its weapon, metres, for `objective_in_band`; `None`: no weapon, no reach.
+    pub reach: Option<(Vec3, f32)>,
 }
 
 /// What made the worth of a chosen enemy, the first of these that applies.
@@ -349,6 +365,9 @@ pub struct WorthStats {
     pub push_other_target: u32,
     /// Flank glances at a callout.
     pub glances: u32,
+    /// Targets taken (fresh or a switch) with an objective actor in range whom the reach of the weapon left out
+    /// (`objective_in_band`).
+    pub out_of_reach: u32,
 }
 
 impl WorthStats {
@@ -375,6 +394,7 @@ impl WorthStats {
         self.push_seen_again += other.push_seen_again;
         self.push_other_target += other.push_other_target;
         self.glances += other.glances;
+        self.out_of_reach += other.out_of_reach;
     }
 }
 
@@ -384,7 +404,7 @@ impl Worth<'_> {
     pub fn why(&self, who: Place) -> Option<Why> {
         let place = self.view.place(who)?;
         let known = self.known.iter().find(|k| k.who == who);
-        if objective_actor::is_actor(place) {
+        if objective_actor::is_actor(place) && !self.out_of_reach(who) {
             if known.is_some_and(|k| k.threat) && self.tuning.objective_threat_m > 0.0 {
                 return Some(Why::Threat);
             }
@@ -398,10 +418,22 @@ impl Worth<'_> {
             .then_some(Why::Hurt)
     }
 
+    /// Whether `who` is an objective actor (or a thief) whom the reach of the asking bot's weapon leaves out
+    /// (`objective_in_band`): his worth is withheld, he is only the nearest enemy to it.
+    pub fn out_of_reach(&self, who: Place) -> bool {
+        let (Some((at, reach)), true) = (self.reach, self.tuning.objective_in_band) else {
+            return false;
+        };
+        self.view
+            .place(who)
+            .is_some_and(|place| objective_actor::is_actor(place) && place.feet.distance_xz(at) > reach)
+    }
+
     /// The part of the worth that being an objective actor gives.
     fn acting(&self, who: Place) -> f32 {
         let known = self.known.iter().find(|k| k.who == who);
         match self.view.place(who) {
+            Some(_) if self.out_of_reach(who) => 0.0,
             Some(place) if objective_actor::is_actor(place) => {
                 if known.is_some_and(|k| k.threat) {
                     self.tuning.objective_threat_m
@@ -425,6 +457,23 @@ impl Worth<'_> {
             HurtFrom::Seen => known.map_or(0.0, |k| k.hurt),
         };
         self.acting(who) + self.hurt_m * hurt
+    }
+
+    /// Metres the choice counts against an objective actor's worth (`switch_gap_m`): the gap he must clear over the nearer
+    /// enemy before he is taken first.
+    pub fn gap_of(&self, who: Place) -> f32 {
+        match self.tuning.switch_gap_m {
+            Some(gap) if self.acting(who) > 0.0 => gap,
+            _ => 0.0,
+        }
+    }
+
+    /// Whether `other`, `near_m` from the bot, pays for the extra distance over the kept `kept`, `far_m` from it, with the gap to
+    /// spare (`switch_gap_m`); without the gap, the worth alone decides.
+    pub fn pays(&self, other: Place, kept: Place, near_m: f32, far_m: f32) -> bool {
+        self.tuning.switch_gap_m.is_none_or(|gap| {
+            self.of(other) - self.of(kept) - (near_m - far_m).max(0.0) >= gap
+        })
     }
 }
 

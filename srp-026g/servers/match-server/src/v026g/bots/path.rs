@@ -124,6 +124,9 @@ pub struct Route {
     /// harmless fall ([`WalkGrid::drop_harmless_at`]); the planner sets them. None known (a route made some other
     /// way) means every drop is taken to be unsafe at a sprint.
     sprint_drops: Vec<(Vec3, bool)>,
+    /// The landings of the route's walking jumps up a ledge with a short top, and how far before the take-off each is pressed
+    /// ([`WalkGrid::press_lead`]); the planner sets them. A landing not in it is pressed as the motor always has.
+    ledge_leads: Vec<(Vec3, f32)>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
 }
@@ -844,6 +847,7 @@ fn pull_straight(
         low: false,
     }];
     let mut sprint_drops = Vec::new();
+    let mut ledge_leads = Vec::new();
     // The floors of the leg from node `from` to node `to`, by distance
     // along the route (`start` at `from`).
     let mut floors = vec![(0.0, grid.position(nodes[0]).y)];
@@ -891,6 +895,11 @@ fn pull_straight(
                 },
                 low: low(i - 1, i),
             });
+            if into[i] == LinkKind::Jump
+                && let Some(lead) = grid.press_lead(nodes[i - 1], nodes[i])
+            {
+                ledge_leads.push((grid.position(nodes[i]), lead));
+            }
             if into[i] == LinkKind::Drop {
                 sprint_drops.push((grid.position(nodes[i]), grid.drop_harmless_at(nodes[i - 1], nodes[i], SPRINT_FLIGHT_MPS)));
             } else if grid.body().walk_off_lips
@@ -929,6 +938,7 @@ fn pull_straight(
     }
     let mut route = Route::with_floors(points, floors);
     route.sprint_drops = sprint_drops;
+    route.ledge_leads = ledge_leads;
     route.planned = true;
     route
 }
@@ -1021,6 +1031,7 @@ impl Route {
             along,
             planned,
             sprint_drops,
+            ledge_leads,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -1039,6 +1050,7 @@ impl Route {
         floors.push((along + last.at.distance_xz(to), to.y));
         let mut route = Self::with_floors(points, floors);
         route.sprint_drops = sprint_drops;
+        route.ledge_leads = ledge_leads;
         route.planned = planned;
         route
     }
@@ -1077,6 +1089,7 @@ impl Route {
         }
         route.floors = floors;
         route.sprint_drops = self.sprint_drops.iter().chain(&mid.sprint_drops).copied().collect();
+        route.ledge_leads = self.ledge_leads.iter().chain(&mid.ledge_leads).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -1108,6 +1121,7 @@ impl Route {
             segment: 0,
             below_walk_m: OFF_WALK_BELOW_M,
             sprint_drops: Vec::new(),
+            ledge_leads: Vec::new(),
             planned: false,
         }
     }
@@ -1127,6 +1141,7 @@ impl Route {
         floors.extend(self.floors.into_iter().map(|(along, y)| (along + lead + 1e-3, y)));
         let mut route = Self::with_floors(points, floors);
         route.sprint_drops = self.sprint_drops;
+        route.ledge_leads = self.ledge_leads;
         route.planned = self.planned;
         route
     }
@@ -1329,6 +1344,13 @@ impl Route {
             .map(|k| (k, self.along[k - 1] - s))
     }
 
+    /// How far before the take-off the walking jump into waypoint `k` is pressed, when its ledge's top is short
+    /// ([`WalkGrid::press_lead`]): the planner knew the grid; None is the motor's own lead.
+    pub fn ledge_lead(&self, k: usize) -> Option<f32> {
+        let landing = self.points[k].at;
+        self.ledge_leads.iter().find(|(at, _)| *at == landing).map(|&(_, lead)| lead)
+    }
+
     /// Whether waypoint `k` is reached by a sprint jump (the planner's label, [`Leap::SprintLedge`]).
     pub fn sprint_ledge(&self, k: usize) -> bool {
         self.points[k].jump == Some(Leap::SprintLedge)
@@ -1412,6 +1434,12 @@ impl Route {
     }
 
     /// This route with these landings found safe at a sprint (the tests').
+    #[cfg(test)]
+    pub fn with_ledge_lead(mut self, landing: Vec3, lead: f32) -> Self {
+        self.ledge_leads.push((landing, lead));
+        self
+    }
+
     #[cfg(test)]
     pub fn with_sprint_safe(mut self, landings: Vec<Vec3>) -> Self {
         self.sprint_drops = landings.into_iter().map(|at| (at, true)).collect();

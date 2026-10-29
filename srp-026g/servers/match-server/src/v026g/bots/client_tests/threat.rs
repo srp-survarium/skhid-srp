@@ -647,6 +647,7 @@ mod tests {
             heard,
             sight: None,
             exits: Default::default(),
+            counters: Default::default(),
         }
     }
 

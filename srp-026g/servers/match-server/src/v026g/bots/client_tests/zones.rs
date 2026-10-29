@@ -282,6 +282,7 @@ mod tests {
             heard: Vec::new(),
             sight: None,
             exits: Default::default(),
+            counters: Default::default(),
         }
     }
 
