@@ -3747,11 +3747,7 @@ impl Reflex {
                 let eye = still_eye(at, false);
                 [-spread, 0.0, spread].iter().all(|k| {
                     let [fx, fz] = forward(toward + k);
-                    tactics
-                        .world
-                        .sight
-                        .ray_cast(eye, Vec3::new(fx, 0.0, fz), c.hit_cover_m)
-                        .is_some()
+                    super::rays::ray_cast(&tactics.world.sight, eye, Vec3::new(fx, 0.0, fz), c.hit_cover_m).is_some()
                 })
             };
             let query = SpotQuery {

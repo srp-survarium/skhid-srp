@@ -87,9 +87,12 @@ pub mod view;
 pub mod zone_cost;
 pub mod zone_search;
 
+#[cfg(test)]
+pub mod bench_work;
 mod commander;
 mod drive;
 mod facts;
+pub mod fairness;
 mod features;
 #[cfg(test)]
 pub mod hold_trace;
@@ -97,6 +100,7 @@ mod layers;
 #[cfg(test)]
 pub mod pair_counts;
 mod polls;
+pub mod rays;
 #[cfg(test)]
 pub mod route_twins;
 mod search;
@@ -1701,6 +1705,8 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Shared);
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
@@ -1717,7 +1723,11 @@ impl Bots {
         if self.tactics.is_some() {
             for team in 0..2u8 {
                 if self.commander_due(team, &clock, &view) {
+                    #[cfg(test)]
+                    bench_work::set(bench_work::Who::Team(team));
                     self.commander(team, &view, &mut notes);
+                    #[cfg(test)]
+                    bench_work::set(bench_work::Who::Shared);
                 }
             }
         }
@@ -1731,6 +1741,8 @@ impl Bots {
             if self.bots[index].is_none() {
                 continue;
             }
+            #[cfg(test)]
+            bench_work::set(bench_work::Who::Team(self.bots[index].as_ref().map_or(0, |bot| bot.team)));
             // Before play begins: no plays, no routes, only rest.
             if clock.playing {
                 self.think(index, &view, &mut rays, &mut notes);
@@ -1763,6 +1775,8 @@ impl Bots {
                 self.features.kit_choices.push((bot.place, kit as u8));
             }
         }
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Idle);
         self.polls.record(now, &rays);
         #[cfg(any(test, feature = "client-test"))]
         self.client_tests_tick(&clock, &view, &notes);

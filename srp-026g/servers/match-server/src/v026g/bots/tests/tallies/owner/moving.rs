@@ -1151,6 +1151,7 @@ pub(crate) fn a_drop_off_a_walled_plateau_and_a_climb_onto_it_are_counted_a_kilo
     let world = super::super::soak_world_with(&plateau());
     let mut game = Game::new(world, &[0, 0], 1, None, None);
     let mut tally = OwnerTally::new(2);
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
     tally.run.is_bot = vec![true, true];
     play(&mut game, &mut tally, 2 * VERT_SAMPLE_TICKS + 1, |k, game| {
         let second = k / VERT_SAMPLE_TICKS;

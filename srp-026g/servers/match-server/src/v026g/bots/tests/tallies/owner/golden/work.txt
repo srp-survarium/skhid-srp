@@ -1,0 +1,25 @@
+owner-test work a match-second (team 0, team 1, shared; over 120 s); floors [4.4, 0.0, 40.0]; rays [50.0, 50.0, 0.0]; spots [0.2, 0.0, 0.0]; plays [10.0, 10.0, 0.0]
+{
+  "work_per_s": {
+    "floors": [
+      4.4,
+      0.0,
+      40.0
+    ],
+    "plays": [
+      10.0,
+      10.0,
+      0.0
+    ],
+    "rays": [
+      50.0,
+      50.0,
+      0.0
+    ],
+    "spots": [
+      0.2,
+      0.0,
+      0.0
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+owner-test fairness: enemy position reads by team (fresh within 15 s / stale / hud / cheat); place [0, 0, 0, 0] [0, 0, 0, 0]; near [0, 0, 0, 0] [0, 0, 0, 0]; threats [0, 0, 0, 0] [0, 0, 0, 0]; reads [0, 0] not fresh [0.0, 0.0] % (by team; bases ["fresh", "stale", "hud", "cheat"])
+{
+  "enemy_reads": {
+    "near": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "place": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "threats": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "enemy_reads_total": [
+    0,
+    0
+  ],
+  "enemy_reads_unseen_pct": [
+    0.0,
+    0.0
+  ]
+}

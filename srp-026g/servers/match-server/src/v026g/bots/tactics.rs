@@ -1907,7 +1907,7 @@ impl Tactics {
 
     /// Whether `b` is seen from `a` (points at the eyes).
     pub fn sees(&self, a: Vec3, b: Vec3) -> bool {
-        self.world.sight.visible(a, b)
+        super::rays::visible(&self.world.sight, a, b)
     }
 
     /// Whether a bullet fired at `b` from `a` (points at the eyes) is a threat to `b`: the danger tests' question,
@@ -1939,7 +1939,7 @@ impl Tactics {
             let open = self.sees(a, b);
             return Fire { open, share: if open { 1.0 } else { 0.0 } };
         };
-        let line = self.world.sight.follow(a, b, pierce, if exact { 0.0 } else { max_share });
+        let line = super::rays::follow(&self.world.sight, a, b, pierce, if exact { 0.0 } else { max_share });
         let share = line.share.value();
         if share > max_share {
             // Open. Through cover where the solid mesh has a wall: the lines the pierce opens.
@@ -1980,9 +1980,7 @@ impl Tactics {
             return true;
         }
         let dir = d * (1.0 / length);
-        self.world
-            .sight
-            .ray_cast(a, dir, length - 0.01)
+        super::rays::ray_cast(&self.world.sight, a, dir, length - 0.01)
             .is_none_or(|t| body.distance(a + dir * t) <= BODY_HIT_M)
     }
 
@@ -2000,6 +1998,8 @@ impl Tactics {
 
     /// The best spots for `query`, best first, at most `n`.
     pub fn spots(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
+        #[cfg(test)]
+        super::bench_work::add(super::bench_work::Work::Spots, 1);
         let grid = &self.world.grid;
         let mut found: Vec<Spot> = Vec::new();
         for _ in 0..query.samples {

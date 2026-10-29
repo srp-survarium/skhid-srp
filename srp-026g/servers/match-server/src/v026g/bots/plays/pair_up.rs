@@ -59,21 +59,41 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
+/// The rule that names a scoreboard's top: a player's worth is kills + `streak_weight` x streak; the top has at least `top_min` and
+/// `top_lead` over the next. One rule for the play and for the bench's counters (`tallies/owner/feel.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TopRule {
+    pub streak_weight: f32,
+    pub top_min: f32,
+    pub top_lead: f32,
+}
+
+impl TopRule {
+    /// The rule with the numbers `num` gives (a tuning's, or [`NUMBERS`]).
+    pub fn of(num: impl Fn(&str) -> f32) -> Self {
+        Self { streak_weight: num("streak_weight"), top_min: num("top_min"), top_lead: num("top_lead") }
+    }
+
+    /// The rule with the default numbers ([`NUMBERS`]); a missing name is a bug and panics.
+    pub fn default_numbers() -> Self {
+        Self::of(|name| NUMBERS.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("pair_up has no number {name}")).1)
+    }
+
+    /// The top among `players` (place, kills, streak), if one stands out.
+    pub fn top(&self, players: impl Iterator<Item = (Place, u32, u32)>) -> Option<Place> {
+        let mut ranked: Vec<(Place, f32)> =
+            players.map(|(place, kills, streak)| (place, kills as f32 + self.streak_weight * streak as f32)).collect();
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let (top, best) = *ranked.first()?;
+        let next = ranked.get(1).map_or(0.0, |e| e.1);
+        (best >= self.top_min && best - next >= self.top_lead).then_some(top)
+    }
+}
+
 /// The scoreboard's top enemy, if he stands out.
 fn top_player(cx: &Ctx) -> Option<Place> {
-    let num = |name| cx.num(PlayKind::PairUp, name);
-    let worth = |p: &PlaceView| p.kills as f32 + num("streak_weight") * p.streak as f32;
-    let mut enemies: Vec<(Place, f32)> = cx
-        .view
-        .places
-        .iter()
-        .filter(|p| p.present && p.team != cx.me.team)
-        .map(|p| (p.place, worth(p)))
-        .collect();
-    enemies.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let (top, best) = *enemies.first()?;
-    let next = enemies.get(1).map_or(0.0, |e| e.1);
-    (best >= num("top_min") && best - next >= num("top_lead")).then_some(top)
+    TopRule::of(|name| cx.num(PlayKind::PairUp, name))
+        .top(cx.view.places.iter().filter(|p| p.present && p.team != cx.me.team).map(|p| (p.place, p.kills, p.streak)))
 }
 
 /// The teammate to join against him at `at`: alive, nearer to him than

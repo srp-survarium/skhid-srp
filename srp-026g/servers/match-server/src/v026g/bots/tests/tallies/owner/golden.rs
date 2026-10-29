@@ -117,6 +117,8 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                 let at = tick.saturating_sub(next(200) as u32);
                 now.reload = Some((at, at + 1000 + next(800) as u32));
             }
+            // A live sight of an enemy for a while now and then (from `k` alone: no draw).
+            now.sighted = (k / 30 + place) % 5 < 2;
             if keys & key::JUMP != 0 {
                 let low = Vec3::new(feet[place].0, 0.0, feet[place].1);
                 now.jump = Some((
@@ -125,6 +127,22 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                 ));
             }
             nows.push(Some(now));
+        }
+        // The work the bots' polls would have done this tick, by team and shared.
+        {
+            use crate::v026g::bots::bench_work::{self, Who, Work};
+            bench_work::set(Who::Team((k % 2) as u8));
+            bench_work::add(Work::Rays, 3 + (k % 5) as u64);
+            bench_work::add(Work::Plays, 1);
+            if k % 40 == 0 {
+                bench_work::add(Work::Floors, 9);
+            }
+            if k % 100 == 0 {
+                bench_work::add(Work::Spots, 1);
+            }
+            bench_work::set(Who::Shared);
+            bench_work::add(Work::Floors, 2);
+            bench_work::set(Who::Idle);
         }
         // Hits, kills and landings the game would have logged this tick.
         game.hit_log.clear();

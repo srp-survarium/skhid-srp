@@ -78,3 +78,66 @@ crouched, height change, jump) and the fix's age, in a direction drawn evenly, c
 The write-up (the A138 OFF arm on `all_off.json`, Vector Laboratory in the batteries stage, the camper stages, the new counters in `smoke-compare.py` and `features-report.py`, `switch-audit.py` after #701, the head-to-head arms `ARMS=h2h` with the by-side script) edits private files, so it lives with the shared notes: `private/pvb-343-check/traces-20261028/fx-bench-private-scripts.md`. This PR touches none of those files.
 
 Two facts about the model that a reader of that file needs: the trap counters exist for team 1 only under `SRP_BENCH_ENEMY_HUMAN_LANES=team1`, so a trap fix's by-side table compares team 1 in run A with team 1 in run B; and the stand-in camper plays by a fixed tuning (the build's defaults), the same opponent in both runs.
+
+## 5. Bench metrics (A148): what a bench run now reports for a decision
+
+`BENCH-DECISIONS.md` (shared notes) is the rule; this is what the bench prints for it.
+
+- **The scoreboard** (`tallies/owner/scoreboard.rs`, golden `golden/scoreboard.txt`): one line per player at the match's end,
+  `scoreboard: <project> NvN seed S | place P team T kind bot|camper|human | kills K deaths D assists A streak B | events {id: count} |
+  objective {delivered, carrier_kill} | score X`, and the same objects as `sums.owner.scoreboard`. The score is the client's own sum
+  (`snapshot::score` over `static_info::score_weights(mode)`; the table is not copied); events are the game's ids: 0 kill, 1 assist,
+  2 death, 6 brought (100 hundredths: the stand-in's carrier delivers alone), 20 put in, 10 enemy carrier killed. Headshot (15), steal
+  (17) and found (19) are not counted (no part in the stand-in / not in its log as counts). **Assists are a GUESS** (a non-killer teammate who hit the
+  victim within 10 s); the line `owner-test scoreboard:` prints their share of the kills next to the live 0.19 a kill, and the
+  window is the thing to move. The owner's bar (BENCH-DECISIONS §5) is read from these lines: the rank an average player's live score
+  per minute would take in each team.
+- **One hold definition.** The camper topic and the outcomes use the same hold: kills from one place within 10 m of the first, 120 s
+  apart, a killer from a flank at 60 degrees or more off every victim's bearing (an-anticamper §2.5: the live holds and the owner's the
+  report counted). The camper topic's old 8 m / 45 degrees (K1) and the stand-in camper's special 10 m are gone; every decision
+  compares arms of one binary, so the old benches' numbers are not comparable and need not be. The camper topic still counts a holder
+  killed after one kill, the outcomes after two.
+- **The decision metrics** (`tallies/owner/metrics.rs`, goldens `fairness`, `reaction`, `trades`, `damage`, `work`), all by team:
+  - *enemy position reads* (`bots/fairness.rs`, a helper a package calls where a decision reads an enemy's position from a `Track`;
+    wired in `Ctx::known_place`, `enemies_near` and `threats`): fresh (own senses within 15 s), stale, hud, cheat. This counts
+    **reads, not choices**: a play's scoring reads many positions. New code should add no stale, hud or cheat read; a package that
+    adds its own read site calls `fairness::read(team, Site, &track, now)`. An empty function in a live build.
+  - *reaction*: ms from the first tick a bot has a live sight of an enemy (none in the second before) to its first fire key down;
+    n, median and p10 by the shooter's team, and the engagements that ended with no shot.
+  - *trades*: a death is traded when a teammate kills the killer within 5 s; deaths and traded by the dead's team. Team-wide; the
+    Trade play's own count is one play's.
+  - *damage*: health lost per tick by the team that lost it (taken), shared among the enemy hits on the body in that tick for the
+    team of the shooters (dealt); the rest is `other` (grenade, fall, zone, bleeding, a mate). In lives (1.0 = a body's full health).
+  - *work* (`bots/bench_work.rs`, test builds only): floors expanded, rays cast, spot queries, plays scored, a match-second, by the
+    team of the bot whose think or tick did them; `shared` is the commanders and the shared search slices. No time is read, so two
+    arms compare on any machine. The bench's own `timed_poll` copy of `Bots::poll` sets the same marks.
+- **The feel counters** (`tallies/owner/feel.rs`, golden `feel`): the live census's definitions (`an-top-player.md` §5, `an-gang-up.md`),
+  for each team's top bot (the bots' own rule, `plays::pair_up`: kills + 2 x streak at least 8 and 3 over the team's next), the stand-in
+  human (`SRP_BENCH_HUMAN`) and the other bots: deaths a minute alive (live top 1.19, others 0.81), the share of deaths with 3 or more
+  distinct enemies within 30 m in the 10 s before (live top 41 to 45 %), enemies within 30 m at the death, seconds from a life's
+  start to the first enemy within 30 m (live median 14 to 15 s for a top's lives), and the **gangup** counters (`an-gang-up.md` §5) for the
+  stand-in (human or camper) and each top: the plays aimed at him a tick and the share of his time with 3+ enemies near; per arrival
+  (an enemy bot's first tick within 30 m, ground distance) its play, what it was aimed at (him, an exit, an objective, another place,
+  none), the source of its track of him and which sources it held in the 10 s before (exact: the last tick each was the track's);
+  PairUp arrivals per top death (guard <= 1); mates and enemies within 30 m of a living bot (live 1.65 and 0.65); the distinct enemies
+  who hit the dead in the 5 s before the death (does the reflex's target choice need a dog-pile term?).
+- **Assists are UNCALIBRATED.** The rule is the original server's: srp's server relays the event and the client exe has no rule to read
+  (checked 2026-10-29), so none is PROVEN. The bench's guess (a teammate's hit within 10 s) gives 1.0 a kill, and 0.37 even at 1 s, against the live
+  0.19, so no window fits: it is probably a share of the damage. The scoreboard prints `assists ... (UNCALIBRATED)`, a `score (without
+  assists)` beside the score, and the assists a kill for 1, 2, 3, 5, 10 and 30 s. A margin uses kills and objective points (`h2h-compare.py`
+  does), never the assists. To calibrate: find the original server's rule (recordings with per-hit damage and the players' assist counts).
+- **Work counters count every ray and the team that asked** (review 715): every ray of the bots' code goes through `bots/rays.rs`
+  (`visible`, `ray_cast`, `ray_hit`, `follow`: one function a kind of ray, so a new caller counts without a line of its own); the
+  commanders and the pending sliced search are counted for the team they run for; `shared` is what no team asked for.
+  The test `work_by_team` checks it on real bots (a made-up match cannot). Not counted: the tallies' own rays (they are the bench's) and
+  `flip_sample`'s.
+- **The top is PairUp's own rule** (`plays::pair_up::TopRule`, one function for the play and the counters): the stand-in human and camper
+  are ranked like the bots, and a stand-in who leads is counted in `top of team N` as well as in his own group. A missing number panics.
+- **Mode and score:** the scoreboard takes the match's mode from the bench (`day_<mode>`, never inferred; an unknown mode panics) and the
+  objective kinds from (mode, event). `score` has no assists; `score_with_assist_guess` is the guess.
+- **The unified hold is geometry only** (10 m, 60 degrees): the camper topic still counts a holder after one kill, the outcomes after two,
+  and the live 32 % flank share is after two (an-anticamper §2.5), so `camper_kills_off_lane` is not that number; the lane cone is still
+  15 degrees against the report's 20.
+- **Fairness coverage is the three `Ctx` accessors only.** About twenty readers of `memory.tracks()` (crossfire, flank, trade, retreat,
+  roam, collect, buddy, ambush, heal, escort, goals, sneak, resupply, intercept, commander, reflex) bypass the helper, so the share of
+  reads that are not fresh is the accessors', not the bots'. A later refactor: one `Ctx::tracks()` that calls the helper.

@@ -646,6 +646,7 @@ fn count(found: &Search, stage: Stage, us: f64, expanded: u64, slices: u64) {
         c.stage_us[stage as usize] += us;
         c.worst_us = c.worst_us.max(us);
         c.expanded += expanded;
+        super::bench_work::add(super::bench_work::Work::Floors, expanded);
         c.worst_expanded = c.worst_expanded.max(expanded);
         let bucket = EXPANDED_BUCKETS
             .iter()

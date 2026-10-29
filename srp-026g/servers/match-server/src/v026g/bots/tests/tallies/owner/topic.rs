@@ -85,6 +85,9 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(HitShapes::default()),
         Box::new(DamageZoneFixes::default()),
         Box::new(SmokeCounts::new()),
+        Box::new(Scoreboard::default()),
+        Box::new(Metrics::default()),
+        Box::new(Feel::default()),
         Box::new(OutcomeCounts::default()),
         Box::new(PierceCounts::default()),
         Box::new(PocketCounts::default()),
@@ -124,6 +127,11 @@ pub(super) struct BotNow {
     pub(super) heal_note: Option<crate::v026g::bots::reflex::HealNote>,
     /// The fire gates of its last tick (`Reflex::gates`).
     pub(super) gates: crate::v026g::bots::reflex::Gates,
+    /// It has a live sight of an enemy.
+    pub(super) sighted: bool,
+    /// Its assignment, and its tracks (who, source, time).
+    pub(super) aim: Option<(crate::v026g::bots::plays::PlayKind, crate::v026g::bots::plays::TargetRef)>,
+    pub(super) tracks: Vec<(Place, crate::v026g::bots::know::Source, u32)>,
 }
 
 #[cfg(test)]

@@ -47,12 +47,14 @@ use crate::v026g::drive::key;
 
 mod campers;
 mod damage_zones;
+mod feel;
 mod fight;
 mod golden;
 mod grenades;
 mod heal;
 mod hit_shapes;
 mod jumps;
+mod metrics;
 mod moving;
 mod outcomes;
 mod pierce;
@@ -60,6 +62,7 @@ mod pockets;
 mod pre;
 mod resupply;
 mod run;
+mod scoreboard;
 mod shot_offsets;
 mod sight;
 mod smoke;
@@ -69,11 +72,13 @@ mod topic;
 
 use campers::*;
 use damage_zones::*;
+use feel::*;
 use fight::*;
 use grenades::*;
 use heal::*;
 use hit_shapes::*;
 use jumps::*;
+use metrics::*;
 use moving::*;
 use outcomes::*;
 use pierce::*;
@@ -81,6 +86,7 @@ use pockets::*;
 use pre::*;
 use resupply::*;
 use run::*;
+use scoreboard::*;
 use shot_offsets::*;
 use sight::*;
 use smoke::*;
@@ -130,10 +136,15 @@ impl OwnerTally {
         }
     }
 
+    /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
+    pub(crate) fn set_scoreboard(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
+        self.topic::<Feel>().set_human(human, camper);
+        self.topic::<Scoreboard>().set_context(context, mode, human, camper);
+    }
+
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
     pub(crate) fn set_camper(&mut self, camper: Option<Place>) {
         self.run.camper = camper;
-        self.topic::<CamperCounts>().camper = camper;
     }
 
     /// After a game step, before the hit tally takes the game's hits: each topic reads the bots, then
@@ -307,7 +318,8 @@ impl Part {
 /// made-up cases.
 fn made_up(teams: &[u8]) -> (Game, OwnerTally) {
     let game = Game::new(super::soak_world(), teams, 1, None, None);
-    let tally = OwnerTally::new(teams.len());
+    let mut tally = OwnerTally::new(teams.len());
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
     (game, tally)
 }
 

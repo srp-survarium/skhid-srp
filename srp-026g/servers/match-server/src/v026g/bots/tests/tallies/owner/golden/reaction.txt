@@ -1,0 +1,25 @@
+owner-test reaction (first live sight to first fire key, ms, by team): n [17, 18] median [Some(1000), Some(1050)] p10 [Some(50), Some(50)]; engagements with no shot: sight lost [30, 29], died first [2, 3]
+{
+  "reaction": {
+    "died_first": [
+      2,
+      3
+    ],
+    "lost": [
+      30,
+      29
+    ],
+    "median_ms": [
+      1000,
+      1050
+    ],
+    "n": [
+      17,
+      18
+    ],
+    "p10_ms": [
+      50,
+      50
+    ]
+  }
+}

@@ -54,6 +54,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::curve::{self, Explain, Input, Score};
+use super::fairness;
 use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::reflex::WeaponKind;
 use super::rng::Rng;
@@ -644,6 +645,7 @@ impl Ctx<'_> {
             .tracks()
             .iter()
             .find(|t| t.who == place)
+            .inspect(|t| fairness::read(self.me.team, fairness::Site::Place, t, self.now))
             .map(|t| t.at)
             .or_else(|| {
                 // The memory forgot him; a Crossfire on his place goes on
@@ -824,6 +826,7 @@ impl Ctx<'_> {
             .tracks()
             .iter()
             .filter(|t| t.at.distance_xz(at) < m)
+            .inspect(|t| fairness::read(self.me.team, fairness::Site::Near, t, self.now))
             .count()
     }
 
@@ -838,6 +841,10 @@ impl Ctx<'_> {
     /// Known enemy tracks, nearest first.
     pub fn threats(&self) -> Vec<&Track> {
         let mut tracks: Vec<&Track> = self.memory.tracks().iter().collect();
+        #[cfg(test)]
+        for track in &tracks {
+            fairness::read(self.me.team, fairness::Site::Threats, track, self.now);
+        }
         tracks.sort_by(|a, b| {
             a.at.distance_xz(self.me.feet)
                 .total_cmp(&b.at.distance_xz(self.me.feet))
@@ -1143,6 +1150,8 @@ impl Running {
 
 /// Every play's candidates for the bot.
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    #[cfg(test)]
+    let scored_before = out.len();
     roam::candidates(cx, out);
     collect::candidates(cx, out);
     ambush::candidates(cx, out);
@@ -1165,6 +1174,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     buddy::candidates(cx, out);
     cut::candidates(cx, out);
     resupply::candidates(cx, out);
+    #[cfg(test)]
+    super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
 
 /// A play's start. `slot` is the assignment's: a play whose rules depend on

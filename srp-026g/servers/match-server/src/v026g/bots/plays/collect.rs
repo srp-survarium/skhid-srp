@@ -301,12 +301,7 @@ fn use_from(
         return UseFrom::Clear(pitch);
     }
     if length > USE_LINE_SLACK_M
-        && cx
-            .tactics
-            .world
-            .sight
-            .ray_cast(eye, d * (1.0 / length), length - USE_LINE_SLACK_M)
-            .is_some()
+        && crate::v026g::bots::rays::ray_cast(&cx.tactics.world.sight, eye, d * (1.0 / length), length - USE_LINE_SLACK_M).is_some()
     {
         return UseFrom::Blocked;
     }

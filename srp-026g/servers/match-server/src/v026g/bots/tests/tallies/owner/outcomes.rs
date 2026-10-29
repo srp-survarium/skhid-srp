@@ -7,9 +7,8 @@
 //!   25 %, the owner against the bots 45 %); of the holders killed after two, the share killed by a bot that came from a flank,
 //!   more than [`FLANK_DEG`] off every victim's bearing (32 % / 9 %); the share of kills that follow another kill of the same
 //!   shooter within 3 s (live 3.5-3.9 %, the owner 18 %); lane entries into held lines per 10 s of 2+ kill holds (live
-//!   0.24-0.60, bots against the owner 0.84-1.42). **Not the camper topic's holds:** that topic scores a hold within 8 m and a
-//!   flank at 45 degrees (K1, `campers.md`, the definition every earlier bench used); these are §2.5's 10 m and 60 degrees. The two
-//!   are told apart in the keys' names and are not to be added.
+//!   0.24-0.60, bots against the owner 0.84-1.42). The hold is the camper topic's, one definition (§2.5's 10 m, 120 s, 60 degrees,
+//!   from the live holds and the owner's the report counted); the camper topic counts a holder killed after one kill, these after two.
 //! - **Fights** (an-fights §5): bot-seconds a carrier is in an enemy's clear sight within 40 m and is not that enemy's target;
 //!   enemies hit to pain under 30 % that live 15 s more while a bot of the other team was within 30 m (any bot of the other
 //!   team, not only one that knew them: the bench has no per-bot knowledge of a body here); the time a battery dropped by a
@@ -42,11 +41,12 @@ use crate::v026g::bots::tests::standin_traps::Event as TrapEvent;
 use crate::v026g::bots::tests::{Kill as KillKind, Lying};
 use crate::v026g::bots::view::still_eye;
 
-/// A hold: kills from one place within this of the first, m, each within [`HOLD_APART_MS`] of the last (an-anticamper §2.5).
-const HOLD_M: f32 = 10.0;
-const HOLD_APART_MS: u32 = 120_000;
-/// A holder's killer is from a flank when more than this off every victim's bearing, degrees (an-anticamper §2.5).
-const FLANK_DEG: f32 = 60.0;
+/// A hold is the camper topic's (`campers.rs`): kills from one place within [`SPOT_HOLD_M`] of the first, each within
+/// [`RUN_APART_MS`] of the last; a holder's killer is from a flank when [`OFF_LANE_DEG`] or more off every victim's bearing.
+/// One definition, an-anticamper §2.5 (10 m, 120 s, 60 degrees: the live holds and the owner's the report counted).
+const HOLD_M: f32 = SPOT_HOLD_M;
+const HOLD_APART_MS: u32 = RUN_APART_MS;
+const FLANK_DEG: f32 = OFF_LANE_DEG;
 /// Two kills of one shooter this close are a quick second kill, ms (an-anticamper §8.2).
 const QUICK_MS: u32 = 3_000;
 /// A carrier counts as in sight within this of an enemy, m.
