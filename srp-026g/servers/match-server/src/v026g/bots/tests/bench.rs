@@ -1213,7 +1213,17 @@ pub(crate) fn real_bot_cost() {
                         human.tick(&game, &thieves);
                     }
                     if let Some(habit) = &mut smoke_habit {
-                        habit.tick(&game, &mut bots.tracker, game.tick);
+                        let (place, now) = (habit.place(), game.tick);
+                        let fresh: Vec<bool> = (0..game.bodies.len())
+                            .map(|enemy| {
+                                bots.bots[place].as_ref().is_some_and(|me| {
+                                    me.memory.tracks().iter().any(|t| {
+                                        t.who == enemy && super::fairness::Basis::of(t, now) == super::fairness::Basis::Fresh
+                                    })
+                                })
+                            })
+                            .collect();
+                        habit.tick(&game, &mut bots.tracker, now, |enemy| fresh[enemy]);
                     }
                     let mut holding = [false; 2];
                     for bot in bots.bots.iter().flatten() {
