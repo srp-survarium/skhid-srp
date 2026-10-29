@@ -140,7 +140,9 @@ macro_rules! packages {
 }
 
 packages! {
+    fights,
     sample,
+    threat,
     zones,
 }
 
