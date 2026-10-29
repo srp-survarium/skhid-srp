@@ -812,10 +812,21 @@ mod tests {
 
     /// A duel in the open at 20 m with a smoke cloud between from `hides_at` (its puffs dense enough then),
     /// read by `smoke`: the ticks it fired.
-    fn smoke_duel(smoke: &crate::v026g::bots::tuning::SmokeTuning, hides_at: u32) -> Vec<u32> {
+    ///
+    /// As the live think: the memory is given a `Seen` sensing only while no cloud covers his chest (the defaults'
+    /// sight window: the refresh on, its grace and hold), and the reflex looks through the cloud. With `turning`,
+    /// he walks across at 5 m/s, back and forth every 200 ms, from the moment the cloud hides him. Returns the
+    /// ticks it fired and the view's points at its spray ticks.
+    fn smoke_duel(
+        smoke: &crate::v026g::bots::tuning::SmokeTuning,
+        hides_at: u32,
+        turning: bool,
+    ) -> (Vec<u32>, Vec<Vec3>) {
+        use crate::v026g::bots::know::SightWindow;
         use crate::v026g::bots::smoke::{Cloud, Clouds, MatchMs, SmokeGrenade};
+        use crate::v026g::bots::tuning::Tuning;
         let world = world_of(&[]);
-        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let mut enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
         let mut me = body(0, 0, Vec3::ZERO, false);
         let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let shape = SmokeGrenade::RDG_M.cloud;
@@ -828,35 +839,55 @@ mod tests {
             pours,
             shape,
         }]);
-        let aim = AimTuning::default();
+        let tuning = Tuning::default();
+        let (aim, sense) = (tuning.aim.clone(), tuning.sense.clone());
         let mut memory = Memory::default();
+        memory.set_sight_window(SightWindow::of(&sense, &tuning.cheats));
         let mut reflex = Reflex::default();
         let mut rng = Rng::new(5);
-        let seen = |time| Percept {
+        let seen = |at: Vec3, time| Percept {
             who: 1,
-            at: enemy.feet,
+            at,
             error_m: 0.0,
             time,
             source: Source::Seen,
             busy: false,
         };
-        memory.update(&[seen(1_000)], 1_000, |_| 300, 3_000, 20_000);
-        memory.update(&[seen(1_300)], 1_300, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(enemy.feet, 1_000)], 1_000, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(enemy.feet, 1_300)], 1_300, |_| 300, 3_000, 20_000);
         reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
-        let mut fired = Vec::new();
+        let (mut fired, mut sprayed) = (Vec::new(), Vec::new());
         for k in 0..60 {
             let now = 1_300 + k * 50;
-            // The memory keeps him (the reacquire grace is the sight's, not this test's).
-            memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
+            if turning && now >= hides_at {
+                let way = if (now - hides_at) / 200 % 2 == 0 { 5.0 } else { -5.0 };
+                enemy.velocity = [way, 0.0];
+                enemy.feet.x += way * 0.05;
+            }
+            view.places[1] = enemy.clone();
             view.clock = now;
-            reflex.look_through(&me, &view, &world, &mut memory, &SenseTuning::default(), smoke, now);
+            // A sensing only through clear air, as the think's look gives it.
+            let percepts: Vec<Percept> = if view.smoke.covers(now, smoke, me.eye(), enemy.chest()) {
+                Vec::new()
+            } else {
+                vec![seen(enemy.feet, now)]
+            };
+            memory.update(&percepts, now, |_| 300, 3_000, 20_000);
+            reflex.look_through(&me, &view, &world, &mut memory, &sense, smoke, now);
             let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
-            facing(&mut me, o.look_at.unwrap());
+            // No view of its own once the memory let him go (no target, nothing to pre-aim).
+            let Some(look_at) = o.look_at else {
+                continue;
+            };
+            facing(&mut me, look_at);
             if o.fire {
                 fired.push(now);
+                if now >= hides_at {
+                    sprayed.push(look_at);
+                }
             }
         }
-        fired
+        (fired, sprayed)
     }
 
     #[test]
@@ -873,18 +904,31 @@ mod tests {
         };
         let hides_at = 2_500;
         // The switch off: the smoke is not read, it fires to the end.
-        let blind = smoke_duel(&off, hides_at);
+        let (blind, _) = smoke_duel(&off, hides_at, false);
         assert!(blind.iter().any(|&t| t > hides_at + 1_000), "{blind:?}");
-        // On: it fires before the smoke, sprays at most `spray_ms` after it last saw him, then stops.
-        let fired = smoke_duel(&on, hides_at);
+        // On: it fires before the smoke, sprays at most `spray_ms` after it last saw him, then stops. With the live
+        // sight window the memory lets him go once its grace after the failed look ends, so the spray is shorter
+        // than `spray_ms`: its length is printed.
+        let (fired, _) = smoke_duel(&on, hides_at, false);
         assert!(fired.iter().any(|&t| t < hides_at), "{fired:?}");
         let last = *fired.last().unwrap();
         assert!(last >= hides_at && last <= hides_at + on.spray_ms, "sprayed to {last}: {fired:?}");
+        println!("smoke duel: the spray ran {} ms past the cloud", last - hides_at);
         // No spray: it stops once the look finds the smoke (a look every 100 ms).
-        let stopped = smoke_duel(&no_spray, hides_at);
+        let (stopped, _) = smoke_duel(&no_spray, hides_at, false);
         assert!(stopped.iter().all(|&t| t < hides_at + LOOK_AGAIN_MS), "{stopped:?}");
         // Smoke from the start: it never saw him, so nothing is going and nothing is sprayed.
-        assert!(smoke_duel(&on, 1_000).is_empty());
+        assert!(smoke_duel(&on, 1_000, false).0.is_empty());
+    }
+
+    /// A spray is at the last part seen of him and nothing of his body now: he turns back and forth inside the
+    /// cloud and the view's point does not move (no lead, no turn feed: `Aim::Spray`).
+    #[test]
+    fn a_spray_does_not_follow_a_target_turning_inside_the_cloud() {
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let (fired, sprayed) = smoke_duel(&SmokeTuning::default(), 2_500, true);
+        assert!(!sprayed.is_empty(), "no spray: {fired:?}");
+        assert!(sprayed.iter().all(|p| (*p - sprayed[0]).length() < 1e-4), "{sprayed:?}");
     }
 
     #[test]

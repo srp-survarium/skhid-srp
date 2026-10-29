@@ -794,6 +794,12 @@ impl Tracker {
         self.smoke_counts
     }
 
+    /// A cloud put in the match as if thrown (tests: a bench or a probe with no human thrower).
+    #[cfg(test)]
+    pub fn add_cloud(&mut self, cloud: Cloud) {
+        self.clouds.push(cloud);
+    }
+
     /// An input of `place` for the tick `time` (a human's as relayed, a
     /// bot's as made, its pitch turn with the part its kick took and the
     /// kick after it: `body::BodyTrack::decided`): its body moves on, and
