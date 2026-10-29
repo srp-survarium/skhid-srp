@@ -584,3 +584,196 @@ fn the_vector_laboratory_step_of_0_62_m_is_a_jump_with_the_exes_step_and_a_walk_
     assert!(exe > 0, "the exe's step makes the rise a jump");
     assert_eq!(client, 0, "the clients' step walks it");
 }
+
+/// The leaping links (Jump, GapJump, GapDrop) with an end within `SRP_GRID_SPOT_R` (default 6) metres of `SRP_GRID_SPOT=x,z` on
+/// `SRP_GRID_TABLE_MAPS`' first project, on the bots' body (`GridTuning::body` defaults): kind, both ends, rise, across, press.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_leaping_links_near_a_spot() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let project = std::env::var("SRP_GRID_TABLE_MAPS").unwrap_or_else(|_| "level_04_day_2".to_owned());
+    let project = project.split(',').next().unwrap().to_owned();
+    let Some(spot) = std::env::var("SRP_GRID_SPOT").ok().and_then(|v| {
+        let mut it = v.split(',').filter_map(|x| x.parse::<f32>().ok());
+        Some(Vec3::new(it.next()?, 0.0, it.next()?))
+    }) else {
+        eprintln!("skipping: SRP_GRID_SPOT=x,z is not set");
+        return;
+    };
+    let radius: f32 = std::env::var("SRP_GRID_SPOT_R").ok().and_then(|v| v.parse().ok()).unwrap_or(6.0);
+    let map = MapData::read(&dir.join(format!("{project}.mapdata"))).unwrap();
+    let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+    let body = Body {
+        max_jump: mapdata::grid::STANDING_JUMP_M,
+        erosion: mapdata::Erosion::Exact,
+        drop_flight_mps: 3.5,
+        walk_off_lips: true,
+        ..Body::client()
+    };
+    let (grid, _) = WalkGrid::build_kept_with_links(
+        &map.walker_triangles(),
+        map.play_area(mapdata::AREA_MARGIN),
+        mapdata::CELL,
+        body,
+        &map.grid_seeds(),
+        &spawns,
+        mapdata::OffMeshLinks::Gaps,
+    );
+    eprintln!("{project}: {} floors, spot {spot:?} within {radius} m", grid.len());
+    for a in 0..grid.len() as NodeId {
+        for (b, kind) in grid.links(a) {
+            if !kind.is_leap() {
+                continue;
+            }
+            let (pa, pb) = (grid.position(a), grid.position(b));
+            if pa.distance_xz(spot) > radius && pb.distance_xz(spot) > radius {
+                continue;
+            }
+            let press = grid.off_link(a, b).map(|l| format!("{:?}", l.press)).unwrap_or_default();
+            eprintln!(
+                "{kind:?} {a}->{b} from ({:.2},{:.2},{:.2}) to ({:.2},{:.2},{:.2}) rise {:+.2} across {:.2} {press}",
+                pa.x, pa.y, pa.z, pb.x, pb.y, pb.z, pb.y - pa.y, pa.distance_xz(pb)
+            );
+        }
+    }
+}
+
+/// The floors around `SRP_GRID_SPOT=x,z` within `SRP_GRID_SPOT_R` metres between feet heights `SRP_GRID_Y=lo,hi`, as a map of
+/// the lowest height per half metre (tenths of a metre over `lo`, letters from 'a' for 0.0), z down, x across.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_floors_around_a_spot() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let project = std::env::var("SRP_GRID_TABLE_MAPS").unwrap_or_else(|_| "level_04_day_2".to_owned());
+    let project = project.split(',').next().unwrap().to_owned();
+    let nums = |name: &str| -> Vec<f32> {
+        std::env::var(name).unwrap_or_default().split(',').filter_map(|x| x.parse().ok()).collect()
+    };
+    let (spot, y) = (nums("SRP_GRID_SPOT"), nums("SRP_GRID_Y"));
+    if spot.len() != 2 || y.len() != 2 {
+        eprintln!("skipping: SRP_GRID_SPOT=x,z and SRP_GRID_Y=lo,hi");
+        return;
+    }
+    let radius: f32 = std::env::var("SRP_GRID_SPOT_R").ok().and_then(|v| v.parse().ok()).unwrap_or(6.0);
+    let map = MapData::read(&dir.join(format!("{project}.mapdata"))).unwrap();
+    let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+    let body = Body {
+        max_jump: mapdata::grid::STANDING_JUMP_M,
+        erosion: mapdata::Erosion::Exact,
+        drop_flight_mps: 3.5,
+        walk_off_lips: true,
+        ..Body::client()
+    };
+    let (grid, _) = WalkGrid::build_kept_with_links(
+        &map.walker_triangles(),
+        map.play_area(mapdata::AREA_MARGIN),
+        mapdata::CELL,
+        body,
+        &map.grid_seeds(),
+        &spawns,
+        mapdata::OffMeshLinks::Gaps,
+    );
+    let n = (2.0 * radius / 0.5) as usize + 1;
+    let mut cells = vec![vec![f32::INFINITY; n]; n];
+    for node in grid.floors_in([spot[0] - radius, spot[1] - radius, spot[0] + radius, spot[1] + radius]) {
+        let p = grid.position(node);
+        if p.y < y[0] || p.y > y[1] {
+            continue;
+        }
+        let (i, j) = (((p.x - spot[0] + radius) / 0.5) as usize, ((p.z - spot[1] + radius) / 0.5) as usize);
+        if i < n && j < n {
+            cells[j][i] = cells[j][i].min(p.y);
+        }
+    }
+    eprintln!("{project}: floors {:.1}..{:.1} m high, 0.5 m cells from x {:.1}, z {:.1} (z down)", y[0], y[1], spot[0] - radius, spot[1] - radius);
+    for (j, row) in cells.iter().enumerate() {
+        let line: String = row
+            .iter()
+            .map(|&h| if h.is_finite() { (b'a' + (((h - y[0]) * 10.0) as u8).min(25)) as char } else { '.' })
+            .collect();
+        eprintln!("z {:6.1} {line}", spot[1] - radius + j as f32 * 0.5);
+    }
+}
+
+/// Every Jump link of a rise of `SRP_GRID_RISE_MIN` (default 0.9) m or more, on the bots' body, with how far the top it lands
+/// on goes on straight ahead of the landing (`depth`, metres of floor within 0.35 m of the landing's height, up to 6) and how
+/// wide it is across the link's way (`width`, up to 6): a flight that goes on past the top comes down beyond it.
+/// `LINK` lines, tab-separated: project, kind, take-off x y z, landing x y z, rise, depth, width.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_jump_links_top_depth() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let projects: Vec<String> = std::env::var("SRP_GRID_TABLE_MAPS")
+        .unwrap_or_else(|_| "level_04_day_2".to_owned())
+        .split(',')
+        .map(str::to_owned)
+        .collect();
+    let rise_min: f32 = std::env::var("SRP_GRID_RISE_MIN").ok().and_then(|v| v.parse().ok()).unwrap_or(0.9);
+    for project in &projects {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let body = Body {
+            max_jump: mapdata::grid::STANDING_JUMP_M,
+            erosion: mapdata::Erosion::Exact,
+            drop_flight_mps: 3.5,
+            walk_off_lips: true,
+            ..Body::client()
+        };
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &map.walker_triangles(),
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &map.grid_seeds(),
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        // Whether a floor within 0.35 m of this height is at the point.
+        let floor_at = |x: f32, z: f32, y: f32| {
+            grid.floors_in([x - 0.12, z - 0.12, x + 0.12, z + 0.12]).any(|n| {
+                let p = grid.position(n);
+                (p.y - y).abs() <= 0.35 && (p.x - x).abs() <= 0.13 && (p.z - z).abs() <= 0.13
+            })
+        };
+        let reach = |from: Vec3, dx: f32, dz: f32| {
+            let mut t = 0.25;
+            while t <= 6.0 && floor_at(from.x + dx * t, from.z + dz * t, from.y) {
+                t += 0.25;
+            }
+            t - 0.25
+        };
+        let mut seen = std::collections::HashSet::new();
+        for a in 0..grid.len() as NodeId {
+            for (b, kind) in grid.links(a) {
+                if kind != mapdata::LinkKind::Jump {
+                    continue;
+                }
+                let (pa, pb) = (grid.position(a), grid.position(b));
+                let rise = pb.y - pa.y;
+                if rise < rise_min || !seen.insert((a, b)) {
+                    continue;
+                }
+                let across = pa.distance_xz(pb).max(1e-3);
+                let (dx, dz) = ((pb.x - pa.x) / across, (pb.z - pa.z) / across);
+                let depth = reach(pb, dx, dz);
+                let width = reach(pb, -dz, dx) + reach(pb, dz, -dx) + 0.25;
+                eprintln!(
+                    "LINK\t{project}\t{kind:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{rise:.2}\t{depth:.2}\t{width:.2}",
+                    pa.x, pa.y, pa.z, pb.x, pb.y, pb.z
+                );
+            }
+        }
+    }
+}
