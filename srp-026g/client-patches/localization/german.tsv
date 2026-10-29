@@ -262,6 +262,7 @@ st_artefact_booster_name	Artefakten-Master
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden
 st_artefact_search_success	Sie haben das Artefakt erreicht!
+st_artefact_take_teammate	Artefakt nehmen ({USE})
 st_ash12_description	Description is not ready!!!
 st_ash12_name	ASh-12
 st_attention	Es ist ein Fehler beim Starten des Laders Survarium geschehen. Bitte, wiederholen Sie den Versuch später.
@@ -1217,6 +1218,7 @@ st_hk_mp7_silencer_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x30, hier in der Version MP7A1 mit Schalldämpfer. Von Heckler & Koch zusammen mit einer eigenen panzerbrechenden Patrone entwickelt und bei der Bundeswehr und Spezialeinheiten der Polizei im Einsatz. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legende"
+st_hold_artifact_action	Artefakt halten
 st_hour_short	st.
 st_hud_tutorial_frame_0_text_1	Kamera Lenkung
 st_hud_tutorial_frame_0_text_2	Verwenden Sie die Maus um sich umzuschauen
@@ -2142,164 +2144,164 @@ st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Anbauteile
-st_srp_equipment029_bm_back_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_6_name	Wächterrucksack
-st_srp_equipment029_bm_back_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_back_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_8_name	Behälter "Omicron"
-st_srp_equipment029_bm_back_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_back_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_9_name	Antiradarschutz
-st_srp_equipment029_bm_boots_5_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_boots_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_boots_5_name	Stiefel "Viper"
-st_srp_equipment029_bm_boots_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_boots_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_boots_8_name	Stiefel "Omicron"
-st_srp_equipment029_bm_boots_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_boots_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_boots_9_name	Söldnerstiefel
-st_srp_equipment029_bm_gloves_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_gloves_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_gloves_6_name	Wächterhandschuhe
-st_srp_equipment029_bm_gloves_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_gloves_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_gloves_8_name	Handschuhe "Omicron"
-st_srp_equipment029_bm_gloves_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_gloves_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_gloves_9_name	Söldnerhandschuhe
-st_srp_equipment029_bm_helmet_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_helmet_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_helmet_6_name	Helm "Viper"
-st_srp_equipment029_bm_helmet_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_helmet_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_helmet_8_name	Helm "Omicron"
-st_srp_equipment029_bm_helmet_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_helmet_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_helmet_9_name	Söldnerhelm
-st_srp_equipment029_bm_legs_5_desc	Description is not ready!!!
+st_srp_equipment029_bm_legs_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_legs_5_premium_name	"Marodeur MKII" Hosen
-st_srp_equipment029_bm_legs_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_legs_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_legs_6_name	Hose "Viper"
-st_srp_equipment029_bm_legs_7_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_legs_7_name	Wächterhose
-st_srp_equipment029_bm_legs_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_legs_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_legs_8_name	Hose "Omicron"
 st_srp_equipment029_bm_legs_8_premium_name	Hose "Omicron MKII"
-st_srp_equipment029_bm_legs_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_legs_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_legs_9_name	Söldnerhose
-st_srp_equipment029_bm_mask_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_mask_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_mask_8_name	Maske "Omicron"
-st_srp_equipment029_bm_torso_5_desc	Description is not ready!!!
+st_srp_equipment029_bm_torso_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_torso_5_premium_name	Jacke "Marodeur MKII"
-st_srp_equipment029_bm_torso_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_torso_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_torso_6_name	Panzerweste "Viper"
-st_srp_equipment029_bm_torso_7_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_bm_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_torso_7_name	Wächterjacke
-st_srp_equipment029_bm_torso_8_desc	Description is not ready!!!
+st_srp_equipment029_bm_torso_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_torso_8_name	Panzerweste "Omicron"
 st_srp_equipment029_bm_torso_8_premium_name	Panzerweste "Omicron MKII"
-st_srp_equipment029_bm_torso_9_desc	Description is not ready!!!
+st_srp_equipment029_bm_torso_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_torso_9_name	Soldnerjacke
-st_srp_equipment029_edge_boots_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_boots_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_boots_0_name	Mokassins
-st_srp_equipment029_edge_helmet_7_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_helmet_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_helmet_7_name	Kriegerhelm
-st_srp_equipment029_edge_legs_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_legs_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_legs_0_name	Tierhauthose
 st_srp_equipment029_edge_legs_1_desc	 Hosen gefertigt aus dem widerstandsfähigen Häuten mutierterter Tiere.  Gewährleisten guten Schutz gegen Anomalien  auch von gegen  Pistolenkugeln. Erhöht die  Fortbewegungsgewschwindigkeit um 3 %.
 st_srp_equipment029_edge_legs_1_name	Hose "Hunter"
-st_srp_equipment029_edge_legs_4_desc	Description is not ready!!!
+st_srp_equipment029_edge_legs_4_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_legs_4_name	"Leshy" Hose
-st_srp_equipment029_edge_legs_5_special_desc	Description is not ready!!!
+st_srp_equipment029_edge_legs_5_special_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_legs_5_special_name	Hose "Keeper Of The Sun"
-st_srp_equipment029_edge_legs_7_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_legs_7_name	Kriegerhose
 st_srp_equipment029_edge_legs_7_premium_name	Hose "Berserker"
-st_srp_equipment029_edge_legs_8_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_legs_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_legs_8_premium_name	Hose "Anhänger"
-st_srp_equipment029_edge_torso_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_torso_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_torso_0_name	Tierhautjacke
 st_srp_equipment029_edge_torso_1_desc	Die "Hunter" Jacke ist aus Tierhäuten genähat und mit Schutzamuletten gegen den Zorn der Natur versehen. Das aufgenähte Wolfsfell so Raubtiere abschrecken und Gegnern Angst einflößen. Durch die praktischen Taschen kann man weitere spezielle Ausrüstungsgegenstände mitnehmen.
 st_srp_equipment029_edge_torso_1_name	Jacke "Hunter"
-st_srp_equipment029_edge_torso_4_desc	Description is not ready!!!
+st_srp_equipment029_edge_torso_4_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_torso_4_name	Schutzweste "Leshy"
-st_srp_equipment029_edge_torso_5_special_desc	Description is not ready!!!
+st_srp_equipment029_edge_torso_5_special_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_torso_5_special_name	Weste "Keeper Of The Sun"
-st_srp_equipment029_edge_torso_7_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_torso_7_name	Kriegerjacke
 st_srp_equipment029_edge_torso_7_premium_name	Jacke "Berserker"
-st_srp_equipment029_edge_torso_8_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_edge_torso_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_edge_torso_8_premium_name	Jacke "Anhänger"
-st_srp_equipment029_ren_back_8_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_back_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_back_8_name	Fallschirmjäger-Rucksack
-st_srp_equipment029_ren_boots_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_boots_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_boots_0_name	Privatstiefel
-st_srp_equipment029_ren_legs_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_legs_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_legs_0_name	Privathose
-st_srp_equipment029_ren_legs_3_desc	Description is not ready!!!
+st_srp_equipment029_ren_legs_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_legs_3_premium_name	Hose "Sokal-M"
-st_srp_equipment029_ren_legs_4_desc	Description is not ready!!!
+st_srp_equipment029_ren_legs_4_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_legs_4_premium_name	Hose "Molot UM-2A"
-st_srp_equipment029_ren_legs_8_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_legs_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_legs_8_name	Fallschirmjäger-Hose
 st_srp_equipment029_ren_legs_8_premium_name	Hose "Wache"
-st_srp_equipment029_ren_torso_0_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_torso_0_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_torso_0_name	Privatjacke
-st_srp_equipment029_ren_torso_3_desc	Description is not ready!!!
+st_srp_equipment029_ren_torso_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_torso_3_premium_name	Schutzweste "Sokal-M"
-st_srp_equipment029_ren_torso_4_desc	Description is not ready!!!
+st_srp_equipment029_ren_torso_4_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_torso_4_premium_name	Panzerweste "Molot UM-2A"
-st_srp_equipment029_ren_torso_8_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_ren_torso_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_ren_torso_8_name	Fallschirmjäger-Panzerweste
 st_srp_equipment029_ren_torso_8_premium_name	Panzerweste "Wache"
-st_srp_equipment029_scav_back_7_desc	Description is not ready!!!
+st_srp_equipment029_scav_back_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_back_7_name	Feldfunkgerät
-st_srp_equipment029_scav_back_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_back_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_back_8_name	Großer Rucksack
-st_srp_equipment029_scav_back_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_back_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_back_9_name	Doppelzylinder
-st_srp_equipment029_scav_boots_10_desc	Description is not ready!!!
+st_srp_equipment029_scav_boots_10_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_boots_10_name	Nomadenstiefel
-st_srp_equipment029_scav_boots_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_boots_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_boots_8_name	Kampfstiefel
-st_srp_equipment029_scav_boots_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_boots_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_boots_9_name	Feuerwehrstiefel
-st_srp_equipment029_scav_gloves_10_desc	Description is not ready!!!
+st_srp_equipment029_scav_gloves_10_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_gloves_10_name	Nomadenhandschuhe
-st_srp_equipment029_scav_gloves_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_scav_gloves_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_gloves_6_name	Saboteur-Handschuhe 
-st_srp_equipment029_scav_gloves_7_desc	Description is not ready!!!
+st_srp_equipment029_scav_gloves_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_gloves_7_name	Pfadfinderhandschuhe
-st_srp_equipment029_scav_gloves_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_gloves_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_gloves_8_name	Kampfhandschuhe
-st_srp_equipment029_scav_gloves_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_gloves_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_gloves_9_name	Feuerwehrhandschuhe
-st_srp_equipment029_scav_helmet_10_desc	Description is not ready!!!
+st_srp_equipment029_scav_helmet_10_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_helmet_10_name	Nomadenhelm
-st_srp_equipment029_scav_helmet_3_desc	Description is not ready!!!
+st_srp_equipment029_scav_helmet_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_helmet_3_name	Scavengerkapuze
-st_srp_equipment029_scav_helmet_7_desc	Description is not ready!!!
+st_srp_equipment029_scav_helmet_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_helmet_7_name	Pfadfinderhelm
-st_srp_equipment029_scav_helmet_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_helmet_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_helmet_8_name	Kampfhelm
-st_srp_equipment029_scav_helmet_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_helmet_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_helmet_9_name	Metallhelm
-st_srp_equipment029_scav_legs_10_desc	Description is not ready!!!
+st_srp_equipment029_scav_legs_10_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_10_name	Nomadenhose
-st_srp_equipment029_scav_legs_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_scav_legs_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_6_name	Saboteur-Hose
 st_srp_equipment029_scav_legs_6_premium_name	Guerilla-Hose
-st_srp_equipment029_scav_legs_7_desc	Description is not ready!!!
+st_srp_equipment029_scav_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_7_name	Pfadfinderhose
-st_srp_equipment029_scav_legs_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_legs_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_8_name	Kampfhose
-st_srp_equipment029_scav_legs_8_premium_desc	Description is not ready!!!
+st_srp_equipment029_scav_legs_8_premium_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_8_premium_name	Veteranenhose
-st_srp_equipment029_scav_legs_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_legs_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_legs_9_name	Feuerwehrhose
-st_srp_equipment029_scav_mask_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_mask_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_mask_9_name	Gasmaske  "Barriere"
-st_srp_equipment029_scav_torso_10_desc	Description is not ready!!!
+st_srp_equipment029_scav_torso_10_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_torso_10_name	Nomadenweste
-st_srp_equipment029_scav_torso_6_desc	ĐžĐźĐĐˇĐĐťĐĐ• ĐťĐ• Đ"ĐžĐ˘ĐžĐ’Đž!!!
+st_srp_equipment029_scav_torso_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_torso_6_name	Saboteurjacke
 st_srp_equipment029_scav_torso_6_premium_name	Guerilla-Jacke
-st_srp_equipment029_scav_torso_7_desc	Description is not ready!!!
+st_srp_equipment029_scav_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_torso_7_name	Pfadfinderpanzerweste
-st_srp_equipment029_scav_torso_8_desc	Description is not ready!!!
+st_srp_equipment029_scav_torso_8_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_torso_8_name	Panzerkampfweste
 st_srp_equipment029_scav_torso_8_premium_name	Panzerweste "Veteran"
-st_srp_equipment029_scav_torso_9_desc	Description is not ready!!!
+st_srp_equipment029_scav_torso_9_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_scav_torso_9_name	Feuerwehr-Panzerweste 
 st_srp_exchange_balance	Guthaben
 st_srp_exchange_button	Tauschen

@@ -22,8 +22,10 @@ of the four pieces are rendered again from the painted textures, over their own 
 
 Version 2 (the owner: "a different rendering angle"): the boots' icons are posed and framed as the
 stock boots' are (Zubr UM-4's): from the side and front, the camera almost level, fitted to the cell's
-height, with the stock icons' soft shadow (BOOTS_VIEW). The textures and the gloves' icons are
-version 1's.
+height, with the stock icons' soft shadow (BOOTS_VIEW). The textures are version 1's.
+
+Version 3 (the owner: "just use old ones"): the gloves keep their stock icons; a glove rendered
+alone, fingers down, read as an arm pointing down. Only the boots' icons are rendered again.
 """
 import argparse
 import hashlib
@@ -39,7 +41,7 @@ from PIL import Image
 from scipy import ndimage
 
 PACK_ID = 'exo-gear'
-VERSION = '2'
+VERSION = '3'
 MODELS = 'models/ported/duty_026'
 BOOT = MODELS + '/duty_03_boot.skinned_model/render/legs_s/converted_model'
 HAND = MODELS + '/duty_03_hand.skinned_model/render/torso_s/converted_model'
@@ -416,6 +418,8 @@ def main():
                 before = decode(live[texture][128:128 + dds_levels(live[texture])[0][3]], *image.shape[1::-1])
                 Image.fromarray(np.concatenate([before[box[1]:box[3], box[0]:box[2]], image[box[1]:box[3], box[0]:box[2]]], 1)
                                 .astype(np.uint8)).save(args.previews / (texture.replace('/', '_') + '.png'))
+        if piece == 'gloves':
+            continue
         picture = icon(piece, points, uv, normals, faces, painted[texture])
         source = f'icons/{SYMBOL}/r{row:02}c{col:02}.png'
         out = io.BytesIO()
@@ -440,8 +444,8 @@ def main():
         'target_build': '0.26g',
         'description': 'the Duty and Freedom exoskeleton boots and gloves without their black areas (the boots\' '
                        'upper shafts and side patch, the gloves\' palms and wrists, painted over with the fabric '
-                       'beside them in both sets\' textures) and their lobby icons rendered again; the boots\' '
-                       'posed and framed as the stock boots\' (Zubr UM-4\'s)',
+                       'beside them in both sets\' textures) and the boots\' lobby icons rendered again, posed and '
+                       'framed as the stock boots\' (Zubr UM-4\'s); the gloves keep their stock icons',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/exo-gear/make_pack.py from the released files'],
     }

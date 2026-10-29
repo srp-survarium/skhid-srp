@@ -700,7 +700,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 37
+REVISION = 38
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1189,7 +1189,8 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "lobby_scene")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score",
+                "lobby_scene")
 
 
 def rust_hooks(original):
@@ -2115,7 +2116,7 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# 2Ah rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2144,8 +2145,20 @@ def hide_ui_table_writes(linked):
     table = linked.symbols["controls"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
-    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + len(CONTROLS_ADDED)]) + old[at + 1:])
+            for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
+
+
+# The rows `controls` adds after the game's 28h: (action, label key).
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
+# Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
+# own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
+# nothing in the game reads and had no default key, gets H (the binder's
+# set_default_controls 0x2078A0 binds each entry's +10h at its construction,
+# before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
+# 42nd of `controls`.
+ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -3662,6 +3675,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):

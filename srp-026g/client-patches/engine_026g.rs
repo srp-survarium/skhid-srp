@@ -113,6 +113,26 @@ unsafe extern "C" {
     pub fn engine_emitter_destroy(emitter: *mut c_void, effect: *mut c_void);
     /// 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
     pub fn engine_release_resource(resource: *mut c_void, count: *mut u32);
+    /// 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
+    pub fn engine_inventory_remove(inventory: *mut c_void, slot: u32);
+    /// 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
+    pub fn engine_inventory_take_artefact(inventory: *mut c_void, incoming: *const *mut c_void);
+    /// 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
+    pub fn engine_quick_inventory_slot(inventory: *mut c_void, ordinal: u32) -> u32;
+    /// 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX
+    pub fn engine_core_active_player(world: *mut c_void, place: u32, out: *mut *mut c_void) -> *mut c_void;
+    /// 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
+    pub fn engine_add_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void, first: *const f32, second: *const f32);
+    /// 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
+    pub fn engine_remove_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void);
+    /// 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
+    pub fn engine_update_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void, first: *const f32, second: *const f32);
+    /// 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4
+    pub fn engine_static_model_bounds(instance: *mut c_void, bounds: *mut f32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_item(object: *mut c_void, count: *mut u32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_model(object: *mut c_void, count: *mut u32);
 }
 
 #[allow(dead_code)]

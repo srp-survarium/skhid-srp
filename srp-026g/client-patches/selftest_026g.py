@@ -4537,27 +4537,37 @@ def test_hide_ui(original, image, before):
           "counts of 28h")
     controls = linked.symbols["controls"]
     data_block = linked.blocks["hide_ui.data"]
-    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
-    new_row = arena_rows[count]
-    label = struct.unpack_from("<I", new_row, 4)[0]
-    check(data_block.va <= controls and controls + 0x68 * (count + 1) <= data_block.va + data_block.size
+    added = len(P.CONTROLS_ADDED)
+    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + added)]
+    new_rows = arena_rows[count:]
+    labels = [struct.unpack_from("<I", row, 4)[0] for row in new_rows]
+    check(data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
           and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
                   for i in range(count))
-          and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
-          and new_row[16:] == empty(controls + 0x68 * count)
-          and image.read(label, 25) == b"st_hide_interface_action\0",
-          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
-          "19h, st_hide_interface_action, group 2, type 1")
+          and [struct.unpack_from("<4I", row) for row in new_rows]
+          == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
+          and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
+          and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
+          == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, a 41st: "
+          "19h, st_hide_interface_action, and a 42nd: 23h, st_hold_artifact_action, group 2, type 1")
+    va, old, new = P.ARTEFACT_KEY_DEFAULT
+    entry = va - 0x10
+    check(struct.unpack("<4I", stock.read(entry, 16))[1:] == (0x23, 5, 0) and stock.read(entry, 4) != bytes(4)
+          and image.read(struct.unpack_from("<I", stock.read(entry, 4))[0], 9) == b"artefact\0"
+          and stock.read(va, 4) == old and image.read(va, 4) == new and image.read(0x9FDCA8, 3) == b"kH\0",
+          "the action table's entry 0xA74D5C is artefact (23h, kinds 5, no toggle), without a default key in the "
+          "original; patched its default is kH (0x9FDCA8)")
     writes = P.hide_ui_table_writes(linked)
     check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
               for va, old, new in writes)
           and [rows(image, va, len(new))[0] for va, _, new in writes[:6]]
           == [f"mov eax,{controls:#x}", f"mov esi,{controls + 4:#x}", f"add eax,{controls:#x}",
               f"mov esi,{controls + 0xC:#x}", f"mov dword [esp+0xc],{controls:#x}", f"mov esi,{controls + 0x10:#x}"]
-          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x29"] * 6
+          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x2a"] * 6
           and {va + at for va, _, at, _ in P.HIDE_UI_TABLE_REFS}
           <= {v for kind, v in image.relocations().values() if kind == 3},
-          "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
+          "the six readers read `controls`, their counts are 2Ah, their addresses keep their base relocations; "
           "the build without the late join has them as the original")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),

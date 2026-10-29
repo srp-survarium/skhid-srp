@@ -40,6 +40,7 @@ pub mod vostok;
 
 pub mod ragdoll;
 pub mod blackout;
+mod artefact_carry;
 pub mod suicide_key;
 
 pub mod text_input;
@@ -49,3 +50,4 @@ pub mod consumable_activity;
 pub mod language;
 
 pub mod lobby_scene;
+pub mod artefact_score;

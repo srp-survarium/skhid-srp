@@ -2557,3 +2557,31 @@ loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
 The card therefore does not invent a recoil reduction. Likewise a base-dispersion
 upgrade (property 2) does not change shot spread, growth or recovery. The scope's
 separate view FOV does not change the explicitly labelled base aim-zoom parameter.
+
+### Artefact score (patch 80)
+
+`artefact_score` (Rust, `vostok::ArtefactPickup`) is a lohook at 0x31C810 in
+`artefact_container_core::use_execute`, after the collection time and before
+`transfer_artefact` (`lea eax,[ebx+108h]`, 6 bytes; EBX the user, EDI the
+container). It reads the user's artefact slots as `inventory::take_artefact`
+0x2FC850 is about to search them ([inventory+168h] the first slot, byte
+[+16Ch] how many; an empty slot holds 0): an empty one, Free; none, Full (the
+game then replaces the first slot's artefact, 0x2FC897, as before). Free
+counts event 16 for the user's place [player+114h] and kit [player+115h] in
+the statistics of [[container+54h]+18FA8h] (+8 the shared ones, a place's
+record 1F8h, events[28][3] u16): the cell + 1 with no bound, then
+`notify_listener` 0x2F5D40 (place, 16, 1) when the listener (+31A0h) is set,
+exactly as `on_artefact_taken` 0x2F55F0 counts event 5 after the transfer.
+No statistics handler (0 before start_match and after finish_match), or a
+place or kit that is no record's: nothing, as the game counts nothing then.
+0.26g counts event 16 nowhere else (its finish_match 0x2F4CF0 counts 11, 12
+and 27; no `inc` of a +60h..+64h cell in .text), so srp reuses it.
+
+Simulation: the count is in the world's statistics, so every client of a match
+must run it (a release's revision; the session refuses older replays). No
+state is kept between hooks: a rollback re-runs the same pickup on the same
+slots. `check_artefact_score_026g.py` runs the installed hook to the push after
+the site on made-up objects (Free, Full, no slots, no listener, no handler,
+places and kits out of range, the wrap), the game's own event 5 count on the
+same statistics (the same indexing), and take_artefact's own search to its
+two branches on the same layouts.

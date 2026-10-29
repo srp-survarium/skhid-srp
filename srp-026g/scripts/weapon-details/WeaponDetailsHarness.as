@@ -94,12 +94,12 @@ package {
    aligned();
    var quick:Object=boltItem("1.333");quick.modifiers=[{icon:33,textValue:"Chambering -15%",props:[{prop_id:119,prop_value:"-0.15"}]}];
    shows(quick,bolt);
-   require(text(cards[0]).indexOf(chamber+": 1.33s » 1.13s\n")>=0,"chambering roll shows base and modified time");
+   require(text(cards[0]).indexOf(chamber+": 1.13s\n")>=0,"chambering roll shows the modified time");
    require(color(cards[0],chamber)==8890390 && color(cards[1],chamber)==9834254,"a shorter chambering time is green, the longer red");
    aligned();
    quick.modifiers.push({state:1,icon:36,textValue:"Chambering +10%",props:[{prop_id:119,prop_value:"0.10"}]});
    shows(quick,bolt);
-   require(text(cards[0]).indexOf(chamber+": 1.33s » 1.27s\n")>=0,"a chambering defect sums with the roll");
+   require(text(cards[0]).indexOf(chamber+": 1.27s\n")>=0,"a chambering defect sums with the roll");
    // Its label fits one line beside the widest chambering value (a rolled 1.333 s), compact and expanded.
    var misses:Array=[];
    for each(var language:String in HarnessText.LANGUAGES){
