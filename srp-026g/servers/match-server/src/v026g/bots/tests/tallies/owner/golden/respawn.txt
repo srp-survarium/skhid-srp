@@ -1,4 +1,4 @@
-owner-test respawn (by team): seconds dead [7.6, 3.8], deaths [0, 0], seconds dead a death [0.0, 0.0]
+owner-test respawn (by team): seconds dead [7.6, 3.8], deaths [0, 0], seconds dead a death [0.0, 0.0]; by the kit's radio: with [8, 4] deaths, [1.0, 1.0] s a death; without [0, 0] deaths, [0.0, 0.0] s a death
 {
   "respawn": {
     "dead_s": [
@@ -12,6 +12,34 @@ owner-test respawn (by team): seconds dead [7.6, 3.8], deaths [0, 0], seconds de
     "deaths": [
       0,
       0
-    ]
+    ],
+    "with_radio": {
+      "dead_s": [
+        7.6,
+        3.8
+      ],
+      "dead_s_per_death": [
+        1.0,
+        1.0
+      ],
+      "deaths": [
+        8,
+        4
+      ]
+    },
+    "without_radio": {
+      "dead_s": [
+        0.0,
+        0.0
+      ],
+      "dead_s_per_death": [
+        0.0,
+        0.0
+      ],
+      "deaths": [
+        0,
+        0
+      ]
+    }
   }
 }
