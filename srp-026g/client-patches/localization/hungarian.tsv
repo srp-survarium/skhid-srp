@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Szerelékek
+st_srp_exchange_balance	Egyenleg
+st_srp_exchange_button	Átváltás
+st_srp_exchange_gold	Arany
+st_srp_exchange_pay	Fizetsz
+st_srp_exchange_receive	Kapsz
+st_srp_exchange_short_gold	Nincs elég arany
+st_srp_exchange_short_silver	Nincs elég ezüst
+st_srp_exchange_title	Átváltás
+st_srp_inventory_search	Keresés
 st_srp_language_option	Nyelv
 st_srp_language_restart	Újraindítás után lép életbe.
+st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
+st_srp_loadout_block_locked	Ez a profil zárolva van
+st_srp_loadout_block_maintenance	Szerverkarbantartás %1$s perc múlva
+st_srp_loadout_block_pocket_twice	Azonos tárgytípus két zsebben
+st_srp_loadout_block_shared_slot	Két tárgy ugyanabban a rekeszben
+st_srp_loadout_block_weapon	Nincs fegyver
+st_srp_loadout_empty	üres
+st_srp_loadout_refused	Nem sikerült kiválasztani az összeállítást.
+st_srp_loadout_sell_and	 és 
+st_srp_loadout_sell_item	%1$s. összeállítás
+st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
+st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
+st_srp_loadout_title	Összeállítás
+st_srp_loadout_unfit	nem használható
+st_srp_login_account_hint	A fiók az első belépéskor jön létre
+st_srp_map_chemical_plant	Vegyi üzem
+st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_cologne	Köln
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamajev-kurgán
+st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	Iskola
+st_srp_map_tarakanovsky_fort	Tarakanovi erőd
+st_srp_map_vector	Vektor laboratórium
+st_srp_map_vostok	Vosztok radarállomás
+st_srp_map_vostok_v011	Vosztok radarállomás (v0.11)
+st_srp_map_vostok_v021	Vosztok radarállomás (v0.21)
+st_srp_matches_another_joining	Másik játékos csatlakozik
+st_srp_matches_balanced	A meccs már kiegyensúlyozott
+st_srp_matches_cannot_join	Most nem csatlakozhatsz
+st_srp_matches_closed	Ez a meccs le van zárva
+st_srp_matches_ends_soon	A meccs hamarosan véget ér
+st_srp_matches_full	Nincs szabad hely ebben a meccsben
+st_srp_matches_in_match	Már meccsben vagy
+st_srp_matches_in_squad	Előbb lépj ki az osztagból
+st_srp_matches_joining	csatlakozás…
+st_srp_matches_maintenance	A karbantartás kezdete után ér véget
+st_srp_matches_mode_protective_device	Védelmi berendezés
+st_srp_matches_no_answer	Nincs válasz, próbáld újra
+st_srp_matches_no_late_join	A meccs nem fogad új játékosokat
+st_srp_matches_no_place	Nincs szabad hely ebben a meccsben
+st_srp_matches_none	Most nincs meccs
+st_srp_matches_not_in_play	A meccs még nem kezdődött el
+st_srp_matches_outdated	Frissítsd a játékot
+st_srp_matches_played_before	Ebben a meccsben már játszottál
+st_srp_matches_queued	Előbb állítsd le a keresést
+st_srp_matches_starting	indul
+st_srp_matches_title	Meccsek
+st_srp_matches_waiting	várakozás
+st_srp_mode_blackout	Védelmi berendezés: áramszünet
+st_srp_mode_chargers	Védelmi berendezés: töltők
+st_srp_mode_protective_device	Védelmi berendezés
+st_srp_mode_research	Kutatás
+st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_optics	Távcsövek
+st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
+st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva
+st_srp_pvb_busy	%1$s (foglalt)
+st_srp_pvb_checking	Ellenőrzés…
+st_srp_pvb_clan_match	Előbb kapcsold ki a „Klánmeccs” opciót
+st_srp_pvb_demo_start	Demó: a szerver most elindítaná a meccset: %1$s
+st_srp_pvb_gear_max	A felszerelés szintje legfeljebb %1$s lehet
+st_srp_pvb_gear_max_yours	A felszerelés szintje legfeljebb %1$s lehet (a tiéd: %2$s)
+st_srp_pvb_generic	Most nem indítható botmeccs
+st_srp_pvb_hint	Meccs botok ellen, a saját csapatodban is botokkal
+st_srp_pvb_in_match	Már meccsben vagy
+st_srp_pvb_in_squad	Előbb lépj ki az osztagból
+st_srp_pvb_maintenance	Hamarosan karbantartás, nem indul új botmeccs
+st_srp_pvb_no_answer	A szerver nem válaszol
+st_srp_pvb_off	A botmeccsek most ki vannak kapcsolva
+st_srp_pvb_outdated	Frissítsd a játékot
+st_srp_pvb_retry	Nincs válasz, próbáld újra
+st_srp_pvb_searching	Előbb állítsd le a keresést
+st_srp_pvb_team_size	%1$s ellen %2$s
+st_srp_pvb_title	Játékos a botok ellen
+st_srp_pvb_unknown_choice	Ez a pálya vagy csapatméret most nem érhető el
+st_srp_replay_asking	A meccs visszajátszásának lekérése a szerverről…
+st_srp_replay_being_made	A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n%1$s
+st_srp_replay_busy	A szerver most más felvételekkel dolgozik. Próbáld újra egy perc múlva.
+st_srp_replay_close	BEZÁRÁS
+st_srp_replay_demo_quest	Hozzájárulás a győzelemhez
+st_srp_replay_demo_rank	«%1$s»: elérted a 3. rangot. Új tárgyak kaphatók a boltban.
+st_srp_replay_demo_seller	Guberálók
+st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
+st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
+st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
+st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.
+st_srp_replay_made_now	Most készül. Várakozás: %1$s mp.
+st_srp_replay_no_answer	A szerver nem válaszolt. Próbáld újra később.
+st_srp_replay_not_recorded	Erről a meccsről nem készült felvétel: 6-nál kevesebb játékos volt, vagy a rögzítés ki volt kapcsolva.
+st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vettél.
+st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
+st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
+st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
+st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_size	%1$s,%2$s MB
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
+st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
+st_srp_replay_title	Visszajátszás
+st_srp_replay_waiting	Várakozás: %1$s mp.
+st_srp_reroll_description	Egy tárgy bármelyik bónuszát akárhányszor lecserélheted. Ezután három véletlenszerű bónusz közül választhatsz.
+st_srp_rooms_all	Összes
+st_srp_rooms_all_rooms	Összes szoba
+st_srp_rooms_any	Bármelyik
+st_srp_rooms_back	Vissza
+st_srp_rooms_code_10	A tulajdonos eltávolított a szobából.
+st_srp_rooms_code_11	Előbb lépj ki a kláncsapatból.
+st_srp_rooms_code_12	A felszerelésed meghaladja a szintkorlátot.
+st_srp_rooms_code_13	Az összeállításod nem volt használható (hiányzó fegyver vagy kevés lőszer), ezért kikerültél a szobából.
+st_srp_rooms_code_14	Nem sikerült kiválasztani az összeállítást.
+st_srp_rooms_code_16	Nyomd meg a Játék gombot egy nyilvános szobához.
+st_srp_rooms_code_2	Ez a szoba már nem létezik.
+st_srp_rooms_code_3	Hibás PIN.
+st_srp_rooms_code_4	Ez a szoba megtelt.
+st_srp_rooms_code_5	Meccsben vagy.
+st_srp_rooms_code_6	Most túl sok szoba van.
+st_srp_rooms_code_7	Frissítsd a játékot.
+st_srp_rooms_code_8	Válassz legalább egy pályát.
+st_srp_rooms_code_9	Hamarosan karbantartás.
+st_srp_rooms_code_label	kód
+st_srp_rooms_countdown	Kezdés
+st_srp_rooms_create	Létrehozás
+st_srp_rooms_enter_anyway	Belépés így is
+st_srp_rooms_exit	Kilépés
+st_srp_rooms_experimental	kís.
+st_srp_rooms_in_match	Játékban
+st_srp_rooms_in_queue	Sorban
+st_srp_rooms_join	Csatlakozás
+st_srp_rooms_join_in	Belépés %1$s mp múlva, vagy azonnal a Belépés a meccsbe gombbal
+st_srp_rooms_join_match	Belépés a meccsbe
+st_srp_rooms_join_room	Belépés a szobába
+st_srp_rooms_join_why_1	Másik játékos csatlakozik a meccshez. Utána te következel.
+st_srp_rooms_join_why_2	Egy játékosnak még tölt a játék. Hamarosan újra lehet csatlakozni.
+st_srp_rooms_join_why_3	Kevesebb mint 30 mp van hátra. A következő meccsben játszhatsz.
+st_srp_rooms_join_why_4	A meccs megtelt.
+st_srp_rooms_join_why_5	Hamarosan szerverkarbantartás. Már nem lehet csatlakozni.
+st_srp_rooms_join_why_6	A meccs véget ér. A következőben játszhatsz.
+st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz csatlakozhatsz.
+st_srp_rooms_joined_room	%1$s belépett a szobába
+st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
+st_srp_rooms_leave	Kilépés
+st_srp_rooms_leave_queue	Sor elhagyása
+st_srp_rooms_leave_room	Szoba elhagyása
+st_srp_rooms_left_room	%1$s kilépett a szobából
+st_srp_rooms_level	Szint
+st_srp_rooms_map	Pálya
+st_srp_rooms_max	Max. szint
+st_srp_rooms_modes	Módok
+st_srp_rooms_my_room	Saját szoba
+st_srp_rooms_name	Név
+st_srp_rooms_new	Privát szoba
+st_srp_rooms_next_map	Következő
+st_srp_rooms_none	Még nincs szoba. Hozz létre egyet, vagy nyomd meg a Játék gombot.
+st_srp_rooms_none_no_play	Még nincs szoba. Hozz létre egyet.
+st_srp_rooms_none_quiet	Még nincs szoba.
+st_srp_rooms_nothing	Egyik sem
+st_srp_rooms_offer_fits	A felszerelésed szintje (%2$s) meghaladja a szoba korlátját (%1$s). A(z) %3$s. összeállítás szintje %4$s.
+st_srp_rooms_offer_higher	A szoba szintkorlátja %1$s, a felszerelésed %2$s. A(z) %3$s. összeállítás szintje %4$s.
+st_srp_rooms_offer_unfit	Az összeállításod nem használható. A(z) %1$s. összeállítás szintje %2$s.
+st_srp_rooms_open	szabad
+st_srp_rooms_open_slots	%1$s szabad
+st_srp_rooms_owner_tag	tulajdonos
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	A PIN 4 számjegyből áll.
+st_srp_rooms_pin_hint	4 számjegy szükséges
+st_srp_rooms_players	Játékosok
+st_srp_rooms_playing	Meccs folyamatban
+st_srp_rooms_pool	Pályakészlet
+st_srp_rooms_pool_hint	Ezek közül 3 kerül véletlenszerűen a szavazásra.
+st_srp_rooms_private_room	Privát szoba: legfeljebb 20 játékos. Te állítod össze a csapatokat és indítasz.
+st_srp_rooms_queue	Sor
+st_srp_rooms_queue_room	Sorba állás
+st_srp_rooms_room	Szoba
+st_srp_rooms_room_chat	Szobachat
+st_srp_rooms_servers	Szobák
+st_srp_rooms_start_hint	Ha mindenki bent van, nyomd meg az Indítás gombot.
+st_srp_rooms_start_match	Indítás
+st_srp_rooms_starts	A meccs kezdéséig
+st_srp_rooms_state	Állapot
+st_srp_rooms_switch_enter	Váltás és belépés
+st_srp_rooms_switch_to	Szobaváltás
+st_srp_rooms_switch_who	%1$s szobája · %2$s játékos
+st_srp_rooms_switch_why	Igazságosabb meccs: ellenfelek felszerelése max. %1$s. szint
+st_srp_rooms_team_1	1. csapat
+st_srp_rooms_team_2	2. csapat
+st_srp_rooms_teams	A csapatok a meccs elején véletlenszerűen állnak össze.
+st_srp_rooms_teams_later	A csapatok a meccs után módosíthatók.
+st_srp_rooms_teams_member	A csapatokat a szoba létrehozója állítja össze.
+st_srp_rooms_teams_owner	A « és » gombokkal mozgathatod a játékosokat a csapatok között.
+st_srp_rooms_unfit_gear	A felszerelésed meghaladja a szintkorlátot. Csökkentsd a szintjét, különben kezdéskor kikerülsz a szobából.
+st_srp_rooms_unfit_kit	Az összeállításod nem használható (nincs fegyver vagy kevés a lőszer). Javítsd ki, különben kezdéskor kikerülsz a szobából.
+st_srp_rooms_vote	Szavazz a következő pályára
+st_srp_rooms_vote_hint	3 kártya a készletből. A legtöbb szavazat nyer, döntetlennél sorsolás dönt. Kattints a szavazatod módosításához.
+st_srp_rooms_vote_now	Kattints egy kártyára a következő pálya kiválasztásához. Az idő lejártával a győztes pályán indul a meccs.
+st_srp_rooms_voting	Pályaszavazás
+st_srp_rooms_waiting	Várakozás a játékosokra
+st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
+st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
+st_srp_weather_before_rain	eső előtt
+st_srp_weather_day	nappal
+st_srp_weather_evening	este
+st_srp_weather_night	éjszaka
+st_srp_weather_rain	eső
 st_stamina_boost_name	Újult erő
 st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:
 st_stamina_loss_on_hit_description	Állóképesség-büntetés sérüléskor.

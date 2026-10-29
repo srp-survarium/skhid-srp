@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Anbauteile
+st_srp_exchange_balance	Guthaben
+st_srp_exchange_button	Tauschen
+st_srp_exchange_gold	Gold
+st_srp_exchange_pay	Sie zahlen
+st_srp_exchange_receive	Sie erhalten
+st_srp_exchange_short_gold	Nicht genug Gold
+st_srp_exchange_short_silver	Nicht genug Silber
+st_srp_exchange_title	Tausch
+st_srp_inventory_search	Suche
 st_srp_language_option	Sprache
 st_srp_language_restart	Gilt nach einem Neustart.
+st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
+st_srp_loadout_block_locked	Dieses Profil ist gesperrt
+st_srp_loadout_block_maintenance	Bald Wartung: in %1$s Min
+st_srp_loadout_block_pocket_twice	Ein Gegenstandstyp in zwei Taschen
+st_srp_loadout_block_shared_slot	Zwei Gegenstände in einem Platz
+st_srp_loadout_block_weapon	Keine Waffe
+st_srp_loadout_empty	leer
+st_srp_loadout_refused	Das Loadout ließ sich nicht wählen.
+st_srp_loadout_sell_and	 und 
+st_srp_loadout_sell_item	%1$s
+st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
+st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
+st_srp_loadout_title	Loadout
+st_srp_loadout_unfit	nicht spielbar
+st_srp_login_account_hint	Konto wird beim ersten Login erstellt
+st_srp_map_chemical_plant	Chemiebetrieb
+st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
+st_srp_map_cologne	Köln
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamaew kurgan
+st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	Schule
+st_srp_map_tarakanovsky_fort	Tarakanowski Fort
+st_srp_map_vector	Labor Vektor
+st_srp_map_vostok	RS Vostok
+st_srp_map_vostok_v011	RS Vostok (v0.11)
+st_srp_map_vostok_v021	RS Vostok (v0.21)
+st_srp_matches_another_joining	Ein anderer Spieler tritt gerade bei
+st_srp_matches_balanced	Match ist bereits ausgeglichen
+st_srp_matches_cannot_join	Beitritt gerade nicht möglich
+st_srp_matches_closed	Dieses Match ist geschlossen
+st_srp_matches_ends_soon	Match endet bald
+st_srp_matches_full	Kein freier Platz im Match
+st_srp_matches_in_match	Du bist bereits in einem Match
+st_srp_matches_in_squad	Verlasse zuerst deine Abteilung
+st_srp_matches_joining	Beitritt…
+st_srp_matches_maintenance	Endet nach Beginn der Wartung
+st_srp_matches_mode_protective_device	Laden der Schutzeinrichtung
+st_srp_matches_no_answer	Keine Antwort, erneut versuchen
+st_srp_matches_no_late_join	Match nimmt keine neuen Spieler auf
+st_srp_matches_no_place	Kein freier Platz im Match
+st_srp_matches_none	Zurzeit keine Matches
+st_srp_matches_not_in_play	Match hat noch nicht begonnen
+st_srp_matches_outdated	Aktualisiere dein Spiel
+st_srp_matches_played_before	Du hast in diesem Match schon gespielt
+st_srp_matches_queued	Brich zuerst die Suche ab
+st_srp_matches_starting	Start
+st_srp_matches_title	Matches
+st_srp_matches_waiting	Warten
+st_srp_mode_blackout	Schutzeinrichtung: Blackout
+st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
+st_srp_mode_protective_device	Schutzeinrichtung
+st_srp_mode_research	Forschung
+st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_optics	Optik
+st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
+st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
+st_srp_pvb_busy	%1$s (belegt)
+st_srp_pvb_checking	Prüfung…
+st_srp_pvb_clan_match	Schalte zuerst "Clan Kampf" ab
+st_srp_pvb_demo_start	Demo: der Server würde das Match jetzt starten: %1$s
+st_srp_pvb_gear_max	Ausrüstung Niveau muss %1$s oder niedriger sein
+st_srp_pvb_gear_max_yours	Ausrüstung Niveau muss %1$s oder niedriger sein (deins: %2$s)
+st_srp_pvb_generic	Ein Bot-Match kann gerade nicht starten
+st_srp_pvb_hint	Ein Match gegen Bots, auch in deinem Team spielen Bots
+st_srp_pvb_in_match	Du bist bereits in einem Match
+st_srp_pvb_in_squad	Verlasse zuerst deine Abteilung
+st_srp_pvb_maintenance	Die Wartung beginnt bald, keine neuen Bot-Matches
+st_srp_pvb_no_answer	Keine Antwort vom Server
+st_srp_pvb_off	Matches mit Bots sind gerade abgeschaltet
+st_srp_pvb_outdated	Aktualisiere dein Spiel
+st_srp_pvb_retry	Keine Antwort, erneut versuchen
+st_srp_pvb_searching	Brich zuerst die Suche ab
+st_srp_pvb_team_size	%1$s vs. %2$s
+st_srp_pvb_title	Spieler vs. Bots
+st_srp_pvb_unknown_choice	Diese Karte oder Teamgröße ist gerade nicht verfügbar
+st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
+st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_close	CLOSE
+st_srp_replay_demo_quest	Victory contribution
+st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
+st_srp_replay_demo_seller	Scavengers
+st_srp_replay_download	DOWNLOAD AND WATCH
+st_srp_replay_failed	The server could not prepare the replay of this match.
+st_srp_replay_gone	The replay of this match is no longer kept on the server.
+st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_made_now	Being made now. Waiting: %1$s s.
+st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
+st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_off	Replays are switched off on this server.
+st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_size	%1$s.%2$s MB
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
+st_srp_replay_title	Watch replay
+st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_reroll_description	Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.
+st_srp_rooms_all	Alle
+st_srp_rooms_all_rooms	Alle Räume
+st_srp_rooms_any	Alle
+st_srp_rooms_back	Zurück
+st_srp_rooms_code_10	Der Besitzer hat dich entfernt.
+st_srp_rooms_code_11	Verlasse zuerst dein Clanteam.
+st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
+st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
+st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
+st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
+st_srp_rooms_code_3	Falsche PIN.
+st_srp_rooms_code_4	Der Raum ist voll.
+st_srp_rooms_code_5	Du bist in einem Match.
+st_srp_rooms_code_6	Zu viele Räume.
+st_srp_rooms_code_7	Aktualisiere dein Spiel.
+st_srp_rooms_code_8	Wähle mindestens eine Karte.
+st_srp_rooms_code_9	Bald Wartung.
+st_srp_rooms_code_label	Code
+st_srp_rooms_countdown	Start
+st_srp_rooms_create	Erstellen
+st_srp_rooms_enter_anyway	Trotzdem rein
+st_srp_rooms_exit	Abbrechen
+st_srp_rooms_experimental	exp.
+st_srp_rooms_in_match	Läuft
+st_srp_rooms_in_queue	In der Warteschlange
+st_srp_rooms_join	Beitreten
+st_srp_rooms_join_in	Ins Match in %1$s s, oder jetzt: Match beitreten
+st_srp_rooms_join_match	Match beitreten
+st_srp_rooms_join_room	Raum beitreten
+st_srp_rooms_join_why_1	Ein anderer Spieler betritt das Match; du kommst danach.
+st_srp_rooms_join_why_2	Das Spiel eines Spielers lädt; Beitreten gleich wieder möglich.
+st_srp_rooms_join_why_3	Weniger als 30 s übrig: du spielst das nächste Match.
+st_srp_rooms_join_why_4	Das Match ist voll.
+st_srp_rooms_join_why_5	Bald Wartung: keine neuen Beitritte.
+st_srp_rooms_join_why_6	Das Match endet: du spielst das nächste.
+st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst im nächsten Match.
+st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
+st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
+st_srp_rooms_leave	Verlassen
+st_srp_rooms_leave_queue	Warteschlange verlassen
+st_srp_rooms_leave_room	Raum verlassen
+st_srp_rooms_left_room	%1$s hat den Raum verlassen
+st_srp_rooms_level	Stufe
+st_srp_rooms_map	Karte
+st_srp_rooms_max	Max. Stufe
+st_srp_rooms_modes	Modi
+st_srp_rooms_my_room	Mein Raum
+st_srp_rooms_name	Name
+st_srp_rooms_new	Privater Raum
+st_srp_rooms_next_map	Als Nächstes
+st_srp_rooms_none	Noch keine Räume. Erstelle einen oder drücke Spielen.
+st_srp_rooms_none_no_play	Noch keine Räume. Erstelle einen.
+st_srp_rooms_none_quiet	Noch keine Räume.
+st_srp_rooms_nothing	Keine
+st_srp_rooms_offer_fits	Deine Ausrüstung %2$s liegt über der max. Stufe %1$s. Loadout %3$s: Stufe %4$s.
+st_srp_rooms_offer_higher	Max. Stufe des Raums %1$s, deine Ausrüstung %2$s. Loadout %3$s: Stufe %4$s.
+st_srp_rooms_offer_unfit	Dein Loadout ist nicht spielbar. Loadout %1$s: Stufe %2$s.
+st_srp_rooms_open	frei
+st_srp_rooms_open_slots	%1$s frei
+st_srp_rooms_owner_tag	Besitzer
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	Die PIN hat 4 Ziffern.
+st_srp_rooms_pin_hint	4 Ziffern erforderlich
+st_srp_rooms_players	Spieler
+st_srp_rooms_playing	Match läuft
+st_srp_rooms_pool	Pool
+st_srp_rooms_pool_hint	Die Wahl zieht 3 Karten daraus.
+st_srp_rooms_private_room	Privater Raum: bis 20 Spieler; du stellst die Teams und startest.
+st_srp_rooms_queue	Warteschlange
+st_srp_rooms_queue_room	Raum-Warteschlange
+st_srp_rooms_room	Raum
+st_srp_rooms_room_chat	Raum-Chat
+st_srp_rooms_servers	Räume
+st_srp_rooms_start_hint	Drücke Starten, wenn alle da sind.
+st_srp_rooms_start_match	Starten
+st_srp_rooms_starts	Match beginnt in
+st_srp_rooms_state	Status
+st_srp_rooms_switch_enter	Wechseln, rein
+st_srp_rooms_switch_to	Raum wechseln
+st_srp_rooms_switch_who	Raum von %1$s · %2$s Spieler
+st_srp_rooms_switch_why	Fairer: Ausrüstung der Gegner bis Stufe %1$s
+st_srp_rooms_team_1	Team 1
+st_srp_rooms_team_2	Team 2
+st_srp_rooms_teams	Teams werden beim Matchstart gebildet.
+st_srp_rooms_teams_later	Die Teams lassen sich nach dem Match ändern.
+st_srp_rooms_teams_member	Der Ersteller stellt die Teams zusammen.
+st_srp_rooms_teams_owner	Verschiebe Spieler mit « und » zwischen den Teams.
+st_srp_rooms_unfit_gear	Deine Ausrüstung liegt über der max. Stufe: senke sie, sonst verlässt du beim Start den Raum.
+st_srp_rooms_unfit_kit	Deine Ausrüstung kann nicht spielen (keine Waffe oder zu wenig Munition): sonst verlässt du beim Start den Raum.
+st_srp_rooms_vote	Stimme für die nächste Karte
+st_srp_rooms_vote_hint	3 Karten aus dem Pool. Die meisten Stimmen gewinnen; Gleichstand: Zufall. Klicke, um umzustimmen.
+st_srp_rooms_vote_now	Stimme für die nächste Karte: klicke eine Karte. Ist die Zeit um, beginnt das Match auf der Gewinnerin.
+st_srp_rooms_voting	Kartenwahl
+st_srp_rooms_waiting	Warten auf Spieler
+st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
+st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_weather_before_rain	vor dem Regen
+st_srp_weather_day	Tag
+st_srp_weather_evening	Abend
+st_srp_weather_night	Nacht
+st_srp_weather_rain	Regen
 st_stamina_boost_name	Zweiter Atem
 st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:
 st_stamina_loss_on_hit_description	Energieverlust bei der Verwundung:
