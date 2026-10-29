@@ -170,7 +170,7 @@ impl Memo {
                 .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed));
             #[cfg(test)]
             {
-                use crate::v026g::bots::hazards::zone_fixes::{Ev, count};
+                use crate::v026g::bots::hazards::damage_zone_fixes::{Ev, count};
                 count(Ev::CrossingAsked);
                 match found {
                     None => count(Ev::CrossingNone),

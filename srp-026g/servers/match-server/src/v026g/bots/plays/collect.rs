@@ -913,7 +913,7 @@ pub fn routed_crossing_to(
     .flatten();
     #[cfg(test)]
     if route.is_none() {
-        crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedNoRoute);
+        crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedNoRoute);
     }
     let route = route?;
     let length = route.length();
@@ -938,7 +938,7 @@ pub fn routed_crossing_to(
     let (edge, leg, walk_m) = match first_zone(end) {
         Some(s) => {
             #[cfg(test)]
-            crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedStrict);
+            crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedStrict);
             let n = ((end - s) / CROSS_STEP_M).ceil().max(1.0) as usize;
             let ds = (end - s).max(0.0) / n as f32;
             let leg = (0..n)
@@ -957,7 +957,7 @@ pub fn routed_crossing_to(
         // Its zone floors, if any, lie in the stop's last metre, which the take's own walk covers.
         None => {
             #[cfg(test)]
-            crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedTotalOnly);
+            crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedTotalOnly);
             let edge = match first_zone(length) {
                 Some(s) => route.floor_point((s - CROSS_STEP_M).max(0.0)),
                 None => route.floor_point(end),
@@ -992,10 +992,10 @@ pub fn routed_crossing_to(
             .ok()
             .flatten();
             #[cfg(test)]
-            crate::v026g::bots::hazards::zone_fixes::count(if back.is_some() {
-                crate::v026g::bots::hazards::zone_fixes::Ev::OutPriced
+            crate::v026g::bots::hazards::damage_zone_fixes::count(if back.is_some() {
+                crate::v026g::bots::hazards::damage_zone_fixes::Ev::OutPriced
             } else {
-                crate::v026g::bots::hazards::zone_fixes::Ev::OutNone
+                crate::v026g::bots::hazards::damage_zone_fixes::Ev::OutNone
             });
             back.map(|back| {
                 let n = (back.length() / CROSS_STEP_M).ceil().max(1.0) as usize;
@@ -1023,6 +1023,17 @@ pub fn routed_crossing_to(
     crossing.cost().is_finite().then_some(crossing)
 }
 
+/// `ask` with the damage-zone counters of the bench filed under `team` (tests only).
+#[cfg(test)]
+fn counted_for<R>(team: u8, ask: impl FnOnce() -> R) -> R {
+    crate::v026g::bots::hazards::damage_zone_fixes::asked_by(team, ask)
+}
+
+#[cfg(not(test))]
+fn counted_for<R>(_team: u8, ask: impl FnOnce() -> R) -> R {
+    ask()
+}
+
 impl Ctx<'_> {
     /// Whether no way leads to the stand at `stand` all match, though a
     /// walk gets there with the zones off: zones on all match lie on it or
@@ -1045,14 +1056,16 @@ impl Ctx<'_> {
             return None;
         }
         // Kept for the match (`memo::Memo::crossing`): the same answer.
-        self.memo.crossing(
-            self.tactics,
-            stand,
-            self.bot.side,
-            stop_short(stand, at),
-            self.zone_armour(),
-            self.rules(),
-        )
+        counted_for(self.me.team, || {
+            self.memo.crossing(
+                self.tactics,
+                stand,
+                self.bot.side,
+                stop_short(stand, at),
+                self.zone_armour(),
+                self.rules(),
+            )
+        })
     }
 
     /// The rule of this team's tuning for crossings: how the motor's route is offered, whether the way out is priced,

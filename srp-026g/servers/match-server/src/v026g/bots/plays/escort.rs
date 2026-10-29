@@ -78,20 +78,20 @@ pub fn tuning() -> PlayTuning {
 }
 
 impl Ctx<'_> {
+    /// The teammates doing the scoring action now, as the HUD shows them: in the battery modes the carriers (none in
+    /// deathmatch). The escort's post is asked about where such a body is ([`Self::escort_post`] takes a position), so a mode
+    /// whose actors are others (bodies in a capture zone) answers here and the post code stays as it is.
+    fn objective_actors(&self) -> impl Iterator<Item = &PlaceView> {
+        self.view
+            .team(self.me.team)
+            .filter(|p| p.place != self.me.place && p.carrying.is_some())
+    }
+
     /// Our carrier the target stands for, alive and carrying.
     fn escort_carrier(&self, target: TargetRef) -> Option<&PlaceView> {
-        let mate = |p: &&PlaceView| p.place != self.me.place && p.carrying.is_some();
         match target {
-            TargetRef::Place(place) => self
-                .view
-                .team(self.me.team)
-                .filter(mate)
-                .find(|p| p.place == place),
-            TargetRef::Battery(battery) => self
-                .view
-                .team(self.me.team)
-                .filter(mate)
-                .find(|p| p.carrying == Some(battery)),
+            TargetRef::Place(place) => self.objective_actors().find(|p| p.place == place),
+            TargetRef::Battery(battery) => self.objective_actors().find(|p| p.carrying == Some(battery)),
             _ => None,
         }
     }
@@ -154,11 +154,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     };
     let home_m = cx.num(PlayKind::Escort, "near_home_m");
-    for carrier in cx.view.team(cx.me.team) {
+    for carrier in cx.objective_actors() {
         let Some(battery) = carrier.carrying else {
             continue;
         };
-        if carrier.place == cx.me.place || carrier.feet.distance_xz(home) < home_m {
+        if carrier.feet.distance_xz(home) < home_m {
             continue;
         }
         // A carrier who gave up getting out of his pocket goes nowhere: no
@@ -211,11 +211,11 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     }
 }
 
-/// The post a play begun gets, for the bench's tally (`hazards::zone_fixes`): on the line to the post, pulled to a dry
+/// The post a play begun gets, for the bench's tally (`hazards::damage_zone_fixes`): on the line to the post, pulled to a dry
 /// floor that sees the carrier, or none.
 #[cfg(test)]
 fn count_post(cx: &Ctx, target: TargetRef) {
-    use crate::v026g::bots::hazards::zone_fixes::{Ev, count};
+    use crate::v026g::bots::hazards::damage_zone_fixes::{Ev, count};
     let (Some(carrier), Some(home)) = (cx.escort_carrier(target), cx.view.container_of(cx.me.team).map(|c| c.at)) else {
         return;
     };
@@ -224,14 +224,14 @@ fn count_post(cx: &Ctx, target: TargetRef) {
     let (dx, dz) = ((home.x - him.x) / left, (home.z - him.z) / left);
     let dir = if matches!(target, TargetRef::Battery(_)) { (-dx, -dz) } else { (dx, dz) };
     let m = cx.num(PlayKind::Escort, if matches!(target, TargetRef::Battery(_)) { "behind_min_m" } else { "ahead_min_m" });
-    match cx.escort_post(him, dir, m) {
+    crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || match cx.escort_post(him, dir, m) {
         None => count(Ev::PostNone),
         Some(post) if cx.tactics.fine_goal(post, cx.now, cx.bot.side) && cx.tactics.fine_goal(him, cx.now, cx.bot.side) => {
             count(Ev::PostLine)
         }
         Some(post) if post.distance_xz(him) > 0.01 => count(Ev::PostPulled),
         Some(_) => count(Ev::PostLine),
-    }
+    })
 }
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {

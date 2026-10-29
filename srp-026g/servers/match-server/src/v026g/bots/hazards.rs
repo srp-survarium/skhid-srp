@@ -693,11 +693,17 @@ impl Hazards {
     }
 }
 
-/// What the zone fixes of the crossings and the escort posts did (the bench's tally,
-/// `tests/tallies/route/counters.rs` `zone_fixes`): each event once, where it is decided.
+/// What the damage-zone fixes of the crossings and the escort posts did (the owner tally's `damage_zone_fixes` topic,
+/// `tests/tallies/owner/damage_zones.rs`): each event once, where it is decided, filed under the team that asked. These are
+/// the plays of the battery modes (a crossing to a battery, an escort post for its carrier), so their counts are of the
+/// objective kind [`KIND`]; a mode with other plays over damage zones gets its own kind and keys. They have nothing to do
+/// with a research mode's capture zones.
 #[cfg(test)]
-pub mod zone_fixes {
-    use std::sync::atomic::{AtomicU64, Ordering};
+pub mod damage_zone_fixes {
+    use std::cell::{Cell, RefCell};
+
+    /// The objective kind these counts are of (the key prefix `dzf_<kind>_`).
+    pub const KIND: &str = "bat";
 
     #[derive(Clone, Copy)]
     pub enum Ev {
@@ -720,15 +726,47 @@ pub mod zone_fixes {
         OutNone,
     }
 
-    const N: usize = 12;
-    static COUNTS: [AtomicU64; N] = [const { AtomicU64::new(0) }; N];
+    /// The events' key suffixes, in order.
+    pub const NAMES: [&str; N] = [
+        "cross_asked",
+        "cross_found",
+        "cross_free",
+        "cross_none",
+        "routed_noroute",
+        "routed_strict",
+        "routed_total_only",
+        "post_line",
+        "post_pulled",
+        "post_none",
+        "out_priced",
+        "out_none",
+    ];
 
-    pub fn count(ev: Ev) {
-        COUNTS[ev as usize].fetch_add(1, Ordering::Relaxed);
+    pub const N: usize = 12;
+    pub type Counts = [[u64; N]; 2];
+
+    // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
+    thread_local! {
+        static COUNTS: RefCell<Counts> = const { RefCell::new([[0; N]; 2]) };
+        static TEAM: Cell<u8> = const { Cell::new(0) };
     }
 
-    pub fn counts() -> [u64; N] {
-        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    /// `ask` with the events it counts filed under `team`.
+    pub fn asked_by<R>(team: u8, ask: impl FnOnce() -> R) -> R {
+        let before = TEAM.replace(team.min(1));
+        let out = ask();
+        TEAM.set(before);
+        out
+    }
+
+    pub fn count(ev: Ev) {
+        let team = usize::from(TEAM.get());
+        COUNTS.with_borrow_mut(|counts| counts[team][ev as usize] += 1);
+    }
+
+    /// This thread's counts so far, by team.
+    pub fn counts() -> Counts {
+        COUNTS.with_borrow(|counts| *counts)
     }
 }
 

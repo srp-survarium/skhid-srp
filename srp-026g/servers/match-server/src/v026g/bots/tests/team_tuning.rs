@@ -141,10 +141,10 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
     assert!(!hud_of_team_1(false, true), "team 1's cheat is on: no HUD, whatever team 0's is");
 }
 
-/// The plays' reads of the hazard switches (`Ctx::tuning`, `plays/collect.rs`, `plays/escort.rs`): a battery lies on a floor 0.27 m over
-/// a damage zone's top, which the motor's route meets only in the last metre before its stop. Team 0's `route_crossing` is on
-/// (`total`: the route is the take), team 1's is off, so only team 0's bots go for the battery, and team 1's do not: the same
-/// situation, two answers by tuning. Swapped, the answers swap.
+/// The plays' reads of the hazard switches (`Ctx::tuning`, `plays/collect.rs`): a battery lies in a zone so wide that no straight
+/// walk crosses to it, which only the motor's own route over the zone offers (`route_crossing` `total`). Team 0's switch is on,
+/// team 1's off, so only team 0's bots go for the battery: the same situation, two answers by tuning. Swapped, the answers
+/// swap.
 #[test]
 fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
     use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
@@ -154,16 +154,16 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
         let world = super::tactics::tests::field_with(|map| {
             map.zones.push(Zone {
                 kind: ZoneKind::Damage,
-                name: "slab".into(),
+                name: "toxic".into(),
                 team: -1,
-                position: Vec3::new(25.0, -1.27, 32.0),
-                damage_type: "radiation".into(),
-                damage: Some(Damage { max_hit: 0.1, interval_ms: 1000, parts: 2, ..Damage::default() }),
+                position: Vec3::new(25.0, 0.0, 32.0),
+                damage_type: "toxic".into(),
+                damage: Some(Damage { max_hit: 0.01, interval_ms: 1000, parts: 2, ..Damage::default() }),
                 shapes: vec![Shape {
-                    kind: ShapeKind::Box,
-                    center: Vec3::new(25.0, -1.27, 32.0),
+                    kind: ShapeKind::Sphere,
+                    center: Vec3::new(25.0, 1.0, 32.0),
                     rotation: Rotation::IDENTITY,
-                    half: Vec3::new(0.05, 1.0, 0.05),
+                    half: Vec3::new(26.0, 26.0, 26.0),
                 }],
             });
         });
