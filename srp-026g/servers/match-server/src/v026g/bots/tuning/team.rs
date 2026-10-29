@@ -89,6 +89,10 @@ pub struct ThreatTuning {
     /// A3: a route walked is planned again when the covered regions change
     /// and more than `threat::EXPOSED_M` of its way ahead is in them (off: a
     /// route kept to its end whatever was held after it was planned).
+    /// OFF by default: its head-to-head (96 pairs, p1m 2026-10-29) cost
+    /// +17.5 % floors a match-second for the team (z +6.9) and the package
+    /// with it scored -2.0 % (z -1.4), while the package without it scored
+    /// +0.7 % (z +0.5) at the floors of OFF: CPU for no score.
     pub replan: bool,
     /// A4: a held spot casts its lanes again when a kill comes from a
     /// bearing outside every lane cast (or the reach grows, or its centre
@@ -186,7 +190,7 @@ impl Default for ThreatTuning {
             lane_cost: 3.0,
             whole_route_floors: SEARCH_FLOORS_PER_POLL,
             lane_weighted: true,
-            replan: true,
+            replan: false,
             recast: true,
             area: true,
             job: true,

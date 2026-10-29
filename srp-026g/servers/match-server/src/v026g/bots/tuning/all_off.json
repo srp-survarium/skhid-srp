@@ -90,7 +90,6 @@
     "lanes_pierce": false,
     "pair_up_hidden": false,
     "recast": false,
-    "replan": false,
     "trade_out_of_lines": false,
     "whole_route": false
   },
