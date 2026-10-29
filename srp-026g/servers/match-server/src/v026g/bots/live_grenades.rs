@@ -468,6 +468,34 @@ impl Throws {
     }
 }
 
+/// What a bot's lives did with frags: the lives that began with its pockets read, those that carried a frag and the units, the
+/// frags thrown (the frag habit's, a life's throws added when it ends).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FragLives {
+    pub lives: u32,
+    pub carrying: u32,
+    pub carried: u32,
+    pub thrown: u32,
+}
+
+impl FragLives {
+    /// A life begins with `frags` in its kit in use (`None`: the pockets are not read, nothing is counted).
+    pub fn spawn(&mut self, frags: Option<u16>) {
+        if let Some(frags) = frags {
+            self.lives += 1;
+            self.carrying += u32::from(frags > 0);
+            self.carried += u32::from(frags);
+        }
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.lives += other.lives;
+        self.carrying += other.carrying;
+        self.carried += other.carried;
+        self.thrown += other.thrown;
+    }
+}
+
 /// What the tracker made of the throw keys it saw (a counter, for the logs and the benches).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ThrowCounts {
@@ -565,8 +593,24 @@ impl super::Bots {
             })
             .collect::<Vec<_>>()
             .join(" ");
+        let carried = self
+            .frag_lives()
+            .iter()
+            .enumerate()
+            .map(|(team, by_role)| {
+                let roles = BotRole::ALL
+                    .iter()
+                    .zip(by_role)
+                    .filter(|&(_, l)| l.lives > 0)
+                    .map(|(role, l)| format!("{} {}/{}/{}/{}", role.name(), l.lives, l.carrying, l.carried, l.thrown))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("team {team} [{}]", if roles.is_empty() { "none" } else { &roles })
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}; frags by role (lives read/carrying/units carried/thrown): {carried}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
@@ -593,6 +637,22 @@ impl super::Bots {
                 && let Some(at) = BotRole::ALL.iter().position(|&each| each == role)
             {
                 out[usize::from(bot.team.min(1))][at] += bot.frag_rolls_refused + bot.reflex.refused_no_frag();
+            }
+        }
+        out
+    }
+
+    /// The frags the bots' lives carried and threw: `[team][role]`, by [`BotRole::ALL`], the lives over and the present life's
+    /// throws.
+    pub fn frag_lives(&self) -> [[FragLives; BotRole::ALL.len()]; 2] {
+        let mut out = [[FragLives::default(); BotRole::ALL.len()]; 2];
+        for bot in self.bots.iter().flatten() {
+            if let Some(role) = bot.role
+                && let Some(at) = BotRole::ALL.iter().position(|&each| each == role)
+            {
+                let mut lives = bot.frag_lives;
+                lives.thrown += u32::from(bot.reflex.grenades_thrown());
+                out[usize::from(bot.team.min(1))][at].add(&lives);
             }
         }
         out

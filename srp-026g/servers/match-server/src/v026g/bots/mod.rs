@@ -365,6 +365,8 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
+    /// The frags its lives carried and threw (the lives over; the present life's throws are the reflex's).
+    frag_lives: live_grenades::FragLives,
     /// The kit of this life, and the one it picked for its next (a kit
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
@@ -503,7 +505,10 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
+            frag_lives: live_grenades::FragLives::default(),
             kit: 0,
+
+
             kit_chosen: 0,
             resupplies: 0,
             features: BotFeatures::default(),
@@ -539,6 +544,7 @@ impl Bot {
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -721,6 +727,7 @@ impl Bot {
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -1281,6 +1288,8 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            // A life begins: the frags its kit in use holds (the tracker refilled it with the world that began the life).
+            bot.frag_lives.spawn(self.tracker.frags_left(place));
             bot.note(
                 &mut notes,
                 time,
