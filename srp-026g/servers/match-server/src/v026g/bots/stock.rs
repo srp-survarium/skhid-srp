@@ -6,9 +6,13 @@
 //! `survarium::v026g::loadouts::BOT_AMMO_LIVES`): the stack in the slot
 //! (`m_amount`, what a quick-use key takes from) and the item's storage;
 //! a spawn fills the slot from the storage, a use takes one from the slot
-//! at once, a death puts the slot back. So a kit's drugs are a count for
-//! the match, not for a life, and a bot that counted them per life pressed
-//! the third medkit of a kit into an empty slot.
+//! at once, a death puts the slot back. So with the storage at the count
+//! ([`PocketStore::PerMatch`]) a kit's drugs are a count for the match, not
+//! for a life, and a bot that counted them per life pressed the third
+//! medkit of a kit into an empty slot. With the store of
+//! [`PocketStore::PerLife`] (the default since 2026-10-29) the storage holds
+//! [`BOT_POCKET_STORE`] units, so every life starts with the stack and the
+//! match's count is the store's; the worlds correct it either way.
 //!
 //! [`Pantry`] is that count, a bot's own. A press takes one out of it
 //! ([`Pantry::pressed`]); a trusted world corrects it ([`Pantry::read`]),
@@ -23,6 +27,7 @@
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
     BOT_BANDAGES, BOT_MEDKIT, BOT_POCKETS, BotKitItem, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER, new_kit,
+    PocketStore, pocket_store,
 };
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
@@ -159,6 +164,8 @@ pub struct Pantry {
     kits: Vec<Vec<Held>>,
     /// The kit in use.
     kit: usize,
+    /// The storage behind the stacks until a world says ([`PocketStore`]).
+    store: PocketStore,
 }
 
 impl Default for Pantry {
@@ -182,24 +189,32 @@ impl Pantry {
     /// What every server bot's kit holds ([`BOT_POCKETS`]: two medkits),
     /// until a world says what its kits hold.
     pub fn standard() -> Self {
+        Self::standard_with(pocket_store())
+    }
+
+    /// [`Self::standard`] with the store the kits were built with.
+    pub fn standard_with(store: PocketStore) -> Self {
         Self {
-            kits: vec![Self::standard_kit()],
+            kits: vec![Self::standard_kit(store)],
             kit: 0,
+            store,
         }
     }
 
-    fn standard_kit() -> Vec<Held> {
+    fn standard_kit(store: PocketStore) -> Vec<Held> {
         standard_pockets()
             .iter()
             .filter_map(|item| {
                 let drug = Drug::of_name(item.name)?;
                 let quick = usize::from(item.input_bit? - QUICK_USE_FIRST_BIT);
                 let count = item.count as u16;
+                // What the kit has for the match until a world says: the slot and the storage behind it.
+                let total = store.stored(item.count).min(u32::from(u16::MAX)) as u16;
                 Some(Held {
                     drug,
                     quick,
                     slot: count,
-                    total: count,
+                    total,
                     hand: count,
                     pressed: None,
                 })
@@ -209,7 +224,7 @@ impl Pantry {
 
     fn kit_at(&mut self, kit: usize) -> &mut Vec<Held> {
         while self.kits.len() <= kit {
-            self.kits.push(Self::standard_kit());
+            self.kits.push(Self::standard_kit(self.store));
         }
         &mut self.kits[kit]
     }
@@ -461,7 +476,7 @@ mod tests {
 
     #[test]
     fn a_bots_kit_holds_two_medkits_on_quick_use_1_and_the_count_is_the_matchs() {
-        let mut pantry = Pantry::standard();
+        let mut pantry = Pantry::standard_with(PocketStore::PerMatch);
         pantry.new_life(0);
         assert_eq!(pantry.in_hand(Drug::Medkit), 2);
         assert_eq!(pantry.first(Drug::Medkit).map(|h| h.quick), Some(0));
@@ -483,6 +498,24 @@ mod tests {
         assert!(pantry.pressed(0, 60_000));
         pantry.new_life(1);
         assert_eq!(pantry.in_hand(Drug::Medkit), 1, "one left for the match");
+    }
+
+    /// The store of 100 (the default): a kit's two medkits are there again at every life, the match's count is the
+    /// store's, and a world's word on the storage still wins.
+    #[test]
+    fn with_the_pocket_store_every_life_starts_with_the_stack() {
+        let mut pantry = Pantry::standard_with(PocketStore::PerLife);
+        pantry.new_life(0);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 2);
+        assert_eq!(pantry.total(Drug::Medkit), 100);
+        for life in 0..3 {
+            assert!(pantry.pressed(0, 1_000 + life * 20_000));
+            assert!(pantry.pressed(0, 9_000 + life * 20_000));
+            assert!(!pantry.pressed(0, 15_000 + life * 20_000), "the slot is empty in this life");
+            pantry.new_life(0);
+            assert_eq!(pantry.in_hand(Drug::Medkit), 2, "life {}", life + 2);
+        }
+        assert_eq!(pantry.total(Drug::Medkit), 94);
     }
 
     #[test]
