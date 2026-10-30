@@ -101,7 +101,8 @@
   "smoke": {
     "cross_lane": false,
     "react_watch": false,
-    "sight": false
+    "sight": false,
+    "spot_rules": false
   },
   "threat": {
     "area": false,
