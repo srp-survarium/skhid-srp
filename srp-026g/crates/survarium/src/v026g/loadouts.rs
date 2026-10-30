@@ -626,22 +626,35 @@ pub fn on_unless_off(name: &str, value: Option<&str>) -> bool {
     }
 }
 
-/// The two environment switches of the owner's choices as one thread may see them ([`KitSwitches::scope`]): the tests of the old
-/// kit's rules, and of the kit's own, run in one process whatever its environment says. Nothing but a test sets one.
+/// The two environment switches of the owner's choices as this process has them. With the `test-support` feature (the tests of
+/// this crate and the dev-dependency of the match server) a thread may see others ([`KitSwitches::scope`]): the tests of the old
+/// kit's rules, and of the kit's own, run in one process whatever its environment says. Without it the environment is the only
+/// owner of the two values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KitSwitches {
     pub kit: bool,
     pub upgrades: bool,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 thread_local! {
     static SCOPED: std::cell::Cell<Option<KitSwitches>> = const { std::cell::Cell::new(None) };
 }
 
+/// The switches a test set on this thread ([`KitSwitches::scope`]); none in a build without the `test-support` feature.
+fn scoped() -> Option<KitSwitches> {
+    #[cfg(any(test, feature = "test-support"))]
+    return SCOPED.get();
+    #[cfg(not(any(test, feature = "test-support")))]
+    None
+}
+
 /// What [`KitSwitches::scope`] restores when it is dropped.
+#[cfg(any(test, feature = "test-support"))]
 #[must_use = "the switches are the scope's only while it is held"]
 pub struct KitScope(Option<KitSwitches>);
 
+#[cfg(any(test, feature = "test-support"))]
 impl Drop for KitScope {
     fn drop(&mut self) {
         SCOPED.set(self.0);
@@ -656,7 +669,7 @@ impl KitSwitches {
 
     /// The switches this thread sees now: a scope's, else the process's (the environment's).
     pub fn current() -> Self {
-        SCOPED.get().unwrap_or_else(|| Self { kit: process_kit(), upgrades: process_upgrades() })
+        scoped().unwrap_or_else(|| Self { kit: process_kit(), upgrades: process_upgrades() })
     }
 
     /// The slot of a cache of what the switches decide.
@@ -668,6 +681,7 @@ impl KitSwitches {
     pub const SLOTS: usize = 4;
 
     /// These switches on this thread until the scope is dropped.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn scope(self) -> KitScope {
         KitScope(SCOPED.replace(Some(self)))
     }
@@ -679,7 +693,7 @@ impl KitSwitches {
 /// `SRP_BOT_KIT` is `0`, `off` or `false`** ([`on_unless_off`]); off:
 /// [`BOT_POCKETS`], the old gear and skills. Read once.
 pub fn new_kit() -> bool {
-    SCOPED.get().map_or_else(process_kit, |switches| switches.kit)
+    scoped().map_or_else(process_kit, |switches| switches.kit)
 }
 
 fn process_kit() -> bool {
@@ -703,7 +717,7 @@ pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
 /// `SRP_BOT_UPGRADES` is `0`, `off` or `false`** ([`on_unless_off`]); off:
 /// the plain armour. Read once.
 pub fn upgrades_on() -> bool {
-    SCOPED.get().map_or_else(process_upgrades, |switches| switches.upgrades)
+    scoped().map_or_else(process_upgrades, |switches| switches.upgrades)
 }
 
 fn process_upgrades() -> bool {
