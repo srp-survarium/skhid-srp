@@ -1932,59 +1932,63 @@ pub(crate) fn real_bot_cost() {
                 "  zone_pools: {}",
                 serde_json::json!({"zone_pool_lost": game.zone_pool_lost, "zone_pool_deaths": game.zone_pool_deaths})
             );
-            eprintln!(
-                "  sums: {}",
-                serde_json::json!({
-                    "map": format!("{project}-{per_team}v{per_team}"),
-                    "seed": seed,
-                    "kills": [kd[0][0], kd[1][0]],
-                    "deaths": [kd[0][1], kd[1][1]],
-                    "kd_by_role": kd_by_role,
-                    "delivered": game.delivered,
-                    "points": game.points,
-                    "taken": game.taken,
-                    "take_ends": take_ends,
-                    "stands_given_up": stands_given_up,
-                    "stands_stale": stands_stale,
-                    "carriers_killed": carriers_killed,
-                    "collect_crowd_deaths": collect_crowd_deaths,
-                    "collect_held_deaths": collect_held_deaths,
-                    "collect_held_crowd_deaths": collect_held_crowd_deaths,
-                    "collect_held_dist": collect_held_dist,
-                    "collect_held_seen": collect_held_seen,
-                    "collect_crowd_spots": collect_crowd_spots,
-                    "holder_s": holder_ticks.map(secs),
-                    "holder_post_s": holder_post_ticks.map(secs),
-                    "holder_deaths": holder_deaths,
-                    "holder_thefts": holder_thefts,
-                    "unheld_s": unheld_ticks.map(secs),
-                    "play_s": play_s,
-                    "by_play": play_rows,
-                    "deaths_by": deaths_by,
-                    "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
-                    "camp_ended": game.camp_ended,
-                    "nudged": game.nudged,
-                    "raids": raid_sums,
-                    "stolen": game.stolen,
-                    "drops": game.drops,
-                    "zone_deaths": game.zone_deaths,
-                    "zone_hp": game.zone_hp,
-                    "zone_spells": zone_spells,
-                    // Crossings' searches (`crossing.rs`): searched, taken,
-                    // ring walks, refused, floors expanded, wanted for a long
-                    // route, stopped on the way.
-                    "crossings": crossings,
-                    "zone_takes": zone_takes,
-                    "zone_spots": zone_spots.len(),
-                    "carry_mps": if game.carry_ticks > 0 {
-                        game.carry_m / (game.carry_ticks as f32 * TICK_S)
-                    } else {
-                        0.0
-                    },
-                    "stand_in": if game.honest { "honest" } else { "old" },
-                    "owner": owner_sums,
-                })
-            );
+            let sums = serde_json::json!({
+                "map": format!("{project}-{per_team}v{per_team}"),
+                "seed": seed,
+                "kills": [kd[0][0], kd[1][0]],
+                "deaths": [kd[0][1], kd[1][1]],
+                "kd_by_role": kd_by_role,
+                "delivered": game.delivered,
+                "points": game.points,
+                "taken": game.taken,
+                "take_ends": take_ends,
+                "stands_given_up": stands_given_up,
+                "stands_stale": stands_stale,
+                "carriers_killed": carriers_killed,
+                "collect_crowd_deaths": collect_crowd_deaths,
+                "collect_held_deaths": collect_held_deaths,
+                "collect_held_crowd_deaths": collect_held_crowd_deaths,
+                "collect_held_dist": collect_held_dist,
+                "collect_held_seen": collect_held_seen,
+                "collect_crowd_spots": collect_crowd_spots,
+                "holder_s": holder_ticks.map(secs),
+                "holder_post_s": holder_post_ticks.map(secs),
+                "holder_deaths": holder_deaths,
+                "holder_thefts": holder_thefts,
+                "unheld_s": unheld_ticks.map(secs),
+                "play_s": play_s,
+                "by_play": play_rows,
+                "deaths_by": deaths_by,
+                "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
+                "camp_ended": game.camp_ended,
+                "nudged": game.nudged,
+                "raids": raid_sums,
+                "stolen": game.stolen,
+                "drops": game.drops,
+                "zone_deaths": game.zone_deaths,
+                "zone_hp": game.zone_hp,
+                "zone_spells": zone_spells,
+                // Crossings' searches (`crossing.rs`): searched, taken,
+                // ring walks, refused, floors expanded, wanted for a long
+                // route, stopped on the way.
+                "crossings": crossings,
+                "zone_takes": zone_takes,
+                "zone_spots": zone_spots.len(),
+                "carry_mps": if game.carry_ticks > 0 {
+                    game.carry_m / (game.carry_ticks as f32 * TICK_S)
+                } else {
+                    0.0
+                },
+                "stand_in": if game.honest { "honest" } else { "old" },
+                "owner": owner_sums,
+            });
+            eprintln!("  sums: {sums}");
+            // The same JSON in a file of its own: the line above is cut by anything else printed at the same moment (libtest's
+            // "has been running for over 60 seconds" when a cell is slow).
+            if let Some(dir) = bench_settings().var_os("SRP_BENCH_SUMS_DIR") {
+                let file = std::path::Path::new(&dir).join(format!("{project}-{per_team}v{per_team}-s{seed}.json"));
+                std::fs::write(&file, sums.to_string()).unwrap_or_else(|e| panic!("SRP_BENCH_SUMS_DIR: {}: {e}", file.display()));
+            }
             eprintln!(
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0

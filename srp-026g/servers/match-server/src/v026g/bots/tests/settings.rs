@@ -80,6 +80,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_DECISIONS_OUT", "unset", "a file the run's decisions line is appended to"),
     // What is printed or written.
     s("SRP_BENCH_EVENTS", "unset", "a folder for the run's events, one JSON line each"),
+    s("SRP_BENCH_SUMS_DIR", "unset", "a folder for each cell's `sums` JSON, one file a cell (`<map>-<n>v<n>-s<seed>.json`): the `sums:` line of the log can be cut in two by libtest's \"has been running for over 60 seconds\" line when a cell is slow"),
     s("SRP_BENCH_NOTES", "unset", "a file the carry tally's notes are appended to"),
     s("SRP_BENCH_GATES", "off", "test every fire gate each tick, for the gate tally's counts (no shot changes)"),
     s("SRP_WRITE_GOLDEN", "off", "a path: the made-up match test writes its counts there instead of comparing (tallies/owner/golden.rs)"),
