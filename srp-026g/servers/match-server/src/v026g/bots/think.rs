@@ -710,7 +710,12 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         let low = Vec3::new(0.0, super::view::eye_height(true, 0.0, 0.0) - up, 0.0);
         let crouch = if seen_crouched { Vec3::ZERO } else { low };
         let eyes = [eye, eye + side, eye - side, eye + along, eye - along, eye + crouch];
-        if sprinting || eyes.iter().any(|&e| tactics.sees(e, me.feet + chest_over)) {
+        if eyes.iter().any(|&e| tactics.sees(e, me.feet + chest_over)) {
+            return None;
+        }
+        if sprinting {
+            #[cfg(test)]
+            smoke::tally::add(bot.team, smoke::tally::Event::SprintSkip);
             return None;
         }
         crossing_of(&|p| eyes.iter().all(|&e| tactics.sees(e, p + chest_over))).map(|(s, crossing)| (who, eyes, s, crossing))
@@ -754,7 +759,12 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         }
         let grid = &tactics.world.grid;
         // Not in the lane already, and not running it already.
-        if sprinting || bot.threat.exposed_at(grid, me.feet) {
+        if bot.threat.exposed_at(grid, me.feet) {
+            return None;
+        }
+        if sprinting {
+            #[cfg(test)]
+            smoke::tally::add(bot.team, smoke::tally::Event::SprintSkip);
             return None;
         }
         let (crossing_s, crossing) = crossing_of(&|p| bot.threat.exposed_at(grid, p))?;

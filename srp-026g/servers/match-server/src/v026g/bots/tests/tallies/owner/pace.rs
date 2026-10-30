@@ -41,6 +41,8 @@ const AUDIBLE_M: f32 = 18.75;
 /// A death is "after a sprint" when the body sprinted in the last this long, ms; "after an audible sprint" within `AUDIBLE_WINDOW_MS`.
 const AFTER_SPRINT_MS: u32 = 5_000;
 const AUDIBLE_WINDOW_MS: u32 = 10_000;
+/// A death is "just after a calm sprint" when the body sprinted calm (no enemy within `CALM_M`) in the last this long, ms.
+const JUST_AFTER_MS: u32 = 3_000;
 
 /// The hit that kills is the one in the last this long before the death, ms.
 const KILLER_MS: u32 = 1_000;
@@ -89,6 +91,8 @@ struct Team {
     deaths_sprint: [u64; 2],
     deaths_walk: [u64; 2],
     deaths_audible: u64,
+    /// Deaths within [`JUST_AFTER_MS`] of a calm sprint tick: all, and those that also had an audible sprint tick (an enemy within [`AUDIBLE_M`]) in that time.
+    deaths_just_after: [u64; 2],
     deaths_no_killer: u64,
     sprint_killer_m: [u64; 3],
     /// Batteries: the carriers' ticks, the nearest living teammate's distance summed over them, and those with a teammate within 15 m; the walking and the
@@ -117,6 +121,7 @@ struct Body {
     /// The tick of its last sprint, and of its last audible one.
     last_sprint: Option<u32>,
     last_audible: Option<u32>,
+    last_calm_sprint: Option<u32>,
     /// The last hit it took: the shooter and the tick.
     hit_by: Option<(Place, u32)>,
     /// Whom its memory holds a track of (as of the last read).
@@ -249,6 +254,10 @@ impl Topic for PaceCounts {
                 let since = |last: Option<u32>, window: u32| last.is_some_and(|at| tick.saturating_sub(at) <= window);
                 let sprinted = since(body.last_sprint, AFTER_SPRINT_MS);
                 team.deaths_audible += u64::from(since(body.last_audible, AUDIBLE_WINDOW_MS));
+                if since(body.last_calm_sprint, JUST_AFTER_MS) {
+                    team.deaths_just_after[0] += 1;
+                    team.deaths_just_after[1] += u64::from(since(body.last_audible, JUST_AFTER_MS));
+                }
                 match body.hit_by.filter(|&(_, at)| tick.saturating_sub(at) <= KILLER_MS) {
                     None => team.deaths_no_killer += 1,
                     Some((killer, _)) => {
@@ -278,6 +287,9 @@ impl Topic for PaceCounts {
         let calm = nearest >= CALM_M;
         if sprinting {
             body.last_sprint = Some(tick);
+            if calm {
+                body.last_calm_sprint = Some(tick);
+            }
             if nearest < AUDIBLE_M {
                 body.last_audible = Some(tick);
                 team.audible_ticks += 1;
@@ -432,6 +444,8 @@ impl PaceCounts {
             put("deaths_after_walk_known_killer".into(), team.deaths_walk[0].into());
             put("deaths_after_walk_unknown_killer".into(), team.deaths_walk[1].into());
             put("deaths_after_audible_sprint".into(), team.deaths_audible.into());
+            put("deaths_3s_after_calm_sprint".into(), team.deaths_just_after[0].into());
+            put("deaths_3s_after_calm_sprint_audible".into(), team.deaths_just_after[1].into());
             put("deaths_no_killer".into(), team.deaths_no_killer.into());
             put("sprint_death_killer_0_20".into(), team.sprint_killer_m[0].into());
             put("sprint_death_killer_20_40".into(), team.sprint_killer_m[1].into());
