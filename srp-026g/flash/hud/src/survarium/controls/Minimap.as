@@ -279,10 +279,12 @@ package survarium.controls
          }
       }
       
+      // A player's icon follows the data of every update: the local team
+      // (update_local_player) can come after the other players, as for a game
+      // that joined late, whose allies are in the world before it spawns.
       private function setData(value:Object) : void
       {
          var _obj:Object = null;
-         var _inst:MinimapObjectPlayer = null;
          var tp:String = null;
          this._data = value;
          var l:uint = uint(this._data.length);
@@ -291,36 +293,11 @@ package survarium.controls
          while(i < l)
          {
             _obj = this._data[i];
-            _inst = this._objects[_obj.player_id];
-            if(_obj.is_carrying_item == undefined)
+            tp = this.playerIcon(_obj);
+            if(!(this._objects[_obj.player_id] is (this._icons[tp] as Class)))
             {
-               _obj.is_carrying_item = false;
-            }
-            if(Boolean(_inst) && _obj.is_carrying_item != _inst.isCarryingItem)
-            {
-               trace("clearObject::",_obj.player_id,i,_obj.is_carrying_item,_inst.isCarryingItem);
-               this.clear_object(_obj.player_id);
-            }
-            if(!this._objects[_obj.player_id])
-            {
-               if(_obj.team == this._my_team && Boolean(_obj.is_local_player))
-               {
-                  tp = "player_local";
-               }
-               else if(_obj.team == this._my_team && Boolean(_obj.is_carrying_item))
-               {
-                  tp = _obj.is_squad_player == true ? "player_carry_squad" : "player_carry";
-               }
-               else if(_obj.is_squad_player == true)
-               {
-                  tp = "player_squad";
-               }
-               else
-               {
-                  tp = _obj.team == this._my_team ? "player_blue" : "player_red";
-               }
                trace("register::",_obj.player_id,tp,_obj.team,this._my_team,_obj.type);
-               this.registerObject(_obj.player_id,tp,_obj.player_pos_x,_obj.player_pos_y,this._objects,_obj.type,_obj.is_carrying_item);
+               this.registerObject(_obj.player_id,tp,_obj.player_pos_x,_obj.player_pos_y,this._objects,_obj.type);
             }
             else
             {
@@ -332,24 +309,24 @@ package survarium.controls
          this.clear_objects(this._objects);
          this.update_objects();
       }
-      
-      private function clear_object(target:int) : void
+
+      // The icon of a player of update_players, against the local team now.
+      private function playerIcon(player:Object) : String
       {
-         var _inst:MinimapObject = null;
-         if(Boolean(this._objects[target]))
+         var ally:Boolean = player.team == this._my_team;
+         if(ally && Boolean(player.is_local_player))
          {
-            _inst = this._objects[target];
-            delete this._objects[target];
-            this._renderers.splice(this._renderers.indexOf(_inst),1);
-            if(_inst is MinimapObjectBasix)
-            {
-               this.minimap.removeChild(_inst);
-            }
-            else
-            {
-               this.minimap._players.removeChild(_inst);
-            }
+            return "player_local";
          }
+         if(ally && Boolean(player.is_carrying_item))
+         {
+            return player.is_squad_player == true ? "player_carry_squad" : "player_carry";
+         }
+         if(player.is_squad_player == true)
+         {
+            return "player_squad";
+         }
+         return ally ? "player_blue" : "player_red";
       }
       
       private function clear_objects(target:Dictionary) : void
@@ -667,7 +644,7 @@ package survarium.controls
          }
       }
       
-      protected function registerObject(_id:int, type_nm:String, posX:Number, posY:Number, target:Dictionary, playerClass:int = -1, carry_item:Boolean = false) : void
+      protected function registerObject(_id:int, type_nm:String, posX:Number, posY:Number, target:Dictionary, playerClass:int = -1) : void
       {
          var pos:int = 0;
          var _objects:Dictionary = target;
@@ -706,7 +683,6 @@ package survarium.controls
          if(_inst is MinimapObjectPlayer)
          {
             (_inst as MinimapObjectPlayer).type = playerClass;
-            (_inst as MinimapObjectPlayer).isCarryingItem = carry_item;
          }
          if(_inst is MinimapObjectBasix)
          {
