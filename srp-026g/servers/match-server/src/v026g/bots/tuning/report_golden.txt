@@ -1,10 +1,10 @@
-switches ON aim: combat.aim_carry combat.aim_in_first combat.band_hold_on_carrier combat.band_legs combat.fire.weapon_class_by_data combat.grenade_at_held=1 combat.grenade_claim combat.grenade_held_reach combat.grenade_held_recheck combat.grenade_kit_cap combat.grenade_push_after_blast combat.grenade_recheck combat.grenade_repick combat.grenade_search combat.grenade_trace combat.grenade_tracks combat.hit_cover combat.hit_cover_reach combat.lead_own combat.lead_target combat.live_eye combat.outranged_hide combat.range_by_weapon combat.reload_aim_control combat.strafe_walking combat.switch_between_thinks combat.turn_feed friends.lead friends.on
+switches ON aim: combat.aim_carry combat.aim_in_first combat.aim_last_known combat.band_hold_on_carrier combat.band_legs combat.fire.weapon_class_by_data combat.grenade_at_held=1 combat.grenade_claim combat.grenade_held_reach combat.grenade_held_recheck combat.grenade_kit_cap combat.grenade_push_after_blast combat.grenade_recheck combat.grenade_repick combat.grenade_search combat.grenade_trace combat.grenade_tracks combat.hit_cover combat.hit_cover_reach combat.lead_own combat.lead_target combat.live_eye combat.outranged_hide combat.range_by_weapon combat.reload_aim_control combat.strafe_walking combat.switch_between_thinks combat.turn_feed friends.lead friends.on
 switches ON avoid: bot_pockets grenade_avoid kit_in_use
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
 switches ON cover: spot_cost=0.5
 switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps sprint_through unclear_aim zone_lines
-switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
+switches ON grid: client_numbers crouch_floors exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
@@ -18,9 +18,10 @@ switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: area crossfire_out_of_lines detour job job_line_by_id job_objective job_open_staffed lane_weighted lanes_pierce pair_up_hidden recast spots sprint trade_out_of_lines whole_route whole_route_booked
 switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump react.on react.pass react.shot
 switches ON unstick: blind_stop_ms=4500 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
-switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.worth.objective_in_band combat.worth.switch_gap_m
+switches OFF aim: combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.worth.objective_in_band combat.worth.switch_gap_m
 switches OFF cheats: batteries
 switches OFF feel: fight_lift floor_height_clear
+switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease
