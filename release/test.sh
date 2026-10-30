@@ -1256,10 +1256,10 @@ check "release: ... the record's branch pushed, its PR opened and merged" bash -
 check "release: ... no worktree of the record left" bash -c "! git -C $T/repo worktree list | grep -q /record"
 check "release: ... the item tables of the server data it ships, into the record (unchanged: no table in it)" \
     grep -qE 'server-game-data\.db --dir .*/record/srp-026g/docs/data$' "$T/item-tables.args"
-check "release: ... made once in step 4 too, in its work folder" \
+check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
-    "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '4. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
+    "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1300,7 +1300,7 @@ cd - >/dev/null
 check "release --resources (a relative path): rebuilds the site's pages with the new patch, in a worktree of the commit" bash -c \
     "test \"\$(grep -c . $T/build-site.args)\" = 1 && grep -q -- '^--tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r13/resources.db.patch_13\$' $T/build-site.args"
 check "release --resources: ... in the preflight, before the maintenance" bash -c \
-    "r=\$(grep -n 'the Maps tab and the calculator: rebuilt from the patches this release offers' <<<\"\$1\" | head -n 1 | cut -d: -f1); p=\$(grep -n '3. planning the maintenance' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$p\" && ((r < p))" _ "$out"
+    "r=\$(grep -n 'the Maps tab and the calculator: rebuilt from the patches this release offers' <<<\"\$1\" | head -n 1 | cut -d: -f1); p=\$(grep -n '4. planning the maintenance' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$p\" && ((r < p))" _ "$out"
 check "release --resources: ... the server's source carries them" bash -c \
     "grep -qx \$'resources.db.patch_13\t'\$(sha256sum <$T/r13/resources.db.patch_13 | cut -c1-64) $T/live/servers/web-server/maps/built-from.tsv && grep -qx 'built from resources.db.patch_3 resources.db.patch_12 resources.db.patch_13 ' $T/live/servers/web-server/damage/page.js"
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
@@ -1400,10 +1400,36 @@ echo "item 14" >"$T/p14/gameplay/items/e.txt"
 mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patch_16"
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
-cp "$T/r14/resources.db.patch_14" "$T/patches/"
-expect_refused "release: a patch published but not listed" "already published, these same bytes, but not in" \
+# A stop before the go (the ZIP's build fails) after the patch was
+# published: its row goes from the list (no server offered it), and the
+# file this run uploaded goes too (the revision can be made again); a file
+# published before the run stays, and a run with the same --resources
+# takes it as it is.
+list_before=$(cat "$T/patches.tsv")
+touch "$T/build-zip-fails"
+run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub || true
+check "release --resources: a stop before the go, the patch published" bash -c \
+    "grep -q '2. publishing resources.db.patch_14' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release --resources: ... its row out of the list again" test "$(cat "$T/patches.tsv")" = "$list_before"
+check "release --resources: ... says so" has "$out" "resources.db.patch_14: its row is out of .* again (stopped before the go, never offered)"
+check "release --resources: ... the file it uploaded is gone again" test ! -e "$T/patches/resources.db.patch_14"
+check "release --resources: ... says so too" has "$out" "resources.db.patch_14: the file this run uploaded is off .* again"
+check "release --resources: ... nothing planned" test -z "$(admin_log)"
+cp "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub2 || true
+rm "$T/build-zip-fails"
+check "release --resources: a stop before the go, the patch published before the run: its row out of the list" \
+    test "$(cat "$T/patches.tsv")" = "$list_before"
+check "release --resources: ... the file kept" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+check "release --resources: ... says so" has "$out" "resources.db.patch_14: the file stays on .* (there before this run)"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 || true
+check "release --resources: the same --resources again: taken as it is" has "$out" \
+    "--resources: on .* already, these same bytes, not in .*: taken as it is"
+check "release --resources: ... no problem about it" bash -c "! grep -q 'problem.*resources.db.patch_14\|MISSING.*patch_14' <<<\"\$1\"" _ "$out"
+cp "$T/r14/resources.db.patch_14" "$T/r16/other" && printf x >>"$T/r16/other" && cp "$T/r16/other" "$T/patches/resources.db.patch_14"
+expect_refused "release: a patch published with other bytes" "already published with OTHER bytes" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14"
-rm "$T/patches/resources.db.patch_14"
+rm "$T/patches/resources.db.patch_14" "$T/r16/other"
 expect_refused "release: --yes needs --i-know" "goes with --i-know" "$here/release.sh" --yes
 touch "$T/ssh-fails-live"
 expect_refused "release: says the live host cannot be reached" "ssh to the live host (live through jump) fails" "$here/release.sh"
@@ -1642,7 +1668,7 @@ touch "$T/build-fails"
 run yes --minutes 2 --label c || true
 rm "$T/build-fails"
 check "release: a failed build stops before the swap" has "$out" "STOPPED before the swap"
-check "release: ... cancels the maintenance, planned before the build" test "$(admin_log)" = "plan 2 cancel" -a ! -e "$T/state/maint"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 check "release: ... removes the staged files" nothing_staged
 check "release: ... puts the image tag back" grep -q "docker tag $(cat "$T/docker/running") srp-026g:latest" "$T/log"
 check "release: ... srp-026g:latest is the running image" test "$(cat "$T/docker/latest")" = "$(cat "$T/docker/running")"
@@ -1651,7 +1677,7 @@ check "release: ... restarts nothing" bash -c "! grep -q ' up ' $T/log"
 check "release: ... and makes no record: no tag, no branch, main's REVISION as it was" no_record 14
 check "release: ... no PR" bash -c "! grep -q record-rev14 $T/gh.log"
 
-# The item tables' tool failing on the server data: stopped in step 4, not
+# The item tables' tool failing on the server data: stopped in step 2, not
 # after the swap (where the record would go without them).
 : >"$T/state/admin.log"
 touch "$T/item-tables-panics"
@@ -1659,7 +1685,7 @@ run yes --minutes 2 --label it || true
 rm "$T/item-tables-panics"
 check "release: the item tables' tool failing on the server data stops before the swap" bash -c \
     "grep -q 'the item tables (srp-item-tables) of .*server-game-data.db: thread .main. panicked' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
-check "release: ... cancels the maintenance, removes the staged files" bash -c "test \"\$1\" = 'plan 2 cancel'" _ "$(admin_log)"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... and makes no record" no_record 14
@@ -1913,9 +1939,9 @@ in_order() { # <text> <pattern>...: each found, each after the one before
 echo 300 >"$T/state/ends-in"
 run quiet --dry-run || fail "release.sh --dry-run, a match ending in 5 min: $out"
 check "release: a match ending in 5 min: the maintenance in 6 min" bash -c "grep -q 'in 6 min (now: /api/stats: the last match ends in 5:00 at the latest (last_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
-check "release --dry-run: prints the order: the lock and the go, the plan, the staging, the swap" in_order "$out" \
-    '^\[dry run\] 2. take the release lock .*, then wait for the go' '^\[dry run\] 3. right after the go: plan the maintenance' \
-    '^\[dry run\] 4. during the countdown, build here' '^\[dry run\] 5. at the later of the planned time and the end of the staging' \
+check "release --dry-run: prints the order: the lock and the staging, the go, the plan, the swap" in_order "$out" \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 4. right after the go: plan the maintenance' '^\[dry run\] 5. at the planned time' \
     'docker compose up -d --no-deps --force-recreate srp26'
 echo 299 >"$T/state/ends-in"
 run quiet --dry-run || true
@@ -1943,18 +1969,17 @@ check "release: ... the page lists fewer than run: 16 min" bash -c "grep -q 'in 
 rm -f "$T/state/matches" "$T/state/page-left"
 check "release --dry-run: none of these planned anything" test ! -s "$T/state/admin.log"
 
-# A stop after the plan (build-zip fails, during the countdown): the
-# maintenance cancelled.
+# A stop before the go (build-zip fails): nothing planned.
 echo 300 >"$T/state/ends-in"
 : >"$T/state/admin-seen.log"
 before=$(tree)
 touch "$T/build-zip-fails"
 run yes --label stop || true
 rm "$T/build-zip-fails"
-check "release: a stop during the countdown (build-zip failed)" has "$out" "STOPPED before the swap"
-check "release: ... the admin page: the preflight's GET, the plan, the cancel" test "$(tr '\n' ' ' <"$T/state/admin-seen.log" | sed 's/POST [^ ]*/POST/g; s/ $//')" = "GET POST POST"
-check "release: ... the maintenance planned, then cancelled" test "$(admin_log)" = "plan 6 cancel" -a ! -e "$T/state/maint"
-check "release: ... says so" has "$out" "^maintenance: cancelled"
+check "release: a stop before the go (build-zip failed)" has "$out" "STOPPED before the swap"
+check "release: ... the admin page: the preflight's GET only" test "$(tr '\n' ' ' <"$T/state/admin-seen.log" | sed 's/ $//')" = "GET"
+check "release: ... nothing planned, nothing cancelled" test -z "$(admin_log)" -a ! -e "$T/state/maint"
+check "release: ... no go asked" bash -c "! grep -q 'waiting for the go' <<<\"\$1\"" _ "$out"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... frees the lock" test ! -e "$T/lock"
 
@@ -1969,7 +1994,7 @@ check "release: a ZIP whose exe requires fewer patches than offered stops it" ha
     "its exe requires the patches ${offered% *}, the server data offers $offered: a ZIP is built for its list"
 check "release: ... before the swap" has "$out" "STOPPED before the swap"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
-check "release: ... the maintenance planned, then cancelled" bash -c "grep -q cancel $T/state/admin.log && test ! -e $T/state/maint"
+check "release: ... before the go: nothing planned" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 : >"$T/state/admin.log"
 
 # Ctrl-C while it waits for the planned time (to bash only, as a trap during
@@ -1999,14 +2024,14 @@ check "release: ... leaves the live files as they were" test "$(tree)" = "$befor
 check "release: ... frees the lock" test ! -e "$T/lock"
 
 # Ctrl-C during the staging (the build of the ZIP), to the whole process
-# group as a terminal sends it: the plan made before is cancelled.
+# group as a terminal sends it: before the go, nothing planned.
 : >"$T/state/admin.log"
 echo 30 >"$T/build-zip-sleep"
 set -m
 "$here/release.sh" --yes --i-know --minutes 60 --label stg >"$T/stg.out" 2>&1 </dev/null &
 stg_pid=$!
 set +m
-for _ in $(seq 300); do grep -q '4. building the ZIP' "$T/stg.out" && break; sleep 0.1; done
+for _ in $(seq 300); do grep -q '2. building the ZIP' "$T/stg.out" && break; sleep 0.1; done
 sleep 1
 kill -INT -- "-$stg_pid"
 stg_at=$SECONDS
@@ -2017,18 +2042,16 @@ wait "$stg_pid" 2>/dev/null || true
 rm -f "$T/build-zip-sleep"
 out=$(cat "$T/stg.out")
 printf '%s\n' "$out" >>"$T/outputs"
-check "release: Ctrl-C during the staging, after the plan, ends it in a few seconds (${stg_took} s)" test "$stg_took" -le 5
-check "release: ... it was building, the maintenance planned" bash -c "grep -q 'maintenance planned' <<<\"\$1\" && grep -q 'interrupted' <<<\"\$1\"" _ "$out"
-check "release: ... cancels the maintenance" test "$(admin_log)" = "plan 60 cancel" -a ! -e "$T/state/maint"
-check "release: ... says so" has "$out" "^maintenance: cancelled"
+check "release: Ctrl-C during the staging, before the go, ends it in a few seconds (${stg_took} s)" test "$stg_took" -le 5
+check "release: ... it was building, nothing planned" bash -c "grep -q '2. building the ZIP' <<<\"\$1\" && grep -q 'interrupted' <<<\"\$1\" && ! grep -q '4. maintenance planned' <<<\"\$1\"" _ "$out"
+check "release: ... plans and cancels nothing" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 check "release: ... staged nothing (no folder yet)" test -z "$(folder 16 stg)"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... frees the lock" test ! -e "$T/lock"
 
 # A closed terminal (HUP to the whole group, the release.log copy too) and
-# a second Ctrl-C during the cleanup: the cleanup still finishes (the plan
-# cancelled, the lock freed); a maintenance left planned would put the
-# server down with nothing swapped.
+# a second Ctrl-C during the cleanup: the cleanup still finishes (nothing
+# staged left, the lock freed).
 for how in hup twice; do
     : >"$T/state/admin.log"
     echo 30 >"$T/build-zip-sleep"
@@ -2036,7 +2059,7 @@ for how in hup twice; do
     "$here/release.sh" --yes --i-know --minutes 60 --label "$how" >"$T/$how.out" 2>&1 </dev/null &
     sig_pid=$!
     set +m
-    for _ in $(seq 300); do grep -q '4. building the ZIP' "$T/$how.out" && break; sleep 0.1; done
+    for _ in $(seq 300); do grep -q '2. building the ZIP' "$T/$how.out" && break; sleep 0.1; done
     sleep 1
     if [[ $how == hup ]]; then
         kill -HUP -- "-$sig_pid"
@@ -2050,15 +2073,16 @@ for how in hup twice; do
     wait "$sig_pid" 2>/dev/null || true
     rm -f "$T/build-zip-sleep"
     printf '%s\n' "$(cat "$T/$how.out")" >>"$T/outputs"
-    check "release: $how during the staging: the plan is still cancelled" test "$(admin_log)" = "plan 60 cancel" -a ! -e "$T/state/maint"
+    check "release: $how during the staging: nothing planned" test -z "$(admin_log)" -a ! -e "$T/state/maint"
+    check "release: ... nothing staged left" nothing_staged
     check "release: ... and the lock freed" test ! -e "$T/lock"
     check "release: ... the live files as they were" test "$(tree)" = "$before"
 done
 
-# Without the go given beforehand: it waits for it right after the
-# preflight, having built, staged and asked the admin page nothing; the go
-# file lets it plan at once. Then Ctrl-C (the plan is cancelled, as any
-# stop).
+# Without the go given beforehand: it builds and stages, then waits for
+# it, having asked the admin page nothing; the go file lets it plan at
+# once. Then Ctrl-C (the plan is cancelled, the staged files removed, as
+# any stop).
 : >"$T/state/admin.log"
 : >"$T/state/admin-seen.log"
 echo 300 >"$T/state/ends-in"
@@ -2068,27 +2092,30 @@ go_pid=$!
 set +m
 for _ in $(seq 600); do grep -q "waiting for the go" "$T/go.out" && break; sleep 0.1; done
 sleep 3
-check "release: without the go given, it waits for it after the preflight" grep -q "2. waiting for the go" "$T/go.out"
+check "release: without the go given, it waits for it after the staging" in_order "$(cat "$T/go.out")" \
+    '2. building the ZIP' '2. staging in the release folder' '3. waiting for the go'
 check "release: ... having asked the admin page nothing but the preflight's GET" test "$(cat "$T/state/admin-seen.log")" = GET
-check "release: ... built and staged nothing" bash -c "! grep -q '4. building' $T/go.out && test -z \"\$(find $T/live -maxdepth 1 -name 'release-rev16-*-go')\""
+check "release: ... its folder staged, nothing in place" bash -c "grep -qx staging \"\$(find $T/live -maxdepth 1 -name 'release-rev16-*-go')/state\""
 go_file=$(sed -n "s/^Go: answer y here, or run: touch //p" "$T/go.out" | head -n 1)
 check "release: ... names its go file, in the cache" bash -c "[[ \$1 == $T/cache/skhid-release/go-* ]]" _ "$go_file"
 touch "$go_file"
-for _ in $(seq 300); do grep -q "3. planning the maintenance in 6 min" "$T/go.out" && break; sleep 0.1; done
-check "release: ... the go file lets it plan, at once" grep -q "3. planning the maintenance in 6 min" "$T/go.out"
+for _ in $(seq 300); do grep -q "4. planning the maintenance in 6 min" "$T/go.out" && break; sleep 0.1; done
+check "release: ... the go file lets it plan, at once" grep -q "4. planning the maintenance in 6 min" "$T/go.out"
 check "release: ... and it takes the file away" test ! -e "$go_file"
 for _ in $(seq 300); do grep -q "5. waiting for the planned time" "$T/go.out" && break; sleep 0.1; done
-check "release: ... then it stages, during the countdown" in_order "$(cat "$T/go.out")" \
-    '^go: ' '3. maintenance planned' '4. staging in the release folder' '5. waiting for the planned time'
+check "release: ... then it waits for the planned time, nothing built during the countdown" in_order "$(cat "$T/go.out")" \
+    '2. staging in the release folder' '^go: ' '4. maintenance planned' '5. waiting for the planned time'
 kill -INT "$go_pid"
 for _ in $(seq 150); do kill -0 "$go_pid" 2>/dev/null || break; sleep 0.1; done
 if kill -0 "$go_pid" 2>/dev/null; then kill -9 "$go_pid"; fi
 wait "$go_pid" 2>/dev/null || true
 printf "%s\n" "$(cat "$T/go.out")" >>"$T/outputs"
 check "release: ... stopped after the go, the plan cancelled" test "$(admin_log)" = "plan 6 cancel" -a ! -e "$T/state/maint"
+check "release: ... the staged files removed" nothing_staged
 check "release: ... frees the lock" test ! -e "$T/lock"
 
-# Ctrl-C while it waits for the go: nothing at all.
+# Ctrl-C while it waits for the go: nothing planned, the staged files
+# removed.
 before=$(tree)
 : >"$T/state/admin.log"
 : >"$T/state/admin-seen.log"
@@ -2103,30 +2130,31 @@ if kill -0 "$nogo_pid" 2>/dev/null; then kill -9 "$nogo_pid"; fi
 wait "$nogo_pid" 2>/dev/null || true
 printf "%s\n" "$(cat "$T/nogo.out")" >>"$T/outputs"
 check "release: Ctrl-C before the go: nothing planned, nothing cancelled" test ! -s "$T/state/admin.log"
-check "release: ... nothing built or staged" bash -c "! grep -qE '4\\. |STOPPED before the swap' $T/nogo.out"
+check "release: ... the staged files removed" bash -c "grep -q 'STOPPED before the swap' $T/nogo.out && grep -q 'staged files: removed' $T/nogo.out"
+check "release: ... nothing staged left" nothing_staged
 check "release: ... the live files as they were" test "$(tree)" = "$before"
 check "release: ... frees the lock" test ! -e "$T/lock"
 
-# The whole default run: a match ending in 5 min. The go, then the plan (6
-# min), with nothing staged yet, then the staging, then the swap.
+# The whole default run: a match ending in 5 min. The staging, then the
+# go, then the plan (6 min), then the swap.
 : >"$T/state/admin.log"
 : >"$T/state/admin-seen.log"
 : >"$T/state/admin-staged.log"
 echo 300 >"$T/state/ends-in"
 run yes --label auto || fail "release.sh, the default: $out"
 check "release: the default plans the maintenance in 6 min (a match ending in 5)" test "$(admin_log)" = "plan 6"
-check "release: ... the go, then the plan, then the staging, then the swap" in_order "$out" \
-    '^go: given beforehand' '3. planning the maintenance in 6 min' '3. maintenance planned' '4. building the server data' \
-    '4. staging in the release folder' '5. the swap'
-check "release: ... planned before anything was staged (the admin page saw no staged folder)" test "$(cat "$T/state/admin-staged.log")" = "plan 6 NOT staged"
+check "release: ... the staging, then the go, then the plan, then the swap" in_order "$out" \
+    '2. building the server data' '2. staging in the release folder' '^go: given beforehand' \
+    '4. planning the maintenance in 6 min' '4. maintenance planned' '5. the swap'
+check "release: ... planned once everything was staged (the admin page saw the staged folder)" test "$(cat "$T/state/admin-staged.log")" = "plan 6 staged"
 check "release: ... the admin page: the preflight's GET, then the plan" test "$(tr '\n' ' ' <"$T/state/admin-seen.log" | sed 's/ POST [^ ]*/ POST/; s/ $//')" = "GET POST"
-check "release: ... says Play is locked, and that it builds now" has "$out" 'the launcher says "Maintenance in 6 min"; Play is locked; building and staging now'
+check "release: ... says Play is locked, and that everything is staged" has "$out" 'the launcher says "Maintenance in 6 min"; Play is locked; everything is staged'
 check "release: ... then releases" cmp -s "$T/work/r16.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... SRP_MIN_PATCH_REVISION=16" grep -qx "SRP_MIN_PATCH_REVISION=16" "$T/live/.env"
 check "release: ... the folder's rollback" test -f "$(folder 16 auto)/rollback.sh" -a -f "$(folder 16 auto)/rollback.env"
 rm -f "$T/state/ends-in"
 
-# Staging that ends after the planned time: the swap at once. gh may not
+# A release of a 1-min countdown. gh may not
 # merge the record's PR (a rule of the repository), and origin refuses the
 # tag ($T/tag-push-fails): the PR stays open, the tag is made here only, the
 # run says so, with what to do, and ends with 1; the next release waits for
@@ -2159,8 +2187,6 @@ check "release: ... merged by hand: main has REVISION 17" test "$(main_revision)
 push_tag=$(sed -n 's/^  - the push of the tag 026g-rev17: .*by hand: //p' <<<"$out")
 bash -c "$push_tag" >/dev/null 2>&1
 check "release: ... the tag pushed by hand as said: on origin, on the commit built" test "$(git -C "$T/origin.git" rev-parse -q --verify '026g-rev17^{commit}')" = "$(git -C "$T/origin.git" rev-parse 'main^1')"
-check "release: staged after the planned time: the swap at once" has "$out" "5. staged after the planned time: the swap at once"
-check "release: ... no wait for the planned time" bash -c "! grep -q 'waiting for the planned time' <<<\"\$1\"" _ "$out"
 check "release: ... then releases" cmp -s "$T/work/r17.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... without cancelling" test "$(admin_log)" = "plan 1"
 
@@ -2173,9 +2199,9 @@ before=$(tree)
 run quiet --dry-run --now --no-maintenance || fail "release.sh --now --dry-run: $out"
 check "release --now: --no-maintenance with it is accepted, and said to be the same" has "$out" "note: --now plans no maintenance anyway"
 check "release --now --dry-run: says there is no notice" has "$out" "maintenance: NONE, NO NOTICE (--now)"
-check "release --now --dry-run: prints the order: the go, the staging, the swap at once" in_order "$out" \
-    '^\[dry run\] 2. take the release lock .*, then wait for the go' '^\[dry run\] 3. no maintenance planned (--now' \
-    '^\[dry run\] 4. after the go, build here' '^\[dry run\] 5. once staged: the swap at once, NO wait for matches' \
+check "release --now --dry-run: prints the order: the staging, the go, the swap at once" in_order "$out" \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 4. no maintenance planned (--now' '^\[dry run\] 5. at the go: the swap at once, NO wait for matches' \
     'the stop ends without results (--now)' 'compose stop srp26'
 check "release --now --dry-run: no POST, no admin page" bash -c "! grep -q 'POST ' <<<\"\$1\" && test ! -s $T/state/admin-seen.log" _ "$out"
 check "release --now --dry-run: changes nothing" test "$(tree)" = "$before"
