@@ -1088,7 +1088,7 @@ mod game_tests {
         let body = &game.bodies[shooter];
         let eye = Game::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let pitch = body.recoil.view(body.pitch);
+        let pitch = body.view_elevation();
         let (c, s) = (pitch.cos(), pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
         let kick = body.recoil.kick();
@@ -1176,6 +1176,7 @@ mod game_tests {
             aim_state,
             cone,
             offset,
+            rise: aimed_at.map(|(t, ..)| fight_tally::Rise::of(eye, view_dir, Game::chest(&game.bodies[t]))),
             landed: Default::default(),
         });
         let Some((target, along)) = best else {
