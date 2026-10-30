@@ -1986,8 +1986,10 @@ pub(crate) fn real_bot_cost() {
             // The same JSON in a file of its own: the line above is cut by anything else printed at the same moment (libtest's
             // "has been running for over 60 seconds" when a cell is slow).
             if let Some(dir) = bench_settings().var_os("SRP_BENCH_SUMS_DIR") {
-                let file = std::path::Path::new(&dir).join(format!("{project}-{per_team}v{per_team}-s{seed}.json"));
-                std::fs::write(&file, sums.to_string()).unwrap_or_else(|e| panic!("SRP_BENCH_SUMS_DIR: {}: {e}", file.display()));
+                // `project` is `level_01/day_2`: the slash is a path separator.
+                let file = std::path::Path::new(&dir).join(format!("{project}-{per_team}v{per_team}-s{seed}.json").replace('/', "-"));
+                std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&file, sums.to_string()))
+                    .unwrap_or_else(|e| panic!("SRP_BENCH_SUMS_DIR: {}: {e}", file.display()));
             }
             eprintln!(
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
