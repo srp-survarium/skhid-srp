@@ -55,6 +55,9 @@ struct Acc {
     /// between the two, m/s), summed over the shots by [`BANDS_M`] (the counts are `by_band`), and the shots and hits by
     /// [`LATERAL_MPS`] (the live humans' strafe at range is about 2.6 m/s).
     lateral_sum: [f64; 6],
+    /// His whole ground speed at the shot, m/s, summed the same way (the humans' `hit_marks.py` `tspd`: mean 2.8 / 2.7 / 2.6 /
+    /// 2.5 m/s in the first four bands, 190 recordings).
+    speed_sum: [f64; 6],
     by_lateral: [[u32; 2]; 5],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
@@ -136,7 +139,9 @@ impl Topic for GunShots {
             let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
             tally(&mut a.by_band[band]);
             if let (Some(t), Some(s)) = (game.bodies.get(target), game.bodies.get(fact.shooter)) {
-                let across = across_speed(s.feet, t.feet, t.step_vec * (1.0 / TICK_S));
+                let velocity = t.step_vec * (1.0 / TICK_S);
+                let across = across_speed(s.feet, t.feet, velocity);
+                a.speed_sum[band] += f64::from(velocity.x.hypot(velocity.z));
                 a.lateral_sum[band] += f64::from(across);
                 tally(&mut a.by_lateral[LATERAL_MPS.iter().position(|&edge| across < edge).unwrap_or(LATERAL_MPS.len())]);
             }
@@ -181,6 +186,7 @@ impl Topic for GunShots {
                     "off_deg_sum": a.off_sum,
                     "on_him": a.on_him,
                     "lateral_sum": a.lateral_sum,
+                    "speed_sum": a.speed_sum,
                     "by_lateral": a.by_lateral,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
