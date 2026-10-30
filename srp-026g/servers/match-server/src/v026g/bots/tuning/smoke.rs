@@ -68,9 +68,15 @@ pub struct SmokeTuning {
     /// gap is sprinted (5 m/s) before his answer (the bench's median first sight to first shot, about 1.0 s,
     /// `h2h-on-vs-off-20261029T2103`). Players sprint short gaps and smoke the wide ones.
     pub lane_open_m: Metres,
-    /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
-    /// between them, as near him as the throw reaches. Off: none.
+    /// [smoke use] A bot outranged by a sniper (play 11's matchup: its weapon short of him), the team sensing him where he
+    /// is within `lane_sensed_ms`, smokes the line from him to the first point of its route within `lane_ahead_m` that he
+    /// sees, before it steps out: not from where he already sees it, not at a sprint, not a gap shorter than
+    /// `lane_open_m`, not a line a cloud already covers, `snipers_a_life` at most. Off: none. Uncut (the line from him to
+    /// the bot whenever outranged) it threw 18.3 per 100 lives (`h2h-radio-vs-off-20261029T1852`, live 2.97 for all uses).
     pub anti_sniper: bool,
+    /// A life smokes this many snipers' lines at most; its own count beside `lanes_a_life` (a crossing a lane smoke
+    /// already covers is not smoked again, the cloud test).
+    pub snipers_a_life: u32,
 }
 
 impl SmokeTuning {
@@ -99,6 +105,7 @@ impl Default for SmokeTuning {
             lanes_a_life: 1,
             lane_open_m: Metres::of(5.0),
             anti_sniper: false,
+            snipers_a_life: 1,
         }
     }
 }

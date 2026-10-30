@@ -2521,8 +2521,10 @@ pub struct Reflex {
     /// under way.
     smoke_key: Option<u32>,
     smoke_throw: Option<SmokeThrowing>,
-    /// [smoke] The lane smokes begun this life (`smoke.lanes_a_life`; the reflex is made anew each life).
+    /// [smoke] The lane smokes and the sniper smokes begun this life (`smoke.lanes_a_life`, `smoke.snipers_a_life`; the
+    /// reflex is made anew each life).
     lane_smokes: u32,
+    sniper_smokes: u32,
     /// [smoke] The sniper that outranges its weapon now (play 11's matchup, whatever `outranged_cover`): who, where,
     /// and the match clock it was seen at. Read by `smoke.anti_sniper`; no decision of the reflex reads it.
     outranged_by: Option<(Place, Vec3, u32)>,
@@ -3402,8 +3404,8 @@ impl Reflex {
         let Some(key) = self.smoke_key.filter(|_| self.can_smoke()) else {
             return false;
         };
-        // A smoke against the sniper it is outranged by is thrown with him the target; any other waits for none.
-        let fighting = self.target.is_some() && plan.for_use != super::smoke::SmokeUse::AntiSniper;
+        // A smoke waits for no target: it is thrown before a crossing, not in a fight.
+        let fighting = self.target.is_some();
         if fighting || now < self.busy_until {
             return false;
         }
@@ -3413,8 +3415,10 @@ impl Reflex {
             started: now,
             phase: SmokePhase::Turning,
         });
-        if plan.for_use == super::smoke::SmokeUse::CrossLane {
-            self.lane_smokes += 1;
+        match plan.for_use {
+            super::smoke::SmokeUse::CrossLane => self.lane_smokes += 1,
+            super::smoke::SmokeUse::AntiSniper => self.sniper_smokes += 1,
+            _ => {}
         }
         true
     }
@@ -3422,6 +3426,11 @@ impl Reflex {
     /// [smoke] The lane smokes begun this life.
     pub fn lane_smokes(&self) -> u32 {
         self.lane_smokes
+    }
+
+    /// [smoke] The sniper smokes begun this life.
+    pub fn sniper_smokes(&self) -> u32 {
+        self.sniper_smokes
     }
 
     /// [smoke] A smoke throw's tick ([`SmokeThrowing`]): the bot stands, turns to the plan's view, holds the key the
@@ -9076,9 +9085,10 @@ mod tests {
         reflex.set_smoke_key(Some(key));
         reflex.target = Some(1);
         assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "fighting");
-        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "the sniper it is outranged by");
-        assert_eq!(reflex.lane_smokes(), 0, "a sniper's smoke is not a lane's");
+        assert!(!reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "fighting: a sniper's smoke is for a crossing");
         reflex.target = None;
+        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "before a crossing he sees");
+        assert_eq!((reflex.lane_smokes(), reflex.sniper_smokes()), (0, 1), "a sniper's smoke is not a lane's");
         assert!(!reflex.can_smoke(), "one at a time");
         // Facing the plan's view: pressed at once, held, let go, the look kept to the launch and after.
         let mut me = body(0, 0, Vec3::ZERO, 0.0);

@@ -618,16 +618,69 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         thrower_eye: me.eye(),
     };
     let thin = t.thin_m.get();
-    let fresh = |sensed: u32| view.clock.saturating_sub(sensed) <= FAIR_SENSED_MS;
     let eye_over = Vec3::new(0.0, 1.6, 0.0);
-    // Against the sniper it sees outranging it: the line from him to it.
-    let outranged = t.anti_sniper.then(|| bot.reflex.outranged_by()).flatten().filter(|&(_, _, seen)| fresh(seen));
-    let sniper = outranged.and_then(|(who, at, _)| {
-        smoke::smoke_between(&reach, at + eye_over, me.feet, thin, SmokeUse::AntiSniper)
-            .map(|plan| (plan, format!("player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach", at.x, at.y, at.z)))
+    // Not running a gap already: a bot holding a sprint is across before the cloud forms (0.7 s), as a player sprinting
+    // a gap does not stop to smoke it.
+    let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
+    let chest_over = Vec3::new(0.0, 1.3, 0.0);
+    // The first point of its route within `lane_ahead_m` that `exposed` holds for (2 m steps), and how far on.
+    let crossing_of = |exposed: &dyn Fn(Vec3) -> bool| -> Option<(f32, Vec3)> {
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        let end = (start + t.lane_ahead_m.get()).min(route.length());
+        (1..).map(|k| start + k as f32 * 2.0).take_while(|&s| s <= end).map(|s| (s, route.at(s, heights))).find(|&(_, p)| exposed(p))
+    };
+    // A short gap is sprinted, not smoked: the route a shooter at `eye` sees from the crossing on, 1 m steps, must run at
+    // least `lane_open_m` (what a sprint covers in a shooter's answer).
+    let open_from = |eye: Vec3, crossing_s: f32| -> bool {
+        let Some((route, _)) = bot.route.as_ref() else {
+            return false;
+        };
+        let heights = bot.motor.heights();
+        let open_end = (route.length() - crossing_s).min(LANE_OPEN_LOOK_M);
+        let open_m = (1..)
+            .map(|k| k as f32)
+            .take_while(|&d| d <= open_end)
+            .take_while(|&d| tactics.sees(eye, route.at(crossing_s + d, heights) + chest_over))
+            .last()
+            .unwrap_or(0.0);
+        open_m >= t.lane_open_m.get()
+    };
+    // Against a sniper that outranges its weapon (play 11's matchup), sensed where he is within `lane_sensed_ms`: before
+    // its route enters ground he sees, the line from him to the crossing. Not from where he already sees it.
+    let outranged = bot.reflex.outranged_by().filter(|&(_, _, seen)| view.clock.saturating_sub(seen) <= t.lane_sensed_ms);
+    let sniper_crossing = outranged.filter(|_| t.anti_sniper || cfg!(test)).and_then(|(who, at, _)| {
+        let eye = at + eye_over;
+        if sprinting || tactics.sees(eye, me.feet + chest_over) {
+            return None;
+        }
+        crossing_of(&|p| tactics.sees(eye, p + chest_over)).map(|(s, crossing)| (who, eye, s, crossing))
     });
     #[cfg(test)]
-    if outranged.is_some() {
+    if let Some((who, ..)) = sniper_crossing {
+        smoke::tally::sniper_crossing(bot.place, who, view.clock);
+    }
+    let sniper = || {
+        if !t.anti_sniper || bot.reflex.sniper_smokes() >= t.snipers_a_life {
+            return None;
+        }
+        let (who, eye, crossing_s, crossing) = sniper_crossing?;
+        let chest = crossing + chest_over;
+        if view.smoke.covers(view.clock, t, eye, chest) || !open_from(eye, crossing_s) {
+            return None;
+        }
+        smoke::smoke_between(&reach, eye, crossing, thin, SmokeUse::AntiSniper).map(|plan| {
+            let why = format!(
+                "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
+                eye.x, eye.y - eye_over.y, eye.z, crossing.x, crossing.y, crossing.z
+            );
+            (plan, why)
+        })
+    };
+    let sniper = sniper();
+    #[cfg(test)]
+    if t.anti_sniper && outranged.is_some() {
         smoke::tally::add(
             bot.team,
             if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
@@ -639,23 +692,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             return None;
         }
         let grid = &tactics.world.grid;
-        // Not in the lane already, and not running it already: a bot holding a sprint is across before the cloud
-        // forms (0.7 s), as a player sprinting a gap does not stop to smoke it.
-        let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
+        // Not in the lane already, and not running it already.
         if sprinting || bot.threat.exposed_at(grid, me.feet) {
             return None;
         }
-        let (route, _) = bot.route.as_ref()?;
-        let heights = bot.motor.heights();
-        let start = route.walked();
-        let end = (start + t.lane_ahead_m.get()).min(route.length());
-        let (crossing_s, crossing) = (1..)
-            .map(|k| start + k as f32 * 2.0)
-            .take_while(|&s| s <= end)
-            .map(|s| (s, route.at(s, heights)))
-            .find(|&(_, p)| bot.threat.exposed_at(grid, p))?;
+        let (crossing_s, crossing) = crossing_of(&|p| bot.threat.exposed_at(grid, p))?;
         // The shooter known to be there now, with a line onto the crossing.
-        let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+        let chest = crossing + chest_over;
         let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
         let held = bot
             .lanes
@@ -667,16 +710,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         if view.smoke.covers(view.clock, t, held.at + eye_over, chest) {
             return None;
         }
-        // A short gap is sprinted, not smoked: the route he sees from the crossing on, 1 m steps, must run at least
-        // `lane_open_m` (what a sprint covers in a shooter's answer).
-        let open_end = (route.length() - crossing_s).min(LANE_OPEN_LOOK_M);
-        let open_m = (1..)
-            .map(|k| k as f32)
-            .take_while(|&d| d <= open_end)
-            .take_while(|&d| tactics.sees(held.at + eye_over, route.at(crossing_s + d, heights) + Vec3::new(0.0, 1.3, 0.0)))
-            .last()
-            .unwrap_or(0.0);
-        if open_m < t.lane_open_m.get() {
+        if !open_from(held.at + eye_over, crossing_s) {
             return None;
         }
         smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
@@ -695,6 +729,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         {
             smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
             smoke::tally::begun(bot.team, plan.for_use);
+            if plan.for_use == SmokeUse::AntiSniper {
+                smoke::tally::sniper_smoked(bot.place);
+            }
         }
         let at = plan.at;
         bot.note(

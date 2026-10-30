@@ -841,8 +841,41 @@ pub mod tally {
             const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
     }
 
+    thread_local! {
+        /// By place: a sniper crossing under way (the sniper, when it began, whether a smoke was begun for it).
+        static SNIPER_CROSSINGS: std::cell::RefCell<std::collections::BTreeMap<usize, (usize, u32, bool)>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` is about to cross ground the sniper `who` sees (`smoke_uses`, either arm): kept until it is
+    /// resolved (the smoke topic: died to him, died otherwise or crossed within its time). One at a time a bot.
+    pub fn sniper_crossing(place: usize, who: usize, now: u32) {
+        SNIPER_CROSSINGS.with(|s| {
+            s.borrow_mut().entry(place).or_insert((who, now, false));
+        });
+    }
+
+    /// A smoke was begun for the bot at `place`'s sniper crossing.
+    pub fn sniper_smoked(place: usize) {
+        SNIPER_CROSSINGS.with(|s| {
+            if let Some(c) = s.borrow_mut().get_mut(&place) {
+                c.2 = true;
+            }
+        });
+    }
+
+    /// The sniper crossing under way of the bot at `place`, taken if `done` says it is resolved.
+    pub fn take_sniper_crossing(place: usize, done: impl FnOnce((usize, u32, bool)) -> bool) -> Option<(usize, u32, bool)> {
+        SNIPER_CROSSINGS.with(|s| {
+            let mut s = s.borrow_mut();
+            let c = *s.get(&place)?;
+            done(c).then(|| s.remove(&place)).flatten()
+        })
+    }
+
     /// A match begins on this thread: the per-place records of the last one go (places are reused).
     pub fn begin_match() {
+        SNIPER_CROSSINGS.with(|s| s.borrow_mut().clear());
         THREW.with(|s| s.borrow_mut().clear());
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
         SPRAYED.with(|s| s.borrow_mut().clear());
