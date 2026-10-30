@@ -807,6 +807,7 @@ mod tests {
     #[test]
     fn a_far_choke_is_scored_down_by_the_walk_when_the_switch_is_on() {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
         let base = |path_m: f32| Candidate {
             kind: PlayKind::Crossfire,
             target: TargetRef::Exit(0),
