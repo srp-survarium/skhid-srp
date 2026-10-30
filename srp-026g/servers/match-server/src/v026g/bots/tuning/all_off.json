@@ -85,7 +85,8 @@
   },
   "kit": {
     "frags": "off",
-    "pocket_store": false
+    "pocket_store": false,
+    "smoke": "off"
   },
   "sense": {
     "bush_notice": 0.0,
@@ -97,6 +98,8 @@
     "use_ray_m": 2.0
   },
   "smoke": {
+    "cross_lane": false,
+    "react_watch": false,
     "sight": false
   },
   "threat": {

@@ -26,7 +26,8 @@ pub struct SmokeTuning {
     /// React to a cloud the bot knows (it saw it, heard it pop, `smoke::KnownClouds`) and was not told is its team's:
     /// with nothing else holding its look, glance at the cloud's edge that faces it, where a man coming through steps
     /// out ("watch for enemies covering the smoke's far edge", "peek the smoke's edge", `bp-anticamper-human.md`
-    /// S26/S15). Off: no reaction, and no cloud is learnt (no ray is cast for it). OFF until its bench (#719's clouds).
+    /// S26/S15). Off: no reaction, and no cloud is learnt (no ray is cast for it). On by default (#801's bench, with the
+    /// stand-in's clouds of #719).
     pub react_watch: bool,
     /// A cloud is seen from this far at most, metres (its middle in the view and a clear line to it). GUESS: the
     /// 5 m puffs of a cloud are plain at 80 m.
@@ -47,7 +48,8 @@ pub struct SmokeTuning {
     pub told_ms: u32,
     /// [smoke use] A bot whose route crosses a held lane ahead (K1, `threat.rs`) within `lane_ahead_m`, before it
     /// steps in and while it is not sprinting (a sprint is across before the cloud forms), smokes the lane: a cloud between the spot and the crossing (`smoke::smoke_between`), if the team
-    /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none.
+    /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none. On by default
+    /// (#801: 4.23 per 100 lives on map data format 5, live 2.97; no sight or fire through smoke).
     pub cross_lane: bool,
     /// The crossing is this near ahead on the route, metres: a smoke for the gap the bot is about to step into, not
     /// one it may reach later (20 m threw 8.9 per 100 lives, `h2h-radio-vs-off-20261029T1211`; live 2.97).
@@ -83,7 +85,7 @@ impl Default for SmokeTuning {
             sight: true,
             spray_ms: 750,
             thin_m: Positive::of(2.0),
-            react_watch: false,
+            react_watch: true,
             see_m: Metres::of(80.0),
             watch_m: Metres::of(40.0),
             watch_ms: 1_500,
@@ -91,7 +93,7 @@ impl Default for SmokeTuning {
             heard_m: Metres::of(15.0),
             heard_ms: 2_000,
             told_ms: 400,
-            cross_lane: false,
+            cross_lane: true,
             lane_ahead_m: Metres::of(10.0),
             lane_sensed_ms: 5_000,
             lanes_a_life: 1,
