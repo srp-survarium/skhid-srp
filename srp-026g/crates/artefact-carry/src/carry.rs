@@ -55,6 +55,35 @@ pub fn encode_chord(actions: u32, modifier_down: bool) -> u32 {
     clean | CHORD
 }
 
+/// One of the carry key's own events in an input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyPress {
+    Pressed,
+    Released,
+}
+
+/// The carry key (H, action 23h), kept from its down event to its up event
+/// as player_input_handler::on_keyboard_action gets them (patches: site
+/// carry.key), since the input builder's action query sees the down and not
+/// always the up: H held, then a quick key, is the chord as much as the other
+/// order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CarryKey {
+    #[default]
+    Up,
+    Down,
+}
+impl CarryKey {
+    pub const fn step(self, press: Option<KeyPress>) -> Self {
+        match press {
+            Some(KeyPress::Pressed) => Self::Down,
+            Some(KeyPress::Released) => Self::Up,
+            None => self,
+        }
+    }
+    pub const fn is_down(self) -> bool { matches!(self, Self::Down) }
+}
+
 /// Client input latch: releasing the modifier before the quick key must
 /// not turn the same press into native artefact activation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -632,5 +661,36 @@ mod tests {
         offering.step(Event::Gone);
         assert!(!offering.active());
         roundtrip(offering);
+    }
+
+    /// The input of one tick: the carry key's own event (if any) and the
+    /// actions, through the key state and the chord as the input builder runs them.
+    fn key_tick(key: &mut CarryKey, chord: &mut Chord, press: Option<KeyPress>, actions: u32) -> u32 {
+        *key = key.step(press);
+        chord.step(actions, key.is_down())
+    }
+
+    #[test]
+    fn carry_key_then_quick_key_is_the_chord_as_the_other_order() {
+        let four = 1 << (14 + 3);
+        let offer = QuickSlot::parse(3).unwrap().command();
+        // H down, held with no event of its own, then 4: the chord, never 4's quick use.
+        let (mut key, mut chord) = (CarryKey::Up, Chord::Idle);
+        assert_eq!(key_tick(&mut key, &mut chord, Some(KeyPress::Pressed), 0), 0);
+        assert_eq!(key_tick(&mut key, &mut chord, None, 0), 0);
+        assert_eq!(key_tick(&mut key, &mut chord, None, four), offer);
+        assert_eq!(key_tick(&mut key, &mut chord, None, four), offer);
+        // H up while 4 is still held: the press stays the chord's.
+        assert_eq!(key_tick(&mut key, &mut chord, Some(KeyPress::Released), four), offer);
+        assert_eq!(key_tick(&mut key, &mut chord, None, 0), 0);
+        // 4 alone afterwards is the game's quick use again.
+        assert_eq!(key_tick(&mut key, &mut chord, None, four), four);
+        // 4 down, then H: the chord too.
+        let (mut key, mut chord) = (CarryKey::Up, Chord::Idle);
+        assert_eq!(key_tick(&mut key, &mut chord, None, 0), 0);
+        assert_eq!(key_tick(&mut key, &mut chord, Some(KeyPress::Pressed), four), offer);
+        // A repeat of H keeps it down.
+        assert_eq!(CarryKey::Down.step(None), CarryKey::Down);
+        assert_eq!(CarryKey::Up.step(None), CarryKey::Up);
     }
 }

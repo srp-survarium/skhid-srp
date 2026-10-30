@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use artefact_carry::{ArtefactId, Place, Refused};
-use artefact_carry::carry::{self, Carry, Event, QuickSlot, Token};
+use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
 use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
@@ -33,6 +33,7 @@ static OWNERS: Lock<Owners> = Lock::new(Owners([None; 60]));
 /// the models it took out must still go back before anything draws them.
 static HIDDEN: Lock<HiddenWeapons> = Lock::new(HiddenWeapons::NEW);
 static CHORD: GameCell<carry::Chord> = GameCell::new(carry::Chord::Idle);
+static CARRY_KEY: GameCell<CarryKey> = GameCell::new(CarryKey::Up);
 static HINT: GameCell<Option<(usize, bool)>> = GameCell::new(None);
 
 fn machine(player: &Player<'_>, ctx: &Context<'_>) -> Carry {
@@ -147,11 +148,24 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// H's own events, down and up, as the key handler gets them: the input
+/// builder's action query sees the down and not always the up, which left
+/// the key held.
+pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let press = native::key_event(ctx, Action::ARTEFACT).map(|down| if down { KeyPress::Pressed } else { KeyPress::Released });
+    if press.is_some() {
+        let key = CARRY_KEY.get(ctx.thread()).step(press);
+        CARRY_KEY.set(ctx.thread(), key);
+    }
+    Flow::Continue
+}
+
 pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut handler) = InputHandler::at_builder_end(ctx) {
         let actions = handler.actions().bits();
         let mut chord = CHORD.get(ctx.thread());
-        let encoded = chord.step(actions, handler.held(Action::ARTEFACT));
+        let key = CARRY_KEY.get(ctx.thread());
+        let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
     }

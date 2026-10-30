@@ -290,8 +290,21 @@ def main():
     assert builder.input(quick | 1 << 15, held=0) == (0, True), 'two quick keys with H offered or used one'
     builder.input(0)
     assert builder.input(sprint | quick, held=1) == (sprint | COMMAND, True)
-    assert builder.input(sprint) == (sprint, True)
+    assert builder.input(sprint, held=2) == (sprint, True)
     print('ok: the artefact action (H) held triggers carry, Shift does not, and its release cannot activate the item')
+    # The game sends H's action on its down and up ticks only, none between:
+    # H down, held, then 4 is the chord (never 4's quick use), as 4 then H.
+    assert builder.input(0, held=0) == (0, True)
+    assert builder.input(0) == (0, True)
+    assert builder.input(quick) == (COMMAND, True), 'H held, then a quick key, activated the item'
+    assert builder.input(quick) == (COMMAND, True)
+    assert builder.input(quick, held=2) == (COMMAND, True)
+    assert builder.input(0) == (0, True)
+    assert builder.input(quick) == (quick, True), 'H released still took the quick key'
+    builder.input(0)
+    assert builder.input(quick, held=0) == (COMMAND, True)
+    assert builder.input(0, held=2) == (0, True)
+    print('ok: H held, then a quick key, offers the artefact (no event of H between), as a quick key, then H')
     # The relays and replays keep 31 bits (0x31847B); a node ORs two inputs
     # together (0x2C5B60): both arrive here as the game reads them.
     g = Run(bytes(built)); p = g.players[0]

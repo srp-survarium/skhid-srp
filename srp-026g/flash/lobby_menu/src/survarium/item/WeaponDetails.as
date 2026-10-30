@@ -11,8 +11,6 @@ package survarium.item
       // Chambering time, on bolt and pump weapons only (parameters/chamber_a_round_time).
       private static const CHAMBER:int = 160;
       private var values:Object;
-      // The weapon's own chambering time before its rolls: the card shows both.
-      private var chamberBase:Number = NaN;
       public function WeaponDetails(data:Object) { values = data; }
       public static function read(item:Object) : WeaponDetails
       {
@@ -62,11 +60,7 @@ package survarium.item
          // (weapon-rolls-1). Dispersion bonuses stay off the unrelated
          // spread-growth/recovery parameters.
          for(var id:int = 146; id <= 151; id++) if(has(id)) values[id] *= Math.max(0,1 + sums[115]);
-         if(has(CHAMBER))
-         {
-            chamberBase = values[CHAMBER];
-            values[CHAMBER] *= Math.max(0,1 + sums[119]);
-         }
+         if(has(CHAMBER)) values[CHAMBER] *= Math.max(0,1 + sums[119]);
       }
       private function has(id:int) : Boolean { return values[id] !== undefined; }
       private static function number(n:Number) : String
@@ -83,7 +77,7 @@ package survarium.item
             value:unit == null ? number(n) : LocalizationData.format(unit,number(n)),
             comparison:direction == "neutral" ? {kind:"neutral"} : {kind:direction,value:Number(number(n))}});
       }
-      // Chambering time: the weapon's own, then with its rolls when they change it. A weapon
+      // Chambering time with its rolls, as every other row. A weapon
       // without one shows a dash beside a compared one that has it, so the rows stay aligned.
       private function chamber(result:Array, other:WeaponDetails) : void
       {
@@ -93,9 +87,8 @@ package survarium.item
             if(other != null && other.has(CHAMBER)) result.push({kind:"stat",id:CHAMBER,label:label,value:"\u2013",comparison:{kind:"neutral"}});
             return;
          }
-         var base:String = number(chamberBase), modified:String = number(values[CHAMBER]);
+         var modified:String = number(values[CHAMBER]);
          var value:String = LocalizationData.format("st_srp_unit_seconds",modified);
-         if(base != modified) value = LocalizationData.format("st_srp_unit_seconds",base) + " \u00BB " + value;
          result.push({kind:"stat",id:CHAMBER,label:label,value:value,comparison:{kind:"lower",value:Number(modified)}});
       }
       private static function recoilNumber(n:Number) : String

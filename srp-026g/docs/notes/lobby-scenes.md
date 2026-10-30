@@ -36,7 +36,7 @@ below are content only: each is a project of its own next to the classic one, wh
   classic scene. Each scene's own spots are below; heights are of the surface under them, read
   from the meshes.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@3)
+## lobby_scene/hangar_046 (pack lobby-hangar-046@4)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
@@ -56,6 +56,10 @@ below are content only: each is a project of its own next to the classic one, wh
   45 warm fills (1, 0.78, 0.67) drew blue). References: YouTube thumbnails of the 0.40/0.41
   lobby (warm brown hall, cool daylight from the windows and skylights, deep shadow under the
   trusses).
+- @4: the manifest's `environment_overrides` raise the sun to 7 (the donor's 1.5) and the
+  probes' diffuse multiplier to 2 (1.3), set by eye against the 0.40/0.41 thumbnails (0.26's eye
+  adaptation evens the level, so the stronger sun mainly gives the bright patches through the
+  roof grid and the windows). The sun shafts themselves were particles 0.26 lacks.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -73,7 +77,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@3)
+## lobby_scene/camp_069 (pack lobby-camp-069@4)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -84,10 +88,11 @@ below are content only: each is a project of its own next to the classic one, wh
   (`ported/v069d_lobby`), 9 are 0.26's own.
 - Lights (@3), by the manifest's `photometric_lights`, set by eye against the references (0.69d
   draws through a fixed exposure, EV 9.5, and a filmic curve that 0.26 lacks):
-  - the 18 adding ambient lights: 0.006 per lux (illuminance x multiplier x intensity), at most 2;
+  - the 18 adding ambient lights: 0.004 per lux (illuminance x multiplier x intensity), at most 2;
   - the 65 multiplying ones (0.69d `type` 1, they multiply the light under them): the 4 fills
     (multiplier above 1: `floor_light_1/2`, `light/ambient_light` x50 at the camera, x3) as
-    adding ones, 0.02 per unit above 1; the 61 painted contact shadows (multiplier below 1: under
+    adding ones, 0.005 per unit above 1 (the x50 one is a sphere of 11.6 m about the camera, bluish:
+    stronger, it turned the window side blue); the 61 painted contact shadows (multiplier below 1: under
     the boxes, the carpet, the fridge, the nightstand, the lamp) as negative ambient lights,
     -0.25 per unit below 1 (0.26 subtracts them: shown in a game, the corners and the floor
     under the props darken);
@@ -99,14 +104,20 @@ below are content only: each is a project of its own next to the classic one, wh
   of irradiance over pi (0.26's and 0.46c2's own check out so, to 3 %). The `_diffuse` is made
   from the SH (real basis with the Condon-Shortley phase over the world axes: on 4 of the 6
   probes the L1 band points where the cubemap is brightest), the cubemap scaled to the SH's mean;
-  diffuse multiplier = the probe's 0.69d multiplier x 0.5. @2 drew every volume with the classic
+  diffuse multiplier = the probe's 0.69d multiplier x 0.9. @2 drew every volume with the classic
   lobby's warm cubemap x2.6 (the flat warm orange).
+- @4 keeps only the room probe and the room-fill one (`exclude_probes`): the three small window-side
+  and camera-side boxes and the 127 m outdoor box carry blue sky irradiance, and 0.26 blends them
+  over the room probe (0.69d lets the room's win), so in @3 the window side, the floor and the
+  left wall went blue.
 - Environment: the classic lobby's sky, fog and post-process, the donor's sun (elevation 50,
-  azimuth 25: through the left window onto the papers and the right wall), no colour grading
+  azimuth 25: through the left window onto the papers and the right wall), at intensity 5 and
+  warm (1, 0.86, 0.68) by `environment_overrides` (@4: the key light of the references), no colour grading
   (0.69d white-balances at 6500 K and has no table; the classic's `l_03d` made it warmer).
 - References: YouTube thumbnails of 0.65b (a bright room, daylight from the left window, cream
   walls) and of the 0.53 preview (darker, the sun patch on the floor before the desk); @3 sits
-  between them.
+  between them; @4 is warm and sunlit like both, still darker on the left wall and ceiling than
+  0.65b (0.26's eye adaptation evens the level; no 0.69d exposure or filmic curve).
 - Window panes (`water/glass_water`) use 0.26's `tiled/window/glass`.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),

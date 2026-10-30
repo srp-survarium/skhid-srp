@@ -221,6 +221,13 @@ class Run(hide.Run):
             self.word(sp, hide.SENTINEL)
             self.run(0x242580, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ECX: handler + 0x98,
                                                       UC_X86_REG_EDX: pair})
+            # The carry takes H's events where on_keyboard_action has its
+            # action (site carry.key 0x23FE42: EDI the action, the key's state
+            # 1 down / 2 repeat / 3 up at ebp+10h), down and up alike.
+            frame = hide.STACK + 0xA000
+            self.word(frame + 0x10, held + 1)
+            self.run(0x23FE42, (0x23FE48,), sp, {**hide.GAME, UC_X86_REG_EDI: 0x23, UC_X86_REG_EBP: frame})
+            assert self.stopped == 0x23FE48, hex(self.stopped)
         ebp = hide.STACK + 0x9000
         for i, value in enumerate((0x0BADEBB0, hide.SENTINEL, handler, 1)):
             self.word(ebp + 4 * i, value)
