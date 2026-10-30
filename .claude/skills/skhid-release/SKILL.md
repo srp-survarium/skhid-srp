@@ -257,8 +257,9 @@ The order, as it runs:
 
 1. **Preflight**, nothing players see. It says exactly what's missing: ssh
    to the jump host, through it to the live host, the patches server; the
-   release lock free; nix; `$SKHID_GAME`; `$SKHID_STOCK_DB` with the stock
-   sha256 (cached by size and time); free disk here and there;
+   release lock free; nix; `$SKHID_GAME` with the original launcher (its
+   sha256); `$SKHID_STOCK_DB` with the stock sha256 (cached by size and
+   time); free disk here and there;
    srp-game-data builds; the release's revision `<n>` (the target exe's + 1,
    or `--revision <n>` above it; not below main's `REVISION`); live: main's
    `REVISION` (the last release's) is the live exe's or above and below
@@ -324,7 +325,11 @@ The order, as it runs:
    is given. Ask the owner, and give it only when they say so
    (`SKHID_RELEASE_GO=1` gives it beforehand, for the tests). Nothing is
    planned before it; a Ctrl-C there removes the staged files and frees
-   the lock.
+   the lock. The y/N before the swap (5.) has a file of its own, named
+   alike (`~/.cache/skhid-release/swap-<release folder>`, its exact path
+   printed with the question): `touch` it to answer y without a terminal.
+   It is removed as that question is asked, so an earlier one is no
+   answer.
 4. **The maintenance, at once after the go**: a POST to the admin page
    (`tab=maint`, `minutes`) from the jump host, whose address must be in
    the target's `SRP_ADMIN_IPS` (behind Caddy with
@@ -348,7 +353,8 @@ The order, as it runs:
 5. **The swap, at the planned time**: it waits for it; then, once the launcher page says the
    server is down and `/api/stats` says `"matches":0` (it waits up to `--match-wait`,
    default `$SKHID_MATCH_WAIT_MINUTES`, else 15, more): it shows what changes,
-   **y/N** (no answer in `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
+   **y/N** (or its swap file, step 3; no answer in
+   `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
    no), then: notes srp's newest backup of srp.db, stops srp26, keeps the
    old files in the folder, puts the folder's rollback in, puts the server
    data **and the ZIP** in place (hard links renamed over the old files:
