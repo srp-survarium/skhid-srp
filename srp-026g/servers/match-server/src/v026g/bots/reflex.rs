@@ -7301,6 +7301,153 @@ mod tests {
         (first, errors, aimed)
     }
 
+    /// How far the view trails a target crossing the line of fire at a steady `speed` m/s, `distance` m ahead: the mean over the
+    /// ticks from 2 s on of the view after the tick's turn against the line to his chest, metres at him (positive: behind him),
+    /// with the motor following the aim's turn rate (`feed`: `Motor::track`, as `drive.rs` sets it) or not. The aim error and
+    /// the wander are taken out, the picture is exact, so what is left is the pipeline's own: the reflex's aim point, the
+    /// feed, the motor's ease.
+    fn steady_trail_m(speed: f32, distance: f32, feed: bool, skill: f32) -> (f32, f32) {
+        use super::super::motor::{Feel, Motor, Pose};
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let (mut trail, mut n, mut before) = (0.0f32, 0u32, 0.0f32);
+        for k in 0..120u32 {
+            let now = 1_000 + k * 50;
+            let x = speed * (k as f32) * 0.05 - 2.0;
+            let mut enemy = body(1, 1, Vec3::new(x, 0.0, distance), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (yaw_of([dx, dz]) + o.error.0, (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1);
+            motor.turn_time = o.turn_time_s;
+            motor.track = o.track.filter(|_| feed);
+            let pose = Pose { feet: me.feet, yaw: me.yaw, pitch: me.pitch, speed: 0.0, ..Default::default() };
+            let pre = me.yaw;
+            let d = motor.aim_still(&pose, want);
+            me.yaw = wrap(me.yaw + d.turn.0);
+            me.pitch += d.turn.1;
+            if k >= 20 {
+                let chest = enemy.chest();
+                let bearing = yaw_of([chest.x - eye.x, chest.z - eye.z]);
+                let hit = |yaw: f32| wrap(yaw - bearing) * distance * speed.signum();
+                trail += hit(me.yaw);
+                before += hit(pre);
+                n += 1;
+            }
+        }
+        (trail / n.max(1) as f32, before / n.max(1) as f32)
+    }
+
+    /// Prints the steady strafer's trail (`cargo test -p match-server steady_strafer_trail -- --ignored --nocapture`): the view after
+    /// the tick's turn, and the view before it (what a shot released ahead of the turn would go along).
+    #[test]
+    #[ignore]
+    fn steady_strafer_trail() {
+        for skill in [0.0, 1.0] {
+            for distance in [20.0, 50.0] {
+                for feed in [true, false] {
+                    let (after, before) = steady_trail_m(2.1, distance, feed, skill);
+                    println!("skill {skill} {distance} m feed {feed}: view trails by {after:+.3} m after the turn, {before:+.3} m before it");
+                }
+            }
+        }
+    }
+
+    /// A standing target `distance` m ahead and a burst on him, the way the bench stand-in runs it (the bot's mirror of the kick in
+    /// the reflex, the game's kick in `truth`: the middle of every range with `random` false, drawn with it), the view as `drive.rs`
+    /// builds it and the turn as it sends it (elevation, converted at the view with `turn_for`, the pull a `rise`). Returns the mean
+    /// height of the view at the tick's shots over the line to his chest, degrees, and over the aim point the reflex gave, and the
+    /// shots counted. Positive: high.
+    fn kicked_height_deg(skill: f32, distance: f32, scale: PitchScale, random: bool) -> (f32, f32, u32) {
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(7);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, distance), 0.0);
+        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut truth = Recoil::new(kick_of(reflex.hands().held().gun.item));
+        let mut cadence = Cadence::default();
+        let (interval_ms, auto) = (truth.kick().interval_s() * 1000.0, reflex.hands().held().gun.auto);
+        let mut draw = Rng::new(11);
+        let mut base = 0.0f32;
+        let (mut chest_sum, mut aim_sum, mut n) = (0.0f32, 0.0f32, 0u32);
+        for k in 0..160u32 {
+            let now = 1_000 + k * 50;
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            truth.update(now);
+            let truth_before = truth.y();
+            let mirror = reflex.weapon_tick(&me, now, scale);
+            let before = Pitch::view(base, mirror);
+            me.pitch = before.elevation(scale);
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1;
+            let mut turn = want - me.pitch;
+            turn += Pitch::of_elevation(me.pitch, scale).rise(o.pull, scale);
+            let units = before.turn_for(scale, turn);
+            // The game: the update came first (above); the turn takes the downward part off the kick; then the shots.
+            let taken = truth.turn(units);
+            base += units + taken;
+            let keys = if o.fire { key::FIRE } else { 0 };
+            if o.fire {
+                let view_el = Pitch::view(base, truth.y()).elevation(scale);
+                let chest = enemy.chest();
+                let to_chest = (chest.y - eye.y).atan2(chest.x.hypot(chest.z - eye.z));
+                let to_aim = (p.y - eye.y).atan2(dx.hypot(dz));
+                chest_sum += view_el - to_chest;
+                aim_sum += view_el - to_aim;
+                n += 1;
+            }
+            reflex.sent(now, keys, units);
+            cadence.tick(now, o.fire, auto, interval_ms, |at| {
+                if random {
+                    let top = truth.kick().top(draw.unit());
+                    let side = truth.kick().side(draw.unit(), draw.unit());
+                    truth.shot(at, top, side);
+                } else {
+                    truth.mean_shot(at);
+                }
+            });
+            let _ = truth_before;
+        }
+        let n_f = n.max(1) as f32;
+        ((chest_sum / n_f).to_degrees(), (aim_sum / n_f).to_degrees(), n)
+    }
+
+    /// Prints the burst's height (`cargo test -p match-server kicked_height -- --ignored --nocapture`): the register's #28 residual.
+    #[test]
+    #[ignore]
+    fn kicked_height() {
+        for scale in [PitchScale::Radian, PitchScale::Client] {
+            for skill in [0.0, 0.75, 1.0] {
+                for distance in [20.0, 30.0, 52.0] {
+                    for random in [false, true] {
+                        let (chest, aimed, n) = kicked_height_deg(skill, distance, scale, random);
+                        println!("{scale:?} skill {skill} {distance} m random {random}: {chest:+.3} deg over the chest, {aimed:+.3} over the aim point ({n} shots)");
+                    }
+                }
+            }
+        }
+    }
+
     fn median(mut v: Vec<f32>) -> f32 {
         v.sort_by(f32::total_cmp);
         v.get(v.len() / 2).copied().unwrap_or(f32::NAN)
