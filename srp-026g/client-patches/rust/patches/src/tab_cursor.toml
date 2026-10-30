@@ -1,0 +1,13 @@
+# Patch 86: a cursor over the Tab list (Ctrl) and a friend request from its
+# rows (docs/notes/tab-cursor-friends.md). Only the decisions: which sites,
+# and the handlers. The sites are sites_026g.tsv's; the logic is tab_cursor.rs.
+name = "tab_cursor"
+patch = 86
+
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+
+[[hook]]
+site = "hud.callback"
+handler = "on_hud_call"

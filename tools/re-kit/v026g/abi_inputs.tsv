@@ -4840,3 +4840,13 @@ va	name	location	role	basis
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	entry ESP+4	the node	observed
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	EDI	the stack	observed
 0x00321d10	survarium::bullet_manager::tick	ECX	the bullet manager	observed
+0x0026afb0	survarium::messaging_client::send_important_message	EDX	the message's text, a C string copied to 100h bytes ("" 0x9DB708 from the lobby's add_friend_name, 0x28C1E0)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+4	the messaging client (lobby client +1E56C4h): its +4 the lobby client, whose +8 the connection the 4D is made on (new_packet 0x37A0E0) and queued to (enqueue 0x379640); the caller checks the connection first (0x28C1B6..0x28C1D6)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+8	the target player's name, a C string, written as a u8-length string (0x26B024..0x26B03B)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+12 low byte	the message type byte (0 friend request, 2 squad invite, 3 membership accepted; social.md 1.5)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	ECX	the hud (game_world_ui; +18h its game world, 0x233D69)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+4	the movie that called	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+8	the method's name, a C string (string compares from 0x233D38)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+12	the GFx arguments, 18h bytes each (profile_changed reads the first's +8 byte, 0x233F16)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+16	the arguments' count	observed
+0x0021bd80	survarium::network_client::messaging_client	ECX	the network client (game +53ACh; slot +44h of its vtable 0x9FFB14)	observed

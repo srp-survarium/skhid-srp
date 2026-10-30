@@ -36,7 +36,7 @@ CATALOG = Path(__file__).resolve().parent / 'localization'
 # hands the movie through set_localization_data. The movies call
 # LocalizationData.getName("st_srp_...") / LocalizationData.format(...).
 FLASH_PREFIX = 'st_srp_'
-FLASH_MOVIES = ('lobby_menu', 'login_menu')
+FLASH_MOVIES = ('lobby_menu', 'login_menu', 'hud')
 
 
 def flash_rows(keys):

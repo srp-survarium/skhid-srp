@@ -1,6 +1,6 @@
 """Check the Flash menus' own texts against the dictionaries.
 
-The lobby and login movies hold no language text: they show srp's texts by their dictionary keys,
+The lobby, login and hud movies hold no language text: they show srp's texts by their dictionary keys,
 LocalizationData.getName("st_srp_...") or LocalizationData.format("st_srp_...", values), and the
 content compile maps every st_srp_ key to itself for those movies (localization_026g.FLASH_MOVIES).
 Every key a movie names must be in the dictionaries; no other movie may name one (it is not given

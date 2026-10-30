@@ -217,7 +217,7 @@ class LocalizationTests(unittest.TestCase):
         folder = self.root / 'flash' / movie / 'src'
         folder.mkdir(parents=True, exist_ok=True)
         (folder / 'Words.as').write_text(source, encoding='utf-8')
-        for other in ('lobby_menu', 'login_menu'):
+        for other in ('lobby_menu', 'login_menu', 'hud'):
             (self.root / 'flash' / other / 'src').mkdir(parents=True, exist_ok=True)
 
     def test_flash_check_catches_unknown_keys_and_movies_without_srp_texts(self):
@@ -226,8 +226,10 @@ class LocalizationTests(unittest.TestCase):
         issues = audit_flash(self.root / 'flash', set())['issues']
         self.assertTrue(any('st_srp_rooms_room is not in the dictionaries' in issue for issue in issues))
         self.flash_fixture('hud', 'text = LocalizationData.getName("st_srp_rooms_room");')
+        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues'], [])
+        self.flash_fixture('replay_player', 'text = LocalizationData.getName("st_srp_rooms_room");')
         issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
-        self.assertTrue(any('the hud movie is not given' in issue for issue in issues))
+        self.assertTrue(any('the replay_player movie is not given' in issue for issue in issues))
 
     def test_srp_texts_take_no_braces(self):
         # The game's localizer drops {...} (but an action's {NAME}) from every text it hands a movie.
@@ -284,9 +286,10 @@ class LocalizationTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(mapped['lobby_menu_strings'], [['caption', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
         self.assertEqual(mapped['login_menu_strings'], [['login', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
-        self.assertEqual(mapped['hud_strings'], stock['hud_strings'])
+        self.assertEqual(mapped['hud_strings'], [['hint', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
         report = checker.audit(output / 'localization')
-        self.assertEqual(report['ui_unmapped'], {'lobby_menu_strings': [], 'login_menu_strings': []})
+        self.assertEqual(report['ui_unmapped'], {'lobby_menu_strings': [], 'login_menu_strings': [],
+                                                 'hud_strings': []})
         self.assertFalse(checker.failed(report))
         # A compiled dictionary with an srp text the mapping lacks fails the audit.
         (output / 'localization/flash_movies_localizations.options').write_bytes(self.mapping(stock))
