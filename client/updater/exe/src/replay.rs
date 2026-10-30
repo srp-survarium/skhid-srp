@@ -68,7 +68,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::launcher_language();
+    let language = win::game_language();
     let request = match replay::parse(arguments) {
         Ok(request) => request,
         Err(error) => {

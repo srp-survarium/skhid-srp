@@ -5,7 +5,7 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
+use crate::vostok::{Action, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -152,7 +152,10 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// builder's action query sees the down and not always the up, which left
 /// the key held.
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let press = native::key_event(ctx, Action::ARTEFACT).map(|down| if down { KeyPress::Pressed } else { KeyPress::Released });
+    let press = native::key_event(ctx, Action::ARTEFACT).map(|event| match event {
+        KeyboardAction::Down | KeyboardAction::Hold => KeyPress::Pressed,
+        KeyboardAction::Up => KeyPress::Released,
+    });
     if press.is_some() {
         let key = CARRY_KEY.get(ctx.thread()).step(press);
         CARRY_KEY.set(ctx.thread(), key);

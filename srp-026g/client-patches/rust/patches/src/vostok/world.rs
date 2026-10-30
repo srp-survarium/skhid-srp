@@ -208,13 +208,12 @@ impl<'t> Player<'t> {
     /// through its vtable+20h at 0x316EA9): in-world set, physics activated,
     /// the world's tick lists linked. Only from [`Presence::Outside`]: insert
     /// links the tick lists unconditionally, twice would corrupt them.
-    pub fn enter_world(&self) -> Presence {
+    pub fn enter_world(&self) {
         if self.presence() == Presence::Outside {
             // SAFETY: a live player of the loaded world on the game's thread;
             // not yet inserted (checked above), so its lists are unlinked.
             unsafe { raw::engine_player_insert(Some(self.this), 1) };
         }
-        self.presence()
     }
 
     /// The life's spawn time (m_inserted_time_in_ms): one death a life.
