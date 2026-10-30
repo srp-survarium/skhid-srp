@@ -498,31 +498,29 @@ package survarium.player
          if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
       }
       
-      // The speed's item parts: the armour's movement bonuses (built-in, rolled and
-      // defects), the pockets' boosters (the Tornado's +5 %) and the first weapon's own
-      // movement parameter (the weapon in hand).
+      // What each of the kit's items adds (KitItems): the armour's and the pockets'
+      // movement (prop 105) and carry limit (prop 106) from their modifications
+      // (built-in, rolled, defects), one entry an item by its displayed name, and the
+      // first weapon's own movement parameter (the weapon in hand).
       private function withKitItems(effects:WeightEffects) : WeightEffects
       {
          if(effects == null) return effects;
          var items:DataProvider = profileItems.dataProvider as DataProvider;
-         var sums:KitItems = new KitItems();
+         var kit:KitItems = new KitItems();
          for(var i:uint = 0; items != null && i < items.length; i++)
          {
             var item:ItemData = items[i] as ItemData;
             if(item == null) continue;
-            if(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT)
+            var armour:Boolean = item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT;
+            var pocket:Boolean = item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6;
+            if(armour || pocket)
             {
-               sums.speedBonuses += propOf(item,105);
-               sums.limitBonuses += propOf(item,106);
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105)});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106)});
             }
-            else if(item.slotId == ProfileSlot.WEAPON_1) sums.weapon = propOf(item,105);
-            else if(item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6)
-            {
-               sums.speedBoosters += propOf(item,105);
-               sums.limitBoosters += propOf(item,106);
-            }
+            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0) kit.weapon = {name:item.name,value:propOf(item,105)};
          }
-         return effects.withItems(sums);
+         return effects.withItems(kit);
       }
       
       // The sum of a property over the item's modifications (built-in, rolled, defects):

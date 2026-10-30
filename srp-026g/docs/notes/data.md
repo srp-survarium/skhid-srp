@@ -733,10 +733,15 @@ lost the value's size to the style sheet in the game (the owner's 2026-10-29
 screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
 tooltip, on the whole box, has the total in the heading (in the rows' colours: green
 faster, red slower, white at 100 %; a TextFormat from the rows' style sheet,
-as the heading takes none) and its five parts:
-weight, bonuses, boosters, skills, equipment, each green when it speeds the
-player up and red when it slows them down (the item card rows' own colours,
-`ModificatorListRenderer`'s style sheet), white at 0. The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
+as the heading takes none) then each thing that
+changes the speed by its own name, one row each (the owner, 2026-10-30): the
+weight ("Weight"), the skill (Rapid, its game name), every armour piece and
+pocket item by its displayed name with the sum of its own modifications
+(built-in, rolled, defects: "Freedom suit +4 %", "Tornado Energy Drink
++5 %"), and the weapon in hand ("AK-74M -5 %"). None at 0; biggest speed-up
+first, biggest slow-down last; green faster, red slower (the item card rows'
+own colours, `ModificatorListRenderer`'s style sheet). The total is summed
+from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
 symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
 simulation change.
 
@@ -782,8 +787,10 @@ simulation change.
 
 The owner: "can weight show packrat effect in pop up?", then: what raises the
 carry limit, by source, like the speed. After its weight rows the weight's
-tooltip lists the base limit and each source that changes it, shown only when
-it does, adding up to the limit beside the weight ("/ 30"):
+tooltip lists the base limit, then each thing that changes it by its own
+name, one row each, none at 0, biggest first (the skill, Athlete; each armour
+piece and pocket item by its displayed name), then Packrat, adding up to the
+limit beside the weight ("/ 30"):
 
 - **The exe's limit.** The lobby's maximum is `apply_kit_parameter(kit, 5)`
   0x2F7660 (called at 0x222217): the menu's base (+3118h, 30 kg) through
@@ -797,8 +804,8 @@ it does, adding up to the limit beside the weight ("/ 30"):
   1120..1124: +1..+5 kg; the Duty suit's built-in 1124).
 - **Boosters**: the pockets' (the Anomalous Force Protein, `weight_booster`,
   built-in 1124: +5 kg while carried, as every booster).
-- **Equipment**: what the exe's limit has beyond those (the items' own
-  parameters; 0 in every config so far).
+- The items' own parameters (beyond their modifications) are 0 in every
+  config so far, so the rows add up to the exe's limit.
 - **Packrat** (skill 202, the game's own name `st_overweight_penalty_name`):
   the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
 - Green raises the limit (or lowers the penalty), red lowers it, as the rows;

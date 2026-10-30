@@ -2515,13 +2515,8 @@ st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
-st_srp_speed_bonuses	Bonusy: %1$s
-st_srp_speed_boosters	Wzmacniacze: %1$s
-st_srp_speed_equipment	Ekwipunek: %1$s
 st_srp_speed_label	Szybkość
-st_srp_speed_skills	Umiejętności: %1$s
 st_srp_speed_title	Szybkość ruchu: %1$s
-st_srp_speed_weight	Waga: %1$s
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%

@@ -127,22 +127,23 @@ package {
   private function checkSpeed():void {
    require(Effects.parse(-.1,.75,0).speedExplanation==null,"an old exe gives no speed");
    require(Effects.parse(-.1,.75,0,.03,7).speedExplanation==null,"invalid Bear Arms state refused");
-   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(kit(.04,.05,-.05));
+   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(kit([["Freedom suit",.04],["Tornado energy drink",.05]],["AK-74M",-.05]));
    var x:Object=e.speedExplanation;
-   require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% (Tornado) - 5%: "+x.total);
+   require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% - 5%: "+x.total);
    require(x.value.indexOf("97%")>=0 && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
    var rows:Array=x.rows();
-   require(rows.length==5,"the speed's five parts");
-   // Each part coloured by its effect, as the item cards: green faster, red slower, white at 0.
-   for each(var want:Array in [[0,"Weight","<red>-10%</red>"],[1,"Bonuses","<green>+4%</green>"],[2,"Boosters","<green>+5%</green>"],[3,"Skills","<green>+3%</green>"],[4,"Equipment","<red>-5%</red>"]])
-    require(rows[want[0]].label.indexOf(want[1])>=0 && rows[want[0]].label.indexOf(want[2])>=0,want[1]+" part: "+rows[want[0]].label);
-   require(Effects.parse(0,0,0,0,0).withItems(kit(0,0,0)).speedExplanation.rows()[0].label.indexOf("<white>0%</white>")>=0,"no effect: white");
-   require(Effects.parse(0,0,0,0,0).withItems(kit(0,0,0)).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(kit(0,0,0)).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
-   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Skills")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit(0,0,-.05)).speedExplanation.total-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit(0,0,.03)).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
-   require(Effects.parse(-.2,1.5,0,0,0).withItems(kit(-1,0,0)).speedExplanation.total==0,"never below zero");
-   var fast:Object=Effects.parse(0,0,0,.03,0).withItems(kit(.04,0,0));
+   // One row each thing, by its own name, biggest speed-up first; green faster, red slower.
+   require(rows.length==5,"the weight, the skill, two items and the weapon: "+rows.length);
+   for each(var want:Array in [[0,"Tornado energy drink <green>+5%</green>"],[1,"Freedom suit <green>+4%</green>"],[2,Loc.getName("movement_speed_name")+" <green>+3%</green>"],[3,"AK-74M <red>-5%</red>"],[4,"Weight <red>-10%</red>"]])
+    require(rows[want[0]].label==want[1],"row "+want[0]+": "+rows[want[0]].label+" (want "+want[1]+")");
+   require(Effects.parse(0,0,0,0,0).withItems(kit([["Novice cap",0]],null)).speedExplanation.rows().length==0,"nothing at 0");
+   require(Effects.parse(0,0,0,0,0).withItems(kit([],null)).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(kit([],null)).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
+   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Freedom")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
+   var bear:Object=Effects.parse(0,0,0,0,1).withItems(kit([],["AK-74M",-.05])).speedExplanation;
+   require(Math.abs(bear.total-1)<1e-9 && bear.rows().length==0,"Bear Arms leaves a weapon's penalty out");
+   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit([],["Vepr",.03])).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
+   require(Effects.parse(-.2,1.5,0,0,0).withItems(kit([["x",-1]],null)).speedExplanation.total==0,"never below zero");
+   var fast:Object=Effects.parse(0,0,0,.03,0).withItems(kit([["Freedom suit",.04],["Tornado energy drink",.05]],["AK-74M",-.05]));
    indicators[0].update(20,30,fast);
    var speed:Object=speedWidget(0),weight:Object=widgets[0];
    var label:TextField=speed.textFieldLabel,value:TextField=speed.textFieldValue;
@@ -163,7 +164,7 @@ package {
    var hover:Rectangle=speedTip(0).getBounds(speedBox(0)),words:Rectangle=speed.getBounds(speedBox(0));
    require(hover.containsRect(words) && hover.width>=150,"its tooltip covers the whole box: "+hover);
    require(weight.textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
-   indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(kit(0,0,0)));
+   indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(kit([],null)));
    require(speedWidget(0).textFieldValue.text.indexOf("90%")>=0 && speedWidget(0).textFieldValue.getTextFormat(0,1).color==0xF18A78,"slower than base: coral");
    indicators[0].update(20,30,Effects.parse(0,0,0));
    require(!speedBox(0).visible,"an old exe shows no speed");
@@ -172,21 +173,25 @@ package {
   // The speed's box: right under its weight in the weight's parent; its frame, its copy of the weight's symbol, its tooltip.
   private function speedBox(i:int):Sprite {var p:DisplayObjectContainer=widgets[i].parent;var b:Sprite=p.getChildAt(p.getChildIndex(widgets[i])-1) as Sprite;if(b==null||b.name!="speed")throw new Error("no speed box");return b;}
   // The profile's sums of the kit's items (KitItems).
-  private function kit(speedBonuses:Number,speedBoosters:Number,weapon:Number,limitBonuses:Number=0,limitBoosters:Number=0):Object {
+  private function kit(speed:Array,weapon:Array,limit:Array=null):Object {
    var k:Object=new (domain.getDefinition("survarium.player.KitItems") as Class)();
-   k.speedBonuses=speedBonuses;k.speedBoosters=speedBoosters;k.weapon=weapon;k.limitBonuses=limitBonuses;k.limitBoosters=limitBoosters;return k;
+   for each(var a:Array in speed)k.speed.push({name:a[0],value:a[1]});
+   if(weapon!=null)k.weapon={name:weapon[0],value:weapon[1]};
+   for each(var b:Array in (limit||[]))k.limit.push({name:b[0],value:b[1]});
+   return k;
   }
   // The weight's tooltip: what raises the carry limit, by source, adding up to it; Packrat when the kit has it.
   private function checkLimit():void {
-   var e:Object=Effects.parse(-.1,.75,0,.03,0,44,30,4,-.15).withItems(kit(0,0,0,5,5));
+   var limit:Array=[["Duty suit",5],["Anomalous Force Protein",5]];
+   var e:Object=Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,limit));
    var rows:Array=e.rows();
-   require(rows.length==7,"weight rows, base, skills, bonuses, boosters, Packrat: "+rows.length);
-   for each(var want:Array in [[2,"Base limit","30 kg"],[3,"Skills","<green>+4 kg</green>"],[4,"Bonuses","<green>+5 kg</green>"],[5,"Boosters","<green>+5 kg</green>"],[6,"Packrat","<green>-15% weight penalty</green>"]])
-    require(rows[want[0]].label.indexOf(want[1])>=0 && rows[want[0]].label.indexOf(want[2])>=0,want[1]+" row: "+rows[want[0]].label);
-   require(rows[3].icon==12 && rows[6].icon==11,"the weight-limit and speed icons");
-   var rest:Array=Effects.parse(0,0,0,0,0,32,30,0,0).withItems(kit(0,0,0)).rows();
-   require(rest.length==4 && rest[3].label.indexOf("Equipment")>=0 && rest[3].label.indexOf("+2 kg")>=0,"what the exe's limit has beyond the parts: "+rest[rest.length-1].label);
-   require(Effects.parse(0,0,0,0,0,30,30,0,0).withItems(kit(0,0,0)).rows().length==3,"only the base when nothing raises it");
+   require(rows.length==7,"weight rows, base, two items, the skill, Packrat: "+rows.length);
+   require(rows[2].label.indexOf("30 kg")>=0 && rows[2].icon==12,"the base limit: "+rows[2].label);
+   var all:String="";for each(var r:Object in rows)all+=r.label+"\n";
+   for each(var want:String in ["Duty suit <green>+5 kg</green>","Anomalous Force Protein <green>+5 kg</green>",Loc.getName("max_carried_weight_name")+" <green>+4 kg</green>",Loc.getName("overweight_penalty_name")+" <green>-15% weight penalty</green>"])
+    require(all.indexOf(want)>=0,"row "+want+" in "+all);
+   require(rows[5].label.indexOf("+4 kg")>=0 && rows[6].icon==11,"biggest first, Packrat last: "+rows[5].label);
+   require(Effects.parse(0,0,0,0,0,30,0,0).withItems(kit([],null,[])).rows().length==3,"only the base when nothing raises it");
    require(Effects.parse(-.1,.75,0).rows().length==2,"an older exe: the weight rows only");
   }
   private function speedWidget(i:int):Object {return speedBox(i).getChildAt(1);}
@@ -284,24 +289,24 @@ package {
       require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"speed item: "+language+" "+sl.text+" "+sv.text);
       checkProfileRow(language);
       require(speedTip(0).tipData.effects.title.indexOf("107%")>=0,"speed heading: "+language);
-      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,44,30,4,-.15).withItems(kit(0,0,0,5,5)).rows())require(lim.label.indexOf("undefined")<0 && lim.label.indexOf("#")<0 && lim.label.indexOf("%1$s")<0,"localized limit row: "+language+" "+lim.label);
+      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5]])).rows())require(lim.label.indexOf("undefined")<0 && lim.label.indexOf("#")<0 && lim.label.indexOf("%1$s")<0,"localized limit row: "+language+" "+lim.label);
       for each(var part:Object in speedTip(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#st_")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
      }
      Loc.setData(texts("english"));indicators[2].refresh();indicators[0].refresh();speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
     }
     if(frame==155) {
      // The speed's own native card: its total in the heading, then weight, bonuses, skills, equipment.
-     var card:Object=rendered();require(card.alpha==1 && card.numChildren==8,"native card with the speed's five rows: "+card.numChildren);
+     var card:Object=rendered();require(card.alpha==1 && card.numChildren==7,"native card with the speed's four rows: "+card.numChildren);
      var head:TextField=card.getChildAt(2).textField;var h:int=head.text.indexOf("107%");
      require(h>=0 && head.getTextFormat(h,h+1).color==0x87A816,"heading total in the rows' green: "+head.text+" "+head.getTextFormat(h,h+1).color.toString(16));
      var text:String=rowText(card);
-     for each(var wanted:String in ["Weight","Bonuses: +4%","Boosters","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
+     for each(var wanted:String in ["Tornado energy drink +5%","Freedom suit +4%",Loc.getName("movement_speed_name")+" +3%","AK-74M -5%"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
      var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");
      require(bi>=0 && bonus.getTextFormat(bi,bi+1).color==0x87A816,"a part that speeds up is green, the card rows' green: "+bonus.getTextFormat(bi,bi+1).color.toString(16));
-     var slow:TextField=card.getChildAt(3).textFieldLabel;var si:int=slow.text.indexOf("-");
-     require(si<0 || slow.getTextFormat(si,si+1).color==0x960F0E,"a part that slows down is red, the card rows' red");
-     for(var m:int=3;m<8;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
+     var slow:TextField=card.getChildAt(6).textFieldLabel;var si:int=slow.text.indexOf("-5%");
+     require(si>=0 && slow.getTextFormat(si,si+1).color==0x960F0E,"a part that slows down is red, the card rows' red: "+slow.text);
+     for(var m:int=3;m<7;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
      finish(null);
     }

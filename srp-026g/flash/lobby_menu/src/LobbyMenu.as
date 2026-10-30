@@ -3951,7 +3951,7 @@ package
          trace("load_weigth:",cur,max);
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
-         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,max,base,limitSkills,packrat));
+         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void

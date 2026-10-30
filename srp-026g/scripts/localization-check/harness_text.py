@@ -17,7 +17,8 @@ from localization_026g import CATALOG, LANGUAGES, flash_rows, read_translations 
 
 # The stock texts beside the weight and speed in the inventory's profile (the weight-ui harness).
 STOCK_KEYS = {'equipment_weight': 'st_equipment_weight', 'autobuy_button_label': 'st_autobuy_button_label',
-              'overweight_penalty_name': 'st_overweight_penalty_name'}
+              'overweight_penalty_name': 'st_overweight_penalty_name', 'movement_speed_name': 'st_movement_speed_name',
+              'max_carried_weight_name': 'st_max_carried_weight_name'}
 
 
 def main():

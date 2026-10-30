@@ -33,18 +33,18 @@ package survarium.player
          _limit = limit;
       }
       public static function parse(movement:Number, spending:Number, sprint:Number, skills:Number = NaN, bearArms:Number = NaN,
-         maximum:Number = NaN, base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN) : WeightEffects
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN) : WeightEffects
       {
          if(!isFinite(movement) || !isFinite(spending) ||
             (sprint != SPRINT_ALLOWED && sprint != SPRINT_WEIGHT && sprint != SPRINT_HEAVYWEIGHT)) return null;
-         var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,0,0,0) : null;
-         return new WeightEffects(movement,spending,int(sprint),speed,LimitParts.parse(maximum,base,limitSkills,packrat));
+         var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,[]) : null;
+         return new WeightEffects(movement,spending,int(sprint),speed,LimitParts.parse(base,limitSkills,packrat));
       }
       // The same effects with the kit's items (KitItems: the profile's sums).
       public function withItems(items:KitItems) : WeightEffects
       {
          return new WeightEffects(_movement,_spending,_sprint,
-            _speed == null ? null : _speed.withItems(items.speedBonuses,items.speedBoosters,items.weapon),
+            _speed == null ? null : _speed.withItems(items),
             _limit == null ? null : _limit.withItems(items));
       }
       public function get knowsSpeed() : Boolean { return _speed != null; }

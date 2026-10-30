@@ -2515,13 +2515,8 @@ st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
-st_srp_speed_bonuses	Bonukset: %1$s
-st_srp_speed_boosters	Tehosteet: %1$s
-st_srp_speed_equipment	Varusteet: %1$s
 st_srp_speed_label	Nopeus
-st_srp_speed_skills	Taidot: %1$s
 st_srp_speed_title	Liikkumisnopeus: %1$s
-st_srp_speed_weight	Paino: %1$s
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
