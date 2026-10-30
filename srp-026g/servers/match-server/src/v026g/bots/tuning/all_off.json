@@ -70,7 +70,6 @@
     "gap_links": false,
     "honest_drops": false,
     "jump_cap_m": 1.05,
-    "keep_last_resorts": false,
     "landing_carry": false,
     "walk_off_lips": false
   },
