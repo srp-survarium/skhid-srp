@@ -1,6 +1,7 @@
 use crate::v026g::bots::arc;
 use crate::v026g::bots::grenade_threat::AvoidStats;
 use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
+use crate::v026g::bots::pitch::{Pitch, PitchScale};
 use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
 use crate::v026g::bots::view::{eye_height, still_eye};
@@ -405,6 +406,43 @@ fn thrown_with_pitch(pitch: f32) -> serde_json::Value {
     game.tick += TICK_MS;
     tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now()]);
     tally.finish(&game).1
+}
+
+/// Where the blast of a throw at 20 m goes off, from a thrower at (10, 10) whose view has `pitch` (the unit of `scale`).
+fn blast_rest_with_view(scale: PitchScale, pitch: f32) -> Vec3 {
+    let (mut game, mut tally) = made_up(&[0, 0, 1]);
+    play(&mut game, &mut tally, 40, |_, game| {
+        put(game, 0, 10.0, 10.0, 0);
+        put(game, 1, 14.0, 10.0, 0);
+        put(game, 2, 30.0, 40.0, 0);
+        game.bodies[0].yaw = 0.0;
+        game.bodies[0].scale = scale;
+        game.bodies[0].pitch = pitch;
+        vec![bot_now(); 3]
+    });
+    let note = Note {
+        place: 0,
+        time: game.tick,
+        text: "throws a grenade at (10.0, 0.0, 30.0), blast at 1000".to_owned(),
+    };
+    tally.note(&note, &game);
+    game.tick += TICK_MS;
+    tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now()]);
+    tally.topic::<GrenadeCounts>().blasts.first().expect("the blast").at
+}
+
+/// The grenade leaves along the view (`arc`): the pitch the body keeps is the game's unit, which is not a radian
+/// (60 degrees a unit up), so the tally lands it by the unit's elevation. Taking the unit for a radian left the
+/// launch 4.7 % of the elevation low (0.02 to 0.03 rad on the bots' throws).
+#[test]
+pub(crate) fn the_blast_goes_off_where_the_views_elevation_sends_it_in_the_clients_unit() {
+    let elevation = 0.5;
+    let by_radians = blast_rest_with_view(PitchScale::Radian, elevation);
+    let by_unit = blast_rest_with_view(PitchScale::Client, Pitch::of_elevation(elevation, PitchScale::Client).units());
+    assert!(by_radians.distance_xz(by_unit) < 1e-3, "{by_radians:?} against {by_unit:?}");
+    // The unit taken for a radian is a different throw.
+    let taken_for_radian = blast_rest_with_view(PitchScale::Radian, Pitch::of_elevation(elevation, PitchScale::Client).units());
+    assert!(by_radians.distance_xz(taken_for_radian) > 0.3, "{by_radians:?} against {taken_for_radian:?}");
 }
 
 #[test]

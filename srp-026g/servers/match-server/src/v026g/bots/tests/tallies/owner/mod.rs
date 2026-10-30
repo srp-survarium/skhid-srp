@@ -143,6 +143,8 @@ struct Rec {
     keys: u32,
     feet: Vec3,
     yaw: f32,
+    /// The elevation the view looks along, radians (the base pitch and the weapon's kick through the pitch unit's scale, as
+    /// the bots and the client reckon it): a grenade leaves along it.
     pitch: f32,
     /// m/s over the tick.
     speed: f32,
