@@ -104,6 +104,7 @@
     "use_ray_m": 2.0
   },
   "smoke": {
+    "anti_sniper": false,
     "cross_lane": false,
     "react_watch": false,
     "sight": false,

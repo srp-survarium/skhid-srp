@@ -73,6 +73,8 @@ pub struct SmokeTuning {
     /// sees, before it steps out: not from where he already sees it, not at a sprint, not a gap shorter than
     /// `lane_open_m`, not a line a cloud already covers, `snipers_a_life` at most. Off: none. Uncut (the line from him to
     /// the bot whenever outranged) it threw 18.3 per 100 lives (`h2h-radio-vs-off-20261029T1852`, live 2.97 for all uses).
+    /// On by default: the owner, "in general isnt it the most impacting behaviour against snipers?", and on its rate
+    /// "i think its ok" ("Unless its caused by bug": every throw classed, none onto a line he had not, after the eye spread).
     pub anti_sniper: bool,
     /// A life smokes this many snipers' lines at most; its own count beside `lanes_a_life` (a crossing a lane smoke
     /// already covers is not smoked again, the cloud test).
@@ -125,7 +127,7 @@ impl Default for SmokeTuning {
             lane_sensed_ms: 5_000,
             lanes_a_life: 1,
             lane_open_m: Metres::of(5.0),
-            anti_sniper: false,
+            anti_sniper: true,
             snipers_a_life: 1,
             sniper_eye_spread_m: Metres::of(0.5),
             spot_rules: true,
