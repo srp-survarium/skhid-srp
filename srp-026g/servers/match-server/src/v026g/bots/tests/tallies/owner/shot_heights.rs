@@ -138,5 +138,7 @@ mod tests {
         assert!(first_of_run(None, 5));
         assert!(!first_of_run(Some(5), 5 + RUN_GAP_MS - 1));
         assert!(first_of_run(Some(5), 5 + RUN_GAP_MS));
+        // The stand-in's ticks are ms: two shots of a rifle (about 100 ms apart) are one run.
+        assert!(!first_of_run(Some(1_000), 1_100));
     }
 }
