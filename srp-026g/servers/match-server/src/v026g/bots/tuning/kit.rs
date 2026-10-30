@@ -17,8 +17,10 @@ pub struct KitTuning {
     /// `off`; `free_pocket`, in a free pocket after every grenade pocket only; `radio_place`, there or else in the
     /// radio's place (`loadouts::KitSmoke::place`). Never in place of a medkit, the bandages, a frag or a trap. The
     /// owner, 2026-10-29: "smoke can replace radio if no pocket available", and "bench decides" between the two (the
-    /// radio is the respawn booster). Off until the bots' frag roll is capped by the frags their own kit holds: the
-    /// throw key throws the first grenade of the pockets, so a bot out of frags would throw its smoke at a frag's target.
+    /// radio is the respawn booster). `radio_place` by default: free_pocket gives no kit of the owner's a smoke, and the
+    /// owner kept the radio's place at its measured cost (#801: +0.33 s dead a death, 0 radio respawns against 562 in 96
+    /// pairs, batteries delivered -1.9 %; "Keep smoke in radio slot"). The smoke is thrown with its own QUICK key, and the
+    /// frag roll is capped by the frags the kit holds (#738), so no frag's target gets a smoke.
     pub smoke: KitSmoke,
     /// [frags] How many frags the kits carry, by role (the owner's kit; the old kit gives every role two): `off`, the support
     /// carries one; `support_two`, the support two (25 % of the lives, 0.50 units a life); `support_and_camper`, the support two
@@ -33,7 +35,7 @@ impl Default for KitTuning {
     fn default() -> Self {
         Self {
             pocket_store: true,
-            smoke: KitSmoke::Off,
+            smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
         }
     }

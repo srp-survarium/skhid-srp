@@ -1291,6 +1291,11 @@ impl Route {
         (self.along[best.1] + best.2, best.0)
     }
 
+    /// How far along the route the body was last found: the start of its segment ([`Self::progress`]), metres.
+    pub fn walked(&self) -> f32 {
+        self.along.get(self.segment).copied().unwrap_or(0.0)
+    }
+
     /// The point `s` metres along the route (the end past it).
     pub fn point_at(&self, s: f32) -> Vec3 {
         if s <= 0.0 || self.points.len() < 2 {

@@ -572,6 +572,10 @@ fn told(cloud: &Cloud, who: Watcher, at: MatchMs, t: &super::tuning::SmokeTuning
     cloud.team == who.team && (cloud.by == who.me || at >= cloud.pours.plus(t.told_ms))
 }
 
+/// A smoke is thrown against an enemy the thrower's team sensed (saw or heard) within this, ms: the fairness rule
+/// of BENCH-DECISIONS (no decision on an enemy not seen or heard within 15 s).
+pub const FAIR_SENSED_MS: u32 = 15_000;
+
 /// What a smoke throw is for: the uses of part 2, each its own switch (`SmokeTuning`), and the plays that call the
 /// API (fx-threat-obj's Breach and spawn-exit breakout: `Breach`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -586,13 +590,36 @@ pub enum SmokeUse {
     Breach,
 }
 
-/// Where to put a smoke, and why: the floor point to land it on, and how much smoke the planned cloud puts on the
-/// line it is for (metres, at its full radius).
+impl SmokeUse {
+    pub const ALL: [Self; 4] = [Self::CrossLane, Self::AntiSniper, Self::ObjectiveActor, Self::Breach];
+
+    pub const fn index(self) -> usize {
+        match self {
+            Self::CrossLane => 0,
+            Self::AntiSniper => 1,
+            Self::ObjectiveActor => 2,
+            Self::Breach => 3,
+        }
+    }
+}
+
+/// Where to put a smoke, and why: where the throw's arc comes to rest on the map (the cloud's floor), the view that
+/// throws it, and how much smoke that cloud puts on the line it is for (metres, at its full radius).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SmokePlan {
     pub at: Vec3,
+    pub aim: SmokeAim,
     pub for_use: SmokeUse,
     pub covers_m: f32,
+}
+
+/// The view a smoke is thrown with from the thrower's eye (`arc::Flight::thrown_by`'s yaw and pitch), and where its
+/// arc comes to rest on the bullet mesh (`arc::Flight::landing`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SmokeAim {
+    pub yaw: f32,
+    pub pitch: f32,
+    pub rest: Vec3,
 }
 
 /// A planned cloud covers its line with this much more smoke than the sight rule, metres: the arc lands a throw
@@ -616,13 +643,18 @@ impl Reach<'_> {
         floor_under(self.mesh, point).map(|y| Vec3::new(point.x, y, point.z))
     }
 
-    /// Whether the thrower's flat throw comes down at `at` (on a level ground at its height).
-    fn reaches(&self, at: Vec3) -> bool {
-        let hand = super::arc::hand_of(self.thrower_eye);
-        self.grenade
-            .flight
-            .pitch_for(hand.distance_xz(at), hand.y - at.y)
-            .is_some()
+    /// The throw at `at`: the flat arc's pitch for its distance and drop, flown against the bullet mesh
+    /// (`arc::Flight::landing`: the first contact and the roll after it); its rest on the floor there. None when no
+    /// pitch reaches, the flight meets nothing in its time, or the rest has no floor under it.
+    pub fn aim(&self, at: Vec3) -> Option<SmokeAim> {
+        let eye = self.thrower_eye;
+        let hand = super::arc::hand_of(eye);
+        let pitch = self.grenade.flight.pitch_for(hand.distance_xz(at), hand.y - at.y)?;
+        let yaw = super::kin::yaw_of([at.x - eye.x, at.z - eye.z]);
+        let landing = super::arc::Flight::thrown_by(self.grenade.flight, eye, yaw, pitch)
+            .landing(&super::arc::Mesh(self.mesh))?;
+        let rest = self.floor(landing.rest + Vec3::new(0.0, 0.5, 0.0))?;
+        Some(SmokeAim { yaw, pitch, rest })
     }
 
     /// The smoke a cloud of this grenade at full radius on `floor` puts on the line from `a` to `b`, metres.
@@ -659,11 +691,15 @@ pub fn smoke_between(
         let t = (k as f32 * PLAN_STEP_M / length.max(1e-3)).min(1.0);
         let on_line = threat_eye + (chest - threat_eye) * t;
         let floor = reach.floor(on_line)?;
-        if !reach.reaches(floor) {
-            return None;
-        }
-        let covers_m = reach.smoke_on_line(floor, threat_eye, chest);
-        (covers_m > thin_m + PLAN_MARGIN_M).then_some(SmokePlan { at: floor, for_use, covers_m })
+        // Judged where the arc rests, not where it was aimed.
+        let aim = reach.aim(floor)?;
+        let covers_m = reach.smoke_on_line(aim.rest, threat_eye, chest);
+        (covers_m > thin_m + PLAN_MARGIN_M).then_some(SmokePlan {
+            at: aim.rest,
+            aim,
+            for_use,
+            covers_m,
+        })
     })
 }
 
@@ -671,10 +707,12 @@ pub fn smoke_between(
 /// `covers_m` is the smoke on the line from the spot's eye to `toward` (the thrower's side).
 pub fn smoke_on(reach: &Reach<'_>, spot_eye: Vec3, toward: Vec3, for_use: SmokeUse) -> Option<SmokePlan> {
     let floor = reach.floor(spot_eye)?;
-    reach.reaches(floor).then(|| SmokePlan {
-        at: floor,
+    let aim = reach.aim(floor)?;
+    Some(SmokePlan {
+        at: aim.rest,
+        aim,
         for_use,
-        covers_m: reach.smoke_on_line(floor, spot_eye, toward),
+        covers_m: reach.smoke_on_line(aim.rest, spot_eye, toward),
     })
 }
 
@@ -702,6 +740,12 @@ pub mod tally {
         LearntSeen,
         LearntHeard,
         LearntTold,
+        /// [smoke.anti_sniper] A think outranged by a sniper it saw within 15 s, with a smoke in the kit and the hands
+        /// free: a plan made, or none (no point of the line both in the throw's reach and covering it).
+        Outranged,
+        OutrangedNoPlan,
+        /// [smoke.anti_sniper] A think outranged by a sniper it saw within 15 s, whatever its kit or hands.
+        OutrangedAny,
     }
 
     impl Event {
@@ -714,7 +758,53 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 9;
+    pub const EVENTS: usize = 12;
+
+    /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
+    /// died (the life ended with it under way). Every throw begun ends in one of the last three.
+    pub const THROW_STEPS: usize = 4;
+    const ROLES: usize = survarium::v026g::loadouts::BotRole::ALL.len();
+    /// By team, role and use ([`super::SmokeUse::ALL`]), each step.
+    pub type Throws = [[[[u64; THROW_STEPS]; super::SmokeUse::ALL.len()]; ROLES]; 2];
+
+    thread_local! {
+        static THROWS: Cell<Throws> = const { Cell::new([[[[0; THROW_STEPS]; super::SmokeUse::ALL.len()]; ROLES]; 2]) };
+        /// The role of the bot whose reflex ticks now, for the throw steps the reflex counts.
+        static ROLE: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// The bot ticking now is of role `role` (its index in `BotRole::ALL`).
+    pub fn set_role(role: usize) {
+        ROLE.with(|r| r.set(role.min(ROLES - 1)));
+    }
+
+    fn step(team: u8, for_use: super::SmokeUse, step: usize) {
+        let role = ROLE.with(Cell::get);
+        THROWS.with(|t| {
+            let mut throws = t.get();
+            throws[usize::from(team & 1)][role][for_use.index()][step] += 1;
+            t.set(throws);
+        });
+    }
+
+    /// A smoke throw begun.
+    pub fn begun(team: u8, for_use: super::SmokeUse) {
+        step(team, for_use, 0);
+    }
+
+    /// A smoke throw let go (`true`) or given up (`false`).
+    pub fn thrown(team: u8, for_use: super::SmokeUse, done: bool) {
+        step(team, for_use, if done { 1 } else { 2 });
+    }
+
+    /// A smoke throw under way when its thrower's life ended.
+    pub fn died(team: u8, for_use: super::SmokeUse) {
+        step(team, for_use, 3);
+    }
+
+    pub fn throws() -> Throws {
+        THROWS.with(Cell::get)
+    }
 
     thread_local! {
         static COUNTS: Cell<[[u64; EVENTS]; 2]> = const { Cell::new([[0; EVENTS]; 2]) };
@@ -746,9 +836,65 @@ pub mod tally {
         });
     }
 
+    thread_local! {
+        static THREW: std::cell::RefCell<std::collections::BTreeMap<usize, u32>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// A match begins on this thread: the per-place records of the last one go (places are reused).
+    pub fn begin_match() {
+        THREW.with(|s| s.borrow_mut().clear());
+        SEEN_LOOKS.with(|s| s.borrow_mut().clear());
+        SPRAYED.with(|s| s.borrow_mut().clear());
+    }
+
+    /// The bot at `place` let go of a smoke at `now`.
+    pub fn threw(place: usize, now: u32) {
+        THREW.with(|s| s.borrow_mut().insert(place, now));
+    }
+
+    /// When the bot at `place` last let go of a smoke.
+    pub fn last_threw(place: usize) -> Option<u32> {
+        THREW.with(|s| s.borrow().get(&place).copied())
+    }
+
     /// When the bot at `place` last fired a spray.
     pub fn last_spray(place: usize) -> Option<u32> {
         SPRAYED.with(|s| s.borrow().iter().find(|&&(p, _)| p == place).map(|&(_, t)| t))
+    }
+
+    /// A look that found an enemy (`aimpoint::look_parts` showed him) as the bot made it: the view's clock, the
+    /// bot's eye as its view had it, his feet and crouch as its view had them. The fairness count replays it.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct SeenLook {
+        pub time: u32,
+        pub eye: super::Vec3,
+        pub feet: super::Vec3,
+        pub crouched: bool,
+    }
+
+    thread_local! {
+        static SEEN_LOOKS: std::cell::RefCell<std::collections::BTreeMap<(usize, usize), SeenLook>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` saw `who` with `look` (the think's look or the aim's).
+    pub fn looked_seen(place: usize, who: usize, look: SeenLook) {
+        SEEN_LOOKS.with(|s| s.borrow_mut().insert((place, who), look));
+    }
+
+    /// The last look of the bot at `place` that found `who`.
+    pub fn seen_look(place: usize, who: usize) -> Option<SeenLook> {
+        SEEN_LOOKS.with(|s| s.borrow().get(&(place, who)).copied())
+    }
+
+    /// The look of `me` that found `enemy` at `clock`.
+    pub fn record_seen(me: &crate::v026g::bots::view::PlaceView, enemy: &crate::v026g::bots::view::PlaceView, clock: u32) {
+        looked_seen(
+            me.place,
+            enemy.place,
+            SeenLook { time: clock, eye: me.eye(), feet: enemy.feet, crouched: enemy.crouched() },
+        );
     }
 }
 
@@ -1149,7 +1295,8 @@ mod scenarios {
         assert!(Clouds::new(vec![cloud]).covers(5_000, &tuning, threat, crossing + Vec3::new(0.0, 1.3, 0.0)));
         // Nearer, the first point of the line (by the holder) is in reach: on it.
         let near = smoke_between(&reach, Vec3::new(0.0, 1.6, 20.0), crossing, thin, SmokeUse::AntiSniper).unwrap();
-        assert!(near.at.distance_xz(Vec3::new(0.0, 0.0, 20.0)) < 1.5, "{near:?}");
+        // (Where its arc rests: the contact and the roll after it.)
+        assert!(near.at.distance_xz(Vec3::new(0.0, 0.0, 20.0)) < 4.0, "{near:?}");
         // A line wholly out of reach: none.
         let far = (Vec3::new(0.0, 1.6, 90.0), Vec3::new(10.0, 0.0, 70.0));
         assert_eq!(smoke_between(&reach, far.0, far.1, thin, SmokeUse::CrossLane), None);
@@ -1165,7 +1312,8 @@ mod scenarios {
         };
         let toward = Vec3::new(0.0, 1.6, 0.0);
         let plan = smoke_on(&reach, Vec3::new(5.0, 1.6, 22.0), toward, SmokeUse::Breach).unwrap();
-        assert!(plan.at.distance_xz(Vec3::new(5.0, 0.0, 22.0)) < 1e-3 && plan.at.y.abs() < 1e-3);
+        // Where its arc rests on the floor: the contact and the roll after it.
+        assert!(plan.at.distance_xz(Vec3::new(5.0, 0.0, 22.0)) < 4.0 && plan.at.y.abs() < 1e-3, "{plan:?}");
         assert!(plan.covers_m > 2.0, "{plan:?}");
         assert_eq!(smoke_on(&reach, Vec3::new(5.0, 1.6, 45.0), toward, SmokeUse::Breach), None);
     }
