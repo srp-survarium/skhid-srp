@@ -744,6 +744,26 @@ pub struct CombatTuning {
     /// (`player_bots_behaviour.md` §2.12): with the pings, +1.1 points of hit
     /// rate alone.
     pub lead_target: bool,
+    /// The lead also covers the bullet's flight (`flight.rs`): the aim is at the place he reaches by the time the
+    /// ammunition gets there, along his velocity as the bot's picture has it, and the drop on the way is aimed over.
+    /// Before, the aim was where he is: the game's bullet flies (`bullet::tick` 0x32C180) and a target
+    /// strafing at 2.6 m/s is half a torso off at 23-28 m for the slow ammunition and at 65-78 m for the rifles'
+    /// (`player_bots_weapons.md`, "The bullet's flight"). Needs `lead_target`; no reaction, aim error or skill changes.
+    ///
+    /// Off, and why (bench 2026-10-31, TDM 10v10, flown bullets, head to head by side, 12 pairs a tier, `shot_bands`): the lead fires as
+    /// designed (a strafer's shot line at 40-65 m trails him by 0.07 m instead of 0.21) but the far hit rate does not rise: 20-65 m pooled
+    /// over tiers 4-5, 9-10 and 13-15, 10.05 % on against 10.59 % off (2650/26382 against 2768/26136 shots, z -2.1; 40-65 m alone 5.5/6.0,
+    /// 6.9/7.1 and 8.0/8.6 %, none significant). The lines miss by far more than the lead moves them: at 40-65 m only 8-9 % of the shots
+    /// pass within 0.25 m across and 0.45 m high of his chest and 36 % pass over 1 m across (the aim error: the skill dial). The pooled
+    /// dip itself shows no cause in the counters (GUESS: strafers that turn back inside a flight are led the wrong way).
+    pub lead_flight: bool,
+    /// The aim is also raised by the bullet's drop on the way to him (`flight.rs`), whether or not he is led ([`Self::lead_flight`]).
+    ///
+    /// Off, and why: it adds the drop to a line the bots' recoil handling already leaves 0.13-0.35 m above the chest at 20-80 m (the
+    /// kick the pull does not take back, by skill: `recoil_pull`), which the drop used to bring back onto the torso by accident. Where
+    /// the climb is large it costs hits (tier 9-10, 35-50 m: 6.2 % on against 9.1 % off, z -4.2); where it is small it is neutral (tier
+    /// 13-15, lateral lead and drop together, 40-65 m: 8.1 against 8.5 %, 20-40 m 13.9 against 14.3 %, kills +1.6 %, z +0.3).
+    pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
@@ -1230,6 +1250,8 @@ impl Default for CombatTuning {
             switch_facing_margin_m: 10.0,
             switch_between_thinks: true,
             lead_target: true,
+            lead_flight: false,
+            lead_drop: false,
             aim_last_known: false,
             lead_most_ms: 300,
             lead_own: true,
@@ -5823,8 +5845,19 @@ impl Reflex {
         }
         // Where he will be at the tick decided (`lead_target`): only a body seen.
         let led = body.filter(|_| aimed.sees_body() && c.lead_target);
+        // And where the bullet will find him (`lead_flight`): the held weapon's ammunition, from the eye.
+        let flight = self.hands().held().gun.flight.filter(|_| c.lead_flight || c.lead_drop);
         let point = led.map_or(aimed.point(), |body| {
-            aimed.point() + lead(body, now, c.lead_most_ms)
+            let at = aimed.point() + lead(body, now, c.lead_most_ms);
+            let ahead = flight
+                .and_then(|flight| flight.ahead(me.eye(), at, body.velocity))
+                .unwrap_or_default();
+            // The parts of it the switches ask for: along his velocity, and up by the drop.
+            at + Vec3::new(
+                if c.lead_flight { ahead.x } else { 0.0 },
+                if c.lead_drop { ahead.y } else { 0.0 },
+                if c.lead_flight { ahead.z } else { 0.0 },
+            )
         });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
@@ -6731,6 +6764,56 @@ mod tests {
             out.push((fire, reflex.gates().bits));
         }
         out
+    }
+
+    /// Where the bot `item` in hand looks at an enemy `z` m ahead moving `speed` m/s along x, as the view has him this tick, with the
+    /// flight lead `on` or off: the last of a few ticks' aim point.
+    fn aim_at_strafer(item: &'static str, z: f32, speed: f32, on: bool) -> Vec3 {
+        let arms: &'static Arms = Box::leak(Box::new(Arms {
+            primary: (guns::gun(item).unwrap(), 300),
+            pistol: None,
+            reserve: 600,
+        }));
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let aim = AimTuning {
+            combat: CombatTuning { lead_flight: on, lead_drop: on, ..CombatTuning::default() },
+            range_m: 150.0,
+            ..AimTuning::default()
+        };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::armed(Some(arms));
+        let mut rng = Rng::new(9);
+        let mut at = Vec3::ZERO;
+        for k in 0..12 {
+            let now = 1_000 + k * 50;
+            let mut enemy = body(1, 1, Vec3::new(0.0, 0.0, z), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 1.0, &mut rng);
+            }
+            reflex.outer_gates(now, false, false);
+            at = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).look_at.unwrap_or(at);
+        }
+        at
+    }
+
+    /// `lead_flight`: the aim at a strafer goes along his velocity by the ammunition's flight time and up by its drop; the
+    /// switch off leaves the aim where it was. Fast and slow ammunition differ as the notes' table says.
+    #[test]
+    fn the_aim_leads_a_strafer_for_the_flight_of_the_ammunition() {
+        let (z, speed) = (40.0, 2.6);
+        let off = aim_at_strafer("ump45", z, speed, false);
+        let slow = aim_at_strafer("ump45", z, speed, true) - off;
+        // .45 ACP (260 m/s): 168 ms to 40 m, a bit more to the place he reaches: 2.6 m/s x ~0.17 s, and 0.35 m of drop at 60 m
+        // is 0.14 m here.
+        assert!((slow.x - 0.45).abs() < 0.05, "{slow:?}");
+        assert!((slow.y - 0.14).abs() < 0.03 && slow.z.abs() < 0.01, "{slow:?}");
+        // The rifle's bullet (5.45x39, 800 m/s) is in the air a third of that.
+        let fast = aim_at_strafer("ak_74u", z, speed, true) - aim_at_strafer("ak_74u", z, speed, false);
+        assert!(fast.x > 0.1 && fast.x < slow.x / 2.0 && fast.y < slow.y / 4.0, "{fast:?} against {slow:?}");
     }
 
     /// X1: each class fires out to its range and not past it: a target 3 m
