@@ -39,8 +39,22 @@ The owner's rule and what it changes. Data: `gameplay/players/default.player`
   - damage starts just above 5 m in both (the formula: any v over 9.9 m/s);
   - lethal from full health: about 6.8 m stock, so about 7.8 m new (a fall kills
     at the same D, about 0.6, whatever `fatal_damage` is).
+  - **Measured on the 0.26g live body (J0 runner tries, 2026-10-26; PROVEN as
+    observations, the cut is between two rows):** the fastest landing survived was
+    11.9 m/s (a 6.7 m drop), and falls killed from 12.2 m/s (drops of 6.0-8.2 m
+    that landed at 12.2 m/s or more). So the lethal line for a body at full health is
+    12.2 m/s, a drop of 7.6 m (11.9 m/s is 7.2 m): D about 0.5-0.56 by the formula
+    above, a little under the 0.6 of the table, so a fall over 7.2 m is not safe.
 - **Bots:** their map data takes a drop of at most `harmless_height` (5 m),
-  unchanged.
+  unchanged. Checked on the walk grids of the eight maps (2026-10-27, level_0N_day_4): the highest Drop link of every grid is 5.00 m
+  (9.9 m/s), none lands at 11.9 m/s or more, with the default body and with the
+  clients' numbers; a jump off the ledge adds up to about 0.8 m (4 m/s), so
+  at most 10.7 m/s. A fall over 5 m is never planned; it is a push, a slide, a
+  walk-off nobody planned, or a harness launch (the J0 runner refuses those).
+  With the gap links on (`OffMeshLinks::Gaps`, as the server builds them; main at c7e9d018): per map
+  (1-8) Drop links 46836 / 41554 / 43237 / 49957 / 18428 / 49132 / 45432 / 33782, GapDrop 224 / 353 / 289 / 605 /
+  408 / 568 / 827 / 312, GapJump 429 / 870 / 885 / 1204 / 140 / 565 / 501 / 477 (a fall of 0.6 m at most); the
+  highest Drop and GapDrop fall is 5.00 m on every map, none lands at 11.9 m/s or more.
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
   from `scripts/content-edit/fall-damage-1.json` (with `default.player` from the
   live server game data) and `release/build-patch`; the server game data built
