@@ -1973,6 +1973,36 @@ package survarium.controls
          }
       }
       
+      // The menu's Buy: the item the menu was opened on, put on the card and bought as the card's
+      // Buy buys it (shop-character-menu.md). Not the list's selected row, as a double click's
+      // buyElement: a kit item's menu leaves the selection as it was (in the shop the list holds
+      // only the shop's entries, none of them the kit's item), and the menu lists Buy for an item
+      // the shop sells at any seller (buyable), a shop entry locked at its own seller too.
+      protected function buyMenuItem(event:Event = null) : void
+      {
+         var item:ItemData = this._menuItem;
+         if(item == null || !this.buyable(item))
+         {
+            return;
+         }
+         item = this.ownedCopy(item);
+         if(this._item_control.getItemData() != item)
+         {
+            this.setPrimaryItem(item);
+         }
+         this._item_control.onBtnClick1();
+      }
+
+      // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
+      // shows it from the list; any other item (a shop entry, a bundle) itself. Not by its id
+      // alone: a shop entry's is 0 and a bundle's is the bundle's id (8 and up), which can be an
+      // owned item's too.
+      private function ownedCopy(item:ItemData) : ItemData
+      {
+         var owned:Boolean = item.descriptor <= ItemPlace.INVENTORY && this.owns(item.itemId);
+         return owned ? this._inventoryItemsDict[item.itemId] : item;
+      }
+
       protected function upgradeItem(e:Event = null) : void
       {
          if(this.menuItem() == null)
@@ -3030,7 +3060,7 @@ package survarium.controls
                   trace("addBuyOPtion");
                   options.push({
                      name:LocalizationData.getName("buy"),
-                     click_function:this.buyElement
+                     click_function:this.buyMenuItem
                   });
                }
             }

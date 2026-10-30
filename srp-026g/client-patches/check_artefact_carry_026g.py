@@ -28,6 +28,20 @@ COMMAND, USE = (1 << 29) | (1 << 14), 1 << 21
 def slot(n): return (1 << 29) | (1 << (14 + n))
 
 
+def palm_turned(model, hand, scale):
+    """The artefact keeps the palm's normal (row 1) and its scale, and turns at
+    most 0.15 rad about that normal as it floats."""
+    row = lambda m, r: m[r * 4:r * 4 + 3]
+    dot = lambda a, b: sum(x * y for x, y in zip(a, b))
+    h0, h1, h2 = (row(hand, r) for r in range(3))
+    m0, m1, m2 = (row(model, r) for r in range(3))
+    assert all(abs(a - scale * b) < .0001 for a, b in zip(m1, h1)), "artefact lost the palm's normal"
+    c, d = dot(m0, h0) / scale, dot(m0, h2) / scale
+    assert abs(math.hypot(c, d) - 1) < .001 and abs(math.atan2(d, c)) <= .151, "artefact turned too far"
+    for a, b in zip(m0, [scale * (c * x + d * z) for x, z in zip(h0, h2)]): assert abs(a - b) < .0001
+    for a, b in zip(m2, [scale * (c * z - d * x) for x, z in zip(h0, h2)]): assert abs(a - b) < .0001
+
+
 class Run(InventoryGame):
     def __init__(self, data, callback=(0x340, 0x25FB80, 0x25FB86)):
         super().__init__(data)
@@ -353,19 +367,24 @@ def main():
     first = next(matrix for op, model, matrix in g.rendered if model == artefact_model and op == 'add')
     hand = struct.unpack('<16f', g.emu.mem_read(g.bones + 6 * 64, 64))
     for n in range(3): assert abs(first[12 + n] - (hand[12 + n] + -hand[n] * .13 + hand[4 + n] * (.12 + .065 + .012 * math.sin(800 * math.tau / 4000)))) < 0.0001
-    for row in range(3):
-        for column in range(3):
-            assert abs(first[row * 4 + column] - .65 * hand[row * 4 + column]) < .0001, "artefact lost hand orientation/scale"
+    palm_turned(first, hand, .65)
     g.emu.mem_write(g.bones, initial_bones)  # native render recomputes the damage-only poisoned bone
     g.rendered.clear(); g.draw()
     assert [op for op, _, _ in g.rendered] == ['update']
     print('ok: matching damage/render poses, floating RightHand attachment, weapon removal and idempotent model update')
-    # Visual bob follows the clock without changing damage bone positions.
+    # The held hand breathes with the clock; the damage pass moves with it.
     g.emu.mem_write(g.bones, initial_bones)
     g.tick(donor, 850)
     g.draw()
-    assert bytes(g.emu.mem_read(g.bones, 8 * 64)) == rendered_bones
+    breathed = bytes(g.emu.mem_read(g.bones, 8 * 64))
+    assert breathed[:7 * 64] != rendered_bones[:7 * 64], 'the held hand did not move with the clock'
+    wrist = lambda bones: struct.unpack_from('<3f', bones, 6 * 64 + 48)
+    moved = math.dist(wrist(breathed), wrist(rendered_bones))
+    assert 0 < moved < .02, f'the held hand moved {moved:.4f} m in 50 ms'
     assert g.rendered[-1][2] != first
+    g.emu.mem_write(g.bones, initial_bones); g.emu.mem_write(g.bones + 7 * 64, poison)
+    g.site(0x2DA769, [0x2DA76F], edi=donor, esi=g.bones, ebx=8)
+    assert bytes(g.emu.mem_read(g.bones, 7 * 64)) == breathed[:7 * 64], "damage and visual arm poses disagree later"
     # A deliberately offset, oversized resource exercises the original
     # static get_aabb and prevents a mesh origin/size from moving the hover.
     resource = g.read(artefact_model + 0x290)
@@ -392,7 +411,7 @@ def main():
             actual = model[12+j] + sum(c * model[r*4+j] for r,c in enumerate((1.25,-2.,3.2)))
             expected = hand[12+j] - .13 * hand[j] + (.12 + .012 * math.sin(850 * math.tau/4000)) * hand[4+j]
             assert abs(actual-expected) < .0001
-            for r in range(3): assert abs(model[r*4+j] - .28 * hand[r*4+j]) < .0001
+        palm_turned(model, hand, .28)
         g.emu.mem_write(g.bones, bytes(rotated)); g.emu.mem_write(g.bones + 7*64, poison)
         g.site(0x2DA769, [0x2DA76F], edi=donor, esi=g.bones, ebx=8)
         assert bytes(g.emu.mem_read(g.bones, 7*64)) == drawn

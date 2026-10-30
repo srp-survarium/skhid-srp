@@ -49,6 +49,5 @@ pub mod consumable_activity;
 
 pub mod language;
 
+pub mod lamps;
 pub mod artefact_score;
-
-pub mod late_join_insert;

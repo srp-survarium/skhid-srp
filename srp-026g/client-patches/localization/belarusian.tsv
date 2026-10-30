@@ -2583,12 +2583,15 @@ st_srp_rooms_teams_owner	Перамяшчайце гульцоў паміж ка
 st_srp_rooms_unfit_gear	Ваш рыштунак вышэй за макс. узровень: зніжце, інакш на старце вы выйдзеце з пакоя.
 st_srp_rooms_unfit_kit	Ваш камплект не можа гуляць (няма зброі або мала патронаў): выпраўце, інакш на старце вы выйдзеце з пакоя.
 st_srp_rooms_vote	Галасуйце за наступную карту
-st_srp_rooms_vote_now	Галасуйце за наступную карту: націсніце картку. Матч пачнецца на пераможнай.
 st_srp_rooms_voting	Галасаванне
 st_srp_rooms_waiting	Чакаем гульцоў
 st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_skills	Навыкі
+st_srp_speed_label	Хуткасць
+st_srp_speed_title	Хуткасць руху: %1$s
+st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
@@ -2622,8 +2625,10 @@ st_srp_weather_day	дзень
 st_srp_weather_evening	вечар
 st_srp_weather_night	ноч
 st_srp_weather_rain	дождж
+st_srp_weight_base	Базавы ліміт: %1$s
 st_srp_weight_no_sprint_heavyweight	Спрынт недаступны: навык «Цяжкавагавік».
 st_srp_weight_no_sprint_limit	Спрынт недаступны: перагруз.
+st_srp_weight_penalty	%1$s% штраф за вагу
 st_srp_weight_speed	Хуткасць перамяшчэння: %1$s
 st_srp_weight_sprint_stamina	Выдаткі энергіі на спрынт: %1$s
 st_srp_weight_title	Уплыў вагі

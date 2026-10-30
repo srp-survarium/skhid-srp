@@ -402,7 +402,8 @@ package survarium.rooms
             {
                 _bannerLabel.text = win.say("st_srp_rooms_voting").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
-                _bannerHint.text = unfit != "" ? unfit : win.say("st_srp_rooms_vote_now");
+                // No vote hint (the owner's of 2026-10-30): only its kit or gear.
+                _bannerHint.text = unfit;
             }
             else if (win._room.phase == RoomPhase.COUNTDOWN)
             {

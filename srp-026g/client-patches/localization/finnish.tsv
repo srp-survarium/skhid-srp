@@ -2583,12 +2583,15 @@ st_srp_rooms_teams_owner	Siirrä pelaajia joukkueesta toiseen painikkeilla « ja
 st_srp_rooms_unfit_gear	Varusteesi ylittävät enimmäistason. Laske tasoa tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_unfit_kit	Varustesettisi ei kelpaa peliin (ase puuttuu tai ammuksia on liian vähän). Korjaa se tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_vote	Äänestä seuraavaa karttaa
-st_srp_rooms_vote_now	Äänestä seuraavaa karttaa klikkaamalla korttia. Ajan loputtua ottelu alkaa voittajakartalla.
 st_srp_rooms_voting	Äänestys
 st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
+st_srp_skills	Taidot
+st_srp_speed_label	Nopeus
+st_srp_speed_title	Liikkumisnopeus: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2622,8 +2625,10 @@ st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
 st_srp_weather_night	yö
 st_srp_weather_rain	sade
+st_srp_weight_base	Perusraja: %1$s
 st_srp_weight_no_sprint_heavyweight	Et voi sprintata: Raskassarjalainen-taito.
 st_srp_weight_no_sprint_limit	Et voi sprintata: kantokyky täynnä.
+st_srp_weight_penalty	%1$s% painohaitta
 st_srp_weight_speed	Liikenopeus: %1$s
 st_srp_weight_sprint_stamina	Kestävyyden kulutus sprintatessa: %1$s
 st_srp_weight_title	Painon vaikutukset

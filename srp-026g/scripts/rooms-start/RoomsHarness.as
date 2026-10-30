@@ -425,7 +425,8 @@ package
       }
 
       // The room's own view (the owner's of 2026-10-29): a vote card's mode tag as wide as its name,
-      // also after the same card showed a longer one; no vote hint line; in its match, the map and
+      // also after the same card showed a longer one; no vote hint line, none in the banner either
+      // (the owner's of 2026-10-30); in its match, the map and
       // mode it is played on (the `L` row) under the banner's hint, whole.
       private function checkRoomView() : void
       {
@@ -458,8 +459,12 @@ package
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);
          for each(var t:Object in texts)
+         {
             if(String(t.text).indexOf("Most votes wins") >= 0)
                failures.push("the vote hint line is still shown");
+            if(String(t.text).indexOf("click a card") >= 0)
+               failures.push("the banner's vote hint is still shown");
+         }
          // In its match on map 62: the map and mode line, not cut.
          tellRoom(1003, false, false, 2, null, 0, ["L;62"]);
          var line:String = null;

@@ -459,6 +459,7 @@ package survarium.char
             var skillData:Object = value[i];
             Util.logObject(skillData);
             this._skillsPropDict[skillData.id] = skillData;
+            SkillNames.record(skillData.id,skillData.name);
             branchEnabled[skillData.branch] = true;
             this._skillsArray[i] = {
                id:skillData.id,

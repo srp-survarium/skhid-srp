@@ -99,8 +99,10 @@ gives an address with its `?v=` hash):
 - `mods/<ui_desc.icon>.webp`: every cell of the `modifiers` atlas (character
   3279, 38x38, column-major); each icon a modification shows must be one;
 - `groups/<item_category>.webp`: the shop filter buttons' icons
-  (FilterItemCatRenderer's `itemIcon`, sprite 1125, frame 300 + the icon
-  FiltersWindow gives the filter of that category).
+  (FilterItemCatRenderer's `itemIcon`, sprite 1125, frame 300 + the icon of
+  that category's filter in the lobby's table
+  `flash/lobby_menu/tables/survarium/data/ShopFilters.tsv`, the one the movie
+  is built with).
 
 The modification and group icons are written white, with the glyph's
 brightness as alpha (their baked drop shadow drops out), for the page to

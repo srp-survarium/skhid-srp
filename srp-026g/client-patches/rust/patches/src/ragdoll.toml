@@ -10,6 +10,7 @@ patch = 76
 [[hook]]
 site = "game_world.after_move"
 handler = "on_step"
+order = 0
 
 # mt_draw's cull: a corpse of ours is always drawn (its bones move)
 [[hook]]
@@ -30,6 +31,7 @@ handler = "on_eye"
 [[hook]]
 site = "bullet.ray_traced"
 handler = "on_ray"
+order = 0
 
 # mt_draw before the held item is read: a corpse of ours holding nothing (a
 # battery carrier's once the battery drops; mt_draw makes no skeleton then)

@@ -23,6 +23,7 @@
 //! It grows with what the patches need, and no further.
 
 pub mod bullet;
+pub mod explosion;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -61,6 +62,8 @@ mod generated {
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
     use crate::raw;
+    #[allow(unused_imports)]
+    use super::{RenderVisual, ObjectLight, GameScene};
     include!("../../../../hooks_026g.rs");
 }
 
@@ -78,5 +81,15 @@ pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 mod consumable;
 pub use consumable::QuickSlotActivity;
 
+pub mod config;
+pub mod collection;
+
+pub mod geometry;
+pub mod presentation;
+
+pub mod project;
+pub use project::{RenderVisual, ObjectLight, GameScene};
+
+pub mod history;
 mod artefact;
 pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

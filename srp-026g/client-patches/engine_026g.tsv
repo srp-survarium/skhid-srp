@@ -5,7 +5,7 @@ engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_mal
 engine_match_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	void *engine_match_rule_base(void *rule, unsigned int type)	thunk	
 engine_write_u8	0x1f3de0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_u16	0x2f5da0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
-engine_write_u32	0x1f48a0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
+engine_write_u32	0x1f48a0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk
 engine_statistics_notify	0x2f5d40	EAX:listener ESP+4:place ESP+8:event ESP+12:amount	void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount)	thunk	
 engine_register_cook	0x102d10	EDI:cook	void engine_register_cook(void *cook)	thunk	
 engine_movie_invoke	0x511600	ECX:movie ESP+4:name ESP+8:result ESP+12:arguments ESP+16:count	unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)	thunk	
@@ -56,6 +56,10 @@ engine_setlocale	0x426ae1	ESP+4:category ESP+8:locale	char *engine_setlocale(uns
 engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl	
 engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(struct text_translator *translator, const char *key, char *out)	thiscall	
 engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	
+engine_visual_insert	0x285fa0	ECX:visual ESP+4:scene	void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
+engine_visual_remove	0x285fe0	ECX:visual ESP+4:scene	void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
+engine_light_insert	0x291790	ECX:light	void engine_light_insert(struct object_light *light)	thiscall	light: ObjectLight ->
+engine_light_remove	0x2917d0	ECX:light	void engine_light_remove(struct object_light *light)	thiscall	light: ObjectLight ->
 engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(struct inventory *inventory, unsigned int slot)	thunk
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk
@@ -66,4 +70,4 @@ engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ES
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
-engine_player_insert	0x1f2720	ECX:player ESP+4:link	void engine_player_insert(struct player *player, unsigned int link)	thiscall	
+engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	

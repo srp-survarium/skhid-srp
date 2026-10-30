@@ -17,18 +17,21 @@ struct cc_string;
 struct core_world;
 struct engine_cfg;
 struct game_material_manager;
+struct game_scene;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
 struct match_options;
 struct material_pair;
 struct network_client;
+struct object_light;
 struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct ray_result;
 struct render_model_instance;
+struct render_visual;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
@@ -56,7 +59,7 @@ void engine_write_u8(const void *value, struct buffer_writer *writer, const char
 void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
-void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12 */
 void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount);
@@ -208,6 +211,18 @@ void __attribute__((thiscall)) engine_translate_text(struct text_translator *tra
 /* the IAT slot 0x87027c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lcid)(void);
 
+/* 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_visual_insert(struct render_visual *visual, struct game_scene *scene);
+
+/* 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_visual_remove(struct render_visual *visual, struct game_scene *scene);
+
+/* 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_light_insert(struct object_light *light);
+
+/* 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_light_remove(struct object_light *light);
+
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);
 
@@ -238,7 +253,7 @@ void engine_release_item(struct artefact *object, unsigned int *count);
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
 
-/* 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly */
-void __attribute__((thiscall)) engine_player_insert(struct player *player, unsigned int link);
+/* 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0 */
+float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target);
 
 #endif
