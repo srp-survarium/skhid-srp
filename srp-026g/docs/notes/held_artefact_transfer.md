@@ -110,10 +110,11 @@ the deterministic release/fall position and native static collision.
 
 ## Pose and rendering
 
-The pose source, `scripts/artefact-carry/pose.json`, describes raise/hold/lower
-clips over the pinned stock battery idle rig (`make_pose_clip`); it is not
-shipped: `scripts/artefact-carry/compile_pose.py` compiles it into the
-runtime arm/finger curves (`artefact_carry/curves.rs`). The pose layer
+The pose source, `scripts/artefact-carry/pose.json`, gives each arm and
+finger bone's lowered and raised rotation over the pinned stock battery idle
+rig (`make_pose_clip`). No clip is shipped in resources.db:
+`scripts/artefact-carry/compile_pose.py` compiles it into the runtime
+arm/finger curves (`artefact_carry/curves.rs`), blended by the raise. The pose layer
 preserves locomotion and native camera bones. An eye-relative two-bone solve
 targets the right wrist at `(0.10, -0.14, 0.34)` m, preserves limb lengths,
 and limits reach to 96 percent extension. Authored curves provide relaxed
