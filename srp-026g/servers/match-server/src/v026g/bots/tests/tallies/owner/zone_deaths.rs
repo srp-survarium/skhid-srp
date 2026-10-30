@@ -119,7 +119,7 @@ impl Topic for ZoneDeaths {
         self
     }
 
-    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         let mut sides = [Side::default(), Side::default()];
         let mut total = Side::default();
         // Spells under way when the match ends are spells too.
