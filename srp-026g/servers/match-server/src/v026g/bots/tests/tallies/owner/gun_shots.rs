@@ -104,6 +104,9 @@ struct Acc {
     /// By the target's team (0, 1), then by [`TargetState`]: shots on his line, hits, and his crossing speed summed (a
     /// head-to-head's ON side is one team: what its movement does to the shots at it, register #24).
     by_target_team: [[[f64; 3]; TargetState::COUNT]; 2],
+    /// Shots at a target aimed in (not crouched), by whether he held a side key (LEFT or RIGHT) at the shot (0: none, 1: one),
+    /// by his team: shots, hits, crossing speed summed. The share with a side key is the aimed-in strafe's duty.
+    aimed_side: [[[f64; 3]; 2]; 2],
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
@@ -230,6 +233,13 @@ impl Topic for GunShots {
                 let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
                 tally(&mut a.by_state[state]);
                 a.state_across[state] += f64::from(across);
+                if state == TargetState::AimedIn as usize {
+                    let side = usize::from((t.keys & (key::LEFT | key::RIGHT)).count_ones() == 1);
+                    let cell = &mut a.aimed_side[usize::from(t.team != 0)][side];
+                    cell[0] += 1.0;
+                    cell[1] += h as f64;
+                    cell[2] += f64::from(across);
+                }
                 let cell = &mut a.by_target_team[usize::from(t.team != 0)][state];
                 cell[0] += 1.0;
                 cell[1] += h as f64;
@@ -290,6 +300,7 @@ impl Topic for GunShots {
                     "by_lateral": a.by_lateral,
                     "by_driver": a.by_driver,
                     "by_target_team": a.by_target_team,
+                    "aimed_side": a.aimed_side,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
