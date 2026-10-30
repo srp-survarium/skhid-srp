@@ -1055,6 +1055,9 @@ pub(crate) fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
                         game.bodies[bot.place].why_now = bot.bench_why;
+                        // [counts only] The mirror of the kick the bot made for the tick about to be played (`kick_gap`).
+                        let next = game.tick + TICK_MS;
+                        game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
                     }
                     game.step();
                     // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
@@ -1540,12 +1543,6 @@ pub(crate) fn real_bot_cost() {
                         target,
                         gun,
                     ));
-                }
-                // [counts only] The mirrors of the kick the stand-in's own is read against (`kick_gap`).
-                for bot in bots.bots.iter().flatten() {
-                    if let Some(body) = game.bodies.get_mut(bot.place) {
-                        body.mirror = Some(bot.reflex.seen());
-                    }
                 }
             }
             let rays = super::aimpoint::rays_cast() - rays_before - game.metric_rays;
