@@ -64,18 +64,20 @@ pub(crate) enum HitVolume {
 /// shot's information is not tracked, so it is the one value for all.
 pub(crate) const POSITION_SIGMA_M: f32 = 0.17;
 
-/// Seconds a bullet of `ammo` takes to fly `d` metres: the speed is `v0 sqrt(1 - 2 k d / v0)` (`damage.rs`, from
-/// `compute_parabolic_velocity` 0x32C950: PROVEN), so the time is `(1 - sqrt(1 - 2 k d / v0)) / k`, capped at the
-/// flight's end.
-pub(crate) fn flight_s(ammo: &survarium::v026g::damage::AmmoParams, d: f32) -> f32 {
-    let (v0, k) = (ammo.muzzle_speed, ammo.air_resistance);
-    if v0 <= 0.0 {
-        return 0.0;
-    }
-    if k <= 0.0 {
-        return d / v0;
-    }
-    (1.0 - (1.0 - 2.0 * k * d.min(ammo.reach()) / v0).max(0.0).sqrt()) / k
+/// The bullet manager's gravity, m/s^2: `g = (0, -9.81, 0)` (its constructor 0x3219A0: PROVEN, fx-cover's read in
+/// `player_bots_weapons.md`).
+pub(crate) const BULLET_G: f32 = 9.81;
+
+/// Where the client's bullet is `t` s after the shot (`bullet::tick` 0x32C180: `p(t) = p0 + v0 (t - k t^2 / 2) + g t^2 / 2`,
+/// `v0` the shot direction times the ammunition's muzzle speed, `k` its `air_resistance`: PROVEN).
+pub(crate) fn bullet_at(origin: Vec3, dir: Vec3, ammo: &survarium::v026g::damage::AmmoParams, t: f32) -> Vec3 {
+    let along = ammo.muzzle_speed * (t - ammo.air_resistance * t * t / 2.0);
+    origin + dir * along + Vec3::new(0.0, -BULLET_G * t * t / 2.0, 0.0)
+}
+
+/// Where the flight ends, s after the shot: `t = 1 / (1.1 k)` (0x32C523..0x32C55B: PROVEN); no end without drag.
+pub(crate) fn flight_end_s(ammo: &survarium::v026g::damage::AmmoParams) -> f32 {
+    if ammo.air_resistance <= 0.0 { f32::MAX } else { 1.0 / (1.1 * ammo.air_resistance) }
 }
 
 /// The old rule's radius, metres (the same number the shot offsets count against).
@@ -657,15 +659,22 @@ mod tests {
         ray_at_body(Vec3::ZERO, FACING_Z, crouched, true, eye, dir * (1.0 / dir.length()), 100.0)
     }
 
-    /// A bullet's time of flight grows with the distance, is `d / v0` for a short one and ends at the flight's end.
+    /// The bullet's path is the client's: at the muzzle speed along the shot, slowed by the drag (`v0 (t - k t^2 / 2)`) and
+    /// pulled down by gravity (`g t^2 / 2`): an 800 m/s bullet is 80 m down the line after 0.1056 s and 5.5 cm below it.
     #[test]
-    fn the_flight_time_grows_with_the_distance_and_is_distance_over_speed_when_short() {
+    fn the_bullet_flies_the_clients_path() {
         let ammo = super::super::standin_damage::PLAIN_AMMO;
-        assert_eq!(flight_s(&ammo, 0.0), 0.0);
-        let (near, far) = (flight_s(&ammo, 1.0), flight_s(&ammo, 60.0));
-        assert!((near - 1.0 / ammo.muzzle_speed).abs() < 1e-4, "{near}");
-        assert!(far > 60.0 / ammo.muzzle_speed, "slower than at the muzzle: {far}");
-        assert!(flight_s(&ammo, 1e6) < 2.0 / ammo.air_resistance.max(1e-3));
+        let dir = Vec3::new(1.0, 0.0, 0.0);
+        let near = bullet_at(Vec3::ZERO, dir, &ammo, 0.001);
+        assert!((near.x - 0.8).abs() < 0.01 && near.y.abs() < 1e-4, "{near:?}");
+        let far = bullet_at(Vec3::ZERO, dir, &ammo, 0.1056);
+        assert!((far.x - 80.0).abs() < 0.2, "{far:?}");
+        assert!((far.y + 0.0547).abs() < 0.002, "{far:?}");
+        assert!((flight_end_s(&ammo) - 1.0 / 1.1).abs() < 1e-4);
+        let slow = survarium::v026g::damage::AmmoParams { muzzle_speed: 280.0, ..ammo };
+        let t = 0.31;
+        let at = bullet_at(Vec3::ZERO, dir, &slow, t);
+        assert!(at.y < -0.4, "a VSK-94 bullet drops about half a metre by 80 m: {at:?}");
     }
 
     /// The arm shapes taken away (`SRP_BENCH_HIT_ARMS=away`) leave 13 shapes in each pose and no arm hit: a line at the chest
