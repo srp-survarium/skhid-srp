@@ -1,69 +1,69 @@
 # Lobby scenes
 
-The owner (2026-10-29): "different ones should be for different factions"; "stalker2 one is for
-bandits"; "the current one is for army"; "the room is for stalker". The owner (2026-10-30): by
-faction, not by level, one lobby per faction: the Black Market the STK2 bunker (not the
-blockpost), the Edge the hangar; the STK2 blockpost and bar ship nowhere. The 3D scene behind
-the lobby menu follows the player's quest faction; there is no setting. Exe patch 81
-(`client-patches/rust/patches/src/lobby_scene.rs`), patch 45's weapon spot
+The owner (2026-10-30): "a lobby selection screen" in place of a lobby by faction. A button in
+the lobby, left of Settings, opens a small window of four cards, a picture and a name each; a
+click on one shows that lobby, behind a fade. In a squad every member is shown its commander's
+pick ("when someone joins your squad, they go into your lobby, so it switches for them"). Exe
+patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's window
+(`flash/lobby_menu/src/survarium/lobbypick/LobbyWindow.as`), srp's pick
+(`crates/survarium/src/v026g/lobby/lobby_pick.rs`), patch 45's weapon spot
 (`weapon_table_026g.asm`).
 
-## The lobby of a faction
+## The lobbies and the pick
 
-- One enum, `Lobby` in `lobby_scene.rs`, and one total match from the faction:
+- One enum, `Lobby` in `lobby_scene.rs`; its id is user.cfg's value, the card, srp's start and
+  `0xA1`'s byte:
 
-  | quest faction (factions_dict id) | lobby                                         |
-  |----------------------------------|-----------------------------------------------|
-  | Renaissance, the Army (3)        | `lobby_scene/day`, the classic (stock)        |
-  | Black Market, the Bandits (2)    | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2   |
-  | Scavengers (1)                   | `lobby_scene/camp_069`, the 0.69d camp        |
-  | Edge (4)                         | `lobby_scene/hangar_046`, the 0.46c2 hangar   |
-  | none chosen yet (0), any other   | the Scavengers' camp                          |
+  | id | card (dictionary key)              | project                                  |
+  |----|------------------------------------|------------------------------------------|
+  | 1  | the Room (`st_srp_lobby_room`)     | `lobby_scene/camp_069`, the 0.69d camp; the default |
+  | 2  | the Basement (`st_srp_lobby_basement`) | `lobby_scene/day`, the classic (stock) |
+  | 3  | the Bunker (`st_srp_lobby_bunker`) | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2 |
+  | 4  | the Hangar (`st_srp_lobby_hangar`) | `lobby_scene/hangar_046`, the 0.46c2 hangar |
 
-  In code, not game data: the exe would have to read the factions' configs for a project name,
-  more than the match.
-- **The faction is the account's quest faction**, the last byte of `0x8E` (lc+1EA998h,
-  `lobby.md` section 2.14). The server sends it at the sign-in and after every change of faction
-  (`4B 00`: `8E`, then `83 4B`): the exe takes every one at `lobby_client.faction` (0x2717CF).
-- **The next start shows it:** the faction is kept in user.cfg as the console variable
-  `srp_lobby_faction` (`srp_lobby_faction 2`), written by the exe (user.cfg saved at once when it
-  changed), never by the player. No line, an empty or unknown value: the Scavengers (the owner,
-  2026-10-30: "no faction falls back to scavengers"; no account can switch to none). The
-  faction is parsed so at the boundary (the 0x8E byte, the user.cfg value): the lobby's match is
-  over the four factions alone.
-- **In a squad, the commander's lobby** (the owner, 2026-10-30: "when someone joins your squad,
-  they go into your lobby, so it switches for them"): the lobby shown is
-  `Squad::lobby(own faction)`, the commander's faction's in a squad, the player's own out of one.
-  The commander's quest faction is srp's own last byte of `0xA1` (the squad info, sent again after
-  every change of the squad, and after a commander's faction change: `squads_dirty`); the stock
-  reader (read_squad_info 0x274720) stops before it, and a client that does not read it signs in
-  and stays (seen 2026-10-30: a current exe against a server sending five bytes more). The exe
-  reads it at `lobby_client.squad_read` (a squad's revision kept, 0x2748BC) and the squad id at
-  `lobby_client.squad_id` (0x2747C3, both paths: 0 is no squad); parsed once into
-  `Squad::{None, Led(Faction)}` (a squad without the byte: none). Joining: the joiner's lobby
-  becomes the commander's, the commander's own stays. Leaving, kicked, the squad disbanded: back to
-  one's own. A new commander: everyone left switches to theirs. The commander's faction change: the
-  whole squad switches. A member's own change: saved for later, nothing seen while in the squad.
-  `srp_lobby_faction` stays the player's own faction (a restart out of a squad opens it).
-- **Client only:** the server knows nothing of the lobby; a match is the same whatever lobby (no
-  simulation change: 0xA1 is a lobby message).
+  The window's title and the button are `st_srp_lobby_title` ("Lobby"); the texts are
+  dictionary keys (`client-patches/localization`), every language's.
+- **The pick is kept in user.cfg** as the console variable `srp_lobby` (`srp_lobby 3`), written by
+  the exe (user.cfg saved at once when it changed), read once into `Lobby` (`Lobby::parse`): no
+  line, an empty or unknown value is the Room. The classic stands in only for a missing pack or
+  project.
+- **The window** (`LobbyWindow`, the lobby movie's ActionScript): the four cards in id order, the
+  pick framed in gold, a lobby whose pack is not there dimmed and taking no click. A click sends
+  srp the pick (`request_players_range(2 095 000 000 + id, 1)`, srp's `3B` at a reserved start,
+  `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
+  tells it (`root.srp_lobby_state(pick, shown, there)`), at its first frame and at each change.
+  The pictures are the lobbies' stock views (camp @8, bunker @4, hangar @6, the classic),
+  256 x 144 (`flash/lobby_menu/bitmaps/SrpLobby*.png`).
+- **srp keeps each online account's pick** (in memory, `Player::lobby_pick`; none before one) and
+  sends it back in `0xA1`: two bytes after the squad (after the id alone for none), the receiver's
+  own pick and its commander's (0 none; no squad, none). A pick changed is `squads_dirty`: every
+  client whose `0xA1` changed gets it again (the picker's own; its squad's when it commands one).
+  The stock reader (read_squad_info 0x274720) stops before the bytes; a client that does not read
+  them signs in and stays (seen 2026-10-30: a current exe against a server sending five bytes
+  more on `0xA1`).
+- **The exe reads them** at `lobby_client.squad_id` (0x2747C3, both paths; for no squad the bytes
+  follow the id) and `lobby_client.squad_read` (0x2748BC, a squad's revision kept), checked
+  against the message's size, into `Picks`: its own pick kept (saved); srp without one (the
+  sign-in, or an older srp) is sent the saved one (the lobby client's ranking request 0x270070,
+  as the movie's request_players_range sends it); the commander's pick is `Squad::Led(lobby)`, none
+  `Squad::None`. The lobby wanted is `Squad::lobby(own)`: the commander's in a squad, one's own out
+  of one. Joining: the joiner's lobby becomes the commander's; leaving, kicked, the squad disbanded:
+  back to one's own; a new commander, or the commander's pick: everyone left follows; a member's
+  own pick: saved, nothing seen while in the squad. `srp_lobby` stays the player's own pick.
+- **Client only, beside srp's memory of the picks:** a match is the same whatever lobby (no
+  simulation change: `3B` and `0xA1` are lobby messages).
 
-## When the faction is known
+## When the pick is known
 
-- **After the scene has loaded.** The lobby menu asks for its scene at the game's start, before
-  the sign-in, and the network client is made in that query's own callback (on_render_scenes_ready
-  0x220B20 calls game::create_network_client at 0x221C2F): no faction can come before the scene's
-  results are taken. Holding the query until `8E` would hold the sign-in itself.
-- So the first start, a new player's and one after a change of faction show the last start's
-  lobby (the camp the first time); every later start shows the faction's from the first frame,
-  with no swap.
-- **A change during a session shows at once** (below), as does the first `8E` of a session that
-  differs from the saved one, and a squad's `0xA1`.
+- **The start shows the saved pick.** The lobby menu asks for its scene at the game's start,
+  before the sign-in (the network client is made in that query's own callback, on_render_scenes_
+  ready 0x220B20 at 0x221C2F), so the saved pick is the start's lobby; srp learns it at the
+  sign-in's `0xA1`. A squad's commander's pick shows at once after (below).
 
 ## At start
 
 - The lobby menu is made once, at the game's start (`game::create_lobby_menu`), and asks for its
-  scene with its movies in one query (0x21E450); the exe asks for the saved faction's lobby there
+  scene with its movies in one query (0x21E450); the exe asks for the saved pick's lobby there
   instead of `lobby_scene/day`.
 - **A missing project would crash the game:** the project's cook reads its config without a
   check (`project_cooker_simple::create_game_objects`, a null config read at 0x22C11E; seen in a
@@ -81,32 +81,39 @@ the lobby menu follows the player's quest faction; there is no setting. Exe patc
 
 ## A change shown at once
 
-The owner (2026-10-30): "the new lobby appears right when the player joins/switches to a faction";
-it should look smooth (no hitch, no pop-in, no camera jump). Built (PROVEN in the code; run with
-Unicorn against the original's code on the same objects; captured in a game, below):
+The owner (2026-10-30): the new lobby appears right when it is picked (or the squad changes), and
+it looks smooth (no hitch, no pop-in, no camera jump). Built (PROVEN in the code; run with Unicorn
+against the original's code on the same objects; captured in a game, below):
 
 - **One state machine** (`Scene` in `lobby_scene.rs`, one transition function `Scene::step`): not
   asked; starting (the start's query, as above); loaded, with the lobby shown, whether it is drawn
-  (drawn, hidden, closed) and where a change is (`Change`: settled; a lobby missing; loading, the
-  lobby it is for and what its query asks; fading to black with the project held; holding, frames
-  drawn behind the black; appearing). The events: the query built (`lobby_menu.scene_request`),
-  its results (`lobby_menu.scenes_ready`), a frame of the lobby drawn (`lobby_camera.view`, the
-  lobby camera's tick, after patch 45's flight), the lobby hidden (`lobby_menu::on_deactivate`
-  0x21D4A0, a match), shown (`on_activate` 0x21D2E0), the game closing (`game::clear_resources`
-  0x1ED030). The wanted lobby is `Squad::lobby` of the saved faction and the squad at each event.
+  (drawn, hidden, closed), the lobbies whose packs are there (none: not looked for yet) and where
+  a change is (`Change`: settled; the census out; probing a lobby's config; darkening; loading
+  behind the black; holding, frames drawn behind the black; brightening). The events: the query
+  built (`lobby_menu.scene_request`), its results (`lobby_menu.scenes_ready`), a frame of the
+  lobby drawn (`lobby_camera.view`, the lobby camera's tick, after patch 45's flight), the lobby
+  hidden (`lobby_menu::on_deactivate` 0x21D4A0, a match), shown (`on_activate` 0x21D2E0), the
+  game closing (`game::clear_resources` 0x1ED030). The wanted lobby is `Squad::lobby` of the
+  saved pick and the squad at each event: a pick changed, a squad changed, a load done or failed,
+  a fade done, a match entered and the close all come as those.
+- **The census:** the first frame asks the lobby's query once with every lobby's config (a binary
+  config each, no user data): which packs are there. A missing one's card is dimmed, and it is
+  never asked.
 - **A frame with another lobby wanted than the one shown:** the lobby's query is asked again
-  (query_resources 0x21E450 with the menu) with that lobby alone: its config first (as at a
-  start), then its project; the other seven requests are that lobby's config (a binary config, no
-  user data), so no second render scene, sound scene or movie is made. The old lobby is drawn,
-  and turns with the mouse, while it loads. One change at a time; the last lobby wanted wins (a
-  change while its query is out asks the new one; back to the one shown lets it go).
-- **Its project in:** held (one reference of ours, `vostok::lobby`'s `HELD`, its one owner), and
-  the scene fades to black: the lobby movie's `srp_scene_fade` (1, 250 ms), a black under every
-  panel, over the 3D scene (the root's first child; the interface stays; get_mouse_over leaves it
-  out, so the camera still turns). After the fade (`FADE_OUT`, 0.25 s of the lobby's frames) the
-  project is put in the old one's place (`put_in`): the project halves of
-  `lobby_menu::clear_resources` (0x21D080..0x21D100) and `on_render_scenes_ready` (0x220DA2..
-  0x220EC3, 0x22193E..0x221975), in their order, each step the game's own function:
+  (query_resources 0x21E450 with the menu) with that lobby's config alone (the other seven
+  requests that config, no user data: no second render scene, sound scene or movie is made). The
+  old lobby is drawn, and turns with the mouse, while it comes (a config read: cheap). Not there:
+  nothing more, no fade.
+- **Then the black, then the load:** the scene fades to black (`FADE_OUT`, 0.25 s), the exe
+  stepping it a frame each (`srp_scene_fade(per mille, loading)`, by at most a 30th of a second a
+  frame: after a stall the fade still plays over its frames; the movie's own tween would have
+  ended during the stall, seen 2026-10-30), a black under every panel, over the 3D scene (the
+  root's first child; the interface stays; get_mouse_over leaves it out, so the camera still
+  turns), the game's loading spinner on it. Whole, the lobby's project is asked (alone, as
+  above): its load and its cook's hitches happen behind the black.
+- **Its project in** (in the results' callback, `ScenesReady::swap_in` / `put_in`): the project
+  halves of `lobby_menu::clear_resources` (0x21D080..0x21D100) and `on_render_scenes_ready`
+  (0x220DA2..0x220EC3, 0x22193E..0x221975), in their order, each step the game's own function:
   - the old project out: `remove_static` 0x2855B0 (ESI the project); each static collision's
     remove (project+28h, +2Ch of them, 50h bytes; static_collision vtable 0xA029A8 +4: 0x2F8970,
     thiscall with the physics world, lobby menu+3104h); the track player's stop (0x2DE7F0, EDI
@@ -117,28 +124,30 @@ Unicorn against the original's code on the same objects; captured in a game, bel
     vtable+20h (`emit`: thiscall, out, 0.0, 1.0; ret 0Ch; out returned), played by 0x2DE090 (EDI
     menu+118h; the effect, 0, 1, 0, the listener menu+684h; ret 14h), the made effect let go (count
     +1Ch; at 0 its emitter's (+0Ch) vtable+1Ch, `destroy`); `insert_static` 0x285540 (EAX the
-    project); each static collision's insert (vtable+0, 0x2F8850); our reference given back.
+    project); each static collision's insert (vtable+0, 0x2F8850).
   The two emitter calls are the engine-function library's virtual rows (client_patch.md 0.5); nine
   emitter classes (vtables.tsv). The project's `camera` (0x242770) is not set again: every lobby's
   character is at the origin (below).
 - **Behind the black:** with the swap the eye adaptation is reset (the engine's own: the byte
   0xAC914C, 1 in the image for the first frame; while set, stage_postprocess's
   compute_per_pixel_eye_adaptated_luminance 0x1B1400 takes the frame's own luminance as the last
-  one's and clears it: the exposure is at once where it settles, no swing) and the camera is put
-  at its ctor's pose (yaw, pitch, side 0, distance 1.96 m; not while patch 45's camera is at the
-  bench or flying). `HOLD_FRAMES` (6) frames are drawn behind the black (the new scene's first
-  frames), the adaptation is reset again and the scene fades in (2, 400 ms).
-- **A lobby that is not there keeps the one shown, with no fade:** a config that is not there, or
-  a project without its camera track, lets the results go; the lobby is not asked again until
-  another one is wanted (`Change::Missing`). At the start the classic stands in (as above).
-- **A match entered during a change:** a project held is put in at once (the lobby is not drawn)
-  and the fade is gone; a query out is taken when it comes, put in at once while the lobby is
-  hidden. The lobby on return is the wanted one, with no fade.
-- **The game closing:** a held project is let go (our reference), nothing is put in; from then on
-  nothing is asked and results are let go without the lobby menu being touched.
-- **Costs and not known:** two lobby projects are in memory from the results to the swap (0.25 s);
-  the project's cook runs while the old lobby is drawn (its disk reads beside the lobby's frames:
-  GUESS, not measured); the eight requests of a change's query name one config (the resource
+  one's and clears it: the exposure is at once where it settles, no swing; seen in the captures:
+  the first frame after the black is within 2 % of the settled luminance) and, at the next frame,
+  the camera at its ctor's pose (yaw, pitch, side 0, distance 1.96 m; not while patch 45's camera
+  is at the bench or flying). `HOLD_FRAMES` (6) frames are drawn behind the black, the
+  adaptation is reset again, the spinner goes and the scene fades in (`FADE_IN`, 0.4 s).
+- **A project that fails behind the black** (no camera track): the black fades back over the
+  lobby shown, and that lobby is marked not there.
+- **The last lobby wanted wins:** a change while a config is probed asks the new one's (back to
+  the one shown lets it go); while a project loads behind the black, the new one is asked behind
+  the same black.
+- **A match entered during a change:** the black is gone at once; a project that comes while the
+  lobby is hidden is put in at once. The lobby on return is the wanted one.
+- **The game closing:** from then on nothing is asked and results are let go without the lobby
+  menu being touched.
+- **The two hitches** (2026-10-30, headless, a diagnostics build's `srp_lobby_scene.txt`: each
+  action with the lobby's frame count and the clock's milliseconds): STALLS.
+- **Costs and not known:** the eight requests of a change's query name one config (the resource
   system's handling of one name eight times in a query is read from the stock flow only, not
   seen). What the lobby's track effect plays (an ambient effect; GUESS). F11's hidden interface
   hides the black too (the root): a change while it is hidden is a cut, not a fade.
@@ -237,24 +246,20 @@ Game captures: the diagnostics build's `camera_sweep` (client_patch.md section 3
 
 ## Checks
 
-- Rust tests of the factions, the squad, the match and the transitions (`lobby_scene.rs`: the
-  start's paths, a start on a missing lobby not asked again, a change loaded behind the old lobby
-  then faded, swapped and faded in, a missing pack or a project without its track kept with no
-  fade, the last lobby wanted winning, a match entered at every frame of a change, the close;
-  every sequence of six events of eight kinds, under three loads: a swap only behind the black or
-  while not drawn, a query only while drawn, one project held at most, no black left once
-  settled), `check_lobby_scene_026g.py` (Unicorn: the variable, `0x8E`'s faction kept and saved,
-  the query's list, the probe, the fallbacks; the lobby camera's tick through its chain: the
-  change's query lists, the held project, the fade's invokes, the swap's 14 calls and state
-  against the original's clear_resources and on_render_scenes_ready halves on the same objects,
-  the eye adaptation's byte, the camera's pose; `0xA1`'s squad and srp byte; a missing pack; a
-  match entered and the close behind the black; late results), selftest check 81 (the ten sites,
-  the stock code the swap redoes, the squad reader, the eye adaptation's byte, the lobby movie's
-  holder), `check_engine_026g.py` (the virtual rows), `check_weapon_table_026g.py` (the spot from
-  the project's config, the turned bench), `scripts/lobby-fade/check.sh` (Ruffle: the movie's
-  fade under a panel, to black, from black and gone, gone at once), lobby-server's
-  `a_squad_info_carries_its_commanders_quest_faction` (the byte, re-sent on the commander's
-  change, not on a member's).
+- Rust tests of the picks, the squad, the census and the transitions (`lobby_scene.rs`: the
+  start's paths, a change probed then faded, loaded behind the black, swapped and faded in, a
+  stall's frame not skipping the fade, a missing pack never asked, a project without its track
+  faded back, the last lobby wanted winning, a match entered at every frame of a change, the
+  close; every sequence of six events of eight kinds, under three loads: a swap only behind the
+  black or while not drawn, a query only while drawn, one query at a time, no black left once
+  settled), `check_lobby_scene_026g.py` (Unicorn; client_patch.md 3.59), selftest check 81 (the
+  nine sites, the stock code the swap redoes, the squad reader, the eye adaptation's byte, the
+  lobby movie's holder, the 3B sender), `check_engine_026g.py` (the virtual rows),
+  `check_weapon_table_026g.py` (the spot from the project's config, the turned bench),
+  `scripts/lobby-fade/check.sh` (Ruffle: the black under a panel, the spinner, the window and its
+  cards; `window.png`), lobby-server's `a_squad_info_carries_the_lobby_picks` (a pick sent back
+  alone out of a squad, each member's own and the commander's in one, the commander's change to
+  every member, a member's to its own byte only), `lobby_pick.rs` (the starts and ids).
 - In a game (2026-10-29, local, headless, no input but the sign-in; the default build of this
   branch; packs lobby-hangar-046@2 and lobby-camp-069@2 in a test patch, no STK2 pack):
   `srp_lobby_faction 4` in user.cfg, the hangar from the first frame; `1`, the camp; `2` (no

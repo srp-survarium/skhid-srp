@@ -10,7 +10,7 @@ beside it.
 Requires Python `unicorn`. check_language_026g.py's harness (patch 79 shares
 configs.start with it, a chain).
 
-- on_configs_loaded's start: `srp_lobby_faction`, a saved string of 4 bytes,
+- on_configs_loaded's start: `srp_lobby`, a saved string of 4 bytes,
   registered once with the game's own cc_string::cc_string, after patch 79's
   `localization`; the game's cc_string::execute sets it from a user.cfg line;
 - a whole user.cfg through the console's own load (console_commands::load
@@ -77,7 +77,8 @@ import check_language_026g as language
 
 QUERY, QUERY_CALL = 0x21E450, 0x21E5ED
 READY, READY_REPLAYED = 0x220B20, 0x220B26
-FACTION, FACTION_END = 0x2717CF, 0x2717D5     # mov [ebx+1EA998h],eax ... pop ebp
+PLAYERS_RANGE = 0x270070                      # lobby_client's 3B sender (EAX the client, start, count; ret 8)
+PICK_BASE = 2_095_000_000
 CC_STRING, CONSOLE_LOAD = 0xEC860, 0xEBF00
 STAND_IN, CFG = 0x30400000, 0x30410000       # a stand-in r_resolution; a user.cfg's bytes
 CLIENT = 0x30100000
@@ -119,8 +120,17 @@ class Run(language.Run):
         self.stub_query = False
         self.emu.hook_add(UC_HOOK_CODE, self.query_stub, begin=QUERY, end=QUERY)
         self.log = None                   # the swap's stubs' record, while one runs
+        self.sent = []                    # the 3B requests the exe sent (the client, start, count)
+        self.emu.hook_add(UC_HOOK_CODE, self.players_range, begin=PLAYERS_RANGE, end=PLAYERS_RANGE)
         for at in SWAP_STUBS:
             self.emu.hook_add(UC_HOOK_CODE, self.swap_stub, begin=at, end=at)
+
+    def players_range(self, emu, address, size, _):
+        """lobby_client's 3B (EAX the client; ret 8): recorded, not sent."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.sent.append((emu.reg_read(UC_X86_REG_EAX), self.read(sp + 4), self.read(sp + 8) & 0xFF))
+        emu.reg_write(UC_X86_REG_ESP, sp + 12)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
     def swap_stub(self, emu, address, size, _):
         """The game's functions the swap reaches (SWAP_STUBS), recorded and
@@ -272,17 +282,6 @@ class Run(language.Run):
         assert self.stopped == hide.SENTINEL and end == sp + 8, (hex(self.stopped or 0), hex(end), hex(sp))
         return "returned", self.asked_again
 
-    def faction(self, faction):
-        """0x8E's handler at its keeping of the faction (eax), the lobby
-        client in ebx, to the `pop ebp` after it."""
-        sp = hide.STACK + 0x9000
-        self.saves = 0
-        after, end = self.run(FACTION, (FACTION_END,), sp, {**hide.GAME, UC_X86_REG_EAX: faction,
-                                                              UC_X86_REG_EBX: CLIENT})
-        assert self.stopped == FACTION_END and end == sp
-        return self.read(CLIENT + 0x1EA998), after, self.saves
-
-
     def tick(self, dt=FRAME):
         """A frame of the lobby: lobby_camera::tick at 0x2840F2 (EBX the ticker, the frame's dt at
         [esp+10h]) past the chain (patch 45's flight, the sweep, ours): the lobby menus asked, the
@@ -316,14 +315,15 @@ class Run(language.Run):
         return (f(0xB4), f(0xB8), round(f(0xBC), 4), round(f(0xC0), 4), f(0xA8))
 
     def squad(self, squad_id, rest):
-        """read_squad_info with its squad id kept (0x2747C3, EBX the lobby client) to the je after;
+        """read_squad_info with its squad id kept (0x2747C3, EBX the lobby client, ESI the reader past
+        the id) to the je after;
         for a squad, as it keeps the revision (0x2748BC, ECX 77h, ESI the reader past it) to past
         that, with `rest` the message's bytes left there."""
         self.word(CLIENT + 0x1EAAA4, squad_id)
         self.emu.mem_write(MESSAGE, b"\xA1" * 8 + rest)
         self.emu.mem_write(READER, struct.pack("<III", MESSAGE, MESSAGE + 8, 8 + len(rest)))
         sp = hide.STACK + 0x9000
-        self.run(SQUAD_ID, (SQUAD_ID_END,), sp, {**hide.GAME, UC_X86_REG_EBX: CLIENT})
+        self.run(SQUAD_ID, (SQUAD_ID_END,), sp, {**hide.GAME, UC_X86_REG_EBX: CLIENT, UC_X86_REG_ESI: READER})
         assert self.stopped == SQUAD_ID_END and self.read(CLIENT + 0x1EAAAC) & 0xFF == 0, hex(self.stopped or 0)
         if squad_id == 0:
             return
@@ -351,16 +351,16 @@ def main():
     _, _, head = ours.start()
     variable = language.console_variable(ours, head)
     localization = language.console_variable(ours, ours.read(head + 0x0C))
-    expect(variable[0] == "srp_lobby_faction" and variable[2] == 4 and variable[3] == 1
+    expect(variable[0] == "srp_lobby" and variable[2] == 4 and variable[3] == 1
            and localization[0] == "localization" and ours.read(ours.read(head + 0x0C) + 0x0C) == head_before,
-           "configs.start: `srp_lobby_faction`, a saved string of 4 bytes, at the head of the console's list, "
+           "configs.start: `srp_lobby`, a saved string of 4 bytes, at the head of the console's list, "
            "after patch 79's `localization` (the site's chain)")
     _, _, again = ours.start()
     expect(again == head, "configs.start again: registered once")
     buffer = variable[1]
     ours.emu.mem_write(language.TEXT, b"2\0")
     ours.call_at(language.EXECUTE, (language.TEXT,), {UC_X86_REG_ECX: head})
-    expect(ours.text(buffer) == b"2", "user.cfg's line `srp_lobby_faction 2` sets it "
+    expect(ours.text(buffer) == b"2", "user.cfg's line `srp_lobby 2` sets it "
            "(cc_string::execute 0xEC8C0)")
 
     # a whole user.cfg through the console's load, a stand-in r_resolution beside ours
@@ -368,37 +368,19 @@ def main():
     ours.emu.mem_write(STAND_IN + 0x100, b"r_resolution\0")
     ours.call_at(CC_STRING, (STAND_IN + 0x100, STAND_IN + 0x80, 32, 1), {UC_X86_REG_EAX: STAND_IN})
     for label, text in [
-        ("run.py's (LF, r_resolution last)", b"localization english\nsrp_lobby_faction 4\nr_resolution 1280x720\n"),
-        ("the game's (CRLF)", b"localization czech\r\nr_resolution 1280x720\r\nsrp_lobby_faction 1\r\n"),
-        ("no end of line", b"srp_lobby_faction 3\nr_resolution 1280x720"),
+        ("run.py's (LF, r_resolution last)", b"localization english\nsrp_lobby 4\nr_resolution 1280x720\n"),
+        ("the game's (CRLF)", b"localization czech\r\nr_resolution 1280x720\r\nsrp_lobby 1\r\n"),
+        ("no end of line", b"srp_lobby 3\nr_resolution 1280x720"),
     ]:
         ours.emu.mem_write(CFG, text + b"\0" * 16)
         ours.emu.mem_write(CFG + 0x1000, struct.pack("<III", CFG, CFG, len(text)))
         ours.emu.mem_write(buffer, b"\0" * 4)
         ours.emu.mem_write(STAND_IN + 0x80, bytes(32))
         _, popped = ours.call_at(CONSOLE_LOAD, (1, 2), {UC_X86_REG_ESI: CFG + 0x1000})
-        faction = text.split(b"srp_lobby_faction ")[1][:1]
+        faction = text.split(b"srp_lobby ")[1][:1]
         expect(ours.text(buffer) == faction and ours.text(STAND_IN + 0x80) == b"1280x720" and popped == 4,
-               f"user.cfg {label}: `srp_lobby_faction {faction.decode()}` and `r_resolution 1280x720` each to its "
+               f"user.cfg {label}: `srp_lobby {faction.decode()}` and `r_resolution 1280x720` each to its "
                "variable through the console's own load; the stack as it was")
-
-    # 0x8E's faction: kept as the original keeps it, and saved when it changed
-    for label, faction, saved_after, saves in [
-        ("Scavengers (1) over Black Market", 1, b"1", 1),
-        ("Scavengers again", 1, b"1", 0),
-        ("Edge (4)", 4, b"4", 1),
-        ("Edge again", 4, b"4", 0),
-        ("none chosen (0), the Scavengers", 0, b"1", 1),
-        ("none again", 0, b"1", 0),
-        ("an unknown id (9), the Scavengers", 9, b"1", 0),
-        ("Renaissance (3)", 3, b"3", 1),
-    ]:
-        kept, after, written = ours.faction(faction)
-        stock_kept, stock_after, stock_written = stock.faction(faction)
-        expect(kept == faction == stock_kept and after == stock_after and ours.text(buffer) == saved_after
-               and written == saves and stock_written == 0,
-               f"0x8E with {label}: kept at +1EA998h and the registers as the original's; saved "
-               f"{saved_after.decode()}, user.cfg written {saves} time(s)")
 
     def saved(value):
         ours.emu.mem_write(buffer, value.encode() + b"\0")
@@ -411,16 +393,16 @@ def main():
     config = lambda lobby: f"resources/projects/lobby_scene/{lobby}/client_project"
     # (label, saved value, [(result 3 for the query before it, the request asked, its user data kept)])
     cases = [
-        ("no faction saved, the Scavengers", "", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
-                                                  (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
-        ("Renaissance (3)", "3", [(project, ("lobby_scene/day", 0x40), True, "replayed")]),
-        ("an unknown value, the Scavengers", "9", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
-                                                   (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
-        ("Edge (4), hangar_046 there", "4", [(CONFIG, (config("hangar_046"), 0x1F), False, "returned"),
-                                             (project, ("lobby_scene/hangar_046", 0x40), True, "replayed")]),
-        ("Scavengers (1), camp_069 missing", "1", [(0, (config("camp_069"), 0x1F), False, "returned"),
-                                                  (project, ("lobby_scene/day", 0x40), True, "replayed")]),
-        ("Black Market (2), stk2_bunker without its track", "2", [
+        ("no pick saved, the Room", "", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
+                                         (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
+        ("the Basement (2)", "2", [(project, ("lobby_scene/day", 0x40), True, "replayed")]),
+        ("an unknown value, the Room", "9", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
+                                             (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
+        ("the Hangar (4), hangar_046 there", "4", [(CONFIG, (config("hangar_046"), 0x1F), False, "returned"),
+                                                   (project, ("lobby_scene/hangar_046", 0x40), True, "replayed")]),
+        ("the Room (1), camp_069 missing", "1", [(0, (config("camp_069"), 0x1F), False, "returned"),
+                                                 (project, ("lobby_scene/day", 0x40), True, "replayed")]),
+        ("the Bunker (3), stk2_bunker without its track", "3", [
             (CONFIG, (config("stk2_bunker"), 0x1F), False, "returned"),
             ("no track", ("lobby_scene/stk2_bunker", 0x40), True, "returned"),
             (project, ("lobby_scene/day", 0x40), True, "replayed")]),
@@ -446,14 +428,17 @@ def main():
 
 
 def a_change(patched, stock, stock_requests, expect):
-    """A change of lobby shown at once (lobby-scenes.md, "A change shown at once"): a lobby shown, the
-    faction or the squad changed, the lobby's ticks."""
+    """A pick shown at once (lobby-scenes.md, "A change shown at once"): a lobby shown, the first
+    frame's census, a pick or a squad changed, the lobby's ticks."""
     config = lambda lobby: f"resources/projects/lobby_scene/{lobby}/client_project"
-    fade = lambda state, ms: ((MOVIE, "root.srp_scene_fade", (state, ms)))
+    every = [config(lobby) for lobby in ("camp_069", "day", "stk2_bunker", "hangar_046")]
+    fades = lambda invokes: [values for movie, name, values in invokes if name == "root.srp_scene_fade" and movie == MOVIE]
+    states = lambda invokes: [values for movie, name, values in invokes if name == "root.srp_lobby_state" and movie == MOVIE]
 
-    def shown(value, lobby):
-        """A fresh game whose lobby `lobby` was taken at its start (the saved faction `value`), the
-        lobby and its camera made up."""
+    def shown(value, lobby, there=(1, 1, 1, 1)):
+        """A fresh game whose lobby `lobby` was taken at its start (the saved pick `value`), the
+        lobby and its camera made up, the first frame's census answered (`there`: each lobby's
+        config, in id order)."""
         r = Run(patched)
         _, _, head = r.start()
         r.saved = lambda text: r.emu.mem_write(r.read(head + 0x40), text.encode() + b"\0")
@@ -467,19 +452,35 @@ def a_change(patched, stock, stock_requests, expect):
         assert requests[3][0] == lobby, requests[3]
         r.lobby()
         r.camera()
+        asked, _, invokes = r.tick()
+        requests, data, _ = r.query()
+        assert asked == [MENU] and [name for name, _ in requests] == every + [config("day")] * 4 \
+            and all(c == 0x1F for _, c in requests) and data == [0] * 8, (asked, requests)
+        r.census = invokes
+        r.emu.mem_write(RESULTS, bytes(0x2E0 * 8 + 0x200))
+        for i, found in enumerate(there):
+            r.word(RESULTS + 0x12C + i * 0x2E0, CONFIG if found else 0)
+        sp = hide.STACK + 0x9000
+        r.word(sp, hide.SENTINEL)
+        r.word(sp + 4, RESULTS)
+        r.asked_again, r.stub_query = [], True
+        try:
+            r.run(READY, (READY_REPLAYED, hide.SENTINEL), sp, {**hide.GAME, UC_X86_REG_ECX: MENU})
+        finally:
+            r.stub_query = False
+        assert r.stopped == hide.SENTINEL and r.asked_again == []
         r.word(EYE_ADAPTATION, 0)
         return r
 
-    def to_project(r, lobby):
-        """Its probe and its project, alone: the results of each."""
-        requests, data, _ = r.query()
-        alone = lambda name: requests == [(config(lobby), 0x1F)] * 3 + [name] + [(config(lobby), 0x1F)] * 4 \
-            and data == [0] * 3 + data[3:4] + [0] * 4
-        probe = alone((config(lobby), 0x1F)) and data[3] == 0
-        flow = r.ready(CONFIG)
-        requests, data, _ = r.query()
-        asked = alone((f"lobby_scene/{lobby}", 0x40)) and data[3] != 0
-        return probe and flow == ("returned", [MENU]) and asked
+    def to_black(r):
+        """Ticks until the black is whole: their fades."""
+        out = []
+        while len(out) < 40:
+            asked, log, invokes = r.tick()
+            out.append((asked, log, fades(invokes)))
+            if asked:
+                break
+        return out
 
     stock.lobby()
     stock_log, stock_state = stock.stock_swap()
@@ -490,123 +491,159 @@ def a_change(patched, stock, stock_requests, expect):
            f"the original's project halves on the made-up lobby: {len(stock_log)} calls, the new project at +114h, "
            "+118h 0, the old one's count 0 (released), the new one's 3, the effect's 0 (destroyed)")
 
-    # the same lobby: nothing asked, ever
-    r = shown("4", "lobby_scene/hangar_046")
+    # the first frame: the census, every lobby's config, then the window told
+    r = shown("2", "lobby_scene/day")
+    expect(True, "the first frame asks the census: the four lobbies' configs (the Room's, the Basement's, the "
+           "Bunker's, the Hangar's) then the classic's, every one a binary config (1Fh) with no user data; its "
+           "results let go (ret 4)")
+    expect(states(r.census) == [(2, 2, 0b1111)] and fades(r.census) == [],
+           "that frame tells the lobby window its state: the pick 2, the lobby shown 2, every lobby there (1111b)")
     ticks = [r.tick() for _ in range(5)]
     expect(all(t == ([], [], []) for t in ticks) and r.read(MENU + 0x114) == OLD - 0x38,
-           "five ticks with the faction of the lobby shown (Edge, the hangar): nothing asked, no fade")
+           "five more ticks with the pick shown: nothing asked, no fade, the window not told again")
 
-    # a change: the lobby's config, then its project, alone, the old lobby drawn
-    r = shown("3", "lobby_scene/day")
-    r.saved("1")
+    # a pick: its config alone while the old lobby is drawn, then the black, then its project
+    r.saved("3")
     asked, log, invokes = r.tick()
-    expect(asked == [MENU] and log == [] and invokes == [],
-           "the classic shown, Scavengers saved, a tick: the lobby's query asked, nothing else")
-    expect(to_project(r, "camp_069"),
-           "the query asks camp_069's config alone (every other request that config, 1Fh, no user data); its "
-           "config there: let go, asked again: its project alone (40h, the lobby menu's variant)")
-    expect(r.tick() == ([], [], []), "a tick while its project loads: nothing (the old lobby drawn)")
-    before = r.state()
+    expect(asked == [MENU] and log == [] and fades(invokes) == [] and states(invokes) == [(3, 2, 0b1111)],
+           "the Bunker picked (3), a tick: the lobby's query asked, no fade; the window told the pick")
+    requests, data, _ = r.query()
+    alone = lambda name: requests == [(config("stk2_bunker"), 0x1F)] * 3 + [name] + [(config("stk2_bunker"), 0x1F)] * 4 \
+        and data == [0] * 3 + data[3:4] + [0] * 4
+    expect(alone((config("stk2_bunker"), 0x1F)) and data[3] == 0,
+           "the query asks stk2_bunker's config alone (every other request that config, 1Fh, no user data)")
+    flow = r.ready(CONFIG)
+    expect(flow == ("returned", []) and fades(r.invokes()) == [],
+           "its config there: the results let go, no query yet, no fade from the callback")
+    out = to_black(r)
+    steps = [f for _, _, f in out]
+    expect(14 <= len(out) <= 16 and all(len(f) == 1 and 0 < f[0][0] < 1000 and f[0][1] == 0 for f in steps[:-1])
+           and [f[0][0] for f in steps[:-1]] == sorted(f[0][0] for f in steps[:-1])
+           and steps[-1] == [(1000, 1)] and out[-1][0] == [MENU],
+           f"the fade to black, a step a frame ({len(out)} frames: srp_scene_fade at "
+           f"{', '.join(str(f[0][0]) for f in steps[:4])}... per mille), then whole with the loading spinner "
+           "(1000, 1) and the lobby's query asked")
+    requests, data, _ = r.query()
+    expect(alone(("lobby_scene/stk2_bunker", 0x40)) and data[3] != 0,
+           "behind the black the query asks stk2_bunker's project alone (40h, the lobby menu's variant)")
+    expect(r.tick() == ([], [], []), "a tick while its project loads: nothing (black)")
     r.log = []
     flow = r.ready(PROJECT, swap=True)
-    held = r.read(PROJECT - 0x38 + 0x108)
-    expect(flow == ("returned", []) and r.log == [] and r.read(MENU + 0x114) == OLD - 0x38 and held == before[3] + 1,
-           "its project: held (one reference more, nothing put in), returned from (ret 4)")
-    # (the fade's invoke is the results' callback's own; read it from the invokes of that run)
-    expect(fade(1, 250) in r.invokes(), "the fade to black asked of the lobby movie with it (srp_scene_fade 1, 250 ms)")
-    out = []
-    while r.read(MENU + 0x114) == OLD - 0x38 and len(out) < 40:
-        out.append(r.tick())
-    swap = out[-1]
-    expect(14 <= len(out) <= 16 and all(t == ([], [], []) for t in out[:-1]),
-           f"the black's ticks (0.25 s at 60 Hz): nothing until the swap, at tick {len(out)}")
-    expect(swap[1] == stock_log and r.state() == stock_state and r.read(EYE_ADAPTATION) & 0xFF == 1
-           and r.pose() == (0.0, 0.0, 1.96, 1.96, 0.0),
-           f"the swap: the {len(swap[1])} calls and the lobby menu's +114h, +118h, the counts (ours given back) and "
-           "the effect's what the original's halves do; the eye adaptation reset (0xAC914C 1); the camera at the "
-           "ctor's pose (yaw, pitch, side 0, distance 1.96)")
+    expect(flow == ("returned", []) and r.log == stock_log and r.state() == stock_state
+           and r.read(EYE_ADAPTATION) & 0xFF == 1,
+           f"its project: put in the old one's place in the results' callback, returned from (ret 4): the "
+           f"{len(r.log)} calls and the lobby menu's +114h, +118h, the counts and the effect's what the "
+           "original's halves do; the eye adaptation reset (0xAC914C 1)")
     r.word(EYE_ADAPTATION, 0)
-    held_ticks = []
-    while len(held_ticks) < 20:
-        held_ticks.append(r.tick())
-        if held_ticks[-1][2]:
+    _, _, invokes = r.tick()
+    expect(r.pose() == (0.0, 0.0, 1.96, 1.96, 0.0) and states(invokes) == [(3, 3, 0b1111)],
+           "the next frame: the camera at the ctor's pose (yaw, pitch, side 0, distance 1.96); the window told "
+           "the Bunker shown")
+    held = [r.tick() for _ in range(5)]
+    expect(fades(held[-1][2]) == [(1000, 0)] and r.read(EYE_ADAPTATION) & 0xFF == 1
+           and all(t == ([], [], []) for t in held[:-1]),
+           "six frames behind the black, then the eye adaptation reset again and the spinner off (1000, 0)")
+    out = []
+    while len(out) < 40:
+        f = fades(r.tick()[2])
+        out.append(f)
+        if f == [(0, 0)]:
             break
-    expect(held_ticks[-1][2] == [fade(2, 400)] and len(held_ticks) == 6 and r.read(EYE_ADAPTATION) & 0xFF == 1
-           and all(t == ([], [], []) for t in held_ticks[:-1]),
-           f"six frames behind the black, then the fade from black (srp_scene_fade 2, 400 ms) and the eye "
-           f"adaptation reset again ({len(held_ticks)} ticks)")
-    after = [r.tick() for _ in range(40)]
-    expect(all(t == ([], [], []) for t in after), "then nothing: the camp shown, settled")
+    expect(22 <= len(out) <= 26 and out[-1] == [(0, 0)] and all(0 < f[0][0] < 1000 for f in out[:-1]),
+           f"the fade from black, a step a frame ({len(out)} frames), then gone (0, 0)")
+    expect(all(r.tick() == ([], [], []) for _ in range(20)), "then nothing: the Bunker shown, settled")
 
-    # a missing pack: the lobby shown kept, no fade, not asked again
-    r = shown("3", "lobby_scene/day")
-    r.saved("2")
+    # a stall: the fade still steps by a 30th of a second
+    r = shown("2", "lobby_scene/day")
     r.tick()
-    r.query()
-    flow = r.ready(0)
-    fades = r.invokes()
-    later = [r.tick() for _ in range(30)]
-    expect(flow == ("returned", []) and fades == [] and all(t == ([], [], []) for t in later)
-           and r.read(MENU + 0x114) == OLD - 0x38,
-           "Black Market saved, stk2_bunker's config missing: let go, no fade, the classic kept and not asked again")
-
-    # a squad: its commander's lobby; out of it the player's own; the saved value the player's own
-    r = shown("3", "lobby_scene/day")
-    r.squad(7, b"\x04")
-    asked, _, _ = r.tick()
-    requests, _, _ = r.query()
-    expect(asked == [MENU] and requests[3] == (config("hangar_046"), 0x1F) and r.saved_text() == b"3",
-           "0xA1 of squad 7 with srp's byte 4: the commander's lobby (the hangar's config asked); "
-           "srp_lobby_faction still the player's own (3)")
-    r.ready(0)
-    r.squad(0, b"")
-    expect(r.tick() == ([], [], []), "0xA1 of no squad: the player's own lobby (the classic shown), nothing asked")
-    r.squad(7, b"")
-    expect(r.tick() == ([], [], []), "0xA1 of a squad without srp's byte (an older srp): the player's own lobby")
-    r.squad(9, b"\x01")
-    asked, _, _ = r.tick()
-    expect(asked == [MENU], "a commander of the Scavengers: the camp asked")
-
-    # a match entered during the black: the project put in at once, the fade gone
-    r = shown("3", "lobby_scene/day")
-    r.saved("1")
-    r.tick()
-    to_project(r, "camp_069")
-    r.ready(PROJECT)
-    r.tick()
-    r.log = []
-    asked = r.deactivate()
-    log, r.log = r.log, None
-    expect(asked == [] and log == stock_log and r.state() == stock_state and fade(0, 0) in r.invokes(),
-           "a match entered behind the black: the held project put in at once (the original's halves), the "
-           "fade gone (srp_scene_fade 0)")
-    r.activate()
-    expect(r.tick() == ([], [], []), "back in the lobby: the camp shown, nothing asked")
-
-    # the game closing during the black: the held project let go, nothing put in
-    r = shown("3", "lobby_scene/day")
-    r.saved("1")
-    r.tick()
-    to_project(r, "camp_069")
-    r.ready(PROJECT)
-    held = r.read(PROJECT - 0x38 + 0x108)
-    r.word(CLIENT + 0x535C, 0x13579BDF)
-    esi, ecx = r.closing()
-    expect(esi == CLIENT and ecx == 0x13579BDF and r.read(PROJECT - 0x38 + 0x108) == held - 1
-           and r.read(MENU + 0x114) == OLD - 0x38 and r.deactivate() == [],
-           "game::clear_resources' start (its span replayed) during the black: our reference given back, "
-           "nothing put in; its on_deactivate of the lobby asks nothing")
-
-    # results after the close: let go untouched
-    r = shown("3", "lobby_scene/day")
     r.saved("4")
     r.tick()
     r.query()
-    r.closing()
+    r.ready(CONFIG)
+    f = fades(r.tick(3.0)[2])
+    expect(len(f) == 1 and 100 <= f[0][0] <= 140,
+           f"a 3 s frame (a stall) after the Hangar's config: the black at {f[0][0] if f else None} per mille "
+           "(a 30th of a second's step), not whole")
+
+    # a pack the census found missing: its card dimmed, never asked
+    r = shown("2", "lobby_scene/day", there=(1, 1, 0, 1))
+    _, _, invokes = r.tick()
+    invokes = invokes or []
+    r.saved("3")
+    later = [r.tick() for _ in range(30)]
+    expect(states(invokes) == [(2, 2, 0b1011)] and all(t[0] == [] and fades(t[2]) == [] for t in later),
+           "the census without stk2_bunker's config: the window told 1011b; the Bunker picked: nothing asked, "
+           "no fade")
+
+    # 0xA1: the picks; srp has none: the saved pick sent; a squad's commander's pick shown
+    r = shown("2", "lobby_scene/day")
+    r.tick()
+    r.squad(0, b"\x00\x00")
+    expect(r.sent == [(CLIENT, PICK_BASE + 2, 1)] and r.saved_text() == b"2",
+           "0xA1 of no squad, srp's picks 0 0 (the sign-in): the saved pick sent (3B at 2 095 000 002, count 1, "
+           "the handler's lobby client)")
+    r.sent = []
+    r.squad(0, b"\x04\x00")
+    asked, _, invokes = r.tick()
+    expect(r.sent == [] and r.saved_text() == b"4" and asked == [MENU] and states(invokes) == [(4, 2, 0b1111)],
+           "0xA1 of no squad with the own pick 4 (a click's, srp's answer): saved (srp_lobby 4), the Hangar "
+           "asked, the window told")
+    r.ready(0)
+    r.squad(7, b"\x02\x01")
+    asked, _, _ = r.tick()
+    requests, _, _ = r.query()
+    expect(asked == [MENU] and requests[3] == (config("camp_069"), 0x1F) and r.saved_text() == b"2",
+           "0xA1 of squad 7, picks 2 1: the commander's pick (the Room, 1) asked; the own pick 2 saved")
+    r.ready(0)
+    r.sent = []
+    r.squad(7, b"")
+    asked, _, _ = r.tick()
+    expect(asked == [] and r.sent == [(CLIENT, PICK_BASE + 2, 1)],
+           "a squad without srp's bytes (an older srp): the player's own lobby (shown: nothing asked), the saved "
+           "pick sent")
+
+    # a match entered during the fade: the black gone at once; behind the black, a project put in at once
+    r = shown("2", "lobby_scene/day")
+    r.tick()
+    r.saved("1")
+    r.tick()
+    r.query()
+    r.ready(CONFIG)
+    r.tick()
+    asked = r.deactivate()
+    expect(asked == [] and fades(r.invokes()) == [(0, 0)],
+           "a match entered during the fade to black: the black gone (srp_scene_fade 0)")
+    r.activate()
+    r = shown("2", "lobby_scene/day")
+    r.tick()
+    r.saved("1")
+    r.tick()
+    r.query()
+    r.ready(CONFIG)
+    to_black(r)
+    r.query()
+    r.deactivate()
+    r.log = []
+    flow = r.ready(PROJECT, swap=True)
+    expect(flow == ("returned", []) and r.log == stock_log and r.state() == stock_state
+           and fades(r.invokes()) == [(0, 0)],
+           "a match entered behind the black, the project's results after: put in at once (the original's "
+           "halves), the black gone")
+
+    # the game closing: results let go untouched
+    r = shown("2", "lobby_scene/day")
+    r.tick()
+    r.saved("4")
+    r.tick()
+    r.query()
+    r.word(CLIENT + 0x535C, 0x13579BDF)
+    esi, ecx = r.closing()
     before = r.state()
     flow = r.ready(CONFIG, swap=True)
-    expect(flow == ("returned", []) and r.log == [] and r.state() == before,
-           "a change's results after the game began closing: let go, nothing touched")
+    expect(esi == CLIENT and ecx == 0x13579BDF and flow == ("returned", []) and r.log == [] and r.state() == before
+           and r.deactivate() == [],
+           "game::clear_resources' start (its span replayed), then a change's results: let go, nothing touched; "
+           "its on_deactivate of the lobby asks nothing")
 
 
 if __name__ == "__main__":

@@ -14,16 +14,18 @@
 //! capture script waits for. After the last pose the camera stays there.
 //! A line `squad` makes both squad panels' characters the account's own
 //! (setup_profile with its profile and chosen kit) when the second pose
-//! starts, for the full squad's view. A line `faction <id>` (the player's own
-//! quest faction chosen), `led <id>` (a squad joined, its commander of that
-//! faction) or `alone` (the squad left) changes patch 81's lobby when the
-//! next pose starts, for captures of its change (lobby-scenes.md).
+//! starts, for the full squad's view. A line `pick <id>` (the player's own
+//! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
+//! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
+//! next pose starts, for captures of its change (lobby-scenes.md); a line
+//! `window` opens (or closes) the lobby window then.
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::Vec3;
 
-use crate::lobby_scene::{self, Faction, Squad};
+use crate::lobby_scene::{self, Lobby, Squad};
+use crate::vostok::lobby::DrawnLobby;
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::{Context, Flow, GameCell, NoExit};
@@ -46,10 +48,12 @@ pub enum Eye {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Change {
     Nothing,
-    /// The player's own quest faction chosen.
-    Own(Faction),
+    /// The player's own lobby picked.
+    Own(Lobby),
     /// A squad joined or left.
     Squad(Squad),
+    /// The lobby window opened or closed.
+    Window,
 }
 
 /// One pose of the script.
@@ -181,18 +185,20 @@ pub fn parse(text: &[u8]) -> Option<Script> {
     (script.count > 0).then_some(script)
 }
 
-/// A line `faction <id>`, `led <id>` or `alone`.
+/// A line `pick <id>`, `led <id>` or `alone`.
 fn change_of(line: &[u8]) -> Option<Change> {
     let id = |rest: &[u8]| match rest.trim_ascii() {
-        [digit @ b'0'..=b'9'] => Some(Faction::of_id(digit - b'0')),
+        [digit @ b'0'..=b'9'] => Lobby::of_id(digit - b'0'),
         _ => None,
     };
     if line == b"alone" {
         Some(Change::Squad(Squad::None))
-    } else if let Some(rest) = line.strip_prefix(b"faction ") {
+    } else if line == b"window" {
+        Some(Change::Window)
+    } else if let Some(rest) = line.strip_prefix(b"pick ") {
         id(rest).map(Change::Own)
     } else if let Some(rest) = line.strip_prefix(b"led ") {
-        id(rest).map(|faction| Change::Squad(Squad::Led(faction)))
+        id(rest).map(|lobby| Change::Squad(Squad::Led(lobby)))
     } else {
         None
     }
@@ -266,8 +272,13 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
         if logged.is_some() {
             match pose.change {
                 Change::Nothing => {}
-                Change::Own(faction) => lobby_scene::force(thread, Some(faction), None),
+                Change::Own(lobby) => lobby_scene::force(thread, Some(lobby), None),
                 Change::Squad(squad) => lobby_scene::force(thread, None, Some(squad)),
+                Change::Window => {
+                    if let Some(lobby) = DrawnLobby::of(&camera) {
+                        lobby.toggle_window();
+                    }
+                }
             }
         }
         // the squad's characters at the second pose (the account's profile is there by then:
@@ -347,11 +358,11 @@ mod tests {
         assert_eq!(starts[1], 2812, "after its 45 s");
         assert!(matches!(sweep, Sweep::At { step: 2, .. }), "stays at the last");
         assert_eq!(parse(b"\n# nothing\n1 2 3\n"), None);
-        let changes = parse(b"45 0 0 1.96\nfaction 2\n8 0 0 1.96\nled 4\n8 0 0 1.96\nalone\nled x\n8 0 0 1.96\n").unwrap();
+        let changes = parse(b"45 0 0 1.96\npick 3\n8 0 0 1.96\nled 4\n8 0 0 1.96\nalone\nled x\n8 0 0 1.96\n").unwrap();
         assert_eq!(changes.count, 4);
         assert_eq!(changes.poses[0].change, Change::Nothing);
-        assert_eq!(changes.poses[1].change, Change::Own(Faction::BlackMarket));
-        assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Faction::Edge)));
+        assert_eq!(changes.poses[1].change, Change::Own(Lobby::Stk2Bunker));
+        assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Lobby::Hangar046)));
         assert_eq!(changes.poses[3].change, Change::Squad(Squad::None), "a line that is no change passed over");
         let flight = parse(b"squad\n0.5 -90 -14.3 1.2 4.25 1.3 3.05 21\n").unwrap();
         assert!(flight.squad && flight.count == 1);

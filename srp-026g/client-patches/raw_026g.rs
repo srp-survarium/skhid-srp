@@ -105,6 +105,8 @@ unsafe extern "C" {
     pub fn engine_cc_string(object: Option<CcString>, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
     /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
     pub fn engine_lobby_query_resources(menu: Option<LobbyMenu>);
+    /// 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+    pub fn engine_lobby_query_players_range(client: Option<LobbyClient>, start: u32, count: u32);
     /// 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
     pub fn engine_project_remove(project: Option<SimpleGameProject>);
     /// 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
@@ -2788,6 +2790,82 @@ impl LobbySceneResults {
     #[inline(always)]
     pub unsafe fn project(self) -> Option<GameProjectResource> {
         unsafe { self.0.byte_add(0x9cc).cast::<Option<GameProjectResource>>().read_volatile() }
+    }
+
+    /// +0x0 (obj<survarium::lobby_query_result>): its eight results, 2E0h each, in the requests' order (on_render_scenes_ready reads result i's resource at +12Ch + 2E0h·i)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn each(self) -> LobbyQueryResult {
+        LobbyQueryResult(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A survarium::lobby_query_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyQueryResult(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyQueryResult {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x12c (u32): the result's resource: 0 when its request failed (a binary config not there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x12c).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x2e0 bytes: one result of the query
+    pub const SIZE: usize = 0x2e0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::lobby_query_results (0x2e0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct LobbyQueryResultStorage([u8; 0x2e0]);
+
+#[allow(dead_code)]
+impl LobbyQueryResultStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2e0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> LobbyQueryResult {
+        LobbyQueryResult(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<LobbyQueryResult> {
+        (!rooms.is_empty()).then(|| LobbyQueryResult(NonNull::from(rooms).cast()))
     }
 }
 
@@ -6100,7 +6178,7 @@ pub mod site {
         }
     }
 
-    /// lobby_client.squad_id (0x2747c3): read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client; both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here
+    /// lobby_client.squad_id (0x2747c3): read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here
     pub mod lobby_client_squad_id {
         #[allow(unused_imports)]
         use super::*;
@@ -6112,6 +6190,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
+        }
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
 

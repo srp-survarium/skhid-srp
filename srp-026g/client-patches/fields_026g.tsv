@@ -135,6 +135,9 @@ vostok::resources::user_data_slot	size	0x4	size	one pointer of the query's user 
 survarium::scenes_ready_frame	results	0x4	ptr<survarium::lobby_scene_results>	on_render_scenes_ready's argument, the query's results
 survarium::lobby_scene_results	scene	0x9CC	u32	the fourth result's resource (+12Ch of result 3, 2E0h each; 0x220DA2): 0 when its query failed
 survarium::lobby_scene_results	project	0x9CC	ptr<survarium::game_project_resource>	the same, as the lobby's project (its resource part, project+38h; 0x220DC7)
+survarium::lobby_scene_results	each	0x0	obj<survarium::lobby_query_result>	its eight results, 2E0h each, in the requests' order (on_render_scenes_ready reads result i's resource at +12Ch + 2E0h·i)
+survarium::lobby_query_result	resource	0x12C	u32	the result's resource: 0 when its request failed (a binary config not there)
+survarium::lobby_query_result	size	0x2E0	size	one result of the query
 survarium::game_project_resource	track	0x1AC	u32	the project's camera track (project+1E4h): on_render_scenes_ready calls its vtable+20h unchecked (0x220E80)
 survarium::lobby_menu	scene	0x114	obj<survarium::lobby_project_slot>	where it keeps its project (0x220E01; clear_resources 0x21D0DD)
 survarium::lobby_menu	track_player	0x118	obj<survarium::game_effect_player>	the player of its project's track (0x220E57: stopped, cleared, the track's effect played)

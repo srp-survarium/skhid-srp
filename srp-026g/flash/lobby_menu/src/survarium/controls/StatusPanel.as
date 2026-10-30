@@ -10,6 +10,7 @@ package survarium.controls
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
+   import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
@@ -49,6 +50,13 @@ package survarium.controls
       // dispatched when draw has laid the panel out (its exit and settings buttons placed): the
       // lobby draws those buttons above every modal where the panel draws them (LobbyMenu._corner)
       public static const LAID_OUT:String = "laidOut";
+
+      // dispatched by the lobby button (left of Settings): the lobby window opened or closed
+      // (LobbyMenu, exe patch 81, docs/notes/lobby-scenes.md)
+      public static const LOBBY_WINDOW:String = "lobbyWindow";
+
+      // the lobby button: the game's framed button, its label the dictionary's
+      public var btn_lobby:Button;
       
       private var _show_query:Boolean = true;
       
@@ -485,6 +493,7 @@ package survarium.controls
          panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
          panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
          constraints.addElement("btn_settings",this.btn_settings,Constraints.RIGHT);
+         this.makeLobbyButton();
          constraints.addElement("btn_off",this.btn_off,Constraints.RIGHT);
          constraints.addElement("mid_back",this.mid_back,Constraints.CENTER_H);
          constraints.addElement("panel_info_blog",this.panel_info_blog,Constraints.LEFT);
@@ -836,6 +845,32 @@ package survarium.controls
          ExternalInterface.call("power_off_button_click");
       }
       
+      // The lobby button, left of Settings, as tall as it.
+      private function makeLobbyButton() : void
+      {
+         var cls:Class = getDefinitionByName("SrvButtonSkinned") as Class;
+         this.btn_lobby = new cls() as Button;
+         this.btn_lobby.label = LocalizationData.getName("st_srp_lobby_title");
+         var w:Number = 90;
+         this.btn_lobby.setSize(w,32);
+         this.btn_lobby.x = this.btn_settings.x - w - 8;
+         this.btn_lobby.y = this.btn_settings.y + (this.btn_settings.height - 32) / 2;
+         addChild(this.btn_lobby);
+         constraints.addElement("btn_lobby",this.btn_lobby,Constraints.RIGHT);
+         this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
+         LocalizationData.addCallback(this.lobbyLabel,"st_srp_lobby_title");
+      }
+
+      private function lobbyLabel(text:String) : void
+      {
+         this.btn_lobby.label = text;
+      }
+
+      private function onClickLobby(e:ButtonEvent) : void
+      {
+         dispatchEvent(new Event(LOBBY_WINDOW));
+      }
+
       private function onClickSettings() : void
       {
          ExternalInterface.call("show_settings");

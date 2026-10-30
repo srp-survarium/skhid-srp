@@ -2402,6 +2402,11 @@ st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
 st_srp_loadout_title	Zestaw
 st_srp_loadout_unfit	nie do gry
+st_srp_lobby_basement	Piwnica
+st_srp_lobby_bunker	Bunkier
+st_srp_lobby_hangar	Hangar
+st_srp_lobby_room	Pokój
+st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto powstaje przy pierwszym logowaniu
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)

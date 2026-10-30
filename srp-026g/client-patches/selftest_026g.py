@@ -4025,10 +4025,10 @@ def test_language(original, image, before):
 
 
 def test_lobby_scene(original, image, before):
-    """Check 81: the lobby's scene follows the player's quest faction (the
-    squad commander's in a squad, 0xA1's srp byte), the player's own kept in
+    """Check 81: the lobby's scene is the player's pick (the lobby window's;
+    the squad commander's in a squad, 0xA1's srp bytes), the pick kept in
     user.cfg, a change swapped behind a fade at once (patch 81, the Rust
-    patch `lobby_scene`, ten lohooks of lobby_scene.toml: configs.start in a
+    patch `lobby_scene`, nine lohooks of lobby_scene.toml: configs.start in a
     chain after patch 79's, lobby_camera.view after patch 45's flight and
     the diagnostics' sweep; ../docs/notes/lobby-scenes.md).
     check_lobby_scene_026g.py runs each from the game's code on made-up
@@ -4051,12 +4051,6 @@ def test_lobby_scene(original, image, before):
           and rows(0x221E77, 3) == ["ret 0x4"],
           "lobby_menu::on_render_scenes_ready (0x220B20, ECX the menu, [esp+4] the results) reads result 3's "
           "resource at +9CCh unchecked and its project's track (+1E4h) unchecked; it returns at 0x221E77 (ret 4)")
-    check(rows(0x2717C2, 0x1B) == ["mov eax,[edi+0x4]", "mov cl,[eax]", "inc eax", "mov [edi+0x4],eax",
-                                    "movzx eax,cl", "pop esi", "mov [ebx+0x1ea998],eax", "pop ebp", "mov al,0x1",
-                                    "pop ebx", "pop ecx", "ret 0x4"]
-          and rows(0x225D00, 6) == ["mov edi,[eax+0x1ea998]"] and rows(0x21D428, 7) == ["cmp dword [eax+0x1ea998],byte +0x0"],
-          "the 0x8E handler (0x271740) keeps the message's last byte, the quest faction, at the lobby client's "
-          "+1EA998h (0x2717CF, EBX the client), which the faction's UI reads (0x225D00, 0x21D428)")
     check(rows(0x2747A8, 6) == ["mov [ebx+0x1eaaa4],ebp"]
           and rows(0x2747BC, 0x14) == ["cmp dword [ebx+0x1eaaa4],byte +0x0", "mov byte [ebx+0x1eaaac],0x0",
                                        "jz near 0x2748c2"]
@@ -4073,7 +4067,12 @@ def test_lobby_scene(original, image, before):
           "luminance (+275Ch, its t_current), then clears it (0x1B14F2): the reset patch 81 sets")
     check(rows(0x2277E1, 6) == ["mov ecx,[edi+0x690]"] and rows(0x227801, 9) == ["mov edx,[ecx+0x108]", "mov ecx,[edx+0x4]"],
           "fill_squad_info (EDI the lobby menu) invokes the lobby movie [[menu+690h]+108h]+4 (root.show_squad): "
-          "the movie srp_scene_fade is invoked on")
+          "the movie srp_scene_fade and srp_lobby_state are invoked on")
+    check(rows(0x28C982, 0xD) == ["push edx", "mov edx,[ecx]", "mov eax,[edx+0x3c]", "call eax", "call 0x270070"]
+          and rows(0x270075, 0x9) == ["mov edi,eax", "add edi,byte +0x8", "push byte +0x3b", "mov eax,edi"]
+          and rows(0x2700F5, 3) == ["ret 0x8"],
+          "the movie's request_players_range (0x28C960) sends 3B through the lobby client's 0x270070 (EAX the "
+          "client, [esp+4] the start, [esp+8] the count; ret 8): the exe's own pick at the sign-in goes so")
     vtable = lambda at, n: list(struct.unpack(f"<{n}I", stock.read(at, 4 * n)))
     check(rows(0x21D2E0, 6) == rows(0x21D4A0, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"]
           and vtable(0x9FFE74, 2) == [0x21D2E0, 0x21D4A0] and vtable(0x9FFE74 + 0x28, 1) == [0x21D080],
@@ -4114,18 +4113,18 @@ def test_lobby_scene(original, image, before):
     heads = {h["site_name"]: h for h in every if h.get("chain")}
     linked = P.arena()
     block = linked.blocks["patches.code"]
-    check(sorted(hooks) == ["configs.start", "game.clear_resources", "lobby_camera.view", "lobby_client.faction",
-                            "lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.activate",
-                            "lobby_menu.deactivate", "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
+    check(sorted(hooks) == ["configs.start", "game.clear_resources", "lobby_camera.view", "lobby_client.squad_id",
+                            "lobby_client.squad_read", "lobby_menu.activate", "lobby_menu.deactivate",
+                            "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
           and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "lobby_scene"]
           and heads["configs.start"]["chain"][-1]["shim"] == hooks["configs.start"]["shim"]
           and [m["patch"] for m in heads["lobby_camera.view"]["chain"]] == ["weapon_flight", "camera_sweep", "lobby_scene"]
           and heads["lobby_camera.view"]["chain"][-1]["shim"] == hooks["lobby_camera.view"]["shim"],
-          "lobby_scene.toml's ten hooks are lohooks; at configs.start in the chain after patch 79's handler "
+          "lobby_scene.toml's nine hooks are lohooks; at configs.start in the chain after patch 79's handler "
           "(one entry, language's, calls both shims); at lobby_camera.view the last of the chain after patch 45's "
           "flight and the diagnostics' sweep")
-    for site in ("lobby_client.faction", "lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
+    for site in ("lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
                  "lobby_menu.scenes_ready",
                  "lobby_menu.activate", "lobby_menu.deactivate", "game.clear_resources"):
         h = hooks[site]

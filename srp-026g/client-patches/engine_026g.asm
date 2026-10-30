@@ -62,6 +62,7 @@ global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
 global engine_lobby_query_resources
+global engine_lobby_query_players_range
 global engine_project_remove
 global engine_project_insert
 global engine_project_on_inserted
@@ -871,6 +872,23 @@ engine_lobby_query_resources:
     push edi
     mov eax, [esp + 20]   ; menu
     call 0x21e450
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_lobby_query_players_range:
+    ; 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; count -> 8
+    push dword [esp + 28]   ; start -> 4
+    mov eax, [esp + 28]   ; client
+    call 0x270070
     pop edi
     pop esi
     pop ebx

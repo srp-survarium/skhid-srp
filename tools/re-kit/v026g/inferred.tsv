@@ -1636,7 +1636,6 @@ va	status	ref_021d	name
 0x0026fc60	inferred-medium		survarium::lobby_client::find_inventory_item
 0x0026fe20	inferred-medium	0x0019d532	survarium::lobby_client::query_info_from_server
 0x0026ff00	inferred-medium	0x0019d672	survarium::lobby_client::query_player_match_stats
-0x00270070	inferred-medium	0x0019d75f	survarium::lobby_client::query_elo_players
 0x00270260	inferred-medium		survarium::lobby_client::process_own_account
 0x00270320	inferred-medium		survarium::lobby_client::copy_account_items
 0x00270390	inferred-high		survarium::inventory_item_descr::operator=

@@ -1,35 +1,35 @@
-//! Patch 81: the lobby's scene follows the player's quest faction
-//! (docs/notes/lobby-scenes.md): Renaissance the classic, the Black Market
-//! the S.T.A.L.K.E.R. 2 bunker, the Scavengers the 0.69d camp, the Edge
-//! the 0.46c2 hangar; no faction yet (no saved value) the Scavengers. In a
-//! squad the lobby is the commander's faction's (`0xA1`'s srp byte,
-//! `lobby_client.squad_read`), out of one the player's own.
+//! Patch 81: the lobby's scene is the one the player picks in the lobby
+//! window (docs/notes/lobby-scenes.md): the Room (the 0.69d camp, the
+//! default), the Basement (the classic), the Bunker (S.T.A.L.K.E.R. 2) or
+//! the Hangar (0.46c2). In a squad the lobby is its commander's pick.
 //!
-//! The lobby menu asks for its scene once, at the game's start, before the
-//! sign-in: the faction is not known yet (the network client is made in the
-//! scene's own callback). So the faction the server gives (`0x8E`, at the
-//! sign-in and after a change: `lobby_client.faction`) is kept in user.cfg
-//! as the console variable `srp_lobby_faction`, registered before user.cfg
-//! runs (`configs.start`, after patch 79's handler), and the next start shows
-//! its lobby: the faction's lobby takes the classic's place in the scene's
-//! query (`lobby_menu.scene_request`). A project whose config is missing
-//! would crash the project's cook, so another lobby than the classic is
-//! first asked as its config alone: when the results come
+//! The pick is kept in user.cfg as the console variable `srp_lobby`
+//! (registered before user.cfg runs, `configs.start`, after patch 79's
+//! handler), and the start shows it: its lobby takes the classic's place in
+//! the scene's query (`lobby_menu.scene_request`). A project whose config is
+//! missing would crash the project's cook, so another lobby than the
+//! classic is first asked as its config alone: when the results come
 //! (`lobby_menu.scenes_ready`) the query is asked again, with the lobby's
 //! project when its config is there, else with the classic's. A project
 //! without its camera track is the classic too.
 //!
-//! A change during a session (a faction chosen, a squad joined or left, its
-//! commander's change) shows at once: the lobby's tick
-//! (`lobby_camera.view`) asks the lobby's project alone while the old one is
-//! drawn; when it is in, the scene fades to black (the lobby movie's
-//! `srp_scene_fade`, under every panel), the project is put in the old one's
-//! place, the eye adaptation is reset and the camera is put at its stock
-//! pose, a few frames are drawn behind the black, and the scene fades in.
-//! A lobby that is not there keeps the one shown, with no fade. A match
-//! entered (`lobby_menu.deactivate`) puts a project that came in at once;
-//! results once the game closes (`game.clear_resources`) are let go. One
-//! enum, [`Scene`], and one transition function, [`Scene::step`].
+//! The lobby window sends a pick to srp itself (the movie's `3B` at
+//! `2 095 000 000 + id`); srp sends it back in `0xA1` with the squad
+//! commander's (two bytes after the squad, `lobby_client.squad_id` and
+//! `lobby_client.squad_read`); the exe sends the saved pick when srp has none
+//! (the sign-in). The lobby wanted is the commander's pick in a squad, the
+//! player's own out of one.
+//!
+//! A change shows at once: the lobby's tick (`lobby_camera.view`) asks the
+//! lobby's config alone while the old lobby is drawn; when it is there the
+//! scene fades to black (the lobby movie's `srp_scene_fade`, under every
+//! panel, the loading spinner on it), its project is asked and put in the
+//! old one's place behind the black, the eye adaptation is reset and the
+//! camera put at its stock pose, a few frames are drawn behind the black,
+//! and the scene fades in. A lobby not there keeps the one shown, with no
+//! fade. A match entered (`lobby_menu.deactivate`) puts a project that comes
+//! in at once; results once the game closes (`game.clear_resources`) are let
+//! go. One enum, [`Scene`], and one transition function, [`Scene::step`].
 
 #![forbid(unsafe_code)]
 
@@ -37,69 +37,69 @@ use core::ffi::CStr;
 
 use crate::vostok::language::{ConsoleString, save_user_config};
 use crate::vostok::lobby::{
-    DrawnLobby, Fade, HiddenLobby, SceneQuery, SceneRequest, ScenesReady, SquadId, SquadRead, arrived_faction,
-    release_held,
+    DrawnLobby, HiddenLobby, Picks, SceneQuery, SceneRequest, ScenesReady, Shade, SquadId, SquadRead,
 };
 use crate::vostok::lobby_camera::LobbyCamera;
+use crate::vostok::clock;
+use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit, Thread};
-
-/// A quest faction (factions_dict; the server's `faction::` ids).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Faction {
-    Scavengers,
-    BlackMarket,
-    Renaissance,
-    Edge,
-}
-
-impl Faction {
-    /// The faction of a factions_dict id; 0 (none chosen yet) and any
-    /// other are the Scavengers (the owner, 2026-10-30: "no faction falls
-    /// back to scavengers"; no account can switch to none).
-    pub fn of_id(id: u8) -> Faction {
-        match id {
-            2 => Faction::BlackMarket,
-            3 => Faction::Renaissance,
-            4 => Faction::Edge,
-            _ => Faction::Scavengers,
-        }
-    }
-
-    /// Its id as user.cfg keeps it (one decimal digit).
-    pub fn saved(self) -> &'static [u8] {
-        match self {
-            Faction::Scavengers => b"1",
-            Faction::BlackMarket => b"2",
-            Faction::Renaissance => b"3",
-            Faction::Edge => b"4",
-        }
-    }
-
-    /// The faction a saved value names; no value or any other text the
-    /// Scavengers, as no faction.
-    pub fn parse(saved: &[u8]) -> Faction {
-        match saved {
-            [digit @ b'0'..=b'9'] => Faction::of_id(digit - b'0'),
-            _ => Faction::Scavengers,
-        }
-    }
-}
 
 /// A lobby scene.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lobby {
-    /// The 0.26g lobby, `lobby_scene/day` (the stock game's).
-    Classic,
-    /// The S.T.A.L.K.E.R. 2 (2012) bunker.
-    Stk2Bunker,
-    /// The 0.46c2 hangar.
-    Hangar046,
-    /// The 0.69d tent camp.
+    /// The Room: the 0.69d camp's room, the default.
     Camp069,
+    /// The Basement: the 0.26g lobby, `lobby_scene/day` (the stock game's).
+    Classic,
+    /// The Bunker: the S.T.A.L.K.E.R. 2 (2012) bomb shelter.
+    Stk2Bunker,
+    /// The Hangar: the 0.46c2 hangar.
+    Hangar046,
 }
 
 impl Lobby {
-    pub const ALL: [Lobby; 4] = [Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Camp069];
+    /// In the window's order (and the ids' 1 to 4).
+    pub const ALL: [Lobby; 4] = [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046];
+
+    /// Its id: user.cfg's `srp_lobby`, the lobby window's card, srp's
+    /// `3B` start (`2 095 000 000 + id`) and `0xA1`'s bytes (0 none).
+    pub fn id(self) -> u8 {
+        match self {
+            Lobby::Camp069 => 1,
+            Lobby::Classic => 2,
+            Lobby::Stk2Bunker => 3,
+            Lobby::Hangar046 => 4,
+        }
+    }
+
+    /// The lobby of an id (none for 0 and any other).
+    pub fn of_id(id: u8) -> Option<Lobby> {
+        Lobby::ALL.into_iter().find(|lobby| lobby.id() == id)
+    }
+
+    /// The pick a saved value names; no value or any other text the Room.
+    pub fn parse(saved: &[u8]) -> Lobby {
+        match saved {
+            [digit @ b'0'..=b'9'] => Lobby::of_id(digit - b'0').unwrap_or(Lobby::Camp069),
+            _ => Lobby::Camp069,
+        }
+    }
+
+    /// srp's `3B` start of its pick (the server's `lobby_pick::LOBBY_PICK_BASE`
+    /// + its id).
+    pub fn pick_start(self) -> u32 {
+        PICK_BASE + u32::from(self.id())
+    }
+
+    /// Its value as user.cfg keeps it (one decimal digit).
+    pub fn saved(self) -> &'static [u8] {
+        match self {
+            Lobby::Camp069 => b"1",
+            Lobby::Classic => b"2",
+            Lobby::Stk2Bunker => b"3",
+            Lobby::Hangar046 => b"4",
+        }
+    }
 
     /// Its project, as the lobby's query names it.
     pub fn project(self) -> &'static CStr {
@@ -120,17 +120,36 @@ impl Lobby {
             Lobby::Camp069 => c"resources/projects/lobby_scene/camp_069/client_project",
         }
     }
+}
 
-    /// The lobby of a faction, one per faction (the owner, 2026-10-29: "different ones should be
-    /// for different factions", "the current one is for army"; 2026-10-30: the Black Market the
-    /// STK2 bunker, the Edge the hangar).
-    pub fn of_faction(faction: Faction) -> Lobby {
-        match faction {
-            Faction::Renaissance => Lobby::Classic,
-            Faction::BlackMarket => Lobby::Stk2Bunker,
-            Faction::Scavengers => Lobby::Camp069,
-            Faction::Edge => Lobby::Hangar046,
-        }
+/// srp's start of a lobby pick (`3B`; its `lobby_pick::LOBBY_PICK_BASE`,
+/// 2 095 000 000): a ranking start, not an address, so made of small
+/// numbers for the layers' check of literals.
+pub const PICK_BASE: u32 = 2095 * 1000 * 1000;
+
+/// Lobbies whose packs are there (a bit an id).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Lobbies(u8);
+
+impl Lobbies {
+    pub const ALL: Lobbies = Lobbies(0b1111);
+
+    pub fn of(found: impl Fn(Lobby) -> bool) -> Lobbies {
+        Lobbies(Lobby::ALL.into_iter().filter(|&lobby| found(lobby)).fold(0, |bits, lobby| bits | 1 << (lobby.id() - 1)))
+    }
+
+    pub fn has(self, lobby: Lobby) -> bool {
+        self.0 & 1 << (lobby.id() - 1) != 0
+    }
+
+    /// Without `lobby` (its pack found missing).
+    pub fn without(self, lobby: Lobby) -> Lobbies {
+        Lobbies(self.0 & !(1 << (lobby.id() - 1)))
+    }
+
+    /// As the lobby window takes it (bit `id - 1`).
+    pub fn bits(self) -> u32 {
+        u32::from(self.0)
     }
 }
 
@@ -168,45 +187,37 @@ impl Ask {
     }
 }
 
-
 /// The player's squad as `0xA1` gives it (read once, at
-/// `lobby_client.squad_read`).
+/// `lobby_client.squad_id` and `lobby_client.squad_read`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Squad {
-    /// In no squad (squad id 0).
+    /// In no squad, or its commander picked none.
     None,
-    /// In one, led by a commander of this quest faction (srp's last byte).
-    Led(Faction),
+    /// In one, its commander's pick this lobby.
+    Led(Lobby),
 }
 
 impl Squad {
-    /// The squad of a squad id and srp's last byte (none when the message
-    /// has no such byte: a squad of an srp before it, the player's own lobby).
-    pub fn of(squad_id: u32, commander_faction: Option<u8>) -> Squad {
-        match (squad_id, commander_faction) {
-            (0, _) | (_, None) => Squad::None,
-            (_, Some(id)) => Squad::Led(Faction::of_id(id)),
-        }
-    }
-
-    /// The lobby shown: the commander's faction's in a squad (the owner,
-    /// 2026-10-30: "when someone joins your squad, they go into your lobby"),
-    /// the player's own out of one.
-    pub fn lobby(self, own: Faction) -> Lobby {
+    /// The lobby shown: the commander's pick in a squad (the owner,
+    /// 2026-10-30: "when someone joins your squad, they go into your
+    /// lobby"), the player's own out of one.
+    pub fn lobby(self, own: Lobby) -> Lobby {
         match self {
-            Squad::None => Lobby::of_faction(own),
-            Squad::Led(commander) => Lobby::of_faction(commander),
+            Squad::None => own,
+            Squad::Led(commander) => commander,
         }
     }
 }
 
-/// The fade to black, in seconds (the movie's tween is as long).
+/// The fade to black, in seconds of the lobby's frames.
 pub const FADE_OUT: f32 = 0.25;
 /// The fade from black.
 pub const FADE_IN: f32 = 0.4;
+/// The most of a frame a fade steps by: after a stall the fade still plays
+/// over its frames.
+pub const FADE_STEP: f32 = 1.0 / 30.0;
 /// The frames the new lobby is drawn behind the black before it fades in
-/// (its first frames, the eye adaptation's reset taken: lobby-scenes.md,
-/// "A change shown at once").
+/// (its first frames; the eye adaptation's reset taken).
 pub const HOLD_FRAMES: u8 = 6;
 
 /// Whether the lobby's scene is on screen.
@@ -225,20 +236,20 @@ pub enum View {
 /// Where a change of lobby is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Change {
-    /// The lobby shown is the one wanted.
+    /// The lobby shown is the one wanted (or the wanted one is not there).
     Settled,
-    /// `lobby` is wanted and not there (its pack or project missing): the
-    /// one shown stays until another is wanted.
-    Missing { lobby: Lobby },
-    /// The lobby's query asks `ask` for `wanted`; the old lobby is drawn.
-    Loading { wanted: Lobby, ask: Ask },
-    /// `to`'s project is held (vostok::lobby's), the scene fading to black;
-    /// `left` s of the fade to go.
-    Fading { to: Lobby, left: f32 },
-    /// The new lobby put in, drawn behind the black `frames` more frames.
+    /// The census's query out: which lobbies' packs are there.
+    Census,
+    /// `wanted`'s config asked alone, the old lobby drawn.
+    Probing { wanted: Lobby },
+    /// The scene fading to black, `to` next; `black` of the way (0 to 1).
+    Darkening { to: Lobby, black: f32 },
+    /// Behind the black, the query asks `ask` for `to`.
+    Loading { to: Lobby, ask: Ask },
+    /// The new lobby in, drawn behind the black `frames` more frames.
     Holding { frames: u8 },
-    /// The scene fading in, `left` s to go.
-    Appearing { left: f32 },
+    /// The scene fading in, `black` of the way left.
+    Brightening { black: f32 },
 }
 
 /// Where the lobby's scene is.
@@ -247,21 +258,23 @@ pub enum Scene {
     /// The lobby menu has not asked for it.
     Unasked,
     /// The start: the lobby menu's own query asks this (and the lobby menu
-    /// takes the project); `wanted` the lobby the start is for.
-    Starting { wanted: Lobby, ask: Ask },
-    /// The lobby menu has the lobby `shown`.
-    Loaded { shown: Lobby, view: View, change: Change },
+    /// takes the project).
+    Starting(Ask),
+    /// The lobby menu has the lobby `shown`; `there` the lobbies whose packs
+    /// are there (none: not looked for yet, the first frame's census).
+    Loaded { shown: Lobby, view: View, change: Change, there: Option<Lobbies> },
 }
 
 /// What happens to the lobby's scene. `wanted` is the lobby wanted at that
-/// moment ([`Squad::lobby`] of the saved faction and the squad).
+/// moment ([`Squad::lobby`] of the saved pick and the squad).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
     /// The lobby menu builds its query (`lobby_menu.scene_request`).
     Query { wanted: Lobby },
     /// Its results are in (`lobby_menu.scenes_ready`); `loaded`: the
-    /// project's place holds what was asked, usable (ScenesReady::loaded).
-    Ready { loaded: bool, wanted: Lobby },
+    /// project's place holds what was asked, usable (ScenesReady::loaded);
+    /// `found`: for a census, the lobbies whose configs came.
+    Ready { loaded: bool, found: Lobbies, wanted: Lobby },
     /// A frame of the lobby drawn, `dt` s (`lobby_camera.view`).
     Tick { dt: f32, wanted: Lobby },
     /// The lobby is no longer drawn (`lobby_menu.deactivate`: a match).
@@ -284,185 +297,249 @@ pub enum Action {
     /// A change's query: this in the project's place, the lobby's config
     /// (`filler`) in every other.
     AskAlone { request: SceneRequest, filler: Lobby },
+    /// The census's query: every lobby's config.
+    AskCensus,
     /// The results let go, the query asked again.
     AskAgain,
     /// The results let go.
     LetGo,
-    /// The lobby's query asked (a change's first).
+    /// The lobby's query asked.
     Query,
-    /// The results' project held, the results let go, the scene's fade to
-    /// black begun.
-    Hold,
-    /// The results' project put in the lobby menu's at once (the lobby not
-    /// drawn).
+    /// The black at `per_mille` of its way, the loading spinner on it or not.
+    Shade { per_mille: u32, loading: bool },
+    /// The black whole and the spinner on it, the lobby's query asked.
+    ShadeAndQuery,
+    /// The results' project put in the lobby menu's (behind the black, or
+    /// the lobby not drawn), the eye adaptation reset and the camera at its
+    /// stock pose.
     SwapIn,
-    /// The held project put in, the eye adaptation reset, the camera at its
-    /// stock pose (behind the black).
-    Swap,
-    /// The eye adaptation reset again and the scene's fade from black begun.
-    FadeIn,
-    /// The held project put in and the fade gone at once (a match entered).
-    SwapHidden,
-    /// The fade gone at once (a match entered behind the black).
-    ClearFade,
-    /// The held project let go (the game closing).
-    Release,
+    /// The black whole, the spinner off, the eye adaptation reset again.
+    Reset,
+    /// The black gone at once.
+    Clear,
+    /// The results' project put in and the black gone at once (a match
+    /// entered).
+    SwapAndClear,
+}
+
+/// The black's per mille of `black` (0 to 1).
+fn per_mille(black: f32) -> u32 {
+    (black.clamp(0.0, 1.0) * 1000.0) as u32
 }
 
 impl Scene {
     /// What its query asked in the project's place, when it is this
-    /// patch's.
+    /// patch's (none for a census: its own list).
     pub fn asked(self) -> Option<SceneRequest> {
         match self {
-            Scene::Starting { ask, .. } | Scene::Loaded { change: Change::Loading { ask, .. }, .. } => Some(ask.request()),
+            Scene::Starting(ask) | Scene::Loaded { change: Change::Loading { ask, .. }, .. } => Some(ask.request()),
+            Scene::Loaded { change: Change::Probing { wanted }, .. } => Some(Ask::Config(wanted).request()),
             Scene::Unasked | Scene::Loaded { .. } => None,
         }
     }
 
     /// The machine: the next scene and what the site does, for every scene
-    /// and every event. A project is put in behind the black or while the
-    /// lobby is not drawn; one change at a time, the last wanted lobby the
-    /// next.
+    /// and every event. A project is put in only behind the black or while
+    /// the lobby is not drawn; one change at a time, the last wanted lobby
+    /// the next.
     pub fn step(self, event: Event) -> (Scene, Action) {
         use Scene::{Loaded, Starting, Unasked};
         match (self, event) {
-            (Unasked, Event::Query { wanted }) => {
-                let ask = Ask::first(wanted);
-                (Starting { wanted, ask }, Action::Ask(ask.request()))
+            (Unasked, Event::Query { wanted }) => (Starting(Ask::first(wanted)), Action::Ask(Ask::first(wanted).request())),
+            (Starting(ask), Event::Query { .. }) => (self, Action::Ask(ask.request())),
+            (Loaded { change: Change::Census, .. }, Event::Query { .. }) => (self, Action::AskCensus),
+            (Loaded { change: Change::Probing { wanted }, .. }, Event::Query { .. }) => {
+                (self, Action::AskAlone { request: Ask::Config(wanted).request(), filler: wanted })
             }
-            (Starting { ask, .. }, Event::Query { .. }) => (self, Action::Ask(ask.request())),
             (Loaded { change: Change::Loading { ask, .. }, .. }, Event::Query { .. }) => {
                 (self, Action::AskAlone { request: ask.request(), filler: ask.lobby() })
             }
             (Loaded { .. }, Event::Query { .. }) => (self, Action::Original),
 
             (Unasked, Event::Ready { .. }) => (self, Action::Original),
-            (Starting { wanted, ask: Ask::Config(lobby) }, Event::Ready { loaded, .. }) => {
-                let ask = Ask::Project(if loaded { lobby } else { Lobby::Classic });
-                (Starting { wanted, ask }, Action::AskAgain)
+            (Starting(Ask::Config(lobby)), Event::Ready { loaded, .. }) => {
+                (Starting(Ask::Project(if loaded { lobby } else { Lobby::Classic })), Action::AskAgain)
             }
-            (Starting { wanted, ask: Ask::Project(lobby) }, Event::Ready { loaded, .. }) if loaded || lobby == Lobby::Classic => {
-                let change = if lobby == wanted { Change::Settled } else { Change::Missing { lobby: wanted } };
-                (Loaded { shown: lobby, view: View::Drawn, change }, Action::Original)
+            (Starting(Ask::Project(lobby)), Event::Ready { loaded, .. }) if loaded || lobby == Lobby::Classic => {
+                (Loaded { shown: lobby, view: View::Drawn, change: Change::Settled, there: None }, Action::Original)
             }
-            (Starting { wanted, ask: Ask::Project(_) }, Event::Ready { .. }) => {
-                (Starting { wanted, ask: Ask::Project(Lobby::Classic) }, Action::AskAgain)
-            }
-            (Loaded { shown, view, change: Change::Loading { wanted: asked_for, ask } }, Event::Ready { loaded, wanted }) => {
-                let at = |change| Loaded { shown, view, change };
-                match ask {
-                    _ if view == View::Closed => (at(Change::Settled), Action::LetGo),
-                    _ if asked_for != wanted && wanted == shown => (at(Change::Settled), Action::LetGo),
-                    _ if asked_for != wanted => (at(Change::Loading { wanted, ask: Ask::first(wanted) }), Action::AskAgain),
-                    Ask::Config(lobby) if loaded => (at(Change::Loading { wanted, ask: Ask::Project(lobby) }), Action::AskAgain),
-                    Ask::Project(lobby) if loaded => match view {
-                        View::Drawn => (at(Change::Fading { to: lobby, left: FADE_OUT }), Action::Hold),
-                        View::Hidden | View::Closed => (Loaded { shown: lobby, view, change: Change::Settled }, Action::SwapIn),
-                    },
-                    Ask::Config(_) | Ask::Project(_) => (at(Change::Missing { lobby: wanted }), Action::LetGo),
-                }
-            }
-            (Loaded { .. }, Event::Ready { .. }) => (self, Action::Original),
-
-            (Loaded { shown, view: View::Drawn, change }, Event::Tick { dt, wanted }) => {
-                let at = |change| Loaded { shown, view: View::Drawn, change };
-                let load = || (at(Change::Loading { wanted, ask: Ask::first(wanted) }), Action::Query);
+            (Starting(Ask::Project(_)), Event::Ready { .. }) => (Starting(Ask::Project(Lobby::Classic)), Action::AskAgain),
+            (Loaded { shown, view, change, there }, Event::Ready { loaded, found, wanted }) => {
+                let at = |change, there| Loaded { shown, view, change, there };
                 match change {
-                    Change::Settled | Change::Missing { .. } if wanted == shown => (at(Change::Settled), Action::Original),
-                    Change::Missing { lobby } if lobby == wanted => (self, Action::Original),
-                    Change::Settled | Change::Missing { .. } => load(),
-                    Change::Loading { .. } => (self, Action::Original),
-                    Change::Fading { to, left } if left > dt => (at(Change::Fading { to, left: left - dt }), Action::Original),
-                    Change::Fading { to, .. } => {
-                        (Loaded { shown: to, view: View::Drawn, change: Change::Holding { frames: HOLD_FRAMES } }, Action::Swap)
+                    _ if view == View::Closed => match change {
+                        Change::Census | Change::Probing { .. } | Change::Loading { .. } => {
+                            (at(Change::Settled, there), Action::LetGo)
+                        }
+                        _ => (self, Action::Original),
+                    },
+                    Change::Census => (at(Change::Settled, Some(found)), Action::LetGo),
+                    Change::Probing { wanted: asked } if asked != wanted && wanted == shown => {
+                        (at(Change::Settled, there), Action::LetGo)
                     }
-                    Change::Holding { frames } if frames > 1 => (at(Change::Holding { frames: frames - 1 }), Action::Original),
-                    Change::Holding { .. } => (at(Change::Appearing { left: FADE_IN }), Action::FadeIn),
-                    Change::Appearing { left } if left > dt => (at(Change::Appearing { left: left - dt }), Action::Original),
-                    Change::Appearing { .. } => (at(Change::Settled), Action::Original),
+                    Change::Probing { wanted: asked } if asked != wanted => {
+                        (at(Change::Probing { wanted }, there), Action::AskAgain)
+                    }
+                    Change::Probing { wanted } if loaded => match view {
+                        View::Drawn => (at(Change::Darkening { to: wanted, black: 0.0 }, there), Action::LetGo),
+                        View::Hidden | View::Closed => {
+                            (at(Change::Loading { to: wanted, ask: Ask::Project(wanted) }, there), Action::AskAgain)
+                        }
+                    },
+                    Change::Probing { wanted } => (at(Change::Settled, there.map(|t| t.without(wanted))), Action::LetGo),
+                    Change::Loading { to, .. } if to != wanted && wanted == shown => {
+                        (at(Change::Brightening { black: 1.0 }, there), Action::Reset)
+                    }
+                    Change::Loading { to, .. } if to != wanted => {
+                        (at(Change::Loading { to: wanted, ask: Ask::first(wanted) }, there), Action::AskAgain)
+                    }
+                    Change::Loading { to, ask: Ask::Config(_) } if loaded => {
+                        (at(Change::Loading { to, ask: Ask::Project(to) }, there), Action::AskAgain)
+                    }
+                    Change::Loading { to, ask: Ask::Project(_) } if loaded => match view {
+                        View::Drawn => {
+                            (Loaded { shown: to, view, change: Change::Holding { frames: HOLD_FRAMES }, there }, Action::SwapIn)
+                        }
+                        View::Hidden | View::Closed => {
+                            (Loaded { shown: to, view, change: Change::Settled, there }, Action::SwapAndClear)
+                        }
+                    },
+                    Change::Loading { to, .. } => {
+                        let there = there.map(|t| t.without(to));
+                        match view {
+                            View::Drawn => (at(Change::Brightening { black: 1.0 }, there), Action::Reset),
+                            View::Hidden | View::Closed => (at(Change::Settled, there), Action::LetGo),
+                        }
+                    }
+                    Change::Settled | Change::Darkening { .. } | Change::Holding { .. } | Change::Brightening { .. } => {
+                        (self, Action::Original)
+                    }
                 }
             }
-            (Unasked | Starting { .. } | Loaded { .. }, Event::Tick { .. }) => (self, Action::Original),
+
+            (Loaded { shown, view: View::Drawn, change, there }, Event::Tick { dt, wanted }) => {
+                let at = |change| Loaded { shown, view: View::Drawn, change, there };
+                let step = dt.min(FADE_STEP);
+                match change {
+                    Change::Settled if there.is_none() => (at(Change::Census), Action::Query),
+                    Change::Settled if wanted != shown && there.is_some_and(|t| t.has(wanted)) => {
+                        (at(Change::Probing { wanted }), Action::Query)
+                    }
+                    Change::Settled | Change::Census | Change::Probing { .. } | Change::Loading { .. } => {
+                        (self, Action::Original)
+                    }
+                    Change::Darkening { to, black } if black + step / FADE_OUT < 1.0 => {
+                        let black = black + step / FADE_OUT;
+                        (at(Change::Darkening { to, black }), Action::Shade { per_mille: per_mille(black), loading: false })
+                    }
+                    Change::Darkening { to, .. } => (at(Change::Loading { to, ask: Ask::Project(to) }), Action::ShadeAndQuery),
+                    Change::Holding { frames } if frames > 1 => (at(Change::Holding { frames: frames - 1 }), Action::Original),
+                    Change::Holding { .. } => (at(Change::Brightening { black: 1.0 }), Action::Reset),
+                    Change::Brightening { black } if black - step / FADE_IN > 0.0 => {
+                        let black = black - step / FADE_IN;
+                        (at(Change::Brightening { black }), Action::Shade { per_mille: per_mille(black), loading: false })
+                    }
+                    Change::Brightening { .. } => (at(Change::Settled), Action::Clear),
+                }
+            }
+            (Unasked | Starting(_) | Loaded { .. }, Event::Tick { .. }) => (self, Action::Original),
 
             (Loaded { view: View::Closed, .. }, Event::Hidden | Event::Shown | Event::Closing) => (self, Action::Original),
-            (Loaded { shown, change, .. }, Event::Closing) => match change {
-                Change::Fading { .. } => (Loaded { shown, view: View::Closed, change: Change::Settled }, Action::Release),
-                Change::Loading { .. } => (Loaded { shown, view: View::Closed, change }, Action::Original),
-                Change::Settled | Change::Missing { .. } | Change::Holding { .. } | Change::Appearing { .. } => {
-                    (Loaded { shown, view: View::Closed, change: Change::Settled }, Action::Original)
-                }
-            },
-            (Unasked | Starting { .. }, Event::Closing) => (self, Action::Original),
-            (Loaded { shown, change, .. }, Event::Hidden) => {
-                let hidden = |shown, change| Loaded { shown, view: View::Hidden, change };
+            (Loaded { shown, change, there, .. }, Event::Closing) => {
+                let change = match change {
+                    Change::Census | Change::Probing { .. } | Change::Loading { .. } => change,
+                    _ => Change::Settled,
+                };
+                (Loaded { shown, view: View::Closed, change, there }, Action::Original)
+            }
+            (Unasked | Starting(_), Event::Closing) => (self, Action::Original),
+            (Loaded { shown, change, there, .. }, Event::Hidden) => {
+                let hidden = |change| Loaded { shown, view: View::Hidden, change, there };
                 match change {
-                    Change::Fading { to, .. } => (hidden(to, Change::Settled), Action::SwapHidden),
-                    Change::Holding { .. } | Change::Appearing { .. } => (hidden(shown, Change::Settled), Action::ClearFade),
-                    Change::Settled | Change::Missing { .. } | Change::Loading { .. } => (hidden(shown, change), Action::Original),
+                    Change::Darkening { .. } | Change::Holding { .. } | Change::Brightening { .. } => {
+                        (hidden(Change::Settled), Action::Clear)
+                    }
+                    Change::Settled | Change::Census | Change::Probing { .. } | Change::Loading { .. } => {
+                        (hidden(change), Action::Original)
+                    }
                 }
             }
-            (Unasked | Starting { .. }, Event::Hidden) => (self, Action::Original),
+            (Unasked | Starting(_), Event::Hidden) => (self, Action::Original),
 
-            (Loaded { shown, change, .. }, Event::Shown) => (Loaded { shown, view: View::Drawn, change }, Action::Original),
-            (Unasked | Starting { .. }, Event::Shown) => (self, Action::Original),
+            (Loaded { shown, change, there, .. }, Event::Shown) => (Loaded { shown, view: View::Drawn, change, there }, Action::Original),
+            (Unasked | Starting(_), Event::Shown) => (self, Action::Original),
         }
     }
 }
 
-/// The last quest faction the server gave, as user.cfg keeps it
-/// (`srp_lobby_faction <id>`): the player's own lobby, and the next start's.
+/// The player's pick as user.cfg keeps it (`srp_lobby <id>`): its own
+/// lobby, and the start's.
 static SAVED: ConsoleString<4> = ConsoleString::new();
 
 /// The squad `0xA1` last gave (none until it comes: a start's lobby is the
-/// saved faction's).
+/// saved pick's).
 static SQUAD: GameCell<Squad> = GameCell::new(Squad::None);
 
 static SCENE: GameCell<Scene> = GameCell::new(Scene::Unasked);
 
+/// What the lobby window was last told (the pick, the lobby shown, the
+/// lobbies there), none before the first.
+static TOLD: GameCell<Option<[u32; 3]>> = GameCell::new(None);
+
 pub fn on_configs_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    SAVED.register(ctx.thread(), c"srp_lobby_faction");
+    SAVED.register(ctx.thread(), c"srp_lobby");
     Flow::Continue
 }
 
-/// Keeps the player's own faction for the next start (user.cfg written at
-/// once when it is another than the saved one).
-fn save(thread: &Thread, faction: Faction) {
-    if Faction::parse(SAVED.get(thread)) != faction {
-        SAVED.set(thread, faction.saved());
+/// The player's own pick.
+fn own(thread: &Thread) -> Lobby {
+    Lobby::parse(SAVED.get(thread))
+}
+
+/// Keeps the player's own pick (user.cfg written at once when it is
+/// another than the saved one).
+fn save(thread: &Thread, lobby: Lobby) {
+    if own(thread) != lobby {
+        SAVED.set(thread, lobby.saved());
         save_user_config(thread);
     }
 }
 
-/// A faction from the server (`0x8E`): the player's own; its lobby shown
-/// at the next tick when no squad's is.
-pub fn on_faction(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    save(ctx.thread(), Faction::of_id(arrived_faction(ctx)));
-    Flow::Continue
+/// srp's picks of a `0xA1`: the own one kept (srp has none: the saved one
+/// sent, the sign-in's), the commander's the squad's lobby.
+fn take_picks(thread: &Thread, picks: Picks, send: impl FnOnce(Lobby)) {
+    match Lobby::of_id(picks.own) {
+        Some(lobby) => save(thread, lobby),
+        None => send(own(thread)),
+    }
+    SQUAD.set(thread, Lobby::of_id(picks.commander).map_or(Squad::None, Squad::Led));
 }
 
-/// `0xA1` with its squad id read: none (0) is out of a squad, the player's
-/// own lobby shown at the next tick (a squad's id goes on to `on_squad`).
+/// `0xA1` with its squad id read: none (0) is out of a squad, its picks
+/// after the id (a squad's go on to `on_squad`).
 pub fn on_squad_id(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if SquadId::at(ctx).is_some_and(|id| id.get() == 0) {
-        SQUAD.set(ctx.thread(), Squad::None);
+    if let Some(read) = SquadId::at(ctx)
+        && let Some(picks) = read.picks()
+    {
+        take_picks(ctx.thread(), picks, |lobby| read.send(lobby.pick_start()));
     }
     Flow::Continue
 }
 
-/// A squad from the server (`0xA1`, read to its end): its commander's lobby
-/// shown at the next tick.
+/// A squad from the server (`0xA1`, read to its end): its picks.
 pub fn on_squad(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(read) = SquadRead::at(ctx) {
-        SQUAD.set(ctx.thread(), Squad::of(read.squad_id(), read.commander_faction()));
+        let picks = read.picks().unwrap_or_default();
+        take_picks(ctx.thread(), picks, |lobby| read.send(lobby.pick_start()));
     }
     Flow::Continue
 }
 
-/// A diagnostics build's change of the inputs (camera_sweep.rs): the
-/// player's own faction chosen, or a squad joined or left.
-pub fn force(thread: &Thread, own: Option<Faction>, squad: Option<Squad>) {
-    if let Some(faction) = own {
-        save(thread, faction);
+/// A diagnostics build's change of the inputs (camera_sweep.rs): a pick, or
+/// a squad joined or left.
+pub fn force(thread: &Thread, own: Option<Lobby>, squad: Option<Squad>) {
+    if let Some(lobby) = own {
+        save(thread, lobby);
     }
     if let Some(squad) = squad {
         SQUAD.set(thread, squad);
@@ -471,7 +548,7 @@ pub fn force(thread: &Thread, own: Option<Faction>, squad: Option<Squad>) {
 
 /// The lobby wanted now.
 fn wanted(thread: &Thread) -> Lobby {
-    SQUAD.get(thread).lobby(Faction::parse(SAVED.get(thread)))
+    SQUAD.get(thread).lobby(own(thread))
 }
 
 /// One step of the machine, the scene kept (before the site acts: a query
@@ -479,8 +556,88 @@ fn wanted(thread: &Thread) -> Lobby {
 fn step(thread: &Thread, event: Event) -> Action {
     let (scene, action) = SCENE.get(thread).step(event);
     SCENE.set(thread, scene);
+    if !matches!(action, Action::Original | Action::Shade { .. }) {
+        diagnose(thread, action);
+    }
     action
 }
+
+/// The diagnostics build's log of the scene's actions (srp_lobby_scene.txt,
+/// one a line with the lobby's frame count and the clock's milliseconds;
+/// never a release's).
+fn diagnose(thread: &Thread, action: Action) {
+    let name: &[u8] = match action {
+        Action::Original => b"original",
+        Action::Ask(_) => b"ask",
+        Action::AskAlone { .. } => b"ask alone",
+        Action::AskCensus => b"ask census",
+        Action::AskAgain => b"ask again",
+        Action::LetGo => b"let go",
+        Action::Query => b"query",
+        Action::Shade { .. } => b"shade",
+        Action::ShadeAndQuery => b"black, query",
+        Action::SwapIn => b"swap in",
+        Action::Reset => b"reset, fade in",
+        Action::Clear => b"clear",
+        Action::SwapAndClear => b"swap in, clear",
+    };
+    log_line(thread, name);
+}
+
+fn log_line(thread: &Thread, name: &[u8]) {
+    static LOG: GameCell<Option<TraceFile>> = GameCell::new(None);
+    if !trace::enabled() {
+        return;
+    }
+    let file = match LOG.get(thread) {
+        Some(file) => file,
+        None => {
+            let Some(file) = TraceFile::open(thread, "srp_lobby_scene.txt") else { return };
+            LOG.set(thread, Some(file));
+            file
+        }
+    };
+    let mut line = [0u8; 64];
+    let mut n = decimal(&mut line, 0, FRAMES.get(thread));
+    line[n] = b' ';
+    n = decimal(&mut line, n + 1, clock::milliseconds(thread));
+    line[n] = b' ';
+    n += 1;
+    let name = &name[..name.len().min(line.len() - n - 1)];
+    line[n..n + name.len()].copy_from_slice(name);
+    n += name.len();
+    line[n] = b'\n';
+    file.write(thread, &line[..n + 1]);
+}
+
+/// A line of the diagnostics' log after a step's work (its time).
+fn note(thread: &Thread, what: &[u8]) {
+    log_line(thread, what);
+}
+
+/// `v` in decimal at `out[n..]`; the new `n`.
+fn decimal(out: &mut [u8; 64], n: usize, v: u32) -> usize {
+    let mut digits = [0u8; 10];
+    let (mut k, mut v) = (0, v);
+    loop {
+        digits[k] = b'0' + (v % 10) as u8;
+        k += 1;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    let mut n = n;
+    while k > 0 {
+        k -= 1;
+        out[n] = digits[k];
+        n += 1;
+    }
+    n
+}
+
+/// The lobby's frames so far (the diagnostics' clock).
+static FRAMES: GameCell<u32> = GameCell::new(0);
 
 pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
@@ -489,18 +646,18 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
         match action {
             Action::Ask(request) => query.ask(request),
             Action::AskAlone { request, filler } => query.ask_alone(request, filler.config()),
+            Action::AskCensus => query.ask_configs(Lobby::ALL.map(Lobby::config), Lobby::Classic.config()),
             // the query's own list; the other actions are not a query's
             Action::Original
             | Action::AskAgain
             | Action::LetGo
             | Action::Query
-            | Action::Hold
+            | Action::Shade { .. }
+            | Action::ShadeAndQuery
             | Action::SwapIn
-            | Action::Swap
-            | Action::FadeIn
-            | Action::SwapHidden
-            | Action::ClearFade
-            | Action::Release => {}
+            | Action::Reset
+            | Action::Clear
+            | Action::SwapAndClear => {}
         }
     }
     Flow::Continue
@@ -509,73 +666,93 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExit> {
     let Some(ready) = ScenesReady::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
-    let loaded = SCENE.get(thread).asked().is_some_and(|asked| ready.loaded(asked));
-    match step(thread, Event::Ready { loaded, wanted: wanted(thread) }) {
+    let scene = SCENE.get(thread);
+    let loaded = scene.asked().is_some_and(|asked| ready.loaded(asked));
+    let found = match scene {
+        Scene::Loaded { change: Change::Census, .. } => Lobbies::of(|lobby| ready.config_at(lobby.id() as usize - 1)),
+        _ => Lobbies::ALL,
+    };
+    match step(thread, Event::Ready { loaded, found, wanted: wanted(thread) }) {
         Action::AskAgain => ready.ask_again(),
-        Action::Hold => {
-            ready.hold();
-            ready.fade(Fade::Out { seconds: FADE_OUT });
+        Action::SwapIn => {
+            ready.swap_in();
+            ready.reset_eye_adaptation();
+            note(thread, b"swapped");
         }
-        Action::SwapIn => ready.swap_in(),
+        Action::SwapAndClear => {
+            ready.swap_in();
+            ready.shade(Shade::Gone);
+        }
+        Action::Reset => {
+            ready.reset_eye_adaptation();
+            ready.shade(Shade::Black { loading: false });
+        }
         Action::LetGo => {}
         // the lobby menu takes them; the other actions are not a result's
         Action::Original
+        | Action::Query
         | Action::Ask(_)
         | Action::AskAlone { .. }
-        | Action::Query
-        | Action::Swap
-        | Action::FadeIn
-        | Action::SwapHidden
-        | Action::ClearFade
-        | Action::Release => return Flow::Continue,
+        | Action::AskCensus
+        | Action::Shade { .. }
+        | Action::ShadeAndQuery
+        | Action::Clear => return Flow::Continue,
     }
     Flow::Exit(LobbySceneOnScenesReadyExit::Done)
 }
 
-/// A frame of the lobby drawn: a change asked, or its fade, swap and fade
-/// in stepped.
+/// A frame of the lobby drawn: a change asked, its fades stepped, the
+/// lobby window told what it shows.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some((mut camera, dt)) = LobbyCamera::at(ctx) else { return Flow::Continue };
+    FRAMES.update(thread, |n| n.wrapping_add(1));
+    // the first frame of a lobby put in behind the black: its stock view
+    if matches!(SCENE.get(thread), Scene::Loaded { change: Change::Holding { frames: HOLD_FRAMES }, .. }) {
+        camera.to_stock_pose();
+    }
     let action = step(thread, Event::Tick { dt, wanted: wanted(thread) });
     let Some(lobby) = DrawnLobby::of(&camera) else { return Flow::Continue };
     match action {
         Action::Query => lobby.ask(),
-        Action::Swap => {
-            lobby.swap_held();
-            lobby.reset_eye_adaptation();
-            camera.to_stock_pose();
+        Action::Shade { per_mille, loading } => lobby.shade(Shade::At { per_mille, loading }),
+        Action::ShadeAndQuery => {
+            lobby.shade(Shade::Black { loading: true });
+            lobby.ask();
         }
-        Action::FadeIn => {
+        Action::Reset => {
             lobby.reset_eye_adaptation();
-            lobby.fade(Fade::In { seconds: FADE_IN });
+            lobby.shade(Shade::Black { loading: false });
         }
+        Action::Clear => lobby.shade(Shade::Gone),
         // nothing to do this frame; the other actions are not a tick's
         Action::Original
         | Action::Ask(_)
         | Action::AskAlone { .. }
+        | Action::AskCensus
         | Action::AskAgain
         | Action::LetGo
-        | Action::Hold
         | Action::SwapIn
-        | Action::SwapHidden
-        | Action::ClearFade
-        | Action::Release => {}
+        | Action::SwapAndClear => {}
+    }
+    if let Scene::Loaded { shown, there, .. } = SCENE.get(thread) {
+        let there = there.unwrap_or(Lobbies::ALL);
+        let state = [u32::from(own(thread).id()), u32::from(shown.id()), there.bits()];
+        if TOLD.get(thread) != Some(state) {
+            TOLD.set(thread, Some(state));
+            lobby.tell(state);
+        }
     }
     Flow::Continue
 }
 
-/// A match entered: a held project put in at once, a fade gone.
+/// A match entered: a fade gone (a project that comes is put in at once).
 pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let action = step(ctx.thread(), Event::Hidden);
-    let Some(lobby) = HiddenLobby::at(ctx) else { return Flow::Continue };
-    match action {
-        Action::SwapHidden => {
-            lobby.swap_held();
-            lobby.fade(Fade::Gone);
-        }
-        Action::ClearFade => lobby.fade(Fade::Gone),
-        _ => {}
+    if action == Action::Clear
+        && let Some(lobby) = HiddenLobby::at(ctx)
+    {
+        lobby.shade(Shade::Gone);
     }
     Flow::Continue
 }
@@ -586,44 +763,40 @@ pub fn on_activate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The game closes: a held project let go, results from now on let go
-/// without the lobby menu.
+/// The game closes: results from now on let go without the lobby menu.
 pub fn on_game_closing(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if step(ctx.thread(), Event::Closing) == Action::Release {
-        release_held(ctx.thread());
-    }
+    step(ctx.thread(), Event::Closing);
     Flow::Continue
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn each_faction_has_its_lobby() {
-        assert_eq!(Lobby::of_faction(Faction::Renaissance), Lobby::Classic);
-        assert_eq!(Lobby::of_faction(Faction::BlackMarket), Lobby::Stk2Bunker);
-        assert_eq!(Lobby::of_faction(Faction::Scavengers), Lobby::Camp069);
-        assert_eq!(Lobby::of_faction(Faction::Edge), Lobby::Hangar046);
+    fn a_pick_is_saved_as_its_id_and_read_back_and_none_is_the_room() {
         for lobby in Lobby::ALL {
+            assert_eq!(Lobby::parse(lobby.saved()), lobby);
+            assert_eq!(Lobby::of_id(lobby.id()), Some(lobby));
             let project = lobby.project().to_str().unwrap();
             let id = project.strip_prefix("lobby_scene/").unwrap();
             assert_eq!(lobby.config().to_str().unwrap(), format!("resources/projects/lobby_scene/{id}/client_project"));
         }
+        assert_eq!(Lobby::ALL.map(Lobby::id), [1, 2, 3, 4]);
+        for other in [&b""[..], b"0", b"5", b"12", b" 1", b"a"] {
+            assert_eq!(Lobby::parse(other), Lobby::Camp069, "{other:?}");
+        }
+        assert_eq!(Lobby::of_id(0), None);
     }
 
     #[test]
-    fn a_faction_is_saved_as_its_id_and_read_back_and_none_is_the_scavengers() {
-        for id in 0..=255u8 {
-            let faction = Faction::of_id(id);
-            if !(2..=4).contains(&id) {
-                assert_eq!(faction, Faction::Scavengers, "{id}");
-            }
-            assert_eq!(Faction::parse(faction.saved()), faction);
-        }
-        assert_eq!(Faction::of_id(1).saved(), b"1");
-        for other in [&b""[..], b"0", b"5", b"12", b" 1", b"a"] {
-            assert_eq!(Faction::parse(other), Faction::Scavengers, "{other:?}");
-        }
+    fn the_squad_commanders_pick_is_shown_in_a_squad() {
+        assert_eq!(Squad::None.lobby(Lobby::Classic), Lobby::Classic);
+        assert_eq!(Squad::Led(Lobby::Stk2Bunker).lobby(Lobby::Classic), Lobby::Stk2Bunker);
+        let there = Lobbies::of(|lobby| lobby != Lobby::Hangar046);
+        assert!(there.has(Lobby::Camp069) && !there.has(Lobby::Hangar046));
+        assert_eq!(there.bits(), 0b0111);
+        assert!(!Lobbies::ALL.without(Lobby::Classic).has(Lobby::Classic));
     }
 
     /// The start: the scene through its queries and results until the
@@ -638,12 +811,14 @@ mod tests {
             assert_eq!(next.asked(), Some(request));
             asked.push(request);
             assert!(asked.len() <= 3, "at most a probe, the lobby and the classic");
-            let (next, action) = next.step(Event::Ready { loaded: loads(request), wanted: chosen });
+            let (next, action) = next.step(Event::Ready { loaded: loads(request), found: Lobbies::ALL, wanted: chosen });
             scene = next;
             match action {
                 Action::AskAgain => continue,
                 Action::Original => {
-                    let Scene::Loaded { shown, view: View::Drawn, .. } = scene else { panic!("{scene:?}") };
+                    let Scene::Loaded { shown, view: View::Drawn, change: Change::Settled, there: None } = scene else {
+                        panic!("{scene:?}")
+                    };
                     return (asked, shown);
                 }
                 other => panic!("a start's results: {other:?}"),
@@ -652,75 +827,19 @@ mod tests {
     }
 
     #[test]
-    fn the_classic_is_asked_at_once() {
-        let (asked, shown) = run(Lobby::Classic, |_| true);
-        assert_eq!(asked, [SceneRequest::Project(c"lobby_scene/day")]);
-        assert_eq!(shown, Lobby::Classic);
-    }
-
-    #[test]
-    fn another_lobby_is_probed_then_asked() {
-        let (asked, shown) = run(Lobby::Hangar046, |_| true);
-        assert_eq!(asked, [SceneRequest::Config(Lobby::Hangar046.config()), SceneRequest::Project(c"lobby_scene/hangar_046")]);
-        assert_eq!(shown, Lobby::Hangar046);
-    }
-
-    #[test]
-    fn a_missing_lobby_is_the_classic_its_project_never_asked() {
+    fn the_start_asks_the_saved_pick() {
+        assert_eq!(run(Lobby::Classic, |_| true), (std::vec![SceneRequest::Project(c"lobby_scene/day")], Lobby::Classic));
+        assert_eq!(
+            run(Lobby::Hangar046, |_| true),
+            (std::vec![SceneRequest::Config(Lobby::Hangar046.config()), SceneRequest::Project(c"lobby_scene/hangar_046")], Lobby::Hangar046)
+        );
         let (asked, shown) = run(Lobby::Camp069, |request| !matches!(request, SceneRequest::Config(_)));
         assert_eq!(asked, [SceneRequest::Config(Lobby::Camp069.config()), SceneRequest::Project(c"lobby_scene/day")]);
-        assert_eq!(shown, Lobby::Classic);
-    }
-
-    #[test]
-    fn a_lobby_without_its_track_is_the_classic() {
+        assert_eq!(shown, Lobby::Classic, "a missing pack: the classic, its project never asked");
         let (asked, shown) = run(Lobby::Stk2Bunker, |request| request != SceneRequest::Project(Lobby::Stk2Bunker.project()));
-        assert_eq!(asked, [
-            SceneRequest::Config(Lobby::Stk2Bunker.config()),
-            SceneRequest::Project(Lobby::Stk2Bunker.project()),
-            SceneRequest::Project(c"lobby_scene/day"),
-        ]);
-        assert_eq!(shown, Lobby::Classic);
-    }
-
-    #[test]
-    fn the_classic_failing_is_the_stock_game() {
-        let (asked, shown) = run(Lobby::Classic, |_| false);
-        assert_eq!(asked, [SceneRequest::Project(c"lobby_scene/day")]);
-        assert_eq!(shown, Lobby::Classic);
-    }
-
-    #[test]
-    fn a_start_on_a_missing_lobby_does_not_ask_it_again() {
-        let mut scene = Scene::Unasked;
-        let wanted = Lobby::Camp069;
-        for loaded in [false, true] {
-            scene = scene.step(Event::Query { wanted }).0;
-            scene = scene.step(Event::Ready { loaded, wanted }).0;
-        }
-        assert_eq!(scene, Scene::Loaded { shown: Lobby::Classic, view: View::Drawn, change: Change::Missing { lobby: wanted } });
-        assert_eq!(scene.step(Event::Tick { dt: 0.016, wanted }), (scene, Action::Original));
-    }
-
-    #[test]
-    fn results_this_patch_did_not_ask_for_are_the_lobby_menus() {
-        let wanted = Lobby::Camp069;
-        assert_eq!(Scene::Unasked.step(Event::Ready { loaded: false, wanted }), (Scene::Unasked, Action::Original));
-        let shown = Scene::Loaded { shown: Lobby::Camp069, view: View::Drawn, change: Change::Settled };
-        assert_eq!(shown.step(Event::Ready { loaded: false, wanted }), (shown, Action::Original));
-        assert_eq!(shown.step(Event::Query { wanted }), (shown, Action::Original));
-        assert_eq!(Scene::Unasked.asked(), None);
-    }
-
-    #[test]
-    fn the_squad_commanders_lobby_is_shown_in_a_squad() {
-        assert_eq!(Squad::of(0, Some(2)), Squad::None);
-        assert_eq!(Squad::of(7, None), Squad::None);
-        assert_eq!(Squad::of(7, Some(4)), Squad::Led(Faction::Edge));
-        assert_eq!(Squad::of(7, Some(0)), Squad::Led(Faction::Scavengers));
-        assert_eq!(Squad::None.lobby(Faction::Renaissance), Lobby::Classic);
-        assert_eq!(Squad::Led(Faction::BlackMarket).lobby(Faction::Renaissance), Lobby::Stk2Bunker);
-        assert_eq!(Squad::Led(Faction::Renaissance).lobby(Faction::Edge), Lobby::Classic);
+        assert_eq!(asked.len(), 3);
+        assert_eq!(shown, Lobby::Classic, "a project without its track: the classic");
+        assert_eq!(run(Lobby::Classic, |_| false).1, Lobby::Classic, "the classic failing is the stock game");
     }
 
     const FRAME: f32 = 1.0 / 60.0;
@@ -732,29 +851,32 @@ mod tests {
         scene: Scene,
         wanted: Lobby,
         loads: fn(SceneRequest) -> bool,
-        /// A change's query asked and its results not yet in.
-        pending: Option<SceneRequest>,
-        /// A project held for a swap (vostok::lobby's HELD).
-        held: Option<Lobby>,
+        /// A query asked and its results not yet in.
+        pending: bool,
         /// The lobby the lobby menu has.
         menu: Lobby,
-        /// The movie's fade.
-        black: bool,
+        /// The black's per mille.
+        black: u32,
         actions: std::vec::Vec<Action>,
     }
 
     impl Game {
+        /// The start done and the census in: `missing` not there.
         fn new(shown: Lobby, loads: fn(SceneRequest) -> bool) -> Game {
-            Game {
-                scene: Scene::Loaded { shown, view: View::Drawn, change: Change::Settled },
+            let mut game = Game {
+                scene: Scene::Loaded { shown, view: View::Drawn, change: Change::Settled, there: None },
                 wanted: shown,
                 loads,
-                pending: None,
-                held: None,
+                pending: false,
                 menu: shown,
-                black: false,
+                black: 0,
                 actions: std::vec![],
-            }
+            };
+            game.tick();
+            assert_eq!(game.actions, [Action::Query, Action::AskCensus], "the first frame's census");
+            game.results();
+            game.actions.clear();
+            game
         }
 
         fn view(&self) -> View {
@@ -767,55 +889,44 @@ mod tests {
             let (scene, action) = before.step(event);
             self.scene = scene;
             self.actions.push(action);
-            let asked = |s: Scene| match s {
-                Scene::Loaded { change: Change::Loading { ask, .. }, .. } => Some(ask.lobby()),
-                _ => None,
-            };
             match action {
-                Action::Hold => {
-                    assert_eq!(self.view(), View::Drawn);
-                    assert!(self.held.is_none(), "one held at a time");
-                    self.held = asked(before);
-                    self.black = true;
-                }
+                Action::Shade { per_mille, .. } => self.black = per_mille,
+                Action::ShadeAndQuery | Action::Reset => self.black = 1000,
+                Action::Clear => self.black = 0,
                 Action::SwapIn => {
+                    assert!(self.black == 1000 || self.view() != View::Drawn, "a swap behind the black");
+                    let Scene::Loaded { change: Change::Loading { to, .. }, .. } = before else { panic!("{before:?}") };
+                    self.menu = to;
+                }
+                Action::SwapAndClear => {
                     assert_ne!(self.view(), View::Drawn, "a swap at once only while not drawn");
-                    self.menu = asked(before).unwrap();
+                    let Scene::Loaded { change: Change::Loading { to, .. }, .. } = before else { panic!("{before:?}") };
+                    self.menu = to;
+                    self.black = 0;
                 }
-                Action::Swap => {
-                    assert!(self.black, "a swap behind the black");
-                    self.menu = self.held.take().expect("a project held");
-                }
-                Action::SwapHidden => {
-                    self.menu = self.held.take().expect("a project held");
-                    self.black = false;
-                }
-                Action::FadeIn | Action::ClearFade => self.black = false,
-                Action::Release => self.held = None.or(self.held.take().and(None)),
-                Action::Query => assert_eq!(self.view(), View::Drawn),
-                Action::Original | Action::Ask(_) | Action::AskAlone { .. } | Action::AskAgain | Action::LetGo => {}
+                Action::Query => assert_eq!(self.view(), View::Drawn, "a query only while drawn"),
+                Action::Original | Action::Ask(_) | Action::AskAlone { .. } | Action::AskCensus | Action::AskAgain | Action::LetGo => {}
             }
-            if let Scene::Loaded { shown, change, .. } = self.scene {
-                if !matches!(change, Change::Fading { .. }) {
-                    assert!(self.held.is_none() || matches!(self.scene, Scene::Loaded { view: View::Closed, .. }), "{:?}", self.scene);
-                }
-                if self.view() != View::Closed {
-                    assert_eq!(shown, self.menu, "the scene's lobby is the menu's");
-                }
+            if matches!(action, Action::Query | Action::ShadeAndQuery) {
+                assert!(!self.pending, "one query at a time");
+                self.query();
+            }
+            if action == Action::AskAgain {
+                self.query();
+            }
+            if let Scene::Loaded { shown, view, .. } = self.scene
+                && view != View::Closed
+            {
+                assert_eq!(shown, self.menu, "the scene's lobby is the menu's");
             }
             action
         }
 
-        /// The lobby's query built: what it asks in the project's place.
+        /// The lobby's query built.
         fn query(&mut self) {
             match self.event(Event::Query { wanted: self.wanted }) {
-                Action::AskAlone { request, filler } => {
-                    assert_eq!(filler.config(), match request {
-                        SceneRequest::Config(name) => name,
-                        SceneRequest::Project(_) => filler.config(),
-                    });
-                    self.pending = Some(request);
-                }
+                Action::AskAlone { .. } | Action::AskCensus => self.pending = true,
+                Action::Original => {}
                 other => panic!("a change's query: {other:?}"),
             }
         }
@@ -825,9 +936,7 @@ mod tests {
         }
 
         fn tick(&mut self) {
-            if self.event(Event::Tick { dt: FRAME, wanted: self.wanted }) == Action::Query {
-                self.query();
-            }
+            self.event(Event::Tick { dt: FRAME, wanted: self.wanted });
         }
 
         fn ticks(&mut self, n: usize) {
@@ -836,21 +945,14 @@ mod tests {
             }
         }
 
-        fn match_entered(&mut self) {
-            self.event(Event::Hidden);
-        }
-
-        fn back(&mut self) {
-            self.event(Event::Shown);
-        }
-
         /// The pending query's results come; each re-ask's too.
         fn results(&mut self) {
-            while let Some(request) = self.pending.take() {
-                let loaded = (self.loads)(request);
-                if self.event(Event::Ready { loaded, wanted: self.wanted }) == Action::AskAgain {
-                    self.query();
-                }
+            while self.pending {
+                self.pending = false;
+                let asked = self.scene.asked();
+                let loaded = asked.is_some_and(self.loads);
+                let found = Lobbies::of(|lobby| (self.loads)(SceneRequest::Config(lobby.config())));
+                self.event(Event::Ready { loaded, found, wanted: self.wanted });
             }
         }
 
@@ -859,15 +961,18 @@ mod tests {
             shown
         }
 
+        /// Nothing more to do: no change out, no black, the wanted lobby shown
+        /// unless it is not there.
         fn settled(&self) -> bool {
-            matches!(self.scene, Scene::Loaded { change: Change::Settled, .. })
+            let Scene::Loaded { change: Change::Settled, shown, there, .. } = self.scene else { return false };
+            self.black == 0 && !self.pending && (shown == self.wanted || there.is_some_and(|t| !t.has(self.wanted)))
         }
     }
 
-    /// Ticks until the change is done (at most `frames`).
+    /// Ticks (and results) until the change is done, at most `frames`.
     fn settle(game: &mut Game, frames: usize) -> usize {
         for frame in 0..frames {
-            if game.settled() && !game.black && game.pending.is_none() && game.shown() == game.wanted {
+            if game.settled() {
                 return frame;
             }
             game.tick();
@@ -877,7 +982,7 @@ mod tests {
     }
 
     #[test]
-    fn a_change_loads_behind_the_old_lobby_then_fades_swaps_and_fades_in() {
+    fn a_change_probes_then_fades_loads_behind_the_black_swaps_and_fades_in() {
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Stk2Bunker);
         game.tick();
@@ -886,123 +991,117 @@ mod tests {
             Action::AskAlone { request: SceneRequest::Config(Lobby::Stk2Bunker.config()), filler: Lobby::Stk2Bunker },
         ]);
         game.ticks(3);
-        assert_eq!(game.shown(), Lobby::Classic, "the old lobby drawn while the new one loads");
-        assert!(!game.black);
+        assert_eq!(game.black, 0, "the old lobby drawn while its config is probed");
         game.results();
-        assert!(game.black, "the fade begun");
-        assert_eq!(game.shown(), Lobby::Classic);
-        let out = (FADE_OUT / FRAME).round() as usize;
         let mut frames = 0;
-        while game.menu == Lobby::Classic {
+        while !game.pending {
             game.tick();
             frames += 1;
-            assert!(frames <= out + 1, "swapped once black");
+            assert!(game.black > 0 && frames <= 16, "the fade to black, then its project asked");
         }
-        assert!(frames >= out, "not swapped before the black: {frames} of {out}");
-        assert_eq!(*game.actions.last().unwrap(), Action::Swap);
+        assert_eq!(game.black, 1000);
+        assert!(game.actions.contains(&Action::ShadeAndQuery));
+        assert!((14..=16).contains(&frames), "{frames} frames of fade (0.25 s)");
+        assert_eq!(game.menu, Lobby::Classic);
+        game.ticks(20);
+        assert_eq!(game.black, 1000, "black while its project loads");
+        game.results();
+        assert_eq!(game.menu, Lobby::Stk2Bunker);
+        assert_eq!(*game.actions.last().unwrap(), Action::SwapIn);
         game.ticks(usize::from(HOLD_FRAMES) - 1);
-        assert!(game.black, "the new lobby's first frames behind the black");
+        assert_eq!(game.black, 1000, "the new lobby's first frames behind the black");
         game.tick();
-        assert_eq!(*game.actions.last().unwrap(), Action::FadeIn);
-        assert!(!game.black);
-        game.ticks((FADE_IN / FRAME).ceil() as usize);
-        assert!(game.settled());
-        let before = game.actions.len();
-        game.ticks(10);
-        assert!(game.actions[before..].iter().all(|a| *a == Action::Original), "nothing more asked");
+        assert_eq!(*game.actions.last().unwrap(), Action::Reset);
+        let frames = settle(&mut game, 60);
+        assert!((22..=26).contains(&frames), "{frames} frames of fade in (0.4 s)");
+        assert_eq!(game.shown(), Lobby::Stk2Bunker);
     }
 
     #[test]
-    fn a_missing_pack_keeps_the_lobby_with_no_fade_and_is_not_asked_again() {
-        let missing = |request| request != SceneRequest::Config(Lobby::Hangar046.config());
-        let mut game = Game::new(Lobby::Camp069, missing);
+    fn a_stall_does_not_skip_a_fade() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.tick();
         game.results();
-        assert!(!game.black);
-        assert_eq!(game.shown(), Lobby::Camp069);
         let before = game.actions.len();
-        game.ticks(30);
-        assert!(game.actions[before..].iter().all(|a| *a == Action::Original), "never asked again for the same lobby");
-        // another lobby wanted: asked; the one shown again: settled
-        game.want(Lobby::Camp069);
-        game.tick();
-        assert!(game.settled());
+        game.event(Event::Tick { dt: 3.0, wanted: Lobby::Hangar046 });
+        assert!(game.black > 0 && game.black < 200, "a 3 s frame steps the fade by a 30th of a second: {}", game.black);
+        assert!(!game.actions[before..].contains(&Action::ShadeAndQuery));
     }
 
     #[test]
-    fn a_project_without_its_track_keeps_the_lobby() {
+    fn a_missing_pack_keeps_the_lobby_with_no_fade() {
+        // known missing by the census: never asked
+        let missing = |request| request != SceneRequest::Config(Lobby::Hangar046.config());
+        let mut game = Game::new(Lobby::Camp069, missing);
+        assert!(matches!(game.scene, Scene::Loaded { there: Some(t), .. } if !t.has(Lobby::Hangar046) && t.has(Lobby::Classic)));
+        game.want(Lobby::Hangar046);
+        game.ticks(30);
+        assert!(game.actions.iter().all(|a| *a == Action::Original), "never asked");
+        assert!(game.settled());
+        // a project without its track: found out behind the black, faded back, not asked again
         let broken = |request| request != SceneRequest::Project(Lobby::Camp069.project());
         let mut game = Game::new(Lobby::Hangar046, broken);
         game.want(Lobby::Camp069);
-        game.tick();
-        game.results();
+        settle(&mut game, 200);
         assert_eq!(game.shown(), Lobby::Hangar046);
-        assert!(!game.black);
-        assert!(matches!(game.scene, Scene::Loaded { change: Change::Missing { lobby: Lobby::Camp069 }, .. }));
+        let before = game.actions.len();
+        game.ticks(30);
+        assert!(game.actions[before..].iter().all(|a| *a == Action::Original), "not asked again");
     }
 
     #[test]
     fn the_last_lobby_wanted_wins() {
-        // changed while its query is out: the new one asked
+        // while its config is probed
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.tick();
         game.want(Lobby::Camp069);
         game.results();
-        assert!(settle(&mut game, 200) < 200);
+        settle(&mut game, 300);
         assert_eq!(game.shown(), Lobby::Camp069);
-        assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone { request: SceneRequest::Project(p), .. } if *p == Lobby::Hangar046.project())));
-        // changed back to the one shown while out: let go, no fade
+        // back to the one shown while probed: let go, no fade
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.tick();
         game.want(Lobby::Classic);
         game.results();
-        assert!(game.settled() && !game.black);
-        assert_eq!(*game.actions.last().unwrap(), Action::LetGo);
-        // changed during the fade: that change done, then the next
+        assert!(game.settled() && !game.actions.contains(&Action::ShadeAndQuery));
+        // while its project loads behind the black
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.tick();
         game.results();
+        game.ticks(20);
         game.want(Lobby::Stk2Bunker);
-        settle(&mut game, 400);
+        settle(&mut game, 300);
         assert_eq!(game.shown(), Lobby::Stk2Bunker);
-        assert_eq!(game.actions.iter().filter(|a| **a == Action::Swap).count(), 2);
+        assert_eq!(game.actions.iter().filter(|a| **a == Action::SwapIn).count(), 1, "one swap: the last one wanted");
     }
 
     #[test]
-    fn a_match_entered_mid_change_puts_the_lobby_in_and_the_return_shows_it() {
-        for at in 0..60 {
+    fn a_match_entered_mid_change_leaves_no_black_and_the_return_shows_the_wanted_lobby() {
+        for at in 0..70 {
             let mut game = Game::new(Lobby::Classic, |_| true);
             game.want(Lobby::Hangar046);
-            game.tick();
             for _ in 0..at {
-                game.results();
                 game.tick();
+                if at % 3 == 0 {
+                    game.results();
+                }
             }
-            game.match_entered();
+            game.event(Event::Hidden);
             game.results();
-            assert!(!game.black, "{at}: no black left over the lobby");
+            assert_eq!(game.black, 0, "{at}: no black left");
+            game.event(Event::Shown);
+            settle(&mut game, 400);
             assert_eq!(game.shown(), Lobby::Hangar046, "{at}");
-            game.back();
-            settle(&mut game, 100);
-            assert_eq!(game.shown(), Lobby::Hangar046, "{at}");
-            assert!(!game.black, "{at}");
+            assert_eq!(game.black, 0, "{at}");
         }
     }
 
     #[test]
-    fn closing_lets_a_held_project_and_late_results_go() {
-        let mut game = Game::new(Lobby::Classic, |_| true);
-        game.want(Lobby::Hangar046);
-        game.tick();
-        game.results();
-        assert!(game.held.is_some());
-        game.event(Event::Closing);
-        assert_eq!(*game.actions.last().unwrap(), Action::Release);
-        assert!(game.held.is_none());
+    fn closing_lets_results_go() {
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.tick();
@@ -1011,13 +1110,13 @@ mod tests {
         assert_eq!(*game.actions.last().unwrap(), Action::LetGo, "results after the close: let go");
         assert!(matches!(game.scene, Scene::Loaded { view: View::Closed, change: Change::Settled, .. }));
         game.tick();
-        game.match_entered();
+        game.event(Event::Hidden);
         assert_eq!(game.actions[game.actions.len() - 2..], [Action::Original, Action::Original]);
     }
 
     #[test]
-    fn hidden_and_shown_before_the_scene_change_nothing() {
-        for scene in [Scene::Unasked, Scene::Starting { wanted: Lobby::Camp069, ask: Ask::Config(Lobby::Camp069) }] {
+    fn before_the_scene_nothing_changes() {
+        for scene in [Scene::Unasked, Scene::Starting(Ask::Config(Lobby::Camp069))] {
             assert_eq!(scene.step(Event::Hidden), (scene, Action::Original));
             assert_eq!(scene.step(Event::Shown), (scene, Action::Original));
             assert_eq!(scene.step(Event::Closing), (scene, Action::Original));
@@ -1027,11 +1126,13 @@ mod tests {
 
     /// Every sequence of events (up to a length) from a lobby shown: a swap
     /// only behind the black or while not drawn, a query only while drawn,
-    /// one change at a time (Game::event), no black left once settled, and
-    /// whatever comes the lobby shown is one that was wanted.
+    /// one query at a time (Game::event), no black left once settled, and the
+    /// lobby shown one that was wanted.
     #[test]
     fn no_sequence_swaps_in_sight_or_leaves_the_black() {
-        const LOADS: [fn(SceneRequest) -> bool; 3] = [|_| true, |_| false, |r| matches!(r, SceneRequest::Project(_))];
+        const LOADS: [fn(SceneRequest) -> bool; 3] = [|_| true, |r| matches!(r, SceneRequest::Project(_)), |r| {
+            r != SceneRequest::Config(Lobby::Hangar046.config())
+        }];
         const KINDS: usize = 8;
         let steps = 6;
         for loads in LOADS {
@@ -1043,8 +1144,12 @@ mod tests {
                     match c % KINDS {
                         0 => game.want(Lobby::Hangar046),
                         1 => game.want(Lobby::Classic),
-                        2 => game.match_entered(),
-                        3 => game.back(),
+                        2 => {
+                            game.event(Event::Hidden);
+                        }
+                        3 => {
+                            game.event(Event::Shown);
+                        }
                         4 => game.results(),
                         5 => {
                             game.event(Event::Closing);
@@ -1057,12 +1162,11 @@ mod tests {
                 }
                 game.results();
                 if game.view() == View::Hidden {
-                    game.back();
+                    game.event(Event::Shown);
                 }
                 if game.view() == View::Drawn {
-                    settle(&mut game, 400);
-                    assert!(!game.black, "{code}: {:?}", game.scene);
-                    assert!(game.held.is_none(), "{code}");
+                    settle(&mut game, 600);
+                    assert_eq!(game.black, 0, "{code}: {:?}", game.scene);
                 }
                 assert!(wanted.contains(&game.shown()), "{code}: {:?}", game.scene);
             }

@@ -1806,46 +1806,7 @@ language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
 
-; 0x2717cf the 0x8E reputations message handler (0x271740) as it keeps the trailing quest_active_faction (mov [ebx+1EA998h],eax): EAX the faction (0 none; factions_dict: 1 Scavengers, 2 Black Market, 3 Renaissance, 4 Edge), EBX the lobby client; every faction the server gives, at the sign-in and after a change, comes so: lohook -> lobby_scene_on_faction
-global lobby_scene_on_faction
-extern hook_lobby_scene_on_faction
-lobby_scene_on_faction:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_lobby_scene_on_faction
-    mov edx, lobby_scene_on_faction_replay
-    cmp eax, 0
-    je lobby_scene_on_faction_go
-    mov edx, 0x2717d5
-    cmp eax, 1
-    je lobby_scene_on_faction_go
-    ud2
-lobby_scene_on_faction_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-lobby_scene_on_faction_replay:
-    db 0x89, 0x83, 0x98, 0xa9, 0x1e, 0x00
-    jmp 0x2717d5
-
-; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client; both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
+; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
 extern hook_lobby_scene_on_squad_id
 lobby_scene_on_squad_id:

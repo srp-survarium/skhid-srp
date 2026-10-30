@@ -441,9 +441,6 @@ impl Core<'_> {
                 match chosen {
                     Ok((reputations, notices)) => {
                         self.accounts.mark_dirty(who.account_id);
-                        // A commander's faction is its squad's lobby (0xA1's
-                        // last byte): the squad is sent again.
-                        self.squads_dirty = true;
                         // The faction byte travels in 0x8E; then `83 4B`
                         // makes the client ask for its quests and services.
                         self.send_made(addr, reputations);
@@ -663,9 +660,14 @@ impl Core<'_> {
     /// [`lobby::REPLAY_START`] with the asker's
     /// own "Watch replay" answer (`replay`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
-    /// presets (`presets`); any other gets no answer.
+    /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
+    /// + its id: kept, shown back in `0xA1`); any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
+        if let Some(pick) = lobby::lobby_pick::LobbyPick::of_start(start) {
+            self.lobby_pick(who, pick);
+            return;
+        }
         if let Some(request) = lobby::presets::preset_request(start) {
             self.preset_request(who, request);
             return;

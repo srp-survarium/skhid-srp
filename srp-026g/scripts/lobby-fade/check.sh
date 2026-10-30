@@ -2,7 +2,8 @@
 # check.sh <lobby_menu.swf> [work dir]: the lobby scene's fade (srp_scene_fade, exe patch 81,
 # docs/notes/lobby-scenes.md) in Ruffle (CPU only: lavapipe on its own virtual X display, never the
 # GPU). FadeHarness.as calls the lobby movie's own root: the black is the root's first child, under
-# every panel; to black, then from black and gone; gone at once; no click lands on it.
+# every panel; half, whole with the loading spinner, gone; no click lands on it; the lobby window
+# opened and closed by its toggle, then left open for window.png.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail
@@ -18,17 +19,21 @@ else
 fi
 
 
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
+
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/FadeHarness.swf" "$here/FadeHarness.as" >"$work/FadeHarness.mxmlc.log" 2>&1 \
     || { cat "$work/FadeHarness.mxmlc.log"; exit 1; }
 cp "$lobby" "$work/lobby_menu.swf"
 
-paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
+paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver nixpkgs#imagemagick --no-link --print-out-paths)
+magick=$(grep -- 'imagemagick-' <<<"$paths" | grep -v dev | head -1)
 ruffle=$(grep -- '-ruffle-' <<<"$paths")
 mesa=$(grep -- '-mesa-' <<<"$paths")
 xvfb=$(grep -- '-xorg-server-' <<<"$paths")/bin/Xvfb
@@ -50,6 +55,9 @@ sleep 1
 ) >"$work/FadeHarness.log" 2>&1 &
 ruffle_pid=$!
 for _ in $(seq 1800); do grep -q 'FADE RESULT' "$work/FadeHarness.log" && break; sleep 0.1; done
+# the lobby window as Ruffle draws it, left open at the end (window.png in the work dir)
+sleep 1
+DISPLAY=$display "$magick/bin/import" -window root "$work/window.png" 2>/dev/null || true
 cleanup
 
 if ! grep -q 'graphics API vulkan on llvmpipe' "$work/FadeHarness.log"; then

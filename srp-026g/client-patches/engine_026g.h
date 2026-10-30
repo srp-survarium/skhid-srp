@@ -29,6 +29,7 @@ struct gfx_value;
 struct inventory;
 struct lobby_camera;
 struct lobby_character;
+struct lobby_client;
 struct lobby_menu;
 struct match_options;
 struct material_pair;
@@ -226,6 +227,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lci
 
 /* 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0 */
 void engine_lobby_query_resources(struct lobby_menu *menu);
+
+/* 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8 */
+void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count);
 
 /* 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0 */
 void engine_project_remove(struct simple_game_project *project);

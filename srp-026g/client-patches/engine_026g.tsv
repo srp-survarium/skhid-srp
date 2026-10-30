@@ -57,6 +57,7 @@ engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl
 engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(struct text_translator *translator, const char *key, char *out)	thiscall	
 engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	
 engine_lobby_query_resources	0x21e450	EAX:menu	void engine_lobby_query_resources(struct lobby_menu *menu)	thunk	
+engine_lobby_query_players_range	0x270070	EAX:client ESP+4:start ESP+8:count	void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count)	thunk	
 engine_project_remove	0x2855b0	ESI:project	void engine_project_remove(struct simple_game_project *project)	thunk	
 engine_project_insert	0x285540	EAX:project	void engine_project_insert(struct simple_game_project *project)	thunk	
 engine_project_on_inserted	0x2f8720	ECX:project	void engine_project_on_inserted(struct simple_game_project *project)	thiscall	

@@ -8,19 +8,19 @@
 //! the lobby may ask the whole query again instead.
 //!
 //! A change of lobby during a session: the lobby asks its query again
-//! ([`DrawnLobby::ask`]) with only its project in it ([`SceneQuery::ask_alone`]),
-//! holds the project it gets ([`ScenesReady::hold`], one reference of ours)
-//! while the scene fades to black (the lobby movie's `srp_scene_fade`,
-//! [`Fade`]) and then puts it in the old one's place ([`DrawnLobby::swap_held`]):
-//! the project halves of lobby_menu::clear_resources (0x21D080) and
-//! on_render_scenes_ready (0x220B20), in their order. The held project is
-//! this module's alone ([`HELD`]): taken by the swap, or let go
-//! ([`release_held`]).
+//! ([`DrawnLobby::ask`]) with only its config, then its project in it
+//! ([`SceneQuery::ask_alone`]), the scene behind the lobby movie's black
+//! ([`Shade`], `srp_scene_fade`) while its project loads, and puts the
+//! project in the old one's place ([`ScenesReady::swap_in`]): the project
+//! halves of lobby_menu::clear_resources (0x21D080) and
+//! on_render_scenes_ready (0x220B20), in their order. Once per run a census
+//! query asks every lobby's config ([`SceneQuery::ask_configs`]). `0xA1`'s
+//! srp bytes are the lobby picks ([`Picks`]); the exe sends the saved one
+//! with the game's own ranking request ([`SquadId::send_pick`]).
 
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use super::GameCell;
 use super::context::Context;
 use super::hook::Thread;
 use super::parse::Reader;
@@ -110,6 +110,25 @@ impl<'t> SceneQuery<'t> {
     }
 }
 
+impl SceneQuery<'_> {
+    /// Every request a binary config with no user data: `configs` in the
+    /// first places, `filler` in the others: the census of the lobbies'
+    /// packs (each result there or not).
+    pub fn ask_configs<const N: usize>(&mut self, configs: [&'static CStr; N], filler: &'static CStr) {
+        // SAFETY: as ask_alone.
+        unsafe {
+            let (first, data) = (self.frame.requests(), self.frame.user_data());
+            for index in 0..QUERY_REQUESTS {
+                let name = configs.get(index).copied().unwrap_or(filler);
+                let slot = first.at(index);
+                slot.set_name(name.as_ptr().cast_mut().cast());
+                *slot.class() = ResourceClass::BinaryConfig as u32;
+                data.at(index).set_data(core::ptr::null_mut());
+            }
+        }
+    }
+}
+
 /// How many requests the lobby's query has (`lea ecx,[esi+8]`, 0x21E5E7).
 const QUERY_REQUESTS: usize = 8;
 
@@ -154,76 +173,36 @@ impl<'t> ScenesReady<'t> {
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
     }
 
-    /// The results' project (one with its track: `loaded`), when they hold one.
-    fn arrived(&self) -> Option<raw::SimpleGameProject> {
+    /// Whether result `index`'s resource came (a census's configs).
+    pub fn config_at(&self, index: usize) -> bool {
+        if index >= QUERY_REQUESTS {
+            return false;
+        }
+        // SAFETY: the results are alive for the callback; eight of them.
+        unsafe { *self.results.each().at(index).resource() != 0 }
+    }
+
+    /// Puts the results' project (one with its track: `loaded`) in the place
+    /// of the lobby menu's (behind the black, or while the lobby is not
+    /// drawn). Nothing is touched when the results hold no such project.
+    pub fn swap_in(&self) {
         // SAFETY: the results are alive for the callback; result 3 is the
         // project this patch asked (a project's resource, its project 38h
-        // before it).
+        // before it); the lobby menu is alive.
         unsafe {
-            let new = self.results.project()?.project();
-            new.track().map(|_| new)
+            let Some(arrived) = self.results.project() else { return };
+            put_in(self.menu, arrived.project());
         }
     }
 
-    /// Holds the results' project (one reference of ours, [`HELD`]) for a
-    /// swap behind the black; the results are let go. Nothing is held when
-    /// they hold no such project.
-    pub fn hold(&self) {
-        let Some(new) = self.arrived() else { return };
-        // SAFETY: the project is alive (the results' reference until the
-        // callback returns); ours keeps it after.
-        unsafe { AtomicU32::from_ptr(new.count()).fetch_add(1, Ordering::SeqCst) };
-        if let Some(old) = HELD.get(self.thread) {
-            // SAFETY: a project held, its reference ours (one change at a time:
-            // never two).
-            unsafe { release(old) };
-        }
-        HELD.set(self.thread, Some(new));
-    }
-
-    /// Puts the results' project in the place of the lobby menu's at once,
-    /// while the lobby is not drawn. Nothing is touched when the results
-    /// hold no such project.
-    pub fn swap_in(&self) {
-        if let Some(new) = self.arrived() {
-            // SAFETY: the lobby menu and the project are alive for the callback.
-            unsafe { put_in(self.menu, new) }
-        }
-    }
-
-    /// The scene's fade (the lobby movie's).
-    pub fn fade(&self, fade: Fade) {
+    /// The black over the scene (the lobby movie's).
+    pub fn shade(&self, shade: Shade) {
         // SAFETY: the lobby menu is alive for the callback.
-        unsafe { fade_scene(self.menu, fade) }
+        unsafe { shade_scene(self.menu, shade) }
     }
-}
 
-/// The project held for a swap behind the black (one reference of ours),
-/// none when no change is fading: [`ScenesReady::hold`] puts it, a swap or
-/// [`release_held`] takes it.
-static HELD: GameCell<Option<raw::SimpleGameProject>> = GameCell::new(None);
-
-/// Lets the held project go (the game closing before its swap).
-pub fn release_held(thread: &Thread) {
-    if let Some(held) = HELD.get(thread) {
-        HELD.set(thread, None);
-        // SAFETY: the held project's reference is ours.
-        unsafe { release(held) };
-    }
-}
-
-/// Puts the held project in the lobby menu's place, its reference given up
-/// after (the menu keeps its own).
-///
-/// # Safety
-/// `menu` is alive, on the game's thread.
-unsafe fn swap_held(thread: &Thread, menu: raw::LobbyMenu) {
-    let Some(held) = HELD.get(thread) else { return };
-    HELD.set(thread, None);
-    // SAFETY: the caller's menu; the held project alive by our reference.
-    unsafe {
-        put_in(menu, held);
-        release(held);
+    pub fn reset_eye_adaptation(&self) {
+        reset_eye_adaptation(self.thread);
     }
 }
 
@@ -274,40 +253,47 @@ unsafe fn put_in(menu: raw::LobbyMenu, new: raw::SimpleGameProject) {
     }
 }
 
-/// The scene's fade, as the lobby movie's `srp_scene_fade` takes it (its
-/// first argument; the second the fade's milliseconds): a black under every
-/// panel, over the lobby's 3D scene.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Fade {
-    /// No black, at once.
+/// The black over the lobby's 3D scene, as the lobby movie's
+/// `srp_scene_fade` takes it (per mille of black, the loading spinner on it
+/// or not): under every panel; its fades stepped by patch 81 a frame each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shade {
+    /// No black.
     Gone,
-    /// To black in `seconds`.
-    Out { seconds: f32 },
-    /// From black in `seconds`, then gone.
-    In { seconds: f32 },
+    /// `per_mille` of the way to black.
+    At { per_mille: u32, loading: bool },
+    /// All black.
+    Black { loading: bool },
 }
 
-impl Fade {
-    /// The movie's arguments: the state (0 gone, 1 out, 2 in) and the
-    /// milliseconds.
+impl Shade {
+    /// The movie's arguments.
     fn arguments(self) -> [u32; 2] {
-        let ms = |seconds: f32| (seconds * 1000.0) as u32;
         match self {
-            Fade::Gone => [0, 0],
-            Fade::Out { seconds } => [1, ms(seconds)],
-            Fade::In { seconds } => [2, ms(seconds)],
+            Shade::Gone => [0, 0],
+            Shade::At { per_mille, loading } => [per_mille.min(1000), u32::from(loading)],
+            Shade::Black { loading } => [1000, u32::from(loading)],
         }
     }
 }
 
-/// Asks the lobby movie (lobby menu+690h's) for the scene's fade.
+/// The lobby movie (lobby menu+690h's holder).
 ///
 /// # Safety
 /// `menu` is alive, on the game's thread.
-unsafe fn fade_scene(menu: raw::LobbyMenu, fade: Fade) {
+unsafe fn lobby_movie<'t>(menu: raw::LobbyMenu) -> Option<super::ui::Movie<'t>> {
     // SAFETY: the caller's menu; its movie holder and the holder's movie live as long.
-    if let Some(movie) = unsafe { movie_of(menu.movie()) } {
-        movie.invoke_uints(c"root.srp_scene_fade", &fade.arguments());
+    unsafe { movie_of(menu.movie()) }
+}
+
+/// Asks the lobby movie for the black.
+///
+/// # Safety
+/// `menu` is alive, on the game's thread.
+unsafe fn shade_scene(menu: raw::LobbyMenu, shade: Shade) {
+    // SAFETY: the caller's.
+    if let Some(movie) = unsafe { lobby_movie(menu) } {
+        movie.invoke_uints(c"root.srp_scene_fade", &shade.arguments());
     }
 }
 
@@ -349,7 +335,7 @@ unsafe fn release(project: raw::SimpleGameProject) {
 /// match entered), its scene not drawn until `lobby_menu.activate`.
 pub struct HiddenLobby<'t> {
     menu: raw::LobbyMenu,
-    thread: &'t Thread,
+    _thread: &'t Thread,
 }
 
 impl<'t> HiddenLobby<'t> {
@@ -357,19 +343,13 @@ impl<'t> HiddenLobby<'t> {
         // SAFETY: the context is this site's: on_deactivate's ECX, the lobby
         // menu, alive for the call on the game's thread.
         let menu = unsafe { raw::site::lobby_menu_deactivate::menu(ctx)? };
-        Some(HiddenLobby { menu, thread: ctx.thread() })
+        Some(HiddenLobby { menu, _thread: ctx.thread() })
     }
 
-    /// Puts the held project in (a match entered behind the black).
-    pub fn swap_held(&self) {
+    /// The black over the scene (the lobby movie's).
+    pub fn shade(&self, shade: Shade) {
         // SAFETY: the lobby menu is alive (its own on_deactivate runs).
-        unsafe { swap_held(self.thread, self.menu) }
-    }
-
-    /// The scene's fade (the lobby movie's).
-    pub fn fade(&self, fade: Fade) {
-        // SAFETY: as swap_held.
-        unsafe { fade_scene(self.menu, fade) }
+        unsafe { shade_scene(self.menu, shade) }
     }
 }
 
@@ -393,16 +373,28 @@ impl<'t> DrawnLobby<'t> {
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
     }
 
-    /// Puts the held project in (behind the black).
-    pub fn swap_held(&self) {
+    /// The black over the scene (the lobby movie's).
+    pub fn shade(&self, shade: Shade) {
         // SAFETY: the lobby menu is alive (its camera ticks).
-        unsafe { swap_held(self.thread, self.menu) }
+        unsafe { shade_scene(self.menu, shade) }
     }
 
-    /// The scene's fade (the lobby movie's).
-    pub fn fade(&self, fade: Fade) {
-        // SAFETY: as swap_held.
-        unsafe { fade_scene(self.menu, fade) }
+    /// Opens (or closes) the lobby window, as its button does (a diagnostics
+    /// build's captures).
+    pub fn toggle_window(&self) {
+        // SAFETY: as shade.
+        if let Some(movie) = unsafe { lobby_movie(self.menu) } {
+            movie.invoke_uints(c"root.srp_lobby_window", &[]);
+        }
+    }
+
+    /// Tells the lobby window what it shows: the pick, the lobby shown and
+    /// the lobbies there (bit `id - 1`), as `root.srp_lobby_state`.
+    pub fn tell(&self, state: [u32; 3]) {
+        // SAFETY: as shade.
+        if let Some(movie) = unsafe { lobby_movie(self.menu) } {
+            movie.invoke_uints(c"root.srp_lobby_state", &state);
+        }
     }
 
     pub fn reset_eye_adaptation(&self) {
@@ -410,25 +402,73 @@ impl<'t> DrawnLobby<'t> {
     }
 }
 
+/// srp's two bytes of a `0xA1`: the receiver's lobby pick and its squad
+/// commander's (lobby ids, 0 none).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Picks {
+    pub own: u8,
+    pub commander: u8,
+}
+
+/// srp's two bytes at a reader's cursor, when the message has them.
+///
+/// # Safety
+/// `reader` is a live reader of the message, for the hook.
+unsafe fn picks_at(reader: raw::BufferReader) -> Option<Picks> {
+    // SAFETY: the caller's reader.
+    let (begin, cursor, size) = unsafe { (reader.begin(), reader.cursor(), *reader.size()) };
+    let (first, at) = (begin as usize, cursor as usize);
+    let end = first.wrapping_add(size as usize);
+    if cursor.is_null() || at < first || at > end || end < first {
+        return None;
+    }
+    // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
+    // and cursor..end lies inside them.
+    let mut rest = unsafe { Reader::of_memory(cursor, end - at) };
+    Some(Picks { own: rest.u8()?, commander: rest.u8()? })
+}
+
+/// Sends srp a ranking request (`3B 00 <start> 1`) of one of its reserved
+/// starts (the lobby_client's ranking request, 0x270070, as the movie's
+/// request_players_range sends it).
+///
+/// # Safety
+/// `client` is the lobby client, alive on the game's thread.
+unsafe fn send_start(client: raw::LobbyClient, start: u32) {
+    // SAFETY: the caller's; the request only builds and queues a message.
+    unsafe { raw::engine_lobby_query_players_range(Some(client), start, 1) }
+}
+
 /// `0xA1`'s squad id, at `lobby_client.squad_id` (read_squad_info 0x274720
-/// with the id kept, both paths: the lobby client in EBX).
+/// with the id kept, both paths: the lobby client in EBX, the reader in ESI,
+/// past the id).
 pub struct SquadId<'t> {
     client: raw::LobbyClient,
+    reader: raw::BufferReader,
     _thread: &'t Thread,
 }
 
 impl<'t> SquadId<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<SquadId<'t>> {
-        // SAFETY: the context is this site's: the lobby client, alive while
-        // the handler runs on the game's thread.
-        let client = unsafe { raw::site::lobby_client_squad_id::client(ctx)? };
-        Some(SquadId { client, _thread: ctx.thread() })
+        use raw::site::lobby_client_squad_id as site;
+        // SAFETY: the context is this site's: the lobby client and the
+        // message's reader, alive while the handler runs on the game's thread.
+        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+        Some(SquadId { client, reader, _thread: ctx.thread() })
     }
 
-    /// The squad id (0 none), as the handler kept it (+1EAAA4h).
-    pub fn get(&self) -> u32 {
-        // SAFETY: the client's field, written by the handler before the site.
-        unsafe { *self.client.squad_id() }
+    /// For no squad (id 0), srp's two bytes after the id; none for a squad
+    /// (they come after its members, `SquadRead`).
+    pub fn picks(&self) -> Option<Picks> {
+        // SAFETY: the client's field, written by the handler before the site;
+        // the live reader.
+        unsafe { if *self.client.squad_id() == 0 { picks_at(self.reader) } else { None } }
+    }
+
+    /// Sends srp `3B` at `start` (one of its reserved starts).
+    pub fn send(&self, start: u32) {
+        // SAFETY: the lobby client of the handler.
+        unsafe { send_start(self.client, start) }
     }
 }
 
@@ -450,35 +490,15 @@ impl<'t> SquadRead<'t> {
         Some(SquadRead { client, reader, _thread: ctx.thread() })
     }
 
-    /// Its squad id (0 none), as the handler kept it (+1EAAA4h).
-    pub fn squad_id(&self) -> u32 {
-        // SAFETY: the client's field, written by the handler before the site.
-        unsafe { *self.client.squad_id() }
+    /// srp's two bytes after the squad, when the message has them.
+    pub fn picks(&self) -> Option<Picks> {
+        // SAFETY: the live reader.
+        unsafe { picks_at(self.reader) }
     }
 
-    /// srp's last byte, the commander's quest faction: the byte at the
-    /// reader's cursor when the message has it.
-    pub fn commander_faction(&self) -> Option<u8> {
-        if self.squad_id() == 0 {
-            return None;
-        }
-        // SAFETY: a live reader, for the hook.
-        let (begin, cursor, size) = unsafe { (self.reader.begin(), self.reader.cursor(), *self.reader.size()) };
-        let (first, at) = (begin as usize, cursor as usize);
-        let end = first.wrapping_add(size as usize);
-        if cursor.is_null() || at < first || at >= end || end < first {
-            return None;
-        }
-        // SAFETY: begin..begin+size are the message's bytes, alive for the
-        // hook, and cursor..end lies inside them.
-        let mut rest = unsafe { Reader::of_memory(cursor, end - at) };
-        rest.u8()
+    /// Sends srp `3B` at `start` (one of its reserved starts).
+    pub fn send(&self, start: u32) {
+        // SAFETY: the lobby client of the handler.
+        unsafe { send_start(self.client, start) }
     }
-}
-
-/// The quest faction the server just gave, at `lobby_client.faction` (the
-/// 0x8E handler as it keeps the message's last byte, EAX, at the lobby
-/// client's +1EA998h): the factions_dict id, 0 for none chosen yet.
-pub fn arrived_faction(ctx: &Context<'_>) -> u8 {
-    ctx.reg(super::context::Reg::Eax) as u8
 }

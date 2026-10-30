@@ -1,5 +1,5 @@
-# Patch 81: the lobby's scene follows the player's quest faction (the squad
-# commander's in a squad), a change shown at once behind a fade
+# Patch 81: the lobby's scene is the player's pick in the lobby window (the
+# squad commander's in a squad), a change shown at once behind a fade
 # (docs/notes/lobby-scenes.md). Only the decisions: which sites, and the
 # handlers. The sites are sites_026g.tsv's; the logic is lobby_scene.rs.
 name = "lobby_scene"
@@ -9,10 +9,6 @@ patch = 81
 site = "configs.start"
 handler = "on_configs_start"
 order = 2                           # after patch 79's (language.toml)
-
-[[hook]]
-site = "lobby_client.faction"
-handler = "on_faction"
 
 [[hook]]
 site = "lobby_client.squad_id"

@@ -99,6 +99,8 @@ unsafe extern "C" {
     pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
     /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
     pub fn engine_lobby_query_resources(menu: *mut c_void);
+    /// 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+    pub fn engine_lobby_query_players_range(client: *mut c_void, start: u32, count: u32);
     /// 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
     pub fn engine_project_remove(project: *mut c_void);
     /// 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0

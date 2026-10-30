@@ -4906,3 +4906,6 @@ va	name	location	role	basis
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	entry ESP+4	the node	observed
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	EDI	the stack	observed
 0x00321d10	survarium::bullet_manager::tick	ECX	the bullet manager	observed
+0x00270070	survarium::lobby_client::query_elo_players	EAX	the lobby client (the network client's vtable+3Ch, 0x28C988)	observed
+0x00270070	survarium::lobby_client::query_elo_players	entry ESP+4	the start, u32	observed
+0x00270070	survarium::lobby_client::query_elo_players	entry ESP+8	the count, its low byte	observed

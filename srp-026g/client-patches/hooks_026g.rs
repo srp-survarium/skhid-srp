@@ -949,22 +949,7 @@ pub extern "C" fn hook_language_on_options_call(frame: &mut Frame) -> u32 {
 
 // ---- lobby_scene (patch 81) ----
 
-/// The entry `lobby_scene_on_faction` (0x2717cf, the 0x8E reputations message handler (0x271740) as it keeps the trailing quest_active_faction (mov [ebx+1EA998h],eax): EAX the faction (0 none; factions_dict: 1 Scavengers, 2 Black Market, 3 Renaissance, 4 Edge), EBX the lobby client; every faction the server gives, at the sign-in and after a change, comes so) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lobby_scene_on_faction(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_faction` calls this, from the game's jump at 0x2717cf,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lobby_scene::on_faction(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lobby_scene (patch 81) ----
-
-/// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client; both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
+/// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `lobby_scene_on_squad_id` calls this, from the game's jump at 0x2747c3,
