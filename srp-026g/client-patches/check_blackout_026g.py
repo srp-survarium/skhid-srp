@@ -34,7 +34,24 @@ records each call. The original runs the same way and must do what it did:
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
   while Tab is held in a Blackout match the action mask has no move and no
   act, an act held through Tab stays out until let go; the original and a
-  match without send what is pressed.
+  match without send what is pressed;
+- the teams' tape: profile_skin_visual_cook::on_configs_loaded at 0x2056F0
+  (its parts and the head done) to 0x2056F7, on a cook data the game's own
+  constructor (0x127C30) made, its records filled as the cook fills them, a
+  frame with the cook data at [esp+1Ch], the name at [esp+348h] and the
+  profile at [ebp+10h]. The band is the profile's own (protection 11 blue, 12
+  red): every way a character is built (a match's start, a late joiner's
+  copy, a respawn, a replay whose static info said no Blackout) reads only
+  it. Each record in use of a torso, gloves or legs whose model and surface
+  are a `tape` row of blackout_tape_026g.py's table gets one more record:
+  ported/blackout_tape/<model, '/' as '_'>__<surface>, surface `tape`, the
+  same part, the material ported/blackout_tape/tape_<blue|red>, not baked;
+  the item's own records (their material too) are left; the name gets
+  srpbo0_ or srpbo1_ (in place of its tail when its room is short). Nothing
+  for 10 (the lobby, a match without), 13, 0, the game's own player
+  (is_local), a row's model under another part, another surface, the head's
+  record; the 20-record limit holds. edx and esi as the two instructions
+  leave them, ebx edi ebp and the frame kept; the original changes nothing.
 """
 import struct
 import sys
@@ -45,6 +62,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC
 
 import patch_026g as base
 import check_hide_ui_026g as hide
+import blackout_tape_026g as tape
 
 OPTIONS, WORK = 0x30000000, 0x30100000
 OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
@@ -57,6 +75,15 @@ INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
 OTHER_ICONS = 0x20076000               # another icons' movie (a new game world's)
 NAME_SITE, NAME_PAST = 0x1F2F10, 0x1F2F33
 PLACE_COUNT = 4
+# the visual: profile_skin_visual_cook::on_configs_loaded's site, the cook data, its records
+VISUAL_SITE, VISUAL_BACK = 0x2056F0, 0x2056F7
+VISUAL_CONSTRUCTOR = 0x127C30          # skeleton_combined_cook_data's (esi the data, a byte pushed; ret 4)
+VISUAL, PROFILES = 0x30400000, 0x30500000
+RECORDS, RECORD_SIZE, COUNT, LIMIT = 0x234, 0xC0C, 0xF324, 20
+BASE_MODEL, PART_NAME, MATERIAL, BAKES, KIND = 0x0, 0x114, 0x228, 0xC04, 0xC08
+PROFILE_SIZE, PROFILE_LOCAL, PROFILE_BAND = 0x45FC, 0x45F0, 0x45F4
+KINDS = {"gloves": 1, "torso": 2, "legs": 4}
+BOOTS, HEAD = 3, 0
 # the input's bits
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
 CROUCH, SPRINT, WEAPON_1, GRENADE, MELEE, SPOT = 0x100, 0x200, 0x1000, 0x800000, 0x8000000, 0x10000000
@@ -80,7 +107,8 @@ def srpx(*entries):
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
-        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000)):
+        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000), (VISUAL, 0x10000),
+                         (PROFILES, 0x20000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.refused, self.refusing = (), ()
         self.ticks = 0
@@ -94,6 +122,70 @@ class Run(hide.Run):
         emu.mem_write(out, struct.pack("<Q", self.ticks if address == 0x30200000 else 1000))
         emu.reg_write(UC_X86_REG_EAX, 1)
 
+
+    def string(self, at):
+        """A buffer_string's text, and whether it is still over its own room."""
+        begin, end, limit = struct.unpack("<III", self.emu.mem_read(at, 12))
+        return bytes(self.emu.mem_read(begin, end - begin)), begin == at + 12 and limit == begin + 0x104
+
+    def set_string(self, at, text):
+        begin = self.read(at)
+        self.emu.mem_write(begin, text + b"\0")
+        self.word(at + 4, begin + len(text))
+
+    def records(self):
+        """The cook data's records in use: (base_model, part_name, material, kind, bakes, whole)."""
+        out = []
+        for i in range(self.read(VISUAL + COUNT, 1)[0]):
+            at = VISUAL + RECORDS + i * RECORD_SIZE
+            (model, a), (part, b), (material, c) = (self.string(at + o) for o in (BASE_MODEL, PART_NAME, MATERIAL))
+            out.append((model, part, material, self.read(at + KIND), self.read(at + BAKES, 1)[0], a and b and c))
+        return out
+
+    # on_configs_loaded at 0x2056F0: a cook data of the game's constructor, its records `parts` [(kind,
+    # model, surface, material)] from record 0 (the head's), `count` in use (default: those), the profile
+    # at `profile`, the name `name`; its esp frame and ebp frame made up.
+    def configs_loaded(self, profile, parts, count=None, name=b"12_0_7_"):
+        emu = self.emu
+        emu.mem_write(VISUAL, bytes(0x10000))
+        sp = hide.STACK + 0x8000 - 8
+        self.word(sp, hide.SENTINEL)
+        self.word(sp + 4, 0)
+        self.run(VISUAL_CONSTRUCTOR, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ESI: VISUAL})
+        assert self.stopped == hide.SENTINEL
+        for i, (kind, model, surface, material) in enumerate(parts):
+            at = VISUAL + RECORDS + i * RECORD_SIZE
+            self.set_string(at + BASE_MODEL, model)
+            self.set_string(at + PART_NAME, surface)
+            self.set_string(at + MATERIAL, material)
+            self.word(at + KIND, kind)
+            emu.mem_write(at + BAKES, b"\x01")
+        emu.mem_write(VISUAL + COUNT, bytes([len(parts) if count is None else count]))
+        before = self.records()
+        ebp = hide.STACK + 0x9000
+        sp = ebp - 0x600
+        emu.mem_write(sp, bytes(0x640))
+        self.word(sp + 0x1C, VISUAL)
+        self.word(sp + 0x58, 0x58585858)
+        text = sp + 0x354
+        emu.mem_write(text, name + b"\0")
+        emu.mem_write(sp + 0x458, b"/")
+        for i, value in enumerate((text, text + len(name), sp + 0x458)):
+            self.word(sp + 0x348 + 4 * i, value)
+        self.word(ebp + 0x0C, 0x0C0C0C0C)
+        self.word(ebp + 0x10, profile)
+        frame = lambda: self.read(sp, 0x348) + self.read(sp + 0x459, ebp + 0x40 - sp - 0x459)
+        kept_frame = frame()
+        regs, esp = self.run(VISUAL_SITE, (VISUAL_BACK,), sp, {**hide.GAME, UC_X86_REG_EBP: ebp})
+        name_now, own = self.string(sp + 0x348)
+        return {
+            "back": self.stopped == VISUAL_BACK and esp == sp and regs[UC_X86_REG_EDX] == 0x58585858
+            and regs[UC_X86_REG_ESI] == 0x0C0C0C0C and regs[UC_X86_REG_EBP] == ebp
+            and all(regs[r] == hide.GAME[r] for r in (UC_X86_REG_EBX, UC_X86_REG_EDI))
+            and frame() == kept_frame and self.read(sp + 0x458, 1) == b"/"
+            and self.read(sp + 0x348) == text and own,
+            "before": before, "records": self.records(), "name": name_now,
+        }
 
     def name_visible(self, local_team, player_team, normal, cached=0):
         """The original Alt/crosshair decision through the name's cached flag."""
@@ -407,6 +499,79 @@ def main():
     patched.static_info(empty_options(on))
     report(patched.name_visible(0, 0, 0, 1) == (0, 0x20, True),
            "a new match resets Tab: no stale forced teammate name")
+
+    print("the teams' tape (on_configs_loaded at 0x2056F0): the band is the visual's own profile's")
+    taped = tape.taped()
+    shell = lambda model, surface: tape.DIR.encode() + model.encode().replace(b"/", b"_") + b"__" + surface.encode()
+    rows = [(KINDS[slot], model.encode(), surface.encode(), b"") for slot, model, surface in taped]
+    head = (HEAD, b"character/human/head/head_01", b"head_01_s", b"")
+    plain = (KINDS["gloves"], b"character/human/srp_check/not_taped_hands_s1", b"not_taped_hands_s", b"")
+    first = rows[0]
+    other_kind = BOOTS if first[0] != BOOTS else KINDS["torso"]
+    blue, red, none = 11, 12, 10
+
+    def profile_at(where, field, local=0):
+        for run in (stock, patched):
+            run.word(where + PROFILE_BAND, field)
+            run.emu.mem_write(where + PROFILE_LOCAL, bytes([local]))
+        return where
+
+    def shells_of(parts, band, room=LIMIT):
+        material = b"ported/blackout_tape/tape_" + band
+        out = [(shell(m.decode(), p.decode()), b"tape", material, k, 0, True)
+               for k, m, p, _ in parts if (k, m, p, b"") in rows]
+        return out[:max(0, room - len(parts))]
+
+    def visual_case(text, profile, parts, band, count=None, name=b"12_0_7_"):
+        a, b = stock.configs_loaded(profile, parts, count, name), patched.configs_loaded(profile, parts, count, name)
+        added = [] if band is None else shells_of([(k, m, p, b"") for k, m, p, _ in parts[:count]], band,
+                                                   LIMIT if count is None else LIMIT - count + len(parts[:count]))
+        mark = {None: b"", b"blue": b"srpbo0_", b"red": b"srpbo1_"}[band if added else None]
+        want_name = name + mark if len(name) + len(mark) <= 0x103 else name[:0x103 - len(mark)] + mark
+        ok = a["back"] and b["back"] and a["records"] == a["before"] and a["name"] == name \
+            and b["records"] == b["before"] + added and b["name"] == want_name
+        report(ok, f"{text}: {len(added)} shell record(s)"
+                   + "".join(f", {r[0].decode()} / tape, part {r[3]}, {r[2].decode()}" for r in added[:3])
+                   + (f"; the name {b['name'][-24:].decode()}" if mark else "; the name kept")
+                   + "; the item's records as they were; edx esi as the two instructions leave them, ebx edi ebp "
+                     "and the frame kept; the original changes nothing")
+
+    outfit = [head, plain] + rows
+    visual_case("a match's start: an options' profile, blue", profile_at(OPTIONS, blue), outfit, b"blue")
+    visual_case("a match's start, place 7, red", profile_at(OPTIONS + 7 * PROFILE_SIZE, red), outfit, b"red")
+    late = profile_at(PROFILES, red)
+    visual_case("a late joiner seen by the others: his own copy of his profile, red", late, outfit, b"red")
+    visual_case("a respawn: the same profile built again", late, outfit, b"red")
+    for run in (stock, patched):
+        run.static_info(empty_options(b""))
+    visual_case("a replay (its static info read without Blackout): the profile says blue",
+                profile_at(OPTIONS + 19 * PROFILE_SIZE, blue), outfit, b"blue")
+    visual_case("the lobby: its profile says 10", profile_at(PROFILES + 0x8000, none), outfit, None)
+    visual_case("a match without Blackout: 10", profile_at(OPTIONS, none), outfit, None)
+    visual_case("another value (13)", profile_at(OPTIONS, 13), outfit, None)
+    visual_case("protection 0", profile_at(OPTIONS, 0), outfit, None)
+    visual_case("the game's own player (is_local), blue", profile_at(OPTIONS + 3 * PROFILE_SIZE, blue, 1), outfit,
+                None)
+    visual_case("a taped model and surface under another part", profile_at(OPTIONS, blue),
+                [head, (other_kind,) + first[1:]], None)
+    visual_case("a taped model with another surface", profile_at(OPTIONS, blue),
+                [head, first[:2] + (b"another_surface_s", b"")], None)
+    visual_case("a taped model and surface as the head's record", profile_at(OPTIONS, blue),
+                [(HEAD,) + first[1:]], None)
+    visual_case("no taped record", profile_at(OPTIONS, blue), [head, plain], None)
+    owned = first[:3] + (b"ported/srp_check/its_own_material",)
+    visual_case("a taped record whose item set its material: the shell is the tape's, the item's kept",
+                profile_at(OPTIONS, blue), [head, owned], b"blue")
+    filler = [plain] * (LIMIT - 2)
+    visual_case("19 records in use, two taped: one shell, the 20th", profile_at(OPTIONS, red),
+                [head] + filler[:LIMIT - 4] + [first, first], b"red")
+    visual_case("20 records in use: none added, the name kept", profile_at(OPTIONS, red),
+                [head] + filler + [first], b"red")
+    visual_case("taped records past those in use are not read", profile_at(OPTIONS, red),
+                [head, plain, first], b"red", count=2)
+    long = b"7_" * 0x81
+    visual_case("a name filling its room: the mark in place of its tail", profile_at(OPTIONS, blue),
+                [head, first], b"blue", name=long)
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

@@ -456,6 +456,21 @@ pub extern "C" fn hook_blackout_on_name_visibility(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_skin_parts` (0x2056f0, profile_skin_visual_cook::on_configs_loaded after its parts and the head (mov edx,[esp+58h] / mov esi,[ebp+0Ch]; 0x205653 jumps here without a head): ESP+1Ch the cook data, ESP+348h the name, EBP+10h the profile) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_skin_parts(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_skin_parts` calls this, from the game's jump at 0x2056f0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_skin_parts(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- consumable_activity (patch 77) ----
 
 /// The entry `consumable_activity_on_update` (0x23b7a0, update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer) calls this with the saved machine.

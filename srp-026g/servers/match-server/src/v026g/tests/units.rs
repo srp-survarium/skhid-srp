@@ -145,6 +145,71 @@ fn blackout_is_the_setup_flag_on_battery_maps_only() {
     }
 }
 
+/// Blackout's band is each player's own (exe patch 65 reads it from the
+/// profile alone): his static info's profile says his team's colour, a late
+/// joiner's too, in the static info and in the place the others are sent; a
+/// match without Blackout keeps the profiles as they came.
+#[test]
+fn every_profile_carries_its_band() {
+    use survarium::v026g::match_msgs::static_info::{Band, NO_PROTECTION};
+    let registry = MatchRegistry::new("127.0.0.1", 1236);
+    for blackout in [true, false] {
+        let band = |team: u8| if blackout { Band::of_team(team) } else { None };
+        let mut made = setup(3, MAP_BATTERIES);
+        made.blackout = blackout;
+        let ticket = registry.create_growing(made).unwrap();
+        let formed = registry.formed(ticket.match_id).unwrap();
+        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+        let bands: Vec<_> = options.players.iter().map(|p| p.band()).collect();
+        assert_eq!(
+            bands,
+            [band(0), band(1), band(0)],
+            "Blackout {blackout}: teams 0, 1, 0"
+        );
+        if !blackout {
+            assert!(
+                options
+                    .players
+                    .iter()
+                    .all(|p| p.protection == NO_PROTECTION)
+            );
+        }
+        // A late joiner of team 1, then one of team 0.
+        for (place, team) in [(3_usize, 1_u8), (4, 0)] {
+            registry.set_admitting(
+                ticket.match_id,
+                place,
+                Ok(std::time::Instant::now() + std::time::Duration::from_secs(60)),
+            );
+            registry
+                .join_running(
+                    ticket.match_id,
+                    crate::v026g::MatchPlayer {
+                        session_id: session_of(place),
+                        account_id: 100 + place as u32,
+                        profile: super::profile(&format!("late{place}"), team),
+                        bot: false,
+                        driven: false,
+                    },
+                )
+                .unwrap();
+            let formed = registry.formed(ticket.match_id).unwrap();
+            // The place the others are sent (the game's late join) and his static info.
+            assert_eq!(formed.profiles[place].band(), band(team));
+            let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+            assert_eq!(options.players[place].band(), band(team));
+            assert_eq!(
+                options.players[..3]
+                    .iter()
+                    .map(|p| p.band())
+                    .collect::<Vec<_>>(),
+                bands
+            );
+        }
+        registry.end(ticket.match_id);
+    }
+}
+
 #[test]
 fn the_settings_and_their_defaults() {
     assert_eq!(parse_late_inputs(None), LateInputs::Relay);

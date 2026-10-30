@@ -1,0 +1,18 @@
+{
+  "_what": "The duct tape's look: one photo-scanned tape set, cut into the pieces a wrap is made of. Swap the look by pointing TAPE_SOURCE at another set and naming its pieces here.",
+  "source": "ambientCG Tape006 (CC0 1.0, https://ambientcg.com/a/Tape006), 2K JPG set",
+  "files": {
+    "color": "Tape006_2K-JPG_Color.jpg",
+    "opacity": "Tape006_2K-JPG_Opacity.jpg",
+    "height": "Tape006_2K-JPG_Displacement.jpg",
+    "roughness": "Tape006_2K-JPG_Roughness.jpg"
+  },
+  "_pieces": "Strips lying along the image's rows: columns [x0, x1] across the tape (its two side edges inside), rows [y0, y1] along it. The roll is the pieces end to end from the wrap's free end inward; the first piece's y0 is a torn end (its ragged edge is in the opacity), each joint is cross-faded over `joint` pixels.",
+  "width_mm": 48,
+  "pieces": [
+    {"x0": 1262, "x1": 1640, "y0": 300, "y1": 1985, "reverse": false},
+    {"x0": 333, "x1": 702, "y0": 880, "y1": 2000, "reverse": false},
+    {"x0": 339, "x1": 708, "y0": 70, "y1": 840, "reverse": false}
+  ],
+  "joint": 48
+}

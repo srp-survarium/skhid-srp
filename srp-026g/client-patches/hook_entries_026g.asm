@@ -1116,6 +1116,45 @@ blackout_on_name_visibility_replay:
     db 0x0f, 0xb6, 0x8e, 0x14, 0x01, 0x00, 0x00
     jmp 0x1f2f17
 
+; 0x2056f0 profile_skin_visual_cook::on_configs_loaded after its parts and the head (mov edx,[esp+58h] / mov esi,[ebp+0Ch]; 0x205653 jumps here without a head): ESP+1Ch the cook data, ESP+348h the name, EBP+10h the profile: lohook -> blackout_on_skin_parts
+global blackout_on_skin_parts
+extern hook_blackout_on_skin_parts
+blackout_on_skin_parts:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_skin_parts
+    mov edx, blackout_on_skin_parts_replay
+    cmp eax, 0
+    je blackout_on_skin_parts_go
+    mov edx, 0x2056f7
+    cmp eax, 1
+    je blackout_on_skin_parts_go
+    ud2
+blackout_on_skin_parts_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_skin_parts_replay:
+    db 0x8b, 0x54, 0x24, 0x58, 0x8b, 0x75, 0x0c
+    jmp 0x2056f7
+
 ; 0x23b7a0 update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer: lohook -> consumable_activity_on_update
 global consumable_activity_on_update
 extern hook_consumable_activity_on_update

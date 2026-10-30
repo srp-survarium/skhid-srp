@@ -243,3 +243,19 @@ survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, af
 survarium::explosion_params	splash_pierce	0x34	f32	its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
 survarium::explode_frame	manager	0x4	ptr<survarium::bullet_manager>	bullet_manager::explode's first stack argument: the core world's bullet manager (game_world_core +18F58h; 0x30A4CF, 0x305711)
 survarium::explode_frame	centre	0x8	ptr<f32>	its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)
+vostok::buffer_string	end	0x4	ptr<u8>	the text's end, its zero (every copy writes while it is below limit, then the zero at it: buffer_string::assign 0x127C0)
+vostok::buffer_string	limit	0x8	ptr<u8>	the room's end: a record's strings are 104h bytes from +0Ch (skeleton_combined_part's constructor 0x127CB0)
+survarium::player_profile	is_local	0x45F0	u8	the game's own player: process_static_match_info sets it by the message's local index (0x27BE5F); a late joiner's place and the lobby's leave 0
+survarium::player_profile	protection	0x45F4	u32	new-player protection (0x1F10CE): damage times max(0, 1 - 0.1 v) (0x332BAA, 0x332C4D; 0x2F4E2A tests 0), so 10 and up protect nothing; srp's Blackout band: 11 blue, 12 red (patch 65)
+survarium::skin_visual_frame	cook_data	0x1C	ptr<vostok::render::skeleton_combined_cook_data>	profile_skin_visual_cook::on_configs_loaded's (0x204560) ESP+1Ch at 0x2056F0: the new cook data (made 0x2045AB), its parts and head done
+survarium::skin_visual_frame	name	0x348	obj<vostok::buffer_string>	its ESP+348h at 0x2056F0: the visual's name {begin, end, limit} over ESP+354h..458h, per part its item id and camouflage (0x2051AC, 0x204A7A): the combined skin's resource name (its cache key) queried at 0x20579F
+survarium::skin_visual_args	profile	0x10	ptr<survarium::player_profile>	on_configs_loaded's EBP+10h (entry ESP+0Ch): the visual's profile (a match's in the options at place x 45FCh, a late joiner's own copy, the lobby's)
+vostok::render::skeleton_combined_cook_data	records	0x234	obj<vostok::render::skeleton_combined_part>	the 20 part records (constructed 0x127C30 by 0x11100 over 0x127CB0): the head's record 0, the items' from 1 (0x204735)
+vostok::render::skeleton_combined_cook_data	count	0xF324	u8	the records in use (set 1 at 0x204735, ++ per part 0x2054C3 and per additional model 0x205607); skeleton_combined_model_cook loops over them (0x1286D0)
+vostok::render::skeleton_combined_part	size	0xC0C	size	a part record (constructor 0x127CB0; the cook data's 20 at +234h)
+vostok::render::skeleton_combined_part	base_model	0x0	obj<vostok::buffer_string>	resources/models/<base_model>.skinned_model (0x205416; skeleton_combined_model_cook's query)
+vostok::render::skeleton_combined_part	part_name	0x114	obj<vostok::buffer_string>	the model's surface (render/<part_name>/converted_model; 0x20542D)
+vostok::render::skeleton_combined_part	material	0x228	obj<vostok::buffer_string>	the item's optional material (0x20545E); empty: the model settings' material_settings[<part_name>].material_name (0x1288C7..0x128917)
+vostok::render::skeleton_combined_part	bakes	0xC04	u8	1: the camouflage/decal baker bakes this record (camo_available 0x204BC4, decals 0x204F23; bake_decals 0x1298EB); the record constructor leaves it
+vostok::render::skeleton_combined_part	kind	0xC08	u32	the part: 0 the head (0x2056E6), else 1 + the slot table's index (0xA79870: gloves 1, torso 2, boots 3, pants 4, helmet 5, mask 6, back 7; 0x204A44, additional models 0x205540)
+vostok::buffer_string	size	0x114	size	a fixed buffer_string: {begin, end, limit}, its 104h-byte room from +0Ch, a separator byte at +110h (the constructor 0x127CB0: a record's strings at +0, +114h, +228h)

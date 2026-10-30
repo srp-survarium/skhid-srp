@@ -20,13 +20,24 @@
 //!   for teammates in Blackout, after the native visibility checks;
 //! - the input builder's end (`input_builder.end`): while Tab is held the
 //!   input has no act; moves stop after 200 ms (the look stays). An act held through
-//!   Tab stays out until its key is let go.
+//!   Tab stays out until its key is let go;
+//! - a character's visual (`skin_visual.parts_done`, on_configs_loaded after
+//!   its parts and the head): the teams' duct tape. The band is the visual's
+//!   own profile's (srp writes it in the protection field: 11 blue, 12 red; 10,
+//!   none, everywhere else), so a match's start, a late joiner, a respawn, a
+//!   replay and the lobby are all the same read; none on the game's own
+//!   player. Each taped record (`tape`) gets a shell record in the band's
+//!   colour, and the visual's name a team mark.
 //!
-//! Nothing a match computes: the interface and the local input only (the
-//! input is filtered before it is sent, so every game plays what was sent).
+//! Nothing a match computes: the interface, the local input and the
+//! characters' look only (the input is filtered before it is sent, so every
+//! game plays what was sent).
 
 #![forbid(unsafe_code)]
 
+pub mod tape;
+
+use crate::vostok::skin::{NewPart, SkinVisual, Wearer};
 use crate::vostok::{clock, parse::Reader};
 use crate::vostok::{
     ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
@@ -228,6 +239,34 @@ pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
     handler.set_actions(sent);
     HELD.set(ctx.thread(), still);
     crate::artefact_carry::on_input_end(ctx)
+}
+
+/// on_configs_loaded after its parts and the head (0x2056F0): each taped
+/// record of the visual (of those in use here) gets the tape's shell, in the
+/// band's colour, while the cook data has room; the visual's name then gets
+/// the team's mark. Nothing for the game's own player or a profile without
+/// a band.
+pub fn on_skin_parts(ctx: &mut Context) -> Flow<NoExit> {
+    let Some(mut visual) = SkinVisual::at_parts_done(ctx) else { return Flow::Continue };
+    let Wearer::Player { band: Some(band) } = visual.wearer() else { return Flow::Continue };
+    let mut added = false;
+    for index in 0..visual.count() {
+        let Some((kind, shell)) = visual.part(index).as_ref().and_then(tape::shell_of) else { continue };
+        let part = NewPart {
+            kind,
+            base_model: shell.as_cstr(),
+            part_name: tape::SHELL_SURFACE,
+            material: tape::material(band),
+        };
+        if visual.add_part(&part).is_err() {
+            break;
+        }
+        added = true;
+    }
+    if added {
+        visual.mark_name(tape::name_mark(band));
+    }
+    Flow::Continue
 }
 
 #[cfg(test)]
