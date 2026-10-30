@@ -176,6 +176,19 @@ fn threat_tick(
         let _ = opened;
         covered
     } else {
+        // [bench] With the rules off the crossings under a cloud are counted all the same (count, don't act), so the
+        // two arms of a head-to-head read alike; the covered regions are #801's.
+        #[cfg(test)]
+        if !planning.is_empty() {
+            let (grid, map) = (&tactics.world.grid, tactics.regions());
+            let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+            let (_, opened) = threat.spots.covered_regions_smoked(now, |at, r| {
+                planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+            });
+            if !opened.is_empty() {
+                under_cloud(bots, team, grid, map, &opened, tuning, now);
+            }
+        }
         threat.spots.covered_regions(now)
     };
     regions.sort_unstable();
