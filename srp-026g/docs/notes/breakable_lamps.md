@@ -138,6 +138,33 @@ fixtures ten, some 700 shards. The sound plays once, at the line's middle. A
 bullet's and a blast's break play the same bursts; a bullet's shards fly
 along the bullet, a blast's away from it.
 
+**Why release 39's bursts showed nothing (release 40).** Every burst of
+release 39 was drawn nowhere, one or ten. The shards the owner saw on a shot
+lamp were the game's own glass hit, at the bullet's hit point with the real
+surface's normal; a grenade has no such hit, so its breaks showed none. The
+burst was queued and played (the manager's +30h stack has no cap: its tick
+runs every functor queued), but with the normal set to the reversed ray. The
+game orients an effect in `game_world::play_particle` (0x25B9B0, the
+`bullet_manager_engine` slot 4 the queued functor calls): the glass pair's
+`particle_orientation` (+74h) is 0, so `create_rotation(direction, normal)`
+(0x25CB10), rows normalize(normal x direction), the normal, and their cross
+product (its second transform, about the direction reflected in the normal,
+likewise). A normal along the direction has a zero cross product: 1/0 times 0,
+two NaN rows, and every shard's velocity (the pair's `RandomTargetVeloc`
+box, 3.2 m/s down the effect's y) and the crack sprite with them. Running
+0x25B9B0 on release 39's arguments gives those NaN rows.
+
+`SurfaceBreakEffects` now reads the pair's orientation once
+(`ParticleOrientation`) and gives play_particle a frame that is never
+degenerate: for the glass pair's (0) the normal back along the ray and, as
+direction, the ray's `perpendicular()` (its cross product with the world axis
+it is least along, never shorter than sqrt(2/3) of it); for a pair oriented to
+the direction, the ray and that perpendicular. The effect's y is still the
+reversed ray, so the shards fly as designed; the direction only sets its roll.
+`check_lamps_026g.py` runs 0x25B9B0 on every queued burst (vertical, oblique
+and turned rays, blasts, both orientations) and requires two finite
+orthonormal transforms with that axis.
+
 ## Blasts
 
 Every blast of the simulation goes through `bullet_manager::explode`
@@ -237,7 +264,8 @@ iteration/vtable dispatch, visual/light methods, bullet history and installed
 hooks in Unicorn. It covers all 96 authored variants, hits, occlusion, the shard bursts on
 the glass lines of Mamayev Kurgan's plafon (3), London's tubes (6, one fixture
 turned 54 degrees) and School's and Vector's fluorescent fixtures (10, from a
-bullet and from a blast) with one sound each, blasts (two lamps within the
+bullet and from a blast) with one sound each, each burst oriented by the game's
+own play_particle into a finite frame along its ray, blasts (two lamps within the
 radius both break with one burst and sound each and the history a bullet
 leaves; one outside it or with the trace stopped breaks none; rollback,
 resimulation, a late join, a manager without a renderer, a blast inside a

@@ -1875,3 +1875,7 @@ va	status	ref_021d	name
 0x00239420	observed	0x00182a9c	survarium::game_world_ui::update_minimap_players
 0x00239a30	observed	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x0027a980	observed	0x001a2572	survarium::network_client::get_player
+0x0025b9b0	reviewed	0x001935c1	survarium::game_world::play_particle
+0x0025cb10	reviewed	0x0019400b	vostok::math::create_rotation
+0x00322ab0	reviewed	0x001fee95	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push
+0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
