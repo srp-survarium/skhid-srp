@@ -1405,6 +1405,22 @@ pub struct HeldLine {
 }
 
 impl HeldLine {
+    /// A line for the tests of those who read one: a shooter at `at` who killed `victims`, sensed on it at `seen`.
+    #[cfg(test)]
+    pub(super) fn for_test(id: u32, shooter: Place, at: Vec3, victims: &[Vec3], seen: Option<u32>) -> Self {
+        let lanes: Vec<(Vec3, f32)> = victims.iter().map(|&v| (at, bearing(at, v))).collect();
+        Self {
+            id,
+            at,
+            shooter,
+            facing: lanes.first().map_or(0.0, |l| l.1),
+            lanes,
+            reach_m: 50.0,
+            kills: victims.len(),
+            seen,
+        }
+    }
+
     /// The ground direction he faces, as `kin::forward` gives one.
     pub fn facing_dir(&self) -> [f32; 2] {
         [self.facing.sin(), self.facing.cos()]

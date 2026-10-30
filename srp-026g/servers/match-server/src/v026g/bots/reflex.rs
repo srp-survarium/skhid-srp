@@ -385,6 +385,14 @@ pub struct CombatTuning {
     /// the top because a bot has a place only part of the time. Swept:
     /// 0.04 and 0.15 arms.
     pub grenade_track_chance: f32,
+    /// [A170] A grenade at a held threat spot (`threat::HeldLine`): a bot with a frag, `grenade_m` from a held spot and
+    /// outside its lanes, throws at the spot while the team sensed its shooter on it in the last
+    /// `threat::SENSED_MS` (the 5 s rule: team knowledge only, never his live position), with this chance at a roll. The
+    /// throw is weighed as any other (the thrower's blast, the mate rule, the arc) and the team's claim keeps the whole
+    /// team from emptying its frags on one camper (`grenade_claim_m` / `grenade_claim_ms`). No push after the blast: it
+    /// would go into his lanes. On at 1.0 (A170: 114 frags in 56 camper matches, 32 % of the blasts within 10 m of the sensed shooter,
+    /// no own-side harm, no change in the match). `None`: no throw at a spot.
+    pub grenade_at_held: Option<f32>,
     /// [G2] A place whose flat arc is refused (the thrower's blast, a
     /// steep wall near him, off the place) is tried with other arcs: other
     /// pitches at the same yaw (a lob over what is in the way, 20-29 m
@@ -1137,6 +1145,7 @@ impl Default for CombatTuning {
             grenade_track_gap_ms: 500,
             grenade_track_error_m: 8.0,
             grenade_track_chance: 0.45,
+            grenade_at_held: Some(1.0),
             grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
@@ -1699,6 +1708,8 @@ enum PlaceSource {
     Lost,
     /// [G1] Where it heard one, or a teammate called one.
     Heard,
+    /// A held threat spot (`grenade_at_held`): where the team sensed the shooter that killed its bots, lately.
+    Spot,
 }
 
 impl PlaceSource {
@@ -1708,6 +1719,7 @@ impl PlaceSource {
             Self::Camp => 1,
             Self::Lost => 2,
             Self::Heard => 3,
+            Self::Spot => 4,
         }
     }
 
@@ -1751,9 +1763,9 @@ impl ArcPick {
 /// [measure] The kinds of place, the reasons a throw is refused
 /// ([`Refuse`]) and the kinds of arc that passed, as the lengths of
 /// [`GrenadeStats`]'s tables. The sources: held, camp, lost, heard
-/// ([`PlaceSource`]); the arc kinds ([`ArcPick::kind`]): flat, another
+/// ([`PlaceSource`], the fifth a held threat spot); the arc kinds ([`ArcPick::kind`]): flat, another
 /// pitch, another yaw.
-pub const GRENADE_SOURCES: usize = 4;
+pub const GRENADE_SOURCES: usize = 5;
 pub const GRENADE_REASONS: usize = 6;
 pub const GRENADE_ARCS: usize = 3;
 
@@ -2573,6 +2585,8 @@ pub struct Reflex {
     /// A grenade decided on at this place, for the team's claim
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
+    /// [A170] The shooters of the held spots the last roll offered as places (the note of a throw at one names its shooter).
+    spot_shooters: Vec<(Vec3, Place)>,
     /// The enemy and the time it last fired at him: the team's hit marker on him
     /// ([`Reflex::fired_at`]).
     last_fired: Option<(Place, u32)>,
@@ -4632,6 +4646,31 @@ impl Reflex {
                 places.push((at, source));
             }
         }
+        // [A170] The held spots whose shooter the team sensed on them lately: the camper the team cannot see.
+        self.spot_shooters.clear();
+        if c.grenade_at_held.is_some()
+            && let Some(team) = team
+        {
+            for line in &team.threat.held {
+                let on_it = line
+                    .seen
+                    .is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS);
+                if !on_it
+                    || !(c.grenade_m.0..=c.grenade_m.1).contains(&line.at.distance_xz(me.feet))
+                    || line.covers(me.feet)
+                    || places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m)
+                    || friend_near(line.at)
+                {
+                    continue;
+                }
+                if claimed(line.at) {
+                    self.grenade_stats.claimed += 1;
+                    continue;
+                }
+                places.push((line.at, PlaceSource::Spot));
+                self.spot_shooters.push((line.at, line.shooter));
+            }
+        }
         self.grenade_stats.claimed += dropped;
         if places.is_empty() {
             return;
@@ -4643,19 +4682,21 @@ impl Reflex {
             self.next_grenade_roll = now + c.grenade_roll_ms;
             return;
         }
+        // A held spot first, then the nearest.
         places.sort_by(|a, b| {
-            a.0.distance_xz(me.feet)
-                .total_cmp(&b.0.distance_xz(me.feet))
+            (a.1 != PlaceSource::Spot)
+                .cmp(&(b.1 != PlaceSource::Spot))
+                .then(a.0.distance_xz(me.feet).total_cmp(&b.0.distance_xz(me.feet)))
         });
         self.next_grenade_roll = now + c.grenade_roll_ms;
         self.grenade_stats.rolls += 1;
         for (_, source) in &places {
             self.grenade_stats.places[source.index()] += 1;
         }
-        let chance = if places[0].1.is_track() {
-            c.grenade_track_chance
-        } else {
-            c.grenade_chance
+        let chance = match (places[0].1, c.grenade_at_held) {
+            (PlaceSource::Spot, Some(chance)) => chance,
+            (source, _) if source.is_track() => c.grenade_track_chance,
+            _ => c.grenade_chance,
         };
         if rng.unit() >= chance {
             self.grenade_stats.chance_no += 1;
@@ -4960,7 +5001,7 @@ impl Reflex {
                     } else {
                         now + c.grenade_push_ms.0
                     };
-                    if throw.source.is_track() && !c.grenade_push_tracks {
+                    if (throw.source.is_track() && !c.grenade_push_tracks) || throw.source == PlaceSource::Spot {
                         self.grenade_stats.pushes_skipped += 1;
                     } else {
                         self.push = Some(Push {
@@ -4971,8 +5012,14 @@ impl Reflex {
                         });
                     }
                     self.throw_notes.push(format!(
-                        "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}",
-                        throw.at.x, throw.at.y, throw.at.z
+                        "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}{}",
+                        throw.at.x,
+                        throw.at.y,
+                        throw.at.z,
+                        match self.spot_shooters.iter().find(|(at, _)| *at == throw.at) {
+                            Some((_, shooter)) if throw.source == PlaceSource::Spot => format!(" (at a held spot of shooter {shooter})"),
+                            _ => String::new(),
+                        }
                     ));
                 }
                 if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms && throw.released
@@ -7047,6 +7094,8 @@ mod tests {
     /// one is slower and looser.
     #[test]
     fn the_duel_numbers_are_a_top_players_at_the_best_skill() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         let aim = AimTuning::default();
         let numbers = |skill: f32| {
             let (mut firsts, mut errors) = (Vec::new(), Vec::new());
@@ -8377,8 +8426,8 @@ mod tests {
         let s = run.stats;
         assert!(s.thinks > 0 && s.rolls > 0, "{s:?}");
         assert_eq!(s.chance_no, 0);
-        assert_eq!(s.places, [s.rolls, 0, 0, 0], "one held place a roll, no camp, no track");
-        assert_eq!(s.weighed, [s.rolls, 0, 0, 0]);
+        assert_eq!(s.places, [s.rolls, 0, 0, 0, 0], "one held place a roll, no camp, no track");
+        assert_eq!(s.weighed, [s.rolls, 0, 0, 0, 0]);
         let refused: u32 = s.refused[0].iter().sum();
         assert_eq!(s.passed[0][0] + refused, s.weighed[0], "{s:?}");
         assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
@@ -8539,6 +8588,72 @@ mod tests {
         let mut own = TeamKnowledge::default();
         own.claim_throw(0, Vec3::new(2.0, 0.0, 22.0), 1_500);
         assert!(run(&own).1.is_some(), "his own volley is not held against him");
+    }
+
+    /// [A170] A grenade at a held threat spot: a bot with a frag outside the shooter's lanes, within `grenade_m` of the spot,
+    /// whose shooter the team sensed on it in the last 5 s (`SENSED_MS`), and no teammate's claim on the place.
+    #[test]
+    fn a_held_spot_whose_shooter_was_sensed_lately_is_thrown_at_from_outside_its_lanes() {
+        use super::super::threat::{HeldLine, Picture};
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let spot = Vec3::new(0.0, 0.0, 22.0);
+        let aim = |at_held: Option<f32>| AimTuning {
+            combat: CombatTuning {
+                grenade_claim: true,
+                grenade_tracks: false,
+                grenade_chance: 0.0,
+                grenade_roll_ms: 500,
+                grenade_at_held: at_held,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        // His victims are down the +x side: the thrower at the origin, 22 m before him, is off his lanes.
+        let victims = [Vec3::new(40.0, 0.0, 22.0)];
+        let team_with = |seen: Option<u32>, victims: &[Vec3]| {
+            let mut team = TeamKnowledge::default();
+            team.threat = Arc::new(Picture {
+                held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
+                jobs: Vec::new(),
+            });
+            team
+        };
+        let run = |team: &TeamKnowledge, aim: &AimTuning, times: &[u32]| {
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let sit = Situation {
+                team: Some(team),
+                ..Situation::of(&view)
+            };
+            for &now in times {
+                sense(&mut memory, &[], now);
+                reflex.think_with(&me, &sit, &memory, now, aim, 0.5, &mut rng);
+            }
+            (reflex.grenade_stats(), reflex.take_throw_claim())
+        };
+        let times = [1_800, 2_300, 2_800];
+        // Sensed 1.5 s ago: thrown at, from the held spot's source.
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &times);
+        assert!(claim.is_some() && stats.places[PlaceSource::Spot.index()] > 0, "{stats:?}");
+        // The switch off: no place at all (the chance for the other sources is 0).
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(None), &times);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        // Sensed more than 5 s ago, or never since his death: not thrown at.
+        let late = [8_000, 8_500, 9_000];
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &late);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        let (stats, _) = run(&team_with(None, &victims), &aim(Some(1.0)), &times);
+        assert_eq!(stats.places, [0; GRENADE_SOURCES], "{stats:?}");
+        // The thrower in one of his lanes: not thrown from there.
+        let (stats, claim) = run(&team_with(Some(1_500), &[Vec3::ZERO]), &aim(Some(1.0)), &times);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        // A teammate's claim on the place within a few seconds: left to him.
+        let mut claimed = team_with(Some(1_500), &victims);
+        claimed.claim_throw(7, spot, 1_500);
+        let (stats, claim) = run(&claimed, &aim(Some(1.0)), &times);
+        assert!(claim.is_none() && stats.claimed > 0, "{stats:?}");
     }
 
     /// The arc searched again at the press: only with `grenade_repick` (and
