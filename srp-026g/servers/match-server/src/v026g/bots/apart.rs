@@ -7,6 +7,9 @@
 use super::*;
 use crate::v026g::drive::key;
 
+/// A body that moves slower than this stands, m/s.
+const STAND_MPS: f32 = 0.5;
+
 /// Teammates this far apart in height are not in each other's way (a floor above).
 const SAME_FLOOR_M: f32 = 2.0;
 
@@ -30,6 +33,11 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
     let Some((_, mate)) = nearest else {
         return 0;
     };
+    // The one that walks gives way to the one that stands (a camper at its post, a bot at a battery): a standing bot steps only when the other stands too, and then the higher place does.
+    let still = |p: &PlaceView| p.velocity[0].hypot(p.velocity[1]) < STAND_MPS;
+    if still(me) && (!still(mate) || me.place < mate.place) {
+        return 0;
+    }
     let [lx, lz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
     let left = (at.0 - me.feet.x) * lx + (at.1 - me.feet.z) * lz;
     if left > 0.15 {
@@ -124,7 +132,8 @@ mod tests {
     #[test]
     fn a_bot_steps_away_from_the_teammate_inside_it_and_not_from_one_outside_it_or_an_enemy() {
         // Yaw 0 faces +z; the left of it is -x (kin::forward(yaw + 90 deg) = [-1, 0]).
-        let me = at(0, 0, 0.0, 0.0);
+        let mut me = at(0, 0, 0.0, 0.0);
+        me.velocity = [0.0, 4.0];
         let on_left = view_of(vec![me.clone(), at(1, 0, -0.8, 0.0)]);
         assert_eq!(key_away(&me, &on_left, 1.1), key::RIGHT);
         let on_right = view_of(vec![me.clone(), at(1, 0, 0.8, 0.0)]);
@@ -154,10 +163,17 @@ mod tests {
     }
 
     #[test]
-    fn two_bodies_on_one_spot_step_to_opposite_sides() {
+    fn of_two_bodies_standing_on_one_spot_the_higher_place_steps_and_the_one_that_walks_gives_way_to_the_one_that_stands() {
         let a = at(0, 0, 0.0, 0.0);
         let b = at(1, 0, 0.0, 0.0);
         let view = view_of(vec![a.clone(), b.clone()]);
-        assert_ne!(key_away(&a, &view, 1.1), key_away(&b, &view, 1.1));
+        assert_eq!(key_away(&a, &view, 1.1), 0);
+        assert_ne!(key_away(&b, &view, 1.1), 0);
+        // A walker steps whatever his place; a stander does not step for a walker.
+        let mut walker = at(0, 0, 0.0, 0.0);
+        walker.velocity = [0.0, 4.0];
+        let view = view_of(vec![walker.clone(), b.clone()]);
+        assert_ne!(key_away(&walker, &view, 1.1), 0);
+        assert_eq!(key_away(&b, &view, 1.1), 0);
     }
 }
