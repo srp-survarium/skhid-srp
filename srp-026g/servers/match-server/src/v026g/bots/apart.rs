@@ -42,9 +42,7 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
     let left = (at.0 - me.feet.x) * lx + (at.1 - me.feet.z) * lz;
     if left > 0.15 {
         key::RIGHT
-    } else if left < -0.15 {
-        key::LEFT
-    } else if me.place < mate.place {
+    } else if left < -0.15 || me.place < mate.place {
         key::LEFT
     } else {
         key::RIGHT

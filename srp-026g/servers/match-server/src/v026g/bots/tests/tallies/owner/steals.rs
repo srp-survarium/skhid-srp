@@ -178,7 +178,7 @@ impl Topic for StealCounts {
             t.ages_s.push(tick.saturating_sub(self.home_since[battery]) as f32 * TICK_S);
         }
         self.last = game.batteries.clone();
-        if tick % SNAP_EVERY == 0 {
+        if tick.is_multiple_of(SNAP_EVERY) {
             self.snaps.push_back(game.bodies.iter().map(|b| (b.alive, b.team, b.feet)).collect());
             while self.snaps.len() > BEFORE_S + 2 {
                 self.snaps.pop_front();
