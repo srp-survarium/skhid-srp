@@ -731,8 +731,11 @@ of the weight's own symbol (`SpeedIndicator`; its fonts, sizes, colours and
 baseline; no bar; coral below 100 %, green above). A TextField made in code
 lost the value's size to the style sheet in the game (the owner's 2026-10-29
 screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
-tooltip, on the whole box, has the total in the heading and its four parts:
-weight, bonuses, skills, equipment. The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
+tooltip, on the whole box, has the total in the heading (in the box value's
+colour, a TextFormat: the heading takes no style sheet) and its five parts:
+weight, bonuses, boosters, skills, equipment, each green when it speeds the
+player up and red when it slows them down (the item card rows' own colours,
+`ModificatorListRenderer`'s style sheet), white at 0. The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
 symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
 simulation change.
 
@@ -750,15 +753,25 @@ simulation change.
   - the weapon in hand's own `parameters/movement_speed_modifier` (its node
     +610h, added in `weapon_core::initialize` 0x2E2C26..0x2E2C9C), left out
     when it is a penalty and modifier 62 (Bear Arms, skill 112) is above 0;
-  - the weight: `-0.20 x q`, scaled by skill 202 (the section above).
+  - the weight: `-0.20 x q`, scaled by skill 202 (the section above);
+  - the boosters the kit carries: a booster works by being in a pocket. At
+    every spawn the inventory fill 0x2FCB70 (called at 0x2DADBB) calls every
+    item of the 23 slots, pockets included (0x2FD1A5); a booster's
+    (`survarium::booster`, constructor 0x33F690; 0x33F960 -> 0x33F990) adds an
+    entry for each non-zero parameter to the kit's lists (`player_bots.md`,
+    `one-pocket-a-type.md`). So it counts always while carried, not only when
+    used. The Tornado energy drink (`speed_booster`, dict 340) has default
+    modifications 1114 (movement speed +5 %) and 1104 (stamina regeneration
+    +10 %): +5 % speed while it is in a pocket of the kit.
 - **The lobby's parts.** The exe's weight callback (`weight_ui_026g.c`)
   gives the skills (the raw kit float of index 4: in the lobby the items are
   not in the container) and whether Bear Arms is on, besides the weight. The
   movie adds the equipped armour's prop 105 modifiers (HEAD..FOOT) as
-  **bonuses** and the first weapon's own movement (prop 105, which
+  **bonuses**, the pockets' (QUICK_1..QUICK_6) as **boosters**, and the first
+  weapon's own movement (prop 105, which
   `WeaponMovement` puts in its built-in rows) as **equipment**: the weapon in
   hand at spawn (LIKELY; switching to the second weapon changes this part in a
-  match). Shown: `max(0, 1 + weight + skills + bonuses + equipment)`, as a
+  match). Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
   percentage of the base speed.
 - **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
   aiming's lower speed.
