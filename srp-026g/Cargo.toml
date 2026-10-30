@@ -7,7 +7,6 @@ members = [
   "crates/session",
   "crates/artefact-carry",
   "crates/ragdoll",
-  "crates/weapon-pickup",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",

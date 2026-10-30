@@ -104,7 +104,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
-use survarium::v026g::match_msgs::pickup::{DropId, PickupInput};
 use survarium::v026g::match_msgs::players::{self, Supplies};
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
 use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
@@ -841,7 +840,6 @@ struct Observed {
 #[derive(Clone, Copy)]
 enum Relayed {
     Input(PlayerInput),
-    PickupInput(PickupInput),
     Profile { tick: u8, value: u8 },
 }
 
@@ -1442,9 +1440,6 @@ impl Game {
             }
             ClientMessage::TimeReply(reply) => self.time_reply(index, reply, now),
             ClientMessage::Input(input) => self.input(index, input, now),
-            ClientMessage::PickupInput(input) => {
-                self.input_with_pickup(index, input.input, Some(input.target), now);
-            }
             ClientMessage::ProfileInput { tick, value } => {
                 self.profile_input(index, tick, value, now);
             }
@@ -1782,9 +1777,7 @@ impl Game {
             .rev()
             .take_while(move |(at, _, _)| *at + 4 * HORIZON_MS > after)
             .filter(move |(at, from, what)| {
-                *from == index
-                    && *at > after
-                    && matches!(what, Relayed::Input(_) | Relayed::PickupInput(_))
+                *from == index && *at > after && matches!(what, Relayed::Input(_))
             })
             .map(|(at, _, _)| *at)
     }
@@ -1800,10 +1793,7 @@ impl Game {
             .rev()
             .take_while(|(at, _, _)| *at + 4 * HORIZON_MS > after)
         {
-            if *at > after
-                && *at <= upto
-                && matches!(what, Relayed::Input(_) | Relayed::PickupInput(_))
-            {
+            if *at > after && *at <= upto && matches!(what, Relayed::Input(_)) {
                 *counts.entry(*from).or_default() += 1;
             }
         }
@@ -3297,21 +3287,6 @@ impl Game {
     }
 
     fn input(&mut self, index: usize, input: PlayerInput, now: Instant) {
-        self.input_with_pickup(index, input, None, now);
-    }
-
-    fn input_with_pickup(
-        &mut self,
-        index: usize,
-        input: PlayerInput,
-        target: Option<DropId>,
-        now: Instant,
-    ) {
-        // Only validate the wire shape here. Clients resolve this exact life
-        // against their deterministic drop state; the server has no ragdolls.
-        if target.is_some_and(|drop| usize::from(drop.0.place.get()) >= self.peers.len()) {
-            return;
-        }
         if self.waiting_entry(index) {
             return;
         }
@@ -3457,13 +3432,7 @@ impl Game {
         }
         peer.placed.push_back((time, relayed_time));
         self.observe_input(index, relayed_time, &relayed);
-        let what = match target {
-            Some(target) => Relayed::PickupInput(PickupInput {
-                input: relayed,
-                target,
-            }),
-            None => Relayed::Input(relayed),
-        };
+        let what = Relayed::Input(relayed);
         self.relay_to_others(index, &what, relayed_time, now);
         self.inputs.push((relayed_time, index, what));
     }
@@ -3603,7 +3572,6 @@ impl Game {
         {
             match what {
                 Relayed::Input(input) => recording.accepted_input(index, time, input, now),
-                Relayed::PickupInput(input) => recording.accepted_pickup(index, time, input, now),
                 Relayed::Profile { value, .. } => {
                     recording.accepted_profile(index, time, *value, now)
                 }
@@ -5693,10 +5661,6 @@ fn farewell_tick(peer: &Peer, clock: u32) -> u8 {
 fn relay(index: usize, what: &Relayed) -> ServerMessage {
     match *what {
         Relayed::Input(input) => ServerMessage::InputRelay {
-            player: index as u8,
-            input,
-        },
-        Relayed::PickupInput(input) => ServerMessage::PickupInputRelay {
             player: index as u8,
             input,
         },

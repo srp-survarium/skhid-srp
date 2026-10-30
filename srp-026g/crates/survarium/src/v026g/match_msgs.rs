@@ -27,7 +27,6 @@ pub mod client_model;
 pub mod clock;
 pub mod late_join;
 pub mod motion;
-pub mod pickup;
 pub mod players;
 pub mod rules;
 pub mod snapshot;
@@ -46,8 +45,6 @@ pub const MAX_PLAYERS: usize = 20;
 
 /// Message ids (`match.md` §1).
 pub mod id {
-    /// Patched client: ordinary input plus an exact weapon-drop target.
-    pub const PICKUP_INPUT: u8 = 0xD7;
     // Client to server, 0xD8..=0xE1.
     pub const CONNECT: u8 = 0xD8;
     pub const PORT_PROBE: u8 = 0xD9;
@@ -85,24 +82,21 @@ pub mod id {
     /// The stock client's debug "hash mismatch", which it skips; the patched
     /// client takes it as "upload your world" ([`super::upload`]).
     pub const UPLOAD_REQUEST: u8 = 0xF6;
-    /// Patched client: one targeted input, atomically relayed with its target.
-    pub const PICKUP_INPUT_RELAY: u8 = 0xF7;
 
-    pub const CLIENT_FIRST: u8 = PICKUP_INPUT;
+    pub const CLIENT_FIRST: u8 = CONNECT;
     pub const CLIENT_LAST: u8 = KEEP_ALIVE;
     pub const SERVER_FIRST: u8 = PORTS;
-    pub const SERVER_LAST: u8 = PICKUP_INPUT_RELAY;
+    pub const SERVER_LAST: u8 = UPLOAD_REQUEST;
 }
 
-/// The payload length of a client→server id: the native table (0x279670)
-/// plus patched pickup 0xD7. All are fixed, so in a datagram of several messages they
+/// The payload length of a client→server id, as the client's table has it
+/// (0x279670): all ten are fixed, so in a datagram of several messages they
 /// follow each other with no length bytes. `None`: not a client id.
 ///
 /// 0xE0 is 0 here; a chunk (0xE0 with a payload) only ever comes alone in
 /// its datagram, where the message is the rest of the datagram.
 pub fn client_length(id: u8) -> Option<usize> {
     Some(match id {
-        id::PICKUP_INPUT => pickup::INPUT_BYTES,
         id::CONNECT => 5,
         id::PORT_PROBE => 4,
         id::READY => 0,
@@ -135,7 +129,6 @@ pub enum Length {
 /// 0xE3..=0xF6); sending one makes it drop the datagram or worse.
 pub fn server_length(id: u8) -> Option<Length> {
     Some(match id {
-        id::PICKUP_INPUT_RELAY => Length::Fixed(pickup::RELAY_BYTES),
         id::PORTS => Length::Fixed(4),
         id::STATIC_INFO | id::SNAPSHOT | id::UPLOAD_REQUEST => Length::Variable,
         id::SET_TIME => Length::Fixed(7),
@@ -286,8 +279,6 @@ impl PlayerInput {
 /// Why a client's message was not taken.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParseError {
-    /// A drop target names no valid simulation place.
-    PickupTarget(u8),
     /// Not a client→server id.
     UnknownId(u8),
     /// Not the id's fixed length.
@@ -301,7 +292,6 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::PickupTarget(place) => write!(f, "pickup target place {place} is out of range"),
             Self::UnknownId(id) => write!(f, "{id:#04x} is no client message"),
             Self::Length { id, expected, got } => {
                 write!(f, "message {id:#04x} has {got} bytes, not {expected}")
@@ -329,8 +319,6 @@ pub enum ClientMessage<'a> {
     TimeReply(TimeReply),
     /// 0xDC, or 0xDD with the milliseconds.
     Input(PlayerInput),
-    /// Patched input with the ragdolled weapon selected by the local client.
-    PickupInput(pickup::PickupInput),
     /// 0xDE: LIKELY the kit the player picks for the next respawn.
     ProfileInput { tick: u8, value: u8 },
     /// 0xDF: the CRC of the client's event-horizon world, whose time is
@@ -382,7 +370,6 @@ pub fn parse_client(id: u8, payload: &[u8]) -> Result<ClientMessage<'_>, ParseEr
         });
     }
     Ok(match id {
-        id::PICKUP_INPUT => ClientMessage::PickupInput(pickup::PickupInput::parse(payload)?),
         id::CONNECT => ClientMessage::Connect {
             session: u32_at(payload, 0),
             debug: payload[4],
@@ -472,10 +459,6 @@ pub enum ServerMessage {
     PlayerLeft { tick: u8, player: u8 },
     /// 0xEB, or 0xEC when the input's time has milliseconds.
     InputRelay { player: u8, input: PlayerInput },
-    PickupInputRelay {
-        player: u8,
-        input: pickup::PickupInput,
-    },
     /// 0xED / 0xEE: the inputs of two or more players at one time
     /// ([`ServerMessage::inputs_relay`]).
     InputsRelay {
@@ -550,7 +533,6 @@ impl ServerMessage {
             Self::Snapshot { .. } => id::SNAPSHOT,
             Self::PlayerEntered { .. } => id::PLAYER_ENTERED,
             Self::PlayerLeft { .. } => id::PLAYER_LEFT,
-            Self::PickupInputRelay { .. } => id::PICKUP_INPUT_RELAY,
             Self::InputRelay { input, .. } => match input.time.ms {
                 None => id::INPUT_RELAY,
                 Some(_) => id::INPUT_RELAY_PRECISE,
@@ -634,10 +616,6 @@ impl ServerMessage {
             }
             Self::PlayerEntered { tick, player } | Self::PlayerLeft { tick, player } => {
                 out.extend([*tick, *player]);
-            }
-            Self::PickupInputRelay { player, input } => {
-                out.push(*player);
-                out.extend(input.bytes());
             }
             Self::InputRelay { player, input } => {
                 input.time.write(input.time.ms.is_some(), &mut out);
@@ -799,12 +777,11 @@ mod tests {
     const ROTATION: [u8; 4] = [0x00, 0x3C, 0x00, 0xC0]; // half 1.0, half -2.0
 
     #[test]
-    fn the_client_table_has_native_and_pickup_fixed_lengths() {
+    fn the_client_table_has_ten_fixed_lengths() {
         // transport.md §4, C→S: D8..E1.
         let lengths: Vec<usize> = (0xD8..=0xE1).map(|id| client_length(id).unwrap()).collect();
         assert_eq!(lengths, [5, 4, 0, 6, 9, 10, 2, 5, 0, 0]);
-        assert_eq!(client_length(0xD7), Some(pickup::INPUT_BYTES));
-        assert_eq!(client_length(0xD6), None);
+        assert_eq!(client_length(0xD7), None);
         assert_eq!(client_length(0xE2), None);
     }
 
@@ -838,8 +815,7 @@ mod tests {
             assert_eq!(server_length(id), Some(length), "{id:#x}");
         }
         assert_eq!(server_length(0xE2), None);
-        assert_eq!(server_length(0xF7), Some(Fixed(pickup::RELAY_BYTES)));
-        assert_eq!(server_length(0xF8), None);
+        assert_eq!(server_length(0xF7), None);
     }
 
     #[test]

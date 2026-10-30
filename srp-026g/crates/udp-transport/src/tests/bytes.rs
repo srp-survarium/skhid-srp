@@ -267,7 +267,7 @@ fn send_refuses_ids_and_sizes_the_client_cannot_take() {
     assert!(allowed.iter().all(|id| seen.contains(id)));
 
     let (mut game, now) = connect_match();
-    for id in (0x00..0xE3).chain(0xF8..=0xFF) {
+    for id in (0x00..0xE3).chain(0xF7..=0xFF) {
         assert_eq!(
             game.send(id, &[]),
             Err(SendError::UnknownId(id)),

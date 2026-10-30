@@ -23,7 +23,7 @@
 //! 0x8000}])`). Unpacked, a block is records:
 //!
 //! ```text
-//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit, 6 accepted pickup),
+//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit),
 //! u8 place (0xFF: none),
 //! u32 LE ms since the recording began, u32 LE length, the bytes
 //! ```
@@ -54,7 +54,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use session::v026g::replays::Replays;
 use survarium::v026g::lzma2;
 use survarium::v026g::match_msgs::PlayerInput;
-use survarium::v026g::match_msgs::pickup::PickupInput;
 
 /// The file's first bytes.
 pub const MAGIC: &[u8; 8] = b"SRPREC01";
@@ -67,9 +66,6 @@ pub const NOTE: u8 = 3;
 pub const ACCEPTED_INPUT: u8 = 4;
 /// Accepted human kit choice in PvE: full match time (u32 LE), kit (u8).
 pub const ACCEPTED_PROFILE: u8 = 5;
-/// Accepted targeted input in PvE: accepted-input bytes, then donor place
-/// (u8) and donor spawn time (u32 LE). The target follows retiming/discard.
-pub const ACCEPTED_PICKUP: u8 = 6;
 /// The place of a record that is no player's.
 pub const NO_PLACE: u8 = 0xFF;
 /// A block is packed and written once it holds this much ...
@@ -294,16 +290,6 @@ impl Recording {
         bytes[4..8].copy_from_slice(&input.rotation);
         bytes[8..].copy_from_slice(&input.actions.to_le_bytes());
         self.record(ACCEPTED_INPUT, place_byte(place), &bytes, now);
-    }
-
-    pub fn accepted_pickup(&mut self, place: usize, time: u32, input: &PickupInput, now: Instant) {
-        let mut bytes = [0; 17];
-        bytes[..4].copy_from_slice(&time.to_le_bytes());
-        bytes[4..8].copy_from_slice(&input.input.rotation);
-        bytes[8..12].copy_from_slice(&input.input.actions.to_le_bytes());
-        bytes[12] = input.target.0.place.get();
-        bytes[13..].copy_from_slice(&input.target.0.spawned.to_le_bytes());
-        self.record(ACCEPTED_PICKUP, place_byte(place), &bytes, now);
     }
 
     pub fn accepted_profile(&mut self, place: usize, time: u32, kit: u8, now: Instant) {
@@ -863,59 +849,6 @@ mod tests {
         assert_eq!(utc_stamp(time), "20261014-023456");
         let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
         assert_eq!(utc_stamp(leap), "20000229-010101");
-    }
-
-    #[test]
-    fn solo_pve_recording_preserves_pickup_target_and_full_accepted_time() {
-        use survarium::v026g::match_msgs::WireTime;
-        use survarium::v026g::match_msgs::pickup::{DropId, Life, Place};
-        let dir = temp_dir("pickup");
-        let recorder = Recorder::start(settings(&dir, 6)).unwrap();
-        let now = Instant::now();
-        let mut recording = recorder.open(0xAE, true, serde_json::json!({}), now);
-        recording.entered(0);
-        let input = PickupInput {
-            input: PlayerInput {
-                time: WireTime::precise(123457),
-                rotation: [1, 2, 3, 4],
-                actions: 0x8000_0020,
-            },
-            target: DropId(Life {
-                place: Place::parse(19).unwrap(),
-                spawned: 0xfedc_ba98,
-            }),
-        };
-        recording.accepted_pickup(0, 123457, &input, now + Duration::from_millis(9));
-        drop(recording);
-        let names = settle(&dir, |names| {
-            names.len() == 1 && names[0].ends_with(".srprec")
-        });
-        assert_eq!(names.len(), 1);
-        let path = dir.join(&names[0]);
-        let mut records = Vec::new();
-        for _ in 0..200 {
-            records = read(&path).unwrap_or_default();
-            if records.len() == 3 {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        assert_eq!(records.len(), 3);
-        let mut expected = 123457u32.to_le_bytes().to_vec();
-        expected.extend([1, 2, 3, 4]);
-        expected.extend(0x8000_0020u32.to_le_bytes());
-        expected.push(19);
-        expected.extend(0xfedc_ba98u32.to_le_bytes());
-        assert_eq!(
-            records[1],
-            Record {
-                kind: ACCEPTED_PICKUP,
-                place: 0,
-                at_ms: 9,
-                bytes: expected
-            }
-        );
-        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

@@ -35,9 +35,7 @@ use survarium::v026g::match_msgs::{mask_bytes, tick_time};
 use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
-use super::record::{
-    self, ACCEPTED_INPUT, ACCEPTED_PICKUP, ACCEPTED_PROFILE, IN, NOTE, OUT, Record, RecordRef,
-};
+use super::record::{self, ACCEPTED_INPUT, ACCEPTED_PROFILE, IN, NOTE, OUT, Record, RecordRef};
 use super::sur::{
     self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, TICK_MS, Writer,
 };
@@ -181,8 +179,6 @@ pub enum ConvertError {
     NoHeader,
     NoOptions,
     NoWorlds,
-    /// Temporary integration guard: never publish a replay that omits pickup.
-    PickupReplayPending,
     Sur(sur::SurError),
     /// The file made fails its own check: a bug.
     Verify(String),
@@ -195,10 +191,6 @@ impl std::fmt::Display for ConvertError {
             Self::NoHeader => write!(f, "no header note"),
             Self::NoOptions => write!(f, "no 0xE4 (static info) in the recording"),
             Self::NoWorlds => write!(f, "no complete uploaded world in the recording"),
-            Self::PickupReplayPending => write!(
-                f,
-                "weapon pickup replay ingestion is not implemented; original recording retained"
-            ),
             Self::Sur(error) => write!(f, "{error}"),
             Self::Verify(why) => write!(f, "the file made does not check out: {why}"),
         }
@@ -350,8 +342,6 @@ struct Gather {
     /// Authoritative human actions for PvE, including actions with no relay.
     accepted_inputs: BTreeMap<(u32, u8), [u8; 8]>,
     accepted_profiles: BTreeMap<(u32, u8), u8>,
-    /// Remove the conversion guard only together with native replay ingestion.
-    pickup_records: usize,
     /// The 0xE4 streams (without the index byte), by roster.
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
@@ -382,7 +372,6 @@ impl Gather {
             worlds: BTreeMap::new(),
             accepted_inputs: BTreeMap::new(),
             accepted_profiles: BTreeMap::new(),
-            pickup_records: 0,
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
         })
@@ -390,10 +379,6 @@ impl Gather {
 
     /// One record of the recording, in order.
     fn push(&mut self, record: RecordRef<'_>) {
-        if record.kind == ACCEPTED_PICKUP {
-            self.pickup_records += 1;
-            return;
-        }
         if matches!(record.kind, ACCEPTED_INPUT | ACCEPTED_PROFILE) {
             if record.place >= MAX_PLAYERS as u8 {
                 self.report.unparsed += 1;
@@ -506,12 +491,6 @@ impl Gather {
                 // server closes the game with it, at tick 0 when the game
                 // never loaded); the others' copies are the leave.
                 0xEA if payload.len() == 2 && payload[1] == record.place => continue,
-                // Preserve recordings until the native replay reader can
-                // ingest the target; silently ignoring it changes the match.
-                0xF7 => {
-                    self.pickup_records += 1;
-                    continue;
-                }
                 // The relays, read below.
                 0xE9 | 0xEA if payload.len() == 2 => {}
                 0xEB if payload.len() == 10 => {}
@@ -556,13 +535,9 @@ fn finish(
         worlds,
         accepted_inputs,
         accepted_profiles,
-        pickup_records,
         options,
         rosters,
     } = gathered;
-    if pickup_records != 0 {
-        return Err(ConvertError::PickupReplayPending);
-    }
     // The places' half-read uploads and options are of no use now.
     drop(places);
     // When and to which place each copy of each message went: message
@@ -1343,53 +1318,6 @@ mod tests {
             }
         }
         records
-    }
-
-    #[test]
-    fn pickup_recordings_are_not_published_without_their_targets() {
-        use survarium::v026g::match_msgs::pickup::{DropId, Life, PickupInput, Place};
-        use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime};
-        let request = PickupInput {
-            input: PlayerInput {
-                time: WireTime::precise(1107),
-                rotation: [1, 2, 3, 4],
-                actions: 0x20,
-            },
-            target: DropId(Life {
-                place: Place::parse(1).unwrap(),
-                spawned: 987,
-            }),
-        };
-        let relay = ServerMessage::PickupInputRelay {
-            player: 0,
-            input: request,
-        };
-        let outgoing = datagram(OUT, 1, 2420, relay.id(), None, &relay.payload());
-        let mut accepted = 1107u32.to_le_bytes().to_vec();
-        accepted.extend(request.input.rotation);
-        accepted.extend(request.input.actions.to_le_bytes());
-        accepted.push(request.target.0.place.get());
-        accepted.extend(request.target.0.spawned.to_le_bytes());
-        for record in [
-            outgoing,
-            Record {
-                kind: ACCEPTED_PICKUP,
-                place: 0,
-                at_ms: 2420,
-                bytes: accepted,
-            },
-        ] {
-            let mut records = recording();
-            records.push(record);
-            assert!(matches!(
-                convert(&records, b"", Settings::default()),
-                Err(ConvertError::PickupReplayPending)
-            ));
-        }
-        // An inbound request alone says nothing about whether it was accepted.
-        let mut records = recording();
-        records.push(datagram(IN, 0, 2420, 0xD7, None, &request.bytes()));
-        assert!(convert(&records, b"", Settings::default()).is_ok());
     }
 
     #[test]

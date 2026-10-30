@@ -1,2 +1,0 @@
-prototype	handler	about
-void callback_inventory_ready(const unsigned int *buffer, void *result)	resources::inventory_done	Trivial boost function invoker: buffer holds the completion pointer; result is queries_result. Native copying/dispatch proven by check_pickup_resource_query.py.

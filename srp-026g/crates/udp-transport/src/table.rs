@@ -5,7 +5,7 @@
 //! sends, the lifetime and resend time.
 //!
 //! - **Match** (client vtable 0xA08414): server ids 0xE3..=0xF6, client ids
-//!   0xD8..=0xE1. Patched pickup adds client 0xD7 and server 0xF7. Only E4, E8 and F6 are variable; six server ids are
+//!   0xD8..=0xE1. Only E4, E8 and F6 are variable; six server ids are
 //!   unique; nothing is ordered; ED/EE have a length that depends on their
 //!   content and the roster size.
 //! - **Lobby** (client vtable 0xA07FA8): server ids 0x80..=0xAA, client ids
@@ -155,8 +155,8 @@ impl Table {
     /// The id range of a direction (the table object's bytes +4..+7).
     pub fn range(self, direction: Direction) -> (u8, u8) {
         match (self, direction) {
-            (Table::Match, Direction::ToClient) => (0xE3, 0xF7),
-            (Table::Match, Direction::ToServer) => (0xD7, 0xE1),
+            (Table::Match, Direction::ToClient) => (0xE3, 0xF6),
+            (Table::Match, Direction::ToServer) => (0xD8, 0xE1),
             (Table::Lobby, Direction::ToClient) => (0x80, 0xAA),
             (Table::Lobby, Direction::ToServer) => (0x2E, 0x50),
         }
@@ -206,8 +206,6 @@ impl Table {
 fn match_to_server(id: u8) -> Option<MessageInfo> {
     use Lifetime::{Forever, Once};
     Some(match id {
-        // Patched targeted input: same retry/deadline as ordinary input.
-        0xD7 => fixed(15, Lifetime::For(ms(500)), 50),
         0xD8 => fixed(5, Forever, 500),
         0xD9 => fixed(4, Forever, 500),
         0xDA => fixed(0, Forever, 500),
@@ -251,7 +249,6 @@ fn match_to_client(id: u8) -> Option<MessageInfo> {
         0xF4 => fixed(2, Forever, 50),
         0xF5 => fixed(1, Forever, 50),
         0xF6 => unique_variable(1, 1, Forever),
-        0xF7 => short(16),
         _ => return None,
     })
 }
@@ -313,7 +310,7 @@ mod tests {
             Lookup::OutOfRange
         );
         assert_eq!(
-            Table::Match.lookup(Direction::ToClient, 0xF8),
+            Table::Match.lookup(Direction::ToClient, 0xF7),
             Lookup::OutOfRange
         );
         assert_eq!(to_client(0xE3).length, Length::Fixed(4));
@@ -339,7 +336,6 @@ mod tests {
             (0xF3, 3),
             (0xF4, 2),
             (0xF5, 1),
-            (0xF7, 16),
         ];
         for (id, len) in lengths {
             assert_eq!(to_client(id).length, Length::Fixed(len), "{id:#04x}");
@@ -352,7 +348,6 @@ mod tests {
 
         let to_server = |id| Table::Match.info(Direction::ToServer, id).unwrap();
         let lengths = [
-            (0xD7, 15),
             (0xD8, 5),
             (0xD9, 4),
             (0xDA, 0),
