@@ -42,15 +42,51 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     fn view_of(places: Vec<PlaceView>) -> MatchView {
-        let mut view = MatchView::default();
-        view.places = places;
-        view
+        MatchView {
+            clock: 0,
+            mode: Mode::TeamDeathmatch,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            points: [0, 0],
+            places,
+            batteries: Vec::new(),
+            marks: Vec::new(),
+            containers: Vec::new(),
+            sounds: Vec::new(),
+            deaths: Vec::new(),
+            world_time: 0,
+            can_respawn: [true, true],
+            next_battery: None,
+            grenades: Vec::new(),
+            smoke: Default::default(),
+        }
     }
 
     fn at(place: usize, team: u8, x: f32, z: f32) -> PlaceView {
-        PlaceView { place, team, present: true, alive: true, feet: Vec3::new(x, 0.0, z), ..PlaceView::default() }
+        PlaceView {
+            place,
+            team,
+            bot: true,
+            present: true,
+            alive: true,
+            feet: Vec3::new(x, 0.0, z),
+            yaw: 0.0,
+            pitch: 0.0,
+            velocity: [0.0, 0.0],
+            keys: 0,
+            health: 1.0,
+            spawned: 0,
+            kills: 0,
+            deaths: 0,
+            streak: 0,
+            carrying: None,
+            seen_at: 0,
+            late_ms: 0,
+            known_at: 0,
+        }
     }
 
     #[test]
