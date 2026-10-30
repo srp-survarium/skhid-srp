@@ -277,6 +277,8 @@ pub(crate) struct Body {
     /// ground distance moved at the last tick, m.
     pub(crate) flight: Option<Flight>,
     pub(crate) step_m: f32,
+    /// The ground displacement of the last tick, m (`SRP_BENCH_HIT_FLIGHT`: where a bullet in the air will find it).
+    pub(crate) step_vec: Vec3,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     pub(crate) legs: [f32; 2],
@@ -570,6 +572,9 @@ pub(crate) struct Game {
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
     /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
+    /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
+    /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
+    pub(crate) flight: bool,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
     /// the sight's when the map has none, as the tests' fields); every
@@ -720,6 +725,7 @@ impl Game {
             air_until: 0,
             flight: None,
             step_m: 0.0,
+            step_vec: Vec3::ZERO,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -814,6 +820,7 @@ impl Game {
             shot_facts: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
+            flight: false,
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
@@ -871,6 +878,7 @@ impl Game {
         body.stagger.reset();
         body.flight = None;
         body.step_m = 0.0;
+        body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
         body.alive = true;
         body.spawned = tick;
@@ -1125,6 +1133,7 @@ impl Game {
                     }
                 }
                 body.step_m = body.feet.distance_xz(before);
+                body.step_vec = Vec3::new(body.feet.x - before.x, 0.0, body.feet.z - before.z);
                 body.moved += body.step_m;
                 if body.carrying.is_some() {
                     self.carry_m += body.step_m;
@@ -1437,8 +1446,12 @@ impl Game {
 
     /// The nearest body hit shape on the ray from `origin` along `dir`, within the stand-in's 100 m, if the
     /// bullet mesh (the world) does not meet the ray from `eye` first (`origin` is `eye` moved across the line
-    /// by the position scatter, [`Game::shot_line`]).
+    /// by the position scatter, [`Game::shot_line`]). With [`Game::flight`] the bullet flies instead
+    /// ([`Self::nearest_shape_flown`]).
     fn nearest_shape(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
+        if self.flight {
+            return self.nearest_shape_flown(shooter, eye, origin, dir);
+        }
         let mut best: Option<BoxStrike> = None;
         for (body, other) in self.bodies.iter().enumerate() {
             if !other.alive || body == shooter {
@@ -1466,6 +1479,65 @@ impl Game {
             self.pierce_stats.borrow_mut().strike(&line);
             (line.share > DamageShare::NONE).then_some(BoxStrike { load: line.load, share: line.share, ..b })
         })
+    }
+
+    /// [`Self::nearest_shape`] for a bullet in flight (`SRP_BENCH_HIT_FLIGHT`): the client's path
+    /// ([`standin_hitbox::bullet_at`]: the muzzle speed, the drag, gravity) in 10 ms steps, each chord tested against the
+    /// bodies where their last step carries them at the step's time (the bodies move on at that velocity; the client moves
+    /// them tick by tick), the first chord that meets a shape wins; then the world's blocking from the eye to that point
+    /// ([`Self::cover_flight`]). The shot's direction is not corrected for the drop: nothing in the bots reads it.
+    fn nearest_shape_flown(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
+        const STEP_S: f32 = 0.01;
+        let ammo = standin_damage::ammo_of(&self.damage, self.bodies[shooter].gun);
+        let end = standin_hitbox::flight_end_s(ammo);
+        let (mut t, mut travelled, mut from) = (0.0_f32, 0.0_f32, origin);
+        while t < end && travelled < super::tallies::shot_offset::REACH_M {
+            let next = (t + STEP_S).min(end);
+            let to = standin_hitbox::bullet_at(origin, dir, ammo, next);
+            let chord = to - from;
+            let length = chord.length();
+            if length > 1e-4 {
+                let direction = chord * (1.0 / length);
+                let mid = (t + next) / 2.0;
+                let mut hit: Option<(Place, f32, standin_hitbox::HitParam)> = None;
+                for (body, other) in self.bodies.iter().enumerate() {
+                    if !other.alive || body == shooter {
+                        continue;
+                    }
+                    let feet = other.feet + other.step_vec * (mid / TICK_S);
+                    let reach = hit.map_or(length, |h| h.1);
+                    if let Some((along, param)) = standin_hitbox::ray_at_body(
+                        feet,
+                        forward(other.yaw),
+                        other.keys & key::CROUCH != 0,
+                        other.keys & key::AIM != 0,
+                        from,
+                        direction,
+                        reach,
+                    ) && hit.is_none_or(|h| along < h.1)
+                    {
+                        hit = Some((body, along, param));
+                    }
+                }
+                if let Some((body, along, param)) = hit {
+                    let to_point = from + direction * along - eye;
+                    let distance = to_point.length().max(1e-3);
+                    let line = self.cover_flight(shooter, eye, to_point * (1.0 / distance), distance);
+                    self.pierce_stats.borrow_mut().strike(&line);
+                    return (line.share > DamageShare::NONE).then_some(BoxStrike {
+                        body,
+                        along: travelled + along,
+                        param,
+                        load: line.load,
+                        share: line.share,
+                    });
+                }
+                travelled += length;
+            }
+            from = to;
+            t = next;
+        }
+        None
     }
 
     /// `shooter`'s bullet `along` m down the line from `eye`: the client's penetration over the bullet mesh's materials,

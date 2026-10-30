@@ -64,6 +64,22 @@ pub(crate) enum HitVolume {
 /// shot's information is not tracked, so it is the one value for all.
 pub(crate) const POSITION_SIGMA_M: f32 = 0.17;
 
+/// The bullet manager's gravity, m/s^2: `g = (0, -9.81, 0)` (its constructor 0x3219A0: PROVEN, fx-cover's read in
+/// `player_bots_weapons.md`).
+pub(crate) const BULLET_G: f32 = 9.81;
+
+/// Where the client's bullet is `t` s after the shot (`bullet::tick` 0x32C180: `p(t) = p0 + v0 (t - k t^2 / 2) + g t^2 / 2`,
+/// `v0` the shot direction times the ammunition's muzzle speed, `k` its `air_resistance`: PROVEN).
+pub(crate) fn bullet_at(origin: Vec3, dir: Vec3, ammo: &survarium::v026g::damage::AmmoParams, t: f32) -> Vec3 {
+    let along = ammo.muzzle_speed * (t - ammo.air_resistance * t * t / 2.0);
+    origin + dir * along + Vec3::new(0.0, -BULLET_G * t * t / 2.0, 0.0)
+}
+
+/// Where the flight ends, s after the shot: `t = 1 / (1.1 k)` (0x32C523..0x32C55B: PROVEN); no end without drag.
+pub(crate) fn flight_end_s(ammo: &survarium::v026g::damage::AmmoParams) -> f32 {
+    if ammo.air_resistance <= 0.0 { f32::MAX } else { 1.0 / (1.1 * ammo.air_resistance) }
+}
+
 /// The old rule's radius, metres (the same number the shot offsets count against).
 pub(crate) use super::tallies::shot_offset::DISC_M;
 
@@ -370,12 +386,38 @@ fn ray_capsule(o: Vec3, d: Vec3, radius: f32, half: f32) -> Option<f32> {
 /// `fighting-record/scripts/hitbox/hitboxes-026g-idle.tsv` (tab-separated, a header and comment lines first).
 pub(crate) const TABLE: &str = include_str!("hitboxes-026g-idle.tsv");
 
+/// Whether the forearm and hand shapes are in the pose the shots are tested against (`SRP_BENCH_HIT_ARMS`, a diagnosis of
+/// A182: the bench's hits land on the arms twice as often as the live shares, 52 % against 23 %, because the idle pose
+/// holds the forearms across the chest).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Arms {
+    /// The table's pose, forearms and hands in it.
+    Posed,
+    /// The arm shapes taken out of every pose: a line through the arms' place meets what is behind them.
+    Away,
+}
+
+impl Arms {
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("posed") => Ok(Self::Posed),
+            Some("away") => Ok(Self::Away),
+            Some(other) => Err(format!("SRP_BENCH_HIT_ARMS={other:?}: posed or away")),
+        }
+    }
+
+    fn bench() -> Self {
+        Self::parse(bench_settings().var("SRP_BENCH_HIT_ARMS").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
 /// The poses of [`TABLE`], by `[crouched][aimed]`.
 pub(crate) struct Poses([[Pose; 2]; 2]);
 
 impl Poses {
-    /// Parse `table` once; a row that is not what the table says is a panic here, never in a shot.
-    fn read(table: &str) -> Self {
+    /// Parse `table` once; a row that is not what the table says is a panic here, never in a shot. `arms`: whether the
+    /// forearm and hand shapes are in the pose ([`Arms`]).
+    fn read(table: &str, arms: Arms) -> Self {
         let mut sets: [[Vec<Shape>; 2]; 2] = Default::default();
         for line in table.lines().filter(|l| !l.starts_with('#') && !l.starts_with("stance")) {
             let cells: Vec<&str> = line.split('\t').collect();
@@ -390,6 +432,10 @@ impl Poses {
                 "1" => 1,
                 other => panic!("aimed {other}"),
             };
+            let param = HitParam::of(cells[2]).unwrap_or_else(|| panic!("hit_param {}", cells[2]));
+            if arms == Arms::Away && param.part() == Part::Arm {
+                continue;
+            }
             let n: Vec<f32> = cells[5..]
                 .iter()
                 .map(|c| c.parse().unwrap_or_else(|_| panic!("a number: {c}")))
@@ -412,7 +458,7 @@ impl Poses {
                 other => panic!("shape kind {other}"),
             };
             sets[crouched][aimed].push(Shape {
-                param: HitParam::of(cells[2]).unwrap_or_else(|| panic!("hit_param {}", cells[2])),
+                param,
                 primitive,
                 centre: v(0),
                 axes: [v(3), v(6), v(9)],
@@ -424,7 +470,7 @@ impl Poses {
 
     pub(crate) fn shared() -> &'static Self {
         static POSES: std::sync::OnceLock<Poses> = std::sync::OnceLock::new();
-        POSES.get_or_init(|| Self::read(TABLE))
+        POSES.get_or_init(|| Self::read(TABLE, Arms::bench()))
     }
 
     pub(crate) fn of(&self, crouched: bool, aimed: bool) -> &Pose {
@@ -611,6 +657,47 @@ mod tests {
         let aim = Vec3::new(across, y, 0.0);
         let dir = aim - eye;
         ray_at_body(Vec3::ZERO, FACING_Z, crouched, true, eye, dir * (1.0 / dir.length()), 100.0)
+    }
+
+    /// The bullet's path is the client's: at the muzzle speed along the shot, slowed by the drag (`v0 (t - k t^2 / 2)`) and
+    /// pulled down by gravity (`g t^2 / 2`): an 800 m/s bullet is 80 m down the line after 0.1056 s and 5.5 cm below it.
+    #[test]
+    fn the_bullet_flies_the_clients_path() {
+        let ammo = super::super::standin_damage::PLAIN_AMMO;
+        let dir = Vec3::new(1.0, 0.0, 0.0);
+        let near = bullet_at(Vec3::ZERO, dir, &ammo, 0.001);
+        assert!((near.x - 0.8).abs() < 0.01 && near.y.abs() < 1e-4, "{near:?}");
+        let far = bullet_at(Vec3::ZERO, dir, &ammo, 0.1056);
+        assert!((far.x - 80.0).abs() < 0.2, "{far:?}");
+        assert!((far.y + 0.0547).abs() < 0.002, "{far:?}");
+        assert!((flight_end_s(&ammo) - 1.0 / 1.1).abs() < 1e-4);
+        let slow = survarium::v026g::damage::AmmoParams { muzzle_speed: 280.0, ..ammo };
+        let t = 0.31;
+        let at = bullet_at(Vec3::ZERO, dir, &slow, t);
+        assert!(at.y < -0.4, "a VSK-94 bullet drops about half a metre by 80 m: {at:?}");
+    }
+
+    /// The arm shapes taken away (`SRP_BENCH_HIT_ARMS=away`) leave 13 shapes in each pose and no arm hit: a line at the chest
+    /// height from the front, where the posed forearm is first, meets the torso.
+    #[test]
+    fn with_the_arms_away_a_chest_line_meets_the_torso_and_the_pose_has_no_arm_shape() {
+        let away = Poses::read(TABLE, Arms::Away);
+        for crouched in [false, true] {
+            for aimed in [false, true] {
+                let pose = away.of(crouched, aimed);
+                assert_eq!(pose.shapes.len(), 13, "{crouched} {aimed}");
+                assert!(pose.shapes.iter().all(|s| s.param.part() != Part::Arm));
+            }
+        }
+        let eye = Vec3::new(0.0, 1.5, 10.0);
+        let dir = Vec3::new(0.0, 1.22, 0.0) - eye;
+        let dir = dir * (1.0 / dir.length());
+        let to_model = |v: Vec3| Vec3::new(v.x * FACING_Z[1] - v.z * FACING_Z[0], v.y, v.x * FACING_Z[0] + v.z * FACING_Z[1]);
+        let (_, param) = away.of(false, true).ray(to_model(eye), to_model(dir), 100.0).expect("the torso");
+        assert_eq!(param.part(), Part::Torso);
+        assert_eq!(Arms::parse(Some("away")), Ok(Arms::Away));
+        assert_eq!(Arms::parse(None), Ok(Arms::Posed));
+        assert!(Arms::parse(Some("gone")).is_err());
     }
 
     /// A ray at the chest hits the front of the torso; at the head sphere's centre, the head; a ray over the
