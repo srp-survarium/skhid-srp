@@ -1,0 +1,8 @@
+# Blackout duct-tape team marks (docs/notes/blackout.md): which arm and leg items are taped.
+# A row per (base_model, surface) of a torso, gloves or legs item. method tape: the exe (patch 65)
+# gives the surface the material ported/blackout_tape/<base_model, "/" as "_">__<surface>_<blue|red>
+# in a Blackout match; none: the item keeps its look. The exe's key list is generated from it:
+# python ../../client-patches/blackout_tape_026g.py --write (--check says whether it is current).
+slot	base_model	surface	method	status
+torso	character/human/base/base_character_torso_s1	base_character_torso_s	tape	draft
+legs	character/human/black_market/black_market_01_legs_s1	black_market_01_legs_s	tape	draft

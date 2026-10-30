@@ -30,3 +30,7 @@ handler = "on_input_end"
 [[hook]]
 site = "player_names.visibility"
 handler = "on_name_visibility"
+
+[[hook]]
+site = "skin_visual.parts_done"
+handler = "on_skin_parts"
