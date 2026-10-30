@@ -135,7 +135,8 @@ release/release.sh                   [--resources ...]
 
 Show the owner each dry run's output (every read-only check runs; every
 other command is printed; nothing is planned or written). Then the same
-without `--dry-run`: after its preflight it waits for **the go**, and the
+without `--dry-run`: after its preflight it prepares and stages
+everything (nothing players see), then waits for **the go**, and the
 go is the owner's to give (below); before the swap it asks one y/N
 (`--yes --i-know` answers it, never the go).
 
@@ -307,12 +308,14 @@ The order, as it runs:
    `changed.txt`. With server code: the running image tagged
    `srp-026g:before-rev<rev>-<stamp>` by its ID, main's source (with the
    rebuilt pages) unpacked in the folder's `src/` and
-   `docker compose build srp26` run on it, its compilers reniced to 19
-   (the running container is not touched). The local builds run at nice
+   `docker compose build srp26` run on it, every thread of its compilers
+   reniced to 19 (the running container is not touched). The local builds run at nice
    10. A failure here stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
-   of the list again (no server offered it; the file stays on the patches
-   server, and a run with the same `--resources` takes it as it is).
+   of the list again (no server offered it). The file goes from the
+   patches server too when this run uploaded it, so the revision can be
+   made again with other bytes; one there before the run stays, and a run
+   with the same `--resources` takes it as it is.
 3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
    or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
@@ -427,8 +430,9 @@ A **stop after the lock and before the swap** (a failure, a no, Ctrl-C,
 during the build too) cancels the maintenance when it was planned (only
 after the go), removes the staged files (the folder stays, state
 `stopped`, with its release.log) and puts the image tag back: the server
-is as it was (a published patch stays with its row; the next run goes
-without `--resources`). A stop in the swap before anything moved starts srp26
+is as it was. A published patch: after the go it stays with its row
+(the next run goes without `--resources`); before the go its row goes,
+and the file too when this run uploaded it (step 2). A stop in the swap before anything moved starts srp26
 again as it was.
 
 `--yes --i-know` (both or neither) answers the y/N before the swap; only

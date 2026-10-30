@@ -44,7 +44,7 @@
 #      --resources file); with
 #      --resources, the file is resources.db.patch_<the release's revision>,
 #      srp-game-data reads it, and it is not listed yet (published already
-#      with these same bytes: a run stopped before its go; taken as it is);
+#      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
@@ -151,8 +151,9 @@
 # lock: the maintenance cancelled when it was planned, the staged files
 # removed (the folder stays, state stopped), the image tag put back; the
 # server is as it was (a published patch stays, with its row in the list:
-# none is ever deleted; before the go its row goes, as no server offered
-# it, and a run with the same --resources takes the file as it is).
+# none is ever deleted; before the go no server offered it: its row goes,
+# and the file too when this run uploaded it, so the revision can be made
+# again with other bytes).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
 #   --revision <n>      the release's revision instead of the target exe's + 1;
@@ -298,8 +299,8 @@ SWAP_WORK=$work
 log_to "$work/release.log"
 say "working in $work"
 
-# Where the run is: preflight (up to the go), planned (the go given, going
-# ahead, nothing moved: a stop puts things back), swapping (a stop rolls
+# Where the run is: preflight (up to the lock), planned (the lock taken:
+# staging, the go, the countdown; nothing moved: a stop puts things back), swapping (a stop rolls
 # back), finished. maint_planned: the maintenance was asked for (a stop
 # cancels it). ENDED: with --now, the matches the stop ended.
 phase=preflight start=0 end=0 image_tagged=0 maint_planned=0 go_given=0 ENDED=''
@@ -481,13 +482,13 @@ maintenance_minutes() {
     fi
 }
 
-# Right after the preflight and the lock: nothing players see happens
+# After the staging (nothing players see): nothing players feel happens
 # without the go, the owner's word that players may feel the release from
 # now on; the maintenance is planned at once after it. y at this prompt (n
 # stops), or the go file (touch it from anywhere: another shell, the
 # release skill). Without a terminal (--yes) only the file.
 # SKHID_RELEASE_GO=1 gives it beforehand (release/test.sh). Ctrl-C stops:
-# nothing was done, the lock is freed.
+# nothing was planned; the staged files go, the lock is freed.
 GO_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release
 wait_for_go() {
     local go="$GO_DIR/go-$REL" answer tty=0
@@ -821,14 +822,28 @@ record_release() {
     git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
 }
 
-# A stop before the go: the row upload-patch added goes from the list
-# (no server offered the patch); the file stays on the patches server.
+# A stop before the go: the row upload-patch added goes from the list (no
+# server offered the patch), and the file with it when this run uploaded it
+# (PATCH_UPLOADED: the preflight found none there) and /patches did not
+# offer it: the revision can then be made again with other bytes. A file
+# published before the run stays.
+PATCH_UPLOADED=0
 unlist_patch() {
-    local name=$1
+    local name=$1 sha
     if awk -F '\t' -v n="$name" '$1 != n' "$PATCH_LIST" >"$PATCH_LIST.new" && mv "$PATCH_LIST.new" "$PATCH_LIST"; then
-        say "$name: its row is out of $PATCH_LIST again (stopped before the go, never offered); the file stays on $PATCHES_LABEL, and a run with the same --resources takes it as it is"
+        say "$name: its row is out of $PATCH_LIST again (stopped before the go, never offered)"
     else
         say "$name: its row is NOT out of $PATCH_LIST: take it out by hand before the next run with --resources"
+    fi
+    if ((!PATCH_UPLOADED)) || [[ $OLD_PATCHES == *"\"patch_${name##*_}\""* ]]; then
+        say "$name: the file stays on $PATCHES_LABEL (there before this run); a run with the same --resources takes it as it is"
+        return
+    fi
+    sha=$(sha256_of "$resources")
+    if on_patches "cd $(q "$PATCHES_DIR") && test \"\$(sha256sum < $(q "$name"))\" = $(q "$sha  -") && rm -f $(q "$name")"; then
+        say "$name: the file this run uploaded is off $PATCHES_LABEL again (never offered): the revision can be made again"
+    else
+        say "$name: the file is NOT off $PATCHES_LABEL: a run with other bytes is refused until it is (cd $PATCHES_DIR && rm $name, never offered)"
     fi
 }
 
@@ -1050,9 +1065,10 @@ if [[ -n $resources ]]; then
     if ((patches_ok)) && [[ -f $resources ]]; then
         there=$(on_patches "cd $(q "$PATCHES_DIR") && if test -e $(q "$name"); then sha256sum < $(q "$name"); else echo none; fi" || echo "unknown")
         if [[ $there == none ]]; then
+            PATCH_UPLOADED=1
             okay "--resources: not on $PATCHES_LABEL yet"
         elif [[ ${there%% *} == "$(sha256_of "$resources")" ]]; then
-            okay "--resources: on $PATCHES_LABEL already, these same bytes, not in $PATCH_LIST (a run stopped before its go): taken as it is"
+            okay "--resources: on $PATCHES_LABEL already, these same bytes, not in $PATCH_LIST: taken as it is (and kept at a stop)"
         else
             problem "--resources: $name is already published with OTHER bytes (${there%% *}); a published patch is never replaced: make the next revision"
         fi
@@ -1512,8 +1528,9 @@ if ((build_code)); then
     write_on live "cd $REL_DIR && mkdir src && tar -xf src.tar -C src && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
     ((DRY_RUN)) || image_tagged=1
     # The host's one core keeps the running matches: the build's compilers
-    # reniced to 19 while it runs.
-    write_on live "cd $D && { docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26 & b=\$!; while kill -0 \$b 2>/dev/null; do pgrep -x 'rustc|cargo|cc1|cc1plus|cc|ld|collect2|as' | xargs -r renice -n 19 -p >/dev/null 2>&1; sleep 1; done; wait \$b; }"
+    # reniced to 19 while it runs, every thread (pgrep -w: renice -p
+    # changes one thread only).
+    write_on live "cd $D && { docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26 & b=\$!; while kill -0 \$b 2>/dev/null; do pgrep -w -x 'rustc|cargo|cc1|cc1plus|cc|ld|collect2|as' | xargs -r renice -n 19 -p >/dev/null 2>&1; sleep 1; done; wait \$b; }"
 fi
 
 

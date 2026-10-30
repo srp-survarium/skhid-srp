@@ -1401,21 +1401,30 @@ mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patc
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
 # A stop before the go (the ZIP's build fails) after the patch was
-# published: its row goes from the list (no server offered it), the file
-# stays, and a run with the same --resources takes it as it is.
+# published: its row goes from the list (no server offered it), and the
+# file this run uploaded goes too (the revision can be made again); a file
+# published before the run stays, and a run with the same --resources
+# takes it as it is.
 list_before=$(cat "$T/patches.tsv")
 touch "$T/build-zip-fails"
 run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub || true
-rm "$T/build-zip-fails"
 check "release --resources: a stop before the go, the patch published" bash -c \
     "grep -q '2. publishing resources.db.patch_14' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
 check "release --resources: ... its row out of the list again" test "$(cat "$T/patches.tsv")" = "$list_before"
 check "release --resources: ... says so" has "$out" "resources.db.patch_14: its row is out of .* again (stopped before the go, never offered)"
-check "release --resources: ... the file stays published" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+check "release --resources: ... the file it uploaded is gone again" test ! -e "$T/patches/resources.db.patch_14"
+check "release --resources: ... says so too" has "$out" "resources.db.patch_14: the file this run uploaded is off .* again"
 check "release --resources: ... nothing planned" test -z "$(admin_log)"
+cp "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub2 || true
+rm "$T/build-zip-fails"
+check "release --resources: a stop before the go, the patch published before the run: its row out of the list" \
+    test "$(cat "$T/patches.tsv")" = "$list_before"
+check "release --resources: ... the file kept" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+check "release --resources: ... says so" has "$out" "resources.db.patch_14: the file stays on .* (there before this run)"
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 || true
 check "release --resources: the same --resources again: taken as it is" has "$out" \
-    "--resources: on .* already, these same bytes, not in .* (a run stopped before its go): taken as it is"
+    "--resources: on .* already, these same bytes, not in .*: taken as it is"
 check "release --resources: ... no problem about it" bash -c "! grep -q 'problem.*resources.db.patch_14\|MISSING.*patch_14' <<<\"\$1\"" _ "$out"
 cp "$T/r14/resources.db.patch_14" "$T/r16/other" && printf x >>"$T/r16/other" && cp "$T/r16/other" "$T/patches/resources.db.patch_14"
 expect_refused "release: a patch published with other bytes" "already published with OTHER bytes" \
