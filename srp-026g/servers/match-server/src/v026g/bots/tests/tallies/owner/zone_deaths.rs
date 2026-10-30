@@ -28,8 +28,19 @@ const WHY: [(u16, &str); 11] = [
 /// The names of the pools that kill, in the order of `ZoneNote::died`.
 const POOLS: [&str; 4] = ["body", "head", "infection", "pain"];
 
-#[derive(Default)]
-pub(super) struct ZoneDeaths;
+/// A route's planned drops at least this far down are read (the zone spells begin after a drop of 3 m or more).
+const ROUTE_DROP_M: f32 = 2.0;
+
+/// The landings of the planned drops of each bot's route, kept when they change: (tick, landings).
+pub(super) struct ZoneDeaths {
+    drops: Vec<Vec<(u32, Vec<Vec3>)>>,
+}
+
+impl ZoneDeaths {
+    pub(super) fn new(n: usize) -> Self {
+        Self { drops: vec![Vec::new(); n] }
+    }
+}
 
 /// One team's counts.
 #[derive(Default)]
@@ -114,9 +125,35 @@ impl Side {
     }
 }
 
+impl ZoneDeaths {
+    /// Whether the route the bot had when the spell began held a planned drop whose landing is within 3 m of where the first hit was: `PLANNED[<m>]` the distance of the
+    /// nearest such landing, `UNPLANNED` when the route had none there (a fall the route did not plan).
+    fn planned(&self, note: &ZoneNote) -> String {
+        let Some(history) = self.drops.get(note.place) else {
+            return "PLANNED[-]".to_owned();
+        };
+        let landings = history.iter().rev().find(|(t, _)| *t <= note.spell.start).map(|(_, l)| l.as_slice()).unwrap_or(&[]);
+        let nearest = landings.iter().map(|l| l.distance_xz(note.spell.at)).fold(f32::INFINITY, f32::min);
+        if nearest <= 3.0 { format!("PLANNED[{nearest:.1}m of {}]", landings.len()) } else { format!("UNPLANNED[{} landings, nearest {nearest:.1}m]", landings.len()) }
+    }
+}
+
 impl Topic for ZoneDeaths {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+        let Some(bot) = bot else {
+            return;
+        };
+        let landings: Vec<Vec3> = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
+            route.points().windows(2).filter(|w| w[0].at.y - w[1].at.y >= ROUTE_DROP_M).map(|w| w[1].at).collect()
+        });
+        let history = &mut self.drops[place];
+        if history.last().is_none_or(|(_, last)| *last != landings) {
+            history.push((tick, landings));
+        }
     }
 
     fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -127,7 +164,7 @@ impl Topic for ZoneDeaths {
         for note in game.zone_notes.iter().copied().chain(open) {
             sides[usize::from(note.team.min(1))].add(&note);
             total.add(&note);
-            eprintln!("  {} {}", note.line(), before(run, &note));
+            eprintln!("  {} {} {}", note.line(), before(run, &note), self.planned(&note));
         }
         let mut json = total.keyed();
         json["zd_by_team"] = serde_json::json!({ "0": sides[0].keyed(), "1": sides[1].keyed() });
