@@ -228,6 +228,10 @@ pub fn grid_key_with_links(
     // The cells' erosion is the default: its keys are the ones there were.
     if body.erosion == Erosion::Exact {
         digest.u32(EXACT_EROSION_ALGO);
+        // The floors only a crouched capsule fits are taken away: another grid (a key part only then).
+        if !body.crouch_only_floors {
+            digest.u32(EXACT_EROSION_ALGO + 100);
+        }
     }
     // The lips at the walk-offs are a switch: the keys of grids without them are the ones there were.
     if body.walk_off_lips {

@@ -140,6 +140,10 @@ pub struct Body {
     /// players stood on those floors in 0-7 lives of 1,000-3,000 a map, and never within 2 m of the 4 objectives they alone led to; on
     /// the bench the bots pressed them, 3 of 81 up). A build input: in the key when off.
     pub keep_last_resorts: bool,
+    /// With [`Erosion::Exact`]: whether a floor only a crouched capsule fits by the walls is kept as a crouch-only floor
+    /// ([`WalkGrid::can_stand`] false). Off: it is taken away as the standing capsule's meeting a wall always did. A build input:
+    /// in the key when off.
+    pub crouch_only_floors: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -184,6 +188,7 @@ impl Body {
             walk_off_lips: false,
             landing_carry: false,
             keep_last_resorts: true,
+            crouch_only_floors: true,
         }
     }
 }
@@ -232,6 +237,7 @@ impl Default for Body {
             walk_off_lips: false,
             landing_carry: false,
             keep_last_resorts: true,
+            crouch_only_floors: true,
         }
     }
 }

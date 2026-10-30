@@ -49,6 +49,10 @@ pub struct GridTuning {
     /// or back from it (`mapdata::Body::keep_last_resorts`). Off: they are all taken away and the floors only they led to are out of
     /// reach: the live players stood on those floors in 0-7 lives of 1,000-3,000 a map (A170). A grid is the map's (see `gap_links`).
     pub keep_last_resorts: bool,
+    /// With `exact_erosion`: whether a floor only a crouched body fits by the walls (a beam or lip between 1.1 and 1.8 m over it) is
+    /// kept, walked crouched (`mapdata::Body::crouch_only_floors`). Off: it is taken away as the exact erosion did before A170. A grid
+    /// is the map's (see `gap_links`).
+    pub crouch_floors: bool,
     /// The standing jump's cap on the clients' body, metres: a Jump link above it is a sprint jump (a run-up with sprint
     /// held, apex 1.28 m, `mapdata::grid::SPRINT_JUMP_LOW_M`), kept without a run-up as the marginal jump the base made.
     /// The clip's root tops at 0.998 (`mapdata::grid::STANDING_JUMP_M`, PROVEN); whether the body reaches a ledge above it
@@ -68,6 +72,7 @@ impl Default for GridTuning {
             walk_off_lips: true,
             landing_carry: true,
             keep_last_resorts: true,
+            crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
         }
     }
@@ -91,6 +96,7 @@ impl GridTuning {
             walk_off_lips: self.walk_off_lips,
             landing_carry: self.landing_carry,
             keep_last_resorts: self.keep_last_resorts,
+            crouch_only_floors: self.crouch_floors,
             ..body
         }
     }

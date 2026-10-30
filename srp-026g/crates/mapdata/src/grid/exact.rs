@@ -222,7 +222,7 @@ impl WalkGrid {
             if !self.capsule_meets(walls, x, z, feet, self.body.stand_height) {
                 continue;
             }
-            if self.capsule_meets(walls, x, z, feet, self.body.crouch_height) {
+            if !self.body.crouch_only_floors || self.capsule_meets(walls, x, z, feet, self.body.crouch_height) {
                 alive[a] = false;
                 removed += 1;
             } else {
