@@ -61,13 +61,15 @@ struct TeamSpacing {
     /// the killer's distance: under 10 m, 10-30, 30 and more.
     /// The overlap itself (A175, the owner 2026-10-30: "too close to each other or maybe even inside each other"): each second, the pairs of living teammates
     /// (`pairs`) and those within 1 m and within 0.5 m of each other (ground distance, less than 2 m apart in height), the body-seconds with a mate within 1 m, and the
-    /// 1 m pair-seconds by cause: [the same goal (both routes end within 2 m of each other), a follow play (Escort, Buddy, PairUp, CoverHuman), both standing
+    /// 1 m pair-seconds by cause: [the same target (the commander gave both the same battery, place, container or spot), the same goal (both routes end within 2 m of each other), a follow play (Escort, Buddy, PairUp, CoverHuman), both standing
     /// still, in file (both moving the same way), other].
     pairs: u64,
     overlap_1: u64,
     overlap_05: u64,
     body_overlap_1: u64,
-    cause: [u64; 5],
+    cause: [u64; 6],
+    /// The 1 m pair-seconds of two moving bodies by the distance of the nearer's route end from the other's feet (under 5 m, 5-20, 20 and more, no route): where the pair is bound.
+    in_file_goals: [u64; 4],
     killed_by: [[u64; 2]; 2],
     shooters: [[u64; 3]; 2],
     killer_still: [[u64; 2]; 2],
@@ -92,6 +94,8 @@ pub(super) struct SpacingCounts {
     last_killer: Vec<Option<(Place, u32)>>,
     /// Where each bot's route ends (its goal), as the bot reads it.
     goal: Vec<Option<Vec3>>,
+    /// What the commander gave each bot to do (its target).
+    target: Vec<crate::v026g::bots::plays::TargetRef>,
     /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
     overlap_plays: [BTreeMap<String, u64>; 2],
     /// The second each body came alive, for a respawn (its life's age); none for its life from the match's start (the
@@ -113,6 +117,7 @@ impl SpacingCounts {
             still_s: vec![0; n],
             last_killer: vec![None; n],
             goal: vec![None; n],
+            target: vec![crate::v026g::bots::plays::TargetRef::None; n],
             overlap_plays: Default::default(),
             born: vec![None; n],
             by_play: BTreeMap::new(),
@@ -128,6 +133,9 @@ impl Topic for SpacingCounts {
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         if let Some(goal) = self.goal.get_mut(place) {
             *goal = bot.and_then(|b| b.route.as_ref().map(|(route, _)| route.end()));
+        }
+        if let Some(target) = self.target.get_mut(place) {
+            *target = bot.and_then(|b| b.assignment.as_ref().map(|a| a.target)).unwrap_or(crate::v026g::bots::plays::TargetRef::None);
         }
     }
 
@@ -260,20 +268,30 @@ impl SpacingCounts {
                 let name = |r: Option<&Rec>| r.and_then(|r| run.plays.get(usize::from(r.play))).cloned().unwrap_or_default();
                 let (pa, pb) = (name(ra), name(rb));
                 let follow = |p: &str| ["Escort", "Buddy", "PairUp", "CoverHuman"].iter().any(|f| p.contains(f));
+                let same_target = self.target[i] == self.target[j] && self.target[i] != crate::v026g::bots::plays::TargetRef::None;
                 let same_goal = matches!((self.goal[i], self.goal[j]), (Some(x), Some(y)) if x.distance_xz(y) < SAME_GOAL_M);
                 let (sa, sb) = (ra.map_or(0.0, |r| r.speed), rb.map_or(0.0, |r| r.speed));
-                let cause = if same_goal {
+                let cause = if same_target {
                     0
-                } else if follow(&pa) || follow(&pb) {
+                } else if same_goal {
                     1
-                } else if sa < STILL_MPS && sb < STILL_MPS {
+                } else if follow(&pa) || follow(&pb) {
                     2
-                } else if sa >= MOVING_MPS && sb >= MOVING_MPS && heading_alike(ra, rb) {
+                } else if sa < STILL_MPS && sb < STILL_MPS {
                     3
-                } else {
+                } else if sa >= MOVING_MPS && sb >= MOVING_MPS && heading_alike(ra, rb) {
                     4
+                } else {
+                    5
                 };
                 ts.cause[cause] += 1;
+                if sa >= MOVING_MPS && sb >= MOVING_MPS {
+                    let bound = [(self.goal[i], b.feet), (self.goal[j], a.feet)]
+                        .into_iter()
+                        .filter_map(|(goal, other)| goal.map(|g| g.distance_xz(other)))
+                        .fold(f32::INFINITY, f32::min);
+                    ts.in_file_goals[if !bound.is_finite() { 3 } else if bound < 5.0 { 0 } else if bound < 20.0 { 1 } else { 2 }] += 1;
+                }
                 let (lo, hi) = if pa <= pb { (pa, pb) } else { (pb, pa) };
                 *self.overlap_plays[team].entry(format!("{lo} + {hi}")).or_default() += 1;
             }
@@ -298,7 +316,8 @@ impl SpacingCounts {
                 "overlap_1m_pair_s": c.overlap_1,
                 "overlap_05m_pair_s": c.overlap_05,
                 "overlap_1m_body_s": c.body_overlap_1,
-                "overlap_1m_cause_goal_follow_still_file_other": c.cause,
+                "overlap_1m_cause_target_goal_follow_still_file_other": c.cause,
+                "overlap_1m_moving_pair_goal_under5_5_20_20up_none": c.in_file_goals,
                 "killed_by_bullet_or_other": c.killed_by,
                 "killed_by_shooters_1_2_3": c.shooters,
                 "killed_by_killer_still_no_yes": c.killer_still,
