@@ -45,7 +45,7 @@ item's faction, level, slots and drop weight from its config in the server game 
 | 1872 | Novice's fingerless gloves | gloves (`data_full`) | 1 Scavengers | 1 | Cut gloves (41) | `neutral_01_hand` | [9, 9] |
 | 1873 | Loner's jacket with vest | torso | 1 Scavengers | 4 | Light armored vest (48) | `neutral_03_torso_s1` + four pouches | [10, 9] |
 | 1874 | Loner's camo pants | legs | 1 Scavengers | 4 | Field pants (47) | `neutral_03_legs_s1` + pouch, holster, nuts bag | [11, 9] |
-| 1875 | Loner's boots | boots (`data_full`) | 1 Scavengers | 4 | Military boots (39) | `neutral_03_boot` | [12, 9] |
+| 1875 | Loner's boots | boots (`data_full`) | 1 Scavengers | 4 | Military boots (39) | `neutral_03_boot` (without the pants' cuff left in it) | [12, 9] |
 | 1876 | Loner's fingerless gloves | gloves (`data_full`) | 1 Scavengers | 5 | Rough gloves (327) | `neutral_03_hand` | [13, 9] |
 
 - Each item is its donor's config whole (parameters, protection, weight, price, drop
@@ -138,6 +138,15 @@ item's faction, level, slots and drop weight from its config in the server game 
   outline's long axis on the stock 32 degrees, the fingers down to the left; the cuff's
   black band and inside are left out of the icon render, not recoloured (the in-game mesh
   keeps them). Packs `stk2-novice@4`, `stk2-loner@4` (their icons only); `stk2-bandit@3`.
+- "One boot has a part of the trousers": the export's left loner boot carried the bottom
+  of the camo pants' leg (a wrapped cuff up to 29 cm, on the pants' part of the map, cut
+  from the legs with the boot); its faces above 13 cm with no mirror image on the right
+  boot are dropped, so both are the low shoes. The sneakers and the Novice's boots are
+  mirror images, with nothing extra. Checked with the Loner pants, the Novice jeans and
+  stock full trousers (the loner's boots are `data_full`): no gap but a sliver at the back
+  heel under the highest stock hems (13 cm; the shoes are 15.5 cm high).
+- Boot icons: each boot cut where its black shaft top begins, instead of a cap.
+- Packs `stk2-bandit@4`, `stk2-novice@5`, `stk2-loner@5`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -159,8 +168,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@3`, `stk2-novice@4`,
-  `stk2-loner@4` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-3`, `stk2-novice-4`, `stk2-loner-4`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@4`, `stk2-novice@5`,
+  `stk2-loner@5` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-4`, `stk2-novice-5`, `stk2-loner-5`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
