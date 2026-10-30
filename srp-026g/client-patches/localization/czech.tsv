@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
 st_srp_speed_bonuses	Bonusy: %1$s
+st_srp_speed_boosters	Posilovače: %1$s
 st_srp_speed_equipment	Výbava: %1$s
 st_srp_speed_label	Rychlost
 st_srp_speed_skills	Dovednosti: %1$s

@@ -29,7 +29,7 @@ package {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;
     var Scene:Object=domain.getDefinition("MainScene");Scene.stage=this;
-    var css:StyleSheet=new StyleSheet();css.setStyle("highlight",{color:"#FEE2B2"});css.setStyle("red",{color:"#CF4242"});css.setStyle("green",{color:"#7FC24B"});css.setStyle("weight_warning",{color:"#F18A78",display:"inline"});Scene.textStyleSheet=css;
+    var css:StyleSheet=new StyleSheet();css.setStyle("highlight",{color:"#FEE2B2"});css.setStyle("red",{color:"#CF4242"});css.setStyle("green",{color:"#7FC24B"});css.setStyle("white",{color:"#BCCBCB"});css.setStyle("weight_warning",{color:"#F18A78",display:"inline"});Scene.textStyleSheet=css;
     Effects=domain.getDefinition("survarium.player.WeightEffects");
     var Atlas:Class=domain.getDefinition("LobbyMenu_ModifierIcons") as Class;
     var bitmap:Bitmap=new Atlas();
@@ -127,21 +127,21 @@ package {
   private function checkSpeed():void {
    require(Effects.parse(-.1,.75,0).speedExplanation==null,"an old exe gives no speed");
    require(Effects.parse(-.1,.75,0,.03,7).speedExplanation==null,"invalid Bear Arms state refused");
-   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(.04,-.05);
+   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(.04,.05,-.05);
    var x:Object=e.speedExplanation;
-   require(Math.abs(x.total-.92)<1e-9,"92% = 1 - 10% + 3% + 4% - 5%: "+x.total);
-   require(x.value.indexOf("92%")>=0 && x.title.indexOf("92%")>=0,"value and heading: "+x.value+" "+x.title);
+   require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% (Tornado) - 5%: "+x.total);
+   require(x.value.indexOf("97%")>=0 && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="weight_warning","value and heading: "+x.value+" "+x.title);
    var rows:Array=x.rows();
-   require(rows.length==4,"the speed's four parts");
-   require(rows[0].label.indexOf("Weight")>=0 && rows[0].label.indexOf("-10%")>=0,"weight part: "+rows[0].label);
-   require(rows[1].label.indexOf("Bonuses")>=0 && rows[1].label.indexOf("+4%")>=0,"bonuses part: "+rows[1].label);
-   require(rows[2].label.indexOf("Skills")>=0 && rows[2].label.indexOf("+3%")>=0,"skills part: "+rows[2].label);
-   require(rows[3].label.indexOf("Equipment")>=0 && rows[3].label.indexOf("-5%")>=0,"equipment part: "+rows[3].label);
-   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Skills")<0,"the weight's tooltip stays the weight's");
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,-.05).speedExplanation.total-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
-   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,.03).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
-   require(Effects.parse(-.2,1.5,0,0,0).withItems(-1,0).speedExplanation.total==0,"never below zero");
-   var fast:Object=Effects.parse(0,0,0,.03,0).withItems(.04,0);
+   require(rows.length==5,"the speed's five parts");
+   // Each part coloured by its effect, as the item cards: green faster, red slower, white at 0.
+   for each(var want:Array in [[0,"Weight","<red>-10%</red>"],[1,"Bonuses","<green>+4%</green>"],[2,"Boosters","<green>+5%</green>"],[3,"Skills","<green>+3%</green>"],[4,"Equipment","<red>-5%</red>"]])
+    require(rows[want[0]].label.indexOf(want[1])>=0 && rows[want[0]].label.indexOf(want[2])>=0,want[1]+" part: "+rows[want[0]].label);
+   require(Effects.parse(0,0,0,0,0).withItems(0,0,0).speedExplanation.rows()[0].label.indexOf("<white>0%</white>")>=0,"no effect: white");
+   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Skills")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
+   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,0,-.05).speedExplanation.total-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
+   require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,0,.03).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
+   require(Effects.parse(-.2,1.5,0,0,0).withItems(-1,0,0).speedExplanation.total==0,"never below zero");
+   var fast:Object=Effects.parse(0,0,0,.03,0).withItems(.04,0,0);
    indicators[0].update(20,30,fast);
    var speed:Object=speedWidget(0),weight:Object=widgets[0];
    var label:TextField=speed.textFieldLabel,value:TextField=speed.textFieldValue;
@@ -162,7 +162,7 @@ package {
    var hover:Rectangle=speedTip(0).getBounds(speedBox(0)),words:Rectangle=speed.getBounds(speedBox(0));
    require(hover.containsRect(words) && hover.width>=150,"its tooltip covers the whole box: "+hover);
    require(weight.textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
-   indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(0,0));
+   indicators[0].update(25,30,Effects.parse(-.1,.75,0,0,0).withItems(0,0,0));
    require(speedWidget(0).textFieldValue.text.indexOf("90%")>=0 && speedWidget(0).textFieldValue.getTextFormat(0,1).color==0xF18A78,"slower than base: coral");
    indicators[0].update(20,30,Effects.parse(0,0,0));
    require(!speedBox(0).visible,"an old exe shows no speed");
@@ -270,11 +270,17 @@ package {
     }
     if(frame==155) {
      // The speed's own native card: its total in the heading, then weight, bonuses, skills, equipment.
-     var card:Object=rendered();require(card.alpha==1 && card.numChildren==7,"native card with the speed's four rows: "+card.numChildren);
-     require(card.getChildAt(2).textField.text.indexOf("107%")>=0,"heading with the total: "+card.getChildAt(2).textField.text);
+     var card:Object=rendered();require(card.alpha==1 && card.numChildren==8,"native card with the speed's five rows: "+card.numChildren);
+     var head:TextField=card.getChildAt(2).textField;var h:int=head.text.indexOf("107%");
+     require(h>=0 && head.getTextFormat(h,h+1).color==0x7FC24B,"heading with the total in green: "+head.text);
      var text:String=rowText(card);
-     for each(var wanted:String in ["Weight","Bonuses: +4%","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
-     for(var m:int=3;m<7;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
+     for each(var wanted:String in ["Weight","Bonuses: +4%","Boosters","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
+     // The colours as drawn: a bonus green, no effect white (the style sheet's).
+     var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");
+     require(bi>=0 && bonus.getTextFormat(bi,bi+1).color==0x87A816,"a part that speeds up is green, the card rows' green: "+bonus.getTextFormat(bi,bi+1).color.toString(16));
+     var slow:TextField=card.getChildAt(3).textFieldLabel;var si:int=slow.text.indexOf("-");
+     require(si<0 || slow.getTextFormat(si,si+1).color==0x960F0E,"a part that slows down is red, the card rows' red");
+     for(var m:int=3;m<8;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
      finish(null);
     }

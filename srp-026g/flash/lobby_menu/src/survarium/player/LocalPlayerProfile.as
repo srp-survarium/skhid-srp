@@ -499,21 +499,24 @@ package survarium.player
       }
       
       // The speed's item parts: the armour's movement bonuses (built-in, rolled and
-      // defects) and the first weapon's own movement parameter (the weapon in hand).
+      // defects), the pockets' boosters (the Tornado's +5 %) and the first weapon's own
+      // movement parameter (the weapon in hand).
       private function withKitItems(effects:WeightEffects) : WeightEffects
       {
          if(effects == null || !effects.knowsSpeed) return effects;
          var items:DataProvider = profileItems.dataProvider as DataProvider;
          var bonuses:Number = 0;
          var weapon:Number = 0;
+         var boosters:Number = 0;
          for(var i:uint = 0; items != null && i < items.length; i++)
          {
             var item:ItemData = items[i] as ItemData;
             if(item == null) continue;
             if(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT) bonuses += movementOf(item);
             else if(item.slotId == ProfileSlot.WEAPON_1) weapon = movementOf(item);
+            else if(item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6) boosters += movementOf(item);
          }
-         return effects.withItems(bonuses,weapon);
+         return effects.withItems(bonuses,boosters,weapon);
       }
       
       private static function movementOf(item:ItemData) : Number

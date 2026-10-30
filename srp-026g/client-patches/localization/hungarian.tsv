@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a 
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_srp_speed_bonuses	Bónuszok: %1$s
+st_srp_speed_boosters	Erősítők: %1$s
 st_srp_speed_equipment	Felszerelés: %1$s
 st_srp_speed_label	Sebesség
 st_srp_speed_skills	Képességek: %1$s

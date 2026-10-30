@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік п�
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
 st_srp_speed_bonuses	Бонусы: %1$s
+st_srp_speed_boosters	Бустэры: %1$s
 st_srp_speed_equipment	Рыштунак: %1$s
 st_srp_speed_label	Хуткасць
 st_srp_speed_skills	Навыкі: %1$s

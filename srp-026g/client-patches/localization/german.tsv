@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
 st_srp_speed_bonuses	Boni: %1$s
+st_srp_speed_boosters	Booster: %1$s
 st_srp_speed_equipment	Ausrüstung: %1$s
 st_srp_speed_label	Tempo
 st_srp_speed_skills	Fähigkeiten: %1$s

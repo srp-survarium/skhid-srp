@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
 st_srp_speed_bonuses	Bonuses: %1$s
+st_srp_speed_boosters	Boosters: %1$s
 st_srp_speed_equipment	Equipment: %1$s
 st_srp_speed_label	Speed
 st_srp_speed_skills	Skills: %1$s

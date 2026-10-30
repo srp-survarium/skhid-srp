@@ -2,6 +2,7 @@ package survarium.player
 {
    import flash.display.MovieClip;
    import flash.events.Event;
+   import flash.text.TextFormat;
    import scaleform.clik.controls.TipRenderer;
    import survarium.controls.ItemInfoRenderer;
    import survarium.buttons.ModificatorListRenderer;
@@ -33,6 +34,19 @@ package survarium.player
       }
 
       private function onRemoved(e:Event) : void { removeEventListener(Event.ENTER_FRAME,prepare); }
+
+      // The heading's value in its style's colour, by TextFormat over its characters.
+      private function colourTitle(effects:IEffectRows) : void
+      {
+         var part:String = effects.titleValue;
+         if(part == null || _heading.textField.styleSheet != null) return;
+         var at:int = _heading.textField.text.lastIndexOf(part);
+         var style:Object = MainScene.textStyleSheet.getStyle(effects.titleStyle);
+         if(at < 0 || style == null || style.color == null) return;
+         var format:TextFormat = new TextFormat();
+         format.color = uint("0x" + String(style.color).replace("#",""));
+         _heading.textField.setTextFormat(format,at,at + part.length);
+      }
 
       override protected function invalidateData() : void
       {
@@ -68,6 +82,7 @@ package survarium.player
          for each(var pending:ModificatorListRenderer in _rows)
             if(pending.textFieldLabel == null || pending.iconContainer == null) return;
          _heading.textField.text = effects.title;
+         colourTitle(effects);
          var icons:IconContainer = IconContainer.getInstance("modifiers");
          if(icons == null) throw new Error("WeightTipRenderer: missing modifier atlas");
          var w:Number = 250;

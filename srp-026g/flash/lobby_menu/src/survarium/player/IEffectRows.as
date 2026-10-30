@@ -5,6 +5,10 @@ package survarium.player
    public interface IEffectRows
    {
       function get title() : String;
+      // The part of the title to colour (TextFormat, as the heading takes no style
+      // sheet) and its style's name in MainScene.textStyleSheet; null for none.
+      function get titleValue() : String;
+      function get titleStyle() : String;
       function rows() : Array;
    }
 }

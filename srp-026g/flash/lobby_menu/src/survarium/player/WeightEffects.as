@@ -33,15 +33,15 @@ package survarium.player
       {
          if(!isFinite(movement) || !isFinite(spending) ||
             (sprint != SPRINT_ALLOWED && sprint != SPRINT_WEIGHT && sprint != SPRINT_HEAVYWEIGHT)) return null;
-         var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,0,0) : null;
+         var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,0,0,0) : null;
          return new WeightEffects(movement,spending,int(sprint),speed);
       }
       // The same effects with the kit's items: the armour's movement bonuses and the
       // weapon in hand's own movement parameter.
-      public function withItems(bonuses:Number, weapon:Number) : WeightEffects
+      public function withItems(bonuses:Number, boosters:Number, weapon:Number) : WeightEffects
       {
          if(_speed == null) return this;
-         return new WeightEffects(_movement,_spending,_sprint,_speed.withItems(bonuses,weapon));
+         return new WeightEffects(_movement,_spending,_sprint,_speed.withItems(bonuses,boosters,weapon));
       }
       public function get knowsSpeed() : Boolean { return _speed != null; }
       // The kit's movement speed as a fraction of the base speed.
@@ -53,6 +53,8 @@ package survarium.player
       }
       public function get slowsMovement() : Boolean { return _movement < 0; }
       public function get title() : String { return LocalizationData.getName("st_srp_weight_title"); }
+      public function get titleValue() : String { return null; }
+      public function get titleStyle() : String { return null; }
       // A part's signed percentage, red when it hurts: the weight rows and the speed's parts.
       public static function signed(value:Number, bad:Boolean) : String
       {

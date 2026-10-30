@@ -2516,6 +2516,7 @@ st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
 st_srp_speed_bonuses	Bonusi: %1$s
+st_srp_speed_boosters	Pojačivači: %1$s
 st_srp_speed_equipment	Oprema: %1$s
 st_srp_speed_label	Brzina
 st_srp_speed_skills	Veštine: %1$s
