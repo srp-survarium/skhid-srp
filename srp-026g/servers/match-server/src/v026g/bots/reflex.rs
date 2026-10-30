@@ -86,6 +86,7 @@
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
+use survarium::v026g::weapons::Optic;
 
 use super::arc;
 use super::guns::{
@@ -191,6 +192,33 @@ impl WeaponKind {
             PISTOL_CATEGORY => Self::Pistol,
             _ => return None,
         })
+    }
+}
+
+/// Whether the aim's error angles scale with the zoom of the sights, as a player's hand does (the client turns the view by
+/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): a bench setting to size the effect,
+/// off in the game.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoomError {
+    /// The error angles are the skill's whatever the sights (today).
+    #[default]
+    Off,
+    /// Times the zoom of a scope (`fov_factor`, 0.25) while aimed in, ramped by the aim progress; iron sights unchanged.
+    Scopes,
+    /// As [`Self::Scopes`], and the iron sights' zoom (`1 / aim_zoom_factor`) too.
+    All,
+}
+
+impl ZoomError {
+    /// The factor on the error angles with the sights `optic` at aim progress `progress` (0 not aimed, 1 aimed in): the
+    /// camera's zoom `1 + (target - 1) x progress`.
+    pub fn factor(self, optic: Optic, progress: f32) -> f32 {
+        let target = match (self, optic) {
+            (Self::Off, _) | (Self::Scopes, Optic::Iron { .. }) => 1.0,
+            (Self::Scopes | Self::All, Optic::Scope { zoom }) | (Self::All, Optic::Iron { zoom }) => zoom,
+        };
+        1.0 + (target - 1.0) * progress.clamp(0.0, 1.0)
     }
 }
 
@@ -786,6 +814,8 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
+    /// The error angles times the sights' zoom ([`ZoomError`]); off.
+    pub zoom_error: ZoomError,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -1257,6 +1287,7 @@ impl Default for CombatTuning {
             lead_own: true,
             live_eye: true,
             turn_feed: true,
+            zoom_error: ZoomError::Off,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -5865,9 +5896,15 @@ impl Reflex {
         let fade = (-t / settle_s).exp();
         self.wander_step(aim, skill, rng);
         let gun = self.hands().held().gun;
+        // The error angles go with the zoom of the sights (`zoom_error`): the aim progress is the time since the aim key went
+        // down over the sights' aim time.
+        let zoom = c.zoom_error.factor(
+            gun.optic,
+            aim_since.map_or(0.0, |since| now.saturating_sub(since) as f32 / gun.aim_ms.max(1) as f32),
+        );
         let error = (
-            self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5),
-            self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5),
+            (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
+            (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
         );
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
@@ -6435,6 +6472,21 @@ mod tests {
 
     fn combat_off() -> CombatTuning {
         crate::v026g::bots::tuning::Tuning::all_off().aim.combat
+    }
+
+    /// The error angles go with the zoom as the client's look step does: nothing when off, the scope's 0.25 aimed in (halfway
+    /// up the aim: 0.625), iron sights only with `All`.
+    #[test]
+    fn the_error_angles_follow_the_zoom_of_the_sights() {
+        let scope = Optic::Scope { zoom: 0.25 };
+        let iron = Optic::Iron { zoom: 1.0 / 1.2 };
+        assert_eq!(ZoomError::Off.factor(scope, 1.0), 1.0);
+        assert_eq!(ZoomError::Scopes.factor(scope, 0.0), 1.0);
+        assert!((ZoomError::Scopes.factor(scope, 0.5) - 0.625).abs() < 1e-6);
+        assert!((ZoomError::Scopes.factor(scope, 1.0) - 0.25).abs() < 1e-6);
+        assert_eq!(ZoomError::Scopes.factor(iron, 1.0), 1.0);
+        assert!((ZoomError::All.factor(iron, 1.0) - 1.0 / 1.2).abs() < 1e-6);
+        assert!((ZoomError::All.factor(scope, 2.0) - 0.25).abs() < 1e-6, "progress past 1 stays at the full zoom");
     }
 
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
