@@ -7,19 +7,24 @@
 //! At `lobby_menu.scenes_ready` the results are in and nothing has used them:
 //! the lobby may ask the whole query again instead.
 //!
-//! After a match (lobby-scenes.md, "After a match"): while the lobby menu is
-//! not the active scene (`lobby_menu.deactivate` to `lobby_menu.activate`)
-//! the lobby asks its query again ([`HiddenLobby::ask`]) with only its
-//! project in it ([`SceneQuery::ask_alone`]), and puts the project it gets in
-//! the old one's place ([`ScenesReady::swap`]): the project halves of
-//! lobby_menu::clear_resources (0x21D080) and on_render_scenes_ready
-//! (0x220B20), in their order.
+//! A change of lobby during a session: the lobby asks its query again
+//! ([`DrawnLobby::ask`]) with only its project in it ([`SceneQuery::ask_alone`]),
+//! holds the project it gets ([`ScenesReady::hold`], one reference of ours)
+//! while the scene fades to black (the lobby movie's `srp_scene_fade`,
+//! [`Fade`]) and then puts it in the old one's place ([`DrawnLobby::swap_held`]):
+//! the project halves of lobby_menu::clear_resources (0x21D080) and
+//! on_render_scenes_ready (0x220B20), in their order. The held project is
+//! this module's alone ([`HELD`]): taken by the swap, or let go
+//! ([`release_held`]).
 
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use super::GameCell;
 use super::context::Context;
 use super::hook::Thread;
+use super::parse::Reader;
+use super::ui::movie_of;
 use crate::raw;
 
 /// A resource class of the game's (its cook's id).
@@ -112,7 +117,7 @@ const QUERY_REQUESTS: usize = 8;
 pub struct ScenesReady<'t> {
     menu: raw::LobbyMenu,
     results: raw::LobbySceneResults,
-    _thread: &'t Thread,
+    thread: &'t Thread,
 }
 
 impl<'t> ScenesReady<'t> {
@@ -122,7 +127,7 @@ impl<'t> ScenesReady<'t> {
         // callback's argument, the query's results, alive for the call on
         // the game's thread.
         let (menu, results) = unsafe { (site::menu(ctx)?, site::frame(ctx)?.results()?) };
-        Some(ScenesReady { menu, results, _thread: ctx.thread() })
+        Some(ScenesReady { menu, results, thread: ctx.thread() })
     }
 
     /// Whether the project's place holds what `asked` asked for, usable: a
@@ -149,54 +154,170 @@ impl<'t> ScenesReady<'t> {
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
     }
 
-    /// Puts the results' project (one with its track: `loaded`) in the place
-    /// of the lobby menu's, while the lobby is not drawn: the old project
-    /// out as lobby_menu::clear_resources takes it out (0x21D080..0x21D100),
-    /// the new one in as on_render_scenes_ready puts it in (0x220DA2..0x220EC3,
-    /// 0x22193E..0x221975), every step the game's own function. Nothing is
-    /// touched when the results hold no such project.
-    pub fn swap(&self) {
-        // SAFETY: the results and the lobby menu are alive for the callback
-        // on the game's thread; result 3 is the project this patch asked
-        // (a project's resource, its project 38h before it); the old project
-        // is the lobby menu's (+114h, one reference of its own), with its
-        // static collisions (+28h, +2Ch of them) in the menu's physics world.
+    /// The results' project (one with its track: `loaded`), when they hold one.
+    fn arrived(&self) -> Option<raw::SimpleGameProject> {
+        // SAFETY: the results are alive for the callback; result 3 is the
+        // project this patch asked (a project's resource, its project 38h
+        // before it).
         unsafe {
-            let Some(arrived) = self.results.project() else { return };
-            let new = arrived.project();
-            let Some(track) = new.track() else { return };
-            let (menu, slot) = (self.menu, self.menu.scene());
-            let (player, world) = (menu.track_player(), menu.physics_world());
-            if let Some(old) = slot.project() {
-                raw::engine_project_remove(Some(old));
-                for collision in collisions(old) {
-                    raw::engine_collision_remove(Some(collision), world);
-                }
-                raw::engine_effects_stop(Some(player.effects()));
-                *player.state() = 0;
-                slot.set_project(None);
-                release(old);
-            }
-            AtomicU32::from_ptr(new.count()).fetch_add(1, Ordering::SeqCst);
-            slot.set_project(Some(new));
-            raw::engine_project_on_inserted(Some(new));
-            raw::engine_effects_stop(Some(player.effects()));
-            *player.state() = 0;
-            let mut made = raw::GameEffectSlotStorage::zeroed();
-            let out = raw::engine_emitter_emit(Some(track), Some(made.handle()), 0.0, 1.0);
-            raw::engine_effect_play(Some(player), out, 0, 1, 0, Some(menu.listener()));
-            if let Some(effect) = made.handle().effect() {
-                *effect.count() -= 1;
-                if *effect.count() == 0 {
-                    raw::engine_emitter_destroy(effect.emitter(), Some(effect));
-                }
-            }
-            raw::engine_project_insert(Some(new));
-            for collision in collisions(new) {
-                raw::engine_collision_insert(Some(collision), world);
-            }
+            let new = self.results.project()?.project();
+            new.track().map(|_| new)
         }
     }
+
+    /// Holds the results' project (one reference of ours, [`HELD`]) for a
+    /// swap behind the black; the results are let go. Nothing is held when
+    /// they hold no such project.
+    pub fn hold(&self) {
+        let Some(new) = self.arrived() else { return };
+        // SAFETY: the project is alive (the results' reference until the
+        // callback returns); ours keeps it after.
+        unsafe { AtomicU32::from_ptr(new.count()).fetch_add(1, Ordering::SeqCst) };
+        if let Some(old) = HELD.get(self.thread) {
+            // SAFETY: a project held, its reference ours (one change at a time:
+            // never two).
+            unsafe { release(old) };
+        }
+        HELD.set(self.thread, Some(new));
+    }
+
+    /// Puts the results' project in the place of the lobby menu's at once,
+    /// while the lobby is not drawn. Nothing is touched when the results
+    /// hold no such project.
+    pub fn swap_in(&self) {
+        if let Some(new) = self.arrived() {
+            // SAFETY: the lobby menu and the project are alive for the callback.
+            unsafe { put_in(self.menu, new) }
+        }
+    }
+
+    /// The scene's fade (the lobby movie's).
+    pub fn fade(&self, fade: Fade) {
+        // SAFETY: the lobby menu is alive for the callback.
+        unsafe { fade_scene(self.menu, fade) }
+    }
+}
+
+/// The project held for a swap behind the black (one reference of ours),
+/// none when no change is fading: [`ScenesReady::hold`] puts it, a swap or
+/// [`release_held`] takes it.
+static HELD: GameCell<Option<raw::SimpleGameProject>> = GameCell::new(None);
+
+/// Lets the held project go (the game closing before its swap).
+pub fn release_held(thread: &Thread) {
+    if let Some(held) = HELD.get(thread) {
+        HELD.set(thread, None);
+        // SAFETY: the held project's reference is ours.
+        unsafe { release(held) };
+    }
+}
+
+/// Puts the held project in the lobby menu's place, its reference given up
+/// after (the menu keeps its own).
+///
+/// # Safety
+/// `menu` is alive, on the game's thread.
+unsafe fn swap_held(thread: &Thread, menu: raw::LobbyMenu) {
+    let Some(held) = HELD.get(thread) else { return };
+    HELD.set(thread, None);
+    // SAFETY: the caller's menu; the held project alive by our reference.
+    unsafe {
+        put_in(menu, held);
+        release(held);
+    }
+}
+
+/// Puts `new` (a project with its track) in the place of the lobby menu's:
+/// the old project out as lobby_menu::clear_resources takes it out
+/// (0x21D080..0x21D100), the new one in as on_render_scenes_ready puts it in
+/// (0x220DA2..0x220EC3, 0x22193E..0x221975), every step the game's own
+/// function; the menu takes a reference of its own.
+///
+/// # Safety
+/// `menu` and `new` are alive on the game's thread; the old project is the
+/// lobby menu's (+114h, one reference of its own), with its static
+/// collisions (+28h, +2Ch of them) in the menu's physics world.
+unsafe fn put_in(menu: raw::LobbyMenu, new: raw::SimpleGameProject) {
+    // SAFETY: the caller's.
+    unsafe {
+        let Some(track) = new.track() else { return };
+        let slot = menu.scene();
+        let (player, world) = (menu.track_player(), menu.physics_world());
+        if let Some(old) = slot.project() {
+            raw::engine_project_remove(Some(old));
+            for collision in collisions(old) {
+                raw::engine_collision_remove(Some(collision), world);
+            }
+            raw::engine_effects_stop(Some(player.effects()));
+            *player.state() = 0;
+            slot.set_project(None);
+            release(old);
+        }
+        AtomicU32::from_ptr(new.count()).fetch_add(1, Ordering::SeqCst);
+        slot.set_project(Some(new));
+        raw::engine_project_on_inserted(Some(new));
+        raw::engine_effects_stop(Some(player.effects()));
+        *player.state() = 0;
+        let mut made = raw::GameEffectSlotStorage::zeroed();
+        let out = raw::engine_emitter_emit(Some(track), Some(made.handle()), 0.0, 1.0);
+        raw::engine_effect_play(Some(player), out, 0, 1, 0, Some(menu.listener()));
+        if let Some(effect) = made.handle().effect() {
+            *effect.count() -= 1;
+            if *effect.count() == 0 {
+                raw::engine_emitter_destroy(effect.emitter(), Some(effect));
+            }
+        }
+        raw::engine_project_insert(Some(new));
+        for collision in collisions(new) {
+            raw::engine_collision_insert(Some(collision), world);
+        }
+    }
+}
+
+/// The scene's fade, as the lobby movie's `srp_scene_fade` takes it (its
+/// first argument; the second the fade's milliseconds): a black under every
+/// panel, over the lobby's 3D scene.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Fade {
+    /// No black, at once.
+    Gone,
+    /// To black in `seconds`.
+    Out { seconds: f32 },
+    /// From black in `seconds`, then gone.
+    In { seconds: f32 },
+}
+
+impl Fade {
+    /// The movie's arguments: the state (0 gone, 1 out, 2 in) and the
+    /// milliseconds.
+    fn arguments(self) -> [u32; 2] {
+        let ms = |seconds: f32| (seconds * 1000.0) as u32;
+        match self {
+            Fade::Gone => [0, 0],
+            Fade::Out { seconds } => [1, ms(seconds)],
+            Fade::In { seconds } => [2, ms(seconds)],
+        }
+    }
+}
+
+/// Asks the lobby movie (lobby menu+690h's) for the scene's fade.
+///
+/// # Safety
+/// `menu` is alive, on the game's thread.
+unsafe fn fade_scene(menu: raw::LobbyMenu, fade: Fade) {
+    // SAFETY: the caller's menu; its movie holder and the holder's movie live as long.
+    if let Some(movie) = unsafe { movie_of(menu.movie()) } {
+        movie.invoke_uints(c"root.srp_scene_fade", &fade.arguments());
+    }
+}
+
+/// Resets the eye adaptation: the next frame takes its own luminance as the
+/// last one's (stage_postprocess 0x1B14A6: the byte set, `t_previous_luminance`
+/// the frame's own, then cleared), as the game's first frame does.
+fn reset_eye_adaptation(_: &Thread) {
+    // SAFETY: the image's byte (the render thread reads and clears it, a
+    // byte written whole).
+    unsafe { *raw::image::postprocess().reset_eye_adaptation() = 1 };
 }
 
 /// A project's static collisions (its +28h array, +2Ch of them).
@@ -228,7 +349,7 @@ unsafe fn release(project: raw::SimpleGameProject) {
 /// match entered), its scene not drawn until `lobby_menu.activate`.
 pub struct HiddenLobby<'t> {
     menu: raw::LobbyMenu,
-    _thread: &'t Thread,
+    thread: &'t Thread,
 }
 
 impl<'t> HiddenLobby<'t> {
@@ -236,15 +357,122 @@ impl<'t> HiddenLobby<'t> {
         // SAFETY: the context is this site's: on_deactivate's ECX, the lobby
         // menu, alive for the call on the game's thread.
         let menu = unsafe { raw::site::lobby_menu_deactivate::menu(ctx)? };
-        Some(HiddenLobby { menu, _thread: ctx.thread() })
+        Some(HiddenLobby { menu, thread: ctx.thread() })
+    }
+
+    /// Puts the held project in (a match entered behind the black).
+    pub fn swap_held(&self) {
+        // SAFETY: the lobby menu is alive (its own on_deactivate runs).
+        unsafe { swap_held(self.thread, self.menu) }
+    }
+
+    /// The scene's fade (the lobby movie's).
+    pub fn fade(&self, fade: Fade) {
+        // SAFETY: as swap_held.
+        unsafe { fade_scene(self.menu, fade) }
+    }
+}
+
+/// The lobby menu as its camera ticks (`lobby_camera.view`): the lobby drawn.
+pub struct DrawnLobby<'t> {
+    menu: raw::LobbyMenu,
+    thread: &'t Thread,
+}
+
+impl<'t> DrawnLobby<'t> {
+    pub fn of(camera: &super::lobby_camera::LobbyCamera<'t>) -> Option<DrawnLobby<'t>> {
+        Some(DrawnLobby { menu: camera.menu()?, thread: camera.thread() })
     }
 
     /// Asks the lobby's query (its list built again, `lobby_menu.scene_request`
     /// passed), its results to come at `lobby_menu.scenes_ready`.
     pub fn ask(&self) {
         // SAFETY: as ScenesReady::ask_again: the lobby menu is alive (its
-        // own on_deactivate runs).
+        // camera ticks); its query only builds a request list and asks the
+        // resources, as its ctor did.
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
+    }
+
+    /// Puts the held project in (behind the black).
+    pub fn swap_held(&self) {
+        // SAFETY: the lobby menu is alive (its camera ticks).
+        unsafe { swap_held(self.thread, self.menu) }
+    }
+
+    /// The scene's fade (the lobby movie's).
+    pub fn fade(&self, fade: Fade) {
+        // SAFETY: as swap_held.
+        unsafe { fade_scene(self.menu, fade) }
+    }
+
+    pub fn reset_eye_adaptation(&self) {
+        reset_eye_adaptation(self.thread);
+    }
+}
+
+/// `0xA1`'s squad id, at `lobby_client.squad_id` (read_squad_info 0x274720
+/// with the id kept, both paths: the lobby client in EBX).
+pub struct SquadId<'t> {
+    client: raw::LobbyClient,
+    _thread: &'t Thread,
+}
+
+impl<'t> SquadId<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<SquadId<'t>> {
+        // SAFETY: the context is this site's: the lobby client, alive while
+        // the handler runs on the game's thread.
+        let client = unsafe { raw::site::lobby_client_squad_id::client(ctx)? };
+        Some(SquadId { client, _thread: ctx.thread() })
+    }
+
+    /// The squad id (0 none), as the handler kept it (+1EAAA4h).
+    pub fn get(&self) -> u32 {
+        // SAFETY: the client's field, written by the handler before the site.
+        unsafe { *self.client.squad_id() }
+    }
+}
+
+/// A squad `0xA1` just gave, at `lobby_client.squad_read` (read_squad_info
+/// 0x274720 as it keeps the revision, a squad's path only: the lobby client
+/// in EBX, the message's reader in ESI, its cursor past the revision).
+pub struct SquadRead<'t> {
+    client: raw::LobbyClient,
+    reader: raw::BufferReader,
+    _thread: &'t Thread,
+}
+
+impl<'t> SquadRead<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<SquadRead<'t>> {
+        use raw::site::lobby_client_squad_read as site;
+        // SAFETY: the context is this site's: the lobby client and the
+        // message's reader, alive while the handler runs on the game's thread.
+        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+        Some(SquadRead { client, reader, _thread: ctx.thread() })
+    }
+
+    /// Its squad id (0 none), as the handler kept it (+1EAAA4h).
+    pub fn squad_id(&self) -> u32 {
+        // SAFETY: the client's field, written by the handler before the site.
+        unsafe { *self.client.squad_id() }
+    }
+
+    /// srp's last byte, the commander's quest faction: the byte at the
+    /// reader's cursor when the message has it.
+    pub fn commander_faction(&self) -> Option<u8> {
+        if self.squad_id() == 0 {
+            return None;
+        }
+        // SAFETY: a live reader, for the hook.
+        let (begin, cursor, size) = unsafe { (self.reader.begin(), self.reader.cursor(), *self.reader.size()) };
+        let (first, at) = (begin as usize, cursor as usize);
+        let end = first.wrapping_add(size as usize);
+        if cursor.is_null() || at < first || at >= end || end < first {
+            return None;
+        }
+        // SAFETY: begin..begin+size are the message's bytes, alive for the
+        // hook, and cursor..end lies inside them.
+        let mut rest = unsafe { Reader::of_memory(cursor, end - at) };
+        rest.u8()
     }
 }
 

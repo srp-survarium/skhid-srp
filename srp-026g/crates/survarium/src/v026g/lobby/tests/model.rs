@@ -958,23 +958,24 @@ fn chat_friends_and_squads_read_back() {
         ready: false,
     }];
     assert_eq!(
-        client.receive(&squad_info(9, &members, 0, true, 4).unwrap()),
+        client.receive(&squad_info(9, &members, 0, true, 4, 3).unwrap()),
         Ok(Decoded::SquadInfo {
             squad_id: 9,
             members,
             commander_index: 0,
             i_am_commander: true,
             revision: 4,
+            commander_faction: 3,
         })
     );
     assert!(
         client
-            .receive(&squad_info(0, &[], 0, false, 0).unwrap())
+            .receive(&squad_info(0, &[], 0, false, 0, 0).unwrap())
             .is_ok()
     );
     // Four members overwrite the squad's own fields.
     let member = "01000000 01000000 01000000 'A' 01 00";
-    let four = format!("09000000 04 00 {member} {member} {member} {member} 00 00000000");
+    let four = format!("09000000 04 00 {member} {member} {member} {member} 00 00000000 00");
     assert!(matches!(
         client.receive_raw(0xA1, &h(&four)),
         Err(ModelError::Overflow {

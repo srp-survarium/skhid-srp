@@ -441,6 +441,9 @@ impl Core<'_> {
                 match chosen {
                     Ok((reputations, notices)) => {
                         self.accounts.mark_dirty(who.account_id);
+                        // A commander's faction is its squad's lobby (0xA1's
+                        // last byte): the squad is sent again.
+                        self.squads_dirty = true;
                         // The faction byte travels in 0x8E; then `83 4B`
                         // makes the client ask for its quests and services.
                         self.send_made(addr, reputations);

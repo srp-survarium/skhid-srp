@@ -2874,6 +2874,15 @@ impl LobbyMenu {
         unsafe { self.0.byte_add(0x3104).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
     }
 
+    /// +0x690 (ptr<vostok::ui::movie_holder>): its movie's holder: [[+690h]+108h]+4 the lobby movie (fill_squad_info 0x2277E1, root.show_squad; the tutorial's root.clean_highlight 0x2A4FF6)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn movie(self) -> Option<MovieHolder> {
+        unsafe { self.0.byte_add(0x690).cast::<Option<MovieHolder>>().read_volatile() }
+    }
+
     /// +0x698 (ptr<survarium::lobby_character>): the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
     ///
     /// # Safety
@@ -5317,6 +5326,99 @@ impl ExplodeFrame {
     }
 }
 
+/// A survarium::lobby_client (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyClient(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyClient {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1ea998 (u32): the account's quest faction, 0x8E's last byte (0x2717CF; 0 none, factions_dict 1..4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn quest_faction(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1ea998).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1eaaa0 (u32): 0xA1's revision (read_squad_info 0x2748BC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_revision(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1eaaa0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1eaaa4 (u32): 0xA1's squad id; 0 no squad (0x2747A8; the reader stops there and the squad chat tab is removed)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1eaaa4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1eaaa8 (u8): 0xA1's member count (0x2747D9), not checked against the three slots; its members at +1EA9B0h, 50h each, zeroed (FCh) on each 0xA1
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_count(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1eaaa8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1eaaa9 (u8): 0xA1's commander index: the leader is member[this] (0x2747EF; srp always 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_commander(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1eaaa9).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1eaaac (u8): 0xA1's i_am_commander (0x2748AB; 0 first, 0x2747C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn i_am_commander(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1eaaac).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::postprocess_flags (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PostprocessFlags(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PostprocessFlags {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u8): 1: the next frame's eye adaptation takes the frame's own luminance (t_current) as the last one's (t_previous_luminance, 0x1B14B2), so it is at once where it settles; the render thread clears it (0x1B14F2); nothing else of the game writes it (the first frame's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reset_eye_adaptation(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -5586,6 +5688,13 @@ pub mod image {
     pub fn weapon_table() -> WeaponTable {
         // SAFETY: an image VA, not 0.
         WeaponTable(unsafe { NonNull::new_unchecked(0xa428f00 as *mut c_void) })
+    }
+
+    /// 0xac914c (obj<vostok::render::postprocess_flags>, survarium::image): stage_postprocess's byte flag of the eye adaptation (compute_per_pixel_eye_adaptated_luminance 0x1B14A6), 1 in the image
+    #[inline(always)]
+    pub fn postprocess() -> PostprocessFlags {
+        // SAFETY: an image VA, not 0.
+        PostprocessFlags(unsafe { NonNull::new_unchecked(0xac914c as *mut c_void) })
     }
 }
 
@@ -5988,6 +6097,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ScenesReadyFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ScenesReadyFrame)
+        }
+    }
+
+    /// lobby_client.squad_id (0x2747c3): read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client; both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here
+    pub mod lobby_client_squad_id {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::lobby_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
+        }
+    }
+
+    /// lobby_client.squad_read (0x2748bc): read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction
+    pub mod lobby_client_squad_read {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::lobby_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
+        }
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
 

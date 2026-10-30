@@ -2521,8 +2521,8 @@ va	name	location	role	basis
 0x00271df0	survarium::lobby_client::read_quest_list	stack+8	reader	inferred
 0x00271eb0	survarium::lobby_client::read_players_elo_list	stack+4	lobby client	inferred
 0x00271eb0	survarium::lobby_client::read_players_elo_list	stack+8	reader	inferred
-0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client	inferred
-0x00274720	survarium::lobby_client::read_squad_info	EAX	reader	inferred
+0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client (EBX inside)	observed
+0x00274720	survarium::lobby_client::read_squad_info	EAX	the message's reader {begin, cursor, size} (ESI inside)	observed
 0x002749d0	survarium::lobby_client::squad_ready_count	ECX	lobby client receiver	inferred
 0x00277aa0	survarium::lobby_client::find_item_by_id	ECX	the inventory's begin (B4h records)	observed
 0x00277aa0	survarium::lobby_client::find_item_by_id	EDI	the inventory's end	observed
@@ -4882,3 +4882,14 @@ va	name	location	role	basis
 0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	EAX	lobby client (sends 34 00 <account> <kit>)	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	entry ESP+4	the mate's account id (0xA1 m+0)	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	entry ESP+8	the mate's kit id (0xA1 m+4)	observed
+0x00274580	survarium::lobby_client::destroy_squad	EAX	lobby client (sends 4A 01 when [lc+1E57A8h] is -1)	observed
+0x002745d0	survarium::lobby_client::add_squad_member	ECX	lobby client (sends 4A 02 <name>; connection state 0 or 4, order id -1)	observed
+0x002745d0	survarium::lobby_client::add_squad_member	entry ESP+4	the player's name, NUL-terminated	observed
+0x00274660	survarium::lobby_client::drop_squad_member	EAX	lobby client (sends 4A 03 <account>)	observed
+0x00274660	survarium::lobby_client::drop_squad_member	entry ESP+4	the member's account id	observed
+0x002746d0	survarium::lobby_client::leave_squad	EAX	lobby client (sends 4A 04)	observed
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	EAX	the arrived 0x88 account body (player_profile temporary, its 0x88 revision at +45FCh)	observed
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	entry ESP+4	lobby menu	observed

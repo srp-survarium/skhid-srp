@@ -174,10 +174,11 @@ impl Movie<'_> {
         self.invoke(method, &mut arguments[..count])
     }
 
-    /// Plain unsigned GFx values.
-    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32; 4]) {
+    /// Plain unsigned GFx values, up to four.
+    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32]) {
         let mut arguments = [const { raw::GfxValueStorage::zeroed() }; 4];
-        for (room, &value) in arguments.iter_mut().zip(values) {
+        let count = values.len().min(arguments.len());
+        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
             let gfx = room.handle();
             // SAFETY: our own value.
             unsafe {
@@ -185,6 +186,6 @@ impl Movie<'_> {
                 *gfx.value() = value;
             }
         }
-        self.invoke(method, &mut arguments);
+        self.invoke(method, &mut arguments[..count]);
     }
 }

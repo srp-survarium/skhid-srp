@@ -316,6 +316,8 @@ pub enum Decoded {
         commander_index: u8,
         i_am_commander: bool,
         revision: u32,
+        /// srp's last byte: the commander's quest faction (0 none).
+        commander_faction: u8,
     },
     ChatText {
         sender_type: u8,
@@ -1951,6 +1953,7 @@ impl Client {
                         commander_index: 0,
                         i_am_commander: false,
                         revision: 0,
+                        commander_faction: 0,
                     });
                 }
                 let count = usize::from(r.u8()?);
@@ -1976,6 +1979,7 @@ impl Client {
                     commander_index,
                     i_am_commander: r.bool()?,
                     revision: r.u32()?,
+                    commander_faction: r.u8()?,
                 }
             }
             ServerId::ChatText => {

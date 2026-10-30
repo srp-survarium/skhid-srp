@@ -1567,6 +1567,37 @@ fn a_squad_invite_that_waits_is_sent_again() {
 }
 
 #[test]
+fn a_squad_info_carries_its_commanders_quest_faction() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    form_squad(&mut world, alice, bob);
+    let faction = |decoded: &[Decoded]| {
+        decoded.iter().rev().find_map(|message| match message {
+            Decoded::SquadInfo {
+                squad_id,
+                commander_faction,
+                ..
+            } if *squad_id != 0 => Some(*commander_faction),
+            _ => None,
+        })
+    };
+    // Alice commands: her faction is the squad's.
+    let first = world.account(alice).quest_faction;
+    assert_eq!(faction(&world.take(alice)), Some(first));
+    // The commander's choice reaches every member at once.
+    world.ask(alice, request::quest_faction(2));
+    assert_eq!(faction(&world.take(bob)), Some(2));
+    assert_eq!(faction(&world.take(alice)), Some(2));
+    // A member's own choice is not the squad's lobby.
+    world.ask(bob, request::quest_faction(4));
+    assert!(faction(&world.take(bob)).is_none_or(|faction| faction == 2));
+    world.take(alice);
+    world.ask(alice, request::quest_faction(3));
+    assert_eq!(faction(&world.take(bob)), Some(3));
+}
+
+#[test]
 fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     let mut world = World::new();
     let alice = world.connect("Alice");

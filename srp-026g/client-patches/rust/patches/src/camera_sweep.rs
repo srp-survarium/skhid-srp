@@ -14,12 +14,16 @@
 //! capture script waits for. After the last pose the camera stays there.
 //! A line `squad` makes both squad panels' characters the account's own
 //! (setup_profile with its profile and chosen kit) when the second pose
-//! starts, for the full squad's view.
+//! starts, for the full squad's view. A line `faction <id>` (the player's own
+//! quest faction chosen), `led <id>` (a squad joined, its commander of that
+//! faction) or `alone` (the squad left) changes patch 81's lobby when the
+//! next pose starts, for captures of its change (lobby-scenes.md).
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::Vec3;
 
+use crate::lobby_scene::{self, Faction, Squad};
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::{Context, Flow, GameCell, NoExit};
@@ -38,6 +42,16 @@ pub enum Eye {
     Flight { point: [f32; 3], side: f32 },
 }
 
+/// What changes patch 81's lobby as a pose starts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Change {
+    Nothing,
+    /// The player's own quest faction chosen.
+    Own(Faction),
+    /// A squad joined or left.
+    Squad(Squad),
+}
+
 /// One pose of the script.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
@@ -46,6 +60,8 @@ pub struct Pose {
     pub pitch: f32,
     pub distance: f32,
     pub eye: Eye,
+    /// Applied as it starts.
+    pub change: Change,
 }
 
 /// The script, parsed: its poses (`count` of them).
@@ -58,7 +74,7 @@ pub struct Script {
 
 impl Script {
     const EMPTY: Script = Script {
-        poses: [Pose { hold: 0.0, yaw: 0.0, pitch: 0.0, distance: 0.0, eye: Eye::Orbit }; MOST],
+        poses: [Pose { hold: 0.0, yaw: 0.0, pitch: 0.0, distance: 0.0, eye: Eye::Orbit, change: Change::Nothing }; MOST],
         count: 0,
         squad: false,
     };
@@ -110,6 +126,7 @@ const DEGREE: f32 = core::f32::consts::PI / 180.0;
 /// empty) is passed over. None when no pose is in it.
 pub fn parse(text: &[u8]) -> Option<Script> {
     let mut script = Script::EMPTY;
+    let mut change = Change::Nothing;
     for line in text.split(|&c| c == b'\n') {
         if script.count == MOST {
             break;
@@ -117,6 +134,10 @@ pub fn parse(text: &[u8]) -> Option<Script> {
         let line = line.split(|&c| c == b'#').next().unwrap_or(&[]);
         if line.trim_ascii() == b"squad" {
             script.squad = true;
+            continue;
+        }
+        if let Some(next) = change_of(line.trim_ascii()) {
+            change = next;
             continue;
         }
         let mut words = line.split(|&c| c == b' ' || c == b'\t' || c == b'\r').filter(|w| !w.is_empty());
@@ -145,12 +166,36 @@ pub fn parse(text: &[u8]) -> Option<Script> {
             && values[0] >= 0.0
             && values[3] > 0.0
         {
-            script.poses[script.count] =
-                Pose { hold: values[0], yaw: values[1] * DEGREE, pitch: values[2] * DEGREE, distance: values[3], eye };
+            script.poses[script.count] = Pose {
+                hold: values[0],
+                yaw: values[1] * DEGREE,
+                pitch: values[2] * DEGREE,
+                distance: values[3],
+                eye,
+                change,
+            };
             script.count += 1;
+            change = Change::Nothing;
         }
     }
     (script.count > 0).then_some(script)
+}
+
+/// A line `faction <id>`, `led <id>` or `alone`.
+fn change_of(line: &[u8]) -> Option<Change> {
+    let id = |rest: &[u8]| match rest.trim_ascii() {
+        [digit @ b'0'..=b'9'] => Some(Faction::of_id(digit - b'0')),
+        _ => None,
+    };
+    if line == b"alone" {
+        Some(Change::Squad(Squad::None))
+    } else if let Some(rest) = line.strip_prefix(b"faction ") {
+        id(rest).map(Change::Own)
+    } else if let Some(rest) = line.strip_prefix(b"led ") {
+        id(rest).map(|faction| Change::Squad(Squad::Led(faction)))
+    } else {
+        None
+    }
 }
 
 impl Sweep {
@@ -218,6 +263,13 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
             }
         }
         let logged = if first { Some(0) } else { new };
+        if logged.is_some() {
+            match pose.change {
+                Change::Nothing => {}
+                Change::Own(faction) => lobby_scene::force(thread, Some(faction), None),
+                Change::Squad(squad) => lobby_scene::force(thread, None, Some(squad)),
+            }
+        }
         // the squad's characters at the second pose (the account's profile is there by then:
         // the first is the settling hold after the sign-in)
         if new == Some(1) && script.squad {
@@ -295,6 +347,12 @@ mod tests {
         assert_eq!(starts[1], 2812, "after its 45 s");
         assert!(matches!(sweep, Sweep::At { step: 2, .. }), "stays at the last");
         assert_eq!(parse(b"\n# nothing\n1 2 3\n"), None);
+        let changes = parse(b"45 0 0 1.96\nfaction 2\n8 0 0 1.96\nled 4\n8 0 0 1.96\nalone\nled x\n8 0 0 1.96\n").unwrap();
+        assert_eq!(changes.count, 4);
+        assert_eq!(changes.poses[0].change, Change::Nothing);
+        assert_eq!(changes.poses[1].change, Change::Own(Faction::BlackMarket));
+        assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Faction::Edge)));
+        assert_eq!(changes.poses[3].change, Change::Squad(Squad::None), "a line that is no change passed over");
         let flight = parse(b"squad\n0.5 -90 -14.3 1.2 4.25 1.3 3.05 21\n").unwrap();
         assert!(flight.squad && flight.count == 1);
         assert_eq!(flight.poses[0].eye, Eye::Flight { point: [4.25, 1.3, 3.05], side: 21.0 * DEGREE });

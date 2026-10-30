@@ -444,6 +444,9 @@ package
       protected var _isWheeled:Boolean = false;
       
       private var fadeBack:MovieClip = new FadeBackground();
+
+      // The black over the lobby's 3D scene while the exe puts another lobby in (srp_scene_fade).
+      private var _sceneFade:Sprite;
       
       protected var _tempIndex:uint = 0;
       
@@ -3869,7 +3872,7 @@ package
             return false;
          }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
-         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage) && topMost != this._sceneFade)
          {
             return true;
          }
@@ -5929,6 +5932,55 @@ package
          }
       }
       
+      // The lobby's scene changing (exe patch 81, docs/notes/lobby-scenes.md): a black over the 3D
+      // scene, under every panel (the root's first child), while the exe puts another lobby in.
+      // state 1: to black in ms; 2: from black in ms, then gone; 0: gone at once. The interface
+      // stays; no click lands on the black (get_mouse_over leaves it out), and it is off the
+      // display list whenever it is not to be seen.
+      public function srp_scene_fade(state:uint, ms:uint) : void
+      {
+         if(this._sceneFade == null)
+         {
+            this._sceneFade = new Sprite();
+            this._sceneFade.graphics.beginFill(0,1);
+            this._sceneFade.graphics.drawRect(-4096,-4096,12288,12288);
+            this._sceneFade.graphics.endFill();
+            this._sceneFade.mouseEnabled = false;
+            this._sceneFade.mouseChildren = false;
+         }
+         var fade:Sprite = this._sceneFade;
+         TweenLite.killTweensOf(fade);
+         if(state == 0)
+         {
+            this.removeSceneFade();
+            return;
+         }
+         if(fade.parent != this)
+         {
+            fade.alpha = state == 1 ? 0 : 1;
+            addChildAt(fade,0);
+         }
+         if(state == 1)
+         {
+            TweenLite.to(fade,ms / 1000,{alpha:1});
+         }
+         else
+         {
+            TweenLite.to(fade,ms / 1000,{
+               alpha:0,
+               onComplete:this.removeSceneFade
+            });
+         }
+      }
+
+      private function removeSceneFade() : void
+      {
+         if(this._sceneFade != null && this._sceneFade.parent != null)
+         {
+            this._sceneFade.parent.removeChild(this._sceneFade);
+         }
+      }
+
       private function test_clan_mamngment() : void
       {
          var createPermission:Function = function(value:String = null):Object

@@ -212,12 +212,16 @@ pub struct SquadMember {
 /// `A1`: the player's squad (`social.md` §2.1), or none for `squad_id` 0
 /// (then nothing else is sent). `commander_index` is the commander's place
 /// in `members`: a soldier's Play is locked while that member is ready.
+/// `commander_faction`, srp's own last byte (the commander's quest faction,
+/// 0 none), shows every member the commander's lobby (exe patch 81,
+/// `lobby-scenes.md`); the stock reader stops before it.
 pub fn squad_info(
     squad_id: u32,
     members: &[SquadMember],
     commander_index: u8,
     i_am_commander: bool,
     revision: u32,
+    commander_faction: u8,
 ) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     writer.u32(squad_id);
@@ -238,7 +242,7 @@ pub fn squad_info(
             .bool(member.online)
             .bool(member.ready);
     }
-    writer.bool(i_am_commander).u32(revision);
+    writer.bool(i_am_commander).u32(revision).u8(commander_faction);
     Ok(writer.done(ServerId::SquadInfo))
 }
 

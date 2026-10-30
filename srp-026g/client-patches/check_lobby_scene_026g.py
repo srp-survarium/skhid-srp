@@ -35,24 +35,34 @@ configs.start with it, a chain).
   classic's when the config was not there; a project without its camera
   track is asked again as the classic; a usable project, or the classic's,
   goes on into the original's code (its span replayed);
-- after a match (lobby-scenes.md, "After a match"): lobby_menu::on_deactivate
-  (0x21D4A0) with another faction saved than the lobby shown asks the
-  query (query_resources with the lobby menu) and goes on into its own code;
-  with the same faction it asks nothing; the swap's query asks the lobby's
-  config, then its project, alone (every other request that lobby's config,
-  class 1Fh, no user data); its project's results are put in the old
-  project's place and returned from (ret 4): the calls made (the old
-  project's remove, its static collisions' remove with the physics world,
-  the track player's stop, the release at a count of 0; the new project's
-  vtable+0Ch, the stop, its track's emit through the emitter's vtable, the
-  play with the menu's listener, the made effect's destroy at 0, the insert,
-  its collisions' insert) and the lobby menu's +114h, +118h and the counts
-  are what the original's clear_resources (0x21D080..0x21D100) and
-  on_render_scenes_ready (0x220DA2..0x220EC3, 0x22193E..0x221975) do on the
-  same objects; results after on_activate (0x21D2E0) are let go untouched,
-  and the next match asks again; a missing pack is the classic's project;
-  game::clear_resources (0x1ED030, the game closing) makes its on_deactivate
-  ask nothing, and a swap's results after it are let go untouched.
+- a change shown at once (lobby-scenes.md, "A change shown at once"), the
+  lobby camera's tick (0x2840F2, past the site's chain: patch 45's flight,
+  the sweep, ours) with the faction of the lobby shown asks nothing; with
+  another faction saved it asks the query (query_resources with the lobby
+  menu), its lobby's config then its project alone (every other request that
+  lobby's config, class 1Fh, no user data); its project's results are held
+  (one reference more), returned from (ret 4), the lobby movie asked for the
+  fade to black (root.srp_scene_fade 1, 250 ms; [[menu+690h]+108h]+4); after
+  the black's ticks the swap: the calls made (the old project's remove, its
+  static collisions' remove with the physics world, the track player's stop,
+  the release at a count of 0; the new project's vtable+0Ch, the stop, its
+  track's emit through the emitter's vtable, the play with the menu's
+  listener, the made effect's destroy at 0, the insert, its collisions'
+  insert) and the lobby menu's +114h, +118h and the counts are what the
+  original's clear_resources (0x21D080..0x21D100) and on_render_scenes_ready
+  (0x220DA2..0x220EC3, 0x22193E..0x221975) do on the same objects; the eye
+  adaptation's byte (0xAC914C) set, the camera at its ctor's pose; six
+  frames later the fade from black (2, 400 ms) and the byte again; a
+  missing pack keeps the lobby shown with no fade and is not asked again;
+- 0xA1 (read_squad_info at its id, 0x2747C3, and a squad's revision,
+  0x2748BC): a squad's srp byte is its commander's lobby asked, the saved
+  value still the player's own; no squad, or a squad without the byte, the
+  player's own lobby; a match entered (lobby_menu::on_deactivate 0x21D4A0)
+  behind the black puts the held project in at once (the original's halves)
+  and the fade gone (0); game::clear_resources (0x1ED030, the game closing)
+  during the black gives our reference back and puts nothing in, its
+  on_deactivate of the lobby asks nothing, and a change's results after it
+  are let go untouched.
 """
 import struct
 import sys
@@ -85,6 +95,14 @@ OLD_COLLISIONS, NEW_COLLISIONS = 0x30084000, 0x30074000
 EMITTER, EFFECT = 0x30076000, 0x30076100
 WORLD, LISTENER = 0x3008F000, MENU + 0x684
 SIMPLE_GAME_PROJECT, STATIC_COLLISION, HUD_EMITTER = 0xA0A064, 0xA029A8, 0xA0BC7C
+TICK, TICK_END = 0x2840F2, 0x2840F8                     # lobby_camera.view: the tick's yaw and pitch final
+TICKER = MENU + 0x8000                                  # the lobby camera's ticker (camera+4), made up
+HOLDER, VIEW, MOVIE = MENU + 0x9000, MENU + 0x9200, MENU + 0x9400   # the lobby movie [[+690h]+108h]+4
+SQUAD_ID, SQUAD_ID_END = 0x2747C3, 0x2747CA             # lobby_client.squad_id: the id kept, both paths
+SQUAD, SQUAD_END = 0x2748BC, 0x2748C2                   # lobby_client.squad_read: a squad's revision kept
+READER, MESSAGE = MENU + 0xA000, MENU + 0xA100          # a 0xA1's reader {begin, cursor, size} and bytes
+EYE_ADAPTATION = 0xAC914C                               # stage_postprocess's reset byte
+FRAME = 1 / 60
 # the game's functions the swap reaches, stubbed: name, what it records, its pops
 SWAP_STUBS = {0x2855B0: "remove", 0x285540: "insert", 0x2F8720: "on_inserted", 0x2F8850: "collision_insert",
               0x2F8970: "collision_remove", 0x2DE7F0: "stop", 0x2DE090: "play", 0x299FF0: "emit",
@@ -265,6 +283,55 @@ class Run(language.Run):
         return self.read(CLIENT + 0x1EA998), after, self.saves
 
 
+    def tick(self, dt=FRAME):
+        """A frame of the lobby: lobby_camera::tick at 0x2840F2 (EBX the ticker, the frame's dt at
+        [esp+10h]) past the chain (patch 45's flight, the sweep, ours): the lobby menus asked, the
+        stubs' record (self.log) and the movie's invokes."""
+        sp = hide.STACK + 0x9000
+        self.emu.mem_write(sp, bytes(0x40))
+        self.emu.mem_write(sp + 0x10, struct.pack("<f", dt))
+        self.log, self.asked_again, self.stub_query = [], [], True
+        try:
+            self.run(TICK, (TICK_END,), sp, {**hide.GAME, UC_X86_REG_EBX: TICKER})
+        finally:
+            self.stub_query = False
+        assert self.stopped == TICK_END, hex(self.stopped or 0)
+        log, self.log = self.log, None
+        return self.asked_again, log, self.invokes()
+
+    def camera(self):
+        """The ticker of the lobby camera at its stock pose turned away, its menu the lobby's; the
+        lobby movie under the menu's +690h."""
+        self.emu.mem_write(TICKER, bytes(0x100))
+        self.word(TICKER + 0x84, MENU)
+        self.emu.mem_write(TICKER + 0xB4, struct.pack("<ff", 2.5, -0.5))       # yaw, pitch
+        self.emu.mem_write(TICKER + 0xBC, struct.pack("<ff", 4.6, 4.6))        # distance target, distance
+        self.emu.mem_write(TICKER + 0xA8, struct.pack("<f", 0.3))              # side
+        self.word(MENU + 0x690, HOLDER)
+        self.word(HOLDER + 0x108, VIEW)
+        self.word(VIEW + 4, MOVIE)
+
+    def pose(self):
+        f = lambda at: struct.unpack("<f", self.emu.mem_read(TICKER + at, 4))[0]
+        return (f(0xB4), f(0xB8), round(f(0xBC), 4), round(f(0xC0), 4), f(0xA8))
+
+    def squad(self, squad_id, rest):
+        """read_squad_info with its squad id kept (0x2747C3, EBX the lobby client) to the je after;
+        for a squad, as it keeps the revision (0x2748BC, ECX 77h, ESI the reader past it) to past
+        that, with `rest` the message's bytes left there."""
+        self.word(CLIENT + 0x1EAAA4, squad_id)
+        self.emu.mem_write(MESSAGE, b"\xA1" * 8 + rest)
+        self.emu.mem_write(READER, struct.pack("<III", MESSAGE, MESSAGE + 8, 8 + len(rest)))
+        sp = hide.STACK + 0x9000
+        self.run(SQUAD_ID, (SQUAD_ID_END,), sp, {**hide.GAME, UC_X86_REG_EBX: CLIENT})
+        assert self.stopped == SQUAD_ID_END and self.read(CLIENT + 0x1EAAAC) & 0xFF == 0, hex(self.stopped or 0)
+        if squad_id == 0:
+            return
+        self.run(SQUAD, (SQUAD_END,), sp, {**hide.GAME, UC_X86_REG_EBX: CLIENT, UC_X86_REG_ESI: READER,
+                                            UC_X86_REG_ECX: 0x77})
+        assert self.stopped == SQUAD_END and self.read(CLIENT + 0x1EAAA0) == 0x77, hex(self.stopped or 0)
+
+
 def project(r, track):
     """A project's resource part at PROJECT, its track (project+1E4h) given."""
     r.emu.mem_write(PROJECT - 0x38, bytes(0x400))
@@ -374,20 +441,23 @@ def main():
                    f"{'kept' if keeps_data else 'none'}), the other requests the original's; its results "
                    f"{'taken' if flow == 'replayed' else 'let go, the query asked again'}")
 
-    after_a_match(patched, stock, stock_requests, expect)
+    a_change(patched, stock, stock_requests, expect)
     print("all cases passed")
 
 
-def after_a_match(patched, stock, stock_requests, expect):
-    """The swap: a lobby shown, the faction changed, a match entered."""
+def a_change(patched, stock, stock_requests, expect):
+    """A change of lobby shown at once (lobby-scenes.md, "A change shown at once"): a lobby shown, the
+    faction or the squad changed, the lobby's ticks."""
     config = lambda lobby: f"resources/projects/lobby_scene/{lobby}/client_project"
+    fade = lambda state, ms: ((MOVIE, "root.srp_scene_fade", (state, ms)))
 
     def shown(value, lobby):
-        """A fresh game whose lobby `lobby` was taken at its start (the saved
-        faction `value`), the lobby made up."""
+        """A fresh game whose lobby `lobby` was taken at its start (the saved faction `value`), the
+        lobby and its camera made up."""
         r = Run(patched)
         _, _, head = r.start()
         r.saved = lambda text: r.emu.mem_write(r.read(head + 0x40), text.encode() + b"\0")
+        r.saved_text = lambda: r.text(r.read(head + 0x40))
         r.saved(value)
         while True:
             requests, _, _ = r.query()
@@ -396,7 +466,20 @@ def after_a_match(patched, stock, stock_requests, expect):
                 break
         assert requests[3][0] == lobby, requests[3]
         r.lobby()
+        r.camera()
+        r.word(EYE_ADAPTATION, 0)
         return r
+
+    def to_project(r, lobby):
+        """Its probe and its project, alone: the results of each."""
+        requests, data, _ = r.query()
+        alone = lambda name: requests == [(config(lobby), 0x1F)] * 3 + [name] + [(config(lobby), 0x1F)] * 4 \
+            and data == [0] * 3 + data[3:4] + [0] * 4
+        probe = alone((config(lobby), 0x1F)) and data[3] == 0
+        flow = r.ready(CONFIG)
+        requests, data, _ = r.query()
+        asked = alone((f"lobby_scene/{lobby}", 0x40)) and data[3] != 0
+        return probe and flow == ("returned", [MENU]) and asked
 
     stock.lobby()
     stock_log, stock_state = stock.stock_swap()
@@ -407,78 +490,123 @@ def after_a_match(patched, stock, stock_requests, expect):
            f"the original's project halves on the made-up lobby: {len(stock_log)} calls, the new project at +114h, "
            "+118h 0, the old one's count 0 (released), the new one's 3, the effect's 0 (destroyed)")
 
-    # the same faction: nothing asked
+    # the same lobby: nothing asked, ever
     r = shown("4", "lobby_scene/hangar_046")
-    expect(r.deactivate() == [] and r.read(MENU + 0x114) == OLD - 0x38,
-           "a match entered with the faction of the lobby shown (Edge, the hangar): nothing asked")
+    ticks = [r.tick() for _ in range(5)]
+    expect(all(t == ([], [], []) for t in ticks) and r.read(MENU + 0x114) == OLD - 0x38,
+           "five ticks with the faction of the lobby shown (Edge, the hangar): nothing asked, no fade")
 
-    # a change of faction: the lobby's config, then its project, alone; then the swap
+    # a change: the lobby's config, then its project, alone, the old lobby drawn
     r = shown("3", "lobby_scene/day")
     r.saved("1")
-    asked = r.deactivate()
-    requests, data, _ = r.query()
-    alone = lambda name: requests == [(config("camp_069"), 0x1F)] * 3 + [name] + [(config("camp_069"), 0x1F)] * 4 \
-        and data == [0] * 3 + data[3:4] + [0] * 4
-    expect(asked == [MENU] and alone((config("camp_069"), 0x1F)) and data[3] == 0,
-           "the classic shown, Scavengers saved, a match entered: on_deactivate asks the query and goes on into "
-           "its own code; the query asks camp_069's config alone (every other request that config, 1Fh, no "
-           "user data)")
-    flow = r.ready(CONFIG)
-    requests, data, _ = r.query()
-    expect(flow == ("returned", [MENU]) and alone(("lobby_scene/camp_069", 0x40)) and data[3] != 0,
-           "its config there: the results let go, the query asked again: camp_069's project alone (40h, the "
-           "lobby menu's variant kept), the other seven its config")
-    flow = r.ready(PROJECT, swap=True)
-    expect(flow == ("returned", []) and r.log == stock_log and r.state() == stock_state,
-           f"its project's results: put in the old one's place, returned from: the {len(r.log)} calls and the "
-           "lobby menu's +114h, +118h, the two counts and the effect's what the original's halves do")
-    r.activate()
-    expect(r.deactivate() == [], "back in the lobby, the next match: the camp is shown, nothing asked")
-
-    # results that come after the return: let go untouched; the next match asks again
-    r = shown("3", "lobby_scene/day")
-    r.saved("4")
-    r.deactivate()
-    r.query()
-    r.activate()
+    asked, log, invokes = r.tick()
+    expect(asked == [MENU] and log == [] and invokes == [],
+           "the classic shown, Scavengers saved, a tick: the lobby's query asked, nothing else")
+    expect(to_project(r, "camp_069"),
+           "the query asks camp_069's config alone (every other request that config, 1Fh, no user data); its "
+           "config there: let go, asked again: its project alone (40h, the lobby menu's variant)")
+    expect(r.tick() == ([], [], []), "a tick while its project loads: nothing (the old lobby drawn)")
     before = r.state()
-    flow = r.ready(CONFIG, swap=True)
-    expect(flow == ("returned", []) and r.log == [] and r.state() == before,
-           "Edge saved, a match entered and left before the results: they are let go, nothing touched")
-    asked = r.deactivate()
-    requests, _, _ = r.query()
-    expect(asked == [MENU] and requests[3] == (config("hangar_046"), 0x1F),
-           "the next match asks the hangar's config again")
+    r.log = []
+    flow = r.ready(PROJECT, swap=True)
+    held = r.read(PROJECT - 0x38 + 0x108)
+    expect(flow == ("returned", []) and r.log == [] and r.read(MENU + 0x114) == OLD - 0x38 and held == before[3] + 1,
+           "its project: held (one reference more, nothing put in), returned from (ret 4)")
+    # (the fade's invoke is the results' callback's own; read it from the invokes of that run)
+    expect(fade(1, 250) in r.invokes(), "the fade to black asked of the lobby movie with it (srp_scene_fade 1, 250 ms)")
+    out = []
+    while r.read(MENU + 0x114) == OLD - 0x38 and len(out) < 40:
+        out.append(r.tick())
+    swap = out[-1]
+    expect(14 <= len(out) <= 16 and all(t == ([], [], []) for t in out[:-1]),
+           f"the black's ticks (0.25 s at 60 Hz): nothing until the swap, at tick {len(out)}")
+    expect(swap[1] == stock_log and r.state() == stock_state and r.read(EYE_ADAPTATION) & 0xFF == 1
+           and r.pose() == (0.0, 0.0, 1.96, 1.96, 0.0),
+           f"the swap: the {len(swap[1])} calls and the lobby menu's +114h, +118h, the counts (ours given back) and "
+           "the effect's what the original's halves do; the eye adaptation reset (0xAC914C 1); the camera at the "
+           "ctor's pose (yaw, pitch, side 0, distance 1.96)")
+    r.word(EYE_ADAPTATION, 0)
+    held_ticks = []
+    while len(held_ticks) < 20:
+        held_ticks.append(r.tick())
+        if held_ticks[-1][2]:
+            break
+    expect(held_ticks[-1][2] == [fade(2, 400)] and len(held_ticks) == 6 and r.read(EYE_ADAPTATION) & 0xFF == 1
+           and all(t == ([], [], []) for t in held_ticks[:-1]),
+           f"six frames behind the black, then the fade from black (srp_scene_fade 2, 400 ms) and the eye "
+           f"adaptation reset again ({len(held_ticks)} ticks)")
+    after = [r.tick() for _ in range(40)]
+    expect(all(t == ([], [], []) for t in after), "then nothing: the camp shown, settled")
 
-    # the game closing: its on_deactivate of the lobby asks nothing; a swap out is let go
+    # a missing pack: the lobby shown kept, no fade, not asked again
     r = shown("3", "lobby_scene/day")
-    r.saved("4")
+    r.saved("2")
+    r.tick()
+    r.query()
+    flow = r.ready(0)
+    fades = r.invokes()
+    later = [r.tick() for _ in range(30)]
+    expect(flow == ("returned", []) and fades == [] and all(t == ([], [], []) for t in later)
+           and r.read(MENU + 0x114) == OLD - 0x38,
+           "Black Market saved, stk2_bunker's config missing: let go, no fade, the classic kept and not asked again")
+
+    # a squad: its commander's lobby; out of it the player's own; the saved value the player's own
+    r = shown("3", "lobby_scene/day")
+    r.squad(7, b"\x04")
+    asked, _, _ = r.tick()
+    requests, _, _ = r.query()
+    expect(asked == [MENU] and requests[3] == (config("hangar_046"), 0x1F) and r.saved_text() == b"3",
+           "0xA1 of squad 7 with srp's byte 4: the commander's lobby (the hangar's config asked); "
+           "srp_lobby_faction still the player's own (3)")
+    r.ready(0)
+    r.squad(0, b"")
+    expect(r.tick() == ([], [], []), "0xA1 of no squad: the player's own lobby (the classic shown), nothing asked")
+    r.squad(7, b"")
+    expect(r.tick() == ([], [], []), "0xA1 of a squad without srp's byte (an older srp): the player's own lobby")
+    r.squad(9, b"\x01")
+    asked, _, _ = r.tick()
+    expect(asked == [MENU], "a commander of the Scavengers: the camp asked")
+
+    # a match entered during the black: the project put in at once, the fade gone
+    r = shown("3", "lobby_scene/day")
+    r.saved("1")
+    r.tick()
+    to_project(r, "camp_069")
+    r.ready(PROJECT)
+    r.tick()
+    r.log = []
+    asked = r.deactivate()
+    log, r.log = r.log, None
+    expect(asked == [] and log == stock_log and r.state() == stock_state and fade(0, 0) in r.invokes(),
+           "a match entered behind the black: the held project put in at once (the original's halves), the "
+           "fade gone (srp_scene_fade 0)")
+    r.activate()
+    expect(r.tick() == ([], [], []), "back in the lobby: the camp shown, nothing asked")
+
+    # the game closing during the black: the held project let go, nothing put in
+    r = shown("3", "lobby_scene/day")
+    r.saved("1")
+    r.tick()
+    to_project(r, "camp_069")
+    r.ready(PROJECT)
+    held = r.read(PROJECT - 0x38 + 0x108)
     r.word(CLIENT + 0x535C, 0x13579BDF)
     esi, ecx = r.closing()
-    expect(esi == CLIENT and ecx == 0x13579BDF and r.deactivate() == [],
-           "game::clear_resources' start (its span replayed: esi the game, ecx [esi+535Ch]) with Edge saved: its "
-           "on_deactivate of the lobby asks nothing")
+    expect(esi == CLIENT and ecx == 0x13579BDF and r.read(PROJECT - 0x38 + 0x108) == held - 1
+           and r.read(MENU + 0x114) == OLD - 0x38 and r.deactivate() == [],
+           "game::clear_resources' start (its span replayed) during the black: our reference given back, "
+           "nothing put in; its on_deactivate of the lobby asks nothing")
+
+    # results after the close: let go untouched
     r = shown("3", "lobby_scene/day")
     r.saved("4")
-    r.deactivate()
+    r.tick()
     r.query()
     r.closing()
     before = r.state()
     flow = r.ready(CONFIG, swap=True)
     expect(flow == ("returned", []) and r.log == [] and r.state() == before,
-           "a swap's results after the game began closing: let go, nothing touched")
-
-    # a missing pack: the classic's project (here shown already: let go)
-    r = shown("4", "lobby_scene/hangar_046")
-    r.saved("2")
-    r.deactivate()
-    r.query()
-    flow = r.ready(0)
-    requests, _, _ = r.query()
-    expect(flow == ("returned", [MENU]) and requests[3] == ("lobby_scene/day", 0x40)
-           and requests[0] == ("resources/projects/lobby_scene/day/client_project", 0x1F),
-           "the hangar shown, Black Market saved, stk2_bunker's config missing: the classic's project asked "
-           "alone, never stk2_bunker's")
+           "a change's results after the game began closing: let go, nothing touched")
 
 
 if __name__ == "__main__":

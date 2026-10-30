@@ -56,6 +56,9 @@ pub struct LobbyCamera<'t> {
     _thread: &'t Thread,
 }
 
+/// The ctor's distance and its target (0x283C2C: 1.96 m).
+const STOCK_DISTANCE: f32 = 1.96;
+
 /// The ctor's speeds of the side angle's and the height's steps, and the
 /// wheel's of the distance's (0x28409E): the camera's own again after a flight.
 const STOCK_SPEEDS: [f32; 3] = [1.0, 1.0, 3.0];
@@ -71,6 +74,11 @@ impl<'t> LobbyCamera<'t> {
         // SAFETY: as above: the frame's time, written before the site.
         let dt = unsafe { *frame.dt() };
         Some((LobbyCamera { ticker, _thread: ctx.thread() }, dt))
+    }
+
+    /// The hook's thread.
+    pub fn thread(&self) -> &'t Thread {
+        self._thread
     }
 
     pub fn pose(&self) -> CameraPose {
@@ -117,6 +125,28 @@ impl<'t> LobbyCamera<'t> {
             *t.height_speed() = speeds[1];
             *t.distance_speed() = speeds[2];
         }
+    }
+
+    /// The lobby menu the camera is its (the ctor's), when it has one.
+    pub fn menu(&self) -> Option<raw::LobbyMenu> {
+        // SAFETY: the ticker's own field, the camera's menu (made before it, alive while it is).
+        unsafe { self.ticker.menu() }
+    }
+
+    /// Puts the camera at the pose its ctor gives (0x283C24..0x283C78: the yaw, the pitch and the
+    /// side angle 0, the distance and its target 1.96 m), when patch 45's camera is the stock one
+    /// (no weapon at the bench, no flight): a new lobby's first view (patch 81).
+    pub fn to_stock_pose(&mut self) {
+        if !WeaponTableState::of(self._thread).at_stock() {
+            return;
+        }
+        let t = self.ticker;
+        // SAFETY: as pose; the tick reads them after the site.
+        unsafe {
+            *t.side() = 0.0;
+            *t.side_target() = 0.0;
+        }
+        self.look(0.0, 0.0, STOCK_DISTANCE);
     }
 
     /// A diagnostics build's camera sweep (camera_sweep.rs): the yaw and the pitch now, the
@@ -227,6 +257,12 @@ impl<'t> WeaponTableState<'t> {
                 zoom: *s.target_zoom(),
             }
         }
+    }
+
+    /// Whether patch 45's camera is the stock one: the table off and no flight.
+    pub fn at_stock(&self) -> bool {
+        // SAFETY: as request.
+        unsafe { *self.state.table() == 0 && *self.state.flight() == FlightWord::Stock as u32 }
     }
 
     pub fn set_flight(&mut self, word: FlightWord) {

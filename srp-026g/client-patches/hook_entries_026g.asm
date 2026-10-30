@@ -1845,6 +1845,84 @@ lobby_scene_on_faction_replay:
     db 0x89, 0x83, 0x98, 0xa9, 0x1e, 0x00
     jmp 0x2717d5
 
+; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client; both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
+global lobby_scene_on_squad_id
+extern hook_lobby_scene_on_squad_id
+lobby_scene_on_squad_id:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_squad_id
+    mov edx, lobby_scene_on_squad_id_replay
+    cmp eax, 0
+    je lobby_scene_on_squad_id_go
+    mov edx, 0x2747ca
+    cmp eax, 1
+    je lobby_scene_on_squad_id_go
+    ud2
+lobby_scene_on_squad_id_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_squad_id_replay:
+    db 0xc6, 0x83, 0xac, 0xaa, 0x1e, 0x00, 0x00
+    jmp 0x2747ca
+
+; 0x2748bc read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction: lohook -> lobby_scene_on_squad
+global lobby_scene_on_squad
+extern hook_lobby_scene_on_squad
+lobby_scene_on_squad:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_squad
+    mov edx, lobby_scene_on_squad_replay
+    cmp eax, 0
+    je lobby_scene_on_squad_go
+    mov edx, 0x2748c2
+    cmp eax, 1
+    je lobby_scene_on_squad_go
+    ud2
+lobby_scene_on_squad_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_squad_replay:
+    db 0x89, 0x8b, 0xa0, 0xaa, 0x1e, 0x00
+    jmp 0x2748c2
+
 ; 0x21e5cc lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h: lohook -> lobby_scene_on_scene_request
 global lobby_scene_on_scene_request
 extern hook_lobby_scene_on_scene_request

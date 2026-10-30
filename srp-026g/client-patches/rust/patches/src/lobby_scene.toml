@@ -1,5 +1,5 @@
-# Patch 81: the lobby's scene follows the player's quest faction, a change
-# shown after the next match
+# Patch 81: the lobby's scene follows the player's quest faction (the squad
+# commander's in a squad), a change shown at once behind a fade
 # (docs/notes/lobby-scenes.md). Only the decisions: which sites, and the
 # handlers. The sites are sites_026g.tsv's; the logic is lobby_scene.rs.
 name = "lobby_scene"
@@ -13,6 +13,14 @@ order = 2                           # after patch 79's (language.toml)
 [[hook]]
 site = "lobby_client.faction"
 handler = "on_faction"
+
+[[hook]]
+site = "lobby_client.squad_id"
+handler = "on_squad_id"
+
+[[hook]]
+site = "lobby_client.squad_read"
+handler = "on_squad"
 
 [[hook]]
 site = "lobby_menu.scene_request"
@@ -33,3 +41,8 @@ handler = "on_activate"
 [[hook]]
 site = "game.clear_resources"
 handler = "on_game_closing"
+
+[[hook]]
+site = "lobby_camera.view"
+handler = "on_tick"
+order = 3                           # after the flight and the diagnostics' sweep (weapon_flight.toml, camera_sweep.toml)

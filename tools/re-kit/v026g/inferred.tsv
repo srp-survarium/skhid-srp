@@ -1258,7 +1258,6 @@ va	status	ref_021d	name
 0x00220b20	inferred-medium	0x0017276b	survarium::lobby_menu::on_render_scenes_ready
 0x00221e80	inferred-medium	0x00174409	survarium::lobby_menu::fill_profiles
 0x00222330	inferred-medium	0x001745c0	survarium::lobby_menu::on_profile_changed
-0x00222fe0	inferred-medium	0x00174caf	survarium::lobby_menu::on_squad_member_profile_arrived
 0x00223190	inferred-medium	0x00174d56	survarium::lobby_menu::on_price_items_arrived
 0x00223460	inferred-medium	0x00174e9e	survarium::lobby_menu::fill_reputation_levels
 0x00224420	inferred-medium	0x00175809	survarium::lobby_menu::fill_character_data
@@ -1636,7 +1635,6 @@ va	status	ref_021d	name
 0x0026fab0	inferred-medium		survarium::lobby_client::sign_in_on_message_received
 0x0026fc60	inferred-medium		survarium::lobby_client::find_inventory_item
 0x0026fe20	inferred-medium	0x0019d532	survarium::lobby_client::query_info_from_server
-0x0026fe70	inferred-medium	0x0019d603	survarium::lobby_client::query_squad_member_contents
 0x0026ff00	inferred-medium	0x0019d672	survarium::lobby_client::query_player_match_stats
 0x00270070	inferred-medium	0x0019d75f	survarium::lobby_client::query_elo_players
 0x00270260	inferred-medium		survarium::lobby_client::process_own_account
@@ -1655,10 +1653,6 @@ va	status	ref_021d	name
 0x00271a30	inferred-medium	0x0019e81f	survarium::lobby_client::read_player_match_stats
 0x00271ae0	inferred-medium		survarium::lobby_client::read_drop
 0x00271fd0	inferred-medium		survarium::lobby_client::read_clan_info
-0x00274580	inferred-medium	0x0019eca1	survarium::lobby_client::destroy_squad
-0x002745d0	inferred-medium	0x0019ed0a	survarium::lobby_client::add_squad_member
-0x00274660	inferred-medium	0x0019ed8a	survarium::lobby_client::drop_squad_member
-0x002746d0	inferred-medium	0x0019ee04	survarium::lobby_client::leave_squad
 0x00274a00	inferred-medium		survarium::lobby_client::on_message_received
 0x00275220	inferred-medium		survarium::lobby_client::process_detach_upgrade
 0x00275520	inferred-medium		survarium::lobby_client::process_succeeded_inventory_action
@@ -3140,3 +3134,4 @@ va	status	ref_021d	name
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
+0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription

@@ -770,7 +770,7 @@ impl Core<'_> {
     /// The squad info for one member's client.
     fn squad_message(&self, me: u32, squad: Option<&Squad>) -> Result<ServerMessage, WireError> {
         let Some(squad) = squad else {
-            return lobby::squad_info(0, &[], 0, false, 0);
+            return lobby::squad_info(0, &[], 0, false, 0, 0);
         };
         let members: Vec<SquadMember> = squad
             .members
@@ -804,13 +804,19 @@ impl Core<'_> {
                 }
             })
             .collect();
-        // The commander is the first member.
+        // The commander is the first member; its quest faction is every
+        // member's lobby.
+        let commander_faction = self
+            .accounts
+            .get(squad.commander())
+            .map_or(0, |account| account.locked().quest_faction);
         lobby::squad_info(
             squad.id,
             &members,
             0,
             squad.commander() == me,
             squad.revision,
+            commander_faction,
         )
     }
 

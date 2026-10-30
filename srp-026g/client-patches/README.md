@@ -3730,22 +3730,29 @@ asked again with the lobby's project, or the classic's when the config is not
 there or the project has no camera track. Patch 45 takes the weapon's spot
 from the lobby project's `srp_lobby` table (Round 6).
 
-After a change of faction the next match shows it (the owner, 2026-10-29: "the
-switch should happen after joining a faction and then playing a game"): when
-the lobby menu stops being the active scene (on_deactivate, 0x21D4A0: a
-match) with another faction saved than the lobby shown, the patch asks the
-lobby's query again with that lobby alone in it (its config first, then its
-project; the other seven requests that config, no user data), and when the
-project comes while the match is still up it puts it in the old one's place:
-the project halves of lobby_menu::clear_resources and on_render_scenes_ready
-redone with the game's own functions (the old project's remove and static
-collisions, the track player's stop, the release; the new one's
-vtable+0Ch, its track's effect through the emitter's vtable, the insert and
-its collisions), so the first frame back is the new lobby. Results that come
-after on_activate (0x21D2E0) are let go and the next match asks again; a
-missing pack is the classic; once game::clear_resources (0x1ED030) runs
-nothing is asked. One enum (`Scene`), one transition function
-(`Scene::step`). See `check_lobby_scene_026g.py`.
+In a squad the lobby is the commander's faction's (the owner, 2026-10-30), out
+of one the player's own: srp appends the commander's quest faction to `0xA1`
+(the stock reader stops before it), and the patch reads the squad id
+(0x2747C3) and the byte (0x2748BC, a squad's revision kept) into
+`Squad::{None, Led(Faction)}`; `srp_lobby_faction` stays the player's own.
+
+A change shows at once (the owner, 2026-10-30): at the lobby camera's tick
+(0x2840F2, after patch 45's flight) with another lobby wanted than the one
+shown, the patch asks the lobby's query again with that lobby alone in it
+(its config first, then its project; the other seven requests that config,
+no user data) while the old lobby is drawn; its project is held, the lobby
+movie fades a black in under every panel (`srp_scene_fade`, 0.25 s), and the
+project is put in the old one's place: the project halves of
+lobby_menu::clear_resources and on_render_scenes_ready redone with the game's
+own functions (the old project's remove and static collisions, the track
+player's stop, the release; the new one's vtable+0Ch, its track's effect
+through the emitter's vtable, the insert and its collisions), the eye
+adaptation reset (the engine's byte 0xAC914C) and the camera at its stock
+pose; six frames later the black fades out (0.4 s). A lobby that is not
+there keeps the one shown, with no fade; a match entered during a change puts
+the project in at once; once game::clear_resources (0x1ED030) runs nothing is
+asked. One enum (`Scene`), one transition function (`Scene::step`). See
+`check_lobby_scene_026g.py` and `../scripts/lobby-fade/check.sh`.
 
 ## Medical consumable countdown (patch 77)
 
