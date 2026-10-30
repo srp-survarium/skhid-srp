@@ -1,0 +1,513 @@
+owner-test snipers: bolt_bots: 0 spells, 0 crossings, kill share 0.0 % (bands 0/0/0/0), shot at 0 %, hits per shot 0.0 % of 0, kills per minute in hand 0.00; bolt_camper: 0 spells, 0 crossings, kill share 0.0 % (bands 0/0/0/0), shot at 0 %, hits per shot 0.0 % of 0, kills per minute in hand 0.00; marksman_bots: 0 spells, 0 crossings, kill share 0.0 % (bands 0/0/0/0), shot at 0 %, hits per shot 0.0 % of 0, kills per minute in hand 0.00; marksman_camper: 0 spells, 0 crossings, kill share 0.0 % (bands 0/0/0/0), shot at 0 %, hits per shot 0.0 % of 0, kills per minute in hand 0.00
+{
+  "snipers": {
+    "bolt_bots": {
+      "alive_s": 0,
+      "by_band": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "by_view": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "engaged": 0,
+      "entries": 0,
+      "exposed_s": 0,
+      "fatal": 0,
+      "first_shot_hist": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "holder_died": 0,
+      "kills": 0,
+      "shot_at": 0,
+      "shots": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "spell_kills": 0,
+      "spell_s": 0,
+      "spells": 0,
+      "stay": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "bolt_camper": {
+      "alive_s": 0,
+      "by_band": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "by_view": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "engaged": 0,
+      "entries": 0,
+      "exposed_s": 0,
+      "fatal": 0,
+      "first_shot_hist": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "holder_died": 0,
+      "kills": 0,
+      "shot_at": 0,
+      "shots": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "spell_kills": 0,
+      "spell_s": 0,
+      "spells": 0,
+      "stay": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "marksman_bots": {
+      "alive_s": 0,
+      "by_band": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "by_view": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "engaged": 0,
+      "entries": 0,
+      "exposed_s": 0,
+      "fatal": 0,
+      "first_shot_hist": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "holder_died": 0,
+      "kills": 0,
+      "shot_at": 0,
+      "shots": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "spell_kills": 0,
+      "spell_s": 0,
+      "spells": 0,
+      "stay": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "marksman_camper": {
+      "alive_s": 0,
+      "by_band": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "by_view": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "engaged": 0,
+      "entries": 0,
+      "exposed_s": 0,
+      "fatal": 0,
+      "first_shot_hist": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "holder_died": 0,
+      "kills": 0,
+      "shot_at": 0,
+      "shots": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "spell_kills": 0,
+      "spell_s": 0,
+      "spells": 0,
+      "stay": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  }
+}
