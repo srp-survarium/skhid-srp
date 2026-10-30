@@ -72,10 +72,11 @@ pub struct HazardTuning {
     /// all (`crossing::crossable`, the margin's marks) stays at the zone's full hit. Off: the full hit on every floor, as
     /// it was. (The zones' rate itself is the client's, the interval included, whatever this says: `Hazard::hit_per_s`.)
     pub zone_intensity: bool,
-    /// A body on a floor a damage zone hurts on now runs (the sprint, as far as its stamina goes) where its pace was a walk, for as long as it is on it: the
-    /// way out of a zone is walked at the legs' top speed, the play's pace aside. The zones kill by a pool that runs out in 4-5 s (the bench's Vector Laboratory:
-    /// 20 of 20 zone deaths were the infection pool in a zone on all match, 3.2-4.7 s in it, the bots walking out at 2.3-3.5 m/s over 8-10 m of its floors), and a
-    /// player runs out of a toxic cloud. Not in the reflex's fight legs, not crouched. Off: the play's pace.
+    /// A body on a floor a damage zone hurts on now escapes (`Pace::Escape(EscapeWhy::Zone)`: the legs' top speed, the sprint on any route, the sights, crouch and side
+    /// steps of the reflex let go, the trigger kept) for as long as it is on it: the way out of a zone is walked at the escape pace, the play's pace aside. The zones kill by
+    /// a pool that runs out in 4-5 s (the bench's Vector Laboratory: 21 of 21 zone deaths were the infection pool in a zone on all match, 3.2-4.7 s in it, the bots walking
+    /// out at 2.3-3.5 m/s over 8-10 m of its floors; a plain `Pace::Run` did not help, 19 deaths against 20: it does not sprint on a short route), and a player runs out of a
+    /// toxic cloud. Not in the reflex's fight legs, not crouched. Off: the play's pace.
     pub run_out: bool,
 }
 
