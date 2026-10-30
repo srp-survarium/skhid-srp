@@ -66,6 +66,6 @@ mod tests {
         }
         assert_eq!(LobbyPick::of_id(0), None);
         assert_eq!(LobbyPick::byte(None), 0);
-        assert!(LOBBY_PICK_BASE > super::super::presets::PRESETS_LAST);
+        const { assert!(LOBBY_PICK_BASE > super::super::presets::PRESETS_LAST) };
     }
 }

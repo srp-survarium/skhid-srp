@@ -190,9 +190,9 @@ def main():
     variable = console_variable(ours, b_head)
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before and b_head != head_before
            and variable[0] == "localization" and variable[2] == 256 and variable[3] == 1
-           and ours.read(b_head + 0x0C) == head_before and lobby[0] == "srp_lobby_faction",
+           and ours.read(b_head + 0x0C) == head_before and lobby[0] == "srp_lobby",
            "configs.start: registers and stack as the original's; `localization`, a saved string of 256 "
-           "bytes, in the console's list before the old head, patch 81's `srp_lobby_faction` registered after "
+           "bytes, in the console's list before the old head, patch 81's `srp_lobby` registered after "
            "it (the original registers nothing)")
     _, _, again = ours.start()
     expect(again == b_top and ours.read(b_head + 0x0C) == head_before, "configs.start again: registered once")

@@ -4059,8 +4059,8 @@ def test_lobby_scene(original, image, before):
           "read_squad_info (0x274720, 0xA1) keeps the squad id at the lobby client's +1EAAA4h (0x2747A8), "
           "compares it with 0 and clears +1EAAACh (0x2747C3, both paths) and, for no squad, jumps over the "
           "rest; a squad's path reads its revision last and keeps it (0x2748BC, the reader ESI past it)")
-    check(rows(0x1B14A6, 0xA) == ["cmp byte [0xac914c],0x0", "lea ebx,[ebp+0x1]", "jz 0x1b14fb"]
-          and rows(0x1B14F2, 7) == ["mov byte [0xac914c],0x0"]
+    check(rows(0x1B14A6, 0xA) == ["cmp byte [dword 0xac914c],0x0", "lea ebx,[ebp+0x1]"]
+          and rows(0x1B14F2, 7) == ["mov byte [dword 0xac914c],0x0"]
           and stock.read(0xAC914C, 1) == b"\x01",
           "the eye adaptation's byte (0xAC914C, 1 in the image: the first frame): while set, "
           "compute_per_pixel_eye_adaptated_luminance (0x1B1400) gives t_previous_luminance the frame's own "
@@ -5082,11 +5082,16 @@ def test_ragdoll(original, image, before):
     shared = [(x["offset"], x["target"]) for x in engine_026g.fields() if x["module"] == "image"
               and srpd <= x["offset"] < srpd + P.LATE_JOIN_STATE_SIZE]
     shared_fields = {base + x["offset"] for base, kind in shared for x in engine_026g.fields() if x["kind"] == kind}
-    inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields
+    # the game's own data a patch sets on purpose, by its image row: patch 81's reset of the eye
+    # adaptation (stage_postprocess's byte, which the render thread reads and clears; lobby-scenes.md)
+    game_flags = {x["offset"]: f'{x["field"]}' for x in engine_026g.fields() if x["module"] == "image"
+                  and x["field"] in ("postprocess",)}
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields or a in game_flags
     check(all(inside(a) for a in absolute),
           f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state, or fields of "
-          f"an older patch's state it shares (`.srpd`: {', '.join(f'{b:#x} {k}' for b, k in shared)}): nothing of "
-          "the game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
+          f"an older patch's state it shares (`.srpd`: {', '.join(f'{b:#x} {k}' for b, k in shared)}), or a flag "
+          f"of the game's a patch sets on purpose ({', '.join(f'{a:#x} {n}' for a, n in game_flags.items())}): "
+          "nothing else of the game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):

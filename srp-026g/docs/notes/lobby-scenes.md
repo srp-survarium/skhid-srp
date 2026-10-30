@@ -269,12 +269,14 @@ Game captures: the diagnostics build's `camera_sweep` (client_patch.md section 3
   cards; `window.png`), lobby-server's `a_squad_info_carries_the_lobby_picks` (a pick sent back
   alone out of a squad, each member's own and the commander's in one, the commander's change to
   every member, a member's to its own byte only), `lobby_pick.rs` (the starts and ids).
-- In a game (2026-10-29, local, headless, no input but the sign-in; the default build of this
-  branch; packs lobby-hangar-046@2 and lobby-camp-069@2 in a test patch, no STK2 pack):
-  `srp_lobby_faction 4` in user.cfg, the hangar from the first frame; `1`, the camp; `2` (no
-  STK2 project), the probe failed and the classic came, no crash; at each sign-in the Black
-  Market account's faction was saved (`srp_lobby_faction 2`). A debug build without a saved value:
-  the classic; a test patch's `hangar_046`, that scene.
+- In a game (2026-10-30, local, headless, no input but the sign-in; a diagnostics build of this
+  branch with this branch's srp; the live layers, this branch's patch 40 and the packs camp @8,
+  bunker @4 and hangar @6): the lobby window opened (the sweep's `window`), its cards and the
+  pick marked; a pick (`pick 3`, `pick 4`) and a squad (`led 3`, then `alone`) each shown at once:
+  the black stepped in, the spinner, the new lobby, the black stepped out, the camera at its
+  stock pose, the exposure within 2 % of its settled value once the black was gone; srp got the
+  saved pick at the sign-in. (Before the pick, 2026-10-29: the faction's saved lobby from the
+  first frame, a missing pack the classic, no crash.)
 - An early finding of this PR, that user.cfg is never read under Wine, was wrong: it was this
   work's own headless prefix (load_cc_script got no resource for `user_data/user.cfg` there, the
   cause not found); in a local-clients `run.py` prefix the file is read and the saved faction

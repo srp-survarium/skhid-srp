@@ -86,7 +86,7 @@ impl Lobby {
     }
 
     /// srp's `3B` start of its pick (the server's `lobby_pick::LOBBY_PICK_BASE`
-    /// + its id).
+    /// and its id).
     pub fn pick_start(self) -> u32 {
         PICK_BASE + u32::from(self.id())
     }
