@@ -109,3 +109,21 @@ pub fn centre_of(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<Vec3> {
     let p = at(mid as f32 * SAMPLE_M);
     Some(Vec3::new(p.x + offset[0], p.y, p.z + offset[1]))
 }
+
+/// A debugging line for a leg (A66): the span at every sample along it, narrowest first.
+pub fn explain(grid: &WalkGrid, a: Vec3, b: Vec3) -> String {
+    let length = a.distance_xz(b);
+    let (ux, uz) = ((b.x - a.x) / length.max(1e-6), (b.z - a.z) / length.max(1e-6));
+    let mut out = String::new();
+    let mut t = 0.0;
+    while t <= length {
+        let s = (t / length.max(1e-6)).clamp(0.0, 1.0);
+        let at = Vec3::new(a.x + ux * t, a.y + (b.y - a.y) * s, a.z + uz * t);
+        match narrowest_span(grid, at) {
+            Some((w, o)) => out.push_str(&format!(" {t:.2}:{w:.2}({:.2},{:.2})", o[0], o[1])),
+            None => out.push_str(&format!(" {t:.2}:-")),
+        }
+        t += 0.25;
+    }
+    out
+}
