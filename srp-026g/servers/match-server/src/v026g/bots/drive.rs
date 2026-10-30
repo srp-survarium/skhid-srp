@@ -328,13 +328,6 @@ fn drive_tick_inner(
     // itself uses and Bring holds fire meanwhile. A play that let go of it
     // (`Intent::let_go`) may fire while the view still shows it carried.
     let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
-    // The stand-in camper's sniper trigger holds the shot a live sniper's would not have taken yet (`tests/standin_sniper.rs`).
-    #[cfg(test)]
-    let may_fire = {
-        let off_deg = bot.reflex.target().and_then(|t| view.place(t)).map(|t| super::tests::off_deg(me.yaw, me.feet, t.feet));
-        let trigger_open = bot.bench_trigger.as_mut().is_none_or(|trigger| trigger.lets_fire(super::tests::Sight { now: time, off_deg }));
-        may_fire && trigger_open
-    };
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
     // [heal] The consumable is a habit of the reflex, as the reload is: the
     // key goes out at once whatever the play, which is neither taken nor

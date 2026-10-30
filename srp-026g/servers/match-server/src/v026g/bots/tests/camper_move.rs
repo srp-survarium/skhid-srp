@@ -708,9 +708,6 @@ impl BenchCamper {
                 },
             };
         }
-        if let Some(preset) = self.options.sniper {
-            bot.bench_trigger.get_or_insert_with(|| Trigger::new(preset, 0x5A1D_0000 + me.place as u64 + (u64::from(self.seed) << 20)));
-        }
         match &mut self.state {
             CamperState::Seeking | CamperState::NoSpot => false,
             CamperState::Still { at, .. } => {

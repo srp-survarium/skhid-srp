@@ -318,9 +318,6 @@ pub struct Bot {
     pub(crate) bench_driven: u32,
     /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
     pub(crate) control: Driver,
-    /// The stand-in camper's sniper trigger (`SRP_BENCH_CAMPER_SNIPER`): holds the shot as a live sniper's comes.
-    #[cfg(test)]
-    pub(crate) bench_trigger: Option<tests::Trigger>,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -492,8 +489,6 @@ impl Bot {
             #[cfg(test)]
             bench_driven: 0,
             control: Driver::Own,
-            #[cfg(test)]
-            bench_trigger: None,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]

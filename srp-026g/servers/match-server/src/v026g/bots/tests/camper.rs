@@ -39,8 +39,6 @@ pub(crate) struct CamperOptions {
     pub(crate) moving: Option<MoveOptions>,
     /// Where the spot is chosen ([`CamperAt`]).
     pub(crate) at: CamperAt,
-    /// Fires as the live snipers do, after a delay and at some of the crossings only ([`Trigger`]); off: on sight.
-    pub(crate) sniper: Option<SniperPreset>,
 }
 
 impl CamperOptions {
@@ -50,7 +48,6 @@ impl CamperOptions {
         long_gun: false,
         moving: None,
         at: CamperAt::Free,
-        sniper: None,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -82,7 +79,6 @@ impl CamperOptions {
             long_gun,
             moving: MoveOptions::parse(get("SRP_BENCH_CAMPER_MOVE").as_deref(), get("SRP_BENCH_CAMPER_DWELL_S").as_deref())?,
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
-            sniper: SniperPreset::parse(get("SRP_BENCH_CAMPER_SNIPER").as_deref())?,
         })
     }
 }
@@ -280,18 +276,15 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_GUN", "long"),
         ("SRP_BENCH_CAMPER_MOVE", "1"),
         ("SRP_BENCH_CAMPER_AT", "container"),
-        ("SRP_BENCH_CAMPER_SNIPER", "top"),
     ])
     .expect("known values");
     assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
     assert!(all.moving.is_some());
-    assert_eq!(all.sniper, Some(SniperPreset::Top));
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
         ("SRP_BENCH_CAMPER_GUN", "short"),
         ("SRP_BENCH_CAMPER_AT", "batery"),
-        ("SRP_BENCH_CAMPER_SNIPER", "pro"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
         assert!(with(pairs).is_err(), "{bad:?}");
@@ -305,7 +298,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, sniper: None });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);
