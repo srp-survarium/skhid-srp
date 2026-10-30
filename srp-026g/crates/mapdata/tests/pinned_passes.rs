@@ -78,7 +78,7 @@ fn the_gap_links_pass_is_pinned() {
 /// Exact erosion: the floors a wall comes nearer to than the radius less a quarter cell.
 #[test]
 fn the_exact_erosion_pass_is_pinned() {
-    assert_eq!(EXACT_EROSION_ALGO, 2, "raise EXACT_EROSION_ALGO with the pin");
+    assert_eq!(EXACT_EROSION_ALGO, 3, "raise EXACT_EROSION_ALGO with the pin");
     let body = Body { erosion: Erosion::Exact, ..Body::default() };
     let d = print("exact", digest_of(body, OffMeshLinks::None));
     assert_ne!(d, digest_of(Body::default(), OffMeshLinks::None), "the world has an opening exact erosion changes");

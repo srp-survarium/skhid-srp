@@ -57,7 +57,7 @@ impl TeamKillCounts {
     }
 
     /// The nearest Jump link of [`LEDGE_M`] or more to `feet`: its take-off's distance and its rise.
-    fn near_ledge(grid: &WalkGrid, feet: Vec3) -> Option<(f32, f32)> {
+    pub(super) fn near_ledge(grid: &WalkGrid, feet: Vec3) -> Option<(f32, f32)> {
         let r = NEAR_LINK_M;
         grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
             .filter(|&n| (grid.position(n).y - feet.y).abs() < 2.0)

@@ -766,7 +766,9 @@ pub struct CombatTuning {
     pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
-    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
+    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
+    /// true place of an enemy the bot has not seen (`MatchView::place`), so its view pre-aims at him: a cheat (A147,
+    /// the owner's rule "smarter, never cheaters"). ON by default; `all_off.json` keeps it off (the old behaviour).
     pub aim_last_known: bool,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
@@ -1252,7 +1254,7 @@ impl Default for CombatTuning {
             lead_target: true,
             lead_flight: false,
             lead_drop: false,
-            aim_last_known: false,
+            aim_last_known: true,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
