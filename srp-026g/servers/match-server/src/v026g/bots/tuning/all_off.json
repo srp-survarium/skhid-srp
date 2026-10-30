@@ -66,6 +66,7 @@
   },
   "grid": {
     "client_numbers": false,
+    "crouch_floors": false,
     "exact_erosion": false,
     "floor_paths": false,
     "gap_links": false,
