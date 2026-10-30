@@ -2536,6 +2536,7 @@ st_srp_rooms_leave_room	Вийти з кімнати
 st_srp_rooms_left_room	%1$s вийшов з кімнати
 st_srp_rooms_level	Рівень
 st_srp_rooms_map	Карта
+st_srp_rooms_map_by_vote	Карта обирається голосуванням
 st_srp_rooms_max	Макс. рівень
 st_srp_rooms_modes	Режими
 st_srp_rooms_my_room	Моя кімната
@@ -2582,7 +2583,6 @@ st_srp_rooms_teams_owner	Переміщуйте гравців між коман
 st_srp_rooms_unfit_gear	Ваше спорядження вище макс. рівня: знизьте, інакше на старті ви вийдете з кімнати.
 st_srp_rooms_unfit_kit	Ваш комплект не може грати (немає зброї або мало набоїв): виправте, інакше на старті ви вийдете з кімнати.
 st_srp_rooms_vote	Голосуйте за наступну карту
-st_srp_rooms_vote_hint	3 картки з пулу. Перемагає більшість голосів; нічия — випадково. Клацніть, щоб змінити голос.
 st_srp_rooms_vote_now	Голосуйте за наступну карту: клацніть картку. Коли час вийде, матч почнеться на переможниці.
 st_srp_rooms_voting	Голосування
 st_srp_rooms_waiting	Чекаємо гравців

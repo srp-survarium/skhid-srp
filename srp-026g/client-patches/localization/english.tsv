@@ -2536,6 +2536,7 @@ st_srp_rooms_leave_room	Leave room
 st_srp_rooms_left_room	%1$s left the room
 st_srp_rooms_level	Level
 st_srp_rooms_map	Map
+st_srp_rooms_map_by_vote	Map chosen by vote
 st_srp_rooms_max	Max level
 st_srp_rooms_modes	Modes
 st_srp_rooms_my_room	My room
@@ -2582,7 +2583,6 @@ st_srp_rooms_teams_owner	Move players between the teams with « and ».
 st_srp_rooms_unfit_gear	Your equipment is above the max level: lower it, or you leave the room at the start.
 st_srp_rooms_unfit_kit	Your kit cannot play (no weapon or too little ammo): fix it, or you leave the room at the start.
 st_srp_rooms_vote	Vote for the next map
-st_srp_rooms_vote_hint	3 cards from the pool. Most votes wins; a tie is drawn at random. Click to change your vote.
 st_srp_rooms_vote_now	Vote for the next map: click a card. The match starts on the winner when the time is up.
 st_srp_rooms_voting	Map vote
 st_srp_rooms_waiting	Waiting for players

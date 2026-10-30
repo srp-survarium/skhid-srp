@@ -2536,6 +2536,7 @@ st_srp_rooms_leave_room	Raum verlassen
 st_srp_rooms_left_room	%1$s hat den Raum verlassen
 st_srp_rooms_level	Stufe
 st_srp_rooms_map	Karte
+st_srp_rooms_map_by_vote	Karte per Abstimmung
 st_srp_rooms_max	Max. Stufe
 st_srp_rooms_modes	Modi
 st_srp_rooms_my_room	Mein Raum
@@ -2582,7 +2583,6 @@ st_srp_rooms_teams_owner	Verschiebe Spieler mit « und » zwischen den Teams.
 st_srp_rooms_unfit_gear	Deine Ausrüstung liegt über der max. Stufe: senke sie, sonst verlässt du beim Start den Raum.
 st_srp_rooms_unfit_kit	Deine Ausrüstung kann nicht spielen (keine Waffe oder zu wenig Munition): sonst verlässt du beim Start den Raum.
 st_srp_rooms_vote	Stimme für die nächste Karte
-st_srp_rooms_vote_hint	3 Karten aus dem Pool. Die meisten Stimmen gewinnen; Gleichstand: Zufall. Klicke, um umzustimmen.
 st_srp_rooms_vote_now	Stimme für die nächste Karte: klicke eine Karte. Ist die Zeit um, beginnt das Match auf der Gewinnerin.
 st_srp_rooms_voting	Kartenwahl
 st_srp_rooms_waiting	Warten auf Spieler

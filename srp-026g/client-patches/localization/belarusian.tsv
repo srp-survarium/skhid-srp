@@ -2536,6 +2536,7 @@ st_srp_rooms_leave_room	Выйсці з пакоя
 st_srp_rooms_left_room	%1$s пакінуў пакой
 st_srp_rooms_level	Узровень
 st_srp_rooms_map	Карта
+st_srp_rooms_map_by_vote	Карта выбіраецца галасаваннем
 st_srp_rooms_max	Макс. узровень
 st_srp_rooms_modes	Рэжымы
 st_srp_rooms_my_room	Мой пакой
@@ -2582,7 +2583,6 @@ st_srp_rooms_teams_owner	Перамяшчайце гульцоў паміж ка
 st_srp_rooms_unfit_gear	Ваш рыштунак вышэй за макс. узровень: зніжце, інакш на старце вы выйдзеце з пакоя.
 st_srp_rooms_unfit_kit	Ваш камплект не можа гуляць (няма зброі або мала патронаў): выпраўце, інакш на старце вы выйдзеце з пакоя.
 st_srp_rooms_vote	Галасуйце за наступную карту
-st_srp_rooms_vote_hint	3 карткі з пула. Перамагае большасць; нічыя — выпадкова. Націсніце, каб змяніць голас.
 st_srp_rooms_vote_now	Галасуйце за наступную карту: націсніце картку. Матч пачнецца на пераможнай.
 st_srp_rooms_voting	Галасаванне
 st_srp_rooms_waiting	Чакаем гульцоў
