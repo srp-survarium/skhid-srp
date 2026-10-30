@@ -23,7 +23,7 @@ switches OFF cheats: batteries
 switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
-switches OFF threat: job_out_of_all_lines job_spot_levels replan
+switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels replan sniper_lanes
 switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.worth.hurt_from=seen friends.spread_source=data
