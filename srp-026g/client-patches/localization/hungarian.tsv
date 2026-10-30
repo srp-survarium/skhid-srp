@@ -2373,6 +2373,10 @@ st_srp_equipment046_scavenger_boots_5_desc	A leírás még nem érhető el.
 st_srp_equipment046_scavenger_boots_5_name	Szabotőrcsizma
 st_srp_equipment046_scavenger_boots_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_scavenger_boots_7_name	Nyomkereső csizma
+st_srp_equipment069_leagues_back_2_desc	A leírás még nem érhető el.
+st_srp_equipment069_leagues_back_2_name	Szanitéctáska
+st_srp_equipment069_leagues_back_5_desc	A leírás még nem érhető el.
+st_srp_equipment069_leagues_back_5_name	Katonahátizsák
 st_srp_exchange_balance	Egyenleg
 st_srp_exchange_button	Átváltás
 st_srp_exchange_gold	Arany
@@ -2532,6 +2536,7 @@ st_srp_rooms_leave_room	Szoba elhagyása
 st_srp_rooms_left_room	%1$s kilépett a szobából
 st_srp_rooms_level	Szint
 st_srp_rooms_map	Pálya
+st_srp_rooms_map_by_vote	A pályát szavazás dönti el
 st_srp_rooms_max	Max. szint
 st_srp_rooms_modes	Módok
 st_srp_rooms_my_room	Saját szoba
@@ -2578,13 +2583,16 @@ st_srp_rooms_teams_owner	A « és » gombokkal mozgathatod a játékosokat a csa
 st_srp_rooms_unfit_gear	A felszerelésed meghaladja a szintkorlátot. Csökkentsd a szintjét, különben kezdéskor kikerülsz a szobából.
 st_srp_rooms_unfit_kit	Az összeállításod nem használható (nincs fegyver vagy kevés a lőszer). Javítsd ki, különben kezdéskor kikerülsz a szobából.
 st_srp_rooms_vote	Szavazz a következő pályára
-st_srp_rooms_vote_hint	3 kártya a készletből. A legtöbb szavazat nyer, döntetlennél sorsolás dönt. Kattints a szavazatod módosításához.
 st_srp_rooms_vote_now	Kattints a következő pálya kártyájára. Az idő lejártával a győztesen indul a meccs.
 st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
+st_srp_skills	Képességek
+st_srp_speed_label	Sebesség
+st_srp_speed_title	Mozgási sebesség: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2618,8 +2626,10 @@ st_srp_weather_day	nappal
 st_srp_weather_evening	este
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
+st_srp_weight_base	Alapkorlát: %1$s
 st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
 st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.
+st_srp_weight_penalty	%1$s% súlybüntetés
 st_srp_weight_speed	Mozgási sebesség: %1$s
 st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
 st_srp_weight_title	A súly hatásai

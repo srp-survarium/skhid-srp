@@ -2373,6 +2373,10 @@ st_srp_equipment046_scavenger_boots_5_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur boots
 st_srp_equipment046_scavenger_boots_7_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_7_name	Pathfinder boots
+st_srp_equipment069_leagues_back_2_desc	Description not available yet.
+st_srp_equipment069_leagues_back_2_name	Medic's bag
+st_srp_equipment069_leagues_back_5_desc	Description not available yet.
+st_srp_equipment069_leagues_back_5_name	Soldier's backpack
 st_srp_exchange_balance	Balance
 st_srp_exchange_button	Exchange
 st_srp_exchange_gold	Gold
@@ -2532,6 +2536,7 @@ st_srp_rooms_leave_room	Leave room
 st_srp_rooms_left_room	%1$s left the room
 st_srp_rooms_level	Level
 st_srp_rooms_map	Map
+st_srp_rooms_map_by_vote	Map chosen by vote
 st_srp_rooms_max	Max level
 st_srp_rooms_modes	Modes
 st_srp_rooms_my_room	My room
@@ -2578,13 +2583,16 @@ st_srp_rooms_teams_owner	Move players between the teams with « and ».
 st_srp_rooms_unfit_gear	Your equipment is above the max level: lower it, or you leave the room at the start.
 st_srp_rooms_unfit_kit	Your kit cannot play (no weapon or too little ammo): fix it, or you leave the room at the start.
 st_srp_rooms_vote	Vote for the next map
-st_srp_rooms_vote_hint	3 cards from the pool. Most votes wins; a tie is drawn at random. Click to change your vote.
 st_srp_rooms_vote_now	Vote for the next map: click a card. The match starts on the winner when the time is up.
 st_srp_rooms_voting	Map vote
 st_srp_rooms_waiting	Waiting for players
 st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_skills	Skills
+st_srp_speed_label	Speed
+st_srp_speed_title	Movement speed: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2618,8 +2626,10 @@ st_srp_weather_day	day
 st_srp_weather_evening	evening
 st_srp_weather_night	night
 st_srp_weather_rain	rain
+st_srp_weight_base	Base limit: %1$s
 st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
 st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.
+st_srp_weight_penalty	%1$s% weight penalty
 st_srp_weight_speed	Movement speed: %1$s
 st_srp_weight_sprint_stamina	Sprint stamina use: %1$s
 st_srp_weight_title	Weight effects

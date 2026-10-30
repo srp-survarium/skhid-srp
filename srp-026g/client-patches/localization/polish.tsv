@@ -2373,6 +2373,10 @@ st_srp_equipment046_scavenger_boots_5_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_scavenger_boots_5_name	Buty dywersanta
 st_srp_equipment046_scavenger_boots_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_scavenger_boots_7_name	Buty tropiciela
+st_srp_equipment069_leagues_back_2_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_leagues_back_2_name	Torba medyka
+st_srp_equipment069_leagues_back_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_leagues_back_5_name	Plecak żołnierza
 st_srp_exchange_balance	Saldo
 st_srp_exchange_button	Wymień
 st_srp_exchange_gold	Złoto
@@ -2532,6 +2536,7 @@ st_srp_rooms_leave_room	Opuść pokój
 st_srp_rooms_left_room	%1$s opuścił pokój
 st_srp_rooms_level	Poziom
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa wybierana w głosowaniu
 st_srp_rooms_max	Maks. poziom
 st_srp_rooms_modes	Tryby
 st_srp_rooms_my_room	Mój pokój
@@ -2578,13 +2583,16 @@ st_srp_rooms_teams_owner	Przenoś graczy między drużynami przyciskami « i ».
 st_srp_rooms_unfit_gear	Twój ekwipunek przekracza maks. poziom: obniż go, inaczej na starcie opuścisz pokój.
 st_srp_rooms_unfit_kit	Twój zestaw nie może grać (brak broni lub za mało amunicji): popraw, inaczej na starcie opuścisz pokój.
 st_srp_rooms_vote	Głosuj na następną mapę
-st_srp_rooms_vote_hint	3 karty z puli. Wygrywa większość; remis losowo. Kliknij, aby zmienić głos.
 st_srp_rooms_vote_now	Zagłosuj na następną mapę: kliknij kartę. Gdy czas minie, mecz zacznie się na zwycięskiej.
 st_srp_rooms_voting	Głosowanie
 st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
+st_srp_skills	Umiejętności
+st_srp_speed_label	Szybkość
+st_srp_speed_title	Szybkość ruchu: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2618,8 +2626,10 @@ st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór
 st_srp_weather_night	noc
 st_srp_weather_rain	deszcz
+st_srp_weight_base	Limit bazowy: %1$s
 st_srp_weight_no_sprint_heavyweight	Sprint niedostępny: umiejętność „Mocarz”.
 st_srp_weight_no_sprint_limit	Sprint niedostępny: przeciążenie.
+st_srp_weight_penalty	%1$s% kary za wagę
 st_srp_weight_speed	Prędkość ruchu: %1$s
 st_srp_weight_sprint_stamina	Koszty energii przy sprincie: %1$s
 st_srp_weight_title	Wpływ wagi
