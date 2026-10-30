@@ -224,6 +224,28 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
 /// sight of him, `spot_min_m`-`spot_max_m` from him, at least
 /// `off_facing_deg` off his facing, fine goals out of the spawn areas.
 fn flank_spots(cx: &Ctx, him: Vec3, facing: [f32; 2], yaw: f32, rng: &mut Rng) -> Vec<Vec3> {
+    flank_spots_of(cx, him, facing, yaw, None, rng)
+}
+
+/// The query round a flank's centre `centre` on him at `him`, for a job's held spot `job` (the storeys under and over
+/// with `job_spot_levels`) or a seen holder (none).
+fn flank_query(cx: &Ctx, him: Vec3, centre: Vec3, job: Option<&crate::v026g::bots::threat::HeldLine>) -> SpotQuery {
+    let num = |name| cx.num(PlayKind::Flank, name);
+    let (lo, hi) = (num("spot_min_m"), num("spot_max_m"));
+    let threat = &cx.tuning.threat;
+    let levels = if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 };
+    SpotQuery {
+        sight_to: Some(him),
+        up_m: levels,
+        down_m: levels,
+        side: cx.bot.side,
+        samples: num("samples") as usize / 2,
+        ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
+    }
+}
+
+/// [`flank_spots`] for a job's held spot `job` (its query, [`flank_query`]) or a seen holder (none).
+fn flank_spots_of(cx: &Ctx, him: Vec3, facing: [f32; 2], yaw: f32, job: Option<&crate::v026g::bots::threat::HeldLine>, rng: &mut Rng) -> Vec<Vec3> {
     let num = |name| cx.num(PlayKind::Flank, name);
     // Looked for on both flanks: round a point off his facing by
     // `off_facing_deg` and a bit more, at the band's middle distance (the
@@ -237,12 +259,7 @@ fn flank_spots(cx: &Ctx, him: Vec3, facing: [f32; 2], yaw: f32, rng: &mut Rng) -
         let dir = kin::forward(yaw);
         let mid = (lo + hi) * 0.5;
         let centre = Vec3::new(him.x + dir[0] * mid, him.y, him.z + dir[1] * mid);
-        let query = SpotQuery {
-            sight_to: Some(him),
-            side: cx.bot.side,
-            samples: num("samples") as usize / 2,
-            ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
-        };
+        let query = flank_query(cx, him, centre, job);
         found.extend(
             cx.tactics
                 .spots(&query, cx.now, 6, rng)
@@ -275,7 +292,7 @@ fn job_flank_spots(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> std
         let mut rng = Rng::new(key ^ u64::from(cx.now));
         // Never in a held line, his own lanes too (as the pinner's,
         // `crossfire.rs`): with victims far apart a flank spot can sit in one.
-        let mut spots = flank_spots(cx, line.at, facing, kin::yaw_of(facing), &mut rng);
+        let mut spots = flank_spots_of(cx, line.at, facing, kin::yaw_of(facing), Some(line), &mut rng);
         #[cfg(test)]
         let found = spots.len();
         spots.retain(|&at| cx.team.threat.line_at(at).is_none());
@@ -312,12 +329,7 @@ fn why_no_flank_spot(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine, key:
         let dir = kin::forward(yaw + sign * bearing.to_radians());
         let mid = (lo + hi) * 0.5;
         let centre = Vec3::new(him.x + dir[0] * mid, him.y, him.z + dir[1] * mid);
-        let query = SpotQuery {
-            sight_to: Some(him),
-            side: cx.bot.side,
-            samples: num("samples") as usize / 2,
-            ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
-        };
+        let query = flank_query(cx, him, centre, Some(line));
         queries.push(query);
         for s in cx.tactics.spots(&query, cx.now, 6, &mut rng) {
             let at = s.at;

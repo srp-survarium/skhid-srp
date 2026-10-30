@@ -430,6 +430,9 @@ pub struct SpotQuery {
     /// grid's [`WalkGrid::locate`] finds, which lies at most 2 m above it).
     /// Only with a `sight_to`: a spot up there must see the point.
     pub up_m: f32,
+    /// Also look at the floors of the storeys under the ring's, down to this many metres under `around` (0: none).
+    /// Only with a `sight_to`, as `up_m`.
+    pub down_m: f32,
     /// The bot's map side: the other side's spawn area is out.
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
@@ -449,6 +452,7 @@ impl SpotQuery {
             cover: None,
             prefer_high: 0.0,
             up_m: 0.0,
+            down_m: 0.0,
             side: None,
             samples: 48,
         }
@@ -2070,6 +2074,9 @@ impl Tactics {
             if query.up_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_over(probe, query.up_m, &mut nodes);
             }
+            if query.down_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_under(probe, query.down_m, &mut nodes);
+            }
             if nodes.is_empty() {
                 let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
                 fails.push(if off { "floor_off_height" } else { "no_floor" });
@@ -2122,6 +2129,9 @@ impl Tactics {
                 .collect();
             if query.up_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_over(probe, query.up_m, &mut nodes);
+            }
+            if query.down_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_under(probe, query.down_m, &mut nodes);
             }
             for node in nodes {
                 let at = grid.position(node);
@@ -2321,9 +2331,20 @@ impl Tactics {
     /// the probe, one that a walk gets to and no pocket holds. Read from the
     /// grid's floors of the cells (no ray).
     fn storeys_over(&self, probe: Vec3, up_m: f32, nodes: &mut Vec<NodeId>) {
+        self.storeys_in(probe, probe.y + 2.0, probe.y + up_m, nodes);
+    }
+
+    /// The floors of the storeys under the probe's, down to `down_m` under it: as [`Self::storeys_over`] (the
+    /// nearest fine floor a band), under the floor the grid's `locate` finds at the probe (2 m round it).
+    fn storeys_under(&self, probe: Vec3, down_m: f32, nodes: &mut Vec<NodeId>) {
+        self.storeys_in(probe, probe.y - down_m, probe.y - 1.0, nodes);
+    }
+
+    /// The nearest fine floor (walkable, not in a pocket nor by a fall or a lip) of each storey band between `low`
+    /// (out) and `high` (in) round the probe.
+    fn storeys_in(&self, probe: Vec3, low: f32, high: f32, nodes: &mut Vec<NodeId>) {
         let grid = &self.world.grid;
         let r = STOREY_RADIUS_M;
-        let (low, high) = (probe.y + 2.0, probe.y + up_m);
         let mut best: Vec<(usize, NodeId, f32)> = Vec::new();
         for node in grid.floors_in([probe.x - r, probe.z - r, probe.x + r, probe.z + r]) {
             let at = grid.position(node);
@@ -3441,6 +3462,27 @@ pub(super) mod tests {
             .filter(|s| s.at.y > 3.0)
             .count();
         assert_eq!(on_roof, 0);
+    }
+
+    /// A ring round a point on the platform (4 m up) finds only the platform's own floor, and with `down_m` the ground
+    /// under it too (`threat.job_spot_levels`: a camper up a storey left a job's ring with no floor).
+    #[test]
+    fn a_spot_search_finds_the_ground_under_the_ring_only_with_down_m() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        // By the platform's edge: the ground past it sees his point over the edge.
+        let anchor = Vec3::new(31.0, 4.0, 33.0);
+        let query = |down_m: f32| SpotQuery {
+            down_m,
+            sight_to: Some(anchor),
+            side: Some(0),
+            samples: 600,
+            ..SpotQuery::ring(anchor, 4.0, 14.0)
+        };
+        let ys = |q: &SpotQuery| -> Vec<f32> { tactics.spots(q, 0, 60, &mut Rng::new(3)).iter().map(|s| s.at.y).collect() };
+        let level = ys(&query(0.0));
+        assert!(level.iter().all(|&y| y > 2.0), "{level:?}");
+        let under = ys(&query(8.0));
+        assert!(under.iter().any(|&y| y < 1.0), "{under:?}");
     }
 
     /// A storey only a jump chain gets onto is not offered over the ring:

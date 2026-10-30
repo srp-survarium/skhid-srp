@@ -393,6 +393,15 @@ pub struct CombatTuning {
     /// would go into his lanes. On at 1.0 (A170: 114 frags in 56 camper matches, 32 % of the blasts within 10 m of the sensed shooter,
     /// no own-side harm, no change in the match). `None`: no throw at a spot.
     pub grenade_at_held: Option<f32>,
+    /// [A170] Of the held-spot rule (only with `grenade_at_held`): a throw at a spot is given up, before the key and in the hold,
+    /// when the team's picture no longer holds the spot (its shooter died, a teammate cleared it, the sense of him ran out): the
+    /// kill feed and the team's own knowledge, as the roll used. The frag is kept. Off: a throw goes on at a spot the team has dropped
+    /// (34-38 of 220 held-spot frags left at a shooter dead 0.2-5.7 s before).
+    pub grenade_held_recheck: bool,
+    /// [A170] Of the held-spot rule (only with `grenade_at_held`): a held spot is a place out to the frag's real reach from where the
+    /// thrower stands (`arc::Grenade::max_range` from the eye over the spot's ground: the game data's throw speed and fuse,
+    /// gravity 10; about 30 m for the RGD-5) instead of `grenade_m`'s 27 m. The arc search still refuses what no arc reaches.
+    pub grenade_held_reach: bool,
     /// [G2] A place whose flat arc is refused (the thrower's blast, a
     /// steep wall near him, off the place) is tried with other arcs: other
     /// pitches at the same yaw (a lob over what is in the way, 20-29 m
@@ -1146,6 +1155,8 @@ impl Default for CombatTuning {
             grenade_track_error_m: 8.0,
             grenade_track_chance: 0.45,
             grenade_at_held: Some(1.0),
+            grenade_held_recheck: true,
+            grenade_held_reach: true,
             grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
@@ -1582,6 +1593,9 @@ struct Throw {
     /// off the throw is weighed by the floor of `grenade_land_m`, which a
     /// near place does not pass.
     near: Option<Vec3>,
+    /// [A170] The held spot (`threat::HeldLine::id`) a [`PlaceSource::Spot`] throw is at: the throw is given up when the team's
+    /// picture drops it (`grenade_held_recheck`).
+    spot: Option<u32>,
 }
 
 /// [smoke] A smoke being thrown with its quick-use key (`smoke::SmokePlan`): from the decision, the view turned to the
@@ -1822,6 +1836,17 @@ pub struct GrenadeStats {
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
     pub near: [u32; 3],
+    /// [A170] The held spots of a roll (`grenade_at_held`), thinks that reached the roll with: a held spot of the team, one
+    /// whose shooter the team sensed on it lately, one of those in the throw range, one the thrower's feet are not in the lanes
+    /// of, one with no mate in its blast and no other place at it, one no mate claimed, and, of those, thinks of a bot with a
+    /// frag in its kit. Each is counted once a think, for the furthest a spot got.
+    pub held_funnel: [u32; 7],
+    /// [A170] Thinks that did not reach the roll while the team had a sensed held spot, by what stopped them: a throw under
+    /// way, a target in sight, all the life's grenades thrown, the lockout of the last roll.
+    pub held_busy: [u32; 4],
+    /// [A170] Throws at a held spot given up because the team's picture dropped the spot (`grenade_held_recheck`): before the key
+    /// was pressed, in the hold.
+    pub held_dropped: [u32; 2],
 }
 
 impl GrenadeStats {
@@ -1853,6 +1878,9 @@ impl GrenadeStats {
             pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
             volley: sub(self.volley, before.volley),
             near: sub(self.near, before.near),
+            held_funnel: sub(self.held_funnel, before.held_funnel),
+            held_busy: sub(self.held_busy, before.held_busy),
+            held_dropped: sub(self.held_dropped, before.held_dropped),
         };
         (change, false)
     }
@@ -1886,6 +1914,9 @@ impl GrenadeStats {
         self.pushes_skipped += other.pushes_skipped;
         plus(&mut self.volley, &other.volley);
         plus(&mut self.near, &other.near);
+        plus(&mut self.held_funnel, &other.held_funnel);
+        plus(&mut self.held_busy, &other.held_busy);
+        plus(&mut self.held_dropped, &other.held_dropped);
     }
 }
 
@@ -2588,7 +2619,7 @@ pub struct Reflex {
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
     /// [A170] The shooters of the held spots the last roll offered as places (the note of a throw at one names its shooter).
-    spot_shooters: Vec<(Vec3, Place)>,
+    spot_shooters: Vec<(Vec3, Place, u32)>,
     /// The enemy and the time it last fired at him: the team's hit marker on him
     /// ([`Reflex::fired_at`]).
     last_fired: Option<(Place, u32)>,
@@ -4578,11 +4609,43 @@ impl Reflex {
                 return;
             }
         }
-        if self.throw.is_some()
-            || self.target.is_some()
-            || self.thrown >= c.grenades
-            || now < self.next_grenade_roll
+        // [A170] A throw at a held spot the team has dropped since the roll is given up while the key is not yet let go.
+        if c.grenade_held_recheck
+            && let Some(throw) = self.throw
+            && let Some(id) = throw.spot
+            && !throw.released
+            && !team.is_some_and(|team| team.threat.held.iter().any(|line| line.id == id))
         {
+            self.grenade_stats.held_dropped[usize::from(throw.pressed.is_some())] += 1;
+            self.throw = None;
+            self.throw_notes.push(format!(
+                "holds a grenade back at ({:.1}, {:.1}, {:.1}): the held spot was dropped",
+                throw.at.x, throw.at.y, throw.at.z
+            ));
+        }
+        let busy = if self.throw.is_some() {
+            Some(0)
+        } else if self.target.is_some() {
+            Some(1)
+        } else if self.thrown >= c.grenades {
+            Some(2)
+        } else if now < self.next_grenade_roll {
+            Some(3)
+        } else {
+            None
+        };
+        if let Some(reason) = busy {
+            // [measure] A sensed held spot that this think could not roll for.
+            if c.grenade_at_held.is_some()
+                && team.is_some_and(|team| {
+                    team.threat
+                        .held
+                        .iter()
+                        .any(|line| line.seen.is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS))
+                })
+            {
+                self.grenade_stats.held_busy[reason] += 1;
+            }
             return;
         }
         let held = self
@@ -4658,27 +4721,48 @@ impl Reflex {
         }
         // [A170] The held spots whose shooter the team sensed on them lately: the camper the team cannot see.
         self.spot_shooters.clear();
+        // [measure] How far a held spot of the team got in this think (0 none).
+        let mut furthest = 0;
         if c.grenade_at_held.is_some()
             && let Some(team) = team
         {
             for line in &team.threat.held {
+                furthest = furthest.max(1);
                 let on_it = line
                     .seen
                     .is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS);
-                if !on_it
-                    || !(c.grenade_m.0..=c.grenade_m.1).contains(&line.at.distance_xz(me.feet))
-                    || line.covers(me.feet)
-                    || places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m)
-                    || friend_near(line.at)
-                {
+                if !on_it {
                     continue;
                 }
+                furthest = furthest.max(2);
+                let reach = if c.grenade_held_reach {
+                    // The frag's real reach from the thrower's eye over the spot's ground, not the 27 m of the other places.
+                    arc::Grenade::bots().max_range((me.eye().y - line.at.y).max(0.0)).unwrap_or(c.grenade_m.1).max(c.grenade_m.1)
+                } else {
+                    c.grenade_m.1
+                };
+                if !(c.grenade_m.0..=reach).contains(&line.at.distance_xz(me.feet)) {
+                    continue;
+                }
+                furthest = furthest.max(3);
+                if line.covers(me.feet) {
+                    continue;
+                }
+                furthest = furthest.max(4);
+                if places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m) || friend_near(line.at) {
+                    continue;
+                }
+                furthest = furthest.max(5);
                 if claimed(line.at) {
                     self.grenade_stats.claimed += 1;
                     continue;
                 }
+                furthest = 6;
                 places.push((line.at, PlaceSource::Spot));
-                self.spot_shooters.push((line.at, line.shooter));
+                self.spot_shooters.push((line.at, line.shooter, line.id));
+            }
+            for stage in 0..furthest {
+                self.grenade_stats.held_funnel[stage] += 1;
             }
         }
         self.grenade_stats.claimed += dropped;
@@ -4692,6 +4776,7 @@ impl Reflex {
             self.next_grenade_roll = now + c.grenade_roll_ms;
             return;
         }
+        self.grenade_stats.held_funnel[6] += u32::from(furthest == 6);
         // A held spot first, then the nearest.
         places.sort_by(|a, b| {
             (a.1 != PlaceSource::Spot)
@@ -4808,6 +4893,12 @@ impl Reflex {
                     source,
                     kind,
                     near,
+                    spot: self
+                        .spot_shooters
+                        .iter()
+                        .find(|(spot, ..)| *spot == at)
+                        .filter(|_| source == PlaceSource::Spot)
+                        .map(|(.., id)| *id),
                 });
             }
             Err((at, why)) if kind == ThrowKind::Roll => self.hold_back(at, why),
@@ -5026,8 +5117,8 @@ impl Reflex {
                         throw.at.x,
                         throw.at.y,
                         throw.at.z,
-                        match self.spot_shooters.iter().find(|(at, _)| *at == throw.at) {
-                            Some((_, shooter)) if throw.source == PlaceSource::Spot => format!(" (at a held spot of shooter {shooter})"),
+                        match self.spot_shooters.iter().find(|(at, ..)| *at == throw.at) {
+                            Some((_, shooter, _)) if throw.source == PlaceSource::Spot => format!(" (at a held spot of shooter {shooter})"),
                             _ => String::new(),
                         }
                     ));
@@ -5741,7 +5832,7 @@ impl Reflex {
             view,
             &lines.0,
             distance,
-            aim.friends.spread(gun),
+            aim.friends.spread(gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
             lines.1,
             &aim.friends,
         );
@@ -5842,7 +5933,7 @@ impl Reflex {
                 view,
                 &lines,
                 (track.who(), distance),
-                gun,
+                (gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
                 fire,
                 now,
                 &aim.friends,
@@ -5947,7 +6038,15 @@ impl Reflex {
         }
         let keys = reload | if carry { key::AIM } else { 0 };
         let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends);
-        let friend = super::friends::blocking(me, view, &lines.0, distance, aim.friends.spread(gun), lines.1, &aim.friends);
+        let friend = super::friends::blocking(
+            me,
+            view,
+            &lines.0,
+            distance,
+            aim.friends.spread(gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
+            lines.1,
+            &aim.friends,
+        );
         let share = self.sight.damage_share(me.eye(), at, rule, c.fire_through_share)?;
         if share < c.fire_through_share {
             self.through_stats.refused_share += 1;
@@ -6126,13 +6225,13 @@ impl Reflex {
         view: &MatchView,
         (dirs, ahead_s): &([Vec3; 2], f32),
         (target, distance): (Place, f32),
-        gun: &Gun,
+        (gun, sights): (&Gun, super::friends::Sights),
         fired: bool,
         now: u32,
         t: &super::friends::FriendlyFireTuning,
     ) {
         let Some(near) =
-            super::friends::closest(me, view, dirs, distance, t.spread(gun), *ahead_s, t)
+            super::friends::closest(me, view, dirs, distance, t.spread(gun, sights), *ahead_s, t)
                 .filter(|near| near.room() <= FRIEND_NOTE_ROOM_M)
         else {
             return;
@@ -8639,6 +8738,10 @@ mod tests {
         // Sensed 1.5 s ago: thrown at, from the held spot's source.
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &times);
         assert!(claim.is_some() && stats.places[PlaceSource::Spot.index()] > 0, "{stats:?}");
+        // The funnel counts the furthest a spot got in each think that reached the roll: all the way and a frag (the kit's
+        // `frags_left` is unknown: a frag), then the roll's lockout stops the others.
+        assert!(stats.held_funnel.iter().all(|&n| n == 1), "{stats:?}");
+        assert!(stats.held_busy[3] > 0 || stats.held_busy[0] > 0, "{stats:?}");
         // The switch off: no place at all (the chance for the other sources is 0).
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(None), &times);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
@@ -8646,16 +8749,112 @@ mod tests {
         let late = [8_000, 8_500, 9_000];
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &late);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        assert_eq!(stats.held_funnel, [3, 0, 0, 0, 0, 0, 0], "{stats:?}");
         let (stats, _) = run(&team_with(None, &victims), &aim(Some(1.0)), &times);
         assert_eq!(stats.places, [0; GRENADE_SOURCES], "{stats:?}");
         // The thrower in one of his lanes: not thrown from there.
         let (stats, claim) = run(&team_with(Some(1_500), &[Vec3::ZERO]), &aim(Some(1.0)), &times);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        assert_eq!(stats.held_funnel, [3, 3, 3, 0, 0, 0, 0], "{stats:?}");
         // A teammate's claim on the place within a few seconds: left to him.
         let mut claimed = team_with(Some(1_500), &victims);
         claimed.claim_throw(7, spot, 1_500);
         let (stats, claim) = run(&claimed, &aim(Some(1.0)), &times);
         assert!(claim.is_none() && stats.claimed > 0, "{stats:?}");
+        assert_eq!(stats.held_funnel[4..], [3, 0, 0], "{stats:?}");
+    }
+
+    /// [A170] A held spot is a place out to the frag's real reach (about 30 m from the eye over level ground) with
+    /// `grenade_held_reach`, 27 m without; beyond the reach, none.
+    #[test]
+    fn a_held_spot_is_a_place_out_to_the_frags_real_reach() {
+        use super::super::threat::{HeldLine, Picture};
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let reach = arc::Grenade::bots().max_range(me.eye().y).expect("a throw reaches the ground");
+        assert!(reach > 29.0 && reach < 32.0, "{reach}");
+        let places = |distance: f32, held_reach: bool| {
+            let spot = Vec3::new(0.0, 0.0, distance);
+            let mut team = TeamKnowledge::default();
+            team.threat = Arc::new(Picture {
+                held: vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, distance)], Some(1_500))],
+                jobs: Vec::new(),
+            });
+            let aim = AimTuning {
+                combat: CombatTuning {
+                    grenade_tracks: false,
+                    grenade_chance: 0.0,
+                    grenade_held_reach: held_reach,
+                    ..CombatTuning::default()
+                },
+                ..AimTuning::default()
+            };
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let sit = Situation {
+                team: Some(&team),
+                ..Situation::of(&view)
+            };
+            for now in [1_800, 2_300, 2_800] {
+                sense(&mut memory, &[], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            reflex.grenade_stats().places[PlaceSource::Spot.index()]
+        };
+        assert!(places(25.0, false) > 0 && places(25.0, true) > 0);
+        assert_eq!(places(29.0, false), 0, "beyond the 27 m of the other places");
+        assert!(places(29.0, true) > 0, "inside the reach");
+        assert_eq!(places(reach + 2.0, true), 0, "beyond the reach");
+    }
+
+    /// [A170] A throw at a held spot the team's picture drops before the key is let go is given up, the frag kept and counted;
+    /// without `grenade_held_recheck` it goes on.
+    #[test]
+    fn a_throw_at_a_held_spot_the_team_dropped_is_given_up() {
+        use super::super::threat::{HeldLine, Picture};
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let spot = Vec3::new(0.0, 0.0, 22.0);
+        let team_with = |held: bool| {
+            let mut team = TeamKnowledge::default();
+            team.threat = Arc::new(Picture {
+                held: if held { vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, 22.0)], Some(1_500))] } else { Vec::new() },
+                jobs: Vec::new(),
+            });
+            team
+        };
+        let run = |recheck: bool| {
+            let aim = AimTuning {
+                combat: CombatTuning {
+                    grenade_tracks: false,
+                    grenade_chance: 0.0,
+                    grenade_held_recheck: recheck,
+                    ..CombatTuning::default()
+                },
+                ..AimTuning::default()
+            };
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let (with, without) = (team_with(true), team_with(false));
+            sense(&mut memory, &[], 1_800);
+            let sit = Situation {
+                team: Some(&with),
+                ..Situation::of(&view)
+            };
+            reflex.think_with(&me, &sit, &memory, 1_800, &aim, 0.5, &mut rng);
+            assert_eq!(reflex.throw.map(|throw| (throw.source, throw.spot)), Some((PlaceSource::Spot, Some(3))));
+            let sit = Situation {
+                team: Some(&without),
+                ..Situation::of(&view)
+            };
+            sense(&mut memory, &[], 1_850);
+            reflex.think_with(&me, &sit, &memory, 1_850, &aim, 0.5, &mut rng);
+            (reflex.throw.is_some(), reflex.grenade_stats().held_dropped, reflex.thrown)
+        };
+        assert_eq!(run(true), (false, [1, 0], 0));
+        assert_eq!(run(false), (true, [0, 0], 0));
     }
 
     /// The arc searched again at the press: only with `grenade_repick` (and
@@ -8677,6 +8876,7 @@ mod tests {
             source: PlaceSource::Heard,
             kind: ThrowKind::Roll,
             near: None,
+            spot: None,
         };
         let on = CombatTuning {
             grenade_search: true,

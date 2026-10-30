@@ -10,6 +10,8 @@
       "grenade_chance": 0.15,
       "grenade_claim": false,
       "grenade_friend_m": 6.0,
+      "grenade_held_reach": false,
+      "grenade_held_recheck": false,
       "grenade_kit_cap": false,
       "grenade_land_m": 12.0,
       "grenade_lead_s": 4.0,
@@ -23,6 +25,9 @@
       "worth": {
         "hurt_from": "body"
       }
+    },
+    "friends": {
+      "spread_source": "constants"
     }
   },
   "avoid": {

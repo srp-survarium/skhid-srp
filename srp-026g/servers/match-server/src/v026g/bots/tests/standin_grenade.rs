@@ -34,6 +34,9 @@ use survarium::v026g::loadouts::BOT_GRENADE;
 use super::standin_damage::Pool;
 use super::{Body, Game, Kill, Place, STAND_IN_LEG_BROKEN_MS};
 
+/// The RGD-5's `stopping_power` (the grenade block's, PROVEN, sprint-jump RE `FINDINGS.md` §1.1: 0.1).
+const GRENADE_STOPPING_POWER: f32 = 0.1;
+
 /// What one kit holds of fragmentation grenades: the units a spawn takes (`count`, the pockets' units) and the profile's store
 /// (`stored`, the item's `amount_in_storage`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -187,6 +190,7 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         }
         if on_body > 0.0 || on_pain > 0.0 {
             body.last_hit = tick;
+            body.stagger.hit(tick, GRENADE_STOPPING_POWER);
         }
         let killed = body.health <= 1e-3 || body.pools.dead();
         if killed {

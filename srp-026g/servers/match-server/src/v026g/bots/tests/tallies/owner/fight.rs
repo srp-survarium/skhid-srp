@@ -35,6 +35,8 @@ pub(super) struct FightCounts {
     pub(super) range_held: BTreeMap<&'static str, u32>,
     /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
     pub(super) fire_move: [u32; 5],
+    /// Fire ticks in the air by the play the shooter runs (its index in `Run::plays`).
+    pub(super) fire_air_play: BTreeMap<usize, u32>,
     pub(super) hits_move: [u32; 5],
     /// Fire ticks with a side key held ([`SIDE_KEYS`]), whatever else is held
     /// (`duels-humans-vs-bots.md` table 2: humans 75.0 %, bots 82.3 %).
@@ -613,6 +615,9 @@ impl FightCounts {
     pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
         if body.alive && body.keys & key::FIRE != 0 {
             self.fire_move[move_of(rec)] += 1;
+            if MOVES[move_of(rec)] == "air" {
+                *self.fire_air_play.entry(usize::from(rec.play)).or_default() += 1;
+            }
             self.fire_side_key += u32::from(rec.keys & SIDE_KEYS != 0);
             // At the target: with a line to him or not.
             match body.target.and_then(|t| enemy_of(game, place, body.team, t)) {
@@ -943,6 +948,16 @@ impl FightCounts {
             w.kept,
             w.bytes / 1024
         );
+        let air: BTreeMap<String, u32> = self
+            .fire_air_play
+            .iter()
+            .map(|(&i, &n)| (run.plays.get(i).map_or("none", String::as_str).to_owned(), n))
+            .fold(BTreeMap::new(), |mut m, (k, n)| {
+                *m.entry(k).or_default() += n;
+                m
+            });
+        json["fire_air_by_play"] = serde_json::json!(air);
+        let text = format!("{text}; fire ticks in the air by play {}", air.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "));
         Part::new(json, text)
     }
 }
