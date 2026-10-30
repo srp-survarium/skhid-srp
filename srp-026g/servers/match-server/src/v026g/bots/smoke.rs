@@ -775,6 +775,9 @@ pub mod tally {
         /// [smoke.spot_rules] A bot's route ahead (`lane_ahead_m`) enters ground a held lane covers but a cloud hides from
         /// its shooter now: it crosses under the cloud (counted once a crossing, 10 s apart a bot).
         UnderCloud,
+        /// A think with a smoke plan to make (an outranging sniper not in sight of the bot, or a held lane the bot is not in) that
+        /// the bot's held sprint (`sprinting` in `think::smoke_uses`) shut off: a short gap is sprinted, not smoked.
+        SprintSkip,
     }
 
     impl Event {
@@ -787,7 +790,7 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 15;
+    pub const EVENTS: usize = 16;
 
     /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
     /// died (the life ended with it under way). Every throw begun ends in one of the last three.

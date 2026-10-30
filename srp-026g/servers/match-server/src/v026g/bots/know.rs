@@ -558,6 +558,12 @@ impl Memory {
         &self.tracks
     }
 
+    /// TEST ONLY: a memory that holds these tracks.
+    #[cfg(test)]
+    pub fn with_tracks(tracks: Vec<Track>) -> Self {
+        Self { tracks, ..Self::default() }
+    }
+
     /// An enemy died: it is not where it was.
     pub fn forget(&mut self, who: Place) {
         self.tracks.retain(|track| track.who != who);

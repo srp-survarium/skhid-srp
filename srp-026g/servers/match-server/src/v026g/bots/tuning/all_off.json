@@ -48,6 +48,7 @@
     "spot_cost": null
   },
   "feel": {
+    "band_from_grid": false,
     "band_jump_gate": false,
     "carrier_jump_m": null,
     "drop_aim": false,
@@ -93,6 +94,12 @@
     "frags": "off",
     "pocket_store": false,
     "smoke": "off"
+  },
+  "pace": {
+    "calm_sprint": false,
+    "reserve": null,
+    "ring_death_spots": false,
+    "ring_radar": false
   },
   "sense": {
     "bush_notice": 0.0,
