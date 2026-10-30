@@ -227,8 +227,8 @@ fn flank_spots(cx: &Ctx, him: Vec3, facing: [f32; 2], yaw: f32, rng: &mut Rng) -
     flank_spots_of(cx, him, facing, yaw, None, rng)
 }
 
-/// The query round a flank's centre `centre` on him at `him`, for a job's held spot `job` (his observed eye
-/// with `job_spot_sight_eye`, the storeys under and over with `job_spot_levels`) or a seen holder (none).
+/// The query round a flank's centre `centre` on him at `him`, for a job's held spot `job` (the storeys under and over
+/// with `job_spot_levels`) or a seen holder (none).
 fn flank_query(cx: &Ctx, him: Vec3, centre: Vec3, job: Option<&crate::v026g::bots::threat::HeldLine>) -> SpotQuery {
     let num = |name| cx.num(PlayKind::Flank, name);
     let (lo, hi) = (num("spot_min_m"), num("spot_max_m"));
@@ -236,8 +236,6 @@ fn flank_query(cx: &Ctx, him: Vec3, centre: Vec3, job: Option<&crate::v026g::bot
     let levels = if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 };
     SpotQuery {
         sight_to: Some(him),
-        // Fairness: the eye as the team last observed him on the spot (`HeldLine::eye_m`), never his live pose.
-        sight_up_m: job.filter(|_| threat.job_spot_sight_eye).map_or(1.0, |l| l.eye_m),
         up_m: levels,
         down_m: levels,
         side: cx.bot.side,

@@ -49,13 +49,6 @@ fn threat_tick(
             {
                 enemies.push(at);
                 threat.spots.shooter_sensed(track.who, at, time, rules);
-                // His stance, only while a teammate sees him (his keys are not the team's to read otherwise).
-                if bot.memory.seen(track.who, now, view.clock).is_some()
-                    && let Some(p) = view.place(track.who)
-                {
-                    let stance = if p.keys & crate::v026g::drive::key::CROUCH != 0 { threat::Stance::Crouched } else { threat::Stance::Standing };
-                    threat.spots.shooter_seen_as(track.who, at, stance, rules);
-                }
             }
         }
     }

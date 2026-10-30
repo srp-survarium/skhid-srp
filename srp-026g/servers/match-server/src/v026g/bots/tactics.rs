@@ -409,10 +409,8 @@ pub struct SpotQuery {
     pub around: Vec3,
     pub min_m: f32,
     pub max_m: f32,
-    /// The spot must see this point raised by [`Self::sight_up_m`] (from crouched eyes).
+    /// The spot must see this point (from crouched eyes).
     pub sight_to: Option<Vec3>,
-    /// How far over `sight_to` the sight line ends, m (1: a body's middle; a job's spots, his observed eye).
-    pub sight_up_m: f32,
     /// The solid `sight_to` lies in (a container's box): a sight line that
     /// ends on it sees it ([`Tactics::sees_body`]).
     pub sight_body: Option<Shape>,
@@ -448,7 +446,6 @@ impl SpotQuery {
             min_m,
             max_m,
             sight_to: None,
-            sight_up_m: 1.0,
             sight_body: None,
             unseen_by: None,
             out_of_fire_of: None,
@@ -2100,7 +2097,7 @@ impl Tactics {
                         .contains(node)
                 {
                     "storey_no_walk"
-                } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, query.sight_up_m, 0.0))) {
+                } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, 1.0, 0.0))) {
                     "no_sight"
                 } else {
                     "other_filter"
@@ -2177,7 +2174,7 @@ impl Tactics {
             }
             let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
-                let target = target + Vec3::new(0.0, query.sight_up_m, 0.0);
+                let target = target + Vec3::new(0.0, 1.0, 0.0);
                 let seen = match &query.sight_body {
                     Some(body) => self.sees_body(eye, target, body),
                     None => self.sees(eye, target),
@@ -3486,21 +3483,6 @@ pub(super) mod tests {
         assert!(level.iter().all(|&y| y > 2.0), "{level:?}");
         let under = ys(&query(8.0));
         assert!(under.iter().any(|&y| y < 1.0), "{under:?}");
-    }
-
-    /// The sight line of a spot search ends `sight_up_m` over its point.
-    #[test]
-    fn a_spot_must_see_the_point_raised_by_sight_up_m() {
-        let tactics = Tactics::new(field(), 1.0);
-        let base = SpotQuery {
-            sight_to: Some(Vec3::new(30.0, 0.0, 30.0)),
-            side: Some(0),
-            ..SpotQuery::ring(Vec3::new(30.0, 0.0, 30.0), 5.0, 15.0)
-        };
-        // On open ground the raised point changes nothing; the default is the old 1 m.
-        assert_eq!(base.sight_up_m, 1.0);
-        let raised = SpotQuery { sight_up_m: 1.6, ..base };
-        assert_eq!(tactics.spots(&base, 0, 20, &mut Rng::new(9)), tactics.spots(&raised, 0, 20, &mut Rng::new(9)));
     }
 
     /// A storey only a jump chain gets onto is not offered over the ring:

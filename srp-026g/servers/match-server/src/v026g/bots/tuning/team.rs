@@ -188,14 +188,6 @@ pub struct ThreatTuning {
     /// Crossfire on an enemy's last place that is a held spot's centre was
     /// taken for the job's pin; verify-703 should-fix 5).
     pub job_line_by_id: bool,
-    /// Breach slice 0 cause 2 (`breach-s0-findings.md`): a job's flank and pin spots are those that see his eye as the
-    /// team last observed him on the spot (his stance when last seen there, standing when only heard or given by the
-    /// kill feed: `HeldLine::eye_m`), not his feet + 1 m. A sill or window he shot over hides the 1 m point while his
-    /// eye, which made the kills, is seen: no sight was 33 % of the flankers' and 21 % of the pinners' unplayed roles.
-    /// Off by default (js-h2h-664859f0, v5, 96 pairs; js-mech-41ee0edb): it does not move its own class (no sight
-    /// 195 -> 176 flanker, 119 -> 140 pinner unplayed roles), so the 1 m point was not the cause; the A-only arm's
-    /// score -0.3 % (z -0.3). What hides him from the ring is not yet traced.
-    pub job_spot_sight_eye: bool,
     /// Breach slice 0 cause 1: a job's flank and pin spot rings also take the floors of the storeys under and over
     /// his height, within [`crate::v026g::bots::threat::JOB_LEVELS_M`] (the flank ring took only his own height, the
     /// pin's only upward): a camper on a roof, an upper storey or a slope left the ring with no floor (26 % of each
@@ -283,7 +275,6 @@ impl Default for ThreatTuning {
             job_open_staffed: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
-            job_spot_sight_eye: false,
             job_spot_levels: false,
             gang_up: Some(GangUp::default()),
         }

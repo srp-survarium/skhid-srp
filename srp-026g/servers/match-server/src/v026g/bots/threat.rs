@@ -930,8 +930,6 @@ pub struct Spot {
     kills: Vec<Kill>,
     pub reach_m: f32,
     shooter_seen: Option<u32>,
-    /// His stance when a teammate last saw him on it (none: only heard, or the kill feed).
-    seen_as: Option<Stance>,
     empty_since: Option<u32>,
     cast: Cast,
     /// Held at the last commander tick (the Held note is a change of it).
@@ -1163,7 +1161,6 @@ impl ThreatSpots {
                 kills: vec![kill],
                 reach_m: reach,
                 shooter_seen: Some(sensed),
-                seen_as: None,
                 empty_since: None,
                 cast: Cast::Due { kept: None },
                 held_then: false,
@@ -1234,14 +1231,6 @@ impl ThreatSpots {
             if s.at.distance_xz(at) <= rules.on_m() && s.shooter_seen.is_none_or(|t| time > t) {
                 s.shooter_seen = Some(time);
             }
-        }
-    }
-
-    /// A teammate sees `shooter` at `at` now, in `stance` (his keys, read only while seen, as Flank reads a held
-    /// angle): his spot there keeps it, the eye a job's spots look for (`HeldLine::eye_m`).
-    pub fn shooter_seen_as(&mut self, shooter: Place, at: Vec3, stance: Stance, rules: SpotRules) {
-        for s in self.spots.iter_mut().filter(|s| s.shooter == shooter && s.at.distance_xz(at) <= rules.on_m()) {
-            s.seen_as = Some(stance);
         }
     }
 
@@ -1393,7 +1382,6 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 kills: s.kills.len(),
                 seen: s.shooter_seen,
-                eye_m: eye_height(s.seen_as == Some(Stance::Crouched), 0.0, 0.0),
             })
             .collect()
     }
@@ -1402,13 +1390,6 @@ impl ThreatSpots {
 /// How far round a job's held spot its flank and pin rings look under and over his height for floors, m
 /// (`ThreatTuning::job_spot_levels`): a storey or two, as Crossfire's `up_m`.
 pub const JOB_LEVELS_M: f32 = 8.0;
-
-/// A shooter's stance as the team last saw it on a spot.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Stance {
-    Standing,
-    Crouched,
-}
 
 /// A held spot as the plays read it: its place, shooter, lanes and reach.
 #[derive(Clone, Debug, PartialEq)]
@@ -1425,9 +1406,6 @@ pub struct HeldLine {
     pub kills: usize,
     /// When the team last sensed him on it, if since his last death.
     pub seen: Option<u32>,
-    /// His eye over the spot's floor as the team last observed him on it (fairness: the stance a teammate saw,
-    /// [`ThreatSpots::shooter_seen_as`]; standing when he was only heard or given by the kill feed), m.
-    pub eye_m: f32,
 }
 
 impl HeldLine {
@@ -1444,7 +1422,6 @@ impl HeldLine {
             reach_m: 50.0,
             kills: victims.len(),
             seen,
-            eye_m: eye_height(false, 0.0, 0.0),
         }
     }
 
@@ -2121,23 +2098,6 @@ mod tests {
         assert_eq!(spots.held(41_000).count(), 0);
     }
 
-    /// A job's spots look for his eye as the team last saw him on the spot: standing until a teammate sees him
-    /// crouched there, then crouched; a sight of him off the spot changes nothing.
-    #[test]
-    fn a_held_lines_eye_is_his_stance_as_last_seen_on_it() {
-        let mut spots = ThreatSpots::default();
-        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
-        spots.died(at(30.0), 7, at(0.0), 500, 1_000, OLD);
-        let eye = |spots: &ThreatSpots| spots.held_lines(1_000, OLD)[0].eye_m;
-        assert_eq!(eye(&spots), eye_height(false, 0.0, 0.0), "only the kill feed: standing");
-        spots.shooter_seen_as(7, at(1.0), Stance::Crouched, OLD);
-        assert_eq!(eye(&spots), eye_height(true, 0.0, 0.0));
-        spots.shooter_seen_as(7, at(40.0), Stance::Standing, OLD);
-        assert_eq!(eye(&spots), eye_height(true, 0.0, 0.0), "seen off the spot");
-        spots.shooter_seen_as(7, at(1.0), Stance::Standing, OLD);
-        assert_eq!(eye(&spots), eye_height(false, 0.0, 0.0));
-    }
-
     #[test]
     fn the_shooters_death_halves_the_spot() {
         let mut spots = ThreatSpots::default();
@@ -2361,7 +2321,6 @@ mod tests {
 
     fn line(id: u32, at: Vec3, bearings: &[f32]) -> HeldLine {
         HeldLine {
-            eye_m: eye_height(false, 0.0, 0.0),
             id,
             at,
             shooter: 7,
