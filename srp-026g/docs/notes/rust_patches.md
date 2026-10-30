@@ -366,13 +366,6 @@ Unicorn check against the original exe (`check_<patch>_026g.py`), which runs
 to the reconvergence point; the gate stays for shape-preserving ports and as
 the porting model.
 
-For the lamp port, `port/check_lamps_equivalence_026g.py` is a stateful gate:
-it runs both executables through complete native project/bullet/history/frame
-lifecycles and compares calls, wire bytes, native fields and normalized vtable
-ownership after every event. This covers changed private state layouts and
-merged hook chains; the single-hook gate's private byte-write comparison would
-compare implementation details rather than the engine-visible behavior.
-
 The equivalence gate may skip an out-pointer argument and a slot the game
 never reads again (declared in the spec, with the proof cited), and a new
 Rust patch that is not a port needs no spec -- its Unicorn check and cargo

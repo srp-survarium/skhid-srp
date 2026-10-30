@@ -134,22 +134,13 @@ Additional cases verify atomic binding failures and unconfigured scenery.
 Renderer/effect queue endpoints, the writer's byte sink and OS services are
 stubbed; the native material-pair lookup runs normally.
 
-The stateful port gate is:
-
-```
-python port/check_lamps_equivalence_026g.py ORIGINAL OLD_PATCHED NEW_PATCHED
-```
-
-It compares C and Rust after every operation: renderer/effect call traces,
-complete history bytes, native object fields and normalized vtable ownership.
-It includes 400 seeded shots, all 92 variants, restoration, teardown and
-malformed history. Private state layouts differ, and frame/ray hooks now
-share generated entries, so the single-hook byte-write gate is not the
-appropriate comparison. The C reference is commit `a4f05203`; the saved
-reference exe's SHA-256 is
-`571b6864669cdc6e69312a5e2583036cb6db9e6d0197571348171f91d766f5a5`.
-Stronger atomic metadata rejection is tested separately, not claimed as
-byte-for-byte equivalence with the C implementation's partial installation.
+The Rust port was checked once against the C reference (commit `a4f05203`,
+never shipped; its exe SHA-256
+`571b6864669cdc6e69312a5e2583036cb6db9e6d0197571348171f91d766f5a5`) by a
+stateful gate: 1,692 comparisons over 400 seeded shots, all 92 variants,
+restoration, teardown and malformed history, with matching renderer/effect
+call traces, history bytes, native object fields and vtable ownership. The
+C code and that port-only gate were then removed.
 
 Rust tests cover geometry, total state transitions, every supported snapshot
 capacity, truncation, padding, restoration, owned bounded storage and

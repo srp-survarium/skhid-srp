@@ -74,8 +74,8 @@ states. History is parsed before committing its cursor or changing state.
 The generated shared hooks and runtime vtable copies replace every manual
 lamp hook and both old C/NASM source files.
 
-The stateful equivalence gate passed 1,692 comparisons, including 400 seeded
-shots and all 92 map variants. Native tests also verify atomic rejection of
+The stateful equivalence gate (run once, then removed with the C code) passed
+1,692 comparisons, including 400 seeded shots and all 92 map variants. Native tests also verify atomic rejection of
 bad metadata, a successful retry, unconfigured scenery, history failures,
 removal, destructor fallback and new-match reset. The Rust suite passed 26
 tests. All 46 client Unicorn checks and the launcher check passed; ragdoll's

@@ -3698,8 +3698,8 @@ The safe Rust `lamps` module uses typed config, geometry, history and project
 views. One project registry owns renderer membership and native bindings.
 `lamps.toml` declares generated hooks and runtime vtable copies; frame and
 bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
-code. The stateful C/Rust equivalence gate and native tests cover all authored
-maps. Details and test limits: `../docs/notes/breakable_lamps.md`.
+code. Native Unicorn tests cover all authored maps. Details and test limits:
+`../docs/notes/breakable_lamps.md`.
 
 ## Artefact score (patch 80, unreleased)
 
