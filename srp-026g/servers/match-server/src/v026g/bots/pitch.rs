@@ -169,6 +169,27 @@ mod tests {
     }
 
     #[test]
+    fn a_full_pull_takes_back_the_kicks_lift_in_elevation_under_either_scale() {
+        // The reflex lifts its line by the kick (`rise(kick)`) and turns back by the pull (`rise(-share x kick)` at the pitch the
+        // view is at, `drive.rs`): with the whole kick pulled, what the kick raised and what the pull lowered are the same elevation,
+        // whichever unit the scale gives (before, the pull went in as units on an elevation turn and left 4-15 % of the kick).
+        for scale in [PitchScale::Radian, PitchScale::Client] {
+            for pitch in [0.3, 0.7, -0.3, -0.7] {
+                for kick in [0.01, 0.03, 0.08] {
+                    let view = Pitch::new(pitch);
+                    let lifted = view.rise(kick, scale);
+                    let pulled = view.rise(-kick, scale);
+                    assert!((lifted + pulled).abs() < 1e-6, "{scale:?} {pitch} {kick}: {lifted} {pulled}");
+                }
+            }
+        }
+        // And a unit is 60 degrees up and 67.48 down on the client's scale, so the pull in elevation is not the pull in units.
+        let up = Pitch::new(0.3).rise(-0.03, PitchScale::Client).to_degrees();
+        let down = Pitch::new(-0.3).rise(-0.03, PitchScale::Client).to_degrees();
+        assert!((up + 1.8).abs() < 1e-3 && (down + 2.0244).abs() < 1e-3, "{up} {down}");
+    }
+
+    #[test]
     fn what_the_unit_is_not_a_radian_is_the_old_error() {
         // The bug in numbers: a target 15 degrees below the eye, the bot sends -15 degrees as a radian turn.
         let sent = (-15.0f32).to_radians();

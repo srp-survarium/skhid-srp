@@ -1612,7 +1612,8 @@ fn drive_tick_inner(
         }
     }
     let lift_paced = decision.keys & lift_wants == lift_wants;
-    decision.turn.1 += over.pull;
+    // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
+    decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);
     if over.fire && !using {
         decision.keys |= key::FIRE;
         decision.keys &= !key::SPRINT;
