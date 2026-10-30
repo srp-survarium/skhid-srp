@@ -1128,9 +1128,14 @@ impl ThreatSpots {
         }
     }
 
-    /// The places of `shooter`'s spots that are held at `now` (before his death takes their sense).
-    pub fn held_of(&self, shooter: Place, now: u32) -> Vec<Vec3> {
-        self.spots.iter().filter(|s| s.shooter == shooter && s.held(now)).map(|s| s.at).collect()
+    /// The places of `shooter`'s spots that are held at `now` (before his death takes their sense) and that killed at least
+    /// `min_kills` of the team's bots: a holder, not a shooter who killed once in passing.
+    pub fn held_of(&self, shooter: Place, now: u32, min_kills: usize) -> Vec<Vec3> {
+        self.spots
+            .iter()
+            .filter(|s| s.shooter == shooter && s.held(now) && s.kills.len() >= min_kills)
+            .map(|s| s.at)
+            .collect()
     }
 
     /// The events since the last call, oldest first.
@@ -2129,6 +2134,19 @@ mod tests {
         spots.shooter_died(7, 2_000);
         // 2.0 becomes 1.0, and he is not sensed on it any more.
         assert_eq!(spots.held(2_000).count(), 0);
+    }
+
+    /// [A145] A killed shooter's spot is a holder's only when he killed from it again (the camper class), whatever else is held.
+    #[test]
+    fn a_holder_is_a_shooter_who_killed_again_from_one_place() {
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        assert_eq!(spots.held(1_000).count(), 1, "one kill, the shooter sensed on it: held");
+        assert!(spots.held_of(7, 1_000, 2).is_empty(), "but no holder");
+        assert_eq!(spots.held_of(7, 1_000, 1).len(), 1);
+        spots.died(at(31.0), 7, at(0.0), 700, 900, OLD);
+        assert_eq!(spots.held_of(7, 1_000, 2).len(), 1, "killed again from it");
+        assert!(spots.held_of(8, 1_000, 1).is_empty(), "another shooter's");
     }
 
     #[test]

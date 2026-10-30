@@ -107,6 +107,10 @@ pub struct DefeatedTuning {
     /// How far ahead along the route the spot is looked for, metres (at most `route_ahead_m`): a route that passes it within
     /// `within_m` waits for it.
     pub ahead_m: f32,
+    /// A held threat spot is a holder's only when it killed at least this many of the team's bots (a holder, as the camper class of
+    /// `an-anticamper.md` is: one who kills from one place again and again; one kill in passing is no holder). A place the killer's
+    /// own senses had the enemy staying at for `camp_ms` (8 s) counts whatever the spot's kills.
+    pub min_kills: u8,
 }
 
 impl Default for DefeatedTuning {
@@ -116,6 +120,7 @@ impl Default for DefeatedTuning {
             within_m: 3.0,
             friend_m: 6.0,
             ahead_m: 12.0,
+            min_kills: 2,
         }
     }
 }
@@ -326,6 +331,7 @@ impl Check for TrapTuning {
                     && d.friend_m >= self.friend_m
                     && d.ahead_m >= 2.0
                     && d.ahead_m <= self.route_ahead_m
+                    && d.min_kills <= 5
             }),
             "traps.at_defeated",
         )?;

@@ -98,7 +98,7 @@ impl Bots {
                     .features
                     .threat
                     .spots
-                    .held_of(a.place, time)
+                    .held_of(a.place, time, usize::from(defeated.min_kills))
                     .into_iter()
                     .map(|at| (at, DefeatedKind::Spot))
                     .collect();
