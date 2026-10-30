@@ -5,7 +5,9 @@
 //!
 //! Key of the `owner` object `kick_gap`: `"first"` / `"later"` (as `shot_heights`) -> `"<band>"` (`0-20`, `20-40`, `40+` m, `none`: no
 //! target) -> `pairs`, `gap_sum` (the sum of stand-in minus mirror, degrees of vertical kick: positive, the view is higher than the bot
-//! thinks) and `gap_abs_sum`; and `ticks` -> `same` (as many shots), `fired_more`, `counted_more`, `fired_only` (the stand-in fired and
+//! thinks) and `gap_abs_sum`; `recent` (the same sums for the shots a tick after which the shooter had a tick whose shot counts differed
+//! in the 1000 ms before: `recent_pairs`, `recent_gap_sum`) and `steady_pairs` / `steady_gap_sum` (the rest); `refused` -> the
+//! stand-in's reason, by [`REFUSALS`], for each tick the mirror counted more shots than it fired; and `ticks` -> `same` (as many shots), `fired_more`, `counted_more`, `fired_only` (the stand-in fired and
 //! the mirror counted none), `counted_only`.
 
 use super::shot_heights::first_of_run;
@@ -15,6 +17,10 @@ use crate::v026g::bots::recoil::TOP_DEG_PER_UNIT;
 const EDGES: [f32; 2] = [20.0, 40.0];
 const BANDS: [&str; 4] = ["0-20", "20-40", "40+", "none"];
 const POSITIONS: [&str; 2] = ["first", "later"];
+/// The stand-in's reasons a weapon is not firing (`KickTick::why`).
+const REFUSALS: [&str; 9] = ["", "dead", "no_key", "carrying", "drawing", "busy", "empty", "cooling", "none"];
+/// A tick whose shot counts differed makes the shots in the next this many ms "recent".
+const RECENT_MS: u32 = 1_000;
 
 #[derive(Clone, Copy, Default)]
 struct Cell {
@@ -29,6 +35,12 @@ pub(super) struct KickGap {
     /// Ticks by how the shot counts compare: same, fired more, counted more, fired only, counted only.
     ticks: [u32; 5],
     last: Vec<Option<u32>>,
+    /// Each shooter's last tick whose shot counts differed.
+    mismatch: Vec<Option<u32>>,
+    /// The later shots after a mismatch in the 1000 ms before and the others: pairs, the gap's sum.
+    recent: [(u32, f64); 2],
+    /// The stand-in's reasons on the ticks the mirror counted more.
+    refused: [u32; 9],
 }
 
 /// How the shots the stand-in fired compare with the ones the mirror counted: an index of [`KickGap::ticks`].
@@ -60,9 +72,25 @@ impl Topic for KickGap {
             cell.pairs += 1;
             cell.gap_sum += gap;
             cell.gap_abs_sum += gap.abs();
+            if !first {
+                let recent = self.mismatch.get(pair.shooter).copied().flatten().is_some_and(|at| pair.tick < at + RECENT_MS);
+                let split = &mut self.recent[usize::from(!recent)];
+                split.0 += 1;
+                split.1 += gap;
+            }
         }
         for tick in std::mem::take(&mut game.kick_ticks) {
-            self.ticks[compare(tick.fired, tick.counted)] += 1;
+            let how = compare(tick.fired, tick.counted);
+            self.ticks[how] += 1;
+            if how != 0 {
+                if self.mismatch.len() <= tick.shooter {
+                    self.mismatch.resize(tick.shooter + 1, None);
+                }
+                self.mismatch[tick.shooter] = Some(tick.tick);
+            }
+            if tick.counted > tick.fired {
+                self.refused[usize::from(tick.why).min(8)] += 1;
+            }
         }
     }
 
@@ -88,6 +116,24 @@ impl Topic for KickGap {
             json.insert((*label).to_string(), serde_json::Value::Object(by_band));
             text.push(line);
         }
+        let refused: serde_json::Map<String, serde_json::Value> =
+            REFUSALS.iter().zip(self.refused).skip(1).map(|(name, n)| ((*name).to_string(), n.into())).collect();
+        json.insert("refused".to_string(), serde_json::Value::Object(refused));
+        json.insert(
+            "recent".to_string(),
+            serde_json::json!({
+                "recent_pairs": self.recent[0].0, "recent_gap_sum": self.recent[0].1,
+                "steady_pairs": self.recent[1].0, "steady_gap_sum": self.recent[1].1,
+            }),
+        );
+        text.push(format!(
+            "later shots after a count mismatch in the last second {} {:+.3} deg, otherwise {} {:+.3} deg; the mirror counted more, the stand-in's reason: {}",
+            self.recent[0].0,
+            self.recent[0].1 / f64::from(self.recent[0].0.max(1)),
+            self.recent[1].0,
+            self.recent[1].1 / f64::from(self.recent[1].0.max(1)),
+            REFUSALS.iter().zip(self.refused).skip(1).map(|(name, n)| format!("{name} {n}")).collect::<Vec<_>>().join(", ")
+        ));
         let [same, fired_more, counted_more, fired_only, counted_only] = self.ticks;
         json.insert(
             "ticks".to_string(),

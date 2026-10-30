@@ -60,6 +60,8 @@ pub(crate) struct KickTick {
     pub tick: u32,
     pub fired: u8,
     pub counted: u8,
+    /// Why the weapon was not firing at the tick (the stand-in's first refusal: a code of `kick_gap`'s `REFUSALS`; 8 when none).
+    pub why: u8,
 }
 
 /// A shot at its target by pitch: the target's chest above or below the eye, degrees, and how far above the line to his chest the

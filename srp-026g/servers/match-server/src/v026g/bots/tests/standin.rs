@@ -1293,6 +1293,18 @@ impl Game {
             let mut times = Vec::new();
             body.cadence
                 .tick(tick, held, auto, interval_ms, |t| times.push(t));
+            // [counts only] Why the trigger was not down for the weapon this tick (`kick_gap`'s `REFUSALS`).
+            let why = if !body.alive {
+                1
+            } else if body.keys & key::FIRE == 0 {
+                2
+            } else if body.carrying.is_some() {
+                3
+            } else if tick < body.drawn_at {
+                4
+            } else {
+                body.stock.why_not(tick).unwrap_or(8)
+            };
             let mut fired = 0u8;
             for at in times {
                 if self.bodies[shooter].stock.fired(at) {
@@ -1303,7 +1315,7 @@ impl Game {
             if let Some((_, counted)) = self.bodies[shooter].mirror
                 && (fired > 0 || counted > 0)
             {
-                self.kick_ticks.push(fight_tally::KickTick { shooter, tick, fired, counted });
+                self.kick_ticks.push(fight_tally::KickTick { shooter, tick, fired, counted, why });
             }
         }
     }
