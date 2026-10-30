@@ -1,8 +1,10 @@
 # Lobby scenes
 
 The owner (2026-10-29): "different ones should be for different factions"; "stalker2 one is for
-bandits"; "the current one is for army"; "the room is for stalker". The 3D scene behind the lobby
-menu follows the player's quest faction; there is no setting. Exe patch 81
+bandits"; "the current one is for army"; "the room is for stalker". The owner (2026-10-30): by
+faction, not by level, one lobby per faction: the Black Market the STK2 bunker (not the
+blockpost), the Edge the hangar; the STK2 blockpost and bar ship nowhere. The 3D scene behind
+the lobby menu follows the player's quest faction; there is no setting. Exe patch 81
 (`client-patches/rust/patches/src/lobby_scene.rs`), patch 45's weapon spot
 (`weapon_table_026g.asm`).
 
@@ -13,10 +15,10 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
   | quest faction (factions_dict id) | lobby                                         |
   |----------------------------------|-----------------------------------------------|
   | Renaissance, the Army (3)        | `lobby_scene/day`, the classic (stock)        |
-  | Black Market, the Bandits (2)    | `lobby_scene/stk2_blockpost`, S.T.A.L.K.E.R. 2 |
+  | Black Market, the Bandits (2)    | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2   |
   | Scavengers (1)                   | `lobby_scene/camp_069`, the 0.69d camp        |
   | Edge (4)                         | `lobby_scene/hangar_046`, the 0.46c2 hangar   |
-  | none chosen yet (0), any other   | the classic                                   |
+  | none chosen yet (0), any other   | the Scavengers' camp                          |
 
   In code, not game data: the exe would have to read the factions' configs for a project name,
   more than the match.
@@ -25,7 +27,10 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
   (`4B 00`: `8E`, then `83 4B`): the exe takes every one at `lobby_client.faction` (0x2717CF).
 - **The next start shows it:** the faction is kept in user.cfg as the console variable
   `srp_lobby_faction` (`srp_lobby_faction 2`), written by the exe (user.cfg saved at once when it
-  changed), never by the player. No line, an empty or unknown value: the classic.
+  changed), never by the player. No line, an empty or unknown value: the Scavengers (the owner,
+  2026-10-30: "no faction falls back to scavengers"; no account can switch to none). The
+  faction is parsed so at the boundary (the 0x8E byte, the user.cfg value): the lobby's match is
+  over the four factions alone.
 - **Client only:** the server knows nothing of the lobby; a match is the same whatever lobby.
 
 ## When the faction is known
@@ -35,7 +40,7 @@ menu follows the player's quest faction; there is no setting. Exe patch 81
   0x220B20 calls game::create_network_client at 0x221C2F): no faction can come before the scene's
   results are taken. Holding the query until `8E` would hold the sign-in itself.
 - So the first start, a new player's and one after a change of faction show the last start's
-  lobby (the classic the first time); every later start shows the faction's from the first frame,
+  lobby (the camp the first time); every later start shows the faction's from the first frame,
   with no swap.
 - **A change of faction during a session shows after the next match** (below), as does the first
   `8E` of a session that differs from the saved one (no hint: nothing for the player to do).
@@ -201,7 +206,8 @@ weapon upgrade table". Static: every lobby's visual meshes (LOD0, each surface's
 and the static collision the camera's ray meets, ray-cast with embree; the orbit sampled at 72
 yaws, 25 pitches and 7 distances; the squad's spots; the weapon's spot and the flight from 72
 starts. The share of (yaw, pitch) whose eye is behind a visible surface at the wheel's 4.6 m (the
-stock floor's 8 % in every lobby included), before and after the packs:
+stock floor's 8 % in every lobby included), before and after the packs (the blockpost and the
+bar were audited before the owner's pick of 2026-10-30 and ship nowhere):
 
 | lobby | before | after | what was wrong, what changed |
 |---|---|---|---|

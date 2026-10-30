@@ -3713,8 +3713,9 @@ the replay start and the scripts pass no language by default. See
 
 The lobby's scene follows the player's quest faction
 (`../docs/notes/lobby-scenes.md`): Renaissance the classic (`lobby_scene/day`),
-the Black Market `lobby_scene/stk2_blockpost`, the Scavengers
-`lobby_scene/camp_069`, the Edge `lobby_scene/hangar_046`, none the classic.
+the Black Market `lobby_scene/stk2_bunker`, the Scavengers
+`lobby_scene/camp_069`, the Edge `lobby_scene/hangar_046`; none (no saved
+value, 0) is the Scavengers. A missing pack or project is the classic.
 The lobby menu asks for its scene once, at the game's start, before the
 sign-in (the network client is made in that query's own callback), so the
 faction of a session is known only after its scene: the Rust `lobby_scene`

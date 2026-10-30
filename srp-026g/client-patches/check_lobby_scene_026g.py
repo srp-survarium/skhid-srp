@@ -21,11 +21,12 @@ configs.start with it, a chain).
 - the 0x8E handler as it keeps the faction (0x2717CF to its `pop ebp`): the
   faction kept at the lobby client's +1EA998h as the original does, and the
   saved value the faction's id, user.cfg written once when it changed and
-  not again for the same one; none (0) or an unknown id saved as none;
+  not again for the same one; none (0) or an unknown id saved as the
+  Scavengers (1);
 - lobby_menu::query_resources (0x21E450) from its start to its query
   (0x21E5ED): the fourth request is the original's ({"lobby_scene/day", 40h},
-  the lobby menu's variant as its user data) for no faction saved,
-  Renaissance or an unknown value; for another faction its lobby's config
+  the lobby menu's variant as its user data) for Renaissance; for another
+  faction, no faction saved or an unknown value (the Scavengers) its lobby's config
   first ({"resources/projects/lobby_scene/<id>/client_project", 1Fh}, no user
   data), the other seven requests and their user data the original's;
 - lobby_menu::on_render_scenes_ready (0x220B20): after a probe the patch asks
@@ -319,9 +320,10 @@ def main():
         ("Scavengers (1) over Black Market", 1, b"1", 1),
         ("Scavengers again", 1, b"1", 0),
         ("Edge (4)", 4, b"4", 1),
-        ("none chosen (0)", 0, b"", 1),
-        ("none again", 0, b"", 0),
-        ("an unknown id (9)", 9, b"", 0),
+        ("Edge again", 4, b"4", 0),
+        ("none chosen (0), the Scavengers", 0, b"1", 1),
+        ("none again", 0, b"1", 0),
+        ("an unknown id (9), the Scavengers", 9, b"1", 0),
         ("Renaissance (3)", 3, b"3", 1),
     ]:
         kept, after, written = ours.faction(faction)
@@ -329,7 +331,7 @@ def main():
         expect(kept == faction == stock_kept and after == stock_after and ours.text(buffer) == saved_after
                and written == saves and stock_written == 0,
                f"0x8E with {label}: kept at +1EA998h and the registers as the original's; saved "
-               f"{saved_after.decode() or 'none'}, user.cfg written {saves} time(s)")
+               f"{saved_after.decode()}, user.cfg written {saves} time(s)")
 
     def saved(value):
         ours.emu.mem_write(buffer, value.encode() + b"\0")
@@ -342,16 +344,18 @@ def main():
     config = lambda lobby: f"resources/projects/lobby_scene/{lobby}/client_project"
     # (label, saved value, [(result 3 for the query before it, the request asked, its user data kept)])
     cases = [
-        ("no faction saved", "", [(project, ("lobby_scene/day", 0x40), True, "replayed")]),
+        ("no faction saved, the Scavengers", "", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
+                                                  (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
         ("Renaissance (3)", "3", [(project, ("lobby_scene/day", 0x40), True, "replayed")]),
-        ("an unknown value", "9", [(project, ("lobby_scene/day", 0x40), True, "replayed")]),
+        ("an unknown value, the Scavengers", "9", [(CONFIG, (config("camp_069"), 0x1F), False, "returned"),
+                                                   (project, ("lobby_scene/camp_069", 0x40), True, "replayed")]),
         ("Edge (4), hangar_046 there", "4", [(CONFIG, (config("hangar_046"), 0x1F), False, "returned"),
                                              (project, ("lobby_scene/hangar_046", 0x40), True, "replayed")]),
         ("Scavengers (1), camp_069 missing", "1", [(0, (config("camp_069"), 0x1F), False, "returned"),
                                                   (project, ("lobby_scene/day", 0x40), True, "replayed")]),
-        ("Black Market (2), stk2_blockpost without its track", "2", [
-            (CONFIG, (config("stk2_blockpost"), 0x1F), False, "returned"),
-            ("no track", ("lobby_scene/stk2_blockpost", 0x40), True, "returned"),
+        ("Black Market (2), stk2_bunker without its track", "2", [
+            (CONFIG, (config("stk2_bunker"), 0x1F), False, "returned"),
+            ("no track", ("lobby_scene/stk2_bunker", 0x40), True, "returned"),
             (project, ("lobby_scene/day", 0x40), True, "replayed")]),
     ]
     for label, value, steps in cases:
@@ -409,7 +413,7 @@ def after_a_match(patched, stock, stock_requests, expect):
            "a match entered with the faction of the lobby shown (Edge, the hangar): nothing asked")
 
     # a change of faction: the lobby's config, then its project, alone; then the swap
-    r = shown("", "lobby_scene/day")
+    r = shown("3", "lobby_scene/day")
     r.saved("1")
     asked = r.deactivate()
     requests, data, _ = r.query()
@@ -432,7 +436,7 @@ def after_a_match(patched, stock, stock_requests, expect):
     expect(r.deactivate() == [], "back in the lobby, the next match: the camp is shown, nothing asked")
 
     # results that come after the return: let go untouched; the next match asks again
-    r = shown("", "lobby_scene/day")
+    r = shown("3", "lobby_scene/day")
     r.saved("4")
     r.deactivate()
     r.query()
@@ -447,14 +451,14 @@ def after_a_match(patched, stock, stock_requests, expect):
            "the next match asks the hangar's config again")
 
     # the game closing: its on_deactivate of the lobby asks nothing; a swap out is let go
-    r = shown("", "lobby_scene/day")
+    r = shown("3", "lobby_scene/day")
     r.saved("4")
     r.word(CLIENT + 0x535C, 0x13579BDF)
     esi, ecx = r.closing()
     expect(esi == CLIENT and ecx == 0x13579BDF and r.deactivate() == [],
            "game::clear_resources' start (its span replayed: esi the game, ecx [esi+535Ch]) with Edge saved: its "
            "on_deactivate of the lobby asks nothing")
-    r = shown("", "lobby_scene/day")
+    r = shown("3", "lobby_scene/day")
     r.saved("4")
     r.deactivate()
     r.query()
@@ -473,8 +477,8 @@ def after_a_match(patched, stock, stock_requests, expect):
     requests, _, _ = r.query()
     expect(flow == ("returned", [MENU]) and requests[3] == ("lobby_scene/day", 0x40)
            and requests[0] == ("resources/projects/lobby_scene/day/client_project", 0x1F),
-           "the hangar shown, Black Market saved, stk2_blockpost's config missing: the classic's project asked "
-           "alone, never stk2_blockpost's")
+           "the hangar shown, Black Market saved, stk2_bunker's config missing: the classic's project asked "
+           "alone, never stk2_bunker's")
 
 
 if __name__ == "__main__":

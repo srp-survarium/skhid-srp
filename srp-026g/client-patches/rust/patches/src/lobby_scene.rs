@@ -1,7 +1,7 @@
 //! Patch 81: the lobby's scene follows the player's quest faction
 //! (docs/notes/lobby-scenes.md): Renaissance the classic, the Black Market
-//! the S.T.A.L.K.E.R. 2 blockpost, the Scavengers the 0.69d camp, the Edge
-//! the 0.46c2 hangar; no faction yet the classic.
+//! the S.T.A.L.K.E.R. 2 bunker, the Scavengers the 0.69d camp, the Edge
+//! the 0.46c2 hangar; no faction yet (no saved value) the Scavengers.
 //!
 //! The lobby menu asks for its scene once, at the game's start, before the
 //! sign-in: the faction is not known yet (the network client is made in the
@@ -44,15 +44,15 @@ pub enum Faction {
 }
 
 impl Faction {
-    /// The faction of a factions_dict id; None for 0 (none chosen yet) and
-    /// any other.
-    pub fn of_id(id: u8) -> Option<Faction> {
+    /// The faction of a factions_dict id; 0 (none chosen yet) and any
+    /// other are the Scavengers (the owner, 2026-10-30: "no faction falls
+    /// back to scavengers"; no account can switch to none).
+    pub fn of_id(id: u8) -> Faction {
         match id {
-            1 => Some(Faction::Scavengers),
-            2 => Some(Faction::BlackMarket),
-            3 => Some(Faction::Renaissance),
-            4 => Some(Faction::Edge),
-            _ => None,
+            2 => Faction::BlackMarket,
+            3 => Faction::Renaissance,
+            4 => Faction::Edge,
+            _ => Faction::Scavengers,
         }
     }
 
@@ -66,11 +66,12 @@ impl Faction {
         }
     }
 
-    /// The faction a saved value names; None for no value or any other text.
-    pub fn parse(saved: &[u8]) -> Option<Faction> {
+    /// The faction a saved value names; no value or any other text the
+    /// Scavengers, as no faction.
+    pub fn parse(saved: &[u8]) -> Faction {
         match saved {
             [digit @ b'0'..=b'9'] => Faction::of_id(digit - b'0'),
-            _ => None,
+            _ => Faction::Scavengers,
         }
     }
 }
@@ -80,8 +81,8 @@ impl Faction {
 pub enum Lobby {
     /// The 0.26g lobby, `lobby_scene/day` (the stock game's).
     Classic,
-    /// The S.T.A.L.K.E.R. 2 (2012) blockpost hut.
-    Stk2Blockpost,
+    /// The S.T.A.L.K.E.R. 2 (2012) bunker.
+    Stk2Bunker,
     /// The 0.46c2 hangar.
     Hangar046,
     /// The 0.69d tent camp.
@@ -89,13 +90,13 @@ pub enum Lobby {
 }
 
 impl Lobby {
-    pub const ALL: [Lobby; 4] = [Lobby::Classic, Lobby::Stk2Blockpost, Lobby::Hangar046, Lobby::Camp069];
+    pub const ALL: [Lobby; 4] = [Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Camp069];
 
     /// Its project, as the lobby's query names it.
     pub fn project(self) -> &'static CStr {
         match self {
             Lobby::Classic => c"lobby_scene/day",
-            Lobby::Stk2Blockpost => c"lobby_scene/stk2_blockpost",
+            Lobby::Stk2Bunker => c"lobby_scene/stk2_bunker",
             Lobby::Hangar046 => c"lobby_scene/hangar_046",
             Lobby::Camp069 => c"lobby_scene/camp_069",
         }
@@ -105,21 +106,21 @@ impl Lobby {
     pub fn config(self) -> &'static CStr {
         match self {
             Lobby::Classic => c"resources/projects/lobby_scene/day/client_project",
-            Lobby::Stk2Blockpost => c"resources/projects/lobby_scene/stk2_blockpost/client_project",
+            Lobby::Stk2Bunker => c"resources/projects/lobby_scene/stk2_bunker/client_project",
             Lobby::Hangar046 => c"resources/projects/lobby_scene/hangar_046/client_project",
             Lobby::Camp069 => c"resources/projects/lobby_scene/camp_069/client_project",
         }
     }
 
-    /// The lobby of a faction (the owner, 2026-10-29: "different ones should be for different
-    /// factions", "stalker2 one is for bandits", "the current one is for army", "the room is for
-    /// stalker"); none chosen yet the classic.
-    pub fn of_faction(faction: Option<Faction>) -> Lobby {
+    /// The lobby of a faction, one per faction (the owner, 2026-10-29: "different ones should be
+    /// for different factions", "the current one is for army"; 2026-10-30: the Black Market the
+    /// STK2 bunker, the Edge the hangar).
+    pub fn of_faction(faction: Faction) -> Lobby {
         match faction {
-            Some(Faction::Renaissance) | None => Lobby::Classic,
-            Some(Faction::BlackMarket) => Lobby::Stk2Blockpost,
-            Some(Faction::Scavengers) => Lobby::Camp069,
-            Some(Faction::Edge) => Lobby::Hangar046,
+            Faction::Renaissance => Lobby::Classic,
+            Faction::BlackMarket => Lobby::Stk2Bunker,
+            Faction::Scavengers => Lobby::Camp069,
+            Faction::Edge => Lobby::Hangar046,
         }
     }
 }
@@ -313,7 +314,7 @@ pub fn on_faction(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let faction = Faction::of_id(arrived_faction(ctx));
     let saved = Faction::parse(SAVED.get(thread));
     if faction != saved {
-        SAVED.set(thread, faction.map_or(&b""[..], Faction::saved));
+        SAVED.set(thread, faction.saved());
         save_user_config(thread);
     }
     Flow::Continue
@@ -390,12 +391,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn each_faction_has_its_lobby_and_none_the_classic() {
-        assert_eq!(Lobby::of_faction(Some(Faction::Renaissance)), Lobby::Classic);
-        assert_eq!(Lobby::of_faction(Some(Faction::BlackMarket)), Lobby::Stk2Blockpost);
-        assert_eq!(Lobby::of_faction(Some(Faction::Scavengers)), Lobby::Camp069);
-        assert_eq!(Lobby::of_faction(Some(Faction::Edge)), Lobby::Hangar046);
-        assert_eq!(Lobby::of_faction(None), Lobby::Classic);
+    fn each_faction_has_its_lobby() {
+        assert_eq!(Lobby::of_faction(Faction::Renaissance), Lobby::Classic);
+        assert_eq!(Lobby::of_faction(Faction::BlackMarket), Lobby::Stk2Bunker);
+        assert_eq!(Lobby::of_faction(Faction::Scavengers), Lobby::Camp069);
+        assert_eq!(Lobby::of_faction(Faction::Edge), Lobby::Hangar046);
         for lobby in Lobby::ALL {
             let project = lobby.project().to_str().unwrap();
             let id = project.strip_prefix("lobby_scene/").unwrap();
@@ -404,16 +404,17 @@ mod tests {
     }
 
     #[test]
-    fn a_faction_is_saved_as_its_id_and_read_back() {
+    fn a_faction_is_saved_as_its_id_and_read_back_and_none_is_the_scavengers() {
         for id in 0..=255u8 {
             let faction = Faction::of_id(id);
-            assert_eq!(faction.is_some(), (1..=4).contains(&id), "{id}");
-            if let Some(faction) = faction {
-                assert_eq!(Faction::parse(faction.saved()), Some(faction));
+            if !(2..=4).contains(&id) {
+                assert_eq!(faction, Faction::Scavengers, "{id}");
             }
+            assert_eq!(Faction::parse(faction.saved()), faction);
         }
+        assert_eq!(Faction::of_id(1).saved(), b"1");
         for other in [&b""[..], b"0", b"5", b"12", b" 1", b"a"] {
-            assert_eq!(Faction::parse(other), None, "{other:?}");
+            assert_eq!(Faction::parse(other), Faction::Scavengers, "{other:?}");
         }
     }
 
@@ -465,10 +466,10 @@ mod tests {
 
     #[test]
     fn a_lobby_without_its_track_is_the_classic() {
-        let (asked, shown) = run(Lobby::Stk2Blockpost, |request| request != SceneRequest::Project(Lobby::Stk2Blockpost.project()));
+        let (asked, shown) = run(Lobby::Stk2Bunker, |request| request != SceneRequest::Project(Lobby::Stk2Bunker.project()));
         assert_eq!(asked, [
-            SceneRequest::Config(Lobby::Stk2Blockpost.config()),
-            SceneRequest::Project(Lobby::Stk2Blockpost.project()),
+            SceneRequest::Config(Lobby::Stk2Bunker.config()),
+            SceneRequest::Project(Lobby::Stk2Bunker.project()),
             SceneRequest::Project(c"lobby_scene/day"),
         ]);
         assert_eq!(shown, Lobby::Classic);
@@ -599,7 +600,7 @@ mod tests {
 
     #[test]
     fn back_to_the_classic_is_its_project_at_once() {
-        let mut game = Game::new(Lobby::Stk2Blockpost, |_| true);
+        let mut game = Game::new(Lobby::Stk2Bunker, |_| true);
         game.faction(Lobby::Classic);
         game.match_entered();
         game.results();
@@ -609,14 +610,14 @@ mod tests {
 
     #[test]
     fn a_missing_pack_is_the_classic_and_never_its_project() {
-        let missing = |request| request != SceneRequest::Config(Lobby::Stk2Blockpost.config());
+        let missing = |request| request != SceneRequest::Config(Lobby::Stk2Bunker.config());
         let mut game = Game::new(Lobby::Hangar046, missing);
-        game.faction(Lobby::Stk2Blockpost);
+        game.faction(Lobby::Stk2Bunker);
         game.match_entered();
         game.results();
         assert_eq!(game.shown(), Lobby::Classic);
         assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone { request: SceneRequest::Project(name), .. }
-            if *name == Lobby::Stk2Blockpost.project())));
+            if *name == Lobby::Stk2Bunker.project())));
         // the next match asks its config again, finds it missing, keeps the classic
         game.back();
         game.match_entered();
