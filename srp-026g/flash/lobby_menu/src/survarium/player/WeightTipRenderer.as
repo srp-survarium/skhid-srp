@@ -4,6 +4,7 @@ package survarium.player
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.geom.Rectangle;
+   import flash.utils.Dictionary;
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFormat;
@@ -35,6 +36,11 @@ package survarium.player
       // The space above and below a heading's text, and a row's spacing.
       private static const GAP:Number = 3;
       private var _groupHolders:Array = [];
+      // The modifier atlas icons' glyphs inside their 38 x 38 cell (their opaque
+      // pixels: speed 7,9 26x20; weight 8,12 22x14; energy 8,10 23x20): a group
+      // icon is fitted into this box, centred on it.
+      private static const GLYPH:Rectangle = new Rectangle(7,9,26,21);
+      private var _drawn:Dictionary = new Dictionary(true);
       private var _pitch:Number = NaN;
       // Laid out, the group icons not yet fitted: the card shows once they are.
       private var _laidOut:Boolean = false;
@@ -101,25 +107,49 @@ package survarium.player
          return holder;
       }
 
-      // Each group icon fitted into the atlas icons' box (ICON x ICON) and centred,
-      // from its drawn bounds; its button background hidden. False until all are drawn.
+      // Each group icon fitted into the modifier icons' glyph box (GLYPH: where the
+      // atlas icons draw inside their 38 x 38 cell, measured from their opaque
+      // pixels) and centred on it, from its drawn bounds; its button background
+      // hidden. Only once its frame is the filter's and its bounds are the same two
+      // frames running (the game updates a frame reached by gotoAndStop a frame
+      // later than Ruffle); false until all are.
       private function fitGroups() : Boolean
       {
+         var settled:Boolean = true;
          for each(var holder:Sprite in _groupHolders)
          {
             var filter:MovieClip = holder.getChildAt(0) as MovieClip;
-            if(filter.itemIcon == null) return false;
+            if(filter.itemIcon == null || filter.data == null || filter.itemIcon.currentFrame != 300 + filter.data.icon) return false;
             for(var c:int = 0; c < filter.numChildren; c++)
                if(filter.getChildAt(c) != filter.itemIcon) filter.getChildAt(c).visible = false;
-            var box:Rectangle = filter.itemIcon.getBounds(holder);
-            if(box.width <= 0 || box.height <= 0) return false;
-            var scale:Number = Math.min(ICON / box.width,ICON / box.height) * filter.scaleX;
+            var drawn:Rectangle = glyphBounds(filter);
+            // Only the glyph shows: the marker shape is not the icon.
+            for(c = 0; c < filter.itemIcon.numChildren; c++)
+               filter.itemIcon.getChildAt(c).visible = filter.itemIcon.getChildAt(c).getBounds(filter).equals(drawn);
+            var last:Rectangle = _drawn[holder];
+            _drawn[holder] = drawn;
+            if(drawn.width <= 0 || drawn.height <= 0 || last == null || !last.equals(drawn)) { settled = false; continue; }
+            var scale:Number = Math.min(GLYPH.width / drawn.width,GLYPH.height / drawn.height);
             filter.scaleX = filter.scaleY = scale;
-            box = filter.itemIcon.getBounds(holder);
-            filter.x += (ICON - box.width) / 2 - box.x;
-            filter.y += (ICON - box.height) / 2 - box.y;
+            filter.x = GLYPH.x + (GLYPH.width - drawn.width * scale) / 2 - drawn.x * scale;
+            filter.y = GLYPH.y + (GLYPH.height - drawn.height * scale) / 2 - drawn.y * scale;
          }
-         return true;
+         return settled;
+      }
+
+      // The filter icon's glyph in the renderer's space: the frame's own shape, its
+      // largest child (the sprite also keeps a small marker shape at its origin on
+      // every frame, which its whole bounds would take in).
+      private static function glyphBounds(filter:MovieClip) : Rectangle
+      {
+         var icon:MovieClip = filter.itemIcon;
+         var best:Rectangle = null;
+         for(var c:int = 0; c < icon.numChildren; c++)
+         {
+            var b:Rectangle = icon.getChildAt(c).getBounds(filter);
+            if(best == null || b.width * b.height > best.width * best.height) best = b;
+         }
+         return best != null ? best : new Rectangle();
       }
 
       override protected function invalidateData() : void

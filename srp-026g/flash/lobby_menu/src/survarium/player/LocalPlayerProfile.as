@@ -515,9 +515,12 @@ package survarium.player
             var pocket:Boolean = item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6;
             if(armour || pocket)
             {
-               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:item.category});
-               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:item.category});
-               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:item.category});
+               // A pocket's booster has the effect's own icon (the shop's consumables
+               // filter icon is a thin stroke that suits none of them); armour its group's.
+               var group:Object = armour ? item.category : null;
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0) kit.weapon = {name:item.name,value:propOf(item,105),category:item.category};
          }

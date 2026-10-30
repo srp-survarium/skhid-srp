@@ -128,7 +128,7 @@ package {
   private function checkSpeed():void {
    require(Effects.parse(-.1,.75,0).speedExplanation==null,"an old exe gives no speed");
    require(Effects.parse(-.1,.75,0,.03,7).speedExplanation==null,"invalid Bear Arms state refused");
-   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,10]],["AK-74M",-.05,8]));
+   var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,null]],["AK-74M",-.05,8]));
    var x:Object=e.speedExplanation;
    require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% - 5%: "+x.total);
    require(x.value=="97%" && x.valueStyle=="weight_warning" && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
@@ -139,8 +139,11 @@ package {
     require(rows[want[0]].label==want[1],"row "+want[0]+": "+rows[want[0]].label+" (want "+want[1]+")");
    // Each item's row has its group's icon, the shop filter's; the skill and the weight the modifier icon.
    var Filters:Object=domain.getDefinition("survarium.controls.FiltersWindow");
-   for each(var gr:Array in [[0,10],[1,3],[3,8]])require(rows[gr[0]].group==Filters.filterIcon(gr[1]) && rows[gr[0]].group>=0,"row "+gr[0]+" group icon "+rows[gr[0]].group);
+   for each(var gr:Array in [[1,3],[3,8]])require(rows[gr[0]].group==Filters.filterIcon(gr[1]) && rows[gr[0]].group>=0,"row "+gr[0]+" group icon "+rows[gr[0]].group);
+   require(rows[0].group==undefined && rows[0].icon==11,"a pocket's booster: the effect's own icon");
    require(rows[2].group==undefined && rows[4].group==undefined && rows[2].icon==11,"the skill and the weight keep the modifier icon");
+   // Every equipment and weapon category the tooltips show has a shop filter icon.
+   for each(var cat:int in [1,2,3,4,5,6,7,8,13,14,15,16,17])require(Filters.filterIcon(cat)>=0,"a filter icon for category "+cat);
    require(Effects.parse(0,0,0,0,0).withItems(kit([["Novice cap",0]],null)).speedExplanation.rows().length==0,"nothing at 0");
    require(Effects.parse(0,0,0,0,0).withItems(kit([],null)).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(kit([],null)).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
    require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Freedom")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
@@ -148,7 +151,7 @@ package {
    require(Math.abs(bear.total-1)<1e-9 && bear.rows().length==0,"Bear Arms leaves a weapon's penalty out");
    require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit([],["Vepr",.03])).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
    require(Effects.parse(-.2,1.5,0,0,0).withItems(kit([["x",-1]],null)).speedExplanation.total==0,"never below zero");
-   var fast:Object=Effects.parse(0,0,0,.03,0,30,0,0,0,-.02).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,10]],["AK-74M",-.05,8],[],[["Freedom suit",-.08,3]]));
+   var fast:Object=Effects.parse(0,0,0,.03,0,30,0,0,0,-.02).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,null]],["AK-74M",-.05,8],[],[["Freedom suit",-.08,3]]));
    indicators[0].update(20,30,fast);
    var speed:Object=speedWidget(0),weight:Object=widgets[0];
    var label:TextField=speed.textFieldLabel,value:TextField=speed.textFieldValue;
@@ -202,7 +205,7 @@ package {
   }
   // The weight's tooltip: what raises the carry limit, by source, adding up to it; Packrat when the kit has it.
   private function checkLimit():void {
-   var limit:Array=[["Duty suit",5,3],["Anomalous Force Protein",5,10]];
+   var limit:Array=[["Duty suit",5,3],["Anomalous Force Protein",5,null]];
    var e:Object=Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,limit));
    var rows:Array=e.rows();
    require(rows.length==8,"weight rows, the Weight heading, base, two items, the skill, Packrat: "+rows.length);
@@ -238,6 +241,16 @@ package {
    trace("SPEED ROW "+language+": Autobuy text ends at "+autobuyRight.toFixed(1)+", box "+area+", word "+sl.textWidth.toFixed(1)+" + value "+sv.textWidth.toFixed(1)+" of "+(sv.x+sv.width-sl.x).toFixed(1));
   }
   private function speedTipOf(box:Sprite):DisplayObject {return (box.getChildAt(2) as Sprite).getChildAt(0);}
+  // A filter icon's glyph (its frame's largest shape) in `space`.
+  private function glyphOf(filter:Object,space:Object):Rectangle {
+   var best:Rectangle=null;var icon:Object=filter.itemIcon;
+   for(var c:int=0;c<icon.numChildren;c++){var b:Rectangle=icon.getChildAt(c).getBounds(space as DisplayObject);if(best==null||b.width*b.height>best.width*best.height)best=b;}
+   return best;
+  }
+  // An icon's drawn bounds fitted in the modifier icons' glyph box (7,9 26x21) and centred on it.
+  private function fitsGlyph(b:Rectangle):Boolean {
+   return b.width<=26.5 && b.height<=21.5 && (b.width>=25.5 || b.height>=20.5) && Math.abs(b.x+b.width/2-20)<1 && Math.abs(b.y+b.height/2-19.5)<1;
+  }
   private function show(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));}
   private function hide(i:int):void {target(i).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));}
   private function rendered():Object {
@@ -334,11 +347,11 @@ package {
      for each(var wanted:String in ["Tornado energy drink +5%","Freedom suit +4%","Rapid"+" +3%","AK-74M -5%"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
      // The drawn icons: the shop filter's sprite at its category's frame in the item rows.
      var FW:Object=domain.getDefinition("survarium.controls.FiltersWindow");
-     for each(var gi:Array in [[3,10],[4,3],[6,8]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
+     for each(var gi:Array in [[4,3],[6,8]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
       // The shop's own renderer, its data {icon}, its icon at that frame, fitted in the atlas icons' box.
-      var shop:Object=holder.getChildAt(0);var ib:Rectangle=shop.itemIcon.getBounds(holder);
+      var shop:Object=holder.getChildAt(0);var ib:Rectangle=glyphOf(shop,holder);
       require(holder.name=="group"+FW.filterIcon(gi[1]) && getQualifiedClassName(shop)=="FilterItemCatRenderer" && shop.data.icon==FW.filterIcon(gi[1]) && shop.itemIcon.currentFrame==300+FW.filterIcon(gi[1]) && shop.itemIcon.visible,"row "+gi[0]+": "+holder.name+" frame "+shop.itemIcon.currentFrame);
-      require(ib.width<=38.5 && ib.height<=38.5 && Math.max(ib.width,ib.height)>=37 && Math.abs(ib.x+ib.width/2-19)<1 && Math.abs(ib.y+ib.height/2-19)<1,"row "+gi[0]+" icon fitted and centred in the icons' box: "+ib);}
+      require(fitsGlyph(ib),"row "+gi[0]+" icon fitted and centred in the glyph box: "+ib);}
      // One icon column and one text x for every row, one pitch.
      var rowsDrawn:Array=[];for(var rr:int=3;rr<card.numChildren;rr++)if(card.getChildAt(rr).hasOwnProperty("textFieldLabel"))rowsDrawn.push(card.getChildAt(rr));
      rowsDrawn.sortOn("y",Array.NUMERIC);
@@ -352,8 +365,17 @@ package {
      for(var m:int=3;m<9;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
      speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-     indicators[1].update(25,30,Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5,3],["Anomalous Force Protein",5,10]])));
+     indicators[1].update(25,30,Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5,3],["Anomalous Force Protein",5,null]])));
      show(1);
+    }
+    if(frame==260) {
+     var all:Object=rendered();var seen:int=0;
+     for(var a2:int=3;a2<all.numChildren;a2++){var rw:Object=all.getChildAt(a2);if(!rw.hasOwnProperty("iconContainer"))continue;
+      var ct:Object=rw.iconContainer;var hd:Object=ct.getChildAt(ct.numChildren-1);if(hd.name.indexOf("group")!=0)continue;
+      var fl:Object=hd.getChildAt(0);var fb:Rectangle=glyphOf(fl,hd);seen++;
+      require(fl.itemIcon.visible && fl.itemIcon.currentFrame==300+fl.data.icon && fitsGlyph(fb),"category icon drawn: "+rw.textFieldLabel.text+" "+fb);}
+     require(seen==13,"all thirteen categories' icons: "+seen);
+     finish(null);
     }
     if(frame==200) {
      // The weight's card in two sections: its effects under the title, then "Weight": what changes the limit.
@@ -369,7 +391,11 @@ package {
      require(Math.abs(divider.x-wtitle.x)<1 && wc.x+wc.width<=960 && wc.y+wc.height<=720,"centred as the title, inside the screen");
      for each(var r2:Object in wrows)require(r2.x+r2.textFieldLabel.x+r2.textFieldLabel.textWidth+4<=wc.width && (r2.textFieldLabel.numLines==1 || r2.textFieldLabel.getLineText(1).replace(/\s+/g,"")==""),"weight row fits on one line: "+r2.textFieldLabel.text);
      require(wc.width<320,"compact: as wide as its widest row: "+wc.width);
-     finish(null);
+     hide(1);
+     var cats:Array=[];var names:Array=["Helmet","Mask","Vest","Rig","Pants","Gloves","Boots","Rifle","Sniper","Shotgun","SMG","MG","Pistol"];var ids:Array=[1,2,3,4,5,6,7,8,13,14,15,16,17];
+     for(var ci:int=0;ci<ids.length;ci++)cats.push([names[ci],.01*(ci+1),ids[ci]]);
+     indicators[0].update(20,30,Effects.parse(0,0,0,0,0).withItems(kit(cats,null)));
+     speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
     }
    }catch(e:Error){finish("frame "+frame+": "+e+" "+e.getStackTrace());}
   }

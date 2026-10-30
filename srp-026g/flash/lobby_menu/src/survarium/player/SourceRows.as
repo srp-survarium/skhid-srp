@@ -21,7 +21,7 @@ package survarium.player
          for each(var row:Object in shown)
          {
             var entry:Object = {icon:icon,label:row.name + " " + Util.styledChar(text(row.value),(row.value > 0) != lowerIsBetter ? "green" : "red")};
-            var group:int = row.category != undefined ? FiltersWindow.filterIcon(row.category) : -1;
+            var group:int = row.category != null ? FiltersWindow.filterIcon(row.category) : -1;
             if(group >= 0) entry.group = group;
             result.push(entry);
          }

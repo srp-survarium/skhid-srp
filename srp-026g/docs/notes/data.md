@@ -861,3 +861,16 @@ on a field made in code).
 - The speed cell's word and value take the weight's own fields' formats as the
   game draws them, copied at each update, with no style sheet; the value's
   colour is its style's colour in the lobby's sheet.
+
+### The group icons' glyph, and the boosters' icons (2026-10-30)
+
+- The filter sprite (1125) keeps a small marker shape at its origin on every
+  frame besides the frame's glyph; its whole bounds took both in, so a glyph
+  was fitted small and off-centre (the protein's row in the game), or out of
+  sight. A group icon is now fitted by its glyph alone (the frame's largest
+  shape; the marker hidden) into the modifier icons' glyph box (7,9 26 x 21 in
+  their 38 x 38 cell, measured from their opaque pixels), centred on it, once
+  its frame and bounds hold for two frames running.
+- A pocket's booster has the effect's own icon (speed 11, carry limit 12,
+  stamina 16): the shop's consumables filter icon is a thin stroke that suits
+  none of them. Armour and weapons keep their group's.
