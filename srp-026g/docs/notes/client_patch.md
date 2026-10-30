@@ -2537,3 +2537,36 @@ the site on made-up objects (Free, Full, no slots, no listener, no handler,
 places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
+
+### Players put into a loaded world (patch 82)
+
+Only a spawn inserts a player: `player::insert` 0x1F2720 (the respawn rule's
+spawn calls it through vtable+20h with 1 at 0x316EA9) runs
+`base_player::insert` 0x2DA850, the one writer of m_has_been_inserted [+33Fh]
+:= 1 (0x2DA869; `base_player::remove` 0x2DA790 writes 0), which for an alive
+player activates its physics (0x2D9930) and, with 1 and a world, links the
+world's tick lists (+18860h, +18880h: unconditionally, so never twice), then
+sets the 3D icon's and models' part (+0F4E0h, 0x1F2300). A world loaded from
+the server, 0xE8 through `game_world_core::deserialize` 0x2D0B70 and
+`base_player::deserialize` 0x2DB490, sets m_is_alive [+33Ch] alone
+(0x2DB4E8). So on a client that joins a match late (or is resynced while a
+player it had dead is alive again), every such player is alive and outside
+the world until its next spawn: `update_minimap_players` 0x239420 skips it
+(0x2394D1: minimap and Tab map), the 3D icon too (0x1F2AE0), and the rule's
+living list (0x3168D9, 0x316987). Seen live in rev 38 (match 0x107a2189: the
+allies who had not died since a late joiner came were missing from its map).
+
+`late_join_insert` (Rust, `vostok::world::NetworkClient::at_world_loaded`,
+`Player::enter_world`) is a lohook at 0x27C116 in
+`network_client::process_dynamic_match_info`, where the compressed (0x27C0D9)
+and raw (0x27C111) loads join (`mov eax,[edi+4]` / `test eax,eax`, 5 bytes;
+EDI the client). For each place of the match options, the place's active
+player (get_active_player 0x27A9C0, its reference given back) that is alive
+and not inserted is inserted with 1, as its spawn did on the other clients.
+An inserted or a dead player is left as it is (a dead one still inserted is
+the rule's to remove). Simulation: the joiner's living list and physics now
+hold those players as every other client's does (the `next` row).
+`check_late_join_insert_026g.py` runs the installed hook to the je after the
+site with the client's functions and insert stubbed: alive and outside,
+inserted once with 1; inserted, dead, empty places untouched; a second load
+inserts nobody; the references given back; registers and stack kept.

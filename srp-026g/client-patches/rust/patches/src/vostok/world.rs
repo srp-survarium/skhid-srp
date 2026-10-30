@@ -70,6 +70,15 @@ pub struct NetworkClient<'t> {
 }
 
 impl<'t> NetworkClient<'t> {
+    /// The client that has just loaded a world from the server (0xE8, at
+    /// `late_join.world_loaded`).
+    pub fn at_world_loaded(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+        // SAFETY: the site's EDI, the network client handling the message,
+        // alive on the game's thread for the hook.
+        let this = unsafe { raw::site::late_join_world_loaded::client(ctx) }?;
+        Some(NetworkClient { this, thread: ctx.thread() })
+    }
+
     /// The match's places' count (0 without match options).
     pub fn places(&self) -> u32 {
         // SAFETY: the client, alive for the hook; match_options is its own.
@@ -112,6 +121,16 @@ pub enum Held {
     Battery,
     /// A weapon or another item.
     Item,
+}
+
+/// Where a player stands with the match's world: in it (`insert` ran: its
+/// physics and the world's tick lists hold it), alive but outside it (a
+/// world loaded from the server sets alive, never inserted), or dead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Presence {
+    InWorld,
+    Outside,
+    Dead,
 }
 
 /// A player as a value kept between hooks: its address, compared, never
@@ -173,6 +192,28 @@ impl<'t> Player<'t> {
     pub fn alive(&self) -> bool {
         // SAFETY: as inserted.
         unsafe { read(self.this.alive()) != 0 }
+    }
+
+    /// Its [`Presence`], from m_is_alive and m_has_been_inserted.
+    pub fn presence(&self) -> Presence {
+        match (self.alive(), self.inserted()) {
+            (false, _) => Presence::Dead,
+            (true, true) => Presence::InWorld,
+            (true, false) => Presence::Outside,
+        }
+    }
+
+    /// Puts an alive player that is outside the world into it, as the
+    /// respawn rule's spawn does (player::insert 0x1F2720 with 1, called
+    /// through its vtable+20h at 0x316EA9): in-world set, physics activated,
+    /// the world's tick lists linked. Only from [`Presence::Outside`]: insert
+    /// links the tick lists unconditionally, twice would corrupt them.
+    pub fn enter_world(&self) {
+        if self.presence() == Presence::Outside {
+            // SAFETY: a live player of the loaded world on the game's thread;
+            // not yet inserted (checked above), so its lists are unlinked.
+            unsafe { raw::engine_player_insert(Some(self.this), 1) };
+        }
     }
 
     /// The life's spawn time (m_inserted_time_in_ms): one death a life.

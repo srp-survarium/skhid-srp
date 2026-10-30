@@ -275,35 +275,48 @@ def main():
     death_drop(bytes(built), (0x498, 0x25F100, 0x25F106))
     moving_draw(bytes(built))
     death_with_optics_hidden(bytes(built))
+    death_rolled_back(bytes(built))
     recipient_hud(bytes(built))
     builder = InputBuilder(bytes(built))
     quick, sprint = 1 << 14, 1 << 9
     assert builder.input(quick) == (quick, True)
     assert builder.input(sprint | quick) == (sprint | quick, True), 'sprint still triggers carry'
     builder.input(0)
-    for state in (0, 1):  # H down, H repeated (held)
+    # H's events as the game pushes them (0.10b player_input_handler::action_state_enum;
+    # on_keyboard_action is given them as input::enum_keyboard_action 1, 2, 3).
+    DOWN, UP, HOLD = 0, 1, 2
+    for state in (DOWN, HOLD):
         assert builder.input(quick, held=state) == (COMMAND, True)
-        assert builder.input(quick, held=2) == (COMMAND, True), 'H release activated the held quick key'
+        assert builder.input(quick, held=UP) == (COMMAND, True), 'H release activated the held quick key'
         assert builder.input(0) == (0, True)
         assert builder.input(quick) == (quick, True)
         builder.input(0)
-    assert builder.input(quick | 1 << 15, held=0) == (0, True), 'two quick keys with H offered or used one'
+    assert builder.input(quick | 1 << 15, held=DOWN) == (0, True), 'two quick keys with H offered or used one'
     builder.input(0)
-    assert builder.input(sprint | quick, held=1) == (sprint | COMMAND, True)
-    assert builder.input(sprint, held=2) == (sprint, True)
+    assert builder.input(sprint | quick, held=HOLD) == (sprint | COMMAND, True)
+    assert builder.input(sprint, held=UP) == (sprint, True)
     print('ok: the artefact action (H) held triggers carry, Shift does not, and its release cannot activate the item')
-    # The game sends H's action on its down and up ticks only, none between:
-    # H down, held, then 4 is the chord (never 4's quick use), as 4 then H.
-    assert builder.input(0, held=0) == (0, True)
+    # A tick may bring no event of H at all: H down, a tick with none, then
+    # 4 is the chord (never 4's quick use), as 4 then H.
+    assert builder.input(0, held=DOWN) == (0, True)
     assert builder.input(0) == (0, True)
     assert builder.input(quick) == (COMMAND, True), 'H held, then a quick key, activated the item'
     assert builder.input(quick) == (COMMAND, True)
-    assert builder.input(quick, held=2) == (COMMAND, True)
+    assert builder.input(quick, held=UP) == (COMMAND, True)
     assert builder.input(0) == (0, True)
     assert builder.input(quick) == (quick, True), 'H released still took the quick key'
     builder.input(0)
-    assert builder.input(quick, held=0) == (COMMAND, True)
-    assert builder.input(0, held=2) == (0, True)
+    assert builder.input(quick, held=DOWN) == (COMMAND, True)
+    assert builder.input(0, held=UP) == (0, True)
+    builder.input(0)
+    # Held: the engine sends H's hold events; they keep it down (the owner's
+    # rev 38 test: H+4 activated and 4 alone raised when hold read as up).
+    assert builder.input(0, held=DOWN) == (0, True)
+    assert builder.input(0, held=HOLD) == (0, True)
+    assert builder.input(quick, held=HOLD) == (COMMAND, True), 'H held (hold events), then 4, activated the item'
+    assert builder.input(0, held=UP) == (0, True)
+    assert builder.input(quick) == (quick, True), 'after H up, 4 alone raised the artefact'
+    builder.input(0)
     print('ok: H held, then a quick key, offers the artefact (no event of H between), as a quick key, then H')
     # The relays and replays keep 31 bits (0x31847B); a node ORs two inputs
     # together (0x2C5B60): both arrive here as the game reads them.
@@ -452,10 +465,13 @@ def main():
 
 
 def death_with_optics_hidden(built):
-    """A carrier killed with the gun and its optics out of the scene: the
-    native draw of the body updates the optics' models (0x245012) and the
-    renderer asserts on one not in the scene. Likewise a new owner of the
-    place (a respawn, a new kit) must still put back what the old one took."""
+    """A carrier killed with the gun and its optics out of the scene: its
+    hands held the artefact, so the gun stays out (no gun on the corpse, and
+    the ragdoll drops none) and the native draw of the body, which updates
+    the optics' models (0x245012, the renderer asserts on one not in the
+    scene), is skipped as while alive; native on_hide still gets them back
+    before it removes them. A new owner of the place (a respawn, a new kit)
+    puts back what the old one took, before the native draw."""
     for case in ('death', 'new owner'):
         g = Run(built); p = g.players[0]
         _, weapon = g.renderer()
@@ -470,18 +486,52 @@ def death_with_optics_hidden(built):
         hidden = [weapon] + models
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
         if case == 'death':
+            g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)  # the native death entry
             g.emu.mem_write(p + 0x33C, b'\0')
         else:
             g.site(0x2D6990, [0x2D6995], (p,))
         g.rendered.clear()
         g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        if case == 'death':
+            assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477DF, 'death: the native draw met the removed models'
+            assert not any(op == 'add' for op, _, _ in g.rendered), ('death: the gun came back', g.rendered)
+            assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
+            g.rendered.clear()
+            g.site(0x243FA0, [STOP], (1,), ecx=gun)
+            assert sorted((op, m) for op, m, _ in g.rendered if op == 'add') == sorted(('add', m) for m in hidden), \
+                ('death: native on_hide removed models not in the scene', g.rendered)
+            continue
         assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the native weapon draw was skipped'
         assert sorted((op, m) for op, m, _ in g.rendered) == sorted(('add', m) for m in hidden), (case, g.rendered)
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\1' for m in hidden), case
         g.rendered.clear()
         g.site(0x243FA0, [STOP], (1,), ecx=gun)
         assert ('add', weapon) not in [(op, m) for op, m, _ in g.rendered], f'{case}: restored twice'
-    print('ok: a death or a new owner with the gun and optics hidden puts all three back before the native draw')
+    print('ok: a carrier\'s death keeps its gun and optics out with the native draw skipped (on_hide still gets them '
+          'back); a new owner puts all three back before the native draw')
+
+
+def death_rolled_back(built):
+    """A carrier's death that a rollback takes back (alive again, the world of
+    before the carry loaded): the gun shows as the live carry says, and a
+    later death in the same life records its own hands (here the gun)."""
+    g = Run(built); p = g.players[0]
+    _, weapon = g.renderer()
+    before = g.save(p)
+    g.input(p, 0, COMMAND); g.tick(p, 800); g.draw()
+    assert g.emu.mem_read(weapon + 0x10D, 1) == b'\0'
+    g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)  # the native death entry
+    g.emu.mem_write(p + 0x33C, b'\0')
+    g.emu.mem_write(p + 0x33C, b'\1'); g.load(p, before)  # the rollback: +33Ch is loaded before the hook
+    for case in ('rolled back', 'a later death'):
+        if case == 'a later death':
+            g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)
+            g.emu.mem_write(p + 0x33C, b'\0')
+        g.rendered.clear()
+        g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the gun stayed out as at the taken-back death'
+        assert g.emu.mem_read(weapon + 0x10D, 1) == b'\1', (case, g.rendered)
+    print('ok: a death a rollback takes back leaves no record: the gun shows, and a later death records afresh')
 
 
 def moving_draw(built):
