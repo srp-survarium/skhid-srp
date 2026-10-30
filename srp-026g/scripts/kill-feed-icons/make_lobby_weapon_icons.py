@@ -2,10 +2,16 @@
 """make_lobby_weapon_icons.py: the kill feed's weapon icons for the lobby movie (2026-10-30;
 ../../docs/notes/kill-feed-icons.md "In the lobby").
 
-usage: python3 -I make_lobby_weapon_icons.py --hud <hud.swf> --ffdec <ffdec.jar> --hud-bitmaps <folder> --lobby <folder>
+usage: python3 -I make_lobby_weapon_icons.py (--hud <hud.swf> | --patches <folder>) --ffdec <ffdec.jar>
+           [--java <java>] --hud-bitmaps <folder> --lobby <folder> [--check]
 
 --hud          the hud movie's original (srp-026g/flash/hud/movie.json: resources.db.patch_22, sha256 checked)
+--patches      or the folder of the published patches (~/.cache/skhid-release/patches): the original is
+               read from the archive and offset the hud's movie.json names
 --ffdec        FFDec's jar (private/actionscript/tools.json), which exports the clip's bitmaps as PNG
+--java         the java that runs it (tools.json's; default: java on PATH)
+--check        write nothing: compare what it would write with the lobby's files (pixels and text),
+               exit 1 on any difference (scripts/weight-ui/check_ui.sh runs it)
 --hud-bitmaps  srp-026g/flash/hud/bitmaps: CombatLogWeapon53..68.png, the icons past the clip's frames
 --lobby        srp-026g/flash/lobby_menu: writes bitmaps/KillFeedWeapon<icon>.png, a class a bitmap
                (src/KillFeedWeapon<icon>.as) and src/survarium/player/KillFeedIcons.as, their index
@@ -18,7 +24,9 @@ bitmaps. A frame with no shape (icon 17) has no icon. Writes the files anew; a c
 Needs Pillow.
 """
 import argparse
+import filecmp
 import hashlib
+import json
 from pathlib import Path
 import shutil
 import struct
@@ -122,12 +130,49 @@ def clip_frames(tags):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    for name in ('hud', 'ffdec', 'hud-bitmaps', 'lobby'):
+    for name in ('ffdec', 'hud-bitmaps', 'lobby'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--hud', type=Path)
+    parser.add_argument('--patches', type=Path)
+    parser.add_argument('--java', default='java')
+    parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
-    data = args.hud.read_bytes()
+    if args.hud is not None:
+        data = args.hud.read_bytes()
+    elif args.patches is not None:
+        movie = json.loads((args.hud_bitmaps.parent / 'movie.json').read_text())
+        with open(args.patches / movie['archive'], 'rb') as archive:
+            archive.seek(movie['archive_offset'])
+            data = archive.read(movie['movie_size'])
+    else:
+        sys.exit('--hud or --patches is needed')
+    if args.check:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / 'src' / 'survarium' / 'player').mkdir(parents=True)
+            names = write(args, data, out)
+            bad = [n for n in names if not same(out / n, args.lobby / n)]
+            if bad:
+                sys.exit('the lobby\'s kill feed icons differ from the hud\'s: ' + ', '.join(bad) + ' (rerun without --check)')
+            print(f'ok: the lobby\'s {len(names)} kill feed icon files are the hud\'s')
+        return
+    write(args, data, args.lobby)
+
+
+def same(made, kept):
+    """Whether a written file and the lobby's are the same: a PNG by its pixels, the rest by bytes."""
+    if not kept.exists():
+        return False
+    if made.suffix == '.png':
+        a, b = Image.open(made).convert('RGBA'), Image.open(kept).convert('RGBA')
+        return a.size == b.size and a.tobytes() == b.tobytes()
+    return filecmp.cmp(made, kept, shallow=False)
+
+
+def write(args, data, lobby):
+    """Writes the icons, their classes and the index into `lobby`; returns their paths under it."""
     if hashlib.sha256(data).hexdigest() != HUD_SHA256:
-        sys.exit(f"{args.hud}: not the hud movie's original (sha256 {hashlib.sha256(data).hexdigest()})")
+        sys.exit(f"{args.hud or args.patches}: not the hud movie's original (sha256 {hashlib.sha256(data).hexdigest()})")
     tags = swf.split(data)[1]
     shapes = {struct.unpack_from('<H', swf.payload(raw))[0]: swf.payload(raw) for kind, raw in tags if kind == DEFINE_SHAPE}
     icons = {}
@@ -137,11 +182,14 @@ def main():
             sys.exit(f'frame {frame}: shape {shape} fills {fills}, not one icon bitmap')
         icons[frame - 1] = fills[0]
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(['java', '-jar', str(args.ffdec), '-format', 'image:png', '-selectid',
-                        ','.join(str(b) for b in icons.values()), '-export', 'image', tmp, str(args.hud)],
+        movie = Path(tmp) / 'hud.swf'
+        movie.write_bytes(data)
+        exports = Path(tmp) / 'images'
+        subprocess.run([args.java, '-jar', str(args.ffdec), '-format', 'image:png', '-selectid',
+                        ','.join(str(b) for b in icons.values()), '-export', 'image', str(exports), str(movie)],
                        check=True, stdout=subprocess.DEVNULL)
-        exported = {int(p.name.split('.')[0].split('_')[0]): p for p in Path(tmp).rglob('*.png')}
-        bitmaps = args.lobby / 'bitmaps'
+        exported = {int(p.name.split('.')[0].split('_')[0]): p for p in exports.rglob('*.png')}
+        bitmaps = lobby / 'bitmaps'
         bitmaps.mkdir(exist_ok=True)
         written = {}
         for icon, bitmap in icons.items():
@@ -151,7 +199,7 @@ def main():
         source = args.hud_bitmaps / f'CombatLogWeapon{icon}.png'
         shutil.copyfile(source, bitmaps / f'KillFeedWeapon{icon}.png')
         written[icon] = Image.open(source).size
-    src = args.lobby / 'src'
+    src = lobby / 'src'
     for icon, (w, h) in sorted(written.items()):
         (src / f'KillFeedWeapon{icon}.as').write_text(
             'package\n{\n   import flash.display.BitmapData;\n\n'
@@ -172,7 +220,10 @@ def main():
         '      public static function bitmap(icon:int) : BitmapData\n      {\n'
         '         var kind:Class = icon >= 0 && icon < ICONS.length ? ICONS[icon] as Class : null;\n'
         '         return kind != null ? new kind() as BitmapData : null;\n      }\n   }\n}\n', encoding='utf-8')
-    print(f'Wrote {len(written)} icons (0 to {last}, none for {sorted(set(range(last + 1)) - set(written))})')
+    if not args.check:
+        print(f'Wrote {len(written)} icons (0 to {last}, none for {sorted(set(range(last + 1)) - set(written))})')
+    return ([f'bitmaps/KillFeedWeapon{i}.png' for i in written] + [f'src/KillFeedWeapon{i}.as' for i in written]
+            + ['src/survarium/player/KillFeedIcons.as'])
 
 
 if __name__ == '__main__':

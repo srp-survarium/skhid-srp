@@ -1,6 +1,8 @@
 package survarium.player
 {
    import flash.display.Bitmap;
+   import flash.display.BitmapData;
+   import flash.geom.ColorTransform;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -91,6 +93,8 @@ package survarium.player
       private function killIcon(icon:int) : Sprite
       {
          var image:Bitmap = new Bitmap(KillFeedIcons.bitmap(icon),"auto",true);
+         // White in the hud (which tints it per side): here the modifier icons' own colour.
+         image.transform.colorTransform = iconTint();
          var scale:Number = Math.min(GLYPH.width / image.width,GLYPH.height / image.height);
          image.scaleX = image.scaleY = scale;
          image.x = GLYPH.x + (GLYPH.width - image.width) / 2;
@@ -99,6 +103,26 @@ package survarium.player
          holder.name = "kill" + icon;
          holder.addChild(image);
          return holder;
+      }
+
+      // The modifier icons' colour, as a tint for a white image: the average of the opaque
+      // pixels of the atlas's speed icon (11), the icon the other rows show; read once.
+      private static var _tint:ColorTransform;
+      private static function iconTint() : ColorTransform
+      {
+         if(_tint != null) return _tint;
+         var icons:IconContainer = IconContainer.getInstance("modifiers");
+         var pixels:BitmapData = icons != null ? icons.getIcon(11).bitmap.bitmapData : null;
+         var r:Number = 0, g:Number = 0, b:Number = 0, n:int = 0;
+         for(var y:int = 0; pixels != null && y < pixels.height; y++)
+            for(var x:int = 0; x < pixels.width; x++)
+            {
+               var argb:uint = pixels.getPixel32(x,y);
+               if((argb >>> 24) < 0xF0) continue;
+               r += (argb >> 16) & 0xFF; g += (argb >> 8) & 0xFF; b += argb & 0xFF; n++;
+            }
+         _tint = n == 0 ? new ColorTransform() : new ColorTransform(r / n / 255,g / n / 255,b / n / 255);
+         return _tint;
       }
 
       // Row `i`'s group icon, drawn the way the shop draws it: the filter's own

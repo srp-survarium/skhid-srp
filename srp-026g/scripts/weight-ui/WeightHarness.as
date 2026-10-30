@@ -356,6 +356,11 @@ package {
      var kc:Object=card.getChildAt(6).iconContainer;var kh:Object=kc.getChildAt(kc.numChildren-1);var kb:Rectangle=kh.getBounds(kc);
      require(kh.name=="kill31" && kh.getChildAt(0) is Bitmap && kh.getChildAt(0).bitmapData!=null,"the AK-74M row shows its kill feed icon: "+kh.name);
      require(fitsGlyph(kb),"its kill feed icon fitted in the glyph box: "+kb);
+     // Tinted to the modifier icons' colour: the average opaque pixel of the atlas's icon 11.
+     var atlas:BitmapData=Icons.getIcon(11).bitmap.bitmapData;var sr:Number=0,sg:Number=0,sb:Number=0,sn:int=0;
+     for(var py:int=0;py<atlas.height;py++)for(var px:int=0;px<atlas.width;px++){var c32:uint=atlas.getPixel32(px,py);if((c32>>>24)<0xF0)continue;sr+=(c32>>16)&255;sg+=(c32>>8)&255;sb+=c32&255;sn++;}
+     var tint:ColorTransform=kh.getChildAt(0).transform.colorTransform;
+     require(sn>0 && Math.abs(tint.redMultiplier*255-sr/sn)<1 && Math.abs(tint.greenMultiplier*255-sg/sn)<1 && Math.abs(tint.blueMultiplier*255-sb/sn)<1 && tint.redMultiplier<1,"the silhouette in the icons' colour: "+tint+" vs "+(sr/sn)+","+(sg/sn)+","+(sb/sn));
      for each(var gi:Array in [[4,3]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
       // The shop's own renderer, its data {icon}, its icon at that frame, fitted in the atlas icons' box.
       var shop:Object=holder.getChildAt(0);var ib:Rectangle=glyphOf(shop,holder);

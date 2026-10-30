@@ -108,3 +108,9 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   not comparable (no card shows it).
 - **The row:** the icon fitted by the glyph box's width (they are wide), centred; a weapon whose
   icon the index lacks shows its class's shop filter icon.
+- **Colour:** the images are white (the hud tints them per side); in the tooltip they take the
+  modifier icons' own colour: a ColorTransform from the average opaque pixel of the atlas's speed
+  icon (11), read once at run time (the owner: "too white").
+- **Checked:** `make_lobby_weapon_icons.py --check` (run by `scripts/weight-ui/check_ui.sh`, with
+  the hud's original read from the published patches) fails when the lobby's files differ from what
+  the hud's images make.
