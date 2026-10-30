@@ -18,6 +18,11 @@ weight and modifiers from their plain piece. Armour and isolation are percentage
 both the actual hit protection and item-card values are converted together.
 Backpacks use native backpack parameters. The firefighter oxygen tank keeps
 its donor capacity of 140 seconds. No bleeding-protection mechanic is added.
+Its quick slot in a match (the back slot's use action, "Oxygen tank") shows
+the icon the hud movie has for its `ui_desc/icon` (17, 14, id 302):
+`flash/hud/bitmaps/HudItemDoubleCylinder.png` (this pack's `icons/931.png`)
+in `QuickSlots.SRP_HUD_ICONS`. Any new oxygen tank (data type 1) needs its row
+there; an icon id the hud does not list shows an empty slot.
 
 The comparisons and trade-offs are in [BALANCE.md](BALANCE.md). The progression is:
 Animal skin and Private at 1, Hunter at 3, Saboteur at 5,

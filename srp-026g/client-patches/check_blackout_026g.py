@@ -223,7 +223,8 @@ class Run(hide.Run):
                                                       UC_X86_REG_EDX: pair})
             # The carry takes H's events where on_keyboard_action has its
             # action (site carry.key 0x23FE42: EDI the action, the key's state
-            # 1 down / 2 repeat / 3 up at ebp+10h), down and up alike.
+            # at ebp+10h as input::enum_keyboard_action, 1 down / 2 up / 3 hold,
+            # one more than the pushed state), down and up alike.
             frame = hide.STACK + 0xA000
             self.word(frame + 0x10, held + 1)
             self.run(0x23FE42, (0x23FE48,), sp, {**hide.GAME, UC_X86_REG_EDI: 0x23, UC_X86_REG_EBP: frame})

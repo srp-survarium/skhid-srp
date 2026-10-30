@@ -8,8 +8,9 @@ weight, activation comparison colors, repeated comparisons and card bounds.
 
 The runner adapts only its copied test movie with `ruffle_movie.py`. Stock
 Scaleform placements differ from the standard SWF form Ruffle accepts: their
-visibility flag has no following byte, and some bitmap placements omit the image
-class name. Without the adapter Ruffle loses named card sections and bar sprites.
+visibility flag has no following byte, some bitmap placements omit the image
+class name, and some place a symbol by its class name alone. Without the adapter
+Ruffle loses named card sections, bar sprites and the profile's CLIK controls.
 The release movie is never modified by this test fixture step.
 
 `check_content.py <before> <after>` takes directories of extracted gameplay files

@@ -40,6 +40,7 @@ survarium::bullet	velocity	0x1C	f32	its segment's velocity, a float3 (the ctor 0
 survarium::bullet	ammo	0x40	ptr<survarium::ammo_data>	its ammo's data (ammo_data::load 0x332440; the weapon's +53Ch, the ctor 0x32BB53)
 survarium::bullet	manager	0x44	ptr<survarium::bullet_manager>	the bullet manager
 survarium::bullet	material	0x48	ptr<survarium::game_material>	its game material
+survarium::bullet	surface	0x4C	ptr<survarium::game_material>	the material it last struck: the triangle's, or the manager's default for an unassigned 0FFFFh (check_collision 0x32D87B; the material pair's second index, process_front_face_piercing 0x32E585)
 survarium::bullet	quiet	0x80	u8	set: no hit sound (process_front_face_piercing 0x32E6CC)
 survarium::bullet	segment	0x84	u32	its segments past the first (pierces and ricochets; change_trajectory 0x32EE20)
 survarium::bullet_owner	place	0x4	u8	the shooter's place (add_shootmark's table index, 0x32E562)
@@ -122,6 +123,35 @@ scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed strin
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
+vostok::engine_cfg	data	0x0	u32	value bits of a binary config node
+vostok::engine_cfg	children	0x0	ptr<vostok::engine_cfg>	child array when node_type is table or array
+vostok::engine_cfg	node_type	0x14	u16	binary config type: integer 1, float 2, table 3, array 4
+vostok::engine_cfg	count	0x16	u16	child count for tables and arrays
+vostok::engine_cfg	size	0x18	size	binary config record stride, cfg_child 0xF6B10
+vostok::binary_config	root	0x108	ptr<vostok::engine_cfg>	root record of the loaded binary config
+survarium::simple_game_project	config	0x17C	ptr<vostok::binary_config>	project binary config, insert 0x285750
+survarium::simple_game_project	scene	0x180	ptr<survarium::game_scene>	project scene, insert_static 0x285540
+survarium::simple_game_project	objects	0x184	ptr<survarium::project_object_slot>	first pointer in the project object vector
+survarium::simple_game_project	objects_end	0x188	ptr<survarium::project_object_slot>	end of the project object vector
+survarium::simple_game_project	visuals	0x1E8	ptr<survarium::render_visual>	first render visual
+survarium::simple_game_project	visual_count	0x1EC	u32	number of render visuals
+survarium::project_object_slot	object	0x0	ptr<survarium::project_object>	object vector element
+survarium::project_object_slot	size	4	size	project vector stores pointers
+survarium::project_object	vtable	0x0	u32	native interface identity before binding
+survarium::project_object	light	0x0	obj<survarium::object_light>	only when the native vtable identifies object_light
+survarium::render_visual	vtable	0x0	u32	render visual insertion/removal interface
+survarium::render_visual	size	0x48	size	render visual stride in insert_static 0x285540
+survarium::object_light	vtable	0x0	u32	light object interface
+survarium::object_light	position	0x140	f32	translation float3, object_light::load 0x291720
+survarium::render_visual_methods	rtti	-4	u32	native complete object locator
+survarium::render_visual_methods	size	8	size	two native virtual methods: insert and remove
+survarium::object_light_methods	rtti	-4	u32	native complete object locator
+survarium::object_light_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
+survarium::image	visual_methods	0xA029B4	obj<survarium::render_visual_methods>	render_visual native vtable including RTTI at -4
+survarium::image	light_methods	0xA0ADEC	obj<survarium::object_light_methods>	object_light native vtable including RTTI at -4
+survarium::project_insert_frame	physics	4	ptr<vostok::physics::bullet_physics_world>	insert entry ESP+4: the physics world, not scene camera director
+survarium::history_save_frame	writer	8	ptr<vostok::buffer_writer>	serialize epilogue EBP+8: writer argument
+survarium::bullet_manager	physics	0x98	ptr<vostok::physics::bullet_physics_world>	physics world used for ray tests and lamp history
 vostok::animation::skeleton_bone	computed_layers	0x18	u8	computed matrix selection: render bit 1, damage bit 2; 0x3B2AF0 and 0x3B2C90
 survarium::inventory	artefact_slots_begin	0x168	ptr<survarium::inventory_slot>	pointer to the first artefact slot; native take_artefact and quick-slot lookup
 survarium::inventory	artefact_slot_count	0x16C	u8	number of artefact containers
@@ -136,7 +166,7 @@ survarium::player	world_core	0x120	ptr<survarium::core_world>	world core, genera
 survarium::player	time	0x324	u32	simulation milliseconds, tick 0x2DAA7F
 survarium::player	actions	0x330	u32	current input action mask, set_input 0x2D876C
 survarium::player	need_to_select_animations	0x33E	u8	m_need_to_select_animations: a simulation field, serialized at 0x2DAFDA; set_input sets it (0x2D899D). Not a dirty flag
-survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h): 1 down, 2 repeat, 3 up (0x23FE45, 0x23FEC5, 0x23FEF9)
+survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h), 0.10b input::enum_keyboard_action: 1 down, 2 up, 3 hold (pushed as 0 down 0x23FEA4, 1 up 0x23FF0C, 2 hold 0x23FED8)
 survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
 survarium::input_entry_frame	input	0x8	ptr<survarium::native_player_input>	set_input entry second stack argument, immutable eight-byte input
 survarium::native_player_input	actions	0x4	u32	input angles followed by action mask
@@ -209,3 +239,7 @@ survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds
 survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
 survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
 survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
+survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, after its thrower's modifier 0Ch (grenade_set_core +2A0h read at 0x309BDD, the copy's +28h at 0x30A3DC): bullet_manager::explode's objects within it (0x33963D) take damage
+survarium::explosion_params	splash_pierce	0x34	f32	its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
+survarium::explode_frame	manager	0x4	ptr<survarium::bullet_manager>	bullet_manager::explode's first stack argument: the core world's bullet manager (game_world_core +18F58h; 0x30A4CF, 0x305711)
+survarium::explode_frame	centre	0x8	ptr<f32>	its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)

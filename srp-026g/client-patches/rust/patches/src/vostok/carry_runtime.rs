@@ -106,20 +106,16 @@ pub fn incoming(ctx: &Context<'_>) -> Option<(Time, u32)> {
 }
 
 /// The carry key's event at player_input_handler::on_keyboard_action (site
-/// carry.key): `Some(true)` when the key bound to `action` went down or
-/// repeats, `Some(false)` when it came up, `None` for another action. Every
-/// key event passes here, its up too, whatever the input builder does after.
-pub fn key_event(ctx: &Context<'_>, action: super::Action) -> Option<bool> {
+/// carry.key): the event of the key bound to `action`, `None` for another
+/// action or a state the engine does not define. Every key event passes
+/// here, its up too, whatever the input builder does after.
+pub fn key_event(ctx: &Context<'_>, action: super::Action) -> Option<super::KeyboardAction> {
     // SAFETY: the site's typed registers: EDI the binder's action, EBP the
     // function's frame (its third argument, the key's state, at +10h).
     let (bound, frame) = unsafe { (raw::site::carry_key::action(ctx), raw::site::carry_key::frame(ctx)?) };
     if bound != action.0 { return None; }
     // SAFETY: the frame's argument slot, read once.
-    match unsafe { read(frame.state()) } {
-        1 | 2 => Some(true),
-        3 => Some(false),
-        _ => None,
-    }
+    super::KeyboardAction::parse(unsafe { read(frame.state()) })
 }
 
 pub fn constructed(ctx: &Context<'_>) -> u32 {

@@ -34,6 +34,8 @@ package survarium.rooms
         private var _banner:TextField;
         private var _bannerLabel:TextField;
         private var _bannerHint:TextField;
+        // In its match: the map and mode it is played on, under the hint.
+        private var _bannerMap:TextField;
         internal var _alerted:Boolean = false;
         // A right-click on a member: the game's right-click menu with "Show
         // player's information" (LobbyMenu.showPlayerInfoMenu, the
@@ -68,11 +70,13 @@ package survarium.rooms
             look._content.addChild(band);
             _bannerLabel = look.text(look._content, "", 16, 90, 300, 15, RoomsLook.GREY);
             _banner = look.text(look._content, "", 260, 82, 200, 30, room.phase == RoomPhase.WAITING ? RoomsLook.LIGHT : RoomsLook.GOLD);
-            _bannerHint = look.text(look._content, "", 440, 91, look._w - 456, 15, RoomsLook.GREY);
+            // In its match: the hint higher, the match's map and mode under it.
+            var playing:Boolean = room.phase == RoomPhase.IN_MATCH;
+            _bannerHint = look.text(look._content, "", 440, playing ? 81 : 91, look._w - 456, 15, RoomsLook.GREY);
+            _bannerMap = look.text(look._content, "", 440, 101, look._w - 456, 13, RoomsLook.LIGHT);
             banner();
             var y:Number = 140;
             look.text(look._content, win.say("st_srp_rooms_vote").toUpperCase(), 16, y, 400, 16, RoomsLook.LIGHT);
-            look.text(look._content, win.say("st_srp_rooms_vote_hint"), 360, y + 1, look._w - 376, 14, RoomsLook.GREY);
             y += 28;
             var cw:int = int((look._w - 32 - 2 * 14) / 3);
             // A private room's teams take a line more under the cards.
@@ -112,13 +116,13 @@ package survarium.rooms
                 var votes:TextField = look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 if (e != null)
                 {
-                    // The mode's tag wider for a longer name (at most the card's
+                    // The mode's tag as wide as its name (at most the card's
                     // width less its margins); the map's name up to the votes.
                     var mode:TextField = look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
                     var tag:Shape = new Shape();
                     tag.graphics.lineStyle(1, RoomsLook.modeColour(e.mode));
                     tag.graphics.beginFill(0x000000, 0.7);
-                    tag.graphics.drawRect(10, 10, Math.max(cw * 0.55, Math.min(cw - 20, mode.textWidth + 16)), 24);
+                    tag.graphics.drawRect(10, 10, Math.min(cw - 20, mode.textWidth + 16), 24);
                     tag.graphics.endFill();
                     cell.addChildAt(tag, cell.getChildIndex(mode));
                     look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
@@ -398,7 +402,8 @@ package survarium.rooms
             {
                 _bannerLabel.text = win.say("st_srp_rooms_voting").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
-                _bannerHint.text = unfit != "" ? unfit : win.say("st_srp_rooms_vote_now");
+                // No vote hint (the owner's of 2026-10-30): only its kit or gear.
+                _bannerHint.text = unfit;
             }
             else if (win._room.phase == RoomPhase.COUNTDOWN)
             {
@@ -411,6 +416,9 @@ package survarium.rooms
             else if (win._room.phase == RoomPhase.IN_MATCH)
             {
                 _bannerLabel.text = win.say("st_srp_rooms_playing").toUpperCase();
+                // The map its match is played on (the server's `L` row) and its mode.
+                var played:Object = win.entry(win._room.last);
+                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(played.mode) : "", "");
                 _banner.text = RoomsText.clock(win._room.secs + passed);
                 // Waiting to go into it: the seconds left, counted here; or
                 // why it cannot go in now; or its own kit or gear.

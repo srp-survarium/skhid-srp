@@ -700,7 +700,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 38
+REVISION = 39
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1189,14 +1189,14 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps")
 
 
 def rust_hooks(original):
     """The Rust hooks' installs (site VA, the bytes replaced, the entry's
     arena symbol, the opcode): a span hook's bytes read from `original`, the
     exe being built from."""
-    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n])
+    read = hooks_026g.original_reader(original)
     return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
 
 
@@ -2451,7 +2451,8 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
-)
+
+) + hooks_026g.installed_vtables()
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
 # is declared with the instruction that hands it over and the game's own

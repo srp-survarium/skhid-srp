@@ -1,0 +1,31 @@
+# The shop's filter buttons: one list per shop tab, in the order the tab shows them. The lobby build
+# makes them the class survarium.data.ShopFilters (tools/actionscript/README.md, "Tables"); FiltersWindow
+# shows them, and the wiki's group icons (srp-026g/scripts/wiki/build_icons.py) read this file.
+# icon: FilterItem's itemIcon frame 300 + icon; name: the button's instance name; tip: its tooltip's
+# dictionary key; sucat: the item category it filters (survarium.constants.ItemCategory).
+list	icon:int	name:String	tip:String	sucat:survarium.constants.ItemCategory
+EQUIPMENT	3	bronya	filter_body_armor	BODY_ARMOR
+EQUIPMENT	1	kaska	filter_helmet	HELMETS
+EQUIPMENT	6	perchatka	filter_gloves	GLOVES
+EQUIPMENT	7	obuv	filter_boots	BOOTS
+EQUIPMENT	5	nogi	filter_pants	PANTS
+EQUIPMENT	2	maska	filter_mask	MASKS
+EQUIPMENT	0	snaryazhenie	filter_rig	RIGS
+WEAPONS	8	pistolet	filter_pistol	PISTOLS
+WEAPONS	9	gungun	filter_submachine_gun	SUBMACHINE_GUNS
+WEAPONS	10	avtomat	filter_assault_rifle	ASSAULT_RIFLES
+WEAPONS	11	pulemet	filter_machine_gun	MACHINE_GUNS
+WEAPONS	12	drobovik	filter_shotgun	SHOTGUNS
+WEAPONS	13	snaiperka	filter_sniper_rifle	SNIPER_RIFLES
+AMMO	8	ammo_1	filter_ammo_pistol	PISTOL_AMMO
+AMMO	10	ammo_3	filter_ammo_assault_rifle	ASSAULT_RIFLE_AMMO
+AMMO	11	ammo_4	filter_ammo_machine_gun	MACHINE_GUN_AMMO
+AMMO	12	ammo_5	filter_ammo_shotgun	SHOTGUN_AMMO
+AMMO	13	ammo_6	filter_ammo_sniper_rifle	SNIPER_RIFLE_AMMO
+ITEMS	14	medkit	filter_medkit	MEDKITS
+ITEMS	15	traps	filter_mine	BOOBY_TRAPS
+ITEMS	16	grenade	filter_grenade	GRENADES
+UPGRADES	18	decal	filter_decal	DECALS
+UPGRADES	19	camo	filter_camo	CAMOUFLAGES
+UPGRADES	20	vouchers	filter_vouchers	VOUCHERS
+UPGRADES	13	scope	filter_scope	SCOPES

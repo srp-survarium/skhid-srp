@@ -107,6 +107,8 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         checkSideStable();
+         checkRoomView();
          checkQueueButton();
          checkCreate();
          checkWindowOrder();
@@ -420,6 +422,89 @@ package
          {
             failures.push(what + ": the facts' Max level " + (factsMax ? "missing" : "shown"));
          }
+      }
+
+      // The room's own view (the owner's of 2026-10-29): a vote card's mode tag as wide as its name,
+      // also after the same card showed a longer one; no vote hint line, none in the banner either
+      // (the owner's of 2026-10-30); in its match, the map and
+      // mode it is played on (the `L` row) under the banner's hint, whole.
+      private function checkRoomView() : void
+      {
+         var tagOf:Function = function(text:String):Object
+         {
+            var found:Array = [];
+            walk(win,[],found,0,0,[]);
+            for each(var t:Object in found)
+               if(t.text == text)
+               {
+                  var cell:* = t.parent;
+                  var tag:* = cell.getChildAt(cell.getChildIndex(t.field) - 1);
+                  return {"tag": tag.width, "text": t.field.textWidth};
+               }
+            return null;
+         };
+         // Card 1 (map 62): Blackout first, then the plain protective device.
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;6;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var long:Object = tagOf("PROTECTIVE DEVICE: BLACKOUT");
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;2;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var short:Object = tagOf("PROTECTIVE DEVICE");
+         trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
+            + ", then short " + (short != null ? short.tag + " for " + short.text : "none"));
+         if(long == null || short == null)
+            failures.push("vote card tags not found");
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20)
+            failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+         {
+            if(String(t.text).indexOf("Most votes wins") >= 0)
+               failures.push("the vote hint line is still shown");
+            if(String(t.text).indexOf("click a card") >= 0)
+               failures.push("the banner's vote hint is still shown");
+         }
+         // In its match on map 62: the map and mode line, not cut.
+         tellRoom(1003, false, false, 2, null, 0, ["L;62"]);
+         var line:String = null;
+         texts = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var u:Object in texts)
+            if(String(u.text).indexOf(" · Protective device") > 0)
+               line = u.text;
+         trace("ROOMS in its match, the banner's map line: " + line);
+         if(line == null || line.indexOf("…") >= 0)
+            failures.push("in its match: no whole map and mode line in the banner (" + line + ")");
+      }
+
+      // The chosen room beside the list keeps one layout through its vote: with no card ahead
+      // (map 0) and with one (map 61), its name, "Map chosen by vote" or the map's line, and its
+      // facts at the same heights (the owner's of 2026-10-29: the card flipped between two).
+      private function checkSideStable() : void
+      {
+         tell(["S1;M;1;0","0;61;5;5;2;0"]);
+         var heights:Function = function(map:int):Object
+         {
+            tell(["S1;L;1;0","1001;8;10;8;9;3;32;" + map + ";0;Kosztinpeter"]);
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var at:Object = {};
+            for each(var t:Object in texts)
+               if(t.text == "Kosztinpeter" || t.text == "State" || t.text == "Players" || t.text == "Map chosen by vote")
+                  at[t.text] = Math.max(at[t.text] != null ? at[t.text] : -1, t.y);
+            return at;
+         };
+         var none:Object = heights(0);
+         var leading:Object = heights(61);
+         trace("ROOMS side card, no map: name " + none["Kosztinpeter"] + ", players " + none["Players"] + ", state " + none["State"]
+            + ", by vote " + none["Map chosen by vote"] + "; a map ahead: name " + leading["Kosztinpeter"] + ", players "
+            + leading["Players"] + ", state " + leading["State"]);
+         if(none["Map chosen by vote"] == null)
+            failures.push("side card without a map: no \"Map chosen by vote\"");
+         for each(var key:String in ["Kosztinpeter", "Players", "State"])
+            if(none[key] == null || none[key] != leading[key])
+               failures.push("side card: " + key + " moves with the map (" + none[key] + " / " + leading[key] + ")");
       }
 
       // Only private rooms can be made: no public sliders, and Create

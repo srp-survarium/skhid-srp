@@ -40,6 +40,14 @@ with inventory ... not character, but character menu ... with 3 profiles current
   an entry was chosen, and Repair and Upgrade used the list's selected shop entry (Upgrade did
   nothing). These entries are listed only for an owned item. The craft window (Upgrade) opened
   from the shop lists the inventory while it is open, as the modification window does.
+- **Buy in a right-click menu buys the item the menu was opened on** (live, rev 39, 2026-10-30: "the
+  Buy button in the inventory's context menu does not work"), put on the card first, as the other
+  entries do (`InventoryList.buyMenuItem`). It bought what the list had selected (`buyElement`, now
+  a double click's only), so it did nothing for a kit item in the shop unless a row the shop sells
+  happened to be selected (the shop's list has no row of a kit item), and for a shop entry locked at
+  its seller while another seller sells the item unlocked (Buy is listed by what the shop sells,
+  `buyable`; the greyed row takes no selection). Checked by `scripts/inventory-menu/check.sh`.
 - **The shop's own entries** (its list, its card) offer none of them, as before: Buy only.
 - **Server:** a refused reroll window, reroll or repair logs the item id the client sent.
-- Code: `InventoryList.set visible`, `InventoryList.showContextMenu`, `LobbyMenu.openCraftWindow`.
+- Code: `InventoryList.set visible`, `InventoryList.showContextMenu`, `InventoryList.buyMenuItem`,
+  `LobbyMenu.openCraftWindow`.

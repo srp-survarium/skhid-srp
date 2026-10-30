@@ -158,6 +158,34 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
 }
 
+#[test]
+fn a_headshot_body_stays_down_while_its_muscles_fade() {
+    // The headshot's muscles fade fastest; a body still creeping when their
+    // strength's exponent passed 50 was flung metres up (exp_neg grew there).
+    let hits = [looks5()[2].1];
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, Cause::Unknown, Some(GUN));
+    input.hits = &hits;
+    let mut body = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    let mut t = 0.0;
+    while t < 8.0 {
+        if body.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            break;
+        }
+        t += 1.0 / 60.0;
+        if t > 1.5 {
+            let top = body
+                .bodies
+                .iter()
+                .map(|b| b.pose.position.y)
+                .fold(0.0, f32::max);
+            assert!(top < 0.6, "a part {top:.2} m up at {t:.2} s");
+        }
+    }
+}
+
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(
     ragdoll: &mut Ragdoll,
