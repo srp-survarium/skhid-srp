@@ -171,16 +171,24 @@ RUST_LOG=info
 # SRP_PVB_PAY=0.25
 # SRP_PVB_STALL_S=60
 # The kit the rusher bots of the tiers 9-10 and 13-15 wear
-# (docs/notes/pvb-tiers.md, 3.1): control (the old kit: the SPAS-12 with
-# buckshot; the default), smg (the tier's SMG: sr2m, fn_p90), alt (ump45,
-# kriss_vector), slug or helmet (the SPAS-12 with the SMG kit's helmet).
-# One word for both tiers or 9-10=alt,13-15=smg (the bench's pick). Read at
+# (docs/notes/pvb-tiers.md, 3.1): the owner's 9-10=alt,13-15=smg when unset
+# (alt: ump45, kriss_vector; smg: the tier's SMG, sr2m, fn_p90), control (the
+# old kit: the SPAS-12 with buckshot), slug or helmet (the SPAS-12 with the
+# SMG kit's helmet). One word for both tiers or 9-10=alt,13-15=smg. Read at
 # start.
-# SRP_PVB_RUSHER_KIT=control
+# SRP_PVB_RUSHER_KIT=9-10=alt,13-15=smg
 # Whether every bot wears the respirator the top players of its tier wear
-# (docs/notes/pvb-tiers.md): off (the default), or top (ren_mask_3 at 9-10,
-# edge_resp_3 at 13-15; the lowest tier has none). Read at start.
-# SRP_PVB_MASKS=off
+# (docs/notes/pvb-tiers.md): top when unset (ren_mask_3 at 9-10, edge_resp_3
+# at 13-15; the lowest tier has none), or off. Read at start.
+# SRP_PVB_MASKS=top
+
+# The owner's choices for the server's own bots (2026-10-26), all ON when
+# unset, so a missing variable is no regression; 0, off or false switches
+# one off. SRP_BOT_KIT: bandages, traps and their placing, frags, a fourth
+# pocket and skill 109's ammo bag. SRP_BOT_UPGRADES: the upgrades on the
+# armour. Read once at start.
+# SRP_BOT_KIT=1
+# SRP_BOT_UPGRADES=1
 
 # The bots' decision traces, one JSON file a match with the server's bots
 # (off unless set), and the most MB they keep together, the oldest first.
