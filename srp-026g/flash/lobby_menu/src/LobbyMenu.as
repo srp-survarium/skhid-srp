@@ -29,7 +29,6 @@ package
    import flash.utils.setTimeout;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.DropdownMenu;
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.controls.TileList;
@@ -92,6 +91,7 @@ package
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
+   import survarium.controls.Transient;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -513,7 +513,8 @@ package
       }
 
       // The layers the game first put on the stage, in the root (see _stageLayer): made before
-      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go.
+      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go,
+      // Transient that the root's children are the regular windows.
       private function makeStageLayer() : void
       {
          _stageLayer = new Sprite();
@@ -530,6 +531,7 @@ package
          this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
          PopUpManager.layer = this._layers;
+         Transient.root = this;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -4151,20 +4153,15 @@ package
          {
             return true;
          }
-         // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
-         // not, so Esc never opens the game's menu over a modal
-         if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
-         {
-            trace("has_active_window::DropdownMenu");
-            return false;
-         }
-         var isAnyWindow:Boolean = !this._escapeHandled && (Modals.any() || stage.focus is TextField);
+         // a transient window (History, a dropdown's list) is over the modals: Esc closes it first
+         var isAnyWindow:Boolean = !this._escapeHandled && (Transient.any() || Modals.any() || stage.focus is TextField);
          _escapeHandled = false;
          return isAnyWindow;
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
       // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
+      // closes the top transient window (History, the match settings, a dropdown's list), then
       // takes the keys from a text box (unless the right-click menu is open), then closes the
       // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
       // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
@@ -4175,6 +4172,10 @@ package
          if(this.showInterface())
          {
             _hiddenKeyUp = Keyboard.ESCAPE;
+            return;
+         }
+         if(Transient.escape())
+         {
             return;
          }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
@@ -5982,12 +5983,25 @@ package
       
       private function toggleReports(e:Event) : void
       {
-         this.notificationList.visible = !this.notificationList.visible;
-         setChildIndex(this.notificationList,numChildren - 1);
-         if(this.notificationList.visible)
+         this.showHistory(!this.notificationList.visible);
+      }
+
+      // History (the bottom bar's button) is a transient window (Transient): open over the
+      // windows; any other window opening, a press outside it or Esc closes it as its button does.
+      public function showHistory(value:Boolean) : void
+      {
+         this.notificationList.visible = value;
+         this.bottom_panel.btnShowLogList.selected = value;
+         if(!value)
          {
-            this.notificationListTemp.clear(true);
+            Transient.closed(this.notificationList);
+            return;
          }
+         this.notificationListTemp.clear(true);
+         Transient.open(this.notificationList,this.bottom_panel.btnShowLogList,function():void
+         {
+            showHistory(false);
+         });
       }
       
       private function updateButtonsLocal(value:String) : void
