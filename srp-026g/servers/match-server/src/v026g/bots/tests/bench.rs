@@ -861,7 +861,7 @@ pub(crate) fn real_bot_cost() {
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             game.volume = HitVolume::bench();
             // The client's bullet flies (standin.rs `nearest_shape_flown`) in every hit model that tests shapes, unless `SRP_BENCH_HIT_FLIGHT=0`.
-            game.flight = bench_settings().var("SRP_BENCH_HIT_FLIGHT").ok().as_deref() != Some("0");
+            game.flight = standin_hitbox::BulletPath::bench();
             // Bullets go through cover by the client's rule when either side's cover tests go by it (the stand-in's physics
             // is shared by both sides of a head-to-head); with `cover.pierce` off on both, the first surface stops them.
             game.pierce = [0u8, 1].iter().any(|&team| bots.tuning_of(team).cover.pierce.is_some());

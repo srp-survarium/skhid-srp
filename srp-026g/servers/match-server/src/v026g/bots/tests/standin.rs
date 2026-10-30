@@ -579,7 +579,7 @@ pub(crate) struct Game {
     pub(crate) volume: HitVolume,
     /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
     /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
-    pub(crate) flight: bool,
+    pub(crate) flight: standin_hitbox::BulletPath,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
     /// the sight's when the map has none, as the tests' fields); every
@@ -827,7 +827,7 @@ impl Game {
             shot_facts: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
-            flight: false,
+            flight: standin_hitbox::BulletPath::Instant,
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
@@ -1485,7 +1485,7 @@ impl Game {
     /// by the position scatter, [`Game::shot_line`]). With [`Game::flight`] the bullet flies instead
     /// ([`Self::nearest_shape_flown`]).
     fn nearest_shape(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
-        if self.flight {
+        if self.flight != standin_hitbox::BulletPath::Instant {
             return self.nearest_shape_flown(shooter, eye, origin, dir);
         }
         let mut best: Option<BoxStrike> = None;
@@ -1540,7 +1540,10 @@ impl Game {
                     if !other.alive || body == shooter {
                         continue;
                     }
-                    let feet = other.feet + other.step_vec * (mid / TICK_S);
+                    let feet = match self.flight {
+                        standin_hitbox::BulletPath::FlownBodiesStill => other.feet,
+                        _ => other.feet + other.step_vec * (mid / TICK_S),
+                    };
                     let reach = hit.map_or(length, |h| h.1);
                     if let Some((along, param)) = standin_hitbox::ray_at_body(
                         feet,
