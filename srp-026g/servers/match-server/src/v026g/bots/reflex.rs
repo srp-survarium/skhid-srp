@@ -495,6 +495,18 @@ pub struct CombatTuning {
     pub grenade_volley_ms: (u32, u32),
     /// ... a roll this often, ms.
     pub grenade_volley_every_ms: u32,
+    /// [A187 #10] The second grenade by evidence (only with `grenade_volley`): a roll in the window throws only when an enemy has
+    /// been sensed since the first was let go within `grenade_volley_near_m` of its place (a track of his, not in sight now, no
+    /// older than `grenade_volley_age_ms`), and at his place (a lost or heard one), not at the first's; with none the roll is no
+    /// throw and the frag is kept. The window runs to `grenade_volley_ms.1` after the let-go, past the first blast. Root cause of
+    /// the volley adding nothing (A181 #10, 4 seeds, 16 maps): it threw at the first's place 3.4 s later whatever had happened
+    /// there; the humans' second throw (5,101 lives with a throw, 2,054 pairs within 6 s) kills 14.7 per 100 when an enemy is within
+    /// 10 m of the blast and 4.5 when none is, 18.9 against 3.8 at the gaps of 3-4 s. Off: the volley as it was.
+    pub grenade_volley_track: bool,
+    /// ... the evidence is within this of the first grenade's place, metres (the blast's reach).
+    pub grenade_volley_near_m: f32,
+    /// ... and is no older than this, ms.
+    pub grenade_volley_age_ms: u32,
     /// [C20 G3] The thrower's own blast floor (`grenade_land_m`, 12 m) is
     /// lowered to this for a place whose first contact is nearer than the
     /// floor and not nearer than this, when the thrower can walk out of the
@@ -1170,6 +1182,9 @@ impl Default for CombatTuning {
             grenade_volley_chance: 0.2,
             grenade_volley_ms: (1_600, 6_000),
             grenade_volley_every_ms: 500,
+            grenade_volley_track: false,
+            grenade_volley_near_m: 10.0,
+            grenade_volley_age_ms: 2_000,
             grenade_near_m: 12.0,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
@@ -1641,10 +1656,37 @@ const NEAR_STAY_M: f32 = 1.5;
 struct Volley {
     at: Vec3,
     source: PlaceSource,
+    /// When the first was let go: evidence is a track sensed after it (`grenade_volley_track`).
+    since: u32,
     /// The next roll not before, and the window's end (the first's blast or
     /// `grenade_volley_ms.1`), ms.
     next: u32,
     until: u32,
+}
+
+/// [A187 #10] The place of a second grenade by evidence (`grenade_volley_track`): the freshest track of an enemy the senses gave
+/// since the first grenade was let go, not in sight now, within `grenade_volley_near_m` of the first's place, no older than
+/// `grenade_volley_age_ms` and in the places' range; none if there is no such track or a teammate stands in its blast's reach.
+fn volley_evidence(look: &RollView, volley: &Volley, c: &CombatTuning) -> Option<(Vec3, PlaceSource)> {
+    let RollView { me, sit, memory, now } = *look;
+    memory
+        .tracks()
+        .iter()
+        .filter_map(|track| {
+            let (at, sensed) = track.own?;
+            let fits = sensed >= volley.since
+                && now.saturating_sub(sensed) <= c.grenade_volley_age_ms
+                && track.error_m <= c.grenade_track_error_m
+                && at.distance_xz(volley.at) <= c.grenade_volley_near_m
+                && (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                && friend_in_blast(me, sit.view, at, c).is_none();
+            fits.then(|| {
+                let source = if track.sight_since.is_some() || track.source == Source::Seen { PlaceSource::Lost } else { PlaceSource::Heard };
+                (sensed, (at, source))
+            })
+        })
+        .max_by_key(|(sensed, _)| *sensed)
+        .map(|(_, place)| place)
 }
 
 /// [G3] What the thrower's way out of his own blast is judged by: the
@@ -1833,8 +1875,8 @@ pub struct GrenadeStats {
     pub pushes_skipped: u32,
     /// [C20] The volley (`grenade_volley`): windows opened by a throw let
     /// go, rolls made in them, those the chance said no to, second grenades
-    /// let go.
-    pub volley: [u32; 4],
+    /// let go, rolls with evidence of an enemy by the first's place and rolls with none (`grenade_volley_track`).
+    pub volley: [u32; 6],
     /// [G3] The lowered floor (`grenade_near_m`): places refused by the
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
@@ -4818,6 +4860,21 @@ impl Reflex {
             ..volley
         });
         self.grenade_stats.volley[1] += 1;
+        // [A187 #10] By evidence: the place is where an enemy was sensed by the first's place since it was let go.
+        let place = if c.grenade_volley_track {
+            match volley_evidence(&look, &volley, c) {
+                Some(place) => {
+                    self.grenade_stats.volley[4] += 1;
+                    place
+                }
+                None => {
+                    self.grenade_stats.volley[5] += 1;
+                    return;
+                }
+            }
+        } else {
+            (volley.at, volley.source)
+        };
         if rng.unit() >= c.grenade_volley_chance {
             self.grenade_stats.volley[2] += 1;
             return;
@@ -4832,7 +4889,7 @@ impl Reflex {
             ..*look.sit
         };
         let look = RollView { sit: &sit, ..*look };
-        self.start_throw(&look, c, &[(volley.at, volley.source)], error, hold_ms, ThrowKind::Volley);
+        self.start_throw(&look, c, &[place], error, hold_ms, ThrowKind::Volley);
     }
 
     /// Play 20: the first of `places` (nearest first) whose throw passes
@@ -5096,8 +5153,10 @@ impl Reflex {
                     self.volley = (c.grenade_volley && self.thrown < c.grenades).then(|| Volley {
                         at: throw.at,
                         source: throw.source,
+                        since: now,
                         next: now + c.grenade_volley_ms.0,
-                        until: (now + c.grenade_volley_ms.1).min(blast),
+                        // By evidence the window runs past the first's blast: the enemy who stays or comes back is the point.
+                        until: if c.grenade_volley_track { now + c.grenade_volley_ms.1 } else { (now + c.grenade_volley_ms.1).min(blast) },
                     });
                     if self.volley.is_some() {
                         self.grenade_stats.volley[0] += 1;
@@ -8210,6 +8269,12 @@ mod tests {
 
     /// [`volley_run`] with the kit's frags now known to the reflex (`set_frags_left`), and the rolls it refused for them.
     fn kit_run(combat: CombatTuning, frags: Option<u16>) -> (Vec<u32>, GrenadeStats, u32) {
+        kit_run_heard(combat, frags, None)
+    }
+
+    /// [`kit_run`] with the camper heard 2 m off his place every 250 ms from `heard_after` (an enemy sensed by the first
+    /// grenade's place once it is let go).
+    fn kit_run_heard(combat: CombatTuning, frags: Option<u16>, heard_after: Option<u32>) -> (Vec<u32>, GrenadeStats, u32) {
         let camper_at = Vec3::new(0.0, 0.0, 18.0);
         let mut camper = body(1, 1, camper_at, 0.0);
         camper.keys = key::CROUCH | key::AIM;
@@ -8230,7 +8295,12 @@ mod tests {
         let mut throws = Vec::new();
         let mut now = 1_800;
         while now < 12_000 {
-            sense(&mut memory, &[], now);
+            let heard = if now % 250 == 0 && heard_after.is_some_and(|t| now >= t) {
+                vec![percept(1, camper_at + Vec3::new(2.0, 0.0, 0.0), now, Source::Heard)]
+            } else {
+                Vec::new()
+            };
+            sense(&mut memory, &heard, now);
             if now % 250 == 0 {
                 reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
             }
@@ -8284,7 +8354,7 @@ mod tests {
         };
         let (throws, stats) = volley_run(combat(false));
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "{stats:?}");
+        assert_eq!(stats.volley, [0; 6], "{stats:?}");
         let (throws, stats) = volley_run(combat(true));
         assert_eq!(throws.len(), 2, "{throws:?}");
         let gap = throws[1] - throws[0];
@@ -8301,6 +8371,35 @@ mod tests {
         assert_eq!((stats.volley[0], stats.volley[3]), (1, 0), "{stats:?}");
         assert_eq!(stats.volley[1], stats.volley[2], "{stats:?}");
         assert!(stats.volley[1] >= 1, "{stats:?}");
+    }
+
+    /// [A187 #10] The second grenade by evidence: with `grenade_volley_track` it is thrown only when an enemy is sensed by the first's
+    /// place once the first is let go, and then at where he is sensed; with no one sensed the rolls are counted as without evidence
+    /// and the frag is kept; with the switch off the volley is as it was.
+    #[test]
+    fn the_second_grenade_follows_an_enemy_sensed_by_the_first_place_when_asked_to() {
+        let combat = |track| CombatTuning {
+            grenade_chance: 1.0,
+            grenade_roll_ms: 60_000,
+            grenade_volley: true,
+            grenade_volley_chance: 1.0,
+            grenade_volley_track: track,
+            ..CombatTuning::default()
+        };
+        // Nobody sensed after the first: no second, rolls without evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, None);
+        assert_eq!(throws.len(), 1, "{throws:?}");
+        assert_eq!(stats.volley[3], 0, "{stats:?}");
+        assert!(stats.volley[5] >= 1 && stats.volley[4] == 0, "{stats:?}");
+        // An enemy heard 2 m from the first's place from 4 s on (the first is let go about 2.5 s in): a second, rolls with evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, Some(4_000));
+        assert_eq!(throws.len(), 2, "{throws:?} {stats:?}");
+        assert_eq!((stats.volley[3], stats.nth), (1, [1, 1, 0]), "{stats:?}");
+        assert!(stats.volley[4] >= 1, "{stats:?}");
+        // The switch off: the volley as it was, heard or not.
+        let (throws, stats, _) = kit_run_heard(combat(false), None, None);
+        assert_eq!(throws.len(), 2, "{throws:?}");
+        assert_eq!(stats.volley[4] + stats.volley[5], 0, "{stats:?}");
     }
 
     /// [C20] The window ends with the kit's grenades (`grenades`), and with
@@ -8326,7 +8425,7 @@ mod tests {
             ..combat
         });
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "the kit had no second grenade: {stats:?}");
+        assert_eq!(stats.volley, [0; 6], "the kit had no second grenade: {stats:?}");
     }
 
     /// [G3] A place whose arc comes down inside the thrower's blast floor is
