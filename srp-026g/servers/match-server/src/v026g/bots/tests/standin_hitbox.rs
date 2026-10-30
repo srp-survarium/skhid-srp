@@ -370,12 +370,38 @@ fn ray_capsule(o: Vec3, d: Vec3, radius: f32, half: f32) -> Option<f32> {
 /// `fighting-record/scripts/hitbox/hitboxes-026g-idle.tsv` (tab-separated, a header and comment lines first).
 pub(crate) const TABLE: &str = include_str!("hitboxes-026g-idle.tsv");
 
+/// Whether the forearm and hand shapes are in the pose the shots are tested against (`SRP_BENCH_HIT_ARMS`, a diagnosis of
+/// A182: the bench's hits land on the arms twice as often as the live shares, 52 % against 23 %, because the idle pose
+/// holds the forearms across the chest).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Arms {
+    /// The table's pose, forearms and hands in it.
+    Posed,
+    /// The arm shapes taken out of every pose: a line through the arms' place meets what is behind them.
+    Away,
+}
+
+impl Arms {
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("posed") => Ok(Self::Posed),
+            Some("away") => Ok(Self::Away),
+            Some(other) => Err(format!("SRP_BENCH_HIT_ARMS={other:?}: posed or away")),
+        }
+    }
+
+    fn bench() -> Self {
+        Self::parse(bench_settings().var("SRP_BENCH_HIT_ARMS").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
 /// The poses of [`TABLE`], by `[crouched][aimed]`.
 pub(crate) struct Poses([[Pose; 2]; 2]);
 
 impl Poses {
-    /// Parse `table` once; a row that is not what the table says is a panic here, never in a shot.
-    fn read(table: &str) -> Self {
+    /// Parse `table` once; a row that is not what the table says is a panic here, never in a shot. `arms`: whether the
+    /// forearm and hand shapes are in the pose ([`Arms`]).
+    fn read(table: &str, arms: Arms) -> Self {
         let mut sets: [[Vec<Shape>; 2]; 2] = Default::default();
         for line in table.lines().filter(|l| !l.starts_with('#') && !l.starts_with("stance")) {
             let cells: Vec<&str> = line.split('\t').collect();
@@ -390,6 +416,10 @@ impl Poses {
                 "1" => 1,
                 other => panic!("aimed {other}"),
             };
+            let param = HitParam::of(cells[2]).unwrap_or_else(|| panic!("hit_param {}", cells[2]));
+            if arms == Arms::Away && param.part() == Part::Arm {
+                continue;
+            }
             let n: Vec<f32> = cells[5..]
                 .iter()
                 .map(|c| c.parse().unwrap_or_else(|_| panic!("a number: {c}")))
@@ -412,7 +442,7 @@ impl Poses {
                 other => panic!("shape kind {other}"),
             };
             sets[crouched][aimed].push(Shape {
-                param: HitParam::of(cells[2]).unwrap_or_else(|| panic!("hit_param {}", cells[2])),
+                param,
                 primitive,
                 centre: v(0),
                 axes: [v(3), v(6), v(9)],
@@ -424,7 +454,7 @@ impl Poses {
 
     pub(crate) fn shared() -> &'static Self {
         static POSES: std::sync::OnceLock<Poses> = std::sync::OnceLock::new();
-        POSES.get_or_init(|| Self::read(TABLE))
+        POSES.get_or_init(|| Self::read(TABLE, Arms::bench()))
     }
 
     pub(crate) fn of(&self, crouched: bool, aimed: bool) -> &Pose {
@@ -611,6 +641,29 @@ mod tests {
         let aim = Vec3::new(across, y, 0.0);
         let dir = aim - eye;
         ray_at_body(Vec3::ZERO, FACING_Z, crouched, true, eye, dir * (1.0 / dir.length()), 100.0)
+    }
+
+    /// The arm shapes taken away (`SRP_BENCH_HIT_ARMS=away`) leave 13 shapes in each pose and no arm hit: a line at the chest
+    /// height from the front, where the posed forearm is first, meets the torso.
+    #[test]
+    fn with_the_arms_away_a_chest_line_meets_the_torso_and_the_pose_has_no_arm_shape() {
+        let away = Poses::read(TABLE, Arms::Away);
+        for crouched in [false, true] {
+            for aimed in [false, true] {
+                let pose = away.of(crouched, aimed);
+                assert_eq!(pose.shapes.len(), 13, "{crouched} {aimed}");
+                assert!(pose.shapes.iter().all(|s| s.param.part() != Part::Arm));
+            }
+        }
+        let eye = Vec3::new(0.0, 1.5, 10.0);
+        let dir = Vec3::new(0.0, 1.22, 0.0) - eye;
+        let dir = dir * (1.0 / dir.length());
+        let to_model = |v: Vec3| Vec3::new(v.x * FACING_Z[1] - v.z * FACING_Z[0], v.y, v.x * FACING_Z[0] + v.z * FACING_Z[1]);
+        let (_, param) = away.of(false, true).ray(to_model(eye), to_model(dir), 100.0).expect("the torso");
+        assert_eq!(param.part(), Part::Torso);
+        assert_eq!(Arms::parse(Some("away")), Ok(Arms::Away));
+        assert_eq!(Arms::parse(None), Ok(Arms::Posed));
+        assert!(Arms::parse(Some("gone")).is_err());
     }
 
     /// A ray at the chest hits the front of the torso; at the head sphere's centre, the head; a ray over the
