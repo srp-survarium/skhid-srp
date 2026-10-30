@@ -605,7 +605,7 @@ mod tests {
     fn what_it_pressed_is_counted_as_acting_so_a_hurt_is_not_answered_twice() {
         let mut s = hurt_bot(0.4, Vec3::new(30.0, 0.0, 10.0));
         // The storage at the count: the kit's two are for the match (with the store they are for every life).
-        s.pantry = Pantry::standard_with(PocketStore::PerMatch);
+        s.pantry = Pantry::medkits_with(PocketStore::PerMatch);
         let now = s.view.clock;
         assert!(heals(&s).is_some());
         // Pressed a second ago: the medkit is active, its effect counts.
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn the_third_press_of_a_kit_is_refused_by_the_rule() {
         let mut s = hurt_bot(0.4, Vec3::new(30.0, 0.0, 10.0));
-        s.pantry = Pantry::standard_with(PocketStore::PerMatch);
+        s.pantry = Pantry::medkits_with(PocketStore::PerMatch);
         let mut pressed = 0;
         for k in 0..3u32 {
             s.view.clock = 300_000 + 20_000 * k;
@@ -882,7 +882,7 @@ mod tests {
 
     #[test]
     fn the_habit_wishes_the_kits_key_from_a_need_of_0_15_and_not_before() {
-        let mut pantry = Pantry::standard();
+        let mut pantry = Pantry::medkits();
         pantry.new_life(0);
         // A body at 0.90 has a need of 0.10 (none), 0.84 of 0.16, 0.78 of 0.22, 0.5 of 0.5.
         assert_eq!(wish_for(0.9, false, &pantry), None);
@@ -897,7 +897,7 @@ mod tests {
 
     #[test]
     fn the_habit_wishes_nothing_for_a_carrier_an_active_item_an_empty_slot_or_a_switch_off() {
-        let mut pantry = Pantry::standard();
+        let mut pantry = Pantry::medkits();
         pantry.new_life(0);
         assert!(wish_for(0.5, false, &pantry).is_some());
         // A carrier: the client most likely ignores the key with a battery in the hands (0x2D8DA0).
@@ -914,7 +914,7 @@ mod tests {
         assert!(pantry.pressed(0, 16_000));
         assert_eq!(later(&pantry, 30_000), None);
         // The switches.
-        let mut fresh = Pantry::standard();
+        let mut fresh = Pantry::medkits();
         fresh.new_life(0);
         let no_habit = HealTuning {
             interrupt: false,
@@ -942,7 +942,7 @@ mod tests {
 
     /// A kit as the owner's: two medkits (quick use 1) and two bandages (quick use 2), all in hand.
     fn kit_with_bandages() -> Pantry {
-        let mut pantry = Pantry::standard();
+        let mut pantry = Pantry::medkits();
         pantry.read(
             1_000,
             &Readings {
@@ -1008,7 +1008,7 @@ mod tests {
         assert_eq!(wish(Some(pools(1.0, 0.7)), 1.0, 10_000, false, &pantry, &heal, 10_000), None);
         assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, true, &pantry, &heal, 10_000), None);
         // A kit without bandages (the tip's): a low pain pool wishes nothing, the habit on or not.
-        let mut medkits_only = Pantry::standard();
+        let mut medkits_only = Pantry::medkits();
         medkits_only.new_life(0);
         assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, false, &medkits_only, &heal, 10_000), None);
     }

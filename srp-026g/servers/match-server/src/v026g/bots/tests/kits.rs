@@ -6,6 +6,8 @@ use super::*;
 /// picks, once, the kit with the most rounds for its next life.
 #[test]
 pub(crate) fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     use survarium::v026g::loadouts::BOT_AMMO_LIVES;
     let mut bots = Bots::new(
         0x417,
@@ -71,6 +73,8 @@ pub(crate) fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() 
 /// whichever its place.
 #[test]
 pub(crate) fn a_bot_with_its_first_kit_empty_picks_the_fullest() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x418,
         survarium::v026g::maps::mode::BATTERIES,
@@ -103,6 +107,8 @@ pub(crate) fn a_bot_with_its_first_kit_empty_picks_the_fullest() {
 /// forth while the present kit runs down.
 #[test]
 pub(crate) fn every_kit_low_the_bot_picks_the_fullest_once() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x419,
         survarium::v026g::maps::mode::BATTERIES,
@@ -279,6 +285,8 @@ pub(crate) fn on_the_live_data_the_rusher_kits_reach_the_bots() {
 /// starts from the same storage.
 #[test]
 pub(crate) fn a_top_up_moves_the_kits_storage_into_the_stack_and_nowhere_else() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x418,
         survarium::v026g::maps::mode::BATTERIES,

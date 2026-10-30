@@ -356,6 +356,8 @@ fn pre_eye_pin_tuning() -> Tuning {
 /// alone.
 #[test]
 pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let _off = EyeOff::new();
     let base = [
         (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),

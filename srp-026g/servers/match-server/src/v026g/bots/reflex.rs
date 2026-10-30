@@ -7096,6 +7096,8 @@ mod tests {
     /// one is slower and looser.
     #[test]
     fn the_duel_numbers_are_a_top_players_at_the_best_skill() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         let aim = AimTuning::default();
         let numbers = |skill: f32| {
             let (mut firsts, mut errors) = (Vec::new(), Vec::new());
