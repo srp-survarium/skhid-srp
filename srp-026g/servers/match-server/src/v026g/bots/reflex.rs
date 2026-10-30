@@ -4942,7 +4942,7 @@ impl Reflex {
         self.grenade_stats.volley[1] += 1;
         // [A187 #10] By evidence: the place is where an enemy was sensed by the first's place since it was let go.
         let place = if c.grenade_volley_track {
-            match volley_evidence(&look, &volley, c) {
+            match volley_evidence(look, &volley, c) {
                 Some(place) => {
                     self.grenade_stats.volley[4] += 1;
                     place
