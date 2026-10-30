@@ -43,6 +43,25 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
     }
 }
 
+/// Whether the bot behind should ease off: a living teammate within `within_m`, ahead of it (in the cone of its heading) and moving along it at over 1 m/s. A teammate standing
+/// ahead is not waited for (a post held in a corridor would hold the bot for good).
+pub(super) fn ease(me: &PlaceView, view: &MatchView, within_m: f32) -> bool {
+    let [fx, fz] = kin::forward(me.yaw);
+    view.team(me.team).any(|mate| {
+        if mate.place == me.place || (mate.feet.y - me.feet.y).abs() >= SAME_FLOOR_M {
+            return false;
+        }
+        let [mx, mz] = led(mate, me.known_at);
+        let (dx, dz) = (mx - me.feet.x, mz - me.feet.z);
+        let d = dx.hypot(dz);
+        let ahead = dx * fx + dz * fz;
+        d < within_m && ahead > 0.5 * d && mate.velocity[0] * fx + mate.velocity[1] * fz > EASE_MPS
+    })
+}
+
+/// A teammate moves along the bot's heading at over this, m/s, to be waited for.
+const EASE_MPS: f32 = 1.0;
+
 /// Where `mate` is at `moment` (ms), from his fix, his velocity and the time his fix is for; at most [`LEAD_MAX_S`] either way.
 fn led(mate: &PlaceView, moment: u32) -> [f32; 2] {
     let dt = ((moment as f32 - mate.known_at as f32) / 1000.0).clamp(-LEAD_MAX_S, LEAD_MAX_S);
@@ -116,6 +135,22 @@ mod tests {
         assert_eq!(key_away(&me, &enemy, 1.1), 0);
         let above = view_of(vec![me.clone(), PlaceView { feet: Vec3::new(0.3, 3.0, 0.0), ..at(1, 0, 0.3, 0.0) }]);
         assert_eq!(key_away(&me, &above, 1.1), 0);
+    }
+
+    #[test]
+    fn a_bot_eases_off_behind_a_teammate_walking_ahead_of_it_and_not_behind_one_standing_or_one_behind() {
+        let me = at(0, 0, 0.0, 0.0);
+        let mut walking = at(1, 0, 0.0, 0.9);
+        walking.velocity = [0.0, 4.0];
+        assert!(ease(&me, &view_of(vec![me.clone(), walking.clone()]), 1.1));
+        let standing = at(1, 0, 0.0, 0.9);
+        assert!(!ease(&me, &view_of(vec![me.clone(), standing]), 1.1));
+        let mut behind = at(1, 0, 0.0, -0.9);
+        behind.velocity = [0.0, 4.0];
+        assert!(!ease(&me, &view_of(vec![me.clone(), behind]), 1.1));
+        let mut away = at(1, 0, 0.0, 0.9);
+        away.velocity = [0.0, -4.0];
+        assert!(!ease(&me, &view_of(vec![me.clone(), away]), 1.1));
     }
 
     #[test]

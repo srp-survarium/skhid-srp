@@ -1543,9 +1543,13 @@ fn drive_tick_inner(
             if clear {
                 decision.keys = keys;
             }
+            let eased = !held_off && !clear && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
+            if eased {
+                decision.keys &= !(key::FORWARD | key::SPRINT);
+            }
             #[cfg(test)]
             {
-                bot.bench_apart = if held_off { 3 } else if clear { 1 } else { 2 };
+                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else { 2 };
             }
         }
     }

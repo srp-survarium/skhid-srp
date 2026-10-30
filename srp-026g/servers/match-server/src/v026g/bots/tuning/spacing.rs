@@ -47,10 +47,13 @@ pub struct SpacingTuning {
     pub apart_m: Metres,
     /// The follow plays (Escort, Buddy, PairUp, CoverHuman) hold a teammate at a short distance on purpose: with this off they do not step aside (the carrier's escort stays at its post).
     pub apart_follow: bool,
+    /// Where the step aside is refused (no clear ground either side: a corridor, a lip) and a teammate inside `apart_m` is ahead and moving the same way, the bot behind lets go of
+    /// forward for the tick: the one ahead pulls away and the file opens (the live players' nearest mate is a median 21 m away). Off: it walks on his heels.
+    pub apart_ease: bool,
 }
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false }
     }
 }

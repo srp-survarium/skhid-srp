@@ -70,7 +70,7 @@ struct TeamSpacing {
     cause: [u64; 6],
     /// The 1 m pair-seconds by what the step apart did on the pair's two bodies that tick (the worse of the two): nothing asked (no mate inside in the bot's picture), taken, refused (no clear
     /// ground that side), held off (the reflex strafes or fires, a use is held, a side key down).
-    apart_state: [u64; 4],
+    apart_state: [u64; 5],
     /// The 1 m pair-seconds of two moving bodies by the distance of the nearer's route end from the other's feet (under 5 m, 5-20, 20 and more, no route): where the pair is bound.
     in_file_goals: [u64; 4],
     killed_by: [[u64; 2]; 2],
@@ -296,6 +296,7 @@ impl SpacingCounts {
                 ts.cause[cause] += 1;
                 let worst = |x: u8, y: u8| -> usize {
                     match (x, y) {
+                        (4, _) | (_, 4) => 4,
                         (2, _) | (_, 2) => 2,
                         (3, _) | (_, 3) => 3,
                         (1, _) | (_, 1) => 1,
