@@ -7301,6 +7301,70 @@ mod tests {
         (first, errors, aimed)
     }
 
+    /// How far the view trails a target crossing the line of fire at a steady `speed` m/s, `distance` m ahead: the mean over the
+    /// ticks from 2 s on of the view after the tick's turn against the line to his chest, metres at him (positive: behind him),
+    /// with the motor following the aim's turn rate (`feed`: `Motor::track`, as `drive.rs` sets it) or not. The aim error and
+    /// the wander are taken out, the picture is exact, so what is left is the pipeline's own: the reflex's aim point, the
+    /// feed, the motor's ease.
+    fn steady_trail_m(speed: f32, distance: f32, feed: bool, skill: f32) -> (f32, f32) {
+        use super::super::motor::{Feel, Motor, Pose};
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let (mut trail, mut n, mut before) = (0.0f32, 0u32, 0.0f32);
+        for k in 0..120u32 {
+            let now = 1_000 + k * 50;
+            let x = speed * (k as f32) * 0.05 - 2.0;
+            let mut enemy = body(1, 1, Vec3::new(x, 0.0, distance), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (yaw_of([dx, dz]) + o.error.0, (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1);
+            motor.turn_time = o.turn_time_s;
+            motor.track = o.track.filter(|_| feed);
+            let pose = Pose { feet: me.feet, yaw: me.yaw, pitch: me.pitch, speed: 0.0, ..Default::default() };
+            let pre = me.yaw;
+            let d = motor.aim_still(&pose, want);
+            me.yaw = wrap(me.yaw + d.turn.0);
+            me.pitch += d.turn.1;
+            if k >= 20 {
+                let chest = enemy.chest();
+                let bearing = yaw_of([chest.x - eye.x, chest.z - eye.z]);
+                let hit = |yaw: f32| wrap(yaw - bearing) * distance * speed.signum();
+                trail += hit(me.yaw);
+                before += hit(pre);
+                n += 1;
+            }
+        }
+        (trail / n.max(1) as f32, before / n.max(1) as f32)
+    }
+
+    /// Prints the steady strafer's trail (`cargo test -p match-server steady_strafer_trail -- --ignored --nocapture`): the view after
+    /// the tick's turn, and the view before it (what a shot released ahead of the turn would go along).
+    #[test]
+    #[ignore]
+    fn steady_strafer_trail() {
+        for skill in [0.0, 1.0] {
+            for distance in [20.0, 50.0] {
+                for feed in [true, false] {
+                    let (after, before) = steady_trail_m(2.1, distance, feed, skill);
+                    println!("skill {skill} {distance} m feed {feed}: view trails by {after:+.3} m after the turn, {before:+.3} m before it");
+                }
+            }
+        }
+    }
+
     fn median(mut v: Vec<f32>) -> f32 {
         v.sort_by(f32::total_cmp);
         v.get(v.len() / 2).copied().unwrap_or(f32::NAN)
