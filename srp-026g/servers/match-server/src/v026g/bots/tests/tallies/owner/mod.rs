@@ -65,6 +65,7 @@ mod outcomes;
 mod outranged;
 mod pace;
 mod pierce;
+mod pin_cover;
 mod pitch_bands;
 mod pockets;
 mod pre;
@@ -74,6 +75,7 @@ mod scoreboard;
 mod search_queue;
 mod sense_counts;
 mod shot_bands;
+mod shot_heights;
 mod shot_offsets;
 mod sight;
 mod smoke;
@@ -107,6 +109,7 @@ use outcomes::*;
 use outranged::*;
 use pace::*;
 use pierce::*;
+use pin_cover::*;
 use pitch_bands::*;
 use pockets::*;
 use pre::*;
@@ -117,6 +120,7 @@ use search_queue::*;
 use sense_counts::*;
 use snipers::SniperCounts;
 use shot_bands::*;
+use shot_heights::*;
 use shot_offsets::*;
 use sight::*;
 use smoke::*;
@@ -141,6 +145,8 @@ struct Rec {
     keys: u32,
     feet: Vec3,
     yaw: f32,
+    /// The elevation the view looks along, radians (the base pitch and the weapon's kick through the pitch unit's scale, as
+    /// the bots and the client reckon it): a grenade leaves along it.
     pitch: f32,
     /// m/s over the tick.
     speed: f32,

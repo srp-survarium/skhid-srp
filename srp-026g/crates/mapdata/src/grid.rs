@@ -135,6 +135,16 @@ pub struct Body {
     /// (a wall's top, a rail, a plank); a walking jump is pressed earlier for a short top ([`WalkGrid::press_lead`]). Off: the landing needs the body's width only ([`WalkGrid::lands`]). A build input: in
     /// the key when set; a grid read back is given it ([`WalkGrid::read`]).
     pub landing_carry: bool,
+    /// With [`Body::landing_carry`]: whether a Jump link no press keeps the body on the top of is kept where it is the only way to a
+    /// floor or back from it. Off: every such link is taken away but those that are the only way back out of a floor a body can walk
+    /// to (a pit), and the floors only they led to are out of reach (A170: the live
+    /// players stood on those floors in 0-7 lives of 1,000-3,000 a map, and never within 2 m of the 4 objectives they alone led to; on
+    /// the bench the bots pressed them, 3 of 81 up). A build input: in the key when off.
+    pub keep_last_resorts: bool,
+    /// With [`Erosion::Exact`]: whether a floor only a crouched capsule fits by the walls is kept as a crouch-only floor
+    /// ([`WalkGrid::can_stand`] false). Off: it is taken away as the standing capsule's meeting a wall always did. A build input:
+    /// in the key when off.
+    pub crouch_only_floors: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -178,6 +188,8 @@ impl Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
+            keep_last_resorts: true,
+            crouch_only_floors: true,
         }
     }
 }
@@ -225,6 +237,8 @@ impl Default for Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
+            keep_last_resorts: true,
+            crouch_only_floors: true,
         }
     }
 }
@@ -407,6 +421,10 @@ pub const SPRINT_RUN_UP_M: f32 = 1.5;
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
+
+/// How much lower than the standing height a floor's ceiling is set where only a crouched capsule fits by the walls (`erode_exact`),
+/// metres: a floor of the crouched height only ([`WalkGrid::can_stand`] false).
+const CROUCH_ONLY_M: f32 = 0.01;
 
 /// [`WalkGrid`]'s `flags`: a walk from a spawn's floor gets here.
 const REACHED: u8 = 1;
@@ -955,7 +973,7 @@ impl WalkGrid {
             let next = self.links(at).find(|&(n, kind)| {
                 let p = self.position(n);
                 let len = here.distance_xz(p);
-                kind == LinkKind::Walk && len > 1e-3 && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99
+                kind == LinkKind::Walk && len > 1e-3 && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99 && self.can_stand(n)
             });
             let Some((n, _)) = next else { break };
             run += here.distance_xz(self.position(n));
@@ -990,7 +1008,8 @@ impl WalkGrid {
                 let (mut at, mut run) = (b as usize, 0.0f32);
                 while run + 1e-3 < want {
                     let next = wide.links[at][d];
-                    if next == NONE || wide.kinds[at][d] != LinkKind::Walk {
+                    // A top ends where a standing body cannot go on: a low ceiling is a wall to a jump's run.
+                    if next == NONE || wide.kinds[at][d] != LinkKind::Walk || !self.can_stand(next) {
                         break;
                     }
                     (at, run) = (next as usize, run + stride);
@@ -1068,8 +1087,11 @@ impl WalkGrid {
                     continue;
                 }
                 let (au, bu) = (a as usize, b as usize);
+                // Without the last resorts kept, only the way back out of a floor a body can walk to counts (a pit it fell into);
+                // the floors only those links led to are out of reach.
                 let needed = (0..groups.len()).any(|g| {
-                    (after[g].0[au] && !after[g].0[bu] && before[g].0[bu]) || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
+                    (self.body.keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
+                        || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
                 });
                 if !needed {
                     continue;
@@ -1413,7 +1435,25 @@ impl WalkGrid {
                 }
             }
         }
-        let exact = walls.map_or(0, |walls| self.erode_exact(&mut alive, walls));
+        let exact = walls.map_or(0, |walls| {
+            let (removed, crouch_only) = self.erode_exact(&mut alive, walls);
+            // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
+            // stand, `ledge`): the links it made before the floor was found low go.
+            let mut low = vec![false; n];
+            for a in crouch_only {
+                self.ceiling[a] = self.ceiling[a].min(self.height[a] + self.body.stand_height - CROUCH_ONLY_M);
+                low[a] = true;
+            }
+            for a in 0..n {
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE && wide.kinds[a][d] == LinkKind::Jump && (low[a] || low[b as usize]) {
+                        wide.links[a][d] = NONE;
+                    }
+                }
+            }
+            removed
+        });
         // The floors kept at an unwalled side over a fall: no link, no cut
         // climb, no wall, and no floor beside within a step up or the
         // harmless drop down (a body walking off falls further).
@@ -4873,6 +4913,11 @@ pub(crate) mod tests {
     /// A yard (x 0..10, z 0..10) with a ledge 0.9 m high from x 10 on, `depth` m deep and with nothing beyond it, with steps up to
     /// it from z 8 on when `steps`, `span` m wide (z) about z 5: built with the carried landings when `carry`. A seed on the yard's ground.
     fn ledge_island(depth: f32, span: f32, steps: bool, carry: bool) -> (WalkGrid, BuildStats) {
+        ledge_island_with(depth, span, steps, Body { landing_carry: carry, ..Body::default() })
+    }
+
+    /// [`ledge_island`] on a given body.
+    fn ledge_island_with(depth: f32, span: f32, steps: bool, body: Body) -> (WalkGrid, BuildStats) {
         let rise = 0.9;
         let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
         let (z0, z1) = (5.0 - 0.5 * span, 5.0 + 0.5 * span);
@@ -4884,7 +4929,6 @@ pub(crate) mod tests {
                 tris.extend(floor(x0, 8.0, x0 + 0.4, 10.0, rise / 5.0 * (s + 1) as f32));
             }
         }
-        let body = Body { landing_carry: carry, ..Body::default() };
         let seeds = [Vec3::new(2.0, 0.0, 5.0)];
         WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body, &seeds, &seeds)
     }
@@ -4943,6 +4987,55 @@ pub(crate) mod tests {
         assert!(top(&plain), "up the ledge without the carry: {stats:?}");
         let (grid, stats) = ledge_island(0.75, 0.5, false, true);
         assert!(top(&grid) && stats.overshot_kept > 0, "{stats:?}");
+    }
+
+    /// With the last resorts not kept, the jump that is the only way onto a ledge too short for it is taken away like the others, and the
+    /// ledge is out of reach.
+    #[test]
+    fn a_last_resort_is_cut_when_it_is_not_kept() {
+        let top = |grid: &WalkGrid| {
+            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.5).unwrap();
+            grid.locate(Vec3::new(10.4, 0.9, 5.0), 0.3).is_some_and(|b| grid.distances_from(&[a]).reaches(b))
+        };
+        let (kept, stats) = ledge_island_with(0.75, 0.5, false, Body { landing_carry: true, ..Body::default() });
+        assert!(top(&kept) && stats.overshot_kept > 0, "{stats:?}");
+        let (cut, stats) = ledge_island_with(0.75, 0.5, false, Body { landing_carry: true, keep_last_resorts: false, ..Body::default() });
+        assert!(!top(&cut) && stats.overshot_kept == 0 && stats.overshot_cut > 0, "{stats:?}");
+    }
+
+    /// A beam over a ledge's top, its underside 1.3 m over it (a crouched body goes under, a standing one does not), makes the floors
+    /// under and by it crouch-only (the exact erosion keeps them): no jump lands on or starts from one, and no landing run goes on
+    /// over one.
+    #[test]
+    fn no_jump_starts_or_lands_under_a_low_beam() {
+        let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 16.0, 10.0, 0.9));
+        tris.extend(wall_x(10.0, 0.0, 10.0, 0.9));
+        // The beam: a box x 10.4..11.2, z 0..10, from 2.2 to 2.7 (1.3 m over the ledge's top), vertical faces.
+        for x in [10.4f32, 11.2] {
+            tris.extend(wall_x(x, 0.0, 10.0, 2.7).into_iter().map(|mut t| {
+                for v in &mut t.v {
+                    if v.y == 0.0 {
+                        v.y = 2.2;
+                    }
+                }
+                t
+            }));
+        }
+        let body = Body { erosion: Erosion::Exact, ..Body::default() };
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body);
+        let low = (0..grid.len() as NodeId).filter(|&n| !grid.can_stand(n)).count();
+        assert!(low > 0, "floors under the beam are crouch-only");
+        for a in 0..grid.len() as NodeId {
+            for (b, kind) in grid.links(a) {
+                assert!(
+                    kind != LinkKind::Jump || (grid.can_stand(a) && grid.can_stand(b)),
+                    "a jump {:?} -> {:?} at a low ceiling",
+                    grid.position(a),
+                    grid.position(b)
+                );
+            }
+        }
     }
 
     /// Ground steeper than 50° is not walked up past a step (the

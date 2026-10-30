@@ -146,7 +146,7 @@ impl PushTally {
             let held = matches!(
                 bot.running,
                 Some(Running::HoldExit(hold_exit::State::Hold { .. }))
-                    | Some(Running::Crossfire(crossfire::State::Hold { .. }))
+                    | Some(Running::Crossfire(crossfire::State::Hold { .. } | crossfire::State::Peek { .. }))
                     | Some(Running::Cut(cut::State::Hold { .. }))
             );
             let t = usize::from(bot.team & 1);

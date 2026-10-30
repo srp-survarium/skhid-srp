@@ -525,6 +525,27 @@ pub struct CombatTuning {
     pub grenade_volley_ms: (u32, u32),
     /// ... a roll this often, ms.
     pub grenade_volley_every_ms: u32,
+    /// [A187 #10] The second grenade by evidence (only with `grenade_volley`): a roll in the window throws only when an enemy has
+    /// been sensed since the first was let go within `grenade_volley_near_m` of its place (a track of his, not in sight now, no
+    /// older than `grenade_volley_age_ms`), and at his place (a lost or heard one), not at the first's; with none the roll is no
+    /// throw and the frag is kept. The window runs to `grenade_volley_ms.1` after the let-go, past the first blast. Root cause of
+    /// the volley adding nothing (A181 #10, 4 seeds, 16 maps): it threw at the first's place 3.4 s later whatever had happened
+    /// there; the humans' second throw (5,101 lives with a throw, 2,054 pairs within 6 s) kills 14.7 per 100 when an enemy is within
+    /// 10 m of the blast and 4.5 when none is, 18.9 against 3.8 at the gaps of 3-4 s. Off: the volley as it was.
+    ///
+    /// Bench (A187 #10, smoke preset, 10 a side, 16 maps; OFF is the verdict, so both switches stay off): the enemy of the bench
+    /// is a bot that dodges (it moves a median 6.1-6.9 m between the two blasts, the humans' enemy 1.9 m) and the second grenade
+    /// lands on empty ground. By side (the team with the switch against the team without, sides swapped, 64 pairs): targets with
+    /// the avoidance on, score z +0.2 (D +0.74, SE 3.23); targets without it, a human stand-in, z +0.4 (D +1.17, SE 2.73): not
+    /// settled either way. Six seeds, avoidance off for both: enemy kills per 100 throws 11.6 without the volley, 9.5 with it
+    /// (the same place), 8.5 with the evidence; the thrower killed 0.2 / 0.0 / 0.4 and mates 1.3 / 0.8 / 0.8 per 100 throws. Against
+    /// a still hidden camper (64 map-runs an arm): 0 camper deaths at blasts in all three arms, second grenades near him 1 / 2 / 0;
+    /// the limit there is the first grenade's place.
+    pub grenade_volley_track: bool,
+    /// ... the evidence is within this of the first grenade's place, metres (the blast's reach).
+    pub grenade_volley_near_m: f32,
+    /// ... and is no older than this, ms.
+    pub grenade_volley_age_ms: u32,
     /// [C20 G3] The thrower's own blast floor (`grenade_land_m`, 12 m) is
     /// lowered to this for a place whose first contact is nearer than the
     /// floor and not nearer than this, when the thrower can walk out of the
@@ -795,7 +816,9 @@ pub struct CombatTuning {
     pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
-    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
+    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
+    /// true place of an enemy the bot has not seen (`MatchView::place`), so its view pre-aims at him: a cheat (A147,
+    /// the owner's rule "smarter, never cheaters"). ON by default; `all_off.json` keeps it off (the old behaviour).
     pub aim_last_known: bool,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
@@ -1235,6 +1258,9 @@ impl Default for CombatTuning {
             grenade_volley_chance: 0.2,
             grenade_volley_ms: (1_600, 6_000),
             grenade_volley_every_ms: 500,
+            grenade_volley_track: false,
+            grenade_volley_near_m: 10.0,
+            grenade_volley_age_ms: 2_000,
             grenade_near_m: 12.0,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
@@ -1292,7 +1318,7 @@ impl Default for CombatTuning {
             lead_target: true,
             lead_flight: false,
             lead_drop: false,
-            aim_last_known: false,
+            aim_last_known: true,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -1713,10 +1739,37 @@ const NEAR_STAY_M: f32 = 1.5;
 struct Volley {
     at: Vec3,
     source: PlaceSource,
+    /// When the first was let go: evidence is a track sensed after it (`grenade_volley_track`).
+    since: u32,
     /// The next roll not before, and the window's end (the first's blast or
     /// `grenade_volley_ms.1`), ms.
     next: u32,
     until: u32,
+}
+
+/// [A187 #10] The place of a second grenade by evidence (`grenade_volley_track`): the freshest track of an enemy the senses gave
+/// since the first grenade was let go, not in sight now, within `grenade_volley_near_m` of the first's place, no older than
+/// `grenade_volley_age_ms` and in the places' range; none if there is no such track or a teammate stands in its blast's reach.
+fn volley_evidence(look: &RollView, volley: &Volley, c: &CombatTuning) -> Option<(Vec3, PlaceSource)> {
+    let RollView { me, sit, memory, now } = *look;
+    memory
+        .tracks()
+        .iter()
+        .filter_map(|track| {
+            let (at, sensed) = track.own?;
+            let fits = sensed >= volley.since
+                && now.saturating_sub(sensed) <= c.grenade_volley_age_ms
+                && track.error_m <= c.grenade_track_error_m
+                && at.distance_xz(volley.at) <= c.grenade_volley_near_m
+                && (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                && friend_in_blast(me, sit.view, at, c).is_none();
+            fits.then(|| {
+                let source = if track.sight_since.is_some() || track.source == Source::Seen { PlaceSource::Lost } else { PlaceSource::Heard };
+                (sensed, (at, source))
+            })
+        })
+        .max_by_key(|(sensed, _)| *sensed)
+        .map(|(_, place)| place)
 }
 
 /// [G3] What the thrower's way out of his own blast is judged by: the
@@ -1905,8 +1958,8 @@ pub struct GrenadeStats {
     pub pushes_skipped: u32,
     /// [C20] The volley (`grenade_volley`): windows opened by a throw let
     /// go, rolls made in them, those the chance said no to, second grenades
-    /// let go.
-    pub volley: [u32; 4],
+    /// let go, rolls with evidence of an enemy by the first's place and rolls with none (`grenade_volley_track`).
+    pub volley: [u32; 6],
     /// [G3] The lowered floor (`grenade_near_m`): places refused by the
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
@@ -4946,6 +4999,21 @@ impl Reflex {
             ..volley
         });
         self.grenade_stats.volley[1] += 1;
+        // [A187 #10] By evidence: the place is where an enemy was sensed by the first's place since it was let go.
+        let place = if c.grenade_volley_track {
+            match volley_evidence(look, &volley, c) {
+                Some(place) => {
+                    self.grenade_stats.volley[4] += 1;
+                    place
+                }
+                None => {
+                    self.grenade_stats.volley[5] += 1;
+                    return;
+                }
+            }
+        } else {
+            (volley.at, volley.source)
+        };
         if rng.unit() >= c.grenade_volley_chance {
             self.grenade_stats.volley[2] += 1;
             return;
@@ -4960,7 +5028,7 @@ impl Reflex {
             ..*look.sit
         };
         let look = RollView { sit: &sit, ..*look };
-        self.start_throw(&look, c, &[(volley.at, volley.source)], error, hold_ms, ThrowKind::Volley);
+        self.start_throw(&look, c, &[place], error, hold_ms, ThrowKind::Volley);
     }
 
     /// Play 20: the first of `places` (nearest first) whose throw passes
@@ -5224,8 +5292,10 @@ impl Reflex {
                     self.volley = (c.grenade_volley && self.thrown < c.grenades).then(|| Volley {
                         at: throw.at,
                         source: throw.source,
+                        since: now,
                         next: now + c.grenade_volley_ms.0,
-                        until: (now + c.grenade_volley_ms.1).min(blast),
+                        // By evidence the window runs past the first's blast: the enemy who stays or comes back is the point.
+                        until: if c.grenade_volley_track { now + c.grenade_volley_ms.1 } else { (now + c.grenade_volley_ms.1).min(blast) },
                     });
                     if self.volley.is_some() {
                         self.grenade_stats.volley[0] += 1;
@@ -7395,6 +7465,153 @@ mod tests {
         (first, errors, aimed)
     }
 
+    /// How far the view trails a target crossing the line of fire at a steady `speed` m/s, `distance` m ahead: the mean over the
+    /// ticks from 2 s on of the view after the tick's turn against the line to his chest, metres at him (positive: behind him),
+    /// with the motor following the aim's turn rate (`feed`: `Motor::track`, as `drive.rs` sets it) or not. The aim error and
+    /// the wander are taken out, the picture is exact, so what is left is the pipeline's own: the reflex's aim point, the
+    /// feed, the motor's ease.
+    fn steady_trail_m(speed: f32, distance: f32, feed: bool, skill: f32) -> (f32, f32) {
+        use super::super::motor::{Feel, Motor, Pose};
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let (mut trail, mut n, mut before) = (0.0f32, 0u32, 0.0f32);
+        for k in 0..120u32 {
+            let now = 1_000 + k * 50;
+            let x = speed * (k as f32) * 0.05 - 2.0;
+            let mut enemy = body(1, 1, Vec3::new(x, 0.0, distance), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (yaw_of([dx, dz]) + o.error.0, (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1);
+            motor.turn_time = o.turn_time_s;
+            motor.track = o.track.filter(|_| feed);
+            let pose = Pose { feet: me.feet, yaw: me.yaw, pitch: me.pitch, speed: 0.0, ..Default::default() };
+            let pre = me.yaw;
+            let d = motor.aim_still(&pose, want);
+            me.yaw = wrap(me.yaw + d.turn.0);
+            me.pitch += d.turn.1;
+            if k >= 20 {
+                let chest = enemy.chest();
+                let bearing = yaw_of([chest.x - eye.x, chest.z - eye.z]);
+                let hit = |yaw: f32| wrap(yaw - bearing) * distance * speed.signum();
+                trail += hit(me.yaw);
+                before += hit(pre);
+                n += 1;
+            }
+        }
+        (trail / n.max(1) as f32, before / n.max(1) as f32)
+    }
+
+    /// Prints the steady strafer's trail (`cargo test -p match-server steady_strafer_trail -- --ignored --nocapture`): the view after
+    /// the tick's turn, and the view before it (what a shot released ahead of the turn would go along).
+    #[test]
+    #[ignore]
+    fn steady_strafer_trail() {
+        for skill in [0.0, 1.0] {
+            for distance in [20.0, 50.0] {
+                for feed in [true, false] {
+                    let (after, before) = steady_trail_m(2.1, distance, feed, skill);
+                    println!("skill {skill} {distance} m feed {feed}: view trails by {after:+.3} m after the turn, {before:+.3} m before it");
+                }
+            }
+        }
+    }
+
+    /// A standing target `distance` m ahead and a burst on him, the way the bench stand-in runs it (the bot's mirror of the kick in
+    /// the reflex, the game's kick in `truth`: the middle of every range with `random` false, drawn with it), the view as `drive.rs`
+    /// builds it and the turn as it sends it (elevation, converted at the view with `turn_for`, the pull a `rise`). Returns the mean
+    /// height of the view at the tick's shots over the line to his chest, degrees, and over the aim point the reflex gave, and the
+    /// shots counted. Positive: high.
+    fn kicked_height_deg(skill: f32, distance: f32, scale: PitchScale, random: bool) -> (f32, f32, u32) {
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(7);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, distance), 0.0);
+        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut truth = Recoil::new(kick_of(reflex.hands().held().gun.item));
+        let mut cadence = Cadence::default();
+        let (interval_ms, auto) = (truth.kick().interval_s() * 1000.0, reflex.hands().held().gun.auto);
+        let mut draw = Rng::new(11);
+        let mut base = 0.0f32;
+        let (mut chest_sum, mut aim_sum, mut n) = (0.0f32, 0.0f32, 0u32);
+        for k in 0..160u32 {
+            let now = 1_000 + k * 50;
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            truth.update(now);
+            let truth_before = truth.y();
+            let mirror = reflex.weapon_tick(&me, now, scale);
+            let before = Pitch::view(base, mirror);
+            me.pitch = before.elevation(scale);
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1;
+            let mut turn = want - me.pitch;
+            turn += Pitch::of_elevation(me.pitch, scale).rise(o.pull, scale);
+            let units = before.turn_for(scale, turn);
+            // The game: the update came first (above); the turn takes the downward part off the kick; then the shots.
+            let taken = truth.turn(units);
+            base += units + taken;
+            let keys = if o.fire { key::FIRE } else { 0 };
+            if o.fire {
+                let view_el = Pitch::view(base, truth.y()).elevation(scale);
+                let chest = enemy.chest();
+                let to_chest = (chest.y - eye.y).atan2(chest.x.hypot(chest.z - eye.z));
+                let to_aim = (p.y - eye.y).atan2(dx.hypot(dz));
+                chest_sum += view_el - to_chest;
+                aim_sum += view_el - to_aim;
+                n += 1;
+            }
+            reflex.sent(now, keys, units);
+            cadence.tick(now, o.fire, auto, interval_ms, |at| {
+                if random {
+                    let top = truth.kick().top(draw.unit());
+                    let side = truth.kick().side(draw.unit(), draw.unit());
+                    truth.shot(at, top, side);
+                } else {
+                    truth.mean_shot(at);
+                }
+            });
+            let _ = truth_before;
+        }
+        let n_f = n.max(1) as f32;
+        ((chest_sum / n_f).to_degrees(), (aim_sum / n_f).to_degrees(), n)
+    }
+
+    /// Prints the burst's height (`cargo test -p match-server kicked_height -- --ignored --nocapture`): the register's #28 residual.
+    #[test]
+    #[ignore]
+    fn kicked_height() {
+        for scale in [PitchScale::Radian, PitchScale::Client] {
+            for skill in [0.0, 0.75, 1.0] {
+                for distance in [20.0, 30.0, 52.0] {
+                    for random in [false, true] {
+                        let (chest, aimed, n) = kicked_height_deg(skill, distance, scale, random);
+                        println!("{scale:?} skill {skill} {distance} m random {random}: {chest:+.3} deg over the chest, {aimed:+.3} over the aim point ({n} shots)");
+                    }
+                }
+            }
+        }
+    }
+
     fn median(mut v: Vec<f32>) -> f32 {
         v.sort_by(f32::total_cmp);
         v.get(v.len() / 2).copied().unwrap_or(f32::NAN)
@@ -8449,6 +8666,12 @@ mod tests {
 
     /// [`volley_run`] with the kit's frags now known to the reflex (`set_frags_left`), and the rolls it refused for them.
     fn kit_run(combat: CombatTuning, frags: Option<u16>) -> (Vec<u32>, GrenadeStats, u32) {
+        kit_run_heard(combat, frags, None)
+    }
+
+    /// [`kit_run`] with the camper heard 2 m off his place every 250 ms from `heard_after` (an enemy sensed by the first
+    /// grenade's place once it is let go).
+    fn kit_run_heard(combat: CombatTuning, frags: Option<u16>, heard_after: Option<u32>) -> (Vec<u32>, GrenadeStats, u32) {
         let camper_at = Vec3::new(0.0, 0.0, 18.0);
         let mut camper = body(1, 1, camper_at, 0.0);
         camper.keys = key::CROUCH | key::AIM;
@@ -8469,7 +8692,12 @@ mod tests {
         let mut throws = Vec::new();
         let mut now = 1_800;
         while now < 12_000 {
-            sense(&mut memory, &[], now);
+            let heard = if now % 250 == 0 && heard_after.is_some_and(|t| now >= t) {
+                vec![percept(1, camper_at + Vec3::new(2.0, 0.0, 0.0), now, Source::Heard)]
+            } else {
+                Vec::new()
+            };
+            sense(&mut memory, &heard, now);
             if now % 250 == 0 {
                 reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
             }
@@ -8523,7 +8751,7 @@ mod tests {
         };
         let (throws, stats) = volley_run(combat(false));
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "{stats:?}");
+        assert_eq!(stats.volley, [0; 6], "{stats:?}");
         let (throws, stats) = volley_run(combat(true));
         assert_eq!(throws.len(), 2, "{throws:?}");
         let gap = throws[1] - throws[0];
@@ -8540,6 +8768,35 @@ mod tests {
         assert_eq!((stats.volley[0], stats.volley[3]), (1, 0), "{stats:?}");
         assert_eq!(stats.volley[1], stats.volley[2], "{stats:?}");
         assert!(stats.volley[1] >= 1, "{stats:?}");
+    }
+
+    /// [A187 #10] The second grenade by evidence: with `grenade_volley_track` it is thrown only when an enemy is sensed by the first's
+    /// place once the first is let go, and then at where he is sensed; with no one sensed the rolls are counted as without evidence
+    /// and the frag is kept; with the switch off the volley is as it was.
+    #[test]
+    fn the_second_grenade_follows_an_enemy_sensed_by_the_first_place_when_asked_to() {
+        let combat = |track| CombatTuning {
+            grenade_chance: 1.0,
+            grenade_roll_ms: 60_000,
+            grenade_volley: true,
+            grenade_volley_chance: 1.0,
+            grenade_volley_track: track,
+            ..CombatTuning::default()
+        };
+        // Nobody sensed after the first: no second, rolls without evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, None);
+        assert_eq!(throws.len(), 1, "{throws:?}");
+        assert_eq!(stats.volley[3], 0, "{stats:?}");
+        assert!(stats.volley[5] >= 1 && stats.volley[4] == 0, "{stats:?}");
+        // An enemy heard 2 m from the first's place from 4 s on (the first is let go about 2.5 s in): a second, rolls with evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, Some(4_000));
+        assert_eq!(throws.len(), 2, "{throws:?} {stats:?}");
+        assert_eq!((stats.volley[3], stats.nth), (1, [1, 1, 0]), "{stats:?}");
+        assert!(stats.volley[4] >= 1, "{stats:?}");
+        // The switch off: the volley as it was, heard or not.
+        let (throws, stats, _) = kit_run_heard(combat(false), None, None);
+        assert_eq!(throws.len(), 2, "{throws:?}");
+        assert_eq!(stats.volley[4] + stats.volley[5], 0, "{stats:?}");
     }
 
     /// [C20] The window ends with the kit's grenades (`grenades`), and with
@@ -8565,7 +8822,7 @@ mod tests {
             ..combat
         });
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "the kit had no second grenade: {stats:?}");
+        assert_eq!(stats.volley, [0; 6], "the kit had no second grenade: {stats:?}");
     }
 
     /// [G3] A place whose arc comes down inside the thrower's blast floor is

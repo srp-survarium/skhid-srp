@@ -497,6 +497,8 @@ pub(crate) struct Game {
     /// Carriers killed with a battery: (the shooter, the carrier), in
     /// order (the bench reads them by the shooter's play).
     pub(crate) carrier_kills: Vec<(Place, Place)>,
+    /// Test only: one `CARRYKILL` line a carrier killed (where both stood, the time since the pick-up, the distance), for the bench log.
+    pub(crate) carry_kill_lines: Vec<String>,
     /// Every kill: (tick, the shooter, the killed), for the bench's
     /// events (`SRP_BENCH_EVENTS`).
     pub(crate) kill_log: Vec<(u32, Place, Place)>,
@@ -795,6 +797,7 @@ impl Game {
             carry_ticks: 0,
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
+            carry_kill_lines: Vec::new(),
             kill_log: Vec::new(),
             team_kill_log: Vec::new(),
             kill_by_frag: false,
@@ -1723,6 +1726,7 @@ impl Game {
     /// down and counted as the kinds of [`Kill`] say, and its team loses a
     /// ticket.
     pub(crate) fn kill(&mut self, target: Place, killer: Place, kind: Kill, tick: u32) {
+        let killer_feet = self.bodies.get(killer).map(|b| b.feet);
         let other = &mut self.bodies[target];
         other.alive = false;
         other.dead_at = tick;
@@ -1733,6 +1737,19 @@ impl Game {
             self.batteries[battery] = Lying::Free(other.feet, 1 << other.team);
             if kind != Kill::Own {
                 self.carrier_kills.push((killer, target));
+                let (c, k) = (other.feet, killer_feet.unwrap_or(other.feet));
+                self.carry_kill_lines.push(format!(
+                    "CARRYKILL t={tick} carrier={target} team={} at=({:.1},{:.1},{:.1}) killer={killer} from=({:.1},{:.1},{:.1}) dist={:.1} carried_ms={}",
+                    other.team,
+                    c.x,
+                    c.y,
+                    c.z,
+                    k.x,
+                    k.y,
+                    k.z,
+                    c.distance_xz(k),
+                    self.took[target].map_or("-".to_owned(), |at| tick.saturating_sub(at).to_string())
+                ));
             }
             if let Some(Some((_, fell @ None))) = self.stolen_marks.get_mut(battery) {
                 *fell = Some((tick, false));

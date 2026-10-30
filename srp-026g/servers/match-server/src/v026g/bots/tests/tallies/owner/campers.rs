@@ -458,6 +458,62 @@ impl CamperCounts {
         }
     }
 
+    /// The runs of a list of kills: consecutive kills of one shooter within [`SPOT_HOLD_M`] of the run's first kill spot and
+    /// [`RUN_APART_MS`] of the last.
+    fn runs_of(list: &[Kill]) -> Vec<Vec<Kill>> {
+        let mut runs: Vec<Vec<Kill>> = Vec::new();
+        for k in list {
+            match runs.last_mut() {
+                Some(run)
+                    if run[0].shooter == k.shooter
+                        && k.spot.distance_xz(run[0].spot) <= SPOT_HOLD_M
+                        && k.t <= run[run.len() - 1].t + RUN_APART_MS =>
+                {
+                    run.push(*k)
+                }
+                _ => runs.push(vec![*k]),
+            }
+        }
+        runs
+    }
+
+    /// One `ROWRUN` line a team's run of [`CAMP_RUN`] or more deaths to one shooter's spot: who, where, when, and each victim's
+    /// last route jump press (how long before the death, its rise) and the nearest jump link of 0.8 m or more to it.
+    fn row_lines(&self, run: &Run, game: &Game, by_team: &BTreeMap<Place, Vec<Kill>>) -> Vec<String> {
+        let grid = &game.world.grid;
+        let mut lines = Vec::new();
+        for (team, list) in by_team {
+            for kills in Self::runs_of(list).into_iter().filter(|r| r.len() as u32 >= CAMP_RUN) {
+                let victims: Vec<String> = kills
+                    .iter()
+                    .map(|k| {
+                        let press = run
+                            .presses
+                            .iter()
+                            .filter(|p| p.place == k.victim && p.t <= k.t)
+                            .filter_map(|p| p.route.map(|(from, to)| (p.t, to.y - from.y)))
+                            .max_by_key(|&(t, _)| t);
+                        let press = press.map_or("none".to_owned(), |(t, rise)| format!("{} ms rise {rise:.2}", k.t - t));
+                        let ledge = super::team_kills::TeamKillCounts::near_ledge(grid, k.at)
+                            .map_or("none".to_owned(), |(d, rise)| format!("{d:.1} m rise {rise:.2}"));
+                        format!("{}@({:.1},{:.1},{:.1}) t={} press {press} ledge {ledge}", k.victim, k.at.x, k.at.y, k.at.z, k.t)
+                    })
+                    .collect();
+                lines.push(format!(
+                    "ROWRUN team={team} shooter={} spot=({:.1},{:.1},{:.1}) deaths={} span_ms={} | {}",
+                    kills[0].shooter,
+                    kills[0].spot.x,
+                    kills[0].spot.y,
+                    kills[0].spot.z,
+                    kills.len(),
+                    kills[kills.len() - 1].t - kills[0].t,
+                    victims.join(" | ")
+                ));
+            }
+        }
+        lines
+    }
+
     /// The campers counts at the end: their keys of the `owner` object and their lines of the owner-test text.
     fn part(&self, run: &Run, game: &Game) -> Part {
         // Campers: runs of kills from one spot, a team's deaths in a row to
@@ -466,34 +522,16 @@ impl CamperCounts {
         let in_runs = |groups: &BTreeMap<Place, Vec<Kill>>, only: Option<Place>| {
             let (mut runs, mut kills, mut longest) = (0u32, 0u32, 0u32);
             for list in groups.values() {
-                let mut run: Option<(Place, Vec3, u32, u32)> = None;
-                let mut close = |run: Option<(Place, Vec3, u32, u32)>| {
-                    if let Some((shooter, .., len)) = run
-                        && only.is_none_or(|o| o == shooter)
-                    {
+                for run in Self::runs_of(list) {
+                    if only.is_none_or(|o| o == run[0].shooter) {
+                        let len = run.len() as u32;
                         longest = longest.max(len);
                         if len >= CAMP_RUN {
                             runs += 1;
                             kills += len;
                         }
                     }
-                };
-                for k in list {
-                    run = match run {
-                        Some((shooter, spot, last, len))
-                            if shooter == k.shooter
-                                && k.spot.distance_xz(spot) <= SPOT_HOLD_M
-                                && k.t <= last + RUN_APART_MS =>
-                        {
-                            Some((shooter, spot, k.t, len + 1))
-                        }
-                        other => {
-                            close(other);
-                            Some((k.shooter, k.spot, k.t, 1))
-                        }
-                    };
                 }
-                close(run);
             }
             (runs, kills, longest)
         };
@@ -595,7 +633,7 @@ impl CamperCounts {
             "by_team": { "0": entries_of(0), "1": entries_of(1) },
         });
         let counter_split = self.counter_split(run);
-        let text = format!(
+        let mut text = format!(
             "{counter_split}
   owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
             camp_runs,
@@ -616,6 +654,10 @@ impl CamperCounts {
             held_all[1],
             json["stand_in_camper"],
         );
+        for line in self.row_lines(run, game, &by_team) {
+            text.push('\n');
+            text.push_str(&line);
+        }
         Part::new(json, text)
     }
 }
