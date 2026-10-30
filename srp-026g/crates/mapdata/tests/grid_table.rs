@@ -797,3 +797,61 @@ fn the_jump_links_top_depth() {
         }
     }
 }
+
+/// A neck of the exact erosion: the floors of the cells grid within `SRP_GRID_NECK_R` (default 1.2) m of `SRP_GRID_NECK=x,y,z` (the
+/// server's body otherwise), with whether the exact grid kept each, its nearest wall (distance and triangle) and the clearance the exact
+/// pass asks. `SRP_GRID_TABLE_MAPS` picks the project (default `level_06_day_4`).
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn a_neck_of_the_exact_erosion() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let project = std::env::var("SRP_GRID_TABLE_MAPS").unwrap_or_else(|_| "level_06_day_4".to_owned());
+    let project = project.split(',').next().unwrap().to_owned();
+    let Some(neck) = std::env::var("SRP_GRID_NECK").ok().and_then(|v| {
+        let mut it = v.split(',').filter_map(|x| x.parse::<f32>().ok());
+        Some(Vec3::new(it.next()?, it.next()?, it.next()?))
+    }) else {
+        eprintln!("skipping: SRP_GRID_NECK=x,y,z is not set");
+        return;
+    };
+    let radius: f32 = std::env::var("SRP_GRID_NECK_R").ok().and_then(|v| v.parse().ok()).unwrap_or(1.2);
+    let map = MapData::read(&dir.join(format!("{project}.mapdata"))).unwrap();
+    let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+    let triangles = map.walker_triangles();
+    let (x0, y0, z0) = (neck.x, neck.y, neck.z);
+    let build = |erosion| {
+        let body = Body {
+            max_jump: mapdata::grid::STANDING_JUMP_M,
+            erosion,
+            drop_flight_mps: 3.5,
+            walk_off_lips: true,
+            landing_carry: true,
+            ..Body::client()
+        };
+        WalkGrid::build_kept_with_links(&triangles, map.play_area(mapdata::AREA_MARGIN), mapdata::CELL, body, &map.grid_seeds(), &spawns, mapdata::OffMeshLinks::Gaps).0
+    };
+    let (cells, exact) = (build(mapdata::Erosion::Cells), build(mapdata::Erosion::Exact));
+    eprintln!("{project}: neck ({x0}, {y0}, {z0}); the exact clearance is {:.4} m, the cell {} m", exact.exact_clearance(), mapdata::CELL);
+    for n in cells.floors_in([x0 - radius, z0 - radius, x0 + radius, z0 + radius]) {
+        let p = cells.position(n);
+        if (p.y - y0).abs() > 0.6 || p.distance_xz(Vec3::new(x0, 0.0, z0)) > radius {
+            continue;
+        }
+        let kept = exact.locate(p, 0.05).is_some_and(|m| exact.position(m).distance_xz(p) < 0.05 && (exact.position(m).y - p.y).abs() < 0.05);
+        let wall = cells.nearest_wall(&triangles, p.x, p.z, p.y, 1.0);
+        let walk_links = cells.links(n).filter(|l| l.1 == mapdata::LinkKind::Walk).count();
+        eprintln!(
+            "({:.2}, {:.2}, {:.2}) exact_kept={kept} walk_links_on_cells={walk_links} wall={}",
+            p.x,
+            p.y,
+            p.z,
+            wall.map_or("none within 1 m".to_owned(), |(d, v)| format!(
+                "{d:.3} m  tri[({:.2},{:.2},{:.2}) ({:.2},{:.2},{:.2}) ({:.2},{:.2},{:.2})]",
+                v[0].x, v[0].y, v[0].z, v[1].x, v[1].y, v[1].z, v[2].x, v[2].y, v[2].z
+            ))
+        );
+    }
+}

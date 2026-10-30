@@ -6,7 +6,8 @@
 //! in a 0.65 m opening; the body is 0.76 m wide). This pass runs after the rounds, over the floors they kept:
 //! a floor goes when a wall triangle, clipped to the band the body's capsule meets walls in (from a step over
 //! the feet to the standing height), comes nearer to the floor's centre than the radius less a quarter of a cell
-//! ([`WalkGrid::exact_clearance`]), measured on the ground.
+//! ([`WalkGrid::exact_clearance`]), measured on the ground. The capsule is round at the top: above the cylinder
+//! (the standing height less the radius) a wall is met at a smaller reach, [`WalkGrid::capsule_reach`].
 //!
 //! Walls are the faces no body walks on: steeper than [`STEEP_NORMAL_Y`], or `dont_walk`, and not `walk` faces
 //! (stairs). Floors, ramps and ceilings are not walls here; the rounds keep treating them as before.
@@ -87,12 +88,17 @@ impl Walls {
     /// The distance on the ground from (`x`, `z`) to the nearest wall between the heights `low` and `high`,
     /// among those within `limit` of it; `None` when there is none.
     pub(super) fn nearest(&self, x: f32, z: f32, low: f32, high: f32, limit: f32) -> Option<f32> {
+        self.nearest_wall(x, z, low, high, limit).map(|(d, _)| d)
+    }
+
+    /// [`Self::nearest`] with the wall triangle it is.
+    pub(super) fn nearest_wall(&self, x: f32, z: f32, low: f32, high: f32, limit: f32) -> Option<(f32, [Vec3; 3])> {
         let range = |at: f32, origin: f32, n: usize| {
             let first = (((at - limit - origin) / BIN_M).floor().max(0.0) as usize).min(n - 1);
             let last = (((at + limit - origin) / BIN_M).floor().max(0.0) as usize).min(n - 1);
             first..=last
         };
-        let mut best: Option<f32> = None;
+        let mut best: Option<(f32, [Vec3; 3])> = None;
         let (mut one, mut two) = (Vec::with_capacity(8), Vec::with_capacity(8));
         for k in range(z, self.z0, self.nz) {
             for i in range(x, self.x0, self.nx) {
@@ -108,8 +114,8 @@ impl Walls {
                         continue;
                     }
                     let d = ground_distance(&two, x, z);
-                    if d <= limit && best.is_none_or(|b| d < b) {
-                        best = Some(d);
+                    if d <= limit && best.is_none_or(|b| d < b.0) {
+                        best = Some((d, v));
                     }
                 }
             }
@@ -158,6 +164,9 @@ fn ground_distance(polygon: &[Vec3], x: f32, z: f32) -> f32 {
 /// for: nothing nearer than that is a floor the body stands on.
 const EXACT_SLACK_CELLS: f32 = 0.25;
 
+/// The slabs the capsule's round top is cut into for the walls above its cylinder (each met at the reach of its lowest height).
+const CAP_SLABS: usize = 32;
+
 impl WalkGrid {
     /// How far a floor is kept from a wall by [`Erosion::Exact`], metres: the body's radius less
     /// [`EXACT_SLACK_CELLS`] of a cell.
@@ -165,10 +174,40 @@ impl WalkGrid {
         (self.body.radius - EXACT_SLACK_CELLS * self.cell).max(0.0)
     }
 
-    /// Clears the `alive` floors that have a wall nearer than [`Self::exact_clearance`] ([`Walls::within`]); how many.
-    pub(super) fn erode_exact(&self, alive: &mut [bool], walls: &Walls) -> usize {
+    /// How far from its axis the standing capsule is met by a wall at `above` metres over the cylinder's top (the standing height
+    /// less the radius): the radius up to there, the round top's reach above (a circle: nothing at the standing height), less the
+    /// grid's slack ([`EXACT_SLACK_CELLS`]); 0 or less where the wall is out of reach. The capsule is 0.76 m wide and 1.8 m tall
+    /// with its centre 0.9 m over the feet (PROVEN, `default.player`), a capsule of that total height (LIKELY: the feet are the
+    /// centre less half the height, `client_patch.md`, "A player's transform is his feet").
+    pub fn capsule_reach(&self, above: f32) -> f32 {
+        let r = self.body.radius;
+        (r * r - above.max(0.0).powi(2)).max(0.0).sqrt() - EXACT_SLACK_CELLS * self.cell
+    }
+
+    /// Whether a wall of `walls` stops a capsule of `height` metres standing on the floor centre (`x`, `z`) with its feet at `feet`:
+    /// one in the cylinder's band within [`Self::capsule_reach`] of the axis, or one in a slab of the round top within the slab's
+    /// reach. Walls under a step over the feet are stepped over.
+    fn capsule_meets(&self, walls: &Walls, x: f32, z: f32, feet: f32, height: f32) -> bool {
+        let slab = self.body.radius / CAP_SLABS as f32;
+        let cap_from = feet + height - self.body.radius;
+        let step = feet + self.body.step;
+        if cap_from > step && walls.within(x, z, step, cap_from, self.capsule_reach(0.0)) {
+            return true;
+        }
+        (0..CAP_SLABS).any(|k| {
+            let low = cap_from + k as f32 * slab;
+            let reach = self.capsule_reach(k as f32 * slab);
+            reach > 0.0 && low + slab > step && walls.within(x, z, low.max(step), low + slab, reach)
+        })
+    }
+
+    /// Clears the `alive` floors that have a wall nearer than [`Self::exact_clearance`] ([`Walls::within`]) where the standing capsule
+    /// meets it ([`Self::capsule_meets`]) and the crouched one does too; how many. A floor only the standing capsule meets a wall at
+    /// (a pipe, an overhang between the crouched height and the standing one, which a player crouches under) stays, and is returned:
+    /// its ceiling is lowered to the wall's reach so that only a crouched body walks it ([`WalkGrid::can_stand`]).
+    pub(super) fn erode_exact(&self, alive: &mut [bool], walls: &Walls) -> (usize, Vec<usize>) {
         let radius = self.exact_clearance();
-        let mut removed = 0;
+        let (mut removed, mut crouch_only) = (0, Vec::new());
         for a in 0..alive.len() {
             if !alive[a] {
                 continue;
@@ -176,12 +215,29 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             let (x, z) = (self.x0 + (i as f32 + 0.5) * self.cell, self.z0 + (k as f32 + 0.5) * self.cell);
             let feet = self.height[a];
-            if walls.within(x, z, feet + self.body.step, feet + self.body.stand_height, radius) {
+            // None near in the whole band: the common case, one look.
+            if !walls.within(x, z, feet + self.body.step, feet + self.body.stand_height, radius) {
+                continue;
+            }
+            if !self.capsule_meets(walls, x, z, feet, self.body.stand_height) {
+                continue;
+            }
+            if self.capsule_meets(walls, x, z, feet, self.body.crouch_height) {
                 alive[a] = false;
                 removed += 1;
+            } else {
+                crouch_only.push(a);
             }
         }
-        removed
+        (removed, crouch_only)
+    }
+
+    /// The wall nearest to the floor centre (`x`, `z`) at feet height `y`, among those within `limit` metres on the ground: its distance and
+    /// triangle, for the audit of a neck ([`Erosion::Exact`] takes the floors nearer than [`Self::exact_clearance`]). Builds the walls of
+    /// `triangles` for every call: for a few points, not a sweep.
+    pub fn nearest_wall(&self, triangles: &[Triangle], x: f32, z: f32, y: f32, limit: f32) -> Option<(f32, [Vec3; 3])> {
+        let walls = Walls::new(triangles, self.x0, self.z0, self.cell, self.nx, self.nz);
+        walls.nearest_wall(x, z, y + self.body.step, y + self.body.stand_height, limit)
     }
 
     /// How many floors of the grid have a wall of `triangles` (the walls [`Erosion::Exact`] erodes by) nearer than
@@ -262,6 +318,44 @@ mod tests {
         let at_radius = Vec3::new(4.625, 0.0, 5.125);
         assert!(exact.locate(at_radius, 0.05).is_some(), "a floor 0.375 m from the face stays");
         assert!(exact.len() < cells.len());
+    }
+
+    /// A beam hanging at head height (its underside 1.7 m over the floor, a hand's breadth under the standing height) is met by the
+    /// round top of the capsule at a smaller reach than a wall to the floor: the floor 0.225 m from its side stays (a body walks
+    /// there, its cap clears the beam by the curve), where the same side as a wall from the floor takes it.
+    #[test]
+    fn a_beam_at_head_height_is_met_by_the_capsules_round_top() {
+        let box_from = |y0: f32, y1: f32| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+            let (x0, x1) = (5.1f32, 6.0f32);
+            for (a, b) in [((x0, 0.0), (x0, 10.0)), ((x1, 0.0), (x1, 10.0))] {
+                let (p, q) = (Vec3::new(a.0, y0, a.1), Vec3::new(b.0, y0, b.1));
+                let (r, t) = (Vec3::new(b.0, y1, b.1), Vec3::new(a.0, y1, a.1));
+                tris.push(Triangle { v: [p, q, r], walker: WalkerBehaviour::BySlope });
+                tris.push(Triangle { v: [p, r, t], walker: WalkerBehaviour::BySlope });
+            }
+            tris
+        };
+        let build = |tris: &[Triangle]| WalkGrid::build(tris, AREA, 0.25, Body { erosion: Erosion::Exact, ..Body::default() });
+        let near = Vec3::new(4.875, 0.0, 5.125);
+        let beam = build(&box_from(1.7, 2.4));
+        assert!(beam.locate(near, 0.05).is_some(), "the floor 0.225 m from a beam at 1.7 m stays");
+        let wall = build(&box_from(0.0, 2.4));
+        assert!(wall.locate(near, 0.05).is_none(), "the same side from the floor takes it");
+        // A beam from 1.3 m is in the standing capsule's cylinder but over the crouched one: the floor stays, to be walked crouched.
+        let overhang = build(&box_from(1.3, 2.0));
+        let node = overhang.locate(near, 0.05).expect("the floor under an overhang stays");
+        assert!(!overhang.can_stand(node), "but only a crouched body fits");
+        let plain = build(&box_from(0.0, 2.4));
+        assert!(plain.locate(Vec3::new(2.125, 0.0, 5.125), 0.05).is_some_and(|n| plain.can_stand(n)), "a floor away from it stands");
+        // A beam from 0.9 m is met by the crouched capsule too.
+        let low_beam = build(&box_from(0.9, 1.6));
+        assert!(low_beam.locate(near, 0.05).is_none(), "a beam in the crouched capsule's band takes it");
+        // The reach: the radius (less the slack) up to the cylinder's top, none at the standing height.
+        let grid = build(&box_from(1.7, 2.4));
+        assert!((grid.capsule_reach(0.0) - grid.exact_clearance()).abs() < 1e-6);
+        assert!(grid.capsule_reach(0.28) < grid.capsule_reach(0.0));
+        assert!(grid.capsule_reach(0.38) <= 0.0);
     }
 
     /// Stairs (`walk` faces) and floors are no walls: a staircase beside a floor takes no floors.

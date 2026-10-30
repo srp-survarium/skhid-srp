@@ -408,6 +408,10 @@ pub const SPRINT_RUN_UP_M: f32 = 1.5;
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
 
+/// How much lower than the standing height a floor's ceiling is set where only a crouched capsule fits by the walls (`erode_exact`),
+/// metres: a floor of the crouched height only ([`WalkGrid::can_stand`] false).
+const CROUCH_ONLY_M: f32 = 0.01;
+
 /// [`WalkGrid`]'s `flags`: a walk from a spawn's floor gets here.
 const REACHED: u8 = 1;
 /// A walk from here gets back to a spawn's floor.
@@ -1413,7 +1417,14 @@ impl WalkGrid {
                 }
             }
         }
-        let exact = walls.map_or(0, |walls| self.erode_exact(&mut alive, walls));
+        let exact = walls.map_or(0, |walls| {
+            let (removed, crouch_only) = self.erode_exact(&mut alive, walls);
+            // Under a wall only a standing capsule meets: walked crouched.
+            for a in crouch_only {
+                self.ceiling[a] = self.ceiling[a].min(self.height[a] + self.body.stand_height - CROUCH_ONLY_M);
+            }
+            removed
+        });
         // The floors kept at an unwalled side over a fall: no link, no cut
         // climb, no wall, and no floor beside within a step up or the
         // harmless drop down (a body walking off falls further).
