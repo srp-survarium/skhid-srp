@@ -26,7 +26,8 @@ pub struct SmokeTuning {
     /// React to a cloud the bot knows (it saw it, heard it pop, `smoke::KnownClouds`) and was not told is its team's:
     /// with nothing else holding its look, glance at the cloud's edge that faces it, where a man coming through steps
     /// out ("watch for enemies covering the smoke's far edge", "peek the smoke's edge", `bp-anticamper-human.md`
-    /// S26/S15). Off: no reaction, and no cloud is learnt (no ray is cast for it). OFF until its bench (#719's clouds).
+    /// S26/S15). Off: no reaction, and no cloud is learnt (no ray is cast for it). On by default (#801's bench, with the
+    /// stand-in's clouds of #719).
     pub react_watch: bool,
     /// A cloud is seen from this far at most, metres (its middle in the view and a clear line to it). GUESS: the
     /// 5 m puffs of a cloud are plain at 80 m.
@@ -45,6 +46,37 @@ pub struct SmokeTuning {
     /// ledger's "own smoke told" row, as `avoid.told_ms` for a mate's frag; the thrower knows his own at once).
     /// Until then a mate's cloud seen or heard is of unknown side and watched as a possible enemy's.
     pub told_ms: u32,
+    /// [smoke use] A bot whose route crosses a held lane ahead (K1, `threat.rs`) within `lane_ahead_m`, before it
+    /// steps in and while it is not sprinting (a sprint is across before the cloud forms), smokes the lane: a cloud between the spot and the crossing (`smoke::smoke_between`), if the team
+    /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none. On by default
+    /// (#801: 4.23 per 100 lives on map data format 5, live 2.97; no sight or fire through smoke).
+    pub cross_lane: bool,
+    /// The crossing is this near ahead on the route, metres: a smoke for the gap the bot is about to step into, not
+    /// one it may reach later (20 m threw 8.9 per 100 lives, `h2h-radio-vs-off-20261029T1211`; live 2.97).
+    pub lane_ahead_m: Metres,
+    /// A lane is smoked only while its shooter is known to be there now: the team sensed him at the spot within this,
+    /// ms (its own sight or hearing, or the kill feed of a death to him), and the spot has a clear line onto the
+    /// crossing. Humans smoke a threat they know of (69 % of live clouds lie between the thrower and the nearest
+    /// enemy); a lane only remembered is crossed fast (`threat.sprint`), not smoked. With 15 s and no line test the
+    /// bench's bots threw 15.1 per 100 lives (`h2h-free-vs-radio-20261029T1047`; live 2.97).
+    pub lane_sensed_ms: u32,
+    /// A life smokes this many lanes at most (the coordinator's cap, 2026-10-29): a player carries a smoke or two and
+    /// spends it on the crossing that matters. With no cap the bench's bots threw 7.84 per 100 lives on map data
+    /// format 5 (`h2h-on-vs-off-20261029T2004`; live 2.97, the feel bar under 2x live).
+    pub lanes_a_life: u32,
+    /// A lane is smoked only where the route its shooter sees runs this far from the crossing on, metres: a shorter
+    /// gap is sprinted (5 m/s) before his answer (the bench's median first sight to first shot, about 1.0 s,
+    /// `h2h-on-vs-off-20261029T2103`). Players sprint short gaps and smoke the wide ones.
+    pub lane_open_m: Metres,
+    /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
+    /// between them, as near him as the throw reaches. Off: none.
+    pub anti_sniper: bool,
+}
+
+impl SmokeTuning {
+    pub(super) fn check(&self) -> Result<(), String> {
+        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")
+    }
 }
 
 impl Default for SmokeTuning {
@@ -53,7 +85,7 @@ impl Default for SmokeTuning {
             sight: true,
             spray_ms: 750,
             thin_m: Positive::of(2.0),
-            react_watch: false,
+            react_watch: true,
             see_m: Metres::of(80.0),
             watch_m: Metres::of(40.0),
             watch_ms: 1_500,
@@ -61,6 +93,12 @@ impl Default for SmokeTuning {
             heard_m: Metres::of(15.0),
             heard_ms: 2_000,
             told_ms: 400,
+            cross_lane: true,
+            lane_ahead_m: Metres::of(10.0),
+            lane_sensed_ms: 5_000,
+            lanes_a_life: 1,
+            lane_open_m: Metres::of(5.0),
+            anti_sniper: false,
         }
     }
 }

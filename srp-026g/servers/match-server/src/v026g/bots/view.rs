@@ -752,6 +752,11 @@ impl Tracker {
         self.places.get(place)?.throws.frags_left()
     }
 
+    /// [smoke] The quick-use key that throws a smoke from `place`'s kit in use now ([`Throws::smoke_key`]).
+    pub fn smoke_key(&self, place: Place) -> Option<u32> {
+        self.places.get(place)?.throws.smoke_key()
+    }
+
     /// The smoke clouds in the match now, those still in the air included ([`super::smoke`]).
     pub fn clouds(&self) -> &[Cloud] {
         &self.clouds

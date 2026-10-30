@@ -136,6 +136,7 @@ pub use team::SearchQueue;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
+pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
@@ -266,6 +267,7 @@ impl Tuning {
         self.plays.check()?;
         self.sense.check()?;
         self.skill.check()?;
+        self.smoke.check()?;
         self.think.check()?;
         self.traps.check()?;
         self.unstick.check()?;

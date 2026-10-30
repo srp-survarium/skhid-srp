@@ -235,6 +235,17 @@ impl Pockets {
             .sum()
     }
 
+    /// [smoke] The quick-use key that throws a smoke from this kit now: the first of [`key::QUICK`] whose pocket
+    /// ([`Self::throws_from`], the one numbering: the pockets present) holds a smoke with units left. None with no smoke
+    /// left, or a rank past the six keys.
+    pub fn smoke_key(&self) -> Option<u32> {
+        key::QUICK.iter().copied().find(|&bit| {
+            self.throws_from(bit)
+                .and_then(|i| self.slots[i])
+                .is_some_and(|pocket| pocket.item == Pocketed::Smoke)
+        })
+    }
+
     /// The index of the pocket the keys `pressed` throw from, if they throw a grenade. The throw key takes the first pocket
     /// with a grenade that has units (`inventory::first_grenade_pocket` 0x2FE8B0); quick use `n` names the `n`-th pocket
     /// present (the numbering rule: [`quick_use_order`]), and that pocket throws only if it holds a grenade with units left
@@ -349,6 +360,11 @@ impl KitPockets {
     pub fn frags(&self) -> u16 {
         self.kits[self.in_use.0].frags()
     }
+
+    /// [`Pockets::smoke_key`] of the kit in use.
+    pub fn smoke_key(&self) -> Option<u32> {
+        self.kits[self.in_use.0].smoke_key()
+    }
 }
 
 impl KitPockets {
@@ -443,6 +459,11 @@ impl Throws {
     /// grenade logic then goes by its own count, as before.
     pub fn frags_left(&self) -> Option<u16> {
         self.pockets().map(KitPockets::frags)
+    }
+
+    /// [smoke] The quick-use key that throws a smoke from the kit in use now, where the pockets are known.
+    pub fn smoke_key(&self) -> Option<u32> {
+        self.pockets().and_then(KitPockets::smoke_key)
     }
 
     /// What a place's throw keys throw, decided from its profile with [`KitPockets::of_profile`]: the one reader of the live
@@ -701,6 +722,25 @@ mod tests {
         // The frags are spent: the smoke is the first grenade left.
         assert_eq!(p.throw(key::GRENADE), Some(Pocketed::Smoke));
         assert_eq!(p.throw(key::GRENADE), None);
+    }
+
+    /// [smoke] The quick-use key of the smoke is its pocket's rank among the pockets the kit filled: quick 3 behind
+    /// the medkit and the frags, still quick 3 once the frags are spent (the client counts the items present), none
+    /// once the smoke is thrown.
+    #[test]
+    fn the_smoke_key_is_the_rank_of_its_pocket_among_those_filled() {
+        let mut p = pockets();
+        assert_eq!(p.smoke_key(), Some(key::QUICK[2]));
+        p.throw(key::GRENADE);
+        p.throw(key::GRENADE);
+        assert_eq!(p.smoke_key(), Some(key::QUICK[2]));
+        // (The list's own numbering, the units left, reads quick 2 for it now: `quick_rules_differ` counts that.)
+        assert!(p.quick_rules_differ(key::QUICK[2]));
+        let mut q = pockets();
+        assert_eq!(q.throw(q.smoke_key().unwrap()), Some(Pocketed::Smoke));
+        assert_eq!(q.smoke_key(), None);
+        let none = Pockets::new([Some((Pocketed::Other, 3)), Some((Pocketed::Frag, 2)), None, None, None, None]);
+        assert_eq!(none.smoke_key(), None);
     }
 
     #[test]
