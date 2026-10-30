@@ -892,6 +892,7 @@ va	name	source	ret_cleanup	result
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f17c0	survarium::player::collision_transform	manual	0	EAX = ECX+2F4h (player+40Ch, the world transform)
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
+0x001f2720	survarium::player::insert	manual	4	none; base_player::insert 0x2DA850 (+33Fh := 1; alive: activate_physics 0x2D9930; link 1: the world's tick lists +18860h/+18880h), then the 3D icon's and models' part (+0F4E0h := 1, 0x1F2300 with link 1); the respawn rule calls it through vtable+20h with 1 (0x316EA9)
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
@@ -1160,6 +1161,7 @@ va	name	source	ret_cleanup	result
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
+0x002da850	survarium::base_player::insert	manual	4	none; +33Fh := 1 (0x2DA869); alive: activate_physics 0x2D9930 and the bone bodies; link 1 and a world (+120h): the tick lists +18860h/+18880h linked (unconditionally: never twice)
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
 0x002dc0b0	survarium::base_player::set_spotted	manual	4	
@@ -1914,7 +1916,7 @@ va	name	source	ret_cleanup	result
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
-0x002d2770	survarium::game_world_core::deserialize	manual	12	
+0x002d2770	survarium::game_world_core::deserialize	manual	12	none; places that left the mask: current player removed (vtable+24h, 0x2D284A); places already in it: removed with the kit-changed byte (0x2D2A68) before their deserialize (vtable+3Ch, 0x2D2AA0); at the end every place of the mask has its current player inserted (vtable+20h, player::insert 0x1F2720, link = newly in the mask or kit changed; 0x2D2CB3..0x2D2D55): a loaded world (0x2D0B70 calls this at 0x2D0FB9) has every player in the world (+33Fh)
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	manual	0	[ECX]: the controller's matrix (+80h), its translation moved down by heights[(stance+2)%3] + heights[stance] (half the capsule's height): the feet
 0x00054e10	survarium::replay_network_client::is_this_place_mine	manual	4	AL: 1 when the place is the one the replay is on (the stock slot is a stub: xor al,al)
 0x0027aa20	survarium::network_client::on_match_ready	manual	4	
@@ -1989,6 +1991,7 @@ va	name	source	ret_cleanup	result
 0x00306d50		manual	0	EAX: the material pair record of the two material ids (a 128x128 table at +308h, each id first mapped by its material's +66h base id, the default id +1030Ch for an empty slot): +8 the decals, +18h the sound, +24h..+28h the particles (4-byte slots, the next one +64h), +74h the particles' parameter, +8Ch the decal's size
 0x003223e0	survarium::bullet_manager::play_particle	manual	20	none; queues the particle at the point (a functor on the manager's +30h stack, run after the bullets' tick, threads too); nothing when the manager's +90h (the renderer) is 0
 0x003222f0	survarium::bullet_manager::play_sound	manual	12	none; queues the sound at the point as play_particle does
+0x00321fa0	survarium::bullet_manager::add_decal	manual	32	none; queues the hit decal (a functor on the manager's +30h stack, add_decal_impl 0x322100 after the bullets' tick: game_world's world-space decal of the next id of a ring, not tied to any model); nothing when the manager's +90h (the renderer) or the decal is 0
 0x0032e460	survarium::player_shootmarks_storage::add_shootmark	manual	8	AL: 1 the first time the bullet's (id +4, segment +84h) is seen for the shooter's place (a list of 32 a place), else its count after one more: a bullet's effects play once however often its tick is simulated again
 0x00070e70	vostok::physics::bt_animated_rigid_body::bt_animated_rigid_body	manual	12	EAX: this; its material id (+38h, the vtable's +10h answers it) := 10, game material actor (game_materials/game.materials), and the collision object's +0F8h := this: a player's hit model is actor to the bullets (pair 7 x 10: fx/material_hits/blod, decals/bullet_body_in)
 0x00301cb0	survarium::victory_item_core::activate_physics	manual	0	none; the battery's dynamic body (+2A8h, made by create_dynamic_rigid_body 0x357100) into the physics world (vtable+2Ch) with group 0A18h, mask 418h: bullets (10h/48h) hit it, the foot IK's level rays (24h/2) do not
@@ -2067,12 +2070,25 @@ va	name	source	ret_cleanup	result
 0x0029a320	survarium::particle_game_effect_emitter::destroy	manual	4	void
 0x002f0130	survarium::composite_game_effect_emitter::destroy	manual	4	void; lets go of its children (each child's emitter +0Ch vtable+1Ch at a count +1Ch of 0)
 0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	manual	4	void
-0x002855b0	survarium::simple_game_project::remove	manual	0	void; its game objects (+184h..+188h) vtable+24h unless +10Ch, its +1E8h entries (48h each, +1ECh of them) vtable+4 with +180h
-0x00285540	survarium::simple_game_project::insert	manual	0	void; remove's counterpart: the +1E8h entries' vtable+0, the game objects' vtable+20h
+0x002855b0	survarium::simple_game_project::remove_static	manual	0	void; its game objects (+184h..+188h) vtable+24h unless +10Ch, its +1E8h entries (48h each, +1ECh of them) vtable+4 with +180h
+0x00285540	survarium::simple_game_project::insert_static	manual	0	void; remove's counterpart: the +1E8h entries' vtable+0, the game objects' vtable+20h
 0x002f8720	survarium::simple_game_project::on_inserted	manual	0	void; simple_game_project's vtable+0Ch (0xA0A064, also 0xA133F0 and 0xA163B8): each +1Ch..+20h entry (20h bytes) given to its +18h's vtable+0
 0x002f8850	survarium::static_collision::insert	manual	4	void; static_collision's vtable+0 (0xA029A8): its body into the physics world
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x00285fa0	survarium::render_visual::insert	manual	4	none
+0x00285fe0	survarium::render_visual::remove	manual	4	none
+0x00291720	survarium::object_light::load	manual	12	none
+0x00291790	survarium::object_light::insert	manual	0	none
+0x002917d0	survarium::object_light::remove	manual	0	none
+0x00285330	survarium::simple_game_project::~simple_game_project	manual	0	none
+0x00285750	survarium::simple_game_project::insert	manual	8	none
 0x0026dac0	survarium::base_game_statistics_handler::on_artefact_taken	manual	8	
 0x002f55f0	survarium::shared_statistics::on_artefact_taken	manual	4	
+0x002dbb50	survarium::base_player::movement_speed	manual	16	XMM0: max(m, v x max(0, 1 + S4)), m = 0x2F0980 on the player +190h, v = 0x2F0980 on +15Ch, S4 = apply_modifier 0x2D5AE0 index 4 on the kit container (profile [player+6B8h] + kit [player+115h] x 704h + 0F4h); with the byte flag, the lower of that and apply_modifiers 0x2D5BC0 with the extra {4, 1.0}, {20, 1.0}
+0x00339630	survarium::bullet_manager::explode	manual	12	none; every object of the physics world within splash_radius (ESI+28h) of the centre (vtable+60h get_all_objects_in_radius, group 10h, mask 40h): each bone of its player hit (vtable+24h) with lerp(splash_min_damage +2Ch, splash_max_damage +30h, (R - d) / R) x what 0x3393F0 leaves of splash_pierce (+34h) / +34h, when that is above 0 (0xA0D984)
+0x003393f0		manual	16	XMM0 low32: the strength (entry ESP+0Ch) left along the ray from the centre: every front-facing hit (ray_all, physics vtable+4Ch, group 10h, mask 8) of a material of physic/armor (game_material +4Ch) v > 0 multiplies it by 1 - (1 - c)^2, c = clamp((s - v) / v, 0, 1); armor 0 (glass) passes; the scan ends at a hit of the target object
+0x00239420	survarium::game_world_ui::update_minimap_players	manual	4	none: root.update_players of the hud movie [ui+8], one object a player (player_id, is_local_player, player_pos_x/y, player_rotation_in_rad, team = [player+6B8h]+45ECh, is_carrying_item, is_squad_player)
+0x00239a30	survarium::game_world_ui::update_minimap_local_player	manual	4	none: root.update_local_player of the hud movie [ui+8] (x, y, rotation, team = [local+6B8h]+45ECh, 2 without a local player at 0x239B3C), the minimap's own team
+0x0027a980	survarium::network_client::get_player	manual	8	EAX = the out pointer: the place's current kit player ([[client+1F1C40h]+18650h] + place x 30h, kit byte +0Ch), reference added, or 0; no active-mask check, unlike get_active_player 0x27A9C0; the network client's vtable 0x9FFB14 +4Ch

@@ -26,7 +26,7 @@ bytes):
 - **Texts.** A movie holds no language text: srp's own texts are dictionary keys
   (`LocalizationData.getName("st_srp_...")`, `LocalizationData.format(key, values)`; the lobby and
   login movies), `../client-patches/localization/README.md` (Flash menus' own texts).
-- `bitmaps/<class>.png` (the hud's kill feed icons): a bitmap the original lacks, which the build
+- `bitmaps/<class>.png` (the hud's kill feed icons and srp's oxygen tanks' quick-slot icons): a bitmap the original lacks, which the build
   adds bound to `<class>`, a `BitmapData` class of `src/`.
 
 ## Cleaned up over the export

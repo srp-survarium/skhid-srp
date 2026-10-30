@@ -166,13 +166,12 @@ written into the saved state (or `st0` loaded) on the way out. A `call`/
 `eax`/`ecx`/`edx`/xmm as clobbered, so it only aligns the stack, passes the
 arguments and cleans up as the function did; it adds no `fxsave`.
 
-**Chains**: several hooks on the same site declare an `order`; a partial
-overlap fails the build. In a `call`/`splice` chain each handler's `Original`
-is the next; in a `lohook` chain the first non-`Continue` flow ends it.
-Lohook chains are generated (`hooks_026g.chain_lohooks`): the first in
-`order` is the site's one entry and install, which calls each handler's shim
-in order with the same Context; the others are `chained` (their shim and Exit
-enum, no entry). The first: patch 79's and patch 81's at `configs.start`.
+**Lohook chains**: handlers sharing an exact named site declare distinct
+integer `order`s. A single entry saves/restores the machine; handlers observe
+earlier Context writes and the first non-`Continue` ends the chain. A partial
+overlap, mismatched site/span/exits, absent order or duplicate order fails the
+build. Lamps and ragdolls share their frame/ray sites this way. `call`/`splice`
+chains remain unsupported.
 **Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
@@ -242,9 +241,27 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
-five; patch 65, Blackout's five) ship; the other kinds' generators are proven by check_hooks_026g.py and
-wait for their first patch to wire the install into patch_026g.py. A span
+thunk. `call`, `lohook` and runtime `vtable` copies ship. Other pointer/callback
+install paths remain refused. The convention entries themselves are exercised
+by `check_hooks_026g.py`.
+
+A runtime vtable declaration names its source in `fields_026g.tsv`:
+
+```toml
+[[vtable]]
+name = "visual"
+source = "visual_methods"
+check = "check_lamps_026g.py"
+```
+
+The source is an image `obj<methods>` row. Its kind supplies the size and RTTI
+field at -4. Individual `[[hook]]` rows name vtable sites whose callees carry
+the native and Vostok signatures; their `proof` labels identify native dispatch
+checks. Generation copies RTTI and untouched slots from the original exe,
+checks every replaced slot's native callee, and returns an opaque
+`NativeVtable<T>` handle. Only the project registry installs it on resolved
+objects. The same declarations generate `INSTALLED_VTABLES` audit rows.
+A missing, ambiguous, unproved or incorrectly typed copy fails the build. A span
 hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
 reads them from the exe it builds from (hooks_026g.py and the checks take
 `SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
@@ -327,7 +344,7 @@ bit when the key went down.
 - **Not run in a game** until the owner plays it.
 
 The generator regressions can also run alone in the dev shell, from
-`client-patches`: `python -m unittest test_hooks_026g port.test_equiv_026g`.
+`client-patches`: `python -m unittest test_hooks_026g test_runtime_hooks_026g port.test_equiv_026g`.
 They check forward/backward/wrapping calls, span decoding, multiple generated
 Originals compiled and run on i686, and both equivalence-build subprocesses.
 The self-test runs them too; `check_hooks_026g.py` also checks incoming flags

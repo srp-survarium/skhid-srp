@@ -1743,7 +1743,7 @@ The owner (2026-10-29): "different ones should be for different factions", "stal
 - **The faction comes after the scene** (PROVEN). on_render_scenes_ready makes the network client itself (game::create_network_client 0x1EBFC0 at 0x221C2F), so the sign-in and its `0x8E` (the quest faction, its last byte, kept at the lobby client's +1EA998h at 0x2717CF by the handler 0x271740; the only other writes: the client's ctor's 0 at 0x26F1F9) come after the scene's results are taken. The server sends `8E` again after a change of faction (`4B 00`). So the last faction is kept for the next start (`lobby-scenes.md`, when the faction is known).
 - **A missing project crashes** (seen 2026-10-29, a local game with `lobby_scene/dax` asked): `project_cooker_simple::translate_query` (0x22B790) queries `%sprojects/%s/client_project` (and `default/client_project`) and its callback reads the config's root (+108h) of a null config: an access violation at 0x22C11E (create_game_objects 0x22C010). A missing *config* asked as a binary config (class 1Fh) fails that result alone.
 - **The patch** (Rust `lobby_scene`, `rust/patches/src/lobby_scene.rs`; its state the crate's):
-  - `configs.start` (0x1EA210, the chain after patch 79's handler: `hooks_026g.chain_lohooks`): the console variable `srp_lobby_faction`, a saved string of 4 bytes, registered once before user.cfg runs.
+  - `configs.start` (0x1EA210, the chain after patch 79's handler: a shared lohook site, rust_patches.md): the console variable `srp_lobby_faction`, a saved string of 4 bytes, registered once before user.cfg runs.
   - `lobby_client.faction` (0x2717CF, `mov [ebx+1EA998h],eax`, EAX the faction): the faction's id saved (none for 0 and unknown ids), user.cfg written (0x1E9030) when it changed.
   - `lobby_menu.scene_request` (0x21E5CC, `movq [eax+8],xmm0`, the list whole and not yet asked): the fourth request is the saved faction's lobby's: for the classic the original's; for another lobby first its config (`resources/projects/lobby_scene/<id>/client_project`, class 1Fh, its user data pointer 0), then its project (`lobby_scene/<id>`, 40h).
   - `lobby_menu.scenes_ready` (0x220B20, the callback's start): after a probe, or a project with no track (+1E4h of the project, +1ACh of its resource), the results are let go: the patch calls query_resources again with the menu (`engine_lobby_query_resources`) and exits at 0x221E77; a missing config's next query is the classic's. A usable project, or the classic's in any case, goes on into the original's code.
@@ -2447,6 +2447,12 @@ equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
 switch crashes with equipped gear, now covered by the native regression check.
 The callback gains movement/spending fractions and sprint state
 (0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It also gives the kit's own movement-speed modifier (the raw float of index
+4: the skills) and whether Bear Arms (modifier 62, additive) is on, for the
+speed shown beside the weight (`data.md`, "The kit's movement speed").
+And the carry limit's parts: the menu's base limit (+3118h), the kit's floats
+of modifiers 5 (skills) and 26 (Packrat) (`data.md`, "The carry limit by
+source"): ten arguments in all.
 It retains the original two arguments if the config is unavailable or invalid.
 The shim preserves registers, flags and floating-point state and returns with
 the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,

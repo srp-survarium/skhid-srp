@@ -50,15 +50,20 @@ pub fn finite(x: f32) -> bool {
     x.is_finite()
 }
 
-/// e^-x for x >= 0 (a series on x / 16, squared four times; 0 past 80).
+/// e^-x for x >= 0 (a series on x / 16, squared four times; 0 from 20,
+/// where e^-x is 2e-9: past y = 1.25 the series turns and grows again, and
+/// its 16th power reached 1e17 by x = 79).
 pub fn exp_neg(x: f32) -> f32 {
-    let y = clamp(x, 0.0, 80.0) * (1.0 / 16.0);
+    if x >= 20.0 {
+        return 0.0;
+    }
+    let y = clamp(x, 0.0, 20.0) * (1.0 / 16.0);
     let mut e =
         1.0 - y + y * y / 2.0 - y * y * y / 6.0 + y * y * y * y / 24.0 - y * y * y * y * y / 120.0;
     for _ in 0..4 {
         e *= e;
     }
-    if x >= 80.0 { 0.0 } else { e }
+    e
 }
 
 /// atan2(y, x) within about 1e-5 rad (a minimax polynomial of atan on
@@ -466,6 +471,22 @@ mod tests {
 
     fn close(a: f32, b: f32, eps: f32) -> bool {
         abs(a - b) <= eps
+    }
+
+    #[test]
+    fn exp_neg_matches_std_and_never_grows() {
+        let mut last = 1.0f32;
+        for i in 0..=8000 {
+            let x = i as f32 * 0.01;
+            let e = exp_neg(x);
+            let want = (-x as f64).exp() as f32;
+            assert!(
+                close(e, want, 1e-3) && e <= want * 1.01 + 1e-7,
+                "exp_neg({x}) = {e}, e^-x = {want}"
+            );
+            assert!((0.0..=last).contains(&e), "exp_neg({x}) = {e} after {last}");
+            last = e;
+        }
     }
 
     #[test]

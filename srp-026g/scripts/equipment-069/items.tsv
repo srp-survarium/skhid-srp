@@ -1,0 +1,3 @@
+id	id_069	name	model	template_id	faction	level	drop_weight	price	icon_row	icon_col	weight	default_modifications	peer_id	icon_069
+1357	leagues_back_2	Medic's bag	character/human/special_items/league_regeneration_back/league_regeneration_back	355	2	5	110	10830	14	8	4.5	1030,1170	355	1,13
+1359	leagues_back_5	Soldier's backpack	character/human/special_items/league_battle_back/league_battle_back	115	1	14	20	42750	15	8	8	1051,1030,1171	115	3,13

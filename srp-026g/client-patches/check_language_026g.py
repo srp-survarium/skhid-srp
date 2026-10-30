@@ -183,7 +183,7 @@ def main():
            "the initializer leaves the language string \"original\"")
     a_regs, a_sp, a_head = stock.start()
     b_regs, b_sp, b_top = ours.start()
-    # the site's chain (hooks_026g.chain_lohooks): patch 79's handler, then
+    # the site's chain (hooks_026g's shared lohook sites): patch 79's handler, then
     # patch 81's, which puts its own variable at the head after this one
     lobby = console_variable(ours, b_top)
     b_head = ours.read(b_top + 0x0C)
@@ -246,7 +246,7 @@ def main():
     ours.flag("english")
     saved("english")
     answer = ["Language", "Applies after restart."]
-    listing = [text for name, native, _ in LANGUAGES for text in (name, native)]
+    listing = [text for name, native, *_ in LANGUAGES for text in (name, native)]
     for label, argument, managed, saved_after, saves in [
         ("a registered name", "czech", False, "czech", 1),
         ("a managed string", "finnish", True, "finnish", 1),

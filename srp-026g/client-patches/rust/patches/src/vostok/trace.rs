@@ -28,6 +28,10 @@ pub fn enabled() -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TraceFile(*mut c_void);
 
+// SAFETY: a Windows file handle is process-wide, not thread-affine. Access
+// to the ragdoll's owned trace file is serialized by its Lock<State>.
+unsafe impl Send for TraceFile {}
+
 /// The longest path a trace file has.
 const PATH: usize = 300;
 

@@ -23,6 +23,7 @@ struct game_effect_player;
 struct game_effect_slot;
 struct game_material_manager;
 struct game_project_resource;
+struct game_scene;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
@@ -32,6 +33,7 @@ struct lobby_menu;
 struct match_options;
 struct material_pair;
 struct network_client;
+struct object_light;
 struct particle_slot;
 struct player;
 struct player_input_handler;
@@ -40,6 +42,7 @@ struct player_profile;
 struct pure_game_effect_emitter;
 struct ray_result;
 struct render_model_instance;
+struct render_visual;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
@@ -69,7 +72,7 @@ void engine_write_u8(const void *value, struct buffer_writer *writer, const char
 void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
-void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12 */
 void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount);
@@ -224,10 +227,10 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lci
 /* 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0 */
 void engine_lobby_query_resources(struct lobby_menu *menu);
 
-/* 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0 */
+/* 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0 */
 void engine_project_remove(struct simple_game_project *project);
 
-/* 0x285540 survarium::simple_game_project::insert: project EAX; pops 0 */
+/* 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0 */
 void engine_project_insert(struct simple_game_project *project);
 
 /* 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly */
@@ -253,6 +256,18 @@ void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct gam
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0 */
 void engine_release_resource(struct game_project_resource *resource, unsigned int *count);
+
+/* 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_visual_insert(struct render_visual *visual, struct game_scene *scene);
+
+/* 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_visual_remove(struct render_visual *visual, struct game_scene *scene);
+
+/* 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_light_insert(struct object_light *light);
+
+/* 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_light_remove(struct object_light *light);
 
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);
@@ -292,5 +307,8 @@ extern unsigned int (__attribute__((stdcall)) *const engine_read_file)(void * fi
 
 /* 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8 */
 void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit);
+
+/* 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0 */
+float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target);
 
 #endif

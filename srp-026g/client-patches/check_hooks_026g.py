@@ -336,27 +336,6 @@ def test_lohook():
                  "    or dword [eax+32], 1\n    and dword [eax+32], ~0x40\n    xor eax, eax\n    ret\n")
     out = run_lohook(dict(base, original=nop), set_flags, LOHOOK_PAST, flags=0x246)
     check(out["eflags"] == 0x207, "lohook: applies a Context flag edit (set CF, clear ZF)")
-    # A chain (two lohooks of one site, hooks_026g.chain_lohooks): the second
-    # handler gets the same Context after a Continue, and is not called after
-    # another Flow.
-    chain = dict(base, original=nop, chain=["hook_fix_h", "hook_fix_g"], exits=[("there", exit_at)])
-    second_sets_ecx = ("global hook_fix_g\nhook_fix_g:\n    mov eax, [esp+4]\n    mov eax, [eax]\n"
-                       "    mov dword [eax+24], 0xc0ffee\n    xor eax, eax\n    ret\n")
-    out = run_lohook(chain, noop_stub + second_sets_ecx, LOHOOK_PAST)
-    check(out["eip"] == LOHOOK_PAST and out["ecx"] == 0xC0FFEE and out["esp"] == STACK + 0x80000
-          and all(out[r] == SENTINELS[r] for r in SAVED),
-          "lohook chain: after the first's Continue the second gets the same Context (its ecx write applied)")
-    out = run_lohook(chain, exit_stub + second_sets_ecx, exit_at)
-    check(out["eip"] == exit_at and out["ecx"] == 0,
-          "lohook chain: the first's Exit ends it (the second is not called)")
-    out = run_lohook(chain, noop_stub + "global hook_fix_g\nhook_fix_g:\n    mov eax, 2\n    ret\n", exit_at)
-    check(out["eip"] == exit_at, "lohook chain: the second's Exit is taken")
-    try:
-        hooks_026g.chain_lohooks([dict(base, order=None), dict(base, entry="fix_g", shim="hook_fix_g", order=1)])
-        refused = False
-    except hooks_026g.Bad:
-        refused = True
-    check(refused, "lohook chain: a member without an order is refused")
 
 
 ORIGINAL = b""

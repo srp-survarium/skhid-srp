@@ -31,6 +31,12 @@
   ground below, and stays there for the rest of the match: no return to its
   anomaly. Either team takes it with Use. With no ground below the palm it
   is not dropped: the game's own death handling keeps it.
+- **No gun falls from a carrier** (the owner, 2026-10-29): a gun drops at
+  death only from hands that held it. A carrier's hands held the artefact
+  (its gun lowered, out of the scene), so only the artefact falls; the gun
+  stays out of the scene on the corpse, its native draw skipped as while
+  alive, until native on_hide or the next life takes it back. A battery
+  carrier drops no gun either (as before).
 - Stowed artefacts behave as in the game.
 
 ## Ownership and synchronization
@@ -104,20 +110,30 @@ the deterministic release/fall position and native static collision.
 
 ## Pose and rendering
 
-The pose source, `scripts/artefact-carry/pose.json`, describes raise/hold/lower
-clips over the pinned stock battery idle rig (`make_pose_clip`); it is not
-shipped: `scripts/artefact-carry/compile_pose.py` compiles it into the
-runtime arm/finger curves (`artefact_carry/curves.rs`). The pose layer
+The pose source, `scripts/artefact-carry/pose.json`, gives each arm and
+finger bone's lowered and raised rotation over the pinned stock battery idle
+rig (`make_pose_clip`). No clip is shipped in resources.db:
+`scripts/artefact-carry/compile_pose.py` compiles it into the runtime
+arm/finger curves (`artefact_carry/curves.rs`), blended by the raise. The pose layer
 preserves locomotion and native camera bones. An eye-relative two-bone solve
 targets the right wrist at `(0.10, -0.14, 0.34)` m, preserves limb lengths,
 and limits reach to 96 percent extension. Authored curves provide relaxed
 finger curl and lower/raise motion.
 
+The held hand is never still (`Life` in `pose.rs`): the wrist target breathes
+up to 7 mm up and down every 4.2 s and drifts a few millimetres on slower,
+unrelated periods; the palm tips about 3 degrees a quarter breath behind;
+the fingers flex up to 0.07 rad, index first, the pinky half a second
+later. Walking adds nothing (the owner, 2026-10-30). The clock is the
+simulation's, shifted by the place, so players do not breathe in step; the
+render and damage passes read the same inputs and draw the same arm.
+
 The same solver runs in the render and damage-bone passes. It respects each
 bone's computed-layer mask, so uncomputed collision matrices cannot invalidate
 the arm pose. The artefact follows the hand's orientation, including camera
 pitch. Its resource bottom-centre is anchored 12 cm along the palm normal,
-with a 1.2 cm, four-second bob. The largest held dimension is capped at 14 cm
+with a 1.2 cm, four-second bob, and turns up to 0.15 rad about that normal
+every 6.7 s. The largest held dimension is capped at 14 cm
 and scale at 0.65; damage shapes and ground geometry are not scaled.
 
 The separate held-only Larkspur resource crops triangles below source

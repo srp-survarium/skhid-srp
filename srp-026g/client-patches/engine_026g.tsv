@@ -5,7 +5,7 @@ engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_mal
 engine_match_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	void *engine_match_rule_base(void *rule, unsigned int type)	thunk	
 engine_write_u8	0x1f3de0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_u16	0x2f5da0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
-engine_write_u32	0x1f48a0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
+engine_write_u32	0x1f48a0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk
 engine_statistics_notify	0x2f5d40	EAX:listener ESP+4:place ESP+8:event ESP+12:amount	void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount)	thunk	
 engine_register_cook	0x102d10	EDI:cook	void engine_register_cook(void *cook)	thunk	
 engine_movie_invoke	0x511600	ECX:movie ESP+4:name ESP+8:result ESP+12:arguments ESP+16:count	unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)	thunk	
@@ -67,6 +67,10 @@ engine_effect_play	0x2de090	EDI:player ESP+4:effect ESP+8:second ESP+12:third ES
 engine_emitter_emit	survarium::pure_game_effect_emitter+0x20	ECX:emitter ESP+4:out ESP+8:first ESP+12:second	struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)	virtual	
 engine_emitter_destroy	survarium::pure_game_effect_emitter+0x1c	ECX:emitter ESP+4:effect	void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect)	virtual	
 engine_release_resource	0x0e0210	ECX:instance EAX:count	void engine_release_resource(struct game_project_resource *resource, unsigned int *count)	thunk	
+engine_visual_insert	0x285fa0	ECX:visual ESP+4:scene	void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
+engine_visual_remove	0x285fe0	ECX:visual ESP+4:scene	void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
+engine_light_insert	0x291790	ECX:light	void engine_light_insert(struct object_light *light)	thiscall	light: ObjectLight ->
+engine_light_remove	0x2917d0	ECX:light	void engine_light_remove(struct object_light *light)	thiscall	light: ObjectLight ->
 engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(struct inventory *inventory, unsigned int slot)	thunk
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk
@@ -80,3 +84,4 @@ engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(s
 engine_lobby_camera_ray	0x2844d0	EAX:camera ESI:point EDI:distance ESP+4:direction	void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)	thunk	
 engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
 engine_lobby_character_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)	thunk	
+engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	

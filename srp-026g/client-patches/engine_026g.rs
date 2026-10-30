@@ -99,9 +99,9 @@ unsafe extern "C" {
     pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
     /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
     pub fn engine_lobby_query_resources(menu: *mut c_void);
-    /// 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0
+    /// 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
     pub fn engine_project_remove(project: *mut c_void);
-    /// 0x285540 survarium::simple_game_project::insert: project EAX; pops 0
+    /// 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
     pub fn engine_project_insert(project: *mut c_void);
     /// 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
     pub fn engine_effects_stop(effects: *mut c_void);
@@ -137,6 +137,8 @@ unsafe extern "C" {
     pub fn engine_lobby_camera_ray(camera: *mut c_void, point: *const f32, distance: *mut f32, direction: *const f32);
     /// 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
     pub fn engine_lobby_character_setup_profile(profile: *const c_void, character: *mut c_void, kit: u32);
+    /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
 }
 
 #[allow(dead_code)]
@@ -169,6 +171,14 @@ unsafe extern "thiscall" {
     pub fn engine_collision_insert(collision: *mut c_void, world: *mut c_void);
     /// 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
     pub fn engine_collision_remove(collision: *mut c_void, world: *mut c_void);
+    /// 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_insert(visual: *mut c_void, scene: *mut c_void);
+    /// 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_remove(visual: *mut c_void, scene: *mut c_void);
+    /// 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_insert(light: *mut c_void);
+    /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_remove(light: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

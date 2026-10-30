@@ -12,7 +12,7 @@ package survarium.player
          super();
          _tooltipRenderer = WeightTipRenderer;
       }
-      public function updateEffects(effects:WeightEffects) : void
+      public function updateEffects(effects:IEffectRows) : void
       {
          var shown:Boolean = _tip_content != null && _tip_content.parent != null;
          if(shown || effects == null) handleDeleted(null);

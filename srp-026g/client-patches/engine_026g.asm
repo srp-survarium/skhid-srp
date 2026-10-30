@@ -72,6 +72,10 @@ global engine_effect_play
 global engine_emitter_emit
 global engine_emitter_destroy
 global engine_release_resource
+global engine_visual_insert
+global engine_visual_remove
+global engine_light_insert
+global engine_light_remove
 global engine_inventory_remove
 global engine_inventory_take_artefact
 global engine_quick_inventory_slot
@@ -85,6 +89,7 @@ global engine_release_model
 global engine_lobby_camera_ray
 global engine_read_file
 global engine_lobby_character_setup_profile
+global engine_explosion_reach
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -102,6 +107,10 @@ engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, 
 engine_project_on_inserted equ 0x2f8720   ; 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
 engine_collision_insert equ 0x2f8850   ; 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
 engine_collision_remove equ 0x2f8970   ; 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+engine_visual_insert equ 0x285fa0   ; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
 engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
 
 engine_cfg_child:
@@ -870,7 +879,7 @@ engine_lobby_query_resources:
 
     align 16, db 0xCC
 engine_project_remove:
-    ; 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0
+    ; 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
     push ebp
     push ebx
     push esi
@@ -885,7 +894,7 @@ engine_project_remove:
 
     align 16, db 0xCC
 engine_project_insert:
-    ; 0x285540 survarium::simple_game_project::insert: project EAX; pops 0
+    ; 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
     push ebp
     push ebx
     push esi
@@ -1182,6 +1191,29 @@ engine_lobby_character_setup_profile:
     push dword [esp + 28]   ; character -> 4
     mov eax, [esp + 28]   ; profile
     call 0x284b10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_explosion_reach:
+    ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; target -> 16
+    push dword [esp + 36]   ; strength -> 12
+    push dword [esp + 36]   ; centre -> 8
+    push dword [esp + 36]   ; manager -> 4
+    mov eax, [esp + 36]   ; ray
+    call 0x3393f0
+    sub esp, 4
+    movss [esp], xmm0
+    fld dword [esp]
+    add esp, 4
     pop edi
     pop esi
     pop ebx
