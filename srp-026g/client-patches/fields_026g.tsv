@@ -165,6 +165,7 @@ survarium::player	world_core	0x120	ptr<survarium::core_world>	world core, genera
 survarium::player	time	0x324	u32	simulation milliseconds, tick 0x2DAA7F
 survarium::player	actions	0x330	u32	current input action mask, set_input 0x2D876C
 survarium::player	need_to_select_animations	0x33E	u8	m_need_to_select_animations: a simulation field, serialized at 0x2DAFDA; set_input sets it (0x2D899D). Not a dirty flag
+survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h): 1 down, 2 repeat, 3 up (0x23FE45, 0x23FEC5, 0x23FEF9)
 survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
 survarium::input_entry_frame	input	0x8	ptr<survarium::native_player_input>	set_input entry second stack argument, immutable eight-byte input
 survarium::native_player_input	actions	0x4	u32	input angles followed by action mask

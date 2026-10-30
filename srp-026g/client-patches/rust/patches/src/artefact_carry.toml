@@ -83,3 +83,7 @@ handler = "on_ground_load"
 [[hook]]
 site = "carry.client_death"
 handler = "on_client_death"
+
+[[hook]]
+site = "carry.key"
+handler = "on_key"

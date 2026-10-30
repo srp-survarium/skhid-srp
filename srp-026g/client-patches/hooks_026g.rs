@@ -336,6 +336,21 @@ pub extern "C" fn hook_artefact_carry_on_client_death(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_key` (0x23fe42, player_input_handler::on_keyboard_action after the binder's answer: EDI the key's action (49h none, gone), EBP the frame; before mov esi,[ebp+10h] / cmp esi,1) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_key` calls this, from the game's jump at 0x23fe42,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_score (patch 80) ----
 
 /// The entry `artefact_score_on_transfer` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.
