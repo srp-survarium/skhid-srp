@@ -824,7 +824,8 @@ limit beside the weight ("/ 30"):
 - **Group icons.** An item's row has its group's icon, the shop filter's own:
   `FilterItemCatRenderer`'s `itemIcon` (sprite 1125) at frame 300 + the icon
   `FiltersWindow` gives the item's category (`FiltersWindow.filterIcon`, from
-  the same lists the shop registers; the wiki's `groups/` icons). The weight
+  the same lists the shop registers, `ShopFilters` of the lobby's
+  `tables/survarium/data/ShopFilters.tsv`; the wiki's `groups/` icons). The weight
   and skill rows keep the modifier atlas icons.
 - **Sprint stamina use** is the speed tooltip's second section, headed by its
   total like the speed ("Sprint stamina use: 90%", `st_srp_weight_sprint_stamina`).

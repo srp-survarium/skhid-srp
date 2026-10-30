@@ -3,7 +3,7 @@
 
     python3 -I build_icons.py --json <config json dir> --images <lobby images dir>
                               --item-icons <calculator icons dir> --swf <lobby_menu.swf> --ffdec <ffdec-cli.jar>
-                              --flash <srp-026g/flash/lobby_menu/src> --out <servers/web-server/wiki/icons>
+                              --lobby <srp-026g/flash/lobby_menu> --out <servers/web-server/wiki/icons>
 
 damage-calc/build_site.py runs it after the calculator's icons, so every
 release makes them again from its own patches. Writes <out>/ anew:
@@ -15,9 +15,10 @@ release makes them again from its own patches. Writes <out>/ anew:
   (character 3279, IconContainer("modifiers", 38, 38, vertical): column-major)
   that holds an icon; each icon a modification shows must be one;
 - groups/<item_category>.webp: the shop filter button of each of those
-  categories (FilterItem: itemIcon.gotoAndStop(300 + icon), FiltersWindow's
-  equipmentFilters() and weaponFilters() name each filter's icon and category;
-  FFDec exports the frames);
+  categories (FilterItem: itemIcon.gotoAndStop(300 + icon); the lobby's table
+  tables/survarium/data/ShopFilters.tsv, its EQUIPMENT and WEAPONS lists, names
+  each filter's icon and category, as the movie has them; FFDec exports the
+  frames);
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -31,11 +32,16 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 import numpy
 from PIL import Image
+
+# The movie build's reader of a lobby table (tools/actionscript/flash_tree.py).
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools" / "actionscript"))
+from flash_tree import read_table  # noqa: E402
 
 MOD_ATLAS = "3279_LobbyMenu_ModifierIcons.png"
 MOD_CELL = 38
@@ -54,18 +60,21 @@ def rows(table):
     return table if isinstance(table, list) else list(table.values())
 
 
-def filters(flash):
-    """{item_category: filter icon} of the shop's equipment and weapon filters."""
+def filters(lobby):
+    """{item_category: filter icon} of the shop's equipment and weapon filters (the lobby's ShopFilters)."""
     constants = dict((name, int(value)) for name, value in re.findall(
-        r"public static const (\w+):int = (\d+);", (flash / "survarium/constants/ItemCategory.as").read_text()))
-    source = (flash / "survarium/controls/FiltersWindow.as").read_text()
+        r"public static const (\w+):int = (\d+);", (lobby / "src/survarium/constants/ItemCategory.as").read_text()))
+    header, rows = read_table(lobby / "tables/survarium/data/ShopFilters.tsv")
+    column = {name.split(":")[0]: at for at, name in enumerate(header)}
     found = {}
-    for which in ("equipmentFilters", "weaponFilters"):
-        block = re.search(rf"function {which}\(\) : Array\s*\{{\s*return \[(.*?)\];", source, re.S)
-        if not block:
-            raise SystemExit(f"FiltersWindow.as: no {which}() list")
-        for icon, category in re.findall(r'"icon":(\d+),.*?"sucat":ItemCategory\.(\w+)', block.group(1), re.S):
-            found.setdefault(constants[category], int(icon))
+    for row in rows:
+        if row[column["list"]] in ("EQUIPMENT", "WEAPONS"):
+            category = row[column["sucat"]]
+            if category not in constants:
+                raise SystemExit(f"ShopFilters.tsv: {category} is no ItemCategory constant")
+            found.setdefault(constants[category], int(row[column["icon"]]))
+    if not found:
+        raise SystemExit("ShopFilters.tsv: no EQUIPMENT or WEAPONS filters")
     return found
 
 
@@ -97,7 +106,7 @@ def frame_image(frames, frame):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    for name in ("json", "images", "item-icons", "swf", "ffdec", "flash", "out"):
+    for name in ("json", "images", "item-icons", "swf", "ffdec", "lobby", "out"):
         ap.add_argument(f"--{name}", required=True, type=Path)
     args = ap.parse_args()
     out = args.out
@@ -109,7 +118,7 @@ def main():
         (out / path).write_bytes(data)
         files[path] = TYPES[path.rsplit(".", 1)[1]]
 
-    categories = filters(args.flash)
+    categories = filters(args.lobby)
     dictionary = load(args.json, "gameplay__db_static_dictionaries.json")["items_dict"]
     # The calculator names an icon by its config's file name, or by the
     # dictionary's name where file names clash (assets/tools/build_icons.py).
