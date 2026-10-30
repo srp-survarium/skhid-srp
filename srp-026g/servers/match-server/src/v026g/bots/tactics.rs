@@ -409,8 +409,10 @@ pub struct SpotQuery {
     pub around: Vec3,
     pub min_m: f32,
     pub max_m: f32,
-    /// The spot must see this point (from crouched eyes).
+    /// The spot must see this point raised by [`Self::sight_up_m`] (from crouched eyes).
     pub sight_to: Option<Vec3>,
+    /// How far over `sight_to` the sight line ends, m (1: a body's middle; a job's spots, his observed eye).
+    pub sight_up_m: f32,
     /// The solid `sight_to` lies in (a container's box): a sight line that
     /// ends on it sees it ([`Tactics::sees_body`]).
     pub sight_body: Option<Shape>,
@@ -430,6 +432,9 @@ pub struct SpotQuery {
     /// grid's [`WalkGrid::locate`] finds, which lies at most 2 m above it).
     /// Only with a `sight_to`: a spot up there must see the point.
     pub up_m: f32,
+    /// Also look at the floors of the storeys under the ring's, down to this many metres under `around` (0: none).
+    /// Only with a `sight_to`, as `up_m`.
+    pub down_m: f32,
     /// The bot's map side: the other side's spawn area is out.
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
@@ -443,12 +448,14 @@ impl SpotQuery {
             min_m,
             max_m,
             sight_to: None,
+            sight_up_m: 1.0,
             sight_body: None,
             unseen_by: None,
             out_of_fire_of: None,
             cover: None,
             prefer_high: 0.0,
             up_m: 0.0,
+            down_m: 0.0,
             side: None,
             samples: 48,
         }
@@ -2070,6 +2077,9 @@ impl Tactics {
             if query.up_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_over(probe, query.up_m, &mut nodes);
             }
+            if query.down_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_under(probe, query.down_m, &mut nodes);
+            }
             if nodes.is_empty() {
                 let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
                 fails.push(if off { "floor_off_height" } else { "no_floor" });
@@ -2090,7 +2100,7 @@ impl Tactics {
                         .contains(node)
                 {
                     "storey_no_walk"
-                } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, 1.0, 0.0))) {
+                } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, query.sight_up_m, 0.0))) {
                     "no_sight"
                 } else {
                     "other_filter"
@@ -2122,6 +2132,9 @@ impl Tactics {
                 .collect();
             if query.up_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_over(probe, query.up_m, &mut nodes);
+            }
+            if query.down_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_under(probe, query.down_m, &mut nodes);
             }
             for node in nodes {
                 let at = grid.position(node);
@@ -2164,7 +2177,7 @@ impl Tactics {
             }
             let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
-                let target = target + Vec3::new(0.0, 1.0, 0.0);
+                let target = target + Vec3::new(0.0, query.sight_up_m, 0.0);
                 let seen = match &query.sight_body {
                     Some(body) => self.sees_body(eye, target, body),
                     None => self.sees(eye, target),
@@ -2321,9 +2334,20 @@ impl Tactics {
     /// the probe, one that a walk gets to and no pocket holds. Read from the
     /// grid's floors of the cells (no ray).
     fn storeys_over(&self, probe: Vec3, up_m: f32, nodes: &mut Vec<NodeId>) {
+        self.storeys_in(probe, probe.y + 2.0, probe.y + up_m, nodes);
+    }
+
+    /// The floors of the storeys under the probe's, down to `down_m` under it: as [`Self::storeys_over`] (the
+    /// nearest fine floor a band), under the floor the grid's `locate` finds at the probe (2 m round it).
+    fn storeys_under(&self, probe: Vec3, down_m: f32, nodes: &mut Vec<NodeId>) {
+        self.storeys_in(probe, probe.y - down_m, probe.y - 1.0, nodes);
+    }
+
+    /// The nearest fine floor (walkable, not in a pocket nor by a fall or a lip) of each storey band between `low`
+    /// (out) and `high` (in) round the probe.
+    fn storeys_in(&self, probe: Vec3, low: f32, high: f32, nodes: &mut Vec<NodeId>) {
         let grid = &self.world.grid;
         let r = STOREY_RADIUS_M;
-        let (low, high) = (probe.y + 2.0, probe.y + up_m);
         let mut best: Vec<(usize, NodeId, f32)> = Vec::new();
         for node in grid.floors_in([probe.x - r, probe.z - r, probe.x + r, probe.z + r]) {
             let at = grid.position(node);
@@ -3441,6 +3465,42 @@ pub(super) mod tests {
             .filter(|s| s.at.y > 3.0)
             .count();
         assert_eq!(on_roof, 0);
+    }
+
+    /// A ring round a point on the platform (4 m up) finds only the platform's own floor, and with `down_m` the ground
+    /// under it too (`threat.job_spot_levels`: a camper up a storey left a job's ring with no floor).
+    #[test]
+    fn a_spot_search_finds_the_ground_under_the_ring_only_with_down_m() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        // By the platform's edge: the ground past it sees his point over the edge.
+        let anchor = Vec3::new(31.0, 4.0, 33.0);
+        let query = |down_m: f32| SpotQuery {
+            down_m,
+            sight_to: Some(anchor),
+            side: Some(0),
+            samples: 600,
+            ..SpotQuery::ring(anchor, 4.0, 14.0)
+        };
+        let ys = |q: &SpotQuery| -> Vec<f32> { tactics.spots(q, 0, 60, &mut Rng::new(3)).iter().map(|s| s.at.y).collect() };
+        let level = ys(&query(0.0));
+        assert!(level.iter().all(|&y| y > 2.0), "{level:?}");
+        let under = ys(&query(8.0));
+        assert!(under.iter().any(|&y| y < 1.0), "{under:?}");
+    }
+
+    /// The sight line of a spot search ends `sight_up_m` over its point.
+    #[test]
+    fn a_spot_must_see_the_point_raised_by_sight_up_m() {
+        let tactics = Tactics::new(field(), 1.0);
+        let base = SpotQuery {
+            sight_to: Some(Vec3::new(30.0, 0.0, 30.0)),
+            side: Some(0),
+            ..SpotQuery::ring(Vec3::new(30.0, 0.0, 30.0), 5.0, 15.0)
+        };
+        // On open ground the raised point changes nothing; the default is the old 1 m.
+        assert_eq!(base.sight_up_m, 1.0);
+        let raised = SpotQuery { sight_up_m: 1.6, ..base };
+        assert_eq!(tactics.spots(&base, 0, 20, &mut Rng::new(9)), tactics.spots(&raised, 0, 20, &mut Rng::new(9)));
     }
 
     /// A storey only a jump chain gets onto is not offered over the ring:

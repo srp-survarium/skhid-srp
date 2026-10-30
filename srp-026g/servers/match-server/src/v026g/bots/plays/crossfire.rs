@@ -265,10 +265,15 @@ fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
         Some(line) => pin_ring(cx, line),
         None => (num("spot_min_m"), num("spot_max_m")),
     };
+    let threat = &cx.tuning.threat;
     SpotQuery {
         sight_to: Some(choke),
+        // Fairness: a job's pin looks for his eye as the team last observed him on the spot (`HeldLine::eye_m`),
+        // never his live pose.
+        sight_up_m: job.filter(|_| threat.job_spot_sight_eye).map_or(1.0, |l| l.eye_m),
         prefer_high: num("prefer_high"),
         up_m: num("up_m"),
+        down_m: if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 },
         side: cx.bot.side,
         samples: num("samples") as usize,
         ..SpotQuery::ring(choke, min_m, max_m)
