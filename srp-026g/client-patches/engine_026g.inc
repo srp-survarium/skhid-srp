@@ -253,3 +253,13 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)
+; 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+extern engine_lobby_camera_ray
+; unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+; the IAT slot 0x870064 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_read_file
+; void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)
+; 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+extern engine_lobby_character_setup_profile

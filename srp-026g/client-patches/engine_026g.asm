@@ -82,6 +82,9 @@ global engine_update_model
 global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
+global engine_lobby_camera_ray
+global engine_read_file
+global engine_lobby_character_setup_profile
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -99,6 +102,7 @@ engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, 
 engine_project_on_inserted equ 0x2f8720   ; 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
 engine_collision_insert equ 0x2f8850   ; 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
 engine_collision_remove equ 0x2f8970   ; 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1143,6 +1147,41 @@ engine_release_model:
     mov ecx, [esp + 20]   ; object
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_lobby_camera_ray:
+    ; 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; direction -> 4
+    mov eax, [esp + 24]   ; camera
+    mov esi, [esp + 28]   ; point
+    mov edi, [esp + 32]   ; distance
+    call 0x2844d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_lobby_character_setup_profile:
+    ; 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; kit -> 8
+    push dword [esp + 28]   ; character -> 4
+    mov eax, [esp + 28]   ; profile
+    call 0x284b10
     pop edi
     pop esi
     pop ebx

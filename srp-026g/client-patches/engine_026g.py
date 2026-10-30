@@ -347,7 +347,7 @@ def functions(spec=None, abi=None, inputs=None, vtables=None):
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA2B6000          # through .data (its zero-filled tail too)
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA429000          # through .data (its zero-filled tail too) and the patches' `.srpd` (patch 45's state: the NASM-Rust interface)
 KIND = r"[a-z][a-z0-9_]*(?:::[a-z][a-z0-9_]*)+"
 # a field's type: a plain value; `ptr<kind>` (a pointer to one, 0 none) or
 # `ptr<u8>` or `ptr<f32>` (to plain data: a C string, a buffer, matrices); `obj<kind>` (one inside the

@@ -1078,8 +1078,8 @@ va	name	source	ret_cleanup	result
 0x00283bc0	survarium::lobby_camera::lobby_camera	manual	4	height 1.2, distance 1.96, the point (+A0h, +A8h) 0; vtables 0xA09EB4 (input) and 0xA09ED8 (+4)
 0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL = 1 while a drag turns the camera (a button of 52h held)
 0x00283eb0	survarium::lobby_camera::on_input_frame_end	manual	4	zeroes the frame's wheel (+C8h) and drag moves (+CCh, +D0h)
-0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame
-0x002844d0	survarium::lobby_camera::process_collision	manual	4	
+0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame; the yaw unlimited, the pitch clamped to +-1.0471976 every tick (0x2840C5: 0xA2DB08, 0x9C56C0), the wheel's target 1.5..4.6 (0x284081: 0xA7AFA4, 0xA2DB0C; its speed +E8h 3.0), the distance cut by the ray (0x284309) then clamped to 1.5..4.6 again (0x28430E): an obstacle nearer than 1.5 m is passed
+0x002844d0	survarium::lobby_camera::process_collision	manual	4	[EDI] = the distance to the first hit of the physics world's ray test (vtable+48h: out, origin, direction, length, group 10h, mask 8, 0, 1), no margin: it meets static collision of cgroup 8 / cmask 16 (props' `collision`, camera boxes), not walker_collision (cgroup 2)
 0x002845c0	survarium::lobby_camera::set_target	manual	4	targets +9Ch (height), +98h (side angle), +C0h (distance); [ECX] = the distance target it replaces; speeds +E0h..+E8h = |change| * 1.111 a second
 0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	

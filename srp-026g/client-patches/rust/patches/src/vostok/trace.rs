@@ -69,3 +69,41 @@ impl TraceFile {
         };
     }
 }
+
+/// CreateFileA's GENERIC_READ (the top bit).
+const GENERIC_READ: u32 = 1 << 31;
+
+/// A diagnostics build's input file of the user data folder (Documents\survarium\`name`), read
+/// whole into `into`: its length, None when it is not there (or none of it could be read).
+pub fn read_input(_: &Thread, name: &str, into: &mut [u8]) -> Option<usize> {
+    let mut path = [0u8; PATH];
+    let mut n = 0;
+    // SAFETY: as TraceFile::open: the game's own folder, a C string it keeps.
+    let folder = unsafe { raw::engine_user_data_directory() };
+    if folder.is_null() || name.len() + 2 >= PATH {
+        return None;
+    }
+    // SAFETY: as TraceFile::open.
+    unsafe {
+        while n < PATH - name.len() - 2 && *folder.add(n) != 0 {
+            path[n] = *folder.add(n);
+            n += 1;
+        }
+    }
+    path[n] = b'\\';
+    path[n + 1..n + 1 + name.len()].copy_from_slice(name.as_bytes());
+    // SAFETY: the exe's import; a 0-terminated path: GENERIC_READ, shared for reading and writing,
+    // OPEN_EXISTING, normal.
+    let handle = unsafe { (raw::engine_create_file_a)(path.as_ptr(), GENERIC_READ, 3, null_mut(), 3, 0x80, null_mut()) };
+    if handle.is_null() || handle as usize == usize::MAX {
+        return None;
+    }
+    let mut read = 0u32;
+    // SAFETY: the exe's imports on the handle just made; `into` is ours, its length the most read.
+    let ok = unsafe {
+        let ok = (raw::engine_read_file)(handle, into.as_mut_ptr().cast(), into.len() as u32, &mut read, null_mut());
+        (raw::engine_close_handle)(handle);
+        ok
+    };
+    (ok != 0 && read > 0).then_some(read as usize)
+}

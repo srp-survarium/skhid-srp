@@ -2764,6 +2764,26 @@ Round 6 (2026-10-29, the lobby scenes: each scene the player picks has its own t
 - **Checked:** `check_weapon_table_026g.py` 56 checks. Its lobby menu has a project with a real
   binary config. New cases: four other spots and views, and eight refusals.
 
+Round 7 (2026-10-30, the lobby audit; `../docs/notes/lobby-scenes.md`, "The camera flight").
+- **The flight in Rust.** The camera's flight there and back is the Rust patch `weapon_flight`
+  (`rust/patches/src/weapon_flight.rs`, one lohook at `lobby_camera.view`, 0x2840F2: the tick
+  with its yaw and pitch final): the eye on a straight line between the two eyes, the yaw, pitch,
+  distance, side angle and zoom with it, one smoothstep over 0.45 s; back, to the stock camera's
+  eye (the wheel's target cut by the camera's own ray there, `engine_lobby_camera_ray`), a tick
+  held with no ray, then the stock camera from there. Until round 6 the NASM's glide went back
+  to the wheel's target with no ray, out of a small room, and the stock ray snapped it back
+  (up to 3.1 m).
+- **The interface.** Patch 45's state: the NASM writes TABLE, the targets and REQUEST (+2Ch, +1 a
+  request; EASE until round 6); the flight writes FLIGHT (+4: 0 stock, 1 moving, 2 resting; FLY
+  until round 6), which the NASM's camera, tick and ray read. The NASM's glide is gone (2 515
+  bytes); its ray clamps the wheel's target only.
+- **Checked:** `cargo test` (the flight's machine), `check_weapon_table_026g.py` 29 checks with the
+  game's tick (as is only: the flight is the arena's), the close in a room with no snap;
+  selftest checks 45 and `test_weapon_flight`.
+- **The captures' sweep** (`camera_sweep.rs`, diagnostics builds only, `--ragdoll-trace`, with
+  `srp_camera_sweep.txt` in the user data folder): the camera at a script's poses, the squad's
+  characters the account's own (`squad`), for static captures of every lobby.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera

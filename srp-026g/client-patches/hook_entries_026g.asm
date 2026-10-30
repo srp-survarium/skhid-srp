@@ -1969,3 +1969,49 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x2840f2 lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward): lohook -> weapon_flight_on_view
+global weapon_flight_on_view
+extern hook_weapon_flight_on_view
+extern hook_camera_sweep_on_view
+weapon_flight_on_view:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_flight_on_view
+    test eax, eax
+    jnz weapon_flight_on_view_flow
+    lea eax, [esp + 16]
+    mov [esp], eax
+    call hook_camera_sweep_on_view
+weapon_flight_on_view_flow:
+    mov edx, weapon_flight_on_view_replay
+    cmp eax, 0
+    je weapon_flight_on_view_go
+    mov edx, 0x2840f8
+    cmp eax, 1
+    je weapon_flight_on_view_go
+    ud2
+weapon_flight_on_view_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_flight_on_view_replay:
+    db 0xd9, 0x83, 0xb4, 0x00, 0x00, 0x00
+    jmp 0x2840f8

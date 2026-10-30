@@ -139,6 +139,10 @@ unsafe extern "C" {
     pub fn engine_release_item(object: Option<Artefact>, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: Option<SceneModel>, count: *mut u32);
+    /// 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+    pub fn engine_lobby_camera_ray(camera: Option<LobbyCamera>, point: *const f32, distance: *mut f32, direction: *const f32);
+    /// 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+    pub fn engine_lobby_character_setup_profile(profile: Option<PlayerProfile>, character: Option<LobbyCharacter>, kit: u32);
 }
 
 #[allow(dead_code)]
@@ -189,6 +193,8 @@ unsafe extern "C" {
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+    pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -572,6 +578,15 @@ impl PlayerProfile {
     #[inline(always)]
     pub unsafe fn kits(self) -> ProfileKit {
         ProfileKit(unsafe { self.0.byte_add(0xf4) })
+    }
+
+    /// +0x4632 (u8): the kit chosen in the lobby (weapon_preview_026g.asm CHOSEN_KIT)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chosen_kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4632).cast::<u8>().as_ptr() }
     }
 }
 
@@ -2830,6 +2845,33 @@ impl LobbyMenu {
     pub unsafe fn physics_world(self) -> Option<BulletPhysicsWorld> {
         unsafe { self.0.byte_add(0x3104).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
     }
+
+    /// +0x698 (ptr<survarium::lobby_character>): the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_right(self) -> Option<LobbyCharacter> {
+        unsafe { self.0.byte_add(0x698).cast::<Option<LobbyCharacter>>().read_volatile() }
+    }
+
+    /// +0x69c (ptr<survarium::lobby_character>): the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn squad_left(self) -> Option<LobbyCharacter> {
+        unsafe { self.0.byte_add(0x69c).cast::<Option<LobbyCharacter>>().read_volatile() }
+    }
+
+    /// +0x6a0 (ptr<survarium::player_profile>): the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn account_profile(self) -> Option<PlayerProfile> {
+        unsafe { self.0.byte_add(0x6a0).cast::<Option<PlayerProfile>>().read_volatile() }
+    }
 }
 
 /// A survarium::lobby_project_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4339,6 +4381,276 @@ impl StatisticsListener {
     }
 }
 
+/// A survarium::lobby_camera_ticker (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCameraTicker(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCameraTicker {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (obj<survarium::lobby_camera>): the lobby camera itself (lobby menu+10Ch): the ticker is its second base, at +4 (vtable 0xA09ED8, the tick's this)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn camera(self) -> LobbyCamera {
+        LobbyCamera(unsafe { self.0.byte_sub(0x4) })
+    }
+
+    /// +0x90 (f32): the camera's +94h: patch 22's zoom of its projection (1 the player's field of view)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn zoom(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x90).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x94 (f32): the camera's +98h: the side angle's target (the setter 0x2845C0's [esp+4])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn side_target(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x94).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x98 (f32): the camera's +9Ch: the height's target (the setter's xmm0; 1.2 from the ctor)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height_target(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x98).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x9c (f32): the camera's +A0h: x of the point it looks at (0 from the ctor; nothing of the game's writes it again)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point_x(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x9c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xa0 (f32): the camera's +A4h: the point's current height, stepped to its target before 0x284020
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xa4 (f32): the camera's +A8h: z of the point it looks at
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point_z(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xa8 (f32): the camera's +ACh: the current side angle (turns only the view), stepped to its target after 0x2840F2
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn side(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xb4 (f32): the camera's +B8h: the yaw (forward (-sin yaw cos pitch, sin pitch, cos yaw cos pitch)), no limit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn yaw(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xb8 (f32): the camera's +BCh: the pitch, clamped to +-1.0471976 every tick (0x2840C5)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pitch(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xbc (f32): the camera's +C0h: the distance's target (the wheel's, 1.5..4.6; the setter's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn distance_target(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xbc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc0 (f32): the camera's +C4h: the current distance, stepped to its target, cut by the ray (0x2844D0) and clamped (0x28430E) every tick
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn distance(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xdc (f32): the camera's +E0h: the side angle's step speed (the ctor's 1.0; the setter's |change| * 1.111)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn side_speed(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xdc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xe0 (f32): the camera's +E4h: the height's step speed (the ctor's 1.0; the setter's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height_speed(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xe0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xe4 (f32): the camera's +E8h: the distance's step speed (the ctor's 3.0, the wheel's 3.0 at 0x28409E; the setter's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn distance_speed(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xe4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x84 (ptr<survarium::lobby_menu>): the camera's +88h: its lobby menu (the ctor's ecx, 0x283BEF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn menu(self) -> Option<LobbyMenu> {
+        unsafe { self.0.byte_add(0x84).cast::<Option<LobbyMenu>>().read_volatile() }
+    }
+}
+
+/// A survarium::lobby_camera_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCameraTickFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCameraTickFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): lobby_camera::tick's frame time (s, at most 0.1), at its ESP+10h from 0x283F3x to past 0x2840F2 (no push between)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dt(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A skhid::weapon_table (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponTable(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponTable {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): TABLE: 1 while the window's weapon is at the bench (patch 45's camera, its NASM's alone)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn table(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): FLIGHT: the camera flight's (weapon_flight.rs, its alone): 0 the stock camera, 1 moving, 2 resting at the bench; the NASM reads it (no ray, the wheel's farthest)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flight(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (f32): TARGET_X: the point's x the camera goes to (the spot's, or 0 back)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target_x(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc (f32): TARGET_Z: the point's z
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target_z(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x10 (f32): TARGET_YAW: the bench's view, the nearest turn of weapon_view to the camera's yaw; or the yaw kept, back
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target_yaw(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x14 (f32): TARGET_PITCH: -0.25 at the bench; the pitch kept, back
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target_pitch(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x14).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x2c (u32): REQUEST: +1 at every request of patch 45's camera (the table on, again, or off): the flight starts at a change
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn request(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4c (f32): TARGET_ZOOM: the bench's zoom (the original's 65 degrees whatever uro_fov), 1 back
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target_zoom(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -4504,6 +4816,36 @@ impl StaticModelInstance {
     }
 }
 
+/// A survarium::lobby_camera (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCamera(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCamera {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::lobby_character (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCharacter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCharacter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// The image's data: VAs of the game's (fields_026g.tsv, the kinds ending in ::image).
 #[allow(dead_code)]
 pub mod image {
@@ -4543,6 +4885,13 @@ pub mod image {
 
     /// 0xa06124 (u32, survarium::image): client artefact vtable, constructor write at 0x25FA32; callback layout verified
     pub const RATTLE_VTABLE: u32 = 0xa06124;
+
+    /// 0xa428f00 (obj<skhid::weapon_table>, survarium::image): patch 45's state (weapon_table_026g.asm's STATE: .srpd+WEAPON_TABLE_STATE_OFFSET, patch_026g.py): the interface between its NASM (the weapon at the bench) and the Rust camera flight (weapon_flight.rs)
+    #[inline(always)]
+    pub fn weapon_table() -> WeaponTable {
+        // SAFETY: an image VA, not 0.
+        WeaponTable(unsafe { NonNull::new_unchecked(0xa428f00 as *mut c_void) })
+    }
 }
 
 /// A general-purpose register at a hook's site.
@@ -5412,6 +5761,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
+        }
+    }
+
+    /// lobby_camera.view (0x2840f2): lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)
+    pub mod lobby_camera_view {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::lobby_camera_ticker (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn camera(machine: &impl Machine) -> Option<LobbyCameraTicker> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyCameraTicker)
+        }
+
+        /// the site's ESP: a survarium::lobby_camera_tick_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<LobbyCameraTickFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(LobbyCameraTickFrame)
         }
     }
 }

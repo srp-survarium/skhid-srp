@@ -77,3 +77,6 @@ engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ES
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
+engine_lobby_camera_ray	0x2844d0	EAX:camera ESI:point EDI:distance ESP+4:direction	void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)	thunk	
+engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
+engine_lobby_character_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)	thunk	

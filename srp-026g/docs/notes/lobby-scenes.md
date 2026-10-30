@@ -132,13 +132,26 @@ classic's. What the exe and our patches take from it:
   The lobby's own character is made at (0, 0, 0) (0x21CCD2), the squad panels' at (1, 0, 0.5) and
   (-1, 0, 0.5), and the lobby camera orbits the point (0, height, 0) at 1.5..4.6 m (patch 45's
   notes, client_patch.md section 3.42). Place the scene around that spot: move and turn the
-  whole scene, not the character. Keep 1.5 m of room around the origin and the floor at y 0.
-- **Walls the camera stays inside have collision objects.** The lobby camera's distance (the wheel,
-  1.5..4.6 m) is cut by a collision ray from the point it looks at back to the eye (0x2844D0, the
-  project's static collisions): a wall without a collision object lets the eye through it. No
-  per-lobby distance in data: a small room (camp_069's back wall at z -2.2) gives its walls
-  collision objects, as the classic's (that the ray meets the project's static collisions is read
-  from the code, not seen in a game).
+  whole scene, not the character. Keep 1.5 m of room around the point (0, 1.2, 0) but the floor,
+  the floor at y 0 under all three, and nothing within 0.4 m of the squad's two spots (the
+  exe's, fixed: the audit found the blockpost's campfire, the bar's planks and the bunker's
+  leaf pile there, each moved or left out in its pack).
+- **The lobby camera** (lobby_camera, read from the code: ctor 0x283BC0, tick 0x283EF0, ray
+  0x2844D0; re-kit abi.tsv): the point (0, 1.2, 0); the yaw has no limit; the pitch is clamped to
+  +-60 degrees every tick (0x2840C5); the wheel's distance target is 1.5..4.6 m. The current
+  distance is cut by a collision ray from the point back to the eye (group 10h, mask 8: it meets
+  static collision of cgroup 8 / cmask 16, the props' `collision` and camera boxes, not
+  `walker_collision`), with no margin, then clamped to 1.5..4.6 again (0x28430E): **the eye
+  passes anything nearer than 1.5 m**, and stops exactly on what the ray meets. So at the
+  steepest upward pitches (above about 53 degrees, the floor 1.2 m below) every lobby, the
+  classic too, shows the floor from below: the stock camera's (not fixed: its pitch limit is the
+  owner's call). Fixed constants all; no per-lobby camera limits are needed.
+- **Camera boxes keep the eye in the room.** Invisible boxes of the camera's collision alone
+  (0.26's unit primitive `editor/walker_collision`, scaled; cgroup 8, cmask 16): a cage inside
+  the walls, the floor and the ceiling, 0.15 m in (the eye stops short of them, never on them,
+  where its near plane would see through), closing doorways and windows, and around the props
+  the eye would get into (counters, crates, beds, barrels). The STK2 porter's `camera_boxes`,
+  the 0.46c2/0.69d porter's `camera_walls`. Checked statically (below, "The audit").
 - **One `track` object** (`game_object_type = "track"`), as the classic's: the lobby menu plays
   the project's track (project+1E4h) from the start. A project without one is refused (the
   classic is shown).
@@ -146,7 +159,8 @@ classic's. What the exe and our patches take from it:
 - **The weapon's spot** for patch 45 (a weapon's upgrade window shows the weapon in the air
   above a table): a root table `srp_lobby` with
   - `weapon = float3( x, y, z )`: where the weapon's middle floats, in the clear above a table
-    (a rifle is about 1 m long and turns there; keep 0.6 m clear around it);
+    (a rifle is about 1 m long and turns there; 0.40 m above the top, as the classic's, and 0.6 m
+    clear around it but the top);
   - `weapon_view = <radians>`: the yaw the camera looks at it from, in the lobby camera's
     convention (forward = (-sin yaw, 0, cos yaw)): -1.5708 looks along +x, 0 along +z, 1.5708
     along -x, 3.1416 along -z. The weapon lies across the view, its length left to right. The
@@ -160,9 +174,44 @@ classic's. What the exe and our patches take from it:
   workbench, between its drill press and its vice). A project without `srp_lobby/weapon` (or
   without `weapon_view`): the upgrade window keeps the stock camera and the weapon stays in the
   character's hands.
+- **No table:** the lobby gets one, 0.26's own `props/furniture/workbench_02` (top 0.84 m)
+  against a wall or a prop in the frame (the porters' `native_props`): the bar's back left
+  corner, the hangar's sandbags.
 - **The artefact table and the bench bulb** of the classic (content edit `lobby-scene-2`, pack
   `lobby-bulb@1`) are the classic's decoration: a lobby that wants a lit table puts its own light
   (`point_light`) and props in its own project. No exe code places them.
+
+## The camera flight to the weapon (patch 45, round 7)
+
+The weapon's upgrade window flies the camera from where it is to the spot's view, and the close
+flies it back: the eye on a straight line between the two eyes, the yaw, the pitch, the distance,
+the side angle and the zoom with it, one smoothstep over 0.45 s; back, to where the stock camera
+will be (the wheel's target cut by the camera's own ray there), held a tick with no ray, then the
+stock camera from exactly there. The Rust patch `weapon_flight` (one enum `Flight`, one
+`Flight::step`), at `lobby_camera.view`; patch 45's NASM keeps the weapon at the bench and its
+requests (client_patch.md section 3.42, round 7). Until round 6 the flight glided back to the
+wheel's target with no ray, out through a small room's wall, and the first stock tick snapped
+the eye back by up to 3.1 m (the camp, the bunker; 2.6 m in the classic, through the floor).
+
+## The audit (2026-10-30)
+
+The owner: "other team members locations, camera panning and zooming, and camera movement for
+weapon upgrade table". Static: every lobby's visual meshes (LOD0, each surface's two-sidedness)
+and the static collision the camera's ray meets, ray-cast with embree; the orbit sampled at 72
+yaws, 25 pitches and 7 distances; the squad's spots; the weapon's spot and the flight from 72
+starts. The share of (yaw, pitch) whose eye is behind a visible surface at the wheel's 4.6 m (the
+stock floor's 8 % in every lobby included), before and after the packs:
+
+| lobby | before | after | what was wrong, what changed |
+|---|---|---|---|
+| classic `day` | 13.8 % | 13.8 % | the pipes overhead (no collision), the floor at the steepest pitch: stock, unchanged |
+| `stk2_blockpost` (lobby-stk2@2) | 9.3 % | 8.0 % | the squad's left member in the campfire (moved to (-1.15, 0, 1.65)); the eye in the front wall, out through the doorway onto the porch, in the bunk: camera boxes; the weapon 0.40 m above the bunk |
+| `stk2_bar` (lobby-stk2-bar@2) | 4.3 % | 8.2 % (the stock floor's rows; the eye no longer under the planks) | the characters 4 cm above the floor (the scene 0.038 m up); the right member in planks (left out); the weapon over nothing (a workbench in the back left corner); a floor box |
+| `stk2_bunker` (lobby-stk2-bunker@2) | 15.7 % | 8.1 % | the left member and the own character's feet in the leaf pile (left out), crates 1.3 m from the point (the character 0.25 m over); the eye in the crates, barrels, metal boxes, cart: camera boxes; the weapon 0.16 m above a box (a clear top) |
+| `hangar_046` (@6) | 8.0 % | 8.2 % | open sky (as the 0.46 hangar); the weapon 1.3 m above the dirt (a workbench against the sandbags); a ground box |
+| `camp_069` (@7) | 18.6 % | 8.7 % | the eye in the corner counters, the bed pillows, the oxygen cylinder, at the ceiling: camera boxes; the weapon 0.29 m above the tarp (0.39) |
+
+Game captures: the diagnostics build's `camera_sweep` (client_patch.md section 3.42, round 7).
 
 ## Checks
 

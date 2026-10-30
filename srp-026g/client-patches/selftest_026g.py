@@ -1826,7 +1826,7 @@ def test_weapon_table(original, image, before):
           "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
           "[ebp-0E8h] is the decal pose's transform alone")
     texts = [t for _, _, t in ndisasm(code, table_va)]
-    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc14944c00"))], table_va)   # to `fields`
+    listing = ndisasm(code[:code.index(struct.pack("<4f", -0.5, 0.5, -0.5, 0.0))].rstrip(b"\0"), table_va)   # to its data (`flip_half`)
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
@@ -4117,6 +4117,45 @@ def test_lobby_scene(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_weapon_flight(original, image, before):
+    """Check 45 (round 7): patch 45's camera flight, the Rust patch
+    `weapon_flight` (one lohook, weapon_flight.toml, at lobby_camera.view;
+    client_patch.md section 3.42): the lobby camera's tick with its yaw and
+    pitch final, the frame's time at ESP+10h, then the steps, the ray and the
+    eye; patch 45's state its interface (fields_026g.tsv's weapon_table, the
+    NASM's STATE). check_weapon_table_026g.py flies it with the game's tick."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x283FAD, 6) == ["movss dword [esp+0x10],xmm4"] and rows(0x2840EA, 0xF) == ["movss dword [ebx+0xb8],xmm0",
+                                                                                     "fld dword [ebx+0xb4]",
+                                                                                     "push ecx"]
+          and rows(0x284309, 5) == ["call 0x2844d0"] and rows(0x28430E, 8) == ["movss xmm1,dword [ebx+0xc0]"],
+          "lobby_camera::tick keeps the frame's time, at most 0.1 s, at [esp+10h] (0x283FAD); 0x2840F2 "
+          "loads the clamped yaw for rotY after the pitch's store; the ray at 0x284309, the last clamp after")
+    import hooks_026g
+    import engine_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "weapon_flight"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    late_join = open(P.late_join_bin(), "rb").read()
+    state = P.late_join_state_va(late_join) + P.WEAPON_TABLE_STATE_OFFSET
+    row = [x for x in engine_026g.fields() if x["module"] == "image" and x["field"] == "weapon_table"]
+    check(len(hooks) == 1 and hooks[0]["kind"] == "lohook" and hooks[0]["site_name"] == "lobby_camera.view"
+          and len(row) == 1 and row[0]["offset"] == state,
+          f"weapon_flight.toml's one hook is a lohook at lobby_camera.view; fields_026g.tsv's weapon_table is "
+          f"patch 45's STATE ({state:#x}, .srpd+{P.WEAPON_TABLE_STATE_OFFSET:#x})")
+    h = hooks[0]
+    va, old = h["site"], h["original"]
+    entry = linked.symbols[h["entry"]]
+    new = P.hook_bytes(entry, va, old, 0, 0xE9)
+    branches = [x for x in aimed_inside(original, va, len(old), 0x82) if starts_instruction(stock, x)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and block.va <= entry < block.va + block.size and not under and not branches,
+          f"{va:#x} (lobby_camera.view): {old.hex()} in the original and the build without the late join, "
+          f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4985,10 +5024,17 @@ def test_ragdoll(original, image, before):
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
-    inside = lambda a: any(d.va <= a < d.va + d.size for d in data)
+    # an `::image` row in our own `.srpd` is an older patch's state the crate shares (patch 45's
+    # weapon_table: its FLIGHT word, weapon_flight.rs's alone): a field of that row's kind
+    srpd = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+    shared = [(x["offset"], x["target"]) for x in engine_026g.fields() if x["module"] == "image"
+              and srpd <= x["offset"] < srpd + P.LATE_JOIN_STATE_SIZE]
+    shared_fields = {base + x["offset"] for base, kind in shared for x in engine_026g.fields() if x["kind"] == kind}
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields
     check(all(inside(a) for a in absolute),
-          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state: nothing of the "
-          "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
+          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state, or fields of "
+          f"an older patch's state it shares (`.srpd`: {', '.join(f'{b:#x} {k}' for b, k in shared)}): nothing of "
+          "the game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):
@@ -6670,6 +6716,7 @@ def test_late_join(original, without, server, source):
     test_ragdoll(original, image, before)
     test_language(original, image, before)
     test_lobby_scene(original, image, before)
+    test_weapon_flight(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

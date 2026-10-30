@@ -185,6 +185,10 @@ class Lobby:
             pristine[state + delta] = bytes(base.WEAPON_PREVIEW_STATE_SIZE)
             table = state - base.WEAPON_PREVIEW_STATE_OFFSET + base.WEAPON_TABLE_STATE_OFFSET
             pristine[table + delta] = bytes(base.WEAPON_TABLE_STATE_SIZE)
+        if any(name == base.ARENA_NAME for name, *_ in base.Headers(data).sections(data)):
+            # the Rust patches' state (patch 45's camera flight among them): zeros again for each lobby
+            block = base.arena().blocks["patches.state"]
+            pristine[block.va + delta] = bytes(block.size)
         return emu, stubs, pristine
 
     def fill_lobby(self, kits, chosen, count, items):

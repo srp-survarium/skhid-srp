@@ -26,6 +26,8 @@ struct game_project_resource;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
+struct lobby_camera;
+struct lobby_character;
 struct lobby_menu;
 struct match_options;
 struct material_pair;
@@ -34,6 +36,7 @@ struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
+struct player_profile;
 struct pure_game_effect_emitter;
 struct ray_result;
 struct render_model_instance;
@@ -280,5 +283,14 @@ void engine_release_item(struct artefact *object, unsigned int *count);
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
+
+/* 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4 */
+void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction);
+
+/* the IAT slot 0x870064 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_read_file)(void * file, void * bytes, unsigned int size, unsigned int * read, void * overlapped);
+
+/* 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8 */
+void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit);
 
 #endif

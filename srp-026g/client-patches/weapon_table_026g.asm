@@ -26,18 +26,20 @@
 ;                the lobby gives a spot (below; none: the stock camera, as an
 ;                armour's window): the camera's point is to go to SPOT (the height and the distance
 ;                by the setter), its yaw and pitch to the bench's view, the
-;                weapon's turn to 0, and the camera flies at once (round 5:
-;                no wait for the weapon); mode 0 with the table on (a close, or an
-;                armour's window over a weapon's) turns it off: the point goes
-;                back to the origin, the yaw and the pitch to what they were
-;                before. Then the setter.
+;                weapon's turn to 0, and a request counted (REQUEST): the
+;                camera flight (weapon_flight.rs, at lobby_camera.view; round
+;                7) flies it from the next tick (round 5: no wait for the
+;                weapon); mode 0 with the table on (a close, or an armour's
+;                window over a weapon's) turns it off and counts a request:
+;                the point is to go back to the origin, the yaw and the pitch
+;                to what they were before. Then the setter.
 ;   +5  tick     0x284020 `movss xmm0,[ebx+0C8h]` (the camera's tick, ebx =
 ;                camera+4, [esp+10h] the frame's time, at most 0.1 s): while
 ;                the table is on a drag turns the weapon (the yaw's move its
-;                spin, the pitch's its tilt) instead of the camera; while the
-;                camera flies, its point, yaw and pitch move a share RATE * dt
-;                of the way to their targets, and once off and there it is
-;                the stock camera again.
+;                spin, the pitch's its tilt) instead of the camera, and the
+;                weapon drawn there is framed (the distance's target). The
+;                camera's flight there and back is weapon_flight.rs's (round
+;                7: until round 6 a glide here, RATE * dt of the way).
 ;   +10 cull     0x247576 `cmp byte [ebp-1],0 / jne 247592h` in player::mt_draw
 ;                (0x2474A0): the table's player takes the draw path even when
 ;                its own model was not seen (the camera looks away from it),
@@ -194,7 +196,8 @@ ORG CAVE
 
 ; The state, at STATE
 %define TABLE           0x00        ; 1: the weapon is at the bench
-%define FLY             0x04        ; 1: the camera is the table's (going there, there, or coming back)
+%define FLIGHT          0x04        ; the camera flight's (weapon_flight.rs, its alone): 0 the stock camera,
+                                    ; 1 moving (there or back), 2 resting at the bench
 %define TARGET_X        0x08        ; the camera's targets: point x, point z, yaw, pitch
 %define TARGET_Z        0x0C
 %define TARGET_YAW      0x10
@@ -204,7 +207,7 @@ ORG CAVE
 %define SPIN            0x20        ; the weapon's turn about the vertical, by the drag's yaw
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
-%define EASE            0x2C        ; 1: a flight's camera steps ease with it (from `camera` until all are there)
+%define REQUEST         0x2C        ; +1 at each request (the table on, again, or off): the flight's start
 %define LENGTH          0x30        ; float: 0 not measured; - the window's weapon's length (its box's) to frame;
                                     ; framed: the wheel's farthest distance (> 0)
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
@@ -240,7 +243,7 @@ camera:
     call spot                       ; the lobby's weapon spot: none, the stock camera (as an armour's)
     test eax, eax
     jz .off
-    cmp dword [edi+FLY], 0
+    cmp dword [edi+FLIGHT], 0
     jne .on                         ; on, or still coming back: the yaw and pitch kept are the stock camera's
     mov eax, [esi+YAW]
     mov [edi+SAVED_YAW], eax
@@ -254,8 +257,7 @@ camera:
 .again:
     lea ecx, [eax+1]
     mov [edi+TABLE], ecx
-    mov [edi+FLY], ecx
-    mov [edi+EASE], ecx
+    inc dword [edi+REQUEST]         ; the flight (weapon_flight.rs) flies there from the next tick
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
     mov [edi+LENGTH], eax           ; the weapon's own length once it is drawn there
@@ -296,8 +298,8 @@ camera:
     cmp dword [edi+TABLE], 0
     je .set
     xor eax, eax
-    mov [edi+TABLE], eax            ; FLY stays: the camera flies back
-    mov dword [edi+EASE], 1
+    mov [edi+TABLE], eax            ; the flight flies the camera back
+    inc dword [edi+REQUEST]
     mov ecx, [ebx+FC(one)]
     mov [edi+TARGET_ZOOM], ecx      ; the player's field of view again
     mov [edi+TARGET_X], eax
@@ -422,12 +424,10 @@ tick:
     movups [esp+32], xmm3
     movups [esp+48], xmm4
     call base
-    cmp dword [edi+FLY], 0
-    je .out
-    lea esi, [ebx-4]                ; the camera
-    lea ebp, [edi+CONST(wide)]      ; ebp: the constants (FC), until the glides
     cmp dword [edi+TABLE], 0
-    je .fly
+    je .out                         ; the table off: nothing of the camera's here
+    lea esi, [ebx-4]                ; the camera
+    lea ebp, [edi+CONST(wide)]      ; ebp: the constants (FC)
     cmp dword [edi+LENGTH], 0
     jge .framed
     movss xmm0, [edi+LENGTH]        ; the weapon drawn there (- its length): framed for it, gliding there
@@ -437,8 +437,7 @@ tick:
     mulss xmm0, [ebp+FC(far_share)]
     addss xmm1, [ebp+FC(flip_half)+4]
     maxss xmm1, xmm0
-    movss [edi+LENGTH], xmm1        ; framed: the wheel's farthest
-    mov dword [edi+EASE], 1
+    movss [edi+LENGTH], xmm1        ; framed: the wheel's farthest (the flight's distance follows its target)
 .framed:
     movss xmm0, [esi+TURN_YAW]      ; the drag turns the weapon, not the camera
     addss xmm0, [edi+SPIN]
@@ -451,39 +450,6 @@ tick:
     xor eax, eax
     mov [esi+TURN_YAW], eax
     mov [esi+TURN_PITCH], eax
-.fly:
-    ; The flight: each value moves RATE * dt of its way left and FLOOR * dt
-    ; more, and lands on its target exactly (no snap); the point, yaw and
-    ; pitch (patch 45's) and, while the flight eases (EASE), the camera's
-    ; own side angle, height and distance too, their steps' speeds 0 (the
-    ; setter's constant speeds stopped those dead mid-flight, round 5b).
-    movss xmm1, [esp+64+32+14h]     ; the share of the way: RATE * dt, at most 1
-    movss xmm4, xmm1                ; and FLOOR * dt more
-    mulss xmm4, [ebp+FC(floor)]
-    mulss xmm1, [ebp+FC(rate)]
-    minss xmm1, [ebp+FC(one)]
-    xor ecx, ecx                    ; ecx = 1 while a value is not there
-    lea edx, [edi+CONST(fields)]
-    mov ebp, edi                    ; their targets: the state's
-    call glide
-    cmp dword [edi+EASE], 0
-    je .eased
-    lea edx, [edi+CONST(steps)]
-    mov ebp, esi                    ; their targets: the camera's own
-    call glide
-    xor eax, eax
-    mov [esi+SIDE_SPEED], eax       ; the camera's steps leave them to this
-    mov [esi+HEIGHT_SPEED], eax
-    mov [esi+DISTANCE_SPEED], eax
-    test ecx, ecx
-    jnz .eased
-    mov [edi+EASE], ecx             ; all seven there: the camera's steps are its own again
-.eased:
-    test ecx, ecx
-    jnz .out
-    cmp dword [edi+TABLE], 0
-    jne .out
-    mov [edi+FLY], ecx              ; back where it was: the stock camera
 .out:
     movups xmm1, [esp]
     movups xmm2, [esp+16]
@@ -623,45 +589,6 @@ frame_view:
     movss xmm1, [esp]
     movss xmm2, [esp+4]
     add esp, 16
-    pop ebx
-    ret
-
-; edx = a table of {now, target} offsets (now the camera's, target ebp's),
-; 0 at its end; esi = the camera; xmm1 = RATE * dt, xmm4 = FLOOR * dt. Each
-; value moves share * |way| + FLOOR * dt towards its target, or onto it when
-; that is the whole way; ecx = 1 when one is not there. Uses eax, edx,
-; xmm0, xmm2, xmm3.
-glide:
-    push ebx
-.each:
-    movzx eax, byte [edx]           ; now
-    movzx ebx, byte [edx+1]         ; target
-    movss xmm0, [ebp+ebx]
-    subss xmm0, [esi+eax]           ; the way left
-    movaps xmm2, xmm0
-    andps xmm2, [edi+CONST(abs_mask)]
-    movaps xmm3, xmm2
-    mulss xmm3, xmm1
-    addss xmm3, xmm4                ; the step
-    comiss xmm3, xmm2
-    jb .short
-    mov ebx, [ebp+ebx]              ; the whole way: the target itself
-    mov [esi+eax], ebx
-    jmp .next
-.short:
-    mov cl, 1
-    xorps xmm2, xmm2
-    comiss xmm0, xmm2
-    jae .forward
-    subss xmm2, xmm3
-    movaps xmm3, xmm2
-.forward:
-    addss xmm3, [esi+eax]
-    movss [esi+eax], xmm3
-.next:
-    add edx, 2
-    cmp byte [edx], 0
-    jne .each
     pop ebx
     ret
 
@@ -1024,7 +951,7 @@ left:
 ; point back towards the eye through the lobby's collision scene (menu+3104h)
 ; and, at a hit, writes the hit's distance over the current one (+C4h), which
 ; the tick then clamps to the least (0.6). While the camera is the table's
-; (FLY: flying there, there, flying back) no ray: the bench's view is made
+; (FLIGHT not 0: flying there, there, flying back) no ray: the bench's view is made
 ; with nothing between its eye and the bench, and the window's player, once
 ; made, put something in the ray's way by the bench: the owner's log of
 ; 2026-10-23 (round 5c), the distance cut to 0.6 the frame that player came
@@ -1035,21 +962,16 @@ ray:
     call base_eax
     mov ecx, eax                    ; ecx = the state (ecx is the ray's to lose, as edx)
     mov eax, [esp]                  ; the camera
-    cmp dword [ecx+FLY], 0
+    cmp dword [ecx+FLIGHT], 0
     je .stock
     cmp dword [ecx+TABLE], 0        ; at the bench, framed: the wheel no farther than LENGTH, the
-    je .none                        ; farthest (its least is patch 32's NEAR_MIN): the target, and
-    cmp dword [ecx+LENGTH], 0       ; the distance itself once the flight's easing is over (while
-    jle .none                       ; it eases it glides there: no snap)
+    je .none                        ; farthest (its least is patch 32's NEAR_MIN): the target (the
+    cmp dword [ecx+LENGTH], 0       ; flight's distance follows it, gliding: round 7; no snap)
+    jle .none
     movss xmm0, [ecx+LENGTH]
     movss xmm1, [eax+DISTANCE_TARGET]
     minss xmm1, xmm0
     movss [eax+DISTANCE_TARGET], xmm1
-    cmp dword [ecx+EASE], 0
-    jne .none
-    movss xmm1, [eax+DISTANCE]
-    minss xmm1, xmm0
-    movss [eax+DISTANCE], xmm1
 .none:
     pop eax
     ret 4
@@ -1094,12 +1016,7 @@ base_eax:
     lea eax, [eax + STATE - .pc]
     ret
 
-; the camera's offsets and the state's targets the flight moves, then 0
-fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, ZOOM, TARGET_ZOOM, 0
-; the camera's own steps it moves while a flight eases: now, target; then 0
-steps:            db SIDE, SIDE_TARGET, HEIGHT, HEIGHT_TARGET, DISTANCE, DISTANCE_TARGET, 0
 align 16, db 0
-abs_mask:         dd 0x7FFFFFFF, 0, 0, 0   ; (aligned: an andps operand)
 flip_half:        dd -0.5, 0.5, -0.5, 0.0   ; the box's centre, turned as the instance's box (rotY(pi))
 view_pitch:       dd -0.25          ; from a little above
 tan_original:     dd 0.63707026     ; tan(65 / 2 degrees): the original's vertical field of view
@@ -1125,9 +1042,7 @@ middle_z:         dd 0.2            ; MIDDLE_Z: without a box, a rifle's middle 
 tilt_max:         dd 1.2
 tilt_min:         dd -1.2
 two_pi:           dd 6.2831855
-rate:             dd 5.0            ; RATE: the share of the way a second
 one:              dd 1.0
-floor:            dd 0.01           ; FLOOR: the least speed of the point (m/s), the yaw and pitch (rad/s)
 millimetre:       dd 0.001
 half_pi:          dd 1.5707964      ; R = VIEW + pi/2: the bench's turn from the classic's view along +x
 key_srp_lobby:    db "srp_lobby", 0

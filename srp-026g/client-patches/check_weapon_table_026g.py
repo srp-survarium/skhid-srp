@@ -9,8 +9,10 @@ and whole tick (0x283EF0), and player::mt_draw's two sites (0x247576,
 
     python check_weapon_table_026g.py <original survarium.exe>
 
-Requires Python `unicorn` (2.1.4). Each image is loaded as is and again 1 MiB
-higher with its base relocations applied. The tick's camera collision ray
+Requires Python `unicorn` (2.1.4). Each image is loaded as is (until round 7
+also 1 MiB higher with its base relocations applied: the camera's flight is
+the Rust arena's now, linked at its addresses, and the exe is never rebased;
+rust_patches.md). The tick's camera collision ray
 (0x2844D0) and the lobby menu's projection of the character (0x21DF00, which
 gets the camera's matrix at +48h) are stubs; the second writes the matrix
 down. What must hold:
@@ -169,7 +171,10 @@ def zoom_angle(zoom, uro):
 
 VIEW_DISTANCE, VIEW_SIDE = frame(1.0)[:2]     # a 1 m weapon (until the weapon's own length), 16:9
 LOOK = BENCH                                    # the camera looks at the weapon's middle (round 5e)
-TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY = range(0, 44, 4)
+TABLE, FLIGHT, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY = range(0, 44, 4)
+REQUEST = 0x2C                                 # patch 45's request count; FLIGHT the Rust flight's (weapon_flight.rs)
+STOCK, MOVING, RESTING = 0, 1, 2               # FLIGHT's words
+DURATION = 0.45                                # weapon_flight.rs: a flight's time
 LEFT, LENGTH = 0x34, 0x30                      # (+2Ch EASE; +30h the weapon's length, round 5d)
 STAMP, BENCH_MATRIX = base.WEAPON_TABLE_STAMP_OFFSET, base.WEAPON_TABLE_MATRIX_OFFSET   # the interface
 SPEEDS = (0xE0, 0xE4, 0xE8)                    # the camera's three steps' speeds: side, height, distance
@@ -405,7 +410,7 @@ def main():
         checks += 1
         print(f"  ok    {text}")
 
-    for delta in (0, 0x100000):
+    for delta in (0,):
         rebased = " (rebased)" if delta else ""
 
         # No weapon's window: the build's tick is the original's.
@@ -428,7 +433,7 @@ def main():
         table.set_f(CAMERA + YAW, 0.4)
         table.set_f(CAMERA + PITCH, 0.1)
         table.lobby.handler(START_HANDLER, AK)
-        assert (table.flag(TABLE), table.flag(FLY)) == (1, 1)
+        assert (table.flag(TABLE), table.flag(REQUEST), table.flag(FLIGHT)) == (1, 1, STOCK)
         assert (table.s(TARGET_X), table.s(TARGET_PITCH)) == tuple(from_f32(f32(v)) for v in (BENCH[0], VIEW_PITCH))
         assert table.s(TARGET_Z) == from_f32(f32(BENCH[2])), table.s(TARGET_Z)
         assert (table.s(SAVED_YAW), table.s(SAVED_PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
@@ -443,14 +448,15 @@ def main():
         after = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH, POINT_Y, DISTANCE)]
         assert table.flag(READY) == 0 and all(a != b for a, b in zip(before, after)), (before, after)
         # the camera's own steps' speeds 0 while the flight moves them itself (round 5c)
-        assert [table.f(CAMERA + at) for at in SPEEDS] == [0.0, 0.0, 0.0] and table.flag(0x2C) == 1
+        assert [table.f(CAMERA + at) for at in SPEEDS] == [0.0, 0.0, 0.0] and table.flag(FLIGHT) == MOVING
         seconds = None
         for n in range(300):
             table.frame()
             point = (table.f(CAMERA + POINT_X), table.f(CAMERA + POINT_Y), table.f(CAMERA + POINT_Z))
             if seconds is None and all(abs(a - b) < 0.01 for a, b in zip(point, LOOK)):
                 seconds = (n + 2) * 0.016
-        assert seconds is not None and seconds < 1.5, seconds
+        assert seconds is not None and seconds <= DURATION + 0.02, seconds
+        assert table.flag(FLIGHT) == RESTING
         point = (table.f(CAMERA + POINT_X), table.f(CAMERA + POINT_Y), table.f(CAMERA + POINT_Z))
         # every value exactly (the flight lands each on its target)
         assert point == (from_f32(f32(BENCH[0])), from_f32(f32(BENCH[1])), table.s(TARGET_Z)), point
@@ -488,12 +494,12 @@ def main():
 
         # The close: back to the origin and the yaw and pitch it had.
         table.lobby.handler(EXIT_HANDLER, 0)
-        assert (table.flag(TABLE), table.flag(FLY)) == (0, 1)
+        assert (table.flag(TABLE), table.flag(REQUEST), table.flag(FLIGHT)) == (0, 2, RESTING)
         for n in range(400):
             table.frame()
-            if not table.flag(FLY):
+            if not table.flag(FLIGHT):
                 break
-        assert not table.flag(FLY), "it gets back"
+        assert not table.flag(FLIGHT) and n + 1 <= DURATION / 0.016 + 3, "it gets back"
         back = n + 1
         assert (table.f(CAMERA + POINT_X), table.f(CAMERA + POINT_Z)) == (0.0, 0.0)
         assert (table.f(CAMERA + YAW), table.f(CAMERA + PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
@@ -528,11 +534,17 @@ def main():
             return out
 
         def smooth(d):
-            moving = [x for x in d if x > 0]
-            last = max(i for i, x in enumerate(d) if x > 0)
-            return max(d) < 0.8 and d[last] < 5e-4 and all(
-                d[n] <= d[n - 1] * 1.01 + 2e-4 and (d[n - 1] < 2e-3 or d[n] >= 0.75 * d[n - 1])
-                for n in range(2, len(d))), (max(moving), last, d[last])
+            """An eased flight (round 7): the moves grow to one peak and shrink after it, the first and the
+            last at most a third of the peak (16 ms ticks of a 0.45 s smoothstep), nothing after the last."""
+            moving = [x for x in d if x > 1e-7]
+            last = max(i for i, x in enumerate(d) if x > 1e-7)
+            first = min(i for i, x in enumerate(d) if x > 1e-7)
+            run = d[first:last + 1]
+            top = max(run)
+            peak = run.index(top)
+            return top < 0.8 and run[0] < 0.35 * top and run[-1] < 0.35 * top and all(
+                run[n] >= run[n - 1] - 1e-4 for n in range(1, peak + 1)) and all(
+                run[n] <= run[n - 1] + 1e-4 for n in range(peak + 1, len(run))), (max(moving), last, d[last])
 
         flight = Table(patched, delta)
         flight.set_f(CAMERA + YAW, 0.4)
@@ -540,12 +552,12 @@ def main():
         flight.lobby.handler(START_HANDLER, AK)
         there = moves(flight, 300, ready_at=12)
         ok_there, (top, end, last_move) = smooth(there)
-        assert ok_there, (top, end, last_move)
-        assert flight.flag(0x2C) == 0                      # the easing over: the wheel's speeds the stock's
+        assert ok_there, (top, end, last_move, [round(x, 4) for x in there[:40]])
+        assert flight.flag(FLIGHT) == RESTING
         flight.lobby.handler(EXIT_HANDLER, 0)
         back = moves(flight, 300)
         ok_back, (top_back, end_back, last_back) = smooth(back)
-        assert ok_back and not flight.flag(FLY), (top_back, end_back, last_back)
+        assert ok_back and not flight.flag(FLIGHT), (top_back, end_back, last_back)
         say(f"the flight{rebased}, there and back: the eye and the view move at most {top:.3f} (there) and "
             f"{top_back:.3f} (back) a 16 ms tick, each tick no more than the one before and never less than "
             f"3/4 of it while moving (no sudden stop of a step mid-flight, nothing at READY), the last move "
@@ -576,18 +588,53 @@ def main():
         assert math.isclose(math.dist(eye, LOOK), VIEW_DISTANCE, abs_tol=1e-4), eye
         hit.lobby.handler(EXIT_HANDLER, 0)
         flown = 0
-        while hit.flag(FLY) and flown < 400:
-            back = moves(hit, 2)                # (one move a call: the tick before the last)
-            flown += 2
-        # the tick that gave the camera back casts the stock ray already
-        assert not hit.flag(FLY) and hit.box["rays"] <= 1, (flown, hit.box["rays"])
+        while hit.flag(FLIGHT) and flown < 400:
+            hit.frame()
+            flown += 1
+        # two rays: the flight's own at the close (where the stock camera will be), and the stock's of
+        # the tick that gave the camera back (the tick after it landed: patch 32's least is 1.5 again)
+        assert not hit.flag(FLIGHT) and hit.box["rays"] == 2 and hit.f(CAMERA + DISTANCE) == from_f32(f32(1.5)), \
+            (flown, hit.box["rays"], hit.f(CAMERA + DISTANCE))
         hit.frame()
         # the stock camera's ray cuts it, to the least (1.5 again once back)
-        assert hit.box["rays"] >= 1 and hit.f(CAMERA + DISTANCE) == from_f32(f32(1.5)), hit.f(CAMERA + DISTANCE)
+        assert hit.box["rays"] >= 3 and hit.f(CAMERA + DISTANCE) == from_f32(f32(1.5)), hit.f(CAMERA + DISTANCE)
         say(f"the collision ray{rebased}: with a hit at 0.6 from READY on, no ray while the camera is the "
             "table's (there, at the bench, back): the flight as smooth (each tick no more than the one before), "
             "at rest the distance exactly its target, the height 1.3 and the side angle frame()'s, the eye that far from the "
             "point; once the stock camera is back its ray is cast and cuts the distance (to the least, 1.5) as the original's")
+
+        # The close in a room (round 7, the lobby audit of 2026-10-30): the wheel's target 4.6 and a wall
+        # 2.2 m behind the point. Until round 6 the flight back glided to the target with no ray, out
+        # through the wall, and the stock camera's first ray snapped it back 2.4 m; now it flies to where
+        # the stock camera will be (its ray's cut there), and the stock camera goes on from there: no
+        # tick after the landing moves the eye.
+        wall = Table(patched, delta)
+        wall.set_f(CAMERA + YAW, 0.3)
+        wall.box["hit"] = 2.2
+        for n in range(3):                          # the stock camera at the wall
+            wall.set_f(CAMERA + WHEEL, 3.0 if n == 0 else 0.0)
+            wall.frame()
+        assert wall.f(CAMERA + DISTANCE_TARGET) == from_f32(f32(4.6)) and wall.f(CAMERA + DISTANCE) == from_f32(f32(2.2))
+        wall.lobby.handler(START_HANDLER, AK)
+        wall.box["hit"] = None                      # nothing by the bench
+        for n in range(60):
+            wall.frame()
+        rays = wall.box["rays"]
+        wall.box["hit"] = 2.2
+        wall.lobby.handler(EXIT_HANDLER, 0)
+        eyes, words = [], []
+        for n in range(80):
+            wall.frame()
+            eyes.append(wall.matrix()[12:15])
+            words.append(wall.flag(FLIGHT))
+        landed = words.index(STOCK)
+        after = max(math.dist(a, b) for a, b in zip(eyes[landed - 1:], eyes[landed:]))
+        eye = eyes[-1]
+        assert after < 1e-4 and math.isclose(math.dist(eye, (0.0, 1.2, 0.0)), 2.2, abs_tol=1e-4) \
+            and wall.box["rays"] > rays and wall.f(CAMERA + DISTANCE) == from_f32(f32(2.2)), (after, eye)
+        say(f"the close in a room{rebased}: the wheel at 4.6, a wall 2.2 m behind: the flight back lands on the "
+            f"stock camera's eye (2.2 m from the point, its ray's cut), and from the landing on the eye moves "
+            f"{after * 1000:.3f} mm a tick at most (no snap: until round 6, 2.4 m)")
 
         # The bench's view on the screen (round 5d, the owner: the weapon "a bit too far", "off center to
         # the right", "front and center", "fov ... just like we did with scopes"): at any uro_fov (50, 65,
@@ -679,9 +726,9 @@ def main():
                     t.lobby.handler(EXIT_HANDLER, 0)
                     for n in range(600):
                         t.frame()
-                        if not t.flag(FLY):
+                        if not t.flag(FLIGHT):
                             break
-                    assert not t.flag(FLY) and t.f(CAMERA + 0x94) == 1.0, (uro, t.f(CAMERA + 0x94))
+                    assert not t.flag(FLIGHT) and t.f(CAMERA + 0x94) == 1.0, (uro, t.f(CAMERA + 0x94))
         same = all(abs(a[4] - b[4]) < 1e-5 and abs(a[5] - b[5]) < 1e-3 for a in views for b in views
                    if (a[0], a[1], a[3]) == (b[0], b[1], b[3]))
         assert same, views
@@ -722,7 +769,7 @@ def main():
         assert math.isclose(framed, frame(length)[0], rel_tol=1e-5), framed
         at_rest = on_screen(wheel, 65.0, 16 / 9, BENCH)[:2]
         spots, nearest, farthest = [], framed, framed
-        for move, ticks in ((-0.2, 6), (0.0, 60), (0.3, 12), (0.0, 80), (-0.15, 3), (0.0, 60)):
+        for move, ticks in ((-0.2, 6), (0.0, 200), (0.3, 12), (0.0, 200), (-0.15, 3), (0.0, 200)):   # (round 7: the rest glides there)
             for n in range(ticks):
                 wheel.set_f(CAMERA + WHEEL, move)
                 wheel.frame()
@@ -738,9 +785,9 @@ def main():
         wheel.lobby.handler(EXIT_HANDLER, 0)
         for n in range(600):
             wheel.frame()
-            if not wheel.flag(FLY):
+            if not wheel.flag(FLIGHT):
                 break
-        assert not wheel.flag(FLY) and wheel.f(CAMERA + 0x94) == 1.0 \
+        assert not wheel.flag(FLIGHT) and wheel.f(CAMERA + 0x94) == 1.0 \
             and (wheel.f(CAMERA + POINT_X), wheel.f(CAMERA + POINT_Z)) == (0.0, 0.0) \
             and (wheel.f(CAMERA + YAW), wheel.f(CAMERA + PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
         say(f"the wheel at the bench{rebased}: in to the least {nearest:.2f} m, out to {farthest:.2f} m (the framed "
@@ -771,18 +818,21 @@ def main():
                             draw(t, *drawn)
                         t.set_f(CAMERA + WHEEL, step[2])
                         t.frame()
-                        out.append((t.f(CAMERA + DISTANCE), t.f(CAMERA + DISTANCE_TARGET)))
+                        out.append((t.f(CAMERA + DISTANCE), t.f(CAMERA + DISTANCE_TARGET), t.flag(FLIGHT)))
             t.set_f(CAMERA + WHEEL, 0.0)
             return t, out
 
         def glided(out, wheel=0.0):
-            """each step at most the glide's from the way left before or after it (or the wheel's)"""
+            """at the bench each step at most the glide's from the way left before or after it (or the
+            wheel's); while the camera flies there (round 7), at most the flight's smoothstep's steepest
+            share of the way it has (1.5 dt / DURATION) and the glide's"""
             worst = 0.0
-            for (d0, t0), (d1, t1) in zip(out, out[1:]):
+            for (d0, t0, w0), (d1, t1, w1) in zip(out, out[1:]):
                 way = max(abs(d0 - t0), abs(d0 - t1))
                 step = abs(d1 - d0)
-                if step > 0.08 * way + 0.0002 + 1e-6 + abs(wheel):
-                    return False, step
+                eased = 1.5 * 0.016 / DURATION * (way + abs(out[0][0] - t1)) if MOVING in (w0, w1) else 0.0
+                if step > 0.08 * way + 0.0002 + 1e-6 + abs(wheel) + eased:
+                    return False, (step, out.index((d1, t1, w1)), [tuple(round(x, 4) for x in o) for o in out[:40]])
                 worst = max(worst, step)
             return True, worst
 
@@ -857,13 +907,13 @@ def main():
         table.frame()
         assert math.isclose(table.s(TARGET_YAW), nearest_turn(VIEW_YAW, table.f(CAMERA + YAW)), abs_tol=1e-5)
         table.lobby.handler(START_HANDLER, VEST)
-        assert (table.flag(TABLE), table.flag(FLY), table.s(TARGET_X), table.s(TARGET_Z), table.s(TARGET_YAW)) \
+        assert (table.flag(TABLE), table.flag(FLIGHT), table.s(TARGET_X), table.s(TARGET_Z), table.s(TARGET_YAW)) \
             == (0, 1, 0.0, 0.0, from_f32(f32(-2.0)))
         assert round(table.f(CAMERA + HEIGHT_TARGET), 6) == 1.3       # the vest's own
         table.lobby.handler(EXIT_HANDLER, 0)
         for n in range(400):
             table.frame()
-        assert not table.flag(FLY) and table.f(CAMERA + YAW) == from_f32(f32(-2.0))
+        assert not table.flag(FLIGHT) and table.f(CAMERA + YAW) == from_f32(f32(-2.0))
         say(f"windows over windows{rebased}: the AK's over the SVD's keeps the yaw kept at the first and the "
             "bench its weapon (READY); a vest's "
             "over them flies back (the vest's own camera); the close leaves the stock camera")
@@ -900,7 +950,7 @@ def main():
             t.set_f(CAMERA + YAW, 0.4)
             t.lobby.handler(START_HANDLER, AK)
             v = float(view)
-            assert (t.flag(TABLE), t.flag(FLY)) == (1, 1) and t.s(VIEW) == from_f32(f32(v)), (spot, view)
+            assert (t.flag(TABLE), t.flag(REQUEST)) == (1, 1) and t.s(VIEW) == from_f32(f32(v)), (spot, view)
             assert (t.s(TARGET_X), t.s(TARGET_Z)) == (from_f32(f32(spot[0])), from_f32(f32(spot[2])))
             assert math.isclose(t.s(TARGET_YAW), nearest_turn(v, 0.4), abs_tol=1e-5), (view, t.s(TARGET_YAW))
             assert t.f(CAMERA + HEIGHT_TARGET) == from_f32(f32(spot[1]))
@@ -971,7 +1021,7 @@ def main():
             t.set_f(CAMERA + PITCH, 0.1)
             spot_before = bytes(t.emu.mem_read(t.state + SPOT, 0x1C))
             t.lobby.handler(START_HANDLER, AK)
-            assert (t.flag(TABLE), t.flag(FLY)) == (0, 0), name
+            assert (t.flag(TABLE), t.flag(FLIGHT), t.flag(REQUEST)) == (0, 0, 0), name
             assert bytes(t.emu.mem_read(t.state + SPOT, 0x1C)) == spot_before, name
             for n in range(60):
                 t.frame()
@@ -988,7 +1038,7 @@ def main():
                     UC_X86_REG_EBP: FRAME}
             assert t.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs) == (HAND, regs), name
             t.lobby.handler(EXIT_HANDLER, 0)
-            assert (t.flag(TABLE), t.flag(FLY)) == (0, 0), name
+            assert (t.flag(TABLE), t.flag(FLIGHT), t.flag(REQUEST)) == (0, 0, 0), name
         say(f"no spot{rebased} (" + ", ".join(name for name, _ in refusals) + "): a weapon's window leaves the table "
             "off: no flight (the camera's point at the origin, its yaw and zoom as they were), the held item in "
             "the hand, the state's spot untouched, the close nothing to fly back from")

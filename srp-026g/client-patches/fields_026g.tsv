@@ -241,3 +241,33 @@ survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds
 survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
 survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
 survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
+survarium::lobby_camera_ticker	camera	-0x4	obj<survarium::lobby_camera>	the lobby camera itself (lobby menu+10Ch): the ticker is its second base, at +4 (vtable 0xA09ED8, the tick's this)
+survarium::lobby_camera_ticker	zoom	0x90	f32	the camera's +94h: patch 22's zoom of its projection (1 the player's field of view)
+survarium::lobby_camera_ticker	side_target	0x94	f32	the camera's +98h: the side angle's target (the setter 0x2845C0's [esp+4])
+survarium::lobby_camera_ticker	height_target	0x98	f32	the camera's +9Ch: the height's target (the setter's xmm0; 1.2 from the ctor)
+survarium::lobby_camera_ticker	point_x	0x9C	f32	the camera's +A0h: x of the point it looks at (0 from the ctor; nothing of the game's writes it again)
+survarium::lobby_camera_ticker	height	0xA0	f32	the camera's +A4h: the point's current height, stepped to its target before 0x284020
+survarium::lobby_camera_ticker	point_z	0xA4	f32	the camera's +A8h: z of the point it looks at
+survarium::lobby_camera_ticker	side	0xA8	f32	the camera's +ACh: the current side angle (turns only the view), stepped to its target after 0x2840F2
+survarium::lobby_camera_ticker	yaw	0xB4	f32	the camera's +B8h: the yaw (forward (-sin yaw cos pitch, sin pitch, cos yaw cos pitch)), no limit
+survarium::lobby_camera_ticker	pitch	0xB8	f32	the camera's +BCh: the pitch, clamped to +-1.0471976 every tick (0x2840C5)
+survarium::lobby_camera_ticker	distance_target	0xBC	f32	the camera's +C0h: the distance's target (the wheel's, 1.5..4.6; the setter's)
+survarium::lobby_camera_ticker	distance	0xC0	f32	the camera's +C4h: the current distance, stepped to its target, cut by the ray (0x2844D0) and clamped (0x28430E) every tick
+survarium::lobby_camera_ticker	side_speed	0xDC	f32	the camera's +E0h: the side angle's step speed (the ctor's 1.0; the setter's |change| * 1.111)
+survarium::lobby_camera_ticker	height_speed	0xE0	f32	the camera's +E4h: the height's step speed (the ctor's 1.0; the setter's)
+survarium::lobby_camera_ticker	distance_speed	0xE4	f32	the camera's +E8h: the distance's step speed (the ctor's 3.0, the wheel's 3.0 at 0x28409E; the setter's)
+survarium::lobby_camera_tick_frame	dt	0x10	f32	lobby_camera::tick's frame time (s, at most 0.1), at its ESP+10h from 0x283F3x to past 0x2840F2 (no push between)
+survarium::image	weapon_table	0xA428F00	obj<skhid::weapon_table>	patch 45's state (weapon_table_026g.asm's STATE: .srpd+WEAPON_TABLE_STATE_OFFSET, patch_026g.py): the interface between its NASM (the weapon at the bench) and the Rust camera flight (weapon_flight.rs)
+skhid::weapon_table	table	0x0	u32	TABLE: 1 while the window's weapon is at the bench (patch 45's camera, its NASM's alone)
+skhid::weapon_table	flight	0x4	u32	FLIGHT: the camera flight's (weapon_flight.rs, its alone): 0 the stock camera, 1 moving, 2 resting at the bench; the NASM reads it (no ray, the wheel's farthest)
+skhid::weapon_table	target_x	0x8	f32	TARGET_X: the point's x the camera goes to (the spot's, or 0 back)
+skhid::weapon_table	target_z	0xC	f32	TARGET_Z: the point's z
+skhid::weapon_table	target_yaw	0x10	f32	TARGET_YAW: the bench's view, the nearest turn of weapon_view to the camera's yaw; or the yaw kept, back
+skhid::weapon_table	target_pitch	0x14	f32	TARGET_PITCH: -0.25 at the bench; the pitch kept, back
+skhid::weapon_table	request	0x2C	u32	REQUEST: +1 at every request of patch 45's camera (the table on, again, or off): the flight starts at a change
+skhid::weapon_table	target_zoom	0x4C	f32	TARGET_ZOOM: the bench's zoom (the original's 65 degrees whatever uro_fov), 1 back
+survarium::lobby_camera_ticker	menu	0x84	ptr<survarium::lobby_menu>	the camera's +88h: its lobby menu (the ctor's ecx, 0x283BEF)
+survarium::lobby_menu	squad_right	0x698	ptr<survarium::lobby_character>	the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
+survarium::lobby_menu	squad_left	0x69C	ptr<survarium::lobby_character>	the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
+survarium::lobby_menu	account_profile	0x6A0	ptr<survarium::player_profile>	the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
+survarium::player_profile	chosen_kit	0x4632	u8	the kit chosen in the lobby (weapon_preview_026g.asm CHOSEN_KIT)
