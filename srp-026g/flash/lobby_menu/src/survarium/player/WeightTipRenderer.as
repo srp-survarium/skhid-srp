@@ -16,8 +16,13 @@ package survarium.player
       private var _background:MovieClip;
       private var _body:MovieClip;
       private var _heading:MovieClip;
+      // One a row entry; null where the entry is a section's heading ({heading}).
       private var _rows:Array = [];
       private var _skin:ItemInfoRenderer;
+      // A section's heading: the same divider as the title, from another copy of the
+      // card's skin (waiting for its timeline, as the first), one a {heading} entry.
+      private var _sectionSkins:Array = [];
+      private var _sections:Array = [];
 
       public function WeightTipRenderer()
       {
@@ -77,6 +82,14 @@ package survarium.player
             _skin = null;
             for each(var item:Object in effects.rows())
             {
+               if(item.heading != null)
+               {
+                  var section:ItemInfoRenderer = ItemInfoRenderer.warningSkin();
+                  addChild(section);
+                  _sectionSkins.push(section);
+                  _rows.push(null);
+                  continue;
+               }
                var nativeRow:ModificatorListRenderer = new SrvModifierLabeledRenderer();
                addChild(nativeRow);
                _rows.push(nativeRow);
@@ -84,7 +97,17 @@ package survarium.player
             return; // Let the row timelines initialize too.
          }
          for each(var pending:ModificatorListRenderer in _rows)
-            if(pending.textFieldLabel == null || pending.iconContainer == null) return;
+            if(pending != null && (pending.textFieldLabel == null || pending.iconContainer == null)) return;
+         for each(var skin:ItemInfoRenderer in _sectionSkins)
+            if(skin.criticalSeparator == null || skin.criticalSeparator.textField == null) return;
+         for each(skin in _sectionSkins)
+         {
+            var divider:MovieClip = skin.criticalSeparator;
+            addChild(divider);
+            removeChild(skin);
+            _sections.push(divider);
+         }
+         _sectionSkins = [];
          _heading.textField.text = effects.title;
          colourTitle(effects);
          var icons:IconContainer = IconContainer.getInstance("modifiers");
@@ -93,10 +116,19 @@ package survarium.player
          _heading.y = 8 - _heading.textField.y;
          var y:Number = 12 + _heading.textField.height;
          var entries:Array = effects.rows();
+         var nextSection:int = 0;
          for(var i:int = 0; i < _rows.length; i++)
          {
-            var row:ModificatorListRenderer = _rows[i];
             var entry:Object = entries[i];
+            if(entry.heading != null)
+            {
+               var heading:MovieClip = _sections[nextSection++];
+               heading.textField.text = entry.heading;
+               heading.y = y + 6 - heading.textField.y;
+               y += heading.textField.height + 10;
+               continue;
+            }
+            var row:ModificatorListRenderer = _rows[i];
             row.validateNow();
             row.data = {icon:icons.getIcon(entry.icon),label:entry.label};
             row.validateNow();
@@ -114,6 +146,7 @@ package survarium.player
          _body.width = _background.width - 4;
          _body.height = _background.height - 4;
          _heading.x = (_background.width - _heading.width) / 2;
+         for each(var sectionHeading:MovieClip in _sections) sectionHeading.x = _heading.x;
          alpha = 1;
          removeEventListener(Event.ENTER_FRAME,prepare);
          dispatchEvent(new Event(Event.RESIZE));

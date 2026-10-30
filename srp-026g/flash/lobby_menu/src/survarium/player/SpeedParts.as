@@ -1,5 +1,6 @@
 package survarium.player
 {
+   import survarium.char.SkillNames;
    import survarium.data.LocalizationData;
 
    // What movement-speed modifier 4 sums besides the weight, one source each:
@@ -31,8 +32,15 @@ package survarium.player
       public function sources() : Array
       {
          var result:Array = _sources.concat();
-         if(_skills != 0) result.unshift({name:LocalizationData.getName("movement_speed_name"),value:_skills});
+         if(_skills != 0) result.unshift({name:skillName(208),value:_skills});
          return result;
+      }
+      // A skill's name as the skill tree shows it (Rapid 208, Athlete 209, Packrat 202),
+      // or "Skills" before the exe has given the skills.
+      public static function skillName(id:uint) : String
+      {
+         var name:String = SkillNames.get(id);
+         return name != null ? name : LocalizationData.getName("st_srp_skills");
       }
       // base x max(0, 1 + S): the weight's part with these (apply_modifier 0x2D5AE0).
       public function total(weight:Number) : Number

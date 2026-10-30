@@ -5,6 +5,7 @@ package {
  import flash.net.*;
  import flash.system.*;
  import flash.text.*;
+ import flash.utils.*;
  public class WeightHarness extends Sprite {
   private var loader:Loader=new Loader();
   private var domain:ApplicationDomain;
@@ -134,7 +135,7 @@ package {
    var rows:Array=x.rows();
    // One row each thing, by its own name, biggest speed-up first; green faster, red slower.
    require(rows.length==5,"the weight, the skill, two items and the weapon: "+rows.length);
-   for each(var want:Array in [[0,"Tornado energy drink <green>+5%</green>"],[1,"Freedom suit <green>+4%</green>"],[2,Loc.getName("movement_speed_name")+" <green>+3%</green>"],[3,"AK-74M <red>-5%</red>"],[4,"Weight <red>-10%</red>"]])
+   for each(var want:Array in [[0,"Tornado energy drink <green>+5%</green>"],[1,"Freedom suit <green>+4%</green>"],[2,"Rapid"+" <green>+3%</green>"],[3,"AK-74M <red>-5%</red>"],[4,"Weight <red>-10%</red>"]])
     require(rows[want[0]].label==want[1],"row "+want[0]+": "+rows[want[0]].label+" (want "+want[1]+")");
    require(Effects.parse(0,0,0,0,0).withItems(kit([["Novice cap",0]],null)).speedExplanation.rows().length==0,"nothing at 0");
    require(Effects.parse(0,0,0,0,0).withItems(kit([],null)).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(kit([],null)).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
@@ -185,13 +186,14 @@ package {
    var limit:Array=[["Duty suit",5],["Anomalous Force Protein",5]];
    var e:Object=Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,limit));
    var rows:Array=e.rows();
-   require(rows.length==7,"weight rows, base, two items, the skill, Packrat: "+rows.length);
-   require(rows[2].label.indexOf("30 kg")>=0 && rows[2].icon==12,"the base limit: "+rows[2].label);
-   var all:String="";for each(var r:Object in rows)all+=r.label+"\n";
-   for each(var want:String in ["Duty suit <green>+5 kg</green>","Anomalous Force Protein <green>+5 kg</green>",Loc.getName("max_carried_weight_name")+" <green>+4 kg</green>",Loc.getName("overweight_penalty_name")+" <green>-15% weight penalty</green>"])
+   require(rows.length==8,"weight rows, the Weight heading, base, two items, the skill, Packrat: "+rows.length);
+   require(rows[2].heading==Loc.getName("equipment_weight") && rows[2].heading.indexOf("#")<0,"the second section, headed Weight: "+rows[2].heading);
+   require(rows[3].label.indexOf("30 kg")>=0 && rows[3].icon==12,"the base limit: "+rows[3].label);
+   var all:String="";for each(var r:Object in rows)all+=(r.label||r.heading)+"\n";
+   for each(var want:String in ["Duty suit <green>+5 kg</green>","Anomalous Force Protein <green>+5 kg</green>","Athlete"+" <green>+4 kg</green>","Packrat"+" <green>-15% weight penalty</green>"])
     require(all.indexOf(want)>=0,"row "+want+" in "+all);
-   require(rows[5].label.indexOf("+4 kg")>=0 && rows[6].icon==11,"biggest first, Packrat last: "+rows[5].label);
-   require(Effects.parse(0,0,0,0,0,30,0,0).withItems(kit([],null,[])).rows().length==3,"only the base when nothing raises it");
+   require(rows[6].label.indexOf("+4 kg")>=0 && rows[7].icon==11,"biggest first, Packrat last: "+rows[6].label);
+   require(Effects.parse(0,0,0,0,0,30,0,0).withItems(kit([],null,[])).rows().length==4,"only the heading and the base when nothing raises it");
    require(Effects.parse(-.1,.75,0).rows().length==2,"an older exe: the weight rows only");
   }
   private function speedWidget(i:int):Object {return speedBox(i).getChildAt(1);}
@@ -239,6 +241,12 @@ package {
      profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
      for(var i:int=0;i<4;i++)widgets[i].textFieldLabel.text="Weight";
      indicators[0].update(20,30,Effects.parse(0,0,0));
+     // Before the exe gives the skills: no key, the word Skills.
+     var early:Array=Effects.parse(0,0,0,.03,0).withItems(kit([],null)).speedExplanation.rows();
+     require(early.length==1 && early[0].label.indexOf("#")<0 && early[0].label.indexOf("Skills")==0,"a skill row before the skills: "+early[0].label);
+     // The exe's root.fill_skills_properties gives each skill's name (CharWindow records them).
+     var Names:Object=domain.getDefinition("survarium.char.SkillNames");
+     Names.record(208,"Rapid");Names.record(209,"Athlete");Names.record(202,"Packrat");
      checkSpeed();
      checkLimit();
      indicators[1].update(25,30,Effects.parse(-.1,.75,0));
@@ -289,8 +297,8 @@ package {
       require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"speed item: "+language+" "+sl.text+" "+sv.text);
       checkProfileRow(language);
       require(speedTip(0).tipData.effects.title.indexOf("107%")>=0,"speed heading: "+language);
-      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5]])).rows())require(lim.label.indexOf("undefined")<0 && lim.label.indexOf("#")<0 && lim.label.indexOf("%1$s")<0,"localized limit row: "+language+" "+lim.label);
-      for each(var part:Object in speedTip(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#st_")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
+      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5]])).rows()){var shown:String=lim.label||lim.heading;require(shown.indexOf("undefined")<0 && shown.indexOf("#")<0 && shown.indexOf("%1$s")<0,"localized limit row: "+language+" "+shown);}
+      for each(var part:Object in speedTip(0).tipData.effects.rows())require(part.label.indexOf("undefined")<0 && part.label.indexOf("#")<0 && part.label.indexOf("%1$s")<0,"localized speed: "+language+" "+part.label);
      }
      Loc.setData(texts("english"));indicators[2].refresh();indicators[0].refresh();speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
     }
@@ -300,7 +308,7 @@ package {
      var head:TextField=card.getChildAt(2).textField;var h:int=head.text.indexOf("107%");
      require(h>=0 && head.getTextFormat(h,h+1).color==0x87A816,"heading total in the rows' green: "+head.text+" "+head.getTextFormat(h,h+1).color.toString(16));
      var text:String=rowText(card);
-     for each(var wanted:String in ["Tornado energy drink +5%","Freedom suit +4%",Loc.getName("movement_speed_name")+" +3%","AK-74M -5%"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
+     for each(var wanted:String in ["Tornado energy drink +5%","Freedom suit +4%","Rapid"+" +3%","AK-74M -5%"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
      var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");
      require(bi>=0 && bonus.getTextFormat(bi,bi+1).color==0x87A816,"a part that speeds up is green, the card rows' green: "+bonus.getTextFormat(bi,bi+1).color.toString(16));
@@ -308,6 +316,23 @@ package {
      require(si>=0 && slow.getTextFormat(si,si+1).color==0x960F0E,"a part that slows down is red, the card rows' red: "+slow.text);
      for(var m:int=3;m<7;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
+     speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+     indicators[1].update(25,30,Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5],["Anomalous Force Protein",5]])));
+     show(1);
+    }
+    if(frame==200) {
+     // The weight's card in two sections: its effects under the title, then "Weight": what changes the limit.
+     var wc:Object=rendered();require(wc.alpha==1 && wc.numChildren==11,"frame, body, title, the Weight divider and seven rows: "+wc.numChildren);
+     var wtitle:Object=wc.getChildAt(2),divider:Object=null,wrows:Array=[];
+     var RowClass:Class=domain.getDefinition("SrvModifierLabeledRenderer") as Class;
+     for(var c2:int=3;c2<wc.numChildren;c2++){var ch:Object=wc.getChildAt(c2);if(ch is RowClass)wrows.push(ch);else if(getQualifiedClassName(ch)==getQualifiedClassName(wtitle))divider=ch;}
+     require(divider!=null && wrows.length==7,"the same divider as the title and seven rows: "+wrows.length);
+     require(divider.textField.text==Loc.getName("equipment_weight"),"the divider says Weight: "+divider.textField.text);
+     wrows.sortOn("y",Array.NUMERIC);
+     require(wrows[1].y<divider.y && divider.y+divider.textField.y+divider.textField.height<=wrows[2].y+4,"the weight rows above it, the limit rows below");
+     require(wrows[2].textFieldLabel.text.indexOf("30")>=0,"the base limit first under it: "+wrows[2].textFieldLabel.text);
+     require(Math.abs(divider.x-wtitle.x)<1 && wc.x+wc.width<=960 && wc.y+wc.height<=720,"centred as the title, inside the screen");
+     for each(var r2:Object in wrows)require(r2.x+r2.textFieldLabel.x+r2.textFieldLabel.textWidth+4<=wc.width,"weight row fits");
      finish(null);
     }
    }catch(e:Error){finish("frame "+frame+": "+e+" "+e.getStackTrace());}

@@ -786,7 +786,10 @@ simulation change.
 ### The carry limit by source, in the weight's tooltip (2026-10-30)
 
 The owner: "can weight show packrat effect in pop up?", then: what raises the
-carry limit, by source, like the speed. After its weight rows the weight's
+carry limit, by source, like the speed. The tooltip has two sections: under its title
+("Weight effects") the weight's effects, then a second divider of the same
+kind headed "Weight" (the weight label's own key, `equipment_weight`) over the
+limit's rows. After its weight rows the weight's
 tooltip lists the base limit, then each thing that changes it by its own
 name, one row each, none at 0, biggest first (the skill, Athlete; each armour
 piece and pocket item by its displayed name), then Packrat, adding up to the
@@ -806,7 +809,12 @@ limit beside the weight ("/ 30"):
   built-in 1124: +5 kg while carried, as every booster).
 - The items' own parameters (beyond their modifications) are 0 in every
   config so far, so the rows add up to the exe's limit.
-- **Packrat** (skill 202, the game's own name `st_overweight_penalty_name`):
+- **Skill names** are the skill tree's: the exe gives each skill's name with its
+  properties (`root.fill_skills_properties`), which `CharWindow` records by id
+  (`SkillNames`); the movie's dictionary has no skill names (a looked-up
+  `movement_speed_name` showed "#movement_speed_name" in the game). Before the
+  exe has given them a row says "Skills".
+- **Packrat** (skill 202):
   the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
 - Green raises the limit (or lowers the penalty), red lowers it, as the rows;
   the weight-limit modifications' icon (12), Packrat's the speed icon (11).
