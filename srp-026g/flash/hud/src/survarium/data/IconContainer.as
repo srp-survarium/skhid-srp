@@ -94,6 +94,12 @@ package survarium.data
          return icon;
       }
       
+      // A cell's icon in place of the atlas's (a free cell's): a bitmap of the cell's size.
+      public function setIcon(iconID:uint, bitmapData:BitmapData) : void
+      {
+         this._icons[iconID] = bitmapData;
+      }
+
       public function toString() : String
       {
          return "[IconContainer]";
