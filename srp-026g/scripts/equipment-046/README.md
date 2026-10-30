@@ -1,6 +1,6 @@
 # Equipment from 0.31a2 and 0.46c2
 
-`equipment-046@3` adds 35 equipment pieces absent from the released 0.26g
+`equipment-046@4` adds 35 equipment pieces absent from the released 0.26g
 dictionary (the owner's pick of 0.69d equipment): 34 regular pieces and one
 premium copy. What ships, the balance proposals, what is left out and the
 open questions are in
@@ -29,13 +29,13 @@ python srp-026g/scripts/equipment-046/prepare_inputs.py \
   --game-data-bin srp-026g/target/release/srp-game-data \
   --out <inputs folder>
 python srp-026g/scripts/equipment-046/make_pack.py \
-  --inputs <inputs folder> --out private/content-packs/equipment-046-3
-cmp private/content-packs/equipment-046-3/ui/Equipment046.as \
+  --inputs <inputs folder> --out private/content-packs/equipment-046-4
+cmp private/content-packs/equipment-046-4/ui/Equipment046.as \
   srp-026g/flash/lobby_menu/src/survarium/constants/Equipment046.as
 python srp-026g/scripts/equipment-046/check_pack.py \
-  private/content-packs/equipment-046-3 <inputs folder>/base
+  private/content-packs/equipment-046-4 <inputs folder>/base
 python srp-026g/scripts/equipment-046/balance_audit.py \
-  private/content-packs/equipment-046-3 <inputs folder>/base --out <report.json>
+  private/content-packs/equipment-046-4 <inputs folder>/base --out <report.json>
 ```
 
 `prepare_inputs.py --pin` computes the inputs from `items.tsv` instead (the

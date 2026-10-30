@@ -1,7 +1,7 @@
 # Equipment from 0.31a2 and 0.46c2 (pack equipment-046)
 
 The owner's pick of 0.69d equipment that live Skhid (rev 38) lacks: 38 pieces.
-35 ship in the content pack `equipment-046@3` (`scripts/equipment-046`); 3 are
+35 ship in the content pack `equipment-046@4` (`scripts/equipment-046`); 3 are
 left out (below). Every number here is a proposal: balance is the owner's call.
 
 ## What ships
@@ -21,8 +21,15 @@ left out (below). Every number here is a proposal: balance is the owner's call.
   the same kind (`template_id`); protection on all seven native hit types of the
   donor's body regions; the card shows armour, isolation, weight (a backpack:
   weight).
-- Masks are worn over the native head (`remove_head_model` dropped: the Armored
-  mask and the Spectrum-M had it), as the other mask ports.
+- Masks are worn over the native head (`remove_head_model` dropped), as the
+  other mask ports, except the two closed shells over the whole head
+  (`covers_head` in `items.tsv`): the Armored mask and the Spectrum-M keep
+  their donor's `remove_head_model`. Each is one shell open only at the neck
+  (no face skin, no eye holes); over the native head 62 and 49 of their
+  vertices lay inside it, up to 5.5 and 1.4 cm, and the skull showed through
+  both (the owner, in game, 2026-10-30; fixed in @4). The NVD
+  is goggles on straps over the native head: its goggles' rear rims touch the
+  face (up to 1 cm inside it, round the eyes), as goggles do.
 - A donor sound 0.26g lacks (the pants' `material/crouch_wear`) takes the
   template's sound in its place.
 - Shaders: 0.26g ships its shaders compiled per switch combination and mesh
@@ -90,7 +97,7 @@ analysis, 2026-10-30).
     (ammo bag); pants 67/17 2 kg 26,920 (ammo bag); helmet 50/13 2.9 kg
     35,580; Sorcerer gloves 67/15 0.3 kg 13,460 (spread -8 %); Sorcerer boots
     67/17 1.2 kg 13,460 (stamina regeneration +8 %); Token backpack 3.3 kg
-    39,670 (1 artefact slot).
+    39,670 (1 artefact slot, +1 pocket size: the owner, 2026-10-30).
   - **Army "Sniper"** (`sniper_07`, 0.31 level 7): vest 57/27 8 kg 59,500
     (pocket); pants 57/28 1.8 kg 29,750 (pocket size); helmet 35/28 1.5 kg
     35,580; gloves 60/28 0.25 kg 14,880 (aim -8 %); boots 60/22 1.1 kg 15,300
@@ -137,17 +144,23 @@ analysis, 2026-10-30).
 
 ## Needs a look in game
 
-- Fit: the Armored mask and the Spectrum-M over the native head (both drew
-  their own head in the donor); the Heavy armored helmet with the Armored mask;
+- Fit: the Armored mask and the Spectrum-M in place of the head (@4), with the
+  Heavy armored and Sniper helmets on them; the NVD's goggles on the face;
   the Veles helmet's and vest's feathers; the Sniper set's ghillie parts.
 - @3 again: the Watchman helmet (the lobby loads with it), the Stalker's
   backpack and NVD (the donor's materials), the Watchman boots (no emissive).
 - The 35 icons in the lobby (0.46c2's are scaled from 128x128 pictures).
 
+## Decisions
+
 - Names (the owner, 2026-10-30): as proposed. Watchman for 0.46c2's "Sentry"
   boots and helmet, "Backpack for ammo" (0.31's), and the masks keep "NVD"
   and "Spectrum-M Thermal vision" although they are cosmetic (no night or
   thermal vision).
+
+- The Token gets +1 pocket size besides its artefact slot (the owner,
+  2026-10-30; 0.31 had only the artefact slot): a level-10 Wanderer container
+  (`edge_back_5`, 1040 + 1170).
 
 - The three 0.69d-only pieces (Summer helmet, Medic's Bag, Soldier's Backpack)
   are ported later, in their own pack with a new resource-porter builder (the

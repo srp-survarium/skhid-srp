@@ -126,7 +126,9 @@ def check(pack, base):
         for key in ('data',) + tuple(k for k in item if k.startswith('data_')):
             for part in [item[key]] + item[key].get('additional_models', []):
                 assert part['part_name'] in surfaces[part['base_model']], (ident, part)
-            assert 'damage_protection' not in item[key] and 'remove_head_model' not in item[key], ident
+            assert 'damage_protection' not in item[key], ident
+        assert item['data'].get('remove_head_model', False) == bool(spec['covers_head']), (ident, 'head')
+        assert not any('remove_head_model' in item[k] for k in item if k.startswith('data_')), ident
         assert item['ui_desc']['text_descriptions'] == text_keys(spec)
         for sound in item.get('sounds', []):
             assert (base / sound_file(*sound)).exists(), (ident, 'sound not in the released game', sound)
