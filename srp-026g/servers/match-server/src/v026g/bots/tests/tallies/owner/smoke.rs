@@ -50,9 +50,19 @@ const FAIR_EYE_SIDE_M: f32 = 0.6;
 const DEATH_CLASSES: [&str; 3] = ["own throw", "by a team cloud", "neither"];
 const AFTER_SMOKE_MS: u32 = 10_000;
 /// The anti-sniper throws' classes (the coordinator, 2026-10-30): a legit, b1 a second smoke onto a line a team cloud already
-/// covered, b2 a second against the same sniper onto another crossing, c wasted (died, or no crossing within its time), d wrong
+/// covered, b2 a second against the same sniper onto another crossing, c wasted (died; no crossing within its time with its
+/// route still by the crossing; or its route no longer by it, the plan changed after the throw), d wrong
 /// target (no sniper rifle, dead, or moved past `SNIPER_MOVED_M` from where sensed), e no line from him onto the crossing.
-const SNIPER_CLASSES: [&str; 7] = ["a legit", "b1 covered already", "b2 another crossing", "c died first", "c not crossed", "d wrong target", "e no line"];
+const SNIPER_CLASSES: [&str; 8] = [
+    "a legit",
+    "b1 covered already",
+    "b2 another crossing",
+    "c died first",
+    "c not crossed",
+    "c route changed",
+    "d wrong target",
+    "e no line",
+];
 const SNIPER_REACH_MS: u32 = 15_000;
 const SNIPER_REACH_M: f32 = 2.5;
 const SNIPER_MOVED_M: f32 = 3.0;
@@ -128,7 +138,7 @@ pub(super) struct SmokeCounts {
     /// `SNIPER_REACH_MS`; and the counts by team and class.
     sniper_open: Vec<(smoke::tally::SniperPlan, Option<usize>, String)>,
     sniper_seen: usize,
-    sniper_classes: [[u32; 7]; 2],
+    sniper_classes: [[u32; 8]; 2],
     /// [diagnosis] The sensings whose line from the game's bodies is clearly behind smoke from every eye
     /// ([`Self::hides_body`]): the view's lag at a cloud's rim or flat top, not a bypass (the replay says which).
     seen_through_margin: [u32; 2],
@@ -160,7 +170,7 @@ impl SmokeCounts {
             sniper_crossings: [[[0; 4]; 2]; 2],
             sniper_open: Vec::new(),
             sniper_seen: 0,
-            sniper_classes: [[0; 7]; 2],
+            sniper_classes: [[0; 8]; 2],
             seen_through_margin: [0; 2],
         }
     }
@@ -296,9 +306,9 @@ impl SmokeCounts {
                 him.keys & crate::v026g::drive::key::CROUCH != 0, him.pitch, him.feet.y
             );
             let decided = if !him.alive || !rifle || moved {
-                Some(5)
-            } else if !line {
                 Some(6)
+            } else if !line {
+                Some(7)
             } else if covered {
                 Some(1)
             } else {
@@ -318,11 +328,12 @@ impl SmokeCounts {
             }
             let reached = alive && feet.distance_xz(plan.crossing) <= SNIPER_REACH_M;
             let over = tick.saturating_sub(plan.time) >= SNIPER_REACH_MS;
+            let route_left = plans.iter().find(|p| p.place == plan.place && p.time == plan.time).and_then(|p| p.route_left);
             let class = match decided {
                 Some(c) if c != usize::MAX => Some(c),
                 _ if !alive && tick > plan.time => Some(3),
                 _ if reached => Some(if decided == Some(usize::MAX) { 2 } else { 0 }),
-                _ if over => Some(4),
+                _ if over => Some(if route_left.is_some() { 5 } else { 4 }),
                 _ => None,
             };
             match class {
@@ -331,9 +342,10 @@ impl SmokeCounts {
                     if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
                         let him = &game.bodies[plan.who];
                         eprintln!(
-                            "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms; {diag}",
+                            "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms route left {:?}; {diag}",
                             plan.team, plan.place, plan.time, SNIPER_CLASSES[c], plan.who, him.alive, him.gun.class,
-                            him.feet.distance_xz(plan.eye), plan.crossing.x, plan.crossing.y, plan.crossing.z, tick.saturating_sub(plan.time)
+                            him.feet.distance_xz(plan.eye), plan.crossing.x, plan.crossing.y, plan.crossing.z, tick.saturating_sub(plan.time),
+                            route_left.map(|t| t.saturating_sub(plan.time))
                         );
                     }
                 }

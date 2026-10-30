@@ -596,6 +596,15 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         tuning,
     } = *due;
     let t = &tuning.smoke;
+    // [diagnosis] Its anti-sniper plans whose crossing its route no longer runs by (anywhere along it, walked or ahead, within
+    // the throw classes' 2.5 m): the plan changed after the throw.
+    #[cfg(test)]
+    smoke::tally::sniper_routes(bot.place, now, |crossing| {
+        bot.route.as_ref().is_some_and(|(route, _)| {
+            let heights = bot.motor.heights();
+            (0..=route.length() as usize).any(|k| route.at(k as f32, heights).distance_xz(crossing) <= 2.5)
+        })
+    });
     // [diagnosis] Outranged by a sniper it saw within 15 s, whatever the kit and the hands.
     #[cfg(test)]
     if t.anti_sniper
@@ -662,7 +671,12 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     };
     // Against a sniper that outranges its weapon (play 11's matchup), sensed where he is within `lane_sensed_ms`: before
     // its route enters ground he sees, the line from him to the crossing. Not from where he already sees it.
-    let outranged = bot.reflex.outranged_by().filter(|&(_, _, seen)| view.clock.saturating_sub(seen) <= t.lane_sensed_ms);
+    // Not a sniper the kill feed showed dead since (or just before) it sensed him: a human reads the feed and smokes no dead
+    // man's line. Without this, 2 of 23 anti-sniper smokes went against a sniper already dead (`h2h-sniper-final-20261030T0807`,
+    // class d); a death before the window is an earlier life of his.
+    let outranged = bot.reflex.outranged_by().filter(|&(who, _, seen)| {
+        view.clock.saturating_sub(seen) <= t.lane_sensed_ms && !smoke::died_since(&view.deaths, who, seen, t.lane_sensed_ms)
+    });
     let sniper_crossing = outranged.filter(|_| t.anti_sniper || cfg!(test)).and_then(|(who, at, _)| {
         // His eye: where he was sensed, at the eye height of the posture the bot saw him in (`view::eye_height`), not a
         // standing guess. With a flat 1.6 m (over the game's 1.46 m standing, 1.04 m crouched) 13 of 40 smokes were thrown onto
