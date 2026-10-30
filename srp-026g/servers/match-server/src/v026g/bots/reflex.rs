@@ -4968,6 +4968,7 @@ impl Reflex {
         let lowered = close_floor(c);
         let mesh = self.sight.ground();
         let stats = &mut self.grenade_stats;
+        let mut notes: Vec<String> = Vec::new();
         stats.close[0] += 1;
         let picked = over_ground(mesh.as_deref(), places[0].0.y, |ground| {
             for &(at, source) in places.iter().take(c.grenade_places.max(1) as usize) {
@@ -4988,10 +4989,23 @@ impl Reflex {
                     continue;
                 }
                 stats.close[5] += 1;
+                // The bench reads the landing, and where the walk out of the blast leads, from this note.
+                if let Some(landing) = landing {
+                    let out = tactics.world.grid.locate(me.feet, 1.5).and_then(|from| {
+                        tactics.step_out_where(from, landing.rest, arc::Grenade::bots().splash_m + retreat.margin_m, 20.0, now, sit.side, false, &RouteFilter::open(), true)
+                    });
+                    notes.push(format!(
+                        "decides a close grenade at ({:.1}, {:.1}, {:.1}): contact ({:.1}, {:.1}, {:.1}), rest ({:.1}, {:.1}, {:.1}), heading ({:.2}, {:.2}), way out {}",
+                        at.x, at.y, at.z, landing.contact.point.x, landing.contact.point.y, landing.contact.point.z,
+                        landing.rest.x, landing.rest.y, landing.rest.z, landing.heading.x, landing.heading.z,
+                        out.map_or("none".to_owned(), |o| format!("({:.1}, {:.1}, {:.1})", o.x, o.y, o.z)),
+                    ));
+                }
                 return Some((at, source, pick));
             }
             None
         });
+        self.throw_notes.append(&mut notes);
         if let Some((at, source, pick)) = picked {
             self.throw_claim = Some(at);
             self.throw = Some(Throw {
