@@ -28,12 +28,13 @@ def promoted_floor(mods):
     return kinds, ranked
 
 
-def check_assets(pack):
-    """Surfaces as 0.26g draws them; no 16-byte config; every shader compiled, every map shipped."""
+def check_assets(pack, base):
+    """Surfaces as 0.26g draws them; no 16-byte config; every shader the released characters
+    draw, every map shipped; every surface's material in the pack or a complete released one."""
     files = pack / 'files'
     shipped = shipped_switches()
     textures = shipped_textures(str(p.relative_to(files)) for p in files.glob('textures/**/*.dds'))
-    surfaces, materials = {}, 0
+    surfaces, materials, used = {}, 0, set()
     for path in sorted(p for p in files.rglob('*') if p.is_file()):
         raw = path.read_bytes()
         rel = str(path.relative_to(files))
@@ -54,6 +55,7 @@ def check_assets(pack):
             assert not lods['LOD1'] and not lods['LOD2'], (rel, 'LOD1/LOD2 surfaces')
             assert set(value['material_settings']) == set(lods['LOD0']['surfaces']), rel
             surfaces[rel.removeprefix('models/').removesuffix('.skinned_model/settings')] = lods['LOD0']['surfaces']
+            used |= {f"material_instances/{m['material_name']}.material" for m in value['material_settings'].values()}
         if path.suffix == '.material':
             materials += 1
             for stage in value['material'].values():
@@ -62,6 +64,12 @@ def check_assets(pack):
                 assert combination in shipped, (rel, 'no 0.26g shader', combination)
             missing = list(e029.missing_maps(value, textures))
             assert not missing, (rel, 'map switched on without its texture', missing)
+    for path in sorted(used):
+        if (files / path).exists():
+            continue
+        released = base / path
+        assert released.exists(), (path, 'a surface material neither in the pack nor compared with the released one')
+        assert not list(e029.missing_maps(bcw.loads(released.read_bytes()), textures)), (path, 'released, without its maps')
     return surfaces, materials
 
 
@@ -78,7 +86,7 @@ def check(pack, base):
     for field in ('cfg_name', 'name'):
         new = [r[field] for r in entries]
         assert len(set(new)) == len(new) and not set(new) & {r[field] for r in native}, f'{field} collision'
-    surfaces, materials = check_assets(pack)
+    surfaces, materials = check_assets(pack, base)
     mods = bcw.loads((base / MODIFICATIONS).read_bytes())
     kinds, ranked = promoted_floor(mods)
     base_atlas = atlas((base / 'flash_movies/lobby_menu.swf').read_bytes())

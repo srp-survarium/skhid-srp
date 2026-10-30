@@ -25,24 +25,15 @@ HERE = Path(__file__).resolve().parent
 SCRIPTS = HERE.parent
 
 
-def _equipment029():
-    """equipment-029's make_pack, under its own name (this module has the same file name)."""
-    import importlib.util
-    sys.path.insert(0, str(SCRIPTS / 'research-mode'))  # its bcw
-    spec = importlib.util.spec_from_file_location('equipment029_make_pack', SCRIPTS / 'equipment-029' / 'make_pack.py')
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+from donors import equipment029  # noqa: E402
 
-
-e029 = _equipment029()
+e029 = equipment029()
 bcw, atlas, cell, png = e029.bcw, e029.atlas, e029.cell, e029.png
-drawable_material, shipped_switches = e029.drawable_material, e029.shipped_switches
-from prepare_inputs import sound_file, specs  # noqa: E402
+drawable_material = e029.drawable_material
+from prepare_inputs import LATER_STAGE_KEYS, sound_file, specs  # noqa: E402
 
 PACK = 'equipment-046'
-VERSION = '2'
+VERSION = '3'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
@@ -58,8 +49,9 @@ DATA_TYPE = 4  # the native equipment data type (donors: 5)
 SURFACE_CHUNKS = (3, 4)  # vertices, indices: all a stock 0.26g skinned surface has
 # Model and material files that are configs (0.46c2 writes them in 16-byte records).
 CONFIG_NAMES = ('settings', 'skeleton', 'export_properties')
-# A 0.46c2 material stage key 0.26g's materials never have.
-LATER_STAGE_KEYS = ('use_foliage_sun_backlighting',)
+# A donor material shipped beside a released one at its path (prepare_inputs.py) takes this
+# suffix: the released one stays as it is.
+OWN_MATERIAL = '_eq046'
 CELL_W, CELL_H = 171, 83  # an equipment atlas cell
 
 
@@ -132,8 +124,12 @@ def lod0_settings(settings):
     return settings
 
 
-def asset(path, raw, shipped, textures):
-    """A donor resource as the pack ships it."""
+def material_name(path):
+    return path.removeprefix('material_instances/').removesuffix('.material')
+
+
+def asset(path, raw, shipped, textures, renamed):
+    """A donor resource as the pack ships it; `renamed` maps material names to the pack's own."""
     name = path.rsplit('/', 1)[1]
     if name == 'converted_model':
         return surface_chunks(raw)
@@ -142,6 +138,8 @@ def asset(path, raw, shipped, textures):
         value = copy.deepcopy(original)
         if name == 'settings':
             value = lod0_settings(value)
+            for surface in value['material_settings'].values():
+                surface['material_name'] = renamed.get(surface['material_name'], surface['material_name'])
         if path.endswith('.material'):
             for stage in value['material'].values():
                 if isinstance(stage, dict):
@@ -156,6 +154,17 @@ def asset(path, raw, shipped, textures):
     if bcw.is_compact(raw):
         raise ValueError(f'{path}: an unexpected 16-byte config')
     return raw
+
+
+def shipped_switches():
+    """The (stage, effect id, switches on) combinations the released characters draw: the
+    shaders are compiled per mesh kind too, and these are skinned pieces."""
+    shipped = set()
+    for line in (HERE / 'character_switches.tsv').read_text().splitlines():
+        if not line.startswith('#'):
+            stage, effect, on = line.split('\t')
+            shipped.add((stage, effect, frozenset(filter(None, on.split(',')))))
+    return shipped
 
 
 def shipped_textures(own):
@@ -313,12 +322,18 @@ def write_pack(inputs, out):
     def released(sound):
         return sound_file(*sound) in base_files
     files, operations, entries, icons, report = {}, [], [], [], []
+    # A donor material pinned beside the released one at its path ships under its own name.
+    renamed = {material_name(path): material_name(path) + OWN_MATERIAL
+               for paths in asset_paths.values() for path in paths
+               if path.endswith('.material') and path in base_files}
     for group, paths in asset_paths.items():
         for path in paths:
-            raw = asset(path, inputs.read(group, path), shipped, textures)
+            raw = asset(path, inputs.read(group, path), shipped, textures, renamed)
             if path.endswith('/settings'):
                 model = path.removeprefix('models/').removesuffix('.skinned_model/settings')
                 surfaces[model] = bcw.loads(raw)['lod_hierrarchy']['LOD0']['surfaces']
+            if path.endswith('.material') and material_name(path) in renamed:
+                path = f'material_instances/{renamed[material_name(path)]}.material'
             files['files/' + path] = raw
             operations.append({'op': 'add_file', 'path': path})
     configs = {}

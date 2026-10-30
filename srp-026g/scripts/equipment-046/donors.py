@@ -11,9 +11,25 @@ import hashlib
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 HERE = Path(__file__).resolve().parent
 DONORS = ('031', '046')
+
+
+def equipment029():
+    """equipment-029's make_pack (icon atlas, shader switches, ...), under its own name: this
+    pack's module has the same file name."""
+    import importlib.util
+    if 'equipment029_make_pack' in sys.modules:
+        return sys.modules['equipment029_make_pack']
+    scripts = HERE.parent
+    sys.path.insert(0, str(scripts / 'research-mode'))  # its bcw
+    spec = importlib.util.spec_from_file_location('equipment029_make_pack', scripts / 'equipment-029' / 'make_pack.py')
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def digest(path):

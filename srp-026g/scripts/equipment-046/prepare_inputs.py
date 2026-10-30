@@ -8,8 +8,16 @@ base-patches.tsv. No server data or release working folder is used.
 
 --pin computes what the pack needs from items.tsv instead (the dependency
 closure of the donor models: model folders, materials, textures with their
-camouflage `_aoac` maps; assets the released game has are reused, not
-listed) and writes inputs.sha256 and shipped_textures.txt.
+camouflage maps (`_aoac`, `_camo`, `_camo_nmap`, `_camo_smap`); assets the
+released game has are reused, not listed) and writes inputs.sha256, shipped_textures.txt and
+character_switches.tsv.
+
+A donor material at a path the released game has is reused only if the
+released one is the donor's (fields only the donor has aside) and every map
+it switches on has its texture there: 0.26g ships placeholder materials for
+pieces it never shipped (the Stalker backpack's and NVD's, without their
+textures and with the backpack's vertex colours off). Otherwise the donor's
+is pinned too, and make_pack ships it under a name of its own.
 """
 import argparse
 import csv
@@ -20,7 +28,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
-from donors import Layers, digest  # noqa: E402
+from donors import Layers, digest, equipment029  # noqa: E402
 
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 DICTIONARY = 'gameplay/db_static_dictionaries'
@@ -28,6 +36,12 @@ GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
 MOVIE = 'flash_movies/lobby_menu.swf'
 TEXTURE_FOLDERS = ('textures/character/', 'textures/editor/')
+CHARACTER_MATERIALS = 'material_instances/characters/'
+# Maps the game derives from a diffuse map's name, for a camouflage (the bake's mask and
+# the camouflaged diffuse, normal and specular): a material never names them.
+IMPLICIT_MAPS = ('_aoac', '_camo', '_camo_nmap', '_camo_smap')
+# Fields 0.46c2 materials have and 0.26g's never do.
+LATER_STAGE_KEYS = ('use_foliage_sun_backlighting',)
 # An item config's sounds: [kind, name], the kind naming the resource.
 SOUND_FILES = {257: 'sounds/composite/{}.composite_sound', 258: 'sounds/collections/{}.sound_collection'}
 
@@ -79,10 +93,30 @@ def textures_of(material):
                     yield field['value']
 
 
+def flat(value, prefix=''):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield from flat(child, f'{prefix}/{key}')
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from flat(child, f'{prefix}[{index}]')
+    else:
+        yield prefix, value
+
+
+def reusable(released, donor, textures):
+    """Whether the released material at the donor's path draws the donor's: the same value
+    for every field it has, and every map it switches on in the released game."""
+    theirs = dict(flat(donor))
+    same = all(theirs.get(key) == value for key, value in flat(released))
+    return same and not list(equipment029().missing_maps(released, textures))
+
+
 class Closure:
-    def __init__(self, donor, base, work):
-        self.donor, self.base, self.work = donor, base, work
+    def __init__(self, donor, base, work, textures):
+        self.donor, self.base, self.work, self.textures = donor, base, work, textures
         self.paths = set()
+        self.released = set()  # released materials compared (pinned in the base group)
 
     def config(self, path):
         target = self.work / path
@@ -118,13 +152,18 @@ class Closure:
 
     def material(self, name):
         path = f'material_instances/{name}.material'
-        if path in self.base:
-            return
         if path not in self.donor:
             raise ValueError(f'missing material {path}')
-        self.add(path)
-        for texture in textures_of(self.config(path)):
-            for variant in (texture, texture + '_aoac'):
+        donor = self.config(path)
+        if path in self.base:
+            self.released.add(path)
+            self.base.extract([path], self.work / '.released', self.work / '.stage')
+            if reusable(bcw.loads((self.work / '.released' / path).read_bytes()), donor, self.textures):
+                return
+            print(f'{name}: the released material is not the donor\'s; the donor\'s ships', file=sys.stderr)
+        self.paths.add(path)
+        for texture in textures_of(donor):
+            for variant in (texture,) + tuple(texture + suffix for suffix in IMPLICIT_MAPS):
                 for suffix in ('.dds', '.options'):
                     candidate = f'textures/{variant}{suffix}'
                     if candidate in self.donor:
@@ -132,6 +171,25 @@ class Closure:
                     elif suffix == '.dds' and variant == texture and candidate not in self.base:
                         # make_pack turns such a map's switch off (no texture anywhere).
                         print(f'{name}: texture {texture} in neither build', file=sys.stderr)
+
+
+def character_switches(base, work):
+    """The (stage, effect, switches on) of every released character material.
+
+    The shaders are compiled per mesh kind too: a combination only static meshes use has
+    no skinned shader (use_olta: the Watchman helmet hung the lobby). So a skinned
+    piece's material keeps to what the released characters draw, not all materials.
+    """
+    paths = sorted(p for p in base.paths() if p.startswith(CHARACTER_MATERIALS) and p.endswith('.material'))
+    base.extract(paths, work / '.characters', work / '.stage')
+    seen = set()
+    for path in paths:
+        material = bcw.loads((work / '.characters' / path).read_bytes())
+        seen |= {(stage, effect, ','.join(sorted(on))) for stage, effect, on in equipment029().material_switches(material)}
+    lines = ['\t'.join(row) for row in sorted(seen)]
+    (HERE / 'character_switches.tsv').write_text(
+        f'# stage\teffect_id\tswitches on: the {len(paths)} released character materials (prepare_inputs.py --pin)\n'
+        + ''.join(line + '\n' for line in lines))
 
 
 def pin(args, donors, base):
@@ -149,7 +207,8 @@ def pin(args, donors, base):
                for row in bcw.loads((work / 'donor031' / DICTIONARY).read_bytes())['items_dict']}
     donors['046'].extract([GAME_OPTIONS], work / 'donor046', work / '.stage')
     equipment = bcw.loads((work / 'donor046' / GAME_OPTIONS).read_bytes())['equipment']
-    closures = {name: Closure(donors[name], base, work / f'assets{name}') for name in donors}
+    textures = {path for path in base.paths() if path.startswith(TEXTURE_FOLDERS) and path.endswith('.dds')}
+    closures = {name: Closure(donors[name], base, work / f'assets{name}', textures) for name in donors}
     for row in rows:
         if row['donor'] == '031':
             path = by_name[row['id_069']]
@@ -165,8 +224,9 @@ def pin(args, donors, base):
             closures[row['donor']].model(model)
     for name, closure in closures.items():
         inputs['assets' + name] = closure.paths
-    textures = sorted(path for path in base.paths() if path.startswith(TEXTURE_FOLDERS) and path.endswith('.dds'))
-    (HERE / 'shipped_textures.txt').write_text(''.join(path + '\n' for path in textures))
+        inputs['base'] |= closure.released
+    (HERE / 'shipped_textures.txt').write_text(''.join(path + '\n' for path in sorted(textures)))
+    character_switches(base, work)
     return {f'{group}/{path}' for group, paths in inputs.items() for path in paths}
 
 

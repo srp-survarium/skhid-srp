@@ -1,6 +1,6 @@
 # Equipment from 0.31a2 and 0.46c2
 
-`equipment-046@2` adds 35 equipment pieces absent from the released 0.26g
+`equipment-046@3` adds 35 equipment pieces absent from the released 0.26g
 dictionary (the owner's pick of 0.69d equipment): 34 regular pieces and one
 premium copy. What ships, the balance proposals, what is left out and the
 open questions are in
@@ -29,18 +29,19 @@ python srp-026g/scripts/equipment-046/prepare_inputs.py \
   --game-data-bin srp-026g/target/release/srp-game-data \
   --out <inputs folder>
 python srp-026g/scripts/equipment-046/make_pack.py \
-  --inputs <inputs folder> --out private/content-packs/equipment-046-2
-cmp private/content-packs/equipment-046-2/ui/Equipment046.as \
+  --inputs <inputs folder> --out private/content-packs/equipment-046-3
+cmp private/content-packs/equipment-046-3/ui/Equipment046.as \
   srp-026g/flash/lobby_menu/src/survarium/constants/Equipment046.as
 python srp-026g/scripts/equipment-046/check_pack.py \
-  private/content-packs/equipment-046-2 <inputs folder>/base
+  private/content-packs/equipment-046-3 <inputs folder>/base
 python srp-026g/scripts/equipment-046/balance_audit.py \
-  private/content-packs/equipment-046-2 <inputs folder>/base --out <report.json>
+  private/content-packs/equipment-046-3 <inputs folder>/base --out <report.json>
 ```
 
 `prepare_inputs.py --pin` computes the inputs from `items.tsv` instead (the
 donor models' dependency closure, the released game's assets reused) and
-writes `inputs.sha256` and `shipped_textures.txt`. Output folders must be new.
+writes `inputs.sha256`, `shipped_textures.txt` and `character_switches.tsv`
+(the shader combinations the released character materials draw). Output folders must be new.
 A changed pack is a new version: its folder, `VERSION` in `make_pack.py` and
 the `pack.json` hash in `release/content.tsv`. The release patch is made only
 by `release/build-content <revision>`.
@@ -52,7 +53,8 @@ by `release/build-content <revision>`.
   strength, sounds the released game has), the premium copy's exact parity,
   icons in free cells, the six dictionaries equal to the catalog, the generated
   Flash mapping, every surface's chunks, no 16-byte config left, every shader
-  compiled and every map shipped.
+  combination a released character draws, every map shipped, every surface's
+  material in the pack or a complete released one.
 - `balance_audit.py`: no strict stat dominance against native, equipment-029
   or new pieces of the same level, kind, regions and slots.
 - `client-patches/check_localization_026g.py` for the catalog rows.

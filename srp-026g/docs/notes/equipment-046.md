@@ -1,7 +1,7 @@
 # Equipment from 0.31a2 and 0.46c2 (pack equipment-046)
 
 The owner's pick of 0.69d equipment that live Skhid (rev 38) lacks: 38 pieces.
-35 ship in the content pack `equipment-046@2` (`scripts/equipment-046`); 3 are
+35 ship in the content pack `equipment-046@3` (`scripts/equipment-046`); 3 are
 left out (below). Every number here is a proposal: balance is the owner's call.
 
 ## What ships
@@ -25,10 +25,23 @@ left out (below). Every number here is a proposal: balance is the owner's call.
   mask and the Spectrum-M had it), as the other mask ports.
 - A donor sound 0.26g lacks (the pants' `material/crouch_wear`) takes the
   template's sound in its place.
-- Shaders: the Watchman boots' emissive flicker is switched off (0.26g has no
-  shader for it); every other material draws as the donor's.
-- Shared assets the released game has are reused (the Stalker set's materials
-  and textures are stock).
+- Shaders: 0.26g ships its shaders compiled per switch combination and mesh
+  kind, so a skinned piece keeps to the combinations the released character
+  materials draw (`character_switches.tsv`): the Watchman helmet's `use_olta`
+  (a static-mesh combination: with it the lobby hung, the character never
+  loading, @2's in-game run) and the Watchman boots' emissive map and flicker
+  are switched off; every other material draws as the donor's.
+- Shared assets the released game has are reused, a material only when it is
+  the donor's and complete: 0.26g's Stalker backpack and NVD materials are
+  placeholders (no textures shipped, the backpack's vertex colours off: they
+  drew neon in @2's run), so the donor's ship as `..._eq046`, with their
+  textures.
+- Camouflage: each diffuse map's implied `_aoac`, `_camo`, `_camo_nmap`,
+  `_camo_smap` maps ship with it (@2 lacked the `_camo` ones: a camouflage on
+  the Bandit's jacket "MK II" failed to cook).
+- The Sniper vest's bright plates and OZK-UV's glossy rubber are the donor's
+  own: their materials and maps ship unchanged, and 0.31a2's maps of models
+  0.26g has are the same pixels as 0.26g's.
 - Ids: 0.69d's own dictionary ids (988-1012, 1092-1105, 144, 145): none is
   taken by the stock db, a released patch or equipment-029. The premium copy
   takes 1863 (0.69d's 352 is the stock Bandit jacket premium).
@@ -127,8 +140,8 @@ analysis, 2026-10-30).
 - Fit: the Armored mask and the Spectrum-M over the native head (both drew
   their own head in the donor); the Heavy armored helmet with the Armored mask;
   the Veles helmet's and vest's feathers; the Sniper set's ghillie parts.
-- The 0.46c2 models (Stalker's helmet, backpack and NVD on the stock Stalker
-  materials; Watchman boots and helmet; Biker pants; the boots and gloves).
+- @3 again: the Watchman helmet (the lobby loads with it), the Stalker's
+  backpack and NVD (the donor's materials), the Watchman boots (no emissive).
 - The 35 icons in the lobby (0.46c2's are scaled from 128x128 pictures).
 
 - Names (the owner, 2026-10-30): as proposed. Watchman for 0.46c2's "Sentry"
