@@ -718,7 +718,7 @@ mod tests {
             s.bot(2, 0, mate);
             let mut any = 0;
             for &choke in &s.tactics.exits(1).to_vec() {
-                let at = Choke { at: choke, job: None };
+                let at = Choke { target: TargetRef::Exit(0), at: choke, job: None };
                 let list = fine_spots(&s.cx(0), &at);
                 assert_eq!(has_fine_spot(&s.cx(0), &at), !list.is_empty(), "{choke:?}");
                 any += list.len();
@@ -850,7 +850,7 @@ mod tests {
         // Every spot proved no way to: kept.
         let choke = s.tactics.exits(1)[0];
         let until = s.view.clock + 5_000;
-        s.no_way_to = spots_by(&s.cx(0), &Choke { at: choke, job: None })
+        s.no_way_to = spots_by(&s.cx(0), &Choke { target: TargetRef::Exit(0), at: choke, job: None })
             .iter()
             .map(|&at| (at, until))
             .collect();

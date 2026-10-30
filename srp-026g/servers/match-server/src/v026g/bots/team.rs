@@ -824,7 +824,7 @@ mod tests {
                     committed: false,
                 });
             }
-            let out = assign_trapped(asking, now, 0.0, &[], shaky, None);
+            let out = assign_trapped(asking, now, 0.0, &[], shaky, Pass::default());
             out.iter().find(|(p, _, _)| *p == 2).unwrap().1.kind
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
