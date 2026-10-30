@@ -511,6 +511,21 @@ pub struct CombatTuning {
     /// bots' own floor refused 1,738 of about 2,500 weighed places. Swept:
     /// 9 m and 6 m.
     pub grenade_near_m: f32,
+    /// [close] A grenade at a place under the floor's range, 4-12 m, that an enemy not in sight was sensed at (a lost or heard
+    /// track, a camp, a held spot), with no hp lost by a teammate or the thrower, by construction: the arc lands not nearer the
+    /// thrower than `grenade_close_m.0`; the thrower has a way out (the avoidance's own walk, never toward the landing) to a
+    /// floor `grenade_close_margin_m` past the blast's radius from the rest point and from any point of the roll's worst case;
+    /// every teammate was seen within `grenade_close_fresh_ms` and, predicted along his velocity for `grenade_lead_s`, is
+    /// that far (radius and the margin) from the rest point and the roll's worst case, with no credit for a wall. The places
+    /// of `grenade_m` are thrown at first. Needs `grenade_avoid` on (no way out is known otherwise). Humans threw 14.5 % of
+    /// their grenades at an enemy under 12 m (9.3 enemy kills, 1.0 teammates and 1.2 throwers killed per 100); off.
+    pub grenade_close: bool,
+    /// ... the place's ground distance from the thrower, m: from, to.
+    pub grenade_close_m: (f32, f32),
+    /// ... past the blast's radius, m (the way out's floor, a teammate).
+    pub grenade_close_margin_m: f32,
+    /// ... a teammate's position is no older than this, ms: an older one refuses the throw.
+    pub grenade_close_fresh_ms: u32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -1172,6 +1187,10 @@ impl Default for CombatTuning {
             grenade_volley_ms: (1_600, 6_000),
             grenade_volley_every_ms: 500,
             grenade_near_m: 12.0,
+            grenade_close: false,
+            grenade_close_m: (4.0, 12.0),
+            grenade_close_margin_m: 2.0,
+            grenade_close_fresh_ms: 1_500,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1597,6 +1616,10 @@ struct Throw {
     /// off the throw is weighed by the floor of `grenade_land_m`, which a
     /// near place does not pass.
     near: Option<Vec3>,
+    /// [close] Decided as a close throw (`grenade_close`): where the thrower stood when the way out of the blast was found.
+    /// The close rule (`close_floor`) holds while he stays within [`NEAR_STAY_M`] of it; farther off the throw is weighed by
+    /// the floor of `grenade_land_m`, which a close place does not pass.
+    close: Option<Vec3>,
     /// [A170] The held spot (`threat::HeldLine::id`) a [`PlaceSource::Spot`] throw is at: the throw is given up when the team's
     /// picture drops it (`grenade_held_recheck`).
     spot: Option<u32>,
@@ -1840,6 +1863,10 @@ pub struct GrenadeStats {
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
     pub near: [u32; 3],
+    /// [close] `grenade_close`: rolls with a close place and no throw made at a far one; places weighed; refused by the arc, the
+    /// landing or a teammate's blast; refused for a teammate not seen lately; refused for no way out of the blast; throws
+    /// decided; throws let go.
+    pub close: [u32; 7],
     /// [A170] The held spots of a roll (`grenade_at_held`), thinks that reached the roll with: a held spot of the team, one
     /// whose shooter the team sensed on it lately, one of those in the throw range, one the thrower's feet are not in the lanes
     /// of, one with no mate in its blast and no other place at it, one no mate claimed, and, of those, thinks of a bot with a
@@ -1882,6 +1909,7 @@ impl GrenadeStats {
             pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
             volley: sub(self.volley, before.volley),
             near: sub(self.near, before.near),
+            close: sub(self.close, before.close),
             held_funnel: sub(self.held_funnel, before.held_funnel),
             held_busy: sub(self.held_busy, before.held_busy),
             held_dropped: sub(self.held_dropped, before.held_dropped),
@@ -2300,6 +2328,72 @@ fn near_place(
         }
     }
     None
+}
+
+/// [close] A teammate's body is fixed no longer ago than `grenade_close_fresh_ms`, or the throw is refused for him: a mate
+/// whose place is not known is one whose blast cannot be ruled out.
+fn close_fresh(me: &PlaceView, view: &MatchView, c: &CombatTuning) -> Result<(), Refuse> {
+    match view
+        .team(me.team)
+        .filter(|p| p.place != me.place)
+        .find(|p| view.clock.saturating_sub(p.seen_at) > c.grenade_close_fresh_ms)
+    {
+        Some(mate) => Err(Refuse::Mate(mate.place)),
+        None => Ok(()),
+    }
+}
+
+/// [close] The lead of a teammate's walk in a close throw's check, s: to the blast and a little past it.
+const CLOSE_LEAD_S: f32 = 3.0;
+
+/// [close] `c` for a throw at a close place: no floor but the nearest landing (`grenade_close_m.0`, the walk out of the blast
+/// replaces it), and a teammate looked for as far as the radius and the margin from the rest point and from any point of the
+/// roll's worst case ([`mate_in_blast`], no credit for a wall), along his walk for up to [`CLOSE_LEAD_S`].
+fn close_floor(c: &CombatTuning) -> CombatTuning {
+    let clear = arc::Grenade::bots().splash_m + c.grenade_close_margin_m;
+    CombatTuning {
+        grenade_land_m: c.grenade_close_m.0,
+        grenade_wall_m: c.grenade_wall_m.min(c.grenade_close_m.0),
+        grenade_friend_m: c.grenade_friend_m.max(clear),
+        grenade_lane_m: c.grenade_lane_m.max(clear),
+        grenade_lead_s: c.grenade_lead_s.max(CLOSE_LEAD_S),
+        grenade_recheck: true,
+        ..c.clone()
+    }
+}
+
+/// [close] Whether the thrower can walk out of the blast wherever it goes off: from the first contact, at the rest point,
+/// at [`arc::ROLL_P80_M`] and at [`arc::ROLL_WORST_M`] along the heading. Each is [`can_retreat`]'s walk (the floors he may
+/// stand on, within what the fuse leaves, at [`ARRIVE_MPS`]) to a floor whose chest is past the radius, by more than the
+/// avoidance's margin (`grenade_close_margin_m`), and the way never leads nearer the blast than he stands
+/// ([`Tactics::step_out_where`]): no walk toward the landing and back out.
+fn close_way_out(
+    me: &PlaceView,
+    tactics: &Tactics,
+    side: Option<i32>,
+    retreat: Retreat,
+    landing: &arc::Landing,
+    now: u32,
+    c: &CombatTuning,
+) -> bool {
+    let Some(fuse) = grenade_fuse_ms() else {
+        return false;
+    };
+    let free_ms = c.grenade_launch_ms + c.grenade_look_after_ms.max(retreat.told_ms);
+    let reach_m = ARRIVE_MPS * fuse.saturating_sub(free_ms) as f32 / 1000.0;
+    let Some(from) = tactics.world.grid.locate(me.feet, 1.5) else {
+        return false;
+    };
+    let radius = arc::Grenade::bots().splash_m + retreat.margin_m.max(c.grenade_close_margin_m);
+    let open = RouteFilter::open();
+    let from_contact = |m: f32| landing.contact.point + landing.heading * m;
+    [landing.contact.point, landing.rest, from_contact(arc::ROLL_P80_M), from_contact(arc::ROLL_WORST_M)]
+        .into_iter()
+        .all(|blast| {
+            tactics
+                .step_out_where(from, blast, radius, reach_m, now, side, false, &open, true)
+                .is_some_and(|out| (out + Vec3::new(0.0, CHEST, 0.0) - blast).length() >= radius)
+        })
 }
 
 /// An enemy sensed staying at one place.
@@ -4693,8 +4787,17 @@ impl Reflex {
             .unwrap_or_default();
         let claimed = |at: Vec3| claims.iter().any(|k| k.distance_xz(at) < c.grenade_claim_m);
         let mut dropped = 0;
-        let mut places: Vec<(Vec3, PlaceSource)> = held
-            .chain(camps)
+        let sensed: Vec<(Vec3, PlaceSource)> = held.chain(camps).collect();
+        // [close] The places at close range, for a roll no far place is thrown at: the same sources.
+        let near_range = c.grenade_close && c.grenade_trace && sit.retreat.is_some() && sit.tactics.is_some();
+        let in_close = |at: Vec3| near_range && (c.grenade_close_m.0..=c.grenade_close_m.1).contains(&at.distance_xz(me.feet));
+        let mut close: Vec<(Vec3, PlaceSource)> = sensed
+            .iter()
+            .copied()
+            .filter(|(at, _)| in_close(*at) && !claimed(*at))
+            .collect();
+        let mut places: Vec<(Vec3, PlaceSource)> = sensed
+            .into_iter()
             .filter(|(at, _)| {
                 if !((c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
                     && !friend_near(*at))
@@ -4714,6 +4817,20 @@ impl Reflex {
                     continue;
                 };
                 let age = now.saturating_sub(sensed);
+                if in_close(at)
+                    && age >= c.grenade_track_gap_ms
+                    && age <= c.grenade_track_ms
+                    && track.error_m <= c.grenade_track_error_m
+                    && !close.iter().any(|(near, _)| near.distance_xz(at) < c.camp_m)
+                    && !claimed(at)
+                {
+                    let source = if track.sight_since.is_some() || track.source == Source::Seen {
+                        PlaceSource::Lost
+                    } else {
+                        PlaceSource::Heard
+                    };
+                    close.push((at, source));
+                }
                 if age < c.grenade_track_gap_ms
                     || age > c.grenade_track_ms
                     || track.error_m > c.grenade_track_error_m
@@ -4782,7 +4899,7 @@ impl Reflex {
             }
         }
         self.grenade_stats.claimed += dropped;
-        if places.is_empty() {
+        if places.is_empty() && close.is_empty() {
             return;
         }
         if no_frag {
@@ -4794,17 +4911,22 @@ impl Reflex {
         }
         self.grenade_stats.held_funnel[6] += u32::from(furthest == 6);
         // A held spot first, then the nearest.
-        places.sort_by(|a, b| {
+        let order = |a: &(Vec3, PlaceSource), b: &(Vec3, PlaceSource)| {
             (a.1 != PlaceSource::Spot)
                 .cmp(&(b.1 != PlaceSource::Spot))
                 .then(a.0.distance_xz(me.feet).total_cmp(&b.0.distance_xz(me.feet)))
-        });
+        };
+        places.sort_by(order);
+        close.sort_by(order);
         self.next_grenade_roll = now + c.grenade_roll_ms;
         self.grenade_stats.rolls += 1;
         for (_, source) in &places {
             self.grenade_stats.places[source.index()] += 1;
         }
-        let chance = match (places[0].1, c.grenade_at_held) {
+        let Some(&(_, lead)) = places.first().or(close.first()) else {
+            return;
+        };
+        let chance = match (lead, c.grenade_at_held) {
             (PlaceSource::Spot, Some(chance)) => chance,
             (source, _) if source.is_track() => c.grenade_track_chance,
             _ => c.grenade_chance,
@@ -4816,7 +4938,77 @@ impl Reflex {
         let hold_ms = rng.range(c.grenade_hold_ms.0 as f32, c.grenade_hold_ms.1 as f32) as u32;
         let floor = mix(aim.error_deg, skill).to_radians();
         let error = (floor * (rng.unit() - 0.5), floor * 0.5 * (rng.unit() - 0.5));
-        self.start_throw(&look, c, &places, error, hold_ms, ThrowKind::Roll);
+        if !places.is_empty() {
+            self.start_throw(&look, c, &places, error, hold_ms, ThrowKind::Roll);
+        }
+        // [close] No far place was thrown at: the close ones.
+        if self.throw.is_none() && !close.is_empty() {
+            self.start_close(&look, c, &close, error, hold_ms);
+        }
+    }
+
+    /// [close] The first of `places` (at close range) whose throw passes every check of a close throw ([`close_floor`]: the
+    /// arc, the landing not nearer than `grenade_close_m.0`, every teammate seen lately and out of reach of the blast), and
+    /// whose blast the thrower can walk out of wherever it goes off ([`close_way_out`]), begun as a throw. A refusal makes no
+    /// note: the roll comes again.
+    fn start_close(
+        &mut self,
+        look: &RollView,
+        c: &CombatTuning,
+        places: &[(Vec3, PlaceSource)],
+        error: (f32, f32),
+        hold_ms: u32,
+    ) {
+        let RollView { me, sit, now, .. } = *look;
+        let (Some(retreat), Some(tactics)) = (sit.retreat, sit.tactics) else {
+            return;
+        };
+        let view = sit.view;
+        let lowered = close_floor(c);
+        let mesh = self.sight.ground();
+        let stats = &mut self.grenade_stats;
+        stats.close[0] += 1;
+        let picked = over_ground(mesh.as_deref(), places[0].0.y, |ground| {
+            for &(at, source) in places.iter().take(c.grenade_places.max(1) as usize) {
+                stats.close[1] += 1;
+                if close_fresh(me, view, &lowered).is_err() {
+                    stats.close[3] += 1;
+                    return None;
+                }
+                let Ok(pick) = weigh_place(me, view, at, error, &lowered, ground) else {
+                    stats.close[2] += 1;
+                    continue;
+                };
+                let landing = throw_view_of(me, at, &lowered, pick).and_then(|(yaw, pitch)| {
+                    arc::Flight::thrown(me.eye(), yaw + error.0, pitch + error.1).landing(ground)
+                });
+                if !landing.is_some_and(|landing| close_way_out(me, tactics, sit.side, retreat, &landing, now, &lowered)) {
+                    stats.close[4] += 1;
+                    continue;
+                }
+                stats.close[5] += 1;
+                return Some((at, source, pick));
+            }
+            None
+        });
+        if let Some((at, source, pick)) = picked {
+            self.throw_claim = Some(at);
+            self.throw = Some(Throw {
+                at,
+                started: now,
+                hold_ms,
+                pressed: None,
+                error,
+                released: false,
+                pitch: None,
+                pick,
+                source,
+                kind: ThrowKind::Roll,
+                near: None,
+                close: Some(me.feet),
+                spot: None,
+            });
+        }
     }
 
     /// [C20] The window of a throw let go (`grenade_volley`): when it is
@@ -4909,6 +5101,7 @@ impl Reflex {
                     source,
                     kind,
                     near,
+                    close: None,
                     spot: self
                         .spot_shooters
                         .iter()
@@ -5012,9 +5205,13 @@ impl Reflex {
         // [G3] A near throw is weighed by the lowered floor while the thrower stands where the way
         // out of the blast was found.
         let lowered;
-        let c = match throw.near {
-            Some(from) if me.feet.distance_xz(from) <= NEAR_STAY_M => {
+        let c = match (throw.near, throw.close) {
+            (Some(from), _) if me.feet.distance_xz(from) <= NEAR_STAY_M => {
                 lowered = near_floor(c);
+                &lowered
+            }
+            (_, Some(from)) if me.feet.distance_xz(from) <= NEAR_STAY_M => {
+                lowered = close_floor(c);
                 &lowered
             }
             _ => c,
@@ -5036,7 +5233,10 @@ impl Reflex {
         throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
         let weigh = |mates: bool, pick: ArcPick| {
-            over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
+            // A close throw weighs the teammates every time, and refuses for one not seen lately.
+            let mates = mates || throw.close.is_some();
+            let seen = if throw.close.is_some() { close_fresh(me, view, c) } else { Ok(()) };
+            seen.and_then(|()| over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
                 ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, pick)
                     .ok_or(Refuse::Reach)
@@ -5053,7 +5253,7 @@ impl Reflex {
                             c.grenade_search_off_m,
                         )
                     }),
-            })
+            }))
         };
         let eye = me.eye();
         let mut keys = 0;
@@ -5120,6 +5320,11 @@ impl Reflex {
                     }
                     if throw.near.is_some() {
                         self.grenade_stats.near[2] += 1;
+                    }
+                    if throw.close.is_some() {
+                        self.grenade_stats.close[6] += 1;
+                        // The bench's own-side damage is counted by the throws it knows to be close.
+                        self.throw_notes.push(format!("throws a close grenade, blast at {blast}"));
                     }
                     let from = if c.grenade_push_after_blast {
                         blast + c.grenade_push_after_ms
@@ -8439,6 +8644,134 @@ mod tests {
         assert!(can_retreat(&me, &tactics, Some(0), Retreat { margin_m: 0.5, told_ms: 3_800 }, far, 5_000, &c));
     }
 
+    /// [close] A place at 8 m is thrown at as a close throw only when the thrower has a way out of the blast wherever it goes
+    /// off, and every teammate was seen lately and is the radius and the margin (12 m) from the rest point and the roll's
+    /// worst case, along his walk too; a refusal is counted by what refused it.
+    #[test]
+    fn a_close_place_is_thrown_at_only_with_a_way_out_and_every_teammate_seen_and_far() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let place = Vec3::new(20.0, 0.0, 18.0);
+        let me = body(0, 0, Vec3::new(20.0, 0.0, 10.0), 0.0);
+        let close = CombatTuning {
+            grenade_close: true,
+            ..combat_off()
+        };
+        let retreat = Retreat {
+            margin_m: 0.5,
+            told_ms: 400,
+        };
+        // (the mate's place, velocity and when his body was fixed, the view's clock, the retreat) -> the reflex after the roll
+        let start = |mate: Option<(Vec3, [f32; 2], u32)>, clock: u32, retreat: Option<Retreat>| {
+            let mut places = vec![me.clone()];
+            if let Some((feet, velocity, seen_at)) = mate {
+                let mut mate = body(1, 0, feet, 0.0);
+                mate.velocity = velocity;
+                mate.seen_at = seen_at;
+                places.push(mate);
+            }
+            let view = MatchView { clock, ..view_of(places) };
+            let memory = Memory::default();
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                retreat,
+                ..Situation::of(&view)
+            };
+            let look = RollView {
+                me: &me,
+                sit: &sit,
+                memory: &memory,
+                now: 5_000,
+            };
+            let mut reflex = Reflex::default();
+            reflex.start_close(&look, &close, &[(place, PlaceSource::Lost)], (0.0, 0.0), 600);
+            reflex
+        };
+        // No teammate: thrown at, from where he stands, counted as decided.
+        let reflex = start(None, 5_000, Some(retreat));
+        let throw = reflex.throw.expect("a way out of every blast was found");
+        assert_eq!(throw.close, Some(me.feet));
+        assert_eq!(reflex.grenade_stats().close, [1, 1, 0, 0, 0, 1, 0]);
+        // No avoidance, no way out known: no throw.
+        assert!(start(None, 5_000, None).throw.is_none());
+        // A mate 11 m from the place (across, so off the roll's lane) is refused for; at 13 m he is not.
+        let refused = start(Some((Vec3::new(31.0, 0.0, 18.0), [0.0, 0.0], 5_000)), 5_000, Some(retreat));
+        assert!(refused.throw.is_none());
+        assert_eq!(refused.grenade_stats().close, [1, 1, 1, 0, 0, 0, 0]);
+        assert!(start(Some((Vec3::new(33.0, 0.0, 18.0), [0.0, 0.0], 5_000)), 5_000, Some(retreat)).throw.is_some());
+        // The same mate at 13 m walking in (5 m/s for the 3 s of the lead): refused.
+        assert!(start(Some((Vec3::new(33.0, 0.0, 18.0), [-5.0, 0.0], 5_000)), 5_000, Some(retreat)).throw.is_none());
+        // A mate 13 m off and fixed 2 s ago (the limit is 1.5 s): his place is not known, refused for him.
+        let stale = start(Some((Vec3::new(33.0, 0.0, 18.0), [0.0, 0.0], 3_000)), 5_000, Some(retreat));
+        assert!(stale.throw.is_none());
+        assert_eq!(stale.grenade_stats().close, [1, 1, 0, 1, 0, 0, 0]);
+        // A reaction that takes up the fuse leaves no walk.
+        let slow = start(None, 5_000, Some(Retreat { margin_m: 0.5, told_ms: 3_500 }));
+        assert!(slow.throw.is_none());
+        assert_eq!(slow.grenade_stats().close, [1, 1, 0, 0, 1, 0, 0]);
+    }
+
+    /// [close] The throw is made where the way out was found, and given up when he walked off it: the floor of a close
+    /// place is not the floor of `grenade_land_m`.
+    #[test]
+    fn a_close_throw_is_let_go_from_where_the_way_out_was_found() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let place = Vec3::new(20.0, 0.0, 18.0);
+        let me = body(0, 0, Vec3::new(20.0, 0.0, 10.0), 0.0);
+        let view = view_of(vec![me.clone()]);
+        let memory = Memory::default();
+        let close = CombatTuning {
+            grenade_close: true,
+            ..combat_off()
+        };
+        let retreat = Retreat {
+            margin_m: 0.5,
+            told_ms: 400,
+        };
+        let go = |shift: f32| {
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                retreat: Some(retreat),
+                ..Situation::of(&view)
+            };
+            let look = RollView {
+                me: &me,
+                sit: &sit,
+                memory: &memory,
+                now: 5_000,
+            };
+            let mut reflex = Reflex::default();
+            reflex.start_close(&look, &close, &[(place, PlaceSource::Lost)], (0.0, 0.0), 600);
+            assert!(reflex.throw.is_some());
+            let mut me = me.clone();
+            me.feet.x += shift;
+            let aim = AimTuning {
+                combat: close.clone(),
+                ..AimTuning::default()
+            };
+            let mut rng = Rng::new(3);
+            for k in 0..100 {
+                let o = reflex.tick(&me, &view, &memory, 5_000 + k * 50, true, &aim, 0.5, &mut rng);
+                if let Some(look) = o.look_at {
+                    facing(&mut me, look);
+                }
+            }
+            (reflex.grenades_thrown(), reflex.grenade_stats(), reflex.take_throw_notes())
+        };
+        let (thrown, stats, notes) = go(0.0);
+        assert_eq!((thrown, stats.close[6]), (1, 1), "{stats:?}");
+        assert!(notes.iter().any(|n| n.starts_with("throws a close grenade, blast at ")), "{notes:?}");
+        let (thrown, stats, _) = go(3.0);
+        assert_eq!((thrown, stats.close[6], stats.given_up[0]), (0, 0, 1), "{stats:?}");
+    }
+
+    /// [close] The switch is off by default, and a roll never makes a close throw with it off.
+    #[test]
+    fn close_throws_are_off_by_default() {
+        assert!(!CombatTuning::default().grenade_close);
+    }
+
     /// Match 0x60aeff4f: 2 of the 5 team kills were the bots' own
     /// grenades. A teammate who walks at the place once the key is down
     /// (clear of it at the decision) has the key let go and the throw given
@@ -8904,6 +9237,7 @@ mod tests {
             source: PlaceSource::Heard,
             kind: ThrowKind::Roll,
             near: None,
+            close: None,
             spot: None,
         };
         let on = CombatTuning {

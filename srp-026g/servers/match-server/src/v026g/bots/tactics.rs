@@ -1549,10 +1549,29 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
     ) -> Option<Vec3> {
+        self.step_out_where(from, rest, radius, reach_m, time, side, objective, filter, false)
+    }
+
+    /// [`Self::step_out`], with `never_nearer`: a floor nearer `rest` than where the body stands (by more than
+    /// [`STEP_OUT_GAIN_M`]) is not walked over, so the way found never leads toward the blast and back out of it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_out_where(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+        never_nearer: bool,
+    ) -> Option<Vec3> {
         use super::view::CHEST;
         let grid = &self.world.grid;
         let up = Vec3::new(0.0, CHEST, 0.0);
         let far = |n: NodeId| (grid.position(n) + up - rest).length();
+        let nearest_allowed = if never_nearer { far(from) - STEP_OUT_GAIN_M } else { f32::NEG_INFINITY };
         let open = |n: NodeId| self.allowed(n, time, side, objective);
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
@@ -1570,7 +1589,7 @@ impl Tactics {
             }
             let at = grid.position(a);
             for (b, _) in grid.links(a) {
-                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) {
+                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) || far(b) < nearest_allowed {
                     continue;
                 }
                 let next = d + grid.position(b).distance_xz(at);
