@@ -48,7 +48,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@3)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@4)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -58,10 +58,12 @@ crates, beds and lockers, and the vaults beside it.
 - Spot: where STK2's designers stood a novice (STK2 (37.49, -4.37, -24.41); @2 0.25 m clear of the crates, -24.66), facing the
   room's west half. Chosen of four: the gas-mask room, the sleeping quarters, the store
   room, the crates by its door; the store room is the most dressed and the best lit.
-- Kept: x 28..48, y -5..0.5, z -31..-8 (the store room, the gas-mask room, the quarters
-  and the vault beside them): 241 of 348 visuals, 5 lights. a03's sun (shadowed, it
+- Kept: the whole shelter, x 24..63, y -5..0.5, z -36..6 (STK2 world): 337 of 348
+  visuals, 10 lights. Up to @3 the box was x 28..48, z -31..-8, and its cut showed
+  through the store room's doorways as flat blue-grey: the sky, past the vault, the
+  corridors and the rooms the box left out (@4: no view ray of the orbit meets the sky). a03's sun (shadowed, it
   lights the level's outside) is left out: the sun object is there with intensity 0.
-  26 MB.
+  28 MB.
 - Spots (data `srp-026g/scripts/lobby-scenes/stk2_bunker.tsv`):
 
       character          ( 0.000, 0.000,  0.000)
@@ -72,6 +74,9 @@ crates, beds and lockers, and the vaults beside it.
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).
+- Beyond the arches: the other rooms' lamps as warm as the store room's, and a dim warm
+  light in the vault beyond the west arch and in the corridor beyond the east one (they
+  showed black).
 - Not ported: two decal materials without a diffuse (`decal_dirt_006`,
   `moss_012_alpha`): their surfaces are left out; the outdoor trees (speedtree) and the
   power line outside.
