@@ -147,14 +147,22 @@ impl Movie<'_> {
     /// Invokes the movie's `method` with one bool; whether the movie took it
     /// (it has that method: its root is made).
     pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
-        let mut argument = [raw::GfxValueStorage::zeroed()];
-        let gfx = argument[0].handle();
-        // SAFETY: our own value.
-        unsafe {
-            *gfx.kind() = GFX_BOOL;
-            *gfx.value() = u32::from(value);
+        self.invoke_bools(method, [value])
+    }
+
+    /// Invokes the movie's `method` with these bools; whether the movie took
+    /// it.
+    pub fn invoke_bools<const N: usize>(&self, method: &CStr, values: [bool; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, value) in arguments.iter_mut().zip(values) {
+            let gfx = room.handle();
+            // SAFETY: our own value.
+            unsafe {
+                *gfx.kind() = GFX_BOOL;
+                *gfx.value() = u32::from(value);
+            }
         }
-        self.invoke(method, &mut argument)
+        self.invoke(method, &mut arguments)
     }
 
     /// Invokes the movie's `method` with these strings (UTF-8, as the

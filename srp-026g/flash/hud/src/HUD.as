@@ -1816,6 +1816,15 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
+      // The Settings' "Hide hit markers" and "Hide player scores" (exe patch 83, told at once and again at
+      // each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit marker; the
+      // Tab list shows the players' names only, by name.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean) : void
+      {
+         this.crosshair.hitMarkersHidden = hideHitMarkers;
+         this.player_list.players.namesOnly = hideScores;
+      }
+      
       public function show_oxygen(bool:Boolean) : void
       {
          this.oxygen_count.visible = false;

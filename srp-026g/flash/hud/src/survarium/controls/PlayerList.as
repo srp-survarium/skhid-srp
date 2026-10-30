@@ -1,5 +1,6 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.text.TextField;
@@ -24,6 +25,10 @@ package survarium.controls
       private var _playerName:String = "";
       
       private var _autoSizeLists:Boolean = false;
+      
+      // The Settings' "Hide player scores" (exe patch 83): each team's players by name (case-insensitive),
+      // their score, kills, deaths and rank not shown (PlayerListRenderer asks namesOnly).
+      private var _namesOnly:Boolean = false;
       
       public var team1:TextField;
       
@@ -57,6 +62,41 @@ package survarium.controls
       public function get autoSizeLists() : Boolean
       {
          return this._autoSizeLists;
+      }
+      
+      public function get namesOnly() : Boolean
+      {
+         return this._namesOnly;
+      }
+      
+      // A change lays the teams out again, in the other order, their rows drawn again.
+      public function set namesOnly(value:Boolean) : void
+      {
+         if(value == this._namesOnly)
+         {
+            return;
+         }
+         _namesOnly = value;
+         this.showHeaders(!value);
+         if(this._players)
+         {
+            this.splitTeams();
+            this.populateTeams();
+         }
+      }
+      
+      // The columns' headers: the icons the timeline puts over each list, every child but the team
+      // names and the two lists.
+      private function showHeaders(shown:Boolean) : void
+      {
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            var child:DisplayObject = getChildAt(i);
+            if(child != this.team1 && child != this.team2 && child != this.team1list && child != this.team2list)
+            {
+               child.visible = shown;
+            }
+         }
       }
       
       protected function onListIndexChange(e:Event) : void
@@ -231,7 +271,14 @@ package survarium.controls
             trace("team",i,team[i].name,team[i].score,team[i].rank,team[i].kills,team[i].deaths);
          }
          trace("HUD_PL::sort",team);
-         team.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         if(this._namesOnly)
+         {
+            team.sortOn("name",Array.CASEINSENSITIVE);
+         }
+         else
+         {
+            team.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         }
          for(i = 0; i < team.length; i++)
          {
             trace("team",i,team[i].name,team[i].score,team[i].rank,team[i].kills,team[i].deaths);

@@ -2385,6 +2385,8 @@ st_srp_exchange_receive	Dostaneš
 st_srp_exchange_short_gold	Nedostatek zlata
 st_srp_exchange_short_silver	Nedostatek stříbra
 st_srp_exchange_title	Směnit
+st_srp_hide_hit_markers_option	Skrýt ukazatele zásahů
+st_srp_hide_scores_option	Skrýt skóre hráčů
 st_srp_inventory_search	Hledat
 st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.

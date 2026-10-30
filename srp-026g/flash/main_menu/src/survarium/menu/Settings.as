@@ -77,6 +77,18 @@ package survarium.menu
       // of the tab as its options are, saved by Apply.
       protected var _language:SrpLanguage;
       
+      // The gameplay tab's checkboxes the exe keeps in user.cfg (patch 83:
+      // "Hide hit markers", "Hide player scores"): the bottom panel's right side, one
+      // under the other. A toggle is a change of the tab as the Language pick
+      // is, saved by Apply.
+      protected var _checks:Array;
+      
+      private static const CHECKS_X:Number = 418;
+      
+      private static const CHECKS_Y:Array = [292,327];
+      
+      private static const CHECK_NAMES:Array = ["srp_hide_hit_markers","srp_hide_scores"];
+      
       public function Settings()
       {
          super();
@@ -210,6 +222,21 @@ package survarium.menu
       {
          this._language.answer(values);
          this.languageChanged(null);
+      }
+      
+      // The exe's answer to a checkbox of _checks (root.srp_check_option):
+      // its name, label and saved state, which is checked, so no toggle is
+      // pending.
+      public function setCheckOption(values:Array) : void
+      {
+         for each(var option:SrpCheckOption in this._checks)
+         {
+            if(values.length > 0 && option.name == values[0])
+            {
+               option.answer(values.slice(1));
+               this.checkChanged(option);
+            }
+         }
       }
       
       public function selectIndex(tabIndex:uint) : void
@@ -390,6 +417,10 @@ package survarium.menu
                {
                   this._language.save();
                }
+               else if(this.checkOf(control) != null)
+               {
+                  this.checkOf(control).save();
+               }
                elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(control.name));
                if(elementIndex != -1)
                {
@@ -434,6 +465,10 @@ package survarium.menu
             this._changed[control] = 0;
          }
          this._language.revert();
+         for each(var option:SrpCheckOption in this._checks)
+         {
+            option.revert();
+         }
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -467,6 +502,14 @@ package survarium.menu
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
+         this._checks = [];
+         for(var i:int = 0; i < CHECK_NAMES.length; i++)
+         {
+            var option:SrpCheckOption = new SrpCheckOption(this.settings_content,CHECK_NAMES[i],CHECKS_X,CHECKS_Y[i]);
+            this._changed[option.box] = 0;
+            option.box.addEventListener(Event.SELECT,this.onCheckSelect);
+            this._checks.push(option);
+         }
          this._language = new SrpLanguage(this.settings_content);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
@@ -476,6 +519,10 @@ package survarium.menu
       protected function create_content(settings:Array) : void
       {
          SrpFovSlider.apply(this);
+         for each(var option:SrpCheckOption in this._checks)
+         {
+            option.place();
+         }
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -673,6 +720,45 @@ package survarium.menu
          this.checkButtons();
       }
       
+      // The option of _checks whose checkbox `control` is, or null.
+      protected function checkOf(control:Object) : SrpCheckOption
+      {
+         for each(var option:SrpCheckOption in this._checks)
+         {
+            if(option.box == control)
+            {
+               return option;
+            }
+         }
+         return null;
+      }
+      
+      protected function onCheckSelect(event:Event) : void
+      {
+         this.checkChanged(this.checkOf(event.target));
+      }
+      
+      // A toggle of a checkbox of _checks counts as the change of an option:
+      // it is pending while the checkbox is not the saved state.
+      protected function checkChanged(option:SrpCheckOption) : void
+      {
+         var box:CheckBoxSkinned = option.box;
+         if(option.pending)
+         {
+            if(this._changed[box] != 1)
+            {
+               this._changed[box] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[box] == 1)
+         {
+            this._changed[box] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
+      }
+      
       protected function checkButtons() : void
       {
          if(!this._changes)
@@ -750,6 +836,11 @@ package survarium.menu
          _changes = 0;
          this._changed[this._language.menu] = 0;
          this._language.revert();
+         for each(var option:SrpCheckOption in this._checks)
+         {
+            this._changed[option.box] = 0;
+            option.revert();
+         }
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

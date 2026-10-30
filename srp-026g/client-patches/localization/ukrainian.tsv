@@ -2385,6 +2385,8 @@ st_srp_exchange_receive	Отримуєте
 st_srp_exchange_short_gold	Недостатньо золота
 st_srp_exchange_short_silver	Недостатньо срібла
 st_srp_exchange_title	Обмін
+st_srp_hide_hit_markers_option	Приховати хітмаркери
+st_srp_hide_scores_option	Приховати очки гравців
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Застосується після перезапуску.

@@ -13,6 +13,7 @@ struct buffer_string;
 struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
+struct cc_bool;
 struct cc_string;
 struct core_world;
 struct engine_cfg;
@@ -140,7 +141,7 @@ void engine_mouse_ray(void *menu, float *direction, float *eye);
 void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal);
 
 /* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
-void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
+void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);

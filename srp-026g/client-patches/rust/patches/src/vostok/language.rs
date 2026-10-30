@@ -2,40 +2,17 @@
 //! docs/notes/language-option.md): the name every dictionary reader takes
 //! (`raw::image::LOCALIZATION`), the console variable that user.cfg keeps a
 //! choice in, the C locale the engine's start-up sets from the name, the
-//! Windows user locale's language, and the Settings' call
-//! (`game_options::scaleform_callback`) with the movie it answers.
+//! Windows user locale's language. The Settings' call and the save of
+//! user.cfg are [`super::settings`]'s.
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
 
-use super::context::Context;
 use super::hook::Thread;
-use super::ui::{GFX_MANAGED, GFX_STRING, movie_of};
+use super::settings::c_string;
 use crate::raw;
 
 pub use super::ui::MAX_STRINGS;
-
-/// The C string at `text`, read up to `limit` bytes for its zero (none in
-/// them: not a string here). core's `CStr::from_ptr` would call a strlen the
-/// arena does not have.
-///
-/// # Safety
-/// `text` is readable up to its zero or `limit` bytes, alive for `'a`.
-unsafe fn c_string<'a>(text: *const u8, limit: usize) -> Option<&'a CStr> {
-    if text.is_null() {
-        return None;
-    }
-    let mut len = 0;
-    // SAFETY: the caller's: readable up to the zero or `limit`.
-    while len < limit && unsafe { *text.add(len) } != 0 {
-        len += 1;
-    }
-    // SAFETY: as above; `len` bytes and the zero after them.
-    (len < limit).then(|| unsafe { CStr::from_bytes_with_nul_unchecked(core::slice::from_raw_parts(text, len + 1)) })
-}
-
-/// The longest text a GFx argument or the engine's name may be here.
-const TEXT_LIMIT: usize = 0x200;
 
 /// A copy of the game language's name (the engine keeps at most 15 bytes).
 pub struct LanguageName {
@@ -131,13 +108,6 @@ pub fn user_locale(_: &Thread) -> LangId {
     LangId(lcid as u16)
 }
 
-/// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does
-/// when it closes), so a choice survives a crash.
-pub fn save_user_config(_: &Thread) {
-    // SAFETY: the game's own save of every saved console variable.
-    unsafe { raw::engine_save_user_config() }
-}
-
 /// Whether a console variable is in the engine's list yet.
 enum Registration {
     Unregistered,
@@ -213,84 +183,5 @@ impl<const N: usize> ConsoleString<N> {
 impl<const N: usize> Default for ConsoleString<N> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// The Settings' call to the exe at `options.callback`: the movie's
-/// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
-/// start (0x1FF5D0), before the options match the method's name.
-pub struct OptionsCall<'c> {
-    options: raw::GameOptionsInterface,
-    frame: raw::OptionsCallbackFrame,
-    method: &'c CStr,
-    _thread: &'c Thread,
-}
-
-impl<'c> OptionsCall<'c> {
-    pub fn at(ctx: &'c Context<'_>) -> Option<OptionsCall<'c>> {
-        use raw::site::options_callback as site;
-        // SAFETY: the context is this site's: the options' interface and the
-        // callback's frame, alive for the call, on the game's thread; the
-        // method's name a C string the movie gave.
-        let (options, frame, method) = unsafe {
-            let (options, frame) = (site::options(ctx)?, site::frame(ctx)?);
-            (options, frame, c_string(frame.method(), TEXT_LIMIT)?)
-        };
-        Some(OptionsCall { options, frame, method, _thread: ctx.thread() })
-    }
-
-    pub fn method(&self) -> &CStr {
-        self.method
-    }
-
-    /// The call's argument `index` when it is a string.
-    pub fn string_argument(&self, index: u32) -> Option<&CStr> {
-        // SAFETY: the callback's arguments and their count, alive for the
-        // call; a string's text (managed: its node's) a C string as long.
-        unsafe {
-            let count = *self.frame.count();
-            let values = self.frame.arguments()?;
-            if index >= count {
-                return None;
-            }
-            let value = values.at(index as usize);
-            let kind = *value.kind();
-            if kind & 0x3F != GFX_STRING {
-                return None;
-            }
-            let text = if kind & GFX_MANAGED != 0 {
-                value.managed().map_or(core::ptr::null_mut(), |node| node.text())
-            } else {
-                value.text()
-            };
-            c_string(text, TEXT_LIMIT)
-        }
-    }
-
-    /// A dictionary text of the running language (text_translator::
-    /// translate_text 0x1FF0F0, the key itself when the dictionary has none)
-    /// into `out`.
-    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
-        out[0] = 0;
-        // SAFETY: the options' game and its text translator, alive for the
-        // call; translate_text copies a text shorter than 200h bytes with its
-        // zero into `out` (0x1FF15D) and leaves it alone otherwise.
-        unsafe {
-            if let Some(game) = self.options.game() {
-                raw::engine_translate_text(Some(game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
-            }
-        }
-        out[0x1FF] = 0;
-        CStr::from_bytes_until_nul(out).unwrap_or(c"")
-    }
-
-    /// Answers the main menu (the movie that called): invokes its `method`
-    /// with these strings (UTF-8, as the dictionaries are), at most
-    /// [`MAX_STRINGS`]; whether the movie took it.
-    pub fn answer(&self, method: &CStr, values: &[&CStr]) -> bool {
-        // SAFETY: the options' menu, a movie holder alive for the call, on the
-        // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
-        let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
-        movie.invoke_strings(method, values)
     }
 }
