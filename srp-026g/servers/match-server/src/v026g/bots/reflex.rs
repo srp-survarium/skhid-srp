@@ -503,6 +503,15 @@ pub struct CombatTuning {
     /// the volley adding nothing (A181 #10, 4 seeds, 16 maps): it threw at the first's place 3.4 s later whatever had happened
     /// there; the humans' second throw (5,101 lives with a throw, 2,054 pairs within 6 s) kills 14.7 per 100 when an enemy is within
     /// 10 m of the blast and 4.5 when none is, 18.9 against 3.8 at the gaps of 3-4 s. Off: the volley as it was.
+    ///
+    /// Bench (A187 #10, smoke preset, 10 a side, 16 maps; OFF is the verdict, so both switches stay off): the enemy of the bench
+    /// is a bot that dodges (it moves a median 6.1-6.9 m between the two blasts, the humans' enemy 1.9 m) and the second grenade
+    /// lands on empty ground. By side (the team with the switch against the team without, sides swapped, 64 pairs): targets with
+    /// the avoidance on, score z +0.2 (D +0.74, SE 3.23); targets without it, a human stand-in, z +0.4 (D +1.17, SE 2.73): not
+    /// settled either way. Six seeds, avoidance off for both: enemy kills per 100 throws 11.6 without the volley, 9.5 with it
+    /// (the same place), 8.5 with the evidence; the thrower killed 0.2 / 0.0 / 0.4 and mates 1.3 / 0.8 / 0.8 per 100 throws. Against
+    /// a still hidden camper (64 map-runs an arm): 0 camper deaths at blasts in all three arms, second grenades near him 1 / 2 / 0;
+    /// the limit there is the first grenade's place.
     pub grenade_volley_track: bool,
     /// ... the evidence is within this of the first grenade's place, metres (the blast's reach).
     pub grenade_volley_near_m: f32,
