@@ -409,7 +409,8 @@ impl SmokeCounts {
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
         use smoke::tally::Event::{
-            AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedAny, OutrangedNoPlan, SightLost, Spray, WatchBusy,
+            AimLost, ClaimRefused, CloudThere, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedAny, OutrangedNoPlan, SightLost, Spray,
+            UnderCloud, WatchBusy,
         };
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
@@ -464,6 +465,9 @@ impl SmokeCounts {
             "smoke_outranged_planned": by(Outranged),
             "smoke_outranged_no_plan": by(OutrangedNoPlan),
             "smoke_outranged_any": by(OutrangedAny),
+            "smoke_plans_cloud_there": by(CloudThere),
+            "smoke_plans_claim_refused": by(ClaimRefused),
+            "smoke_crossings_under_cloud": by(UnderCloud),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -478,7 +482,7 @@ impl SmokeCounts {
             "smoke_rest_deaths_by_class": classes(1),
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -499,6 +503,9 @@ impl SmokeCounts {
             by(Outranged),
             by(OutrangedNoPlan),
             by(OutrangedAny),
+            by(CloudThere),
+            by(ClaimRefused),
+            by(UnderCloud),
             self.hits_through,
             self.spray_hits,
             self.kills_through,

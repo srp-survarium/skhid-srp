@@ -1370,6 +1370,27 @@ impl ThreatSpots {
             .collect()
     }
 
+    /// [`Self::covered_regions`], less the regions `hidden` says smoke hides from the spot's shooter (given his feet and the
+    /// region), and the regions so opened (covered by no held spot's clear line). `smoke.spot_rules`.
+    pub fn covered_regions_smoked(&self, now: u32, hidden: impl Fn(Vec3, u32) -> bool) -> (Vec<u32>, Vec<u32>) {
+        let (mut covered, mut opened) = (Vec::new(), Vec::new());
+        for spot in self.held(now) {
+            for &r in spot.covered().into_iter().flatten() {
+                if hidden(spot.at, r) {
+                    opened.push(r);
+                } else {
+                    covered.push(r);
+                }
+            }
+        }
+        covered.sort_unstable();
+        covered.dedup();
+        opened.sort_unstable();
+        opened.dedup();
+        opened.retain(|r| covered.binary_search(r).is_err());
+        (covered, opened)
+    }
+
     /// The held spots as the plays read them ([`Picture`]).
     pub fn held_lines(&self, now: u32, rules: SpotRules) -> Vec<HeldLine> {
         self.held(now)
