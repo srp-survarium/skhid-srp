@@ -2423,13 +2423,15 @@ mod tests {
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
     }
 
-    /// [A145] The rule for killed holders' spots is on by default, off in the all-off patch, validated and read from a patch.
+    /// [A145] The rule for killed holders' spots is off by default (benched inert), validated and read from a patch.
     #[test]
-    fn the_defeated_rule_is_on_by_default_off_in_the_all_off_patch_and_validated() {
+    fn the_defeated_rule_is_off_by_default_validated_and_read_from_a_patch() {
         use crate::v026g::bots::tuning::{DefeatedTuning, Tuning};
-        assert_eq!(Tuning::default().traps.at_defeated, Some(DefeatedTuning::default()));
+        assert_eq!(Tuning::default().traps.at_defeated, None);
         assert_eq!(Tuning::all_off().traps.at_defeated, None);
+        assert_eq!(DefeatedTuning::default().min_kills, 2);
         let mut bad = Tuning::default();
+        assert!(bad.validate().is_ok());
         bad.traps.at_defeated = Some(DefeatedTuning { within_m: 0.5, ..DefeatedTuning::default() });
         assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated");
         bad.traps.at_defeated = Some(DefeatedTuning { friend_m: 1.0, ..DefeatedTuning::default() });

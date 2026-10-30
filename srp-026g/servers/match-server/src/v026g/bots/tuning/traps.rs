@@ -41,7 +41,12 @@ pub struct TrapTuning {
     /// A trap on the spot of a holder the team killed (A145): the place a killed enemy held (`know::Defeated`: a held threat spot
     /// of his, or a place the killer's senses had him staying at) is a spot the next one comes to; a carrier whose route passes it
     /// waits and puts the trap there, with the same gates as any trap (the enemy near, the friends, the team's own traps and the
-    /// spawn area) and a wider guard for mates. `None`: the habit as it was.
+    /// spawn area) and a wider guard for mates. **Off by default** (`None`: the habit as it was): the owner's idea, built and benched
+    /// on v5 map data and found inert. The narrowed rule (holders only) put 15 traps on such spots in 112 team-matches of the traps
+    /// preset and 13 in 112 of the camper configs (stand-in camper at place 10 / 0), caught no more than the lane rule's pick, and
+    /// changed nothing in the match (wins 89 = 89, score -0.1 %); the rule over any killer's spot caught less (0.10 a trap). A holder
+    /// is back within 3 m of his death place in 120 s in 27-40 % of cases (his team's other bots 21-22 %), but the carriers seldom
+    /// pass it: of the candidates at a wished spot the floor, their own route and a mate near refuse most.
     pub at_defeated: Option<DefeatedTuning>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
@@ -284,7 +289,7 @@ impl Default for TrapTuning {
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
-            at_defeated: Some(DefeatedTuning::default()),
+            at_defeated: None,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
