@@ -1,6 +1,7 @@
 {
   "aim": {
     "combat": {
+      "aim_last_known": false,
       "band_carrier_seen_ms": 0,
       "fire": {
         "weapon_class_by_data": false
@@ -65,6 +66,7 @@
   },
   "grid": {
     "client_numbers": false,
+    "crouch_floors": false,
     "exact_erosion": false,
     "floor_paths": false,
     "gap_links": false,
@@ -102,6 +104,9 @@
     "reserve": null,
     "ring_death_spots": false,
     "ring_radar": false
+  },
+  "spacing": {
+    "apart": false
   },
   "sense": {
     "bush_notice": 0.0,

@@ -1,0 +1,99 @@
+owner-test steals: team 0: steals 0 (bot/stand-in [0, 0], by play {}), mates within 15 m [0, 0, 0, 0] within 30 m [0, 0, 0, 0, 0], the group 10 s before [0, 0, 0, 0, 0], enemies within 30 m [0, 0, 0, 0] (known [0, 0, 0, 0]), age median 0 s, chance 0 s of which tried 0 s = 0 %; team 1: steals 0 (bot/stand-in [0, 0], by play {}), mates within 15 m [0, 0, 0, 0] within 30 m [0, 0, 0, 0, 0], the group 10 s before [0, 0, 0, 0, 0], enemies within 30 m [0, 0, 0, 0] (known [0, 0, 0, 0]), age median 0 s, chance 0 s of which tried 0 s = 0 %
+{
+  "steals": {
+    "by_team": {
+      "0": {
+        "chance_s": 0.0,
+        "chance_tried_s": 0.0,
+        "steal_age_median_s": 0.0,
+        "steal_age_p25_s": 0.0,
+        "steal_age_p75_s": 0.0,
+        "steal_enemies_known_within_30": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_enemies_within_30": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_group_10s_before": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_mates_within_15": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_mates_within_30": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "steals": 0,
+        "steals_a_bot_minute": 0.0,
+        "steals_by_bot_standin": [
+          0,
+          0
+        ],
+        "steals_by_play": {}
+      },
+      "1": {
+        "chance_s": 0.0,
+        "chance_tried_s": 0.0,
+        "steal_age_median_s": 0.0,
+        "steal_age_p25_s": 0.0,
+        "steal_age_p75_s": 0.0,
+        "steal_enemies_known_within_30": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_enemies_within_30": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_group_10s_before": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_mates_within_15": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "steal_mates_within_30": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "steals": 0,
+        "steals_a_bot_minute": 0.0,
+        "steals_by_bot_standin": [
+          0,
+          0
+        ],
+        "steals_by_play": {}
+      }
+    }
+  }
+}

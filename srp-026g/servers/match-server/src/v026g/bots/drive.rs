@@ -1553,6 +1553,34 @@ fn drive_tick_inner(
             decision.keys = keys;
         }
     }
+    // [spacing.apart] A teammate inside the body (no collision between teammates): a step away from him, over the ground the fight's own test finds clear. Not while the reflex
+    // strafes or fires, nor while a use is held, nor with a side key already down.
+    #[cfg(test)]
+    {
+        bot.bench_apart = 0;
+    }
+    if tuning.spacing.apart {
+        let away = apart::key_away(me, view, tuning.spacing.apart_m.get());
+        if away != 0 {
+            let follows = !tuning.spacing.apart_follow
+                && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
+            let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
+            let keys = decision.keys | away;
+            let to = me.feet + side_step(keys, away, me.yaw, tactics.clear_step_sees_lip);
+            let clear = !held_off && tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+            if clear {
+                decision.keys = keys;
+            }
+            let eased = !held_off && !clear && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
+            if eased {
+                decision.keys &= !(key::FORWARD | key::SPRINT);
+            }
+            #[cfg(test)]
+            {
+                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else { 2 };
+            }
+        }
+    }
     // [lip guard] On a lip's floors the keys of this tick are played forward to a stop: a key that carries the
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was

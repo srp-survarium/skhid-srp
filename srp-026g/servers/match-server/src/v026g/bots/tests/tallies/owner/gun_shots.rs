@@ -66,6 +66,20 @@ impl TargetState {
     }
 }
 
+/// The first shot of a run of the fire key, by what the shooter had done before it: how long the aim key had been held unbroken
+/// and how long the view had been within [`DWELL_DEG`] of an enemy unbroken (the humans' definitions, `aim_to_shot.py`: the
+/// recordings' bolt and VSK-94 first shots, 190 recordings). Bins by ms (upper edges, the last takes the rest):
+/// 100, 200, 300, 500, 750, 1,000, 1,500, 2,000, 3,000, 4,000, 5,000, 7,500, 10,000, 15,000, more.
+const WAIT_BINS_MS: [u32; 14] = [100, 200, 300, 500, 750, 1_000, 1_500, 2_000, 3_000, 4_000, 5_000, 7_500, 10_000, 15_000];
+/// The distance bands of those counts, m (upper edges, the last takes the rest): 0-20, 20-40, 40-80, 80 and more.
+const WAIT_BANDS_M: [f32; 3] = [20.0, 40.0, 80.0];
+/// The view is on an enemy within this of his bearing, degrees (horizontal, as the recordings' reading of the humans).
+const DWELL_DEG: f32 = 10.0;
+
+fn wait_bin(ms: u32) -> usize {
+    WAIT_BINS_MS.iter().position(|&edge| ms < edge).unwrap_or(WAIT_BINS_MS.len())
+}
+
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
@@ -110,6 +124,10 @@ struct Acc {
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
+    /// The first shots of a run of the fire key (with a target) by distance band ([`WAIT_BANDS_M`]) and wait bin
+    /// ([`WAIT_BINS_MS`]): the aim held before them, and the dwell on an enemy before them.
+    first_aim: [[u32; 15]; 4],
+    first_dwell: [[u32; 15]; 4],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
@@ -132,6 +150,11 @@ pub(super) struct GunShots {
     still: Vec<u32>,
     /// What drives each bot this tick ([`Driver`]), read in [`Topic::read`].
     driver: Vec<Option<Driver>>,
+    /// Since when (game ms) each body's aim key has been held unbroken, and its view has been on an enemy unbroken; whether
+    /// its fire key was down the tick before.
+    aim_since: Vec<Option<u32>>,
+    on_since: Vec<Option<u32>>,
+    was_firing: Vec<bool>,
 }
 
 /// What moves a bot: the reflex's legs, else the play it runs (and whether the play is going somewhere), read from the bot.
@@ -155,7 +178,15 @@ impl Driver {
 
 impl GunShots {
     pub(super) fn new(n: usize) -> Self {
-        Self { groups: BTreeMap::new(), open: vec![None; n], still: vec![0; n], driver: vec![None; n] }
+        Self {
+            groups: BTreeMap::new(),
+            open: vec![None; n],
+            still: vec![0; n],
+            aim_since: vec![None; n],
+            on_since: vec![None; n],
+            was_firing: vec![false; n],
+            driver: vec![None; n],
+        }
     }
 
     fn close(&mut self, place: Place) {
@@ -186,6 +217,27 @@ impl Topic for GunShots {
             let speed = body.step_vec.length() / TICK_S;
             *still = if speed < STILL_MPS { *still + 1 } else { 0 };
         }
+        // What each body has been doing without a break: the aim key held, the view on an enemy.
+        let now = game.tick;
+        for place in 0..game.bodies.len().min(self.aim_since.len()) {
+            let body = &game.bodies[place];
+            if !body.alive {
+                (self.aim_since[place], self.on_since[place]) = (None, None);
+                continue;
+            }
+            self.aim_since[place] = if body.keys & key::AIM != 0 { self.aim_since[place].or(Some(now)) } else { None };
+            let on = game.bodies.iter().any(|other| {
+                other.alive
+                    && other.team != body.team
+                    && crate::v026g::bots::kin::wrap(
+                        crate::v026g::bots::kin::yaw_of([other.feet.x - body.feet.x, other.feet.z - body.feet.z]) - body.yaw,
+                    )
+                    .abs()
+                    .to_degrees()
+                        <= DWELL_DEG
+            });
+            self.on_since[place] = if on { self.on_since[place].or(Some(now)) } else { None };
+        }
         let facts: Vec<_> = game.shot_facts.clone();
         for fact in facts {
             let Some(body) = game.bodies.get(fact.shooter) else { continue };
@@ -211,6 +263,12 @@ impl Topic for GunShots {
             b.hits += u32::from(hit);
             let Some((target, distance, off)) = fact.target else { continue };
             let a = self.groups.entry(key).or_default();
+            if off <= ON_DEG && !self.was_firing.get(shooter).copied().unwrap_or(true) {
+                let band = WAIT_BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(WAIT_BANDS_M.len());
+                let held = |since: Option<u32>| since.map_or(0, |since| tick.saturating_sub(since));
+                a.first_aim[band][wait_bin(held(self.aim_since[shooter]))] += 1;
+                a.first_dwell[band][wait_bin(held(self.on_since[shooter]))] += 1;
+            }
             a.shots_all += 1;
             if off > ON_DEG {
                 continue;
@@ -267,6 +325,9 @@ impl Topic for GunShots {
             a.cone_sum += f64::from(fact.cone);
             a.off_sum += f64::from(off);
         }
+        for (firing, body) in self.was_firing.iter_mut().zip(&game.bodies) {
+            *firing = body.alive && body.keys & key::FIRE != 0;
+        }
     }
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -293,6 +354,8 @@ impl Topic for GunShots {
                     "cone_deg_sum": a.cone_sum,
                     "off_deg_sum": a.off_sum,
                     "on_him": a.on_him,
+                    "first_aim": a.first_aim,
+                    "first_dwell": a.first_dwell,
                     "lateral_sum": a.lateral_sum,
                     "speed_sum": a.speed_sum,
                     "by_state": a.by_state,
@@ -374,7 +437,36 @@ mod tests {
         assert_eq!(TargetState::of(0, 0.1, 450), TargetState::StillLong);
     }
 
-    /// Three shots of a 600 rpm rifle 100 ms apart (two hit), 2 s of quiet, then a single shot: a burst of 3 with 2 hits, a
+    /// The first shot of a run of the fire key is counted with the time the aim key had been held and the time the view had been on
+    /// an enemy: a shooter aiming at one 30 m ahead from tick 0, firing from tick 40 (2 s), is a first shot after 2 s in both; the second
+    /// shot of the same run is not a first shot.
+    #[test]
+    fn the_first_shot_of_a_run_is_counted_with_the_aim_held_and_the_dwell_on_an_enemy() {
+        let (mut game, mut tally) = made_up(&[0, 1]);
+        play(&mut game, &mut tally, 60, |k, game| {
+            let fire = if k >= 40 { key::FIRE } else { 0 };
+            put(game, 0, 10.0, 10.0, key::AIM | fire);
+            put(game, 1, 10.0, 40.0, 0);
+            game.bodies[0].yaw = 0.0; // facing +z, at the enemy
+            game.bodies[0].gun = gun("vsk_94").expect("a gun");
+            game.shot_facts.clear();
+            if k == 40 || k == 42 {
+                game.shot_facts.push(shot(game, false));
+            }
+            vec![bot_now(); 2]
+        });
+        let (_, json) = tally.finish(&game);
+        let g = &json["gun_shots"]["vsk_94/bots"];
+        // The shooter put its aim key down at tick 0 (50 ms) and fires from tick 40 (2,050 ms): 2,000 ms of aim held and of dwell on the
+        // enemy 30 m away (band 20-40 m), in the bin 2,000-3,000 ms; the shot at tick 42 is in the same run.
+        let bin = wait_bin(2_000);
+        assert_eq!(g["first_aim"][1][bin], 1, "{json}");
+        assert_eq!(g["first_dwell"][1][bin], 1, "{json}");
+        let first: u64 = g["first_aim"].as_array().unwrap().iter().flat_map(|band| band.as_array().unwrap()).map(|n| n.as_u64().unwrap()).sum();
+        assert_eq!(first, 1, "one first shot, not two: {json}");
+    }
+
+    /// Three shots of a 600 rpm rifle (two hit), 2 s of quiet, then a single shot: a burst of 3 with 2 hits, a
     /// burst of 1 with none and one pause of 1-3 s, all in the group of the gun and the bots.
     #[test]
     fn a_burst_is_shots_close_together_and_a_pause_is_the_gap_between_two() {

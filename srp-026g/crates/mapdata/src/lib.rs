@@ -123,8 +123,9 @@ pub const WALK_OFF_LIPS_ALGO: u32 = 1;
 pub const LANDING_CARRY_ALGO: u32 = 3;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
-/// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius).
-pub const EXACT_EROSION_ALGO: u32 = 2;
+/// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
+/// cylinder is met at a smaller reach) and the floors only a crouched capsule fits by the walls kept, crouch-only.
+pub const EXACT_EROSION_ALGO: u32 = 3;
 /// The same for the honest drops pass (`Body::drop_flight_mps` over 0: a Drop is kept only if the body that walks off comes
 /// down within the harmless fall, `WalkGrid::drop_deep_flights`), in [`grid_key_with_links`] only for a body that asks for it.
 /// Raised with any change to which Drops that pass keeps; the pinned digest of `tests/pinned_passes.rs` fails until then.
@@ -227,6 +228,10 @@ pub fn grid_key_with_links(
     // The cells' erosion is the default: its keys are the ones there were.
     if body.erosion == Erosion::Exact {
         digest.u32(EXACT_EROSION_ALGO);
+        // The floors only a crouched capsule fits are taken away: another grid (a key part only then).
+        if !body.crouch_only_floors {
+            digest.u32(EXACT_EROSION_ALGO + 100);
+        }
     }
     // The lips at the walk-offs are a switch: the keys of grids without them are the ones there were.
     if body.walk_off_lips {
@@ -235,6 +240,10 @@ pub fn grid_key_with_links(
     // The carried landings are a switch too.
     if body.landing_carry {
         digest.u32(LANDING_CARRY_ALGO);
+        // Without the last-resort links is another grid (a key part only then: the keys of the others are the ones there were).
+        if !body.keep_last_resorts {
+            digest.u32(LANDING_CARRY_ALGO + 100);
+        }
     }
     // The default body's keys are the ones there were.
     if body.client_slope() {
