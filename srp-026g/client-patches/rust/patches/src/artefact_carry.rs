@@ -164,6 +164,8 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 let owner = owners.get_mut(key);
                 if owner.carry.artefact() != saved.artefact() { owner.attachment = None; }
                 owner.carry = saved;
+                // A rollback that takes the death back: the next death records afresh.
+                if player.alive() { owner.death = None; }
             });
         }
     Flow::Continue
@@ -298,9 +300,10 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
     // A dead body's weapon is drawn natively (its optics update their
     // models): its models go back here before it, unless it died carrying,
     // when they stay out and the native draw is skipped, as while alive.
-    let hide = match death_hands(&player, ctx.thread()) {
-        Some(hands) => hands == Hands::Artefact,
-        None => player.alive() && machine(&player, ctx).presentation(player.carry_time()).hide_weapon,
+    let hide = if player.alive() {
+        machine(&player, ctx).presentation(player.carry_time()).hide_weapon
+    } else {
+        death_hands(&player, ctx.thread()) == Some(Hands::Artefact)
     };
     let hidden = HIDDEN.with(ctx.thread(), |weapons| native::weapon_visibility(ctx, hide, weapons));
     if hidden { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }
