@@ -267,6 +267,21 @@ impl Cloud {
 pub struct Clouds(Vec<Cloud>);
 
 impl Clouds {
+    /// [planning] The clouds a smoke plan of `team`'s counts at `clock`, each at its full size from now (the owner: "they
+    /// shouldnt throw smoke if smoke is already there"): every cloud live or forming, of either team (a puff is seen by
+    /// all), and the team's own still in the air (thrown, and told: its thrower's mates know it), until it ends.
+    pub fn planning(&self, clock: u32, team: u8) -> Self {
+        let at = MatchMs(clock);
+        Self(
+            self.0
+                .iter()
+                .filter(|c| at < c.ends() && (at >= c.pours || c.team == team))
+                // Full now: poured at least its forming time ago (one already older keeps its age).
+                .map(|c| Cloud { pours: MatchMs(c.pours.0.min(clock.saturating_sub(c.shape.forming_ms))), ..*c })
+                .collect(),
+        )
+    }
+
     pub fn new(clouds: Vec<Cloud>) -> Self {
         Self(clouds)
     }
@@ -746,6 +761,13 @@ pub mod tally {
         OutrangedNoPlan,
         /// [smoke.anti_sniper] A think outranged by a sniper it saw within 15 s, whatever its kit or hands.
         OutrangedAny,
+        /// [smoke.spot_rules] A smoke plan refused: smoke is there already (a cloud live or forming, or the team's in the
+        /// air), or a mate's live claim is within `claim_m` of it or on the same shooter.
+        CloudThere,
+        ClaimRefused,
+        /// [smoke.spot_rules] A bot's route ahead (`lane_ahead_m`) enters ground a held lane covers but a cloud hides from
+        /// its shooter now: it crosses under the cloud (counted once a crossing, 10 s apart a bot).
+        UnderCloud,
     }
 
     impl Event {
@@ -758,7 +780,7 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 12;
+    pub const EVENTS: usize = 15;
 
     /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
     /// died (the life ended with it under way). Every throw begun ends in one of the last three.
@@ -876,6 +898,7 @@ pub mod tally {
     /// A match begins on this thread: the per-place records of the last one go (places are reused).
     pub fn begin_match() {
         SNIPER_CROSSINGS.with(|s| s.borrow_mut().clear());
+        UNDER_CLOUD.with(|s| s.borrow_mut().clear());
         THREW.with(|s| s.borrow_mut().clear());
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
         SPRAYED.with(|s| s.borrow_mut().clear());
@@ -889,6 +912,26 @@ pub mod tally {
     /// When the bot at `place` last let go of a smoke.
     pub fn last_threw(place: usize) -> Option<u32> {
         THREW.with(|s| s.borrow().get(&place).copied())
+    }
+
+    thread_local! {
+        static UNDER_CLOUD: std::cell::RefCell<std::collections::BTreeMap<usize, u32>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` crosses under an existing cloud (`commander::under_cloud`): counted once 10 s apart.
+    pub fn under_cloud(place: usize, team: u8, now: u32) {
+        let fresh = UNDER_CLOUD.with(|s| {
+            let mut s = s.borrow_mut();
+            let fresh = s.get(&place).is_none_or(|&t| now.saturating_sub(t) >= 10_000);
+            if fresh {
+                s.insert(place, now);
+            }
+            fresh
+        });
+        if fresh {
+            add(team, Event::UnderCloud);
+        }
     }
 
     /// When the bot at `place` last fired a spray.
@@ -1430,5 +1473,32 @@ mod scenarios {
                 println!("known_clouds_cost: {count} clouds, {row}: {ns:.0} ns a think ({watches} watches)");
             }
         }
+    }
+
+    /// A plan counts every cloud live or forming, of either team, and its own team's in the air, each at its full size;
+    /// not another team's in the air, nor one ended.
+    #[test]
+    fn a_plan_counts_clouds_forming_and_its_teams_in_the_air() {
+        let cloud = |team: u8, pours: u32| Cloud {
+            by: 0,
+            team,
+            placed: Placed::Arc,
+            centre: Vec3::new(10.0, 0.0, 0.0),
+            thrown: MatchMs(pours.saturating_sub(4_000)),
+            pours: MatchMs(pours),
+            shape: SmokeGrenade::RDG_M.cloud,
+        };
+        let t = SmokeTuning::default();
+        let (eye, point) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(20.0, 1.3, 0.0));
+        let covers = |c: Cloud, team: u8, clock: u32| Clouds::new(vec![c]).planning(clock, team).covers(clock, &t, eye, point);
+        // In the air (pours later): its team's counts, the other's not; live clouds miss it.
+        assert!(covers(cloud(0, 5_000), 0, 2_000), "own in the air");
+        assert!(!covers(cloud(0, 5_000), 1, 2_000), "the other team's in the air");
+        assert!(!Clouds::new(vec![cloud(0, 5_000)]).covers(2_000, &t, eye, point), "#801's test missed it");
+        // Forming (poured 300 ms ago): either team's.
+        assert!(covers(cloud(0, 5_000), 1, 5_300), "forming, the other team");
+        // Ended: none.
+        let ended = cloud(0, 5_000).ends().0 + 1;
+        assert!(!covers(cloud(0, 5_000), 0, ended), "ended");
     }
 }

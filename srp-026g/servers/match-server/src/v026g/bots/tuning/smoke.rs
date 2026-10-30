@@ -77,6 +77,22 @@ pub struct SmokeTuning {
     /// A life smokes this many snipers' lines at most; its own count beside `lanes_a_life` (a crossing a lane smoke
     /// already covers is not smoked again, the cloud test).
     pub snipers_a_life: u32,
+    /// The owner's rules for every smoke use (2026-10-30): "they shouldnt throw smoke if smoke is already there (they should
+    /// plan near smoke if its nearby) and several bots at a time should not plan to smoke near same spot".
+    /// - A plan counts every cloud live or forming, of either team, and the team's own still in the air, at full size
+    ///   (`Clouds::planning`), where it only counted live clouds.
+    /// - A region a cloud hides from a held lane's shooter is not covered while it stands: routes cross under it (the
+    ///   detour weighs the lanes) and no smoke is planned for it.
+    /// - A plan is the team's for `claim_ms`: no mate plans one within `claim_m` of its landing or against the same
+    ///   shooter (`TeamKnowledge::smoke_claimed`).
+    ///
+    /// Off: #801's rules.
+    pub spot_rules: bool,
+    /// A mate's planned smoke keeps others off within this of its landing, metres: RDG-M's cloud radius.
+    pub claim_m: Metres,
+    /// For this long after it was planned, ms: the throw's turn, hold and launch (`grenade_give_up_ms` 1.5 s +
+    /// `grenade_launch_ms` 1.1 s + the look after 0.3 s); thrown, the cloud in the air counts.
+    pub claim_ms: u32,
 }
 
 impl SmokeTuning {
@@ -106,6 +122,9 @@ impl Default for SmokeTuning {
             lane_open_m: Metres::of(5.0),
             anti_sniper: false,
             snipers_a_life: 1,
+            spot_rules: true,
+            claim_m: Metres::of(8.0),
+            claim_ms: 3_000,
         }
     }
 }

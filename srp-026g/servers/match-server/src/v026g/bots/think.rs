@@ -586,8 +586,8 @@ const LANE_OPEN_LOOK_M: f32 = 20.0;
 /// outranges it (`anti_sniper`), or across a held lane its route enters ahead (`cross_lane`). Only against an enemy
 /// the team sensed within [`super::smoke::FAIR_SENSED_MS`], with a smoke in the kit and the hands free; one note
 /// per throw decided.
-fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
-    use super::smoke::{self, FAIR_SENSED_MS, SmokeUse};
+fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, notes: &mut Vec<Note>) {
+    use super::smoke::{self, SmokeUse};
     let Due {
         now,
         view,
@@ -602,7 +602,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         && bot
             .reflex
             .outranged_by()
-            .is_some_and(|(_, _, seen)| view.clock.saturating_sub(seen) <= FAIR_SENSED_MS)
+            .is_some_and(|(_, _, seen)| view.clock.saturating_sub(seen) <= smoke::FAIR_SENSED_MS)
     {
         smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
     }
@@ -619,6 +619,16 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     };
     let thin = t.thin_m.get();
     let eye_over = Vec3::new(0.0, 1.6, 0.0);
+    // Smoke there already: with `spot_rules` every cloud live or forming and the team's own in the air, at full size.
+    let planning = view.smoke.planning(view.clock, bot.team);
+    let smoke_there = |eye: Vec3, point: Vec3| {
+        let there = if t.spot_rules { planning.covers(view.clock, t, eye, point) } else { view.smoke.covers(view.clock, t, eye, point) };
+        #[cfg(test)]
+        if there && t.spot_rules {
+            smoke::tally::add(bot.team, smoke::tally::Event::CloudThere);
+        }
+        there
+    };
     // Not running a gap already: a bot holding a sprint is across before the cloud forms (0.7 s), as a player sprinting
     // a gap does not stop to smoke it.
     let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
@@ -667,7 +677,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         }
         let (who, eye, crossing_s, crossing) = sniper_crossing?;
         let chest = crossing + chest_over;
-        if view.smoke.covers(view.clock, t, eye, chest) || !open_from(eye, crossing_s) {
+        if smoke_there(eye, chest) || !open_from(eye, crossing_s) {
             return None;
         }
         smoke::smoke_between(&reach, eye, crossing, thin, SmokeUse::AntiSniper).map(|plan| {
@@ -675,7 +685,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
                 "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
                 eye.x, eye.y - eye_over.y, eye.z, crossing.x, crossing.y, crossing.z
             );
-            (plan, why)
+            (plan, why, eye)
         })
     };
     let sniper = sniper();
@@ -707,7 +717,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             .filter(|l| tactics.sees(l.at + eye_over, chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
         // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.
-        if view.smoke.covers(view.clock, t, held.at + eye_over, chest) {
+        if smoke_there(held.at + eye_over, chest) {
             return None;
         }
         if !open_from(held.at + eye_over, crossing_s) {
@@ -718,13 +728,22 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
                 held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
             );
-            (plan, why)
+            (plan, why, held.at + eye_over)
         })
     };
-    let Some((plan, why)) = sniper.or_else(lane) else {
+    let Some((plan, why, against)) = sniper.or_else(lane) else {
         return;
     };
+    // A mate's live plan near its landing or against the same shooter: none of its own.
+    if t.spot_rules && knowledge.smoke_claimed(bot.place, plan.at, against, now, t.claim_m.get(), t.claim_ms) {
+        #[cfg(test)]
+        smoke::tally::add(bot.team, smoke::tally::Event::ClaimRefused);
+        return;
+    }
     if bot.reflex.start_smoke(plan, now) {
+        if t.spot_rules {
+            knowledge.claim_smoke(know::SmokeClaim { who: bot.place, at: plan.at, against, time: now });
+        }
         #[cfg(test)]
         {
             smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
@@ -795,7 +814,7 @@ pub(super) fn react(
         Some((victim, until)) => state.knowledge.wounds.push_claim(victim, bot.place, until),
         None => state.knowledge.wounds.push_release(bot.place),
     }
-    smoke_uses(due, bot, notes);
+    smoke_uses(due, bot, &mut state.knowledge, notes);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);

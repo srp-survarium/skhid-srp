@@ -11,7 +11,7 @@ switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
-switches ON smoke: cross_lane react_watch sight
+switches ON smoke: cross_lane react_watch sight spot_rules
 switches ON spacing: buddy
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: area crossfire_out_of_lines detour job job_line_by_id job_objective job_open_staffed lane_weighted lanes_pierce pair_up_hidden recast spots sprint trade_out_of_lines whole_route whole_route_booked
