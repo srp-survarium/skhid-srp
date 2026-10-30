@@ -1052,13 +1052,55 @@ mod tests {
                     committed: false,
                 },
             ];
-            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], None);
+            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], Pass::default());
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
         assert_eq!(run(&[]), (collect, roam));
         assert_eq!(run(&[1]), (roam, collect));
+    }
+
+    /// [A192] A holder that leaves its slot for a higher band frees it for
+    /// the bots after it in the same pass with `commit.held_in_pass`; off,
+    /// the slot stays held to the next pass and the teammate takes a filler.
+    #[test]
+    fn a_slot_left_earlier_in_the_pass_is_free_for_the_rest_of_it_with_the_switch() {
+        let current = Assignment {
+            kind: PlayKind::Collect,
+            target: TargetRef::Battery(0),
+            slot: Some(SlotKey { kind: PlayKind::Collect, key: 0 }),
+            score: 0.6,
+            since: 900,
+            reason: "the best play",
+        };
+        let run = |held_in_pass: bool| {
+            let asking = vec![
+                Asking {
+                    place: 2,
+                    candidates: vec![
+                        c(PlayKind::Collect, Rank::Objective, 0.5, Some(0), 0),
+                        c(PlayKind::Crossfire, Rank::Fight, 0.9, None, 8),
+                    ],
+                    current: None,
+                    committed: false,
+                },
+                Asking {
+                    place: 1,
+                    candidates: vec![
+                        c(PlayKind::Collect, Rank::Objective, 0.6, Some(0), 0),
+                        c(PlayKind::Trade, Rank::Alarm, 0.9, None, 5),
+                    ],
+                    current: Some(&current),
+                    committed: false,
+                },
+            ];
+            let out = assign_trapped(asking, 1_000, 0.0, &[], &[], Pass { gang: None, held_in_pass });
+            let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
+            (of(1), of(2))
+        };
+        assert_eq!(run(false), (PlayKind::Trade, PlayKind::Crossfire), "off: a filler for one pass");
+        assert_eq!(run(true), (PlayKind::Trade, PlayKind::Collect));
     }
 
     #[test]

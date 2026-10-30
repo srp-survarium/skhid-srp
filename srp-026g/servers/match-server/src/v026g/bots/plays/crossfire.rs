@@ -739,8 +739,88 @@ mod tests {
         let near = Vec3::new(choke.x - 20.0, 0.0, choke.z.min(38.0));
         s.bot(0, 0, near);
         s.bot(3, 0, near + Vec3::new(0.0, 0.0, -1.0));
-        assert!(crowded(&s.cx(3), choke, s.view.places[3].feet));
-        assert!(!crowded(&s.cx(0), choke, s.view.places[0].feet));
+        let choke = Choke { target: TargetRef::Exit(0), at: choke, job: None };
+        assert!(crowded(&s.cx(3), &choke, s.view.places[3].feet));
+        assert!(!crowded(&s.cx(0), &choke, s.view.places[0].feet));
+    }
+
+    /// [A192] With `commit.crossfire_apart_mates`, a teammate by the choke
+    /// on another play is no other half; one on a Crossfire of the same
+    /// choke is, at the point it means to be at (its claim).
+    #[test]
+    fn the_other_half_is_a_mate_on_the_same_choke_at_its_claimed_spot_when_the_switch_is_on() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let at = s.tactics.exits(1)[0];
+        let near = Vec3::new(at.x - 20.0, 0.0, at.z.min(38.0));
+        s.bot(0, 0, near);
+        s.bot(3, 0, near + Vec3::new(0.0, 0.0, -1.0));
+        let choke = Choke { target: TargetRef::Exit(0), at, job: None };
+        // Off: the mate standing by counts, whatever it plays.
+        assert!(crowded(&s.cx(3), &choke, s.view.places[3].feet));
+        s.tuning.commit.crossfire_apart_mates = true;
+        assert!(halves(&s.cx(3), &choke).is_empty(), "a mate on no Crossfire is no half");
+        assert!(!crowded(&s.cx(3), &choke, s.view.places[3].feet));
+        s.team.crossfiring = vec![(0, TargetRef::Exit(1))];
+        assert!(halves(&s.cx(3), &choke).is_empty(), "a Crossfire of another choke is no half");
+        s.team.crossfiring = vec![(0, TargetRef::Exit(0))];
+        assert_eq!(halves(&s.cx(3), &choke), vec![(0, s.view.places[0].feet)], "no claim: where it stands");
+        assert!(crowded(&s.cx(3), &choke, s.view.places[3].feet));
+        // Its claim on the far side of the choke: apart.
+        let far = Vec3::new(2.0 * at.x - near.x, 0.0, 2.0 * at.z - near.z);
+        s.team.claim(0, far, s.view.clock);
+        assert_eq!(halves(&s.cx(3), &choke), vec![(0, far)]);
+        assert!(!crowded(&s.cx(3), &choke, s.view.places[3].feet));
+    }
+
+    /// [A192] With the switch on, a running crossfire checks it is apart
+    /// only within `sneak_m` of its spot.
+    #[test]
+    fn the_apart_check_waits_for_the_spot_when_the_switch_is_on() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let me = Vec3::new(10.0, 0.0, 10.0);
+        s.bot(0, 0, me);
+        s.view.clock += 10_000;
+        let far = me + Vec3::new(30.0, 0.0, 0.0);
+        let close = me + Vec3::new(5.0, 0.0, 0.0);
+        let now = s.cx(0).now;
+        assert!(check_apart(&s.cx(0), now - 5_000, far), "off: every repick_every_s");
+        assert!(!check_apart(&s.cx(0), now - 1_000, far));
+        s.tuning.commit.crossfire_apart_mates = true;
+        assert!(!check_apart(&s.cx(0), now - 5_000, far), "on: not on the way");
+        assert!(check_apart(&s.cx(0), now - 5_000, close));
+        assert!(!check_apart(&s.cx(0), now - 1_000, close));
+    }
+
+    /// [A192] The arrival chance: 1 at the choke, e^-1 a tau's walk away.
+    #[test]
+    fn the_arrival_chance_falls_by_e_each_tau_of_walk() {
+        assert_eq!(arrival_factor(0.0, 13.0), 1.0);
+        assert!((arrival_factor(13.0, 13.0) - (-1.0f32).exp()).abs() < 1e-6);
+        assert!((arrival_factor(26.0, 13.0) - (-2.0f32).exp()).abs() < 1e-6);
+        assert_eq!(arrival_factor(40.0, 0.0), 1.0, "no tau: off");
+        // 40 m at the walk cap is 11.4 s: about 0.42 of the score kept.
+        assert!((arrival_factor(40.0 / WALK_M_S, 13.0) - 0.415).abs() < 0.01);
+    }
+
+    /// [A192] With `commit.crossfire_arrival_tau_s`, a far choke's offer is
+    /// scored down by the walk; off, the score is the curves' alone.
+    #[test]
+    fn a_far_choke_is_scored_down_by_the_walk_when_the_switch_is_on() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let base = |path_m: f32| Candidate {
+            kind: PlayKind::Crossfire,
+            target: TargetRef::Exit(0),
+            rank: Rank::Fight,
+            score: Score::new(0.8),
+            why: crate::v026g::bots::curve::Explain { parts: vec![(Input::PathDist, path_m, 0.9)] },
+            slot: None,
+        };
+        let off = weighed(&s.cx(0), PlayKind::Crossfire, base(70.0)).unwrap().score.get();
+        s.tuning.commit.crossfire_arrival_tau_s = Some(13.0);
+        let near = weighed(&s.cx(0), PlayKind::Crossfire, base(0.0)).unwrap().score.get();
+        let far = weighed(&s.cx(0), PlayKind::Crossfire, base(70.0)).unwrap().score.get();
+        assert_eq!(near, off, "at the choke: as off");
+        assert!((far / off - (-(70.0 / WALK_M_S) / 13.0f32).exp()).abs() < 1e-4, "{far} {off}");
     }
 
     /// A spot its bot proved no way to is left for another fine one; with
