@@ -952,3 +952,61 @@ travel is not.
 63.735 degrees (the only reader of that console variable, 0xA707C8, converts the config's kick degrees to
 pitch units: 0x33190F, 0x331938), an 11 % scale on the elevation of a target above or below the eye. Not traced to
 the matrix that builds the view.
+
+## The arm hit shapes while a player fires (2026-10-30)
+
+Read-only RE for the hit-model question of the bench (`fighting-record/fact-hitboxes-026g.md` has the shapes and the
+pose port). Tags: PROVEN (exe or data read), LIKELY, GUESS.
+
+**1. What the bullet's ray can hit.**
+
+- The ray: `bullet::check_collision` 0x32D4E0 calls the world's `ray_test` (vtable +0x48, 0x75E20) with **group 0x10 and
+  mask 0x48**, the bullet as the one to ignore, flag 1. `ray_test` builds a Bullet `ClosestRayResultCallback` at 0x75B40
+  (vtable 0x9E3030) and stores the group at +0xC and the mask at +0xE (0x75BB6, 0x75BBA). PROVEN.
+- The filter is Bullet's: per **body** (the callback's group against the body's mask and the body's group against the
+  callback's mask), never per child of a compound. A player's hit model is one compound of the 19 children of
+  `hit_targets` (`new_compound_shape_from_hit_targets_config` 0x71080, one child per config entry, types 0-3), so **no
+  group or mask can leave out the forearm or hand children while the player's body is hit at all**. PROVEN
+  (code and data). The group the hit model is added to the world with was not found (the physics `add(object, group,
+  mask)` 0x758B0 is reached through the world's vtable +0x2C only, and the setters of the controller's group at
+  +0x2C6FC do not appear in the code); by elimination (mask 0x48 = the world's bullet mesh, bit 3, and bit 6) it is LIKELY
+  bit 6. Whatever it is, the arms cannot be filtered out of it.
+
+**2. The pose of the arms while the weapon fires (data, PROVEN; the way the layers add up is LIKELY).**
+
+- A rifle's pose is layered (`rifles.user_animations`, the weapon's `states/<state>/user_animations`): the stance clip
+  (`stand/3rd_view/on_site/on_site_idle`, hip, or `aimed_on_site_idle`), a look clip, and the weapon's own `hands_only`
+  clips of its state (`idle`, `shoot`; AK-12: `ak_12/player/stand/3rd_view/on_site/hands_only/idle`, `.../shoot`; the
+  rifles' `hands_only/aimed_fire`, `fire`, `recoil_vert`, `recoil_horiz`). The skeleton gives every bone a `mask`
+  (the arms 2): the layers meet by the mask (the 0.26g blend was not read; the 0.100b port sums the layers).
+- The numbers (stock `resources.db`, clip values at frame 0 and others): the stance clip holds the whole arm pose
+  (right upper arm rotation (3.01, 1.18, -0.97), forearm -2.03 about z: a bent elbow, the forearms in front of the
+  chest). **`aimed_on_site_idle` has the same arm values as `on_site_idle`**, to the digit; the rifles' `aimed_fire`
+  has them too (frames 0 and 10 identical): aiming down the sights or firing does not move the 3rd-person arms off
+  the idle pose. The AK-12's `hands_only/idle` and `shoot` are small deltas (upper arm up to 0.45 rad, forearm
+  0.24-0.29 rad), `recoil_vert` is under 0.006 rad.
+- Posed with fx-bench's port (`hbpose.py`, the layers summed), the idle layer and each frame of `shoot` move the
+  forearm capsules by at most 0.05 m, and the share of first hits by group (rays from 20 / 40 / 60 m at the chest point,
+  8 azimuths, sigma 0.25 m) stays the same: the hit rate 0.505 for the base pose, 0.512 with the weapon's idle layer, 0.511-0.514 with
+  `shoot` and the recoil layer in any frame; shares torso 0.53-0.54, head 0.11-0.12, arm 0.32-0.33, leg 0.02. **The bench's
+  idle pose is within 0.05 m of the posed fire; the arms across the chest are not a pose error of the fire layers**
+  (while the layers add up as the port has them). Scripts: `wsl-out/pierce-20261028/a104-hb/` (`a104_pose.py`,
+  `a104_bones.py`).
+
+**3. Is the hit pose the animation of the shot tick? (LIKELY yes; the consumer was not traced.)**
+
+- The animation state is part of the simulated state: `animation_player::serialize_state` 0x395A90 /
+  `deserialize_state` 0x395B50 (and the compressed forms 0x395CA0, 0x395D00), so the pose belongs to the rollback's
+  history, as a deterministic hit needs. PROVEN that the functions exist; that the world's snapshot calls them for the
+  players is LIKELY.
+- A skeleton's bone matrices are made when asked for the frame in question
+  (`object_skeleton_visual::calculate_animation_bone_matrices_if_needs` 0x292620, with the frame id as the guard,
+  called by the bone-matrix getter and by `object_skeleton_visual::tick` 0x2929D0): a request for the current frame gets
+  the current pose. LIKELY.
+- `bt_animated_rigid_body::set_transform` 0x70EE0 (vtable +0x18) sets the body's transform; which code feeds the
+  children from the bones, and whether a player out of view is animated every tick, was not traced. GUESS for a static or
+  bind pose: nothing found for it, and no bind pose is in the skeleton config (only the hierarchy and the `mask`).
+- What would settle it: the live hit marks by the angle between the shooter and the target's facing. A pose with the forearms
+  in front of the chest gives the arm shapes to shooters in front of him; arms hanging or out to the sides (a bind pose)
+  give them to shooters at his sides. The model's share of arm hits by that angle against the live one tells which pose
+  the game hits.
