@@ -1261,6 +1261,14 @@ fn the_reach_of_points() {
                 u8::from(node.is_some_and(|n| back[n as usize])),
                 u8::from(node.is_some_and(|n| grid.can_stand(n)))
             );
+            // The spawns round it: team, distance on the ground, height over the point (the bots' spawn areas are the floors within
+            // 20 m on the ground of a spawn, at any height).
+            let mut near: Vec<(f32, i32, f32)> =
+                map.spawns.iter().map(|s| (s.position.distance_xz(*p), s.team, s.position.y - p.y)).filter(|&(d, _, _)| d < 30.0).collect();
+            near.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for (d, team, dy) in near.into_iter().take(5) {
+                eprintln!("SPAWNNEAR\t{project}\t{:.1}\t{:.1}\t{:.1}\tteam {team}\t{d:.1} m on the ground\t{dy:+.1} m high", p.x, p.y, p.z);
+            }
         }
     }
 }
