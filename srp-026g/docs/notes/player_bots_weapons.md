@@ -952,3 +952,26 @@ travel is not.
 63.735 degrees (the only reader of that console variable, 0xA707C8, converts the config's kick degrees to
 pitch units: 0x33190F, 0x331938), an 11 % scale on the elevation of a target above or below the eye. Not traced to
 the matrix that builds the view.
+
+## The view's pitch unit (2026-10-30)
+
+The bots send and keep the view's pitch as if 1 were a radian (57.30 degrees) and aim at an elevation by sending that angle in radians as the
+pitch (`bots/encode.rs`, `bots/drive.rs`, `bots/recoil.rs`'s open item). The client's unit is not a radian.
+
+- **The eye and the bullet follow the animated `Item` bone (PROVEN).** `base_player::update_head_matrix` 0x2DA4B0 makes the matrix at
+  `base_player+0x44C` from the player's transform (+0x40C) and the matrix of the bone named in the string at 0x9DE38C, **"Item"**, taken from the
+  animation player (+0x750, 0x391A20). That matrix is the eye (`player::update_camera` 0x1F3480 copies it) and the bullet's
+  (`weapon_core::instant_fire` 0x2E23A0 copies the same 64 bytes before `get_dispersed_bullet_direction`). So where a shot goes in
+  elevation is where the `Item` bone of the stance clip plus the look clip points.
+- **The look clip is sampled by the view pitch (LIKELY: the notes' `(pitch + 1) / 2`, `weapon_core::selected_animations` 0x2E10B0; not re-read).**
+  Posing the stock clips with fx-bench's port (`hbpose.py`; `on_site_idle` + `on_site_idle_look`, the rifles'), the `Item` bone's forward
+  elevation at pitch -1, -0.5, 0, +0.5, +1 is **-67.24, -33.52, +0.24, +30.25, +60.24 degrees** (standing, hip and aimed alike); crouched
+  -66.78, -33.11, +0.60, +30.67, +60.70. The total sweep is **127.48 degrees in every stance, which is 2 x 63.74**: the console variable
+  `vertical_recoil_animation_half_range` 63.735 (0xA707C8) that the recoil code divides the config's kick degrees by to get pitch units
+  (`bots/recoil.rs`) is the half of it.
+- **So a pitch unit is 63.7 degrees on average, and not equally either way:** about **60.0 degrees a unit up and 67.4 down** (linear
+  in each half, a kink at 0). A bot that sends an elevation `e` in radians gets in the game: `1.047 e` above the eye (e > 0), `1.176 e` below it.
+  Example: a target 15 degrees below the eye is shot at 17.6 degrees, 2.6 degrees low, 0.9 m low at 20 m; 3 degrees below is 0.5 degree
+  (0.19 m at 20 m) low; level fights are nearly right. The view's pitch the bots read from a world is read the same wrong way (its eye height
+  `1.460 + 0.160 sin(pitch)`, the rays from its view).
+- Scripts: `wsl-out/pierce-20261028/a104-hb/a105_look.py`, `a105_look2.py` (a copy of the pose port with the extra clip folder).
