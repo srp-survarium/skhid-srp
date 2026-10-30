@@ -313,12 +313,12 @@ impl Body {
     }
 }
 
-/// How the stand-in's pitch unit relates to the elevation (`SRP_BENCH_PITCH_SCALE`: `client`, else `radian`).
+/// How the stand-in's pitch unit relates to the elevation (`SRP_BENCH_PITCH_SCALE`: `radian`, else `client`, the game's).
 pub(crate) fn pitch_scale() -> PitchScale {
     static SCALE: std::sync::OnceLock<PitchScale> = std::sync::OnceLock::new();
     *SCALE.get_or_init(|| match bench_settings().var("SRP_BENCH_PITCH_SCALE").as_deref() {
-        Ok("client") => PitchScale::Client,
-        _ => PitchScale::Radian,
+        Ok("radian") => PitchScale::Radian,
+        _ => PitchScale::Client,
     })
 }
 

@@ -24,9 +24,9 @@ const DOWN_DEG_PER_UNIT: f32 = 67.48;
 #[serde(rename_all = "snake_case")]
 pub enum PitchScale {
     /// A unit is a radian (the bots as they were: wrong, 57.30 degrees a unit both ways).
-    #[default]
     Radian,
     /// The client's: 60.0 degrees a unit up, 67.48 down.
+    #[default]
     Client,
 }
 

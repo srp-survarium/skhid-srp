@@ -975,3 +975,19 @@ pitch (`bots/encode.rs`, `bots/drive.rs`, `bots/recoil.rs`'s open item). The cli
   (0.19 m at 20 m) low; level fights are nearly right. The view's pitch the bots read from a world is read the same wrong way (its eye height
   `1.460 + 0.160 sin(pitch)`, the rays from its view).
 - Scripts: `wsl-out/pierce-20261028/a104-hb/a105_look.py`, `a105_look2.py` (a copy of the pose port with the extra clip folder).
+
+**The bench (2026-10-30, `kin.pitch_scale` radian against client, the stand-in modelling the client's map in both; TDM and batteries, 10v10,
+tier 9-10, seeds 1-2, ~120 000 shots at a target).** By the target's height over the eye, how far the view pointed off the line to his chest
+(before the cone; the count `pitch_bands`) and the hit rate:
+
+| target over the eye | shots OLD / NEW | view off the chest line OLD / NEW | hit rate OLD / NEW |
+|---|---|---|---|
+| -90..-30 deg | 665 / 398 | -4.22 / +2.32 deg | 12.0 / 28.9 % |
+| -30..-15 | 3731 / 2195 | -3.54 / +0.77 | 16.3 / 28.6 % |
+| -15..-5 | 14287 / 13055 | -1.38 / +0.28 | 19.4 / 20.6 % |
+| -5..5 | 76616 / 75524 | +0.08 / +0.27 | 19.6 / 19.1 % |
+| 5..15 | 13004 / 11248 | +0.61 / +0.17 | 15.1 / 19.4 % |
+| 15..30 | 3397 / 1685 | +1.14 / +0.09 | 13.9 / 23.6 % |
+
+The level fights are unchanged; the bots aimed low at everything below the eye and (a unit being 60.0 degrees up, not 57.3) a little high above it.
+What is left at +0.2 to +0.3 degrees is the Item bone's 0.24 degrees at level (left out of the map).

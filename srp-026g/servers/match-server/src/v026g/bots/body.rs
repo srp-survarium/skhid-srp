@@ -1201,7 +1201,7 @@ pub(super) mod tests {
 
     #[test]
     fn the_view_is_the_base_pitch_and_the_kick_of_the_last_tick() {
-        let kin = Kinematics::default();
+        let kin = Kinematics { pitch_scale: PitchScale::Radian, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
         // Up 0.02 with no kick; then the kick at 0.03 and a pull of 0.01
