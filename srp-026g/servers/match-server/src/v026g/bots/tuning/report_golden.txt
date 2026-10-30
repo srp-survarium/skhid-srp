@@ -24,7 +24,7 @@ switches OFF mods: risk_alive.invert
 switches OFF smoke: anti_sniper
 switches OFF threat: job_out_of_all_lines replan
 switches OFF unstick: fix_gap_ms
-switch values aim: combat.worth.hurt_from=seen
+switch values aim: combat.worth.hurt_from=seen friends.spread_source=data
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
