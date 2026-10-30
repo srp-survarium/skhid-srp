@@ -121,8 +121,8 @@ and limits reach to 96 percent extension. Authored curves provide relaxed
 finger curl and lower/raise motion.
 
 The held hand is never still (`Life` in `pose.rs`): the wrist target breathes
-5 mm up and down every 4.2 s and drifts a few millimetres on slower,
-unrelated periods; the palm tips about 2 degrees a quarter breath behind;
+up to 7 mm up and down every 4.2 s and drifts a few millimetres on slower,
+unrelated periods; the palm tips about 3 degrees a quarter breath behind;
 the fingers flex up to 0.07 rad, index first, the pinky half a second
 later. Walking adds nothing (the owner, 2026-10-30). The clock is the
 simulation's, shifted by the place, so players do not breathe in step; the

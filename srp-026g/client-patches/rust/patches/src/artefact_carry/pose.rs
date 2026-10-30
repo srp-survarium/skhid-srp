@@ -166,8 +166,7 @@ pub fn apply(bones: &DrawnBones<'_>, presentation: Presentation) -> Option<[f32;
     // The model's base floats clear of the cupped fingers. Its orientation
     // follows the palm (including look pitch); only this model is scaled,
     // never the player, damage shapes, or the ground artefact.
-    let seconds = (player.carry_time().0 % 4000) as f32 * (core::f32::consts::TAU / 4000.0);
-    let hover = 0.12 + 0.012 * sin_cos(seconds).0;
+    let hover = 0.12 + 0.012 * clock.wave(4000, 0);
     // It turns a little about the palm's normal as it floats.
     let turn = Quat::from_axis_angle(Vec3::Y, 0.15 * clock.wave(6700, 0));
     let centre = hand.then(Pose::new(turn, Vec3::new(-0.13, hover, 0.0)));

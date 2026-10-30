@@ -378,6 +378,9 @@ def main():
     g.draw()
     breathed = bytes(g.emu.mem_read(g.bones, 8 * 64))
     assert breathed[:7 * 64] != rendered_bones[:7 * 64], 'the held hand did not move with the clock'
+    wrist = lambda bones: struct.unpack_from('<3f', bones, 6 * 64 + 48)
+    moved = math.dist(wrist(breathed), wrist(rendered_bones))
+    assert 0 < moved < .02, f'the held hand moved {moved:.4f} m in 50 ms'
     assert g.rendered[-1][2] != first
     g.emu.mem_write(g.bones, initial_bones); g.emu.mem_write(g.bones + 7 * 64, poison)
     g.site(0x2DA769, [0x2DA76F], edi=donor, esi=g.bones, ebx=8)
