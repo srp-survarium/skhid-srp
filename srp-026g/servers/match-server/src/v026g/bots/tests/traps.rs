@@ -320,8 +320,7 @@ pub(crate) fn a_trap_lands_where_the_head_ray_meets_the_floor() {
 }
 
 /// A bot is told its traps at its spawn from its kit (`Bot::arm`): the flankers and rushers carry the stack of the
-/// third pocket with the quick-use key of rank 3, the others none; with the owner's kit off (`SRP_BOT_KIT`, the
-/// default) the old pockets hold none and no habit is armed. Run it with `SRP_BOT_KIT=1` to see the kit on.
+/// third pocket with the quick-use key of rank 3, the others none; with the owner's kit off (`SRP_BOT_KIT=0`) the old pockets hold none and no habit is armed. Run it with `SRP_BOT_KIT=1` to see the kit on.
 #[test]
 pub(crate) fn a_bots_habit_is_armed_from_the_traps_in_its_kit() {
     use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, new_kit};
