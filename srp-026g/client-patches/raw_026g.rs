@@ -149,8 +149,6 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: Option<TextTranslator>, key: *const u8, out: *mut u8);
-    /// 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
-    pub fn engine_player_insert(player: Option<Player>, link: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -4589,21 +4587,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
-        }
-    }
-
-    /// late_join.world_loaded (0x27c116): network_client::process_dynamic_match_info (0xE8) after game_world_core::deserialize 0x2D0B70, where its two branches (compressed 0x27C0D9, raw 0x27C111) join: mov eax,[edi+4] / test eax,eax; EDI the client (mov edi,ecx at 0x27BFFB)
-    pub mod late_join_world_loaded {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EDI: a survarium::network_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
         }
     }
 }

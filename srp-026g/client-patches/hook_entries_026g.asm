@@ -1275,45 +1275,6 @@ language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
 
-; 0x27c116 network_client::process_dynamic_match_info (0xE8) after game_world_core::deserialize 0x2D0B70, where its two branches (compressed 0x27C0D9, raw 0x27C111) join: mov eax,[edi+4] / test eax,eax; EDI the client (mov edi,ecx at 0x27BFFB): lohook -> late_join_insert_on_world_loaded
-global late_join_insert_on_world_loaded
-extern hook_late_join_insert_on_world_loaded
-late_join_insert_on_world_loaded:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_late_join_insert_on_world_loaded
-    mov edx, late_join_insert_on_world_loaded_replay
-    cmp eax, 0
-    je late_join_insert_on_world_loaded_go
-    mov edx, 0x27c11b
-    cmp eax, 1
-    je late_join_insert_on_world_loaded_go
-    ud2
-late_join_insert_on_world_loaded_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-late_join_insert_on_world_loaded_replay:
-    db 0x8b, 0x47, 0x04, 0x85, 0xc0
-    jmp 0x27c11b
-
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step
