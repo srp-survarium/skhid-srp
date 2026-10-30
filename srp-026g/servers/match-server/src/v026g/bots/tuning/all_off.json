@@ -6,9 +6,12 @@
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,
+      "grenade_at_held": null,
       "grenade_chance": 0.15,
       "grenade_claim": false,
       "grenade_friend_m": 6.0,
+      "grenade_held_reach": false,
+      "grenade_held_recheck": false,
       "grenade_kit_cap": false,
       "grenade_land_m": 12.0,
       "grenade_lead_s": 4.0,
@@ -22,6 +25,9 @@
       "worth": {
         "hurt_from": "body"
       }
+    },
+    "friends": {
+      "spread_source": "constants"
     }
   },
   "avoid": {
@@ -100,7 +106,8 @@
   "smoke": {
     "cross_lane": false,
     "react_watch": false,
-    "sight": false
+    "sight": false,
+    "spot_rules": false
   },
   "threat": {
     "area": false,
@@ -127,13 +134,11 @@
     "stranded_start": false
   },
   "traps": {
-    "cap_team": 4,
     "chance": 0.35,
     "enemy_near_m": 50.0,
     "enemy_quiet_s": 4.0,
     "min_score": 0.2,
     "on_the_pass": null,
-    "per_life": 1,
     "press_landing_m": null,
     "ring_m": 0.0,
     "react": {

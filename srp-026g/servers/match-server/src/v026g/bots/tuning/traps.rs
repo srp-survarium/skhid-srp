@@ -10,9 +10,9 @@ pub struct TrapTuning {
     /// until its kit does (`traps::Habit::carry`), so this off or the kit
     /// off gives today's bots bit for bit.
     pub enabled: bool,
-    /// Traps a bot puts down in one life.
+    /// Traps a bot puts down in one life (the owner's, 2026-10-30: one a life).
     pub per_life: u8,
-    /// Traps the team's bots keep standing at once (promised or armed).
+    /// Traps the team's bots keep standing at once, promised or armed (the owner's, 2026-10-30: four a team).
     pub cap_team: u8,
     /// How far ahead of the feet the floor point is, metres: the head ray
     /// is 2.0 m (PROVEN) and the view looks down at most 1.0 rad
@@ -238,8 +238,8 @@ impl Default for TrapTuning {
     fn default() -> Self {
         Self {
             enabled: true,
-            per_life: 2,
-            cap_team: 6,
+            per_life: 1,
+            cap_team: 4,
             reach_m: 1.0,
             press_landing_m: Some(1.0),
             lateral_m: 0.9,

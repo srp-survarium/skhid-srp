@@ -268,6 +268,7 @@ impl EyeOff {
         // predate them.
         super::standin_heal::force_model(Some(false));
         super::standin_damage::force_by_data(Some(false));
+        super::standin_stagger::force_model(Some(false));
         Self
     }
 }
@@ -277,6 +278,7 @@ impl Drop for EyeOff {
         super::view::set_live_eye(true);
         super::standin_heal::force_model(None);
         super::standin_damage::force_by_data(None);
+        super::standin_stagger::force_model(None);
     }
 }
 
@@ -356,6 +358,8 @@ fn pre_eye_pin_tuning() -> Tuning {
 /// alone.
 #[test]
 pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let _off = EyeOff::new();
     let base = [
         (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),

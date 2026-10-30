@@ -572,6 +572,7 @@ const PLAIN_AMMO: AmmoParams = AmmoParams {
     k_min_damage_amount: 1.0,
     k_max_damage_distance: 1.0,
     k_min_damage_distance: 1.0,
+    k_power: 1.0,
     muzzle_speed: 800.0,
     air_resistance: 1.0,
     distance: 1000.0,

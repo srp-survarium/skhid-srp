@@ -240,6 +240,25 @@ impl Pantry {
         }
     }
 
+    /// [`Self::standard_with`] for the tip's [`BOT_POCKETS`] (two medkits), whatever the process's kit switch says: the tests of
+    /// the medkit rules assume it.
+    #[cfg(test)]
+    pub(crate) fn medkits_with(store: PocketStore) -> Self {
+        let kit = Self::kit_of(BOT_POCKETS.iter(), store);
+        Self {
+            kits: vec![kit.clone()],
+            kit: 0,
+            unknown: kit,
+            counts: PantryCounts::default(),
+        }
+    }
+
+    /// [`Self::medkits_with`] with the default store.
+    #[cfg(test)]
+    pub(crate) fn medkits() -> Self {
+        Self::medkits_with(PocketStore::default())
+    }
+
     /// The drugs of a bot's own profile: each kit's pockets (`pockets.rs`) with the stack the slot starts a life
     /// with and the storage behind it, so the count follows the store the profile was built with, a team's own
     /// (`kit.pocket_store`), not a process-wide one. A profile with no kit (a human's, a late joiner's) is the
@@ -284,8 +303,11 @@ impl Pantry {
     }
 
     fn standard_kit(store: PocketStore) -> Vec<Held> {
-        standard_pockets()
-            .iter()
+        Self::kit_of(standard_pockets().iter(), store)
+    }
+
+    fn kit_of<'a>(pockets: impl Iterator<Item = &'a BotKitItem>, store: PocketStore) -> Vec<Held> {
+        pockets
             .filter_map(|item| {
                 let drug = Drug::of_name(item.name)?;
                 let quick = usize::from(item.input_bit? - QUICK_USE_FIRST_BIT);

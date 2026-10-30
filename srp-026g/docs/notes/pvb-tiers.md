@@ -65,8 +65,8 @@ life's ammo. The carry limit is 30 kg with no skills (`default.player`) and 40 k
 The shotgun rusher lost its fights (K/D 0.52 at 13-15 and 0.55 at 9-10 against 1.08 to 1.48 for every
 other role in the owner's eight matches); no player of kit level 9-10 carries a shotgun (14 of 10,339
 lives) and the SMG is what 12 and more players of both tiers carry most (41 % of the alive time at 9-10,
-22 % at 13-15). The rusher of the two higher tiers can wear an SMG of its tier; the switch is **off by
-default** (`control`, the old table) until a bench train turns it on (`RusherKit`, the lobby's
+22 % at 13-15). The rusher of the two higher tiers can wear an SMG of its tier; the switch is **on by
+default** (`9-10=alt,13-15=smg` since 2026-10-30; `control` is the old table) (`RusherKit`, the lobby's
 `SRP_PVB_RUSHER_KIT`, the bench's `SRP_BENCH_RUSHER`). The RK arm sweep (smoke preset, 16 maps, 10 a
 side, seeds 1-8) found `9-10=alt,13-15=smg` the best setting (`fighting-record/look-rk-sweep.md`):
 
@@ -86,7 +86,7 @@ the live patches: the repo's test data (`resources/game-026g`) lacks them, so wi
 13-15 rusher wears the old kit (a line says so; `RusherKit::worn_in`), and the tests that need them
 run on the server's game data (`SRP_GAME_DATA`, the `on_the_live_data_` tests, each run alone).
 
-### 3.2 The respirator (batteries, 2026-10-27; `SRP_PVB_MASKS`, off by default)
+### 3.2 The respirator (batteries, 2026-10-27; `SRP_PVB_MASKS`, `top` by default since 2026-10-30, `off` switches it off)
 
 The cloud and gas zones (School's fruit cloud, Vostok Radar Station's gas, Chemical Plant's moss, Mamayev Kurgan's acid) hit one part, the
 `face`, with toxic damage, which goes to the infection pool (no regeneration, death at 0). Only a face item
@@ -119,12 +119,11 @@ Why these:
   13-15 for every role, and in 9-10 for the rusher (`edge_hunter_torso_1`) and the support
   (`ren_torso_3`); 4-5 and the other 9-10 roles have three, and 4-5's support four. `ren_back_1` (+2 and
   +2, 8 kg) would give pockets of three, but the match server's medkit plays count two a life
-  (`plays::heal`), so it is not used. The owner's choice of 2026-10-26 (`SRP_BOT_KIT=1` turns it on; off
-  unless set, the kit is that of before it): bandages for the pain pool, traps for the placing habit, one grenade for the
+  (`plays::heal`), so it is not used. The owner's choice of 2026-10-26 (`SRP_BOT_KIT`: on unless `0`/`off`/`false`
+  since 2026-10-30; off, the kit is that of before it): bandages for the pain pool, traps for the placing habit, one grenade for the
   support where a pocket is free, the radio only where a pocket is left, and skill 109's extra ammo
   bag (`bot_skills::AMMO_POUCH`: 102, 104 and 108 on the way, none of them aim, damage or protection).
-- **Upgrades** (`loadouts::BOT_UPGRADES`, the owner's of 2026-10-26; on with `SRP_BOT_UPGRADES=1`, off
-  unless set). The safe set only: gear weight, carry capacity, movement speed and stamina spent; never an aim
+- **Upgrades** (`loadouts::BOT_UPGRADES`, the owner's of 2026-10-26; on unless `SRP_BOT_UPGRADES` is `0`/`off`/`false`). The safe set only: gear weight, carry capacity, movement speed and stamina spent; never an aim
   time, a range or a bolt's chamber time. One upgrade a bot at 4-5, two at 9-10 and 13-15, at the
   strengths the players of the tier have (live matches: speed 4 / 6 / 12 % of pieces at 1.8 / 2.7 / 2.7,
   weight 6 / 10 / 15 % at 0.8 / 1.6 / 1.8, carry 4 / 3 / 6 % at 1.9 / 1.5 / 2.2). Flanker and rusher:
