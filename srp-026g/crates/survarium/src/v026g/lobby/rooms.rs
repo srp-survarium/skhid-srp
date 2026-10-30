@@ -960,30 +960,57 @@ pub enum OfferKind {
     Unfit = 3,
 }
 
+/// What the room of an offer is to the request ([`RoomOffer::about`]).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OfferRoom {
+    /// The room the join goes into (for Play, the one it takes): "Enter
+    /// anyway" or "Exit" beside "Switch and enter".
+    Entered = 0,
+    /// Play would queue in its own bracket; the room is of the other one,
+    /// with a place for the preset offered (the owner's of 2026-10-30):
+    /// "Queue" (Play as it is) beside "Switch and enter".
+    InsteadOfQueue = 1,
+}
+
+/// What [`room_offer`] says of a join (or Play).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomOffer {
+    /// The room (for Play, the one it would take, or the other bracket's
+    /// offered instead of its queue); 0: none.
+    pub key: u32,
+    pub kind: OfferKind,
+    /// 1 to [`PRESET_COUNT`] and its gear level; 0 and 0 for none.
+    pub preset: u8,
+    pub level: u8,
+    /// The asker's gear now.
+    pub gear: u8,
+    /// The room's max level.
+    pub max_level: u8,
+    pub about: OfferRoom,
+}
+
 /// The answer to `3B 00 <ROOM_OFFER_BASE + asked>`, one row at that start:
-/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>`: `key` the room
-/// (for Play, the one it would take; 0: none), `kind` an [`OfferKind`],
-/// `preset` 1 to [`PRESET_COUNT`] and its gear `level` (0 and 0 for none),
-/// the asker's `gear` now and the room's `max level`.
-pub fn room_offer(
-    asked: u32,
-    key: u32,
-    kind: OfferKind,
-    preset: u8,
-    level: u8,
-    gear: u8,
-    max_level: u8,
-) -> Result<ServerMessage, WireError> {
+/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>;<about>` (the
+/// fields of [`RoomOffer`]; `about` since 2026-10-30, a movie before it
+/// reads only the first eight).
+pub fn room_offer(asked: u32, offer: &RoomOffer) -> Result<ServerMessage, WireError> {
     rows_at(
         ROOM_OFFER_BASE + asked.min(ROOM_KEY_MAX),
-        vec![offer_name(key, kind, preset, level, gear, max_level)],
+        vec![offer_name(offer)],
     )
 }
 
-fn offer_name(key: u32, kind: OfferKind, preset: u8, level: u8, gear: u8, max_level: u8) -> String {
+fn offer_name(offer: &RoomOffer) -> String {
     format!(
-        "{ROOMS_VERSION};O;{key};{};{preset};{level};{gear};{max_level}",
-        kind as u8
+        "{ROOMS_VERSION};O;{};{};{};{};{};{};{}",
+        offer.key,
+        offer.kind as u8,
+        offer.preset,
+        offer.level,
+        offer.gear,
+        offer.max_level,
+        offer.about as u8
     )
 }
 
@@ -1324,11 +1351,17 @@ mod tests {
         );
         // The pool's bits right after the fifth preset.
         assert_eq!(ROOM_PRESET_BASE + 5 * 100_000, ROOM_BITS_BASE);
-        assert_eq!(
-            offer_name(12, OfferKind::Fits, 3, 7, 11, 8),
-            "S1;O;12;2;3;7;11;8"
-        );
-        assert!(room_offer(12, 12, OfferKind::None, 0, 0, 4, 0).is_ok());
+        let offer = RoomOffer {
+            key: 12,
+            kind: OfferKind::Fits,
+            preset: 3,
+            level: 7,
+            gear: 11,
+            max_level: 8,
+            about: OfferRoom::InsteadOfQueue,
+        };
+        assert_eq!(offer_name(&offer), "S1;O;12;2;3;7;11;8;1");
+        assert!(room_offer(12, &offer).is_ok());
     }
 
     #[test]

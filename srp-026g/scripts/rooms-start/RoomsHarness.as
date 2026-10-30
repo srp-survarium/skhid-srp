@@ -110,6 +110,7 @@ package
          checkSideStable();
          checkRoomView();
          checkQueueButton();
+         checkPlayOffer();
          checkCreate();
          checkWindowOrder();
          checkFit();
@@ -255,6 +256,66 @@ package
          tell(["S1;L;1;0", "1001;2;15;8;16;0;0;0;0;QueueDemo01"]);
          tell(["S1;N;0;0;0"]);
          queueButton("queue cancelled", "Queue", false);
+      }
+
+      // Play's preset offer (presets.md, the owner's of 2026-10-30): Play that would queue is
+      // offered a room of the other bracket as a Join of it is (the same popup and text), its
+      // first button "Queue" (Play as it is) beside "Switch and enter"; Play into the room it
+      // takes keeps "Enter anyway". The first button closes the popup.
+      private function checkPlayOffer():void
+      {
+         playOffer("Play would queue, gear over a lower room", "S1;O;1002;2;2;10;15;10;1", "Queue",
+            "Your gear 15 is over the room's max level 10. Loadout 2 is level 10.");
+         playOffer("Play would queue, a higher room", "S1;O;1003;1;2;14;5;15;1", "Queue",
+            "Room max level 15, your gear 5. Loadout 2 is level 14.");
+         playOffer("Play into its room", "S1;O;1002;1;2;8;5;10;0", "Enter anyway",
+            "Room max level 10, your gear 5. Loadout 2 is level 8.");
+      }
+
+      private function playOffer(what:String, row:String, first:String, why:String):void
+      {
+         tell(["S1;N;0;0;0"]);
+         try
+         {
+            win["quickPlay"]();
+         }
+         catch(err:Error)
+         {
+            failures.push(what + ": Play: " + err.message);
+            return;
+         }
+         tell([row]);
+         var buttons:Array = [];
+         var texts:Array = [];
+         walk(win,[],texts,0,0,buttons);
+         var sw:* = null;
+         var left:* = null;
+         for each(var b:* in buttons)
+            if(b.label == "Switch and enter")
+               sw = b;
+         for each(b in buttons)
+            if(sw != null && b.label == first && b.y == sw.y && b.x < sw.x)
+               left = b;
+         var said:Boolean = texts.some(function(t:*, ... rest):Boolean
+         {
+            return t.text == why;
+         });
+         trace("ROOMS " + what + ": " + (left != null ? left.label : "no " + first) + " | "
+            + (sw != null ? sw.label : "no Switch and enter") + (said ? "" : " (text missing)"));
+         if(sw == null || left == null)
+         {
+            failures.push(what + ": expected " + first + " beside Switch and enter");
+            return;
+         }
+         if(!said)
+            failures.push(what + ": the popup does not say '" + why + "'");
+         var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+         left.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+         buttons = [];
+         walk(win,[],[],0,0,buttons);
+         for each(b in buttons)
+            if(b.label == "Switch and enter")
+               failures.push(what + ": the popup stays after " + first);
       }
 
       private function queueButton(what:String, expected:String, enabled:Boolean):void

@@ -1336,9 +1336,12 @@ package survarium.rooms
             ask(RoomsWire.OFFER + int(room.key), 1);
         }
 
-        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>`: kind 0 joins as
+        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>;<about>`: kind 0 joins as
         // asked; 1 (the room allows more than our kits), 2 (our gear is over
         // its max) and 3 (our kits can not play, preset n can) show the popup.
+        // `about` 1: Play would queue, the room is of the other bracket
+        // (the owner's of 2026-10-30): "Queue" (Play as it is) for the
+        // popup's first button.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1352,7 +1355,8 @@ package survarium.rooms
                 return;
             }
             _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
-                "max": int(head[7]), "room": asked.room, "play": asked.play};
+                "max": int(head[7]), "room": asked.room, "play": asked.play,
+                "queue": asked.play && head.length > 8 && head[8] == "1"};
             _busyAt = 0;
             _playAskedAt = 0;
             applyPlay();
@@ -1409,8 +1413,12 @@ package survarium.rooms
             tf.text = text;
             var bw:Number = 200;
             var by:Number = y + h - 50;
-            look.button(look._content, say(_offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit"), x + w / 2 - bw - 8, by, bw,
-                _offer.kind == 1 ? onOfferAsIs : onOfferExit, null, 32);
+            // Play that would queue: "Queue" plays as it is; else "Enter
+            // anyway" (the kits as they are) or "Exit" (nothing).
+            var asIs:Boolean = _offer.queue || _offer.kind == 1;
+            var first:String = _offer.queue ? "st_srp_rooms_queue" : _offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit";
+            look.button(look._content, say(first), x + w / 2 - bw - 8, by, bw,
+                asIs ? onOfferAsIs : onOfferExit, null, 32);
             look.button(look._content, say("st_srp_rooms_switch_enter"), x + w / 2 + 8, by, bw, onOfferSwitch, null, 32, true);
         }
 
