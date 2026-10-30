@@ -121,6 +121,10 @@ struct Acc {
     /// Shots at a target aimed in (not crouched), by whether he held a side key (LEFT or RIGHT) at the shot (0: none, 1: one),
     /// by his team: shots, hits, crossing speed summed. The share with a side key is the aimed-in strafe's duty.
     aimed_side: [[[f64; 3]; 2]; 2],
+    /// Aimed-in shots at a target holding one side key: by the ticks that key has been held ([`RUN_BINS_TICKS`]) and whether
+    /// forward or back is held too (diagonal): shots, ground speed summed, crossing speed summed, and the target's speed
+    /// level against the aimed side cap is read from the sums. Why a held side key crosses at 1.3 m/s and not 2.0.
+    aimed_run: [[[f64; 3]; 2]; 5],
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
@@ -143,8 +147,14 @@ struct Burst {
     hits: u32,
 }
 
+/// The ticks a side key has been held, binned (upper edges): 3 (150 ms, inside the blend), 6, 12, 24, more.
+const RUN_BINS_TICKS: [u32; 4] = [3, 6, 12, 24];
+
 pub(super) struct GunShots {
     groups: BTreeMap<String, Acc>,
+    /// The side key each body holds (LEFT or RIGHT, 0: none or both) and for how many ticks in a row.
+    side_key: Vec<u32>,
+    side_ticks: Vec<u32>,
     open: Vec<Option<Burst>>,
     /// Ticks each body has been below [`STILL_MPS`] in a row.
     still: Vec<u32>,
@@ -180,6 +190,8 @@ impl GunShots {
     pub(super) fn new(n: usize) -> Self {
         Self {
             groups: BTreeMap::new(),
+            side_key: vec![0; n],
+            side_ticks: vec![0; n],
             open: vec![None; n],
             still: vec![0; n],
             aim_since: vec![None; n],
@@ -216,6 +228,16 @@ impl Topic for GunShots {
         for (still, body) in self.still.iter_mut().zip(&game.bodies) {
             let speed = body.step_vec.length() / TICK_S;
             *still = if speed < STILL_MPS { *still + 1 } else { 0 };
+        }
+        for (place, body) in game.bodies.iter().enumerate().take(self.side_key.len()) {
+            let lr = body.keys & (key::LEFT | key::RIGHT);
+            let held = if lr == key::LEFT || lr == key::RIGHT { lr } else { 0 };
+            if held != 0 && held == self.side_key[place] {
+                self.side_ticks[place] += 1;
+            } else {
+                self.side_ticks[place] = u32::from(held != 0);
+            }
+            self.side_key[place] = held;
         }
         // What each body has been doing without a break: the aim key held, the view on an enemy.
         let now = game.tick;
@@ -291,6 +313,14 @@ impl Topic for GunShots {
                 let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
                 tally(&mut a.by_state[state]);
                 a.state_across[state] += f64::from(across);
+                if state == TargetState::AimedIn as usize && self.side_key[target] != 0 {
+                    let bin = RUN_BINS_TICKS.iter().position(|&edge| self.side_ticks[target] <= edge).unwrap_or(RUN_BINS_TICKS.len());
+                    let diagonal = usize::from(t.keys & (key::FORWARD | key::BACK) != 0 && t.keys & (key::FORWARD | key::BACK) != (key::FORWARD | key::BACK));
+                    let cell = &mut a.aimed_run[bin][diagonal];
+                    cell[0] += 1.0;
+                    cell[1] += f64::from(velocity.x.hypot(velocity.z));
+                    cell[2] += f64::from(across);
+                }
                 if state == TargetState::AimedIn as usize {
                     let side = usize::from((t.keys & (key::LEFT | key::RIGHT)).count_ones() == 1);
                     let cell = &mut a.aimed_side[usize::from(t.team != 0)][side];
@@ -364,6 +394,7 @@ impl Topic for GunShots {
                     "by_driver": a.by_driver,
                     "by_target_team": a.by_target_team,
                     "aimed_side": a.aimed_side,
+                    "aimed_run": a.aimed_run,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
