@@ -34,11 +34,13 @@ const ROUTE_DROP_M: f32 = 2.0;
 /// The landings of the planned drops of each bot's route, kept when they change: (tick, landings).
 pub(super) struct ZoneDeaths {
     drops: Vec<Vec<(u32, Vec<Vec3>)>>,
+    /// The lip guard's state at each tick (`Bot::bench_guard`: 0 clear, 1 safe, 2 swapped, 3 braked or doomed, 5 a jump), the last 60 of each bot.
+    guards: Vec<std::collections::VecDeque<(u32, u8)>>,
 }
 
 impl ZoneDeaths {
     pub(super) fn new(n: usize) -> Self {
-        Self { drops: vec![Vec::new(); n] }
+        Self { drops: vec![Vec::new(); n], guards: vec![std::collections::VecDeque::new(); n] }
     }
 }
 
@@ -134,7 +136,15 @@ impl ZoneDeaths {
         };
         let landings = history.iter().rev().find(|(t, _)| *t <= note.spell.start).map(|(_, l)| l.as_slice()).unwrap_or(&[]);
         let nearest = landings.iter().map(|l| l.distance_xz(note.spell.at)).fold(f32::INFINITY, f32::min);
-        if nearest <= 3.0 { format!("PLANNED[{nearest:.1}m of {}]", landings.len()) } else { format!("UNPLANNED[{} landings, nearest {nearest:.1}m]", landings.len()) }
+        // The lip guard's state over the 12 ticks (0.6 s) before the spell, oldest first.
+        let guard: String = self.guards.get(note.place).map_or(String::new(), |g| {
+            g.iter().filter(|(t, _)| *t <= note.spell.start).rev().take(12).map(|(_, v)| char::from(b'0' + *v)).collect::<Vec<_>>().into_iter().rev().collect()
+        });
+        if nearest <= 3.0 {
+            format!("PLANNED[{nearest:.1}m of {}] GUARD[{guard}]", landings.len())
+        } else {
+            format!("UNPLANNED[{} landings, nearest {nearest:.1}m] GUARD[{guard}]", landings.len())
+        }
     }
 }
 
@@ -150,6 +160,11 @@ impl Topic for ZoneDeaths {
         let landings: Vec<Vec3> = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
             route.points().windows(2).filter(|w| w[0].at.y - w[1].at.y >= ROUTE_DROP_M).map(|w| w[1].at).collect()
         });
+        let guards = &mut self.guards[place];
+        guards.push_back((tick, bot.bench_guard));
+        if guards.len() > 60 {
+            guards.pop_front();
+        }
         let history = &mut self.drops[place];
         if history.last().is_none_or(|(_, last)| *last != landings) {
             history.push((tick, landings));
