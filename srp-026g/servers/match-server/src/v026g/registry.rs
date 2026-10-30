@@ -459,7 +459,7 @@ impl MatchRegistry {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| for_match(player.profile, blackout))
                 .collect(),
             map_id: setup.map_id,
             match_id: static_id(match_id),
@@ -597,8 +597,14 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        // A late joiner wears his team's band too: his own profile carries it
+        // to every game (the static info and the place the others are sent).
+        let blackout = next.blackout;
+        next.profiles.extend(
+            players
+                .iter()
+                .map(|player| for_match(player.profile.clone(), blackout)),
+        );
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
@@ -834,6 +840,17 @@ impl MatchRegistry {
         inner.live.remove(&match_id);
         inner.seats.retain(|_, seat| seat.match_id != match_id);
         inner.matches.remove(&match_id)
+    }
+}
+
+/// A player's profile as his match gives it to every game: in a Blackout
+/// match it wears his team's band (exe patch 65 reads it from the profile
+/// alone), in any other it is his own.
+fn for_match(profile: MatchProfile, blackout: bool) -> MatchProfile {
+    if blackout {
+        profile.wearing_band()
+    } else {
+        profile
     }
 }
 
