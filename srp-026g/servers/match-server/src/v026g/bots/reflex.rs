@@ -749,8 +749,20 @@ pub struct CombatTuning {
     /// Before, the aim was where he is: the game's bullet flies (`bullet::tick` 0x32C180) and a target
     /// strafing at 2.6 m/s is half a torso off at 23-28 m for the slow ammunition and at 65-78 m for the rifles'
     /// (`player_bots_weapons.md`, "The bullet's flight"). Needs `lead_target`; no reaction, aim error or skill changes.
+    ///
+    /// Off, and why (bench 2026-10-31, TDM 10v10, flown bullets, head to head by side, 12 pairs a tier, `shot_bands`): the lead fires as
+    /// designed (a strafer's shot line at 40-65 m trails him by 0.07 m instead of 0.21) but the far hit rate does not rise: 20-65 m pooled
+    /// over tiers 4-5, 9-10 and 13-15, 10.05 % on against 10.59 % off (2650/26382 against 2768/26136 shots, z -2.1; 40-65 m alone 5.5/6.0,
+    /// 6.9/7.1 and 8.0/8.6 %, none significant). The lines miss by far more than the lead moves them: at 40-65 m only 8-9 % of the shots
+    /// pass within 0.25 m across and 0.45 m high of his chest and 36 % pass over 1 m across (the aim error: the skill dial). The pooled
+    /// dip itself shows no cause in the counters (GUESS: strafers that turn back inside a flight are led the wrong way).
     pub lead_flight: bool,
     /// The aim is also raised by the bullet's drop on the way to him (`flight.rs`), whether or not he is led ([`Self::lead_flight`]).
+    ///
+    /// Off, and why: it adds the drop to a line the bots' recoil handling already leaves 0.13-0.35 m above the chest at 20-80 m (the
+    /// kick the pull does not take back, by skill: `recoil_pull`), which the drop used to bring back onto the torso by accident. Where
+    /// the climb is large it costs hits (tier 9-10, 35-50 m: 6.2 % on against 9.1 % off, z -4.2); where it is small it is neutral (tier
+    /// 13-15, lateral lead and drop together, 40-65 m: 8.1 against 8.5 %, 20-40 m 13.9 against 14.3 %, kills +1.6 %, z +0.3).
     pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
