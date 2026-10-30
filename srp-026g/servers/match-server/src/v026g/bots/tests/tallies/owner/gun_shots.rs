@@ -26,6 +26,44 @@ const ON_HIM_UNDER_M: f32 = 0.9;
 const ON_HIM_OVER_M: f32 = 0.45;
 /// The distance bands of the on-him counts, m (upper edges, the last takes the rest): 0-20, 20-40, 40 and more.
 const ON_HIM_BANDS_M: [f32; 2] = [20.0, 40.0];
+/// The target's crossing speeds binned, m/s (upper edges): 0.5, 1.5, 2.5, 3.5, more.
+const LATERAL_MPS: [f32; 4] = [0.5, 1.5, 2.5, 3.5];
+/// A target counts as still below this ground speed, m/s (the humans' "stood still while shot at").
+const STILL_MPS: f32 = 0.5;
+/// What a target is doing when it is shot at: crouched, aimed in, or on foot (moving, or still for how long). The cause of a
+/// slow crossing is read from these (A182).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TargetState {
+    Crouched,
+    AimedIn,
+    Moving,
+    /// Still for less than 150 ms (a step just ended), 150-450 ms (the rest after a step), longer.
+    StillBrief,
+    StillRest,
+    StillLong,
+}
+
+impl TargetState {
+    const COUNT: usize = 6;
+
+    /// From his keys, his ground speed and how long he has been below [`STILL_MPS`], ms.
+    fn of(keys: u32, speed: f32, still_ms: u32) -> Self {
+        if keys & key::CROUCH != 0 {
+            Self::Crouched
+        } else if keys & key::AIM != 0 {
+            Self::AimedIn
+        } else if speed >= STILL_MPS {
+            Self::Moving
+        } else if still_ms < 150 {
+            Self::StillBrief
+        } else if still_ms < 450 {
+            Self::StillRest
+        } else {
+            Self::StillLong
+        }
+    }
+}
+
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
@@ -49,6 +87,17 @@ struct Acc {
     off_sum: f64,
     /// Shots whose line is on him (see [`ON_HIM_SIDE_M`]) and hits among them, by [`ON_HIM_BANDS_M`].
     on_him: [[u32; 2]; 3],
+    /// The target's speed across the line from the shooter (the ground displacement of his last step, perpendicular to the line
+    /// between the two, m/s), summed over the shots by [`BANDS_M`] (the counts are `by_band`), and the shots and hits by
+    /// [`LATERAL_MPS`] (the live humans' strafe at range is about 2.6 m/s).
+    lateral_sum: [f64; 6],
+    /// His whole ground speed at the shot, m/s, summed the same way (the humans' `hit_marks.py` `tspd`: mean 2.8 / 2.7 / 2.6 /
+    /// 2.5 m/s in the first four bands, 190 recordings).
+    speed_sum: [f64; 6],
+    by_lateral: [[u32; 2]; 5],
+    /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
+    by_state: [[u32; 2]; TargetState::COUNT],
+    state_across: [f64; TargetState::COUNT],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
@@ -67,11 +116,13 @@ struct Burst {
 pub(super) struct GunShots {
     groups: BTreeMap<String, Acc>,
     open: Vec<Option<Burst>>,
+    /// Ticks each body has been below [`STILL_MPS`] in a row.
+    still: Vec<u32>,
 }
 
 impl GunShots {
     pub(super) fn new(n: usize) -> Self {
-        Self { groups: BTreeMap::new(), open: vec![None; n] }
+        Self { groups: BTreeMap::new(), open: vec![None; n], still: vec![0; n] }
     }
 
     fn close(&mut self, place: Place) {
@@ -90,6 +141,10 @@ impl Topic for GunShots {
     }
 
     fn begin(&mut self, run: &Run, game: &mut Game) {
+        for (still, body) in self.still.iter_mut().zip(&game.bodies) {
+            let speed = body.step_vec.length() / TICK_S;
+            *still = if speed < STILL_MPS { *still + 1 } else { 0 };
+        }
         let facts: Vec<_> = game.shot_facts.clone();
         for fact in facts {
             let Some(body) = game.bodies.get(fact.shooter) else { continue };
@@ -126,7 +181,18 @@ impl Topic for GunShots {
             };
             a.shots += 1;
             a.hits += h as u32;
-            tally(&mut a.by_band[BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len())]);
+            let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
+            tally(&mut a.by_band[band]);
+            if let (Some(t), Some(s)) = (game.bodies.get(target), game.bodies.get(fact.shooter)) {
+                let velocity = t.step_vec * (1.0 / TICK_S);
+                let across = across_speed(s.feet, t.feet, velocity);
+                a.speed_sum[band] += f64::from(velocity.x.hypot(velocity.z));
+                a.lateral_sum[band] += f64::from(across);
+                tally(&mut a.by_lateral[LATERAL_MPS.iter().position(|&edge| across < edge).unwrap_or(LATERAL_MPS.len())]);
+                let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
+                tally(&mut a.by_state[state]);
+                a.state_across[state] += f64::from(across);
+            }
             tally(&mut a.by_aim[fact.aim_state as usize]);
             tally(&mut a.by_shooter_moving[usize::from(fact.moving)]);
             tally(&mut a.by_crouch[usize::from(fact.crouched)]);
@@ -167,6 +233,11 @@ impl Topic for GunShots {
                     "cone_deg_sum": a.cone_sum,
                     "off_deg_sum": a.off_sum,
                     "on_him": a.on_him,
+                    "lateral_sum": a.lateral_sum,
+                    "speed_sum": a.speed_sum,
+                    "by_state": a.by_state,
+                    "state_across": a.state_across,
+                    "by_lateral": a.by_lateral,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
@@ -183,6 +254,17 @@ impl Topic for GunShots {
         }
         vec![("gun_shots", Part::new(serde_json::json!({ "gun_shots": json }), format!("owner-test gun shots: {}", lines.join("; "))))]
     }
+}
+
+/// How fast a target at `target` moving at the horizontal velocity `v` crosses the line from `shooter` to him, m/s: the part of
+/// `v` perpendicular to that line, as a magnitude.
+fn across_speed(shooter: Vec3, target: Vec3, v: Vec3) -> f32 {
+    let line = Vec3::new(target.x - shooter.x, 0.0, target.z - shooter.z);
+    let length = line.length();
+    if length < 1e-3 {
+        return v.x.hypot(v.z);
+    }
+    ((v.x * line.z - v.z * line.x) / length).abs()
 }
 
 #[cfg(test)]
@@ -205,6 +287,27 @@ mod tests {
             offset: None,
             landed: Landed { fired: 1, on_enemy: u8::from(hit), parts: [0; 4] },
         }
+    }
+
+    /// A target walking straight at or away from the shooter crosses the line at 0; one walking across it at its own speed.
+    #[test]
+    fn a_target_crosses_the_line_at_the_part_of_his_speed_across_it() {
+        let (shooter, target) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 30.0));
+        assert!(across_speed(shooter, target, Vec3::new(0.0, 0.0, 4.0)) < 1e-4);
+        assert!((across_speed(shooter, target, Vec3::new(-2.6, 0.0, 0.0)) - 2.6).abs() < 1e-4);
+        let diagonal = across_speed(shooter, target, Vec3::new(3.0, 0.0, 3.0));
+        assert!((diagonal - 3.0).abs() < 1e-4, "{diagonal}");
+    }
+
+    /// A target is crouched or aimed in whatever its speed, else moving, else still for how long.
+    #[test]
+    fn a_target_is_read_as_crouched_aimed_moving_or_still_for_how_long() {
+        assert_eq!(TargetState::of(key::CROUCH | key::AIM, 3.0, 0), TargetState::Crouched);
+        assert_eq!(TargetState::of(key::AIM, 0.0, 900), TargetState::AimedIn);
+        assert_eq!(TargetState::of(key::LEFT, 2.6, 0), TargetState::Moving);
+        assert_eq!(TargetState::of(0, 0.1, 100), TargetState::StillBrief);
+        assert_eq!(TargetState::of(0, 0.1, 300), TargetState::StillRest);
+        assert_eq!(TargetState::of(0, 0.1, 450), TargetState::StillLong);
     }
 
     /// Three shots of a 600 rpm rifle 100 ms apart (two hit), 2 s of quiet, then a single shot: a burst of 3 with 2 hits, a
