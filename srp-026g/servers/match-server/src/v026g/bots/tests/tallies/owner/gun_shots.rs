@@ -18,6 +18,14 @@ const ON_DEG: f32 = 10.0;
 /// A shot follows the one before in the same burst when within this many of the gun's cycles (and at least [`MIN_GAP_MS`]).
 const CYCLES: u32 = 2;
 const MIN_GAP_MS: u32 = 150;
+/// "On him" is the live analysis's (`miss.py` F, `fighting.md` 3d): the shot line within this sideways of the chest point
+/// and between this far under and over it, m. Those shots are expected to hit; the share that does is what the game's
+/// registration, kick and spread leave of an aimed shot.
+const ON_HIM_SIDE_M: f32 = 0.3;
+const ON_HIM_UNDER_M: f32 = 0.9;
+const ON_HIM_OVER_M: f32 = 0.45;
+/// The distance bands of the on-him counts, m (upper edges, the last takes the rest): 0-20, 20-40, 40 and more.
+const ON_HIM_BANDS_M: [f32; 2] = [20.0, 40.0];
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
@@ -39,6 +47,8 @@ struct Acc {
     /// The cone of the spread, degrees, summed over the shots, and how far the line was off the chest.
     cone_sum: f64,
     off_sum: f64,
+    /// Shots whose line is on him (see [`ON_HIM_SIDE_M`]) and hits among them, by [`ON_HIM_BANDS_M`].
+    on_him: [[u32; 2]; 3],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
@@ -122,6 +132,12 @@ impl Topic for GunShots {
             tally(&mut a.by_crouch[usize::from(fact.crouched)]);
             let target_moving = game.bodies.get(target).is_some_and(|t| stance(t.keys).0);
             tally(&mut a.by_target_moving[usize::from(target_moving)]);
+            if let Some(line) = fact.offset.and_then(|o| o.line)
+                && line.lateral.abs() <= ON_HIM_SIDE_M
+                && (-ON_HIM_UNDER_M..=ON_HIM_OVER_M).contains(&line.vertical)
+            {
+                tally(&mut a.on_him[ON_HIM_BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(ON_HIM_BANDS_M.len())]);
+            }
             a.cone_sum += f64::from(fact.cone);
             a.off_sum += f64::from(off);
         }
@@ -150,6 +166,7 @@ impl Topic for GunShots {
                     "by_crouch": a.by_crouch,
                     "cone_deg_sum": a.cone_sum,
                     "off_deg_sum": a.off_sum,
+                    "on_him": a.on_him,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),

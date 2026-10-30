@@ -102,6 +102,20 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       "cone_deg_sum": 0.0,
       "hits": 257,
       "off_deg_sum": 0.0,
+      "on_him": [
+        [
+          2,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          24,
+          18
+        ]
+      ],
       "pauses": [
         0,
         0,
