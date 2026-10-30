@@ -138,9 +138,9 @@ def main():
                 g.weight=weight
                 actual=g.show()
                 q=min(1,max(0,(weight-minimum)/(maximum+bonus-minimum)))
-                expected=[weight,maximum+bonus,0 if heavy else movement*(1+porter)*q,spending*q,2 if heavy else int(weight>=maximum+bonus and not runner),skills,int(bear>0)]
+                expected=[weight,maximum+bonus,0 if heavy else movement*(1+porter)*q,spending*q,2 if heavy else int(weight>=maximum+bonus and not runner),skills,int(bear>0),maximum,bonus,porter]
                 assert all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
-                assert len(actual)==7
+                assert len(actual)==10
                 count+=1
     # Equipped inventory must execute the real item's parameter path for
     # capacity, but never for the weight-specific player modifiers.
@@ -152,8 +152,8 @@ def main():
         g.kit(kit,porter=-0.25)
         g.weight=27.5
         actual=g.show()
-        expected=[27.5,35,-0.075,0.75,0,0,0]
-        assert len(actual)==7 and all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
+        expected=[27.5,35,-0.075,0.75,0,0,0,30,0,-0.25]
+        assert len(actual)==10 and all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
         g.word(g.profile+0x58+kit*0x704+0x40+slot*4,0xffff)
     g.load_config(minimum=30,maximum=30)
     g.kit(0)
@@ -162,6 +162,6 @@ def main():
     # A different lobby must not borrow a previous lobby's config.
     replacement=g.block(0x3200);g.emu.mem_write(replacement,bytes(g.emu.mem_read(g.menu,0x3200)));g.menu=replacement
     assert len(g.show())==2
-    print(f'PASS: {count} native callback cases (with the kit\'s movement skills and Bear Arms), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
+    print(f'PASS: {count} native callback cases (with the kit\'s movement skills, Bear Arms and the carry limit\'s base, skills and Packrat), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
 
 if __name__=='__main__': main()

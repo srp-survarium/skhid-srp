@@ -777,3 +777,29 @@ simulation change.
 - **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
   aiming's lower speed.
 - An older exe (five arguments) shows no speed and the old tooltip.
+
+### The carry limit by source, in the weight's tooltip (2026-10-30)
+
+The owner: "can weight show packrat effect in pop up?", then: what raises the
+carry limit, by source, like the speed. After its weight rows the weight's
+tooltip lists the base limit and each source that changes it, shown only when
+it does, adding up to the limit beside the weight ("/ 30"):
+
+- **The exe's limit.** The lobby's maximum is `apply_kit_parameter(kit, 5)`
+  0x2F7660 (called at 0x222217): the menu's base (+3118h, 30 kg) through
+  `apply_modifier` 0x2D5AE0 index 5 (additive: base + the kit's float), then
+  each kit item's parameter and modifications (0x2F7470), the armour's and the
+  pockets' alike.
+- **Base limit**: the menu's +3118h, from the exe's callback.
+- **Skills**: the kit's float of modifier 5 (Athlete, skill 209, +2 kg a rank),
+  from the exe's callback.
+- **Bonuses**: the armour's (HEAD..FOOT) weight-limit modifications (prop 106,
+  1120..1124: +1..+5 kg; the Duty suit's built-in 1124).
+- **Boosters**: the pockets' (the Anomalous Force Protein, `weight_booster`,
+  built-in 1124: +5 kg while carried, as every booster).
+- **Equipment**: what the exe's limit has beyond those (the items' own
+  parameters; 0 in every config so far).
+- **Packrat** (skill 202, the game's own name `st_overweight_penalty_name`):
+  the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
+- Green raises the limit (or lowers the penalty), red lowers it, as the rows;
+  the weight-limit modifications' icon (12), Packrat's the speed icon (11).

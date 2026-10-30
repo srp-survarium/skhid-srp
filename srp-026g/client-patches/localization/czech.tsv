@@ -2522,6 +2522,7 @@ st_srp_speed_label	Rychlost
 st_srp_speed_skills	Dovednosti: %1$s
 st_srp_speed_title	Rychlost pohybu: %1$s
 st_srp_speed_weight	Hmotnost: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2555,8 +2556,10 @@ st_srp_weather_day	den
 st_srp_weather_evening	večer
 st_srp_weather_night	noc
 st_srp_weather_rain	déšť
+st_srp_weight_base	Základní limit: %1$s
 st_srp_weight_no_sprint_heavyweight	Nelze sprintovat: dovednost Těžká váha.
 st_srp_weight_no_sprint_limit	Nelze sprintovat: dosažena nosnost.
+st_srp_weight_penalty	%1$s% postihu za hmotnost
 st_srp_weight_speed	Rychlost pohybu: %1$s
 st_srp_weight_sprint_stamina	Spotřeba výdrže při sprintu: %1$s
 st_srp_weight_title	Vliv hmotnosti

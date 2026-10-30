@@ -2522,6 +2522,7 @@ st_srp_speed_label	Скорость
 st_srp_speed_skills	Навыки: %1$s
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_speed_weight	Вес: %1$s
+st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
@@ -2555,8 +2556,10 @@ st_srp_weather_day	день
 st_srp_weather_evening	вечер
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
+st_srp_weight_base	Базовый предел: %1$s
 st_srp_weight_no_sprint_heavyweight	Спринт недоступен: навык «Тяжеловес».
 st_srp_weight_no_sprint_limit	Спринт недоступен: перегруз.
+st_srp_weight_penalty	%1$s% штраф за вес
 st_srp_weight_speed	Скорость передвижения: %1$s
 st_srp_weight_sprint_stamina	Затраты энергии на спринт: %1$s
 st_srp_weight_title	Влияние веса

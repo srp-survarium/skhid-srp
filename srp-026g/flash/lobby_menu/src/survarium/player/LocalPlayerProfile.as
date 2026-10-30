@@ -503,28 +503,36 @@ package survarium.player
       // movement parameter (the weapon in hand).
       private function withKitItems(effects:WeightEffects) : WeightEffects
       {
-         if(effects == null || !effects.knowsSpeed) return effects;
+         if(effects == null) return effects;
          var items:DataProvider = profileItems.dataProvider as DataProvider;
-         var bonuses:Number = 0;
-         var weapon:Number = 0;
-         var boosters:Number = 0;
+         var sums:KitItems = new KitItems();
          for(var i:uint = 0; items != null && i < items.length; i++)
          {
             var item:ItemData = items[i] as ItemData;
             if(item == null) continue;
-            if(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT) bonuses += movementOf(item);
-            else if(item.slotId == ProfileSlot.WEAPON_1) weapon = movementOf(item);
-            else if(item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6) boosters += movementOf(item);
+            if(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT)
+            {
+               sums.speedBonuses += propOf(item,105);
+               sums.limitBonuses += propOf(item,106);
+            }
+            else if(item.slotId == ProfileSlot.WEAPON_1) sums.weapon = propOf(item,105);
+            else if(item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6)
+            {
+               sums.speedBoosters += propOf(item,105);
+               sums.limitBoosters += propOf(item,106);
+            }
          }
-         return effects.withItems(bonuses,boosters,weapon);
+         return effects.withItems(sums);
       }
       
-      private static function movementOf(item:ItemData) : Number
+      // The sum of a property over the item's modifications (built-in, rolled, defects):
+      // 105 movement speed, 106 carry limit (kg).
+      private static function propOf(item:ItemData, propId:uint) : Number
       {
          var sum:Number = 0;
          for each(var modifier:Object in item.modifiers)
             for each(var prop:Object in modifier.props)
-               if(prop.prop_id == 105 && isFinite(ModificationRolls.value(prop))) sum += ModificationRolls.value(prop);
+               if(prop.prop_id == propId && isFinite(ModificationRolls.value(prop))) sum += ModificationRolls.value(prop);
          return sum;
       }
       

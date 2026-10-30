@@ -3945,12 +3945,13 @@ package
          this.player_profile.updateSlots(artifactSlots,itemSlots);
       }
       
-      public function update_player_items_weight(cur:Number, max:Number, movement:Number = NaN, spending:Number = NaN, sprint:Number = NaN, skills:Number = NaN, bearArms:Number = NaN) : void
+      public function update_player_items_weight(cur:Number, max:Number, movement:Number = NaN, spending:Number = NaN, sprint:Number = NaN, skills:Number = NaN, bearArms:Number = NaN,
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN) : void
       {
          trace("load_weigth:",cur,max);
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
-         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms));
+         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,max,base,limitSkills,packrat));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void

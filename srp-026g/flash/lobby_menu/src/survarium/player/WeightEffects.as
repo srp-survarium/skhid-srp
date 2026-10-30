@@ -22,26 +22,30 @@ package survarium.player
       private var _sprint:int;
       // The other parts of the speed; null when the exe gives no skills (an older one).
       private var _speed:SpeedParts;
-      public function WeightEffects(movement:Number, spending:Number, sprint:int, speed:SpeedParts)
+      // The carry limit by source; null when the exe gives none (an older one).
+      private var _limit:LimitParts;
+      public function WeightEffects(movement:Number, spending:Number, sprint:int, speed:SpeedParts, limit:LimitParts)
       {
          _movement = movement;
          _spending = spending;
          _sprint = sprint;
          _speed = speed;
+         _limit = limit;
       }
-      public static function parse(movement:Number, spending:Number, sprint:Number, skills:Number = NaN, bearArms:Number = NaN) : WeightEffects
+      public static function parse(movement:Number, spending:Number, sprint:Number, skills:Number = NaN, bearArms:Number = NaN,
+         maximum:Number = NaN, base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN) : WeightEffects
       {
          if(!isFinite(movement) || !isFinite(spending) ||
             (sprint != SPRINT_ALLOWED && sprint != SPRINT_WEIGHT && sprint != SPRINT_HEAVYWEIGHT)) return null;
          var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,0,0,0) : null;
-         return new WeightEffects(movement,spending,int(sprint),speed);
+         return new WeightEffects(movement,spending,int(sprint),speed,LimitParts.parse(maximum,base,limitSkills,packrat));
       }
-      // The same effects with the kit's items: the armour's movement bonuses and the
-      // weapon in hand's own movement parameter.
-      public function withItems(bonuses:Number, boosters:Number, weapon:Number) : WeightEffects
+      // The same effects with the kit's items (KitItems: the profile's sums).
+      public function withItems(items:KitItems) : WeightEffects
       {
-         if(_speed == null) return this;
-         return new WeightEffects(_movement,_spending,_sprint,_speed.withItems(bonuses,boosters,weapon));
+         return new WeightEffects(_movement,_spending,_sprint,
+            _speed == null ? null : _speed.withItems(items.speedBonuses,items.speedBoosters,items.weapon),
+            _limit == null ? null : _limit.withItems(items));
       }
       public function get knowsSpeed() : Boolean { return _speed != null; }
       // The kit's movement speed as a fraction of the base speed.
@@ -73,6 +77,8 @@ package survarium.player
             result.push({icon:16,label:LocalizationData.format("st_srp_weight_sprint_stamina",signed(_spending,_spending > 0))});
          if(_sprint != SPRINT_ALLOWED)
             result.push({icon:11,label:Util.styledChar(LocalizationData.getName(_sprint == SPRINT_WEIGHT ? "st_srp_weight_no_sprint_limit" : "st_srp_weight_no_sprint_heavyweight"),"red")});
+         // What raises the carry limit, by source (LimitParts).
+         if(_limit != null) result = result.concat(_limit.rows());
          return result;
       }
    }

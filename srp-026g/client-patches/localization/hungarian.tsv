@@ -2522,6 +2522,7 @@ st_srp_speed_label	Sebesség
 st_srp_speed_skills	Képességek: %1$s
 st_srp_speed_title	Mozgási sebesség: %1$s
 st_srp_speed_weight	Súly: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2555,8 +2556,10 @@ st_srp_weather_day	nappal
 st_srp_weather_evening	este
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
+st_srp_weight_base	Alapkorlát: %1$s
 st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
 st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.
+st_srp_weight_penalty	%1$s% súlybüntetés
 st_srp_weight_speed	Mozgási sebesség: %1$s
 st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
 st_srp_weight_title	A súly hatásai

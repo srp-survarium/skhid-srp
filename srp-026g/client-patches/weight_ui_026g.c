@@ -34,9 +34,9 @@ static struct gfx_value value(double number)
 /* The kit's own part of movement-speed modifier 4 (skills): the float the
  * native sum starts from (apply_modifier 0x2D5AE0: S = the kit's float plus
  * its item nodes; in the lobby the items are the movie's to add). */
-static float kit_movement(const void *modifiers)
+static float kit_float(const void *modifiers, u32 index)
 {
-    return *(const float *)((const u8 *)modifiers + 4 * 4);
+    return *(const float *)((const u8 *)modifiers + index * 4);
 }
 /* Sprint eligibility due to weight/Heavyweight only, not stamina or injury. */
 enum sprint { WEIGHT_PERMITS_SPRINT, WEIGHT_BLOCKS_SPRINT, HEAVYWEIGHT_BLOCKS_SPRINT };
@@ -66,11 +66,17 @@ u32 weight_ui_invoke(const void *menu, void *movie, const struct gfx_value *orig
     const float bear_arms = engine_apply_modifier(modifiers, 62, 0, 1);
     const enum sprint sprint = heavy > 0 ? HEAVYWEIGHT_BLOCKS_SPRINT :
         current >= maximum && runner <= 0 ? WEIGHT_BLOCKS_SPRINT : WEIGHT_PERMITS_SPRINT;
-    struct gfx_value args[7] = {
+    /* The carry limit's parts: the menu's base limit (+3118h, the B the lobby's
+     * apply_kit_parameter(5) 0x2F7660 starts from at 0x2221F3) and the kit's own
+     * floats of modifiers 5 (skills: Athlete, +2 kg a rank) and 26 (Packrat, the
+     * weight penalty's scale, -5 % a rank); the items' are the movie's. */
+    const float base = *(const float *)((const u8 *)menu + 0x3118);
+    struct gfx_value args[10] = {
         value(current), value(maximum),
         value(heavy > 0 ? 0 : (double)(movement * q)),
         value(p.spending * q), value(sprint),
-        value(kit_movement(modifiers)), value(bear_arms > 0)
+        value(kit_float(modifiers, 4)), value(bear_arms > 0),
+        value(base), value(kit_float(modifiers, 5)), value(kit_float(modifiers, 26))
     };
-    return engine_movie_invoke(movie, method, 0, args, 7);
+    return engine_movie_invoke(movie, method, 0, args, 10);
 }
