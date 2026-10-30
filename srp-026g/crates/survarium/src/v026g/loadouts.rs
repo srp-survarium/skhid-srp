@@ -612,16 +612,80 @@ pub const BOT_BANDAGES: BotKitItem = kit_item("bandages", 14, 2, Some(QUICK_USE_
 /// exception; the test below derives it with the rule).
 pub const BOT_TRAP: BotKitItem = kit_item("base_trap", 15, 2, Some(QUICK_USE_FIRST_BIT + 2));
 
+/// An environment switch of the owner's choices that is **on unless the environment says off** (owner, 2026-10-26: "make them
+/// ON as code defaults so missing env var will not cause regression"): `0`, `off` or `false` is off; unset, empty, `1`, `on`,
+/// `true` is on; any other word is on, said in the log (a typo must not switch the owner's kit off).
+pub fn on_unless_off(name: &str, value: Option<&str>) -> bool {
+    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("" | "1" | "on" | "true") => true,
+        Some("0" | "off" | "false") => false,
+        Some(other) => {
+            log::error!("{name} is `{other}`; it is 0/off/false or 1/on/true. Using ON");
+            true
+        }
+    }
+}
+
+/// The two environment switches of the owner's choices as one thread may see them ([`KitSwitches::scope`]): the tests of the old
+/// kit's rules, and of the kit's own, run in one process whatever its environment says. Nothing but a test sets one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitSwitches {
+    pub kit: bool,
+    pub upgrades: bool,
+}
+
+thread_local! {
+    static SCOPED: std::cell::Cell<Option<KitSwitches>> = const { std::cell::Cell::new(None) };
+}
+
+/// What [`KitSwitches::scope`] restores when it is dropped.
+#[must_use = "the switches are the scope's only while it is held"]
+pub struct KitScope(Option<KitSwitches>);
+
+impl Drop for KitScope {
+    fn drop(&mut self) {
+        SCOPED.set(self.0);
+    }
+}
+
+impl KitSwitches {
+    /// Both off: the kit, the gear and the skills the bots had before the owner's choices.
+    pub const OFF: Self = Self { kit: false, upgrades: false };
+    /// Both on: the defaults.
+    pub const ON: Self = Self { kit: true, upgrades: true };
+
+    /// The switches this thread sees now: a scope's, else the process's (the environment's).
+    pub fn current() -> Self {
+        SCOPED.get().unwrap_or_else(|| Self { kit: process_kit(), upgrades: process_upgrades() })
+    }
+
+    /// The slot of a cache of what the switches decide.
+    pub fn slot(self) -> usize {
+        usize::from(self.kit) * 2 + usize::from(self.upgrades)
+    }
+
+    /// The count of [`Self::slot`]s.
+    pub const SLOTS: usize = 4;
+
+    /// These switches on this thread until the scope is dropped.
+    pub fn scope(self) -> KitScope {
+        KitScope(SCOPED.replace(Some(self)))
+    }
+}
+
 /// Whether the bots carry the owner's kit of 2026-10-26 (bandages and
 /// traps in the pockets, the gear that opens a fourth, the extra ammo bag
-/// of skill 109): `SRP_BOT_KIT` set to `1`, `on` or `true`; **off unless
-/// set**: [`BOT_POCKETS`], the old gear and skills. Read once.
+/// of skill 109, the frags and the trap placement): **on unless
+/// `SRP_BOT_KIT` is `0`, `off` or `false`** ([`on_unless_off`]); off:
+/// [`BOT_POCKETS`], the old gear and skills. Read once.
 pub fn new_kit() -> bool {
+    SCOPED.get().map_or_else(process_kit, |switches| switches.kit)
+}
+
+fn process_kit() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| {
-        let on = std::env::var("SRP_BOT_KIT")
-            .map(|value| matches!(value.trim(), "1" | "on" | "true"))
-            .unwrap_or(false);
+        let on = on_unless_off("SRP_BOT_KIT", std::env::var("SRP_BOT_KIT").ok().as_deref());
         // Said once, when it is read: the logs show what the environment gave (this is read once per process).
         log::info!("SRP_BOT_KIT is {}", if on { "ON" } else { "OFF" });
         on
@@ -635,15 +699,17 @@ pub fn new_kit() -> bool {
 /// [`bot_pockets`] is what they carry now.
 pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
 
-/// Whether the bots' armour carries [`BOT_UPGRADES`]: `SRP_BOT_UPGRADES`
-/// set to `1`, `on` or `true`; **off unless set**: the plain armour. Read
-/// once.
+/// Whether the bots' armour carries [`BOT_UPGRADES`]: **on unless
+/// `SRP_BOT_UPGRADES` is `0`, `off` or `false`** ([`on_unless_off`]); off:
+/// the plain armour. Read once.
 pub fn upgrades_on() -> bool {
+    SCOPED.get().map_or_else(process_upgrades, |switches| switches.upgrades)
+}
+
+fn process_upgrades() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| {
-        let on = std::env::var("SRP_BOT_UPGRADES")
-            .map(|value| matches!(value.trim(), "1" | "on" | "true"))
-            .unwrap_or(false);
+        let on = on_unless_off("SRP_BOT_UPGRADES", std::env::var("SRP_BOT_UPGRADES").ok().as_deref());
         // Said once, when it is read: the logs show what the environment gave (this is read once per process).
         log::info!("SRP_BOT_UPGRADES is {}", if on { "ON" } else { "OFF" });
         on
@@ -958,6 +1024,16 @@ impl BotMask {
 }
 
 impl RusherKits {
+    /// What the lobby gives the bots unless its environment says otherwise (the bench's ON arm, `SWITCH-LEDGER` §1, the
+    /// owner's choice): the `alt` SMG at 9-10, the `smg` at 13-15, the top players' respirator.
+    pub const fn owners() -> Self {
+        Self {
+            mid: RusherKit::Alt,
+            high: RusherKit::Smg,
+            masks: Masks::TopPlayers,
+        }
+    }
+
     /// The same kit in both tiers.
     pub fn both(kit: RusherKit) -> Self {
         Self {
@@ -1843,7 +1919,8 @@ pub fn bot_kits_stored(equipment: BotEquipment, role: BotRole, store: PocketStor
 
 /// [`bot_kits`] with the whole pocket kit given ([`BotPocketKit`]).
 pub fn bot_kits_kit(equipment: BotEquipment, role: BotRole, kit: BotPocketKit) -> [&'static Loadout; 3] {
-    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len() * BotPocketKit::COUNT;
+    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len() * BotPocketKit::COUNT
+        * KitSwitches::SLOTS;
     static SHARED: [std::sync::OnceLock<[Loadout; 3]>; KITS] =
         [const { std::sync::OnceLock::new() }; KITS];
     let equipment = BotEquipment {
@@ -1863,7 +1940,7 @@ pub fn bot_kits_kit(equipment: BotEquipment, role: BotRole, kit: BotPocketKit) -
         + equipment.rusher as usize)
         * BotMask::ALL.len()
         + equipment.mask as usize;
-    let index = index * BotPocketKit::COUNT + kit.index();
+    let index = (index * BotPocketKit::COUNT + kit.index()) * KitSwitches::SLOTS + KitSwitches::current().slot();
     let [first, second, third] = SHARED[index].get_or_init(|| {
         bot_kits_in_kit(equipment, role, new_kit(), upgrades_on(), kit)
     });
@@ -2115,6 +2192,26 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
 
 #[cfg(test)]
 mod tests {
+    /// The owner's switches are on unless the environment says off (2026-10-26: a missing variable must not be a regression).
+    #[test]
+    fn the_owners_environment_switches_are_on_unless_they_say_off() {
+        use super::on_unless_off;
+        for on in [None, Some(""), Some("  "), Some("1"), Some("on"), Some("ON"), Some("true"), Some(" True ")] {
+            assert!(on_unless_off("X", on), "{on:?}");
+        }
+        for off in [Some("0"), Some("off"), Some("OFF"), Some("false"), Some(" False ")] {
+            assert!(!on_unless_off("X", off), "{off:?}");
+        }
+        // A word that is neither is on (a typo does not take the owner's kit away).
+        assert!(on_unless_off("X", Some("flase")));
+        // The lobby's choice when its environment is silent.
+        let owners = super::RusherKits::owners();
+        assert_eq!(
+            (owners.of(super::BotTier::Low), owners.of(super::BotTier::Mid), owners.of(super::BotTier::High), owners.masks),
+            (super::RusherKit::Control, super::RusherKit::Alt, super::RusherKit::Smg, super::Masks::TopPlayers),
+        );
+    }
+
     use super::*;
 
     #[test]
@@ -3241,6 +3338,8 @@ mod tests {
     /// `on_the_live_data_every_rusher_kit_is_made`.
     #[test]
     fn each_rusher_kit_is_its_table_made_into_a_kit() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = KitSwitches::OFF.scope();
         let dictionary = Dictionary::shared();
         let name = |kit: &Loadout, slot: u8| {
             kit.slot(slot)
@@ -3295,7 +3394,7 @@ mod tests {
 
     /// The old table stays reachable: `Control` is the SPAS-12 with buckshot,
     /// the helmet of 9-10 `edge_helmet_3` and none at 13-15, and with the
-    /// owner's kit off (`SRP_BOT_KIT`, the default) makes the kits it always
+    /// owner's kit off (`SRP_BOT_KIT=0`) makes the kits it always
     /// made (45 and 60 shells a life, the pieces before the owner's kit),
     /// also as the flanker's third kit.
     #[test]

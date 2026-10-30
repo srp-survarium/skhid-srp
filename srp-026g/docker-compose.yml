@@ -150,12 +150,12 @@ services:
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
       # SRP_PVB_RUSHER_KIT: the kit of the rusher bots of the tiers 9-10 and
-      # 13-15, control (the old SPAS-12 kit) when unset; e.g.
-      # 9-10=alt,13-15=smg (docs/notes/pvb-tiers.md).
+      # 13-15, the owner's 9-10=alt,13-15=smg when unset; `control` is the
+      # old SPAS-12 kit (docs/notes/pvb-tiers.md).
       - SRP_PVB_RUSHER_KIT
-      # SRP_PVB_MASKS: `top` puts the respirator the top players of the tier
-      # wear on every bot (ren_mask_3 at 9-10, edge_resp_3 at 13-15); off
-      # when unset (docs/notes/pvb-tiers.md).
+      # SRP_PVB_MASKS: the respirator the top players of the tier wear on
+      # every bot (ren_mask_3 at 9-10, edge_resp_3 at 13-15), `top` when
+      # unset; `off` for the tables' pieces (docs/notes/pvb-tiers.md).
       - SRP_PVB_MASKS
       # The bots' decision traces (off unless set; e.g.
       # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
@@ -182,11 +182,11 @@ services:
       # it the bots roam to the exits.
       - SRP_BOT_ROUTES
       # The bots' kit of 2026-10-26 (docs/notes/pvb-tiers.md): bandages,
-      # traps, a fourth pocket and skill 109's ammo bag. Off unless `1`,
-      # `on` or `true`; the lobby reads it once.
+      # traps and their placing, frags, a fourth pocket and skill 109's ammo
+      # bag. On unless `0`, `off` or `false`; the lobby reads it once.
       - SRP_BOT_KIT
-      # The upgrades on the bots' armour (loadouts::BOT_UPGRADES): off unless
-      # `1`, `on` or `true`.
+      # The upgrades on the bots' armour (loadouts::BOT_UPGRADES): on unless
+      # `0`, `off` or `false`.
       - SRP_BOT_UPGRADES
     ports:
       # Login: TLS over TCP.
