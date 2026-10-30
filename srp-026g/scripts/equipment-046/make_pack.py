@@ -42,7 +42,7 @@ drawable_material, shipped_switches = e029.drawable_material, e029.shipped_switc
 from prepare_inputs import sound_file, specs  # noqa: E402
 
 PACK = 'equipment-046'
-VERSION = '1'
+VERSION = '2'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'

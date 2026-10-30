@@ -1,7 +1,7 @@
 # Equipment from 0.31a2 and 0.46c2 (pack equipment-046)
 
 The owner's pick of 0.69d equipment that live Skhid (rev 38) lacks: 38 pieces.
-35 ship in the content pack `equipment-046@1` (`scripts/equipment-046`); 3 are
+35 ship in the content pack `equipment-046@2` (`scripts/equipment-046`); 3 are
 left out (below). Every number here is a proposal: balance is the owner's call.
 
 ## What ships
@@ -47,55 +47,70 @@ left out (below). Every number here is a proposal: balance is the owner's call.
 ## The pieces (armour / isolation, kg, price, drop weight)
 
 Levels map 0.31a2's onto 0.26g's by the shared models (0.31 level 3 -> 3,
-7 -> 9, 10 -> 15). Shop rank by srp's rule (`prices::seller_level`).
+10 -> 15), proportionally between (the owner, 2026-10-30: 0.31 level 7 ->
+3 + 4 x 12/7 = 9.9 -> 10). Shop rank by srp's rule (`prices::seller_level`).
+Prices are the level's median of the piece's kind (the owner's price
+analysis, 2026-10-30).
 
 - **Black Market "Heavy armored"** (0.31 level 10, `sturm_10`) -> **level 15**
   (the owner, 2026-10-30), the Black Market's first level-15 set; Black Market
   rank 5; drop 10.
   - Vest 88/20, 14 kg, 100,000, 1 ammo bag + 2 pockets (Zubr 90/50, 20 kg).
   - Pants 88/20, 4 kg, 50,000, ammo bag + pocket size.
-  - Helmet 65/20, 2.5 kg, 50,000 (brain only; Nomad's 60/30).
+  - Helmet 65/20, 2.5 kg, 71,250 (brain only; Nomad's 60/30; 0.95x the
+    level-15 helmet median of 75,000, as the vest).
   - Armored mask 50/15, 1.2 kg, 23,760 (no native level-15 mask).
   - Gloves 88/20, 0.6 kg, 25,000, recoil -8 %. Boots 88/20, 1.8 kg, 25,000,
     energy costs -8 %.
   - Backpack for ammo: 4 kg, 47,500, 2 ammo bags + 1 pocket.
   - Five pieces + mask 24.1 kg (Zubr 34.6, Nomad 17.3): less armour and
     isolation than Zubr, lighter.
-- **Fringe "Veles"** (`keeper_07`, 0.31 level 7) -> level 9, Fringe rank 4,
-  drop 70: vest 65/15 8.5 kg 47,500 (ammo bag); pants 65/15 1.9 kg 23,750
-  (ammo bag); helmet 45/10 2.2 kg 26,250; Sorcerer gloves 65/15 0.3 kg 11,880
-  (spread -8 %); Sorcerer boots 65/15 1.3 kg 11,880 (stamina regeneration
-  +8 %); Token backpack 3 kg 35,000 (1 artefact slot).
-- **Army "Sniper"** (`sniper_07`, 0.31 level 7) -> level 9, Army rank 4,
-  drop 70: vest 55/25 7 kg 52,500 (pocket); pants 55/25 1.5 kg 26,250 (pocket
-  size); helmet 30/25 0.8 kg 26,250; gloves 55/25 0.2 kg 13,130 (aim -8 %);
-  boots 55/25 0.8 kg 13,130 (energy -8 %); Spectrum-M thermal vision (mask)
-  25/35 0.6 kg 13,130.
+- **Level 10** (the owner, 2026-10-30), off level 9 where Fringe already has
+  Stalker and Warrior. Each piece moved by a third of the step from its level-9
+  to its level-12 native peers (armour, isolation, weight, price: vests and
+  pants Stalker -> Leshy and Shturm -> Molot UM-2, gloves Stalker -> Master's
+  and Assault -> Reinforced, boots Stalker -> Reinforced, helmets Pathfinder
+  -> Combat, backpacks Watchman -> Life support M-1; the Spectrum-M the body's
+  +2/+2, as no Army mask has level 12). Fringe and Army rank 5; drop 60;
+  built-in bonuses kept.
+  - **Fringe "Veles"** (`keeper_07`, 0.31 level 7): vest 67/17 8.2 kg 53,830
+    (ammo bag); pants 67/17 2 kg 26,920 (ammo bag); helmet 50/13 2.9 kg
+    35,580; Sorcerer gloves 67/15 0.3 kg 13,460 (spread -8 %); Sorcerer boots
+    67/17 1.2 kg 13,460 (stamina regeneration +8 %); Token backpack 3.3 kg
+    39,670 (1 artefact slot).
+  - **Army "Sniper"** (`sniper_07`, 0.31 level 7): vest 57/27 8 kg 59,500
+    (pocket); pants 57/28 1.8 kg 29,750 (pocket size); helmet 35/28 1.5 kg
+    35,580; gloves 60/28 0.25 kg 14,880 (aim -8 %); boots 60/22 1.1 kg 15,300
+    (energy -8 %); Spectrum-M thermal vision (mask) 27/37 0.5 kg 14,880.
 - **Army "OZK-UV"** (`anom_03`, 0.31 level 3) -> level 3, Army rank 0,
-  drop 130: vest 25/40 5.5 kg 7,130 (pocket size); pants 25/40 2 kg 3,560
-  (pocket); gloves 25/40 0.6 kg 1,790 (artefact search -20 %); boots 25/40
-  1 kg 1,790.
+  drop 130: vest 25/40 5.5 kg 9,450 (pocket size); pants 25/40 2 kg 4,730
+  (pocket); gloves 25/40 0.6 kg 1,190 (artefact search -20 %); boots 25/40
+  1 kg 1,190 (the level-3 medians).
 - **Missing pieces of sets 0.26g has** (the set's level and protection):
   - Fringe Stalker (level 9): Stalker's helmet 35/25 1.6 kg 26,250; Stalker's
     backpack 4.5 kg 35,000 (ammo bag + pocket); NVD (mask) 30/20 0.8 kg 11,880.
   - Fringe Warrior gloves (level 9) 60/20 0.3 kg 11,880 (recoil -8 %).
   - Scavenger Pathfinder boots (level 9) 65/20 1.3 kg 13,130 (movement +4 %);
-    Saboteur boots (level 5) 45/20 1 kg 4,040 (energy -8 %). Scavengers rank 5.
+    Saboteur boots (level 5) 45/20 1 kg 4,460 (energy -8 %). Scavengers rank 5.
   - Army Scout's gloves (level 8) 50/40 0.3 kg 8,660 (aim -8 %), Army rank 3.
   - Black Market Watchman (level 9, rank 5): boots 60/30 1.3 kg 13,130
     (movement +4 %); helmet 30/35 1.4 kg 26,250.
-  - Black Market "Marodeur" gloves (level 4, rank 4) 40/30 0.4 kg 3,410
-    (reload +12 %); Biker pants (level 5, the Corsair set's model family,
-    rank 5) 55/5 2 kg 8,930 (movement +4 %).
+  - Black Market "Marodeur" gloves (level 4, rank 4) 40/30 0.4 kg 2,620
+    (reload +12 %; between the level-3 and level-5 prices); Biker pants
+    (level 5, the Corsair set's model family, rank 5) 55/5 2 kg 8,930
+    (movement +4 %).
 - **Premium**: Bandit's jacket "MK II" (1863), a premium copy of the Bandit's
   jacket (351, level 3) with its own model: the plain piece's combat values and
   default, +5 % experience and +5 % Black Market reputation as its first two
   modifications (`srp_premium`, the lobby's `Equipment046.as`), drop 0,
-  500 gold (the stock premium copy's price).
-- `balance_audit.py`: 34 regular pieces, 124 comparisons with native,
+  500 gold: premium gold prices follow level (the owner, "proportional",
+  2026-10-30: level 3 -> 500, 6 -> 1,100, 9 -> 1,400, 12 -> 1,700, 14 ->
+  1,900; the stock level-3 premium jacket is 500 too).
+- `balance_audit.py`: 34 regular pieces, 62 comparisons with native,
   equipment-029 and each other at the same level, kind, regions and slots;
   none strictly better or worse. No exact peer: the Armored mask (no level-15
-  mask) and the "Marodeur" gloves (no level-4 gloves).
+  mask), the Token (no level-10 backpack) and the "Marodeur" gloves (no
+  level-4 gloves).
 
 ## Left out
 
@@ -118,11 +133,8 @@ Levels map 0.31a2's onto 0.26g's by the shared models (0.31 level 3 -> 3,
 
 ## Open questions for the owner
 
-- Veles and Sniper at level 9 (the 0.31 mapping), with Fringe already having
-  Stalker and Warrior there; or level 10-11 to fill the gap below 12?
-- Prices, drop weights and built-in bonuses as proposed?
+- Drop weights and built-in bonuses as proposed?
 - English names: Watchman for 0.46c2's "Sentry" boots and helmet (Russian is
   the same word), "Backpack for ammo" (0.31's; 0.69d calls it "Backpack for
   explosive")?
-- Bandit's jacket "MK II" at 500 gold?
 - Port the three 0.69d-only pieces later (a resource-porter builder)?
