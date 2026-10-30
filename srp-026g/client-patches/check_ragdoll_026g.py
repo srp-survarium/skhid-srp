@@ -547,9 +547,11 @@ def main():
     before, _ = base.build(original, "section", code, None, None)
     linked = base.arena()
     block = linked.blocks["patches.code"]
-    hooks = [h for h in base.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE,
-                                  POST_SITE, RENDER_SITE, KILLED_SITE],
+    entries = {h["entry"] for h in base.hooks_026g.hooks(exe=base.hooks_026g.original_reader(original))
+               if any(m["patch"] == "ragdoll" for m in h.get("chain", [h]))}
+    hooks = [h for h in base.rust_hooks(original) if h[2] in entries]
+    check(len(hooks) == 9 and {h[0] for h in hooks} == {STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE,
+                                                       POST_SITE, RENDER_SITE, KILLED_SITE},
           "the Rust patch ragdoll's nine lohooks (ragdoll.toml, sites_026g.tsv)")
     for va, old, symbol, opcode in hooks:
         at = base.file_offset(va)

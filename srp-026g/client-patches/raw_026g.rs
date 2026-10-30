@@ -18,9 +18,9 @@ use core::ptr::NonNull;
 #[allow(dead_code)]
 unsafe extern "C" {
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
-    pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
+    pub fn engine_cfg_child(table: Option<EngineCfg>, key: *const u8) -> Option<EngineCfg>;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL
-    pub fn engine_cfg_has(table: *const c_void, key: *const u8) -> u32;
+    pub fn engine_cfg_has(table: Option<EngineCfg>, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
@@ -30,7 +30,7 @@ unsafe extern "C" {
     /// 0x2f5da0 vostok::network_core::buffer_writer::w<unsigned short>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
     pub fn engine_write_u16(value: *const c_void, writer: *mut c_void, file: *const u8, line: u32, function: *const u8, name: *const u8);
     /// 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
-    pub fn engine_write_u32(value: *const c_void, writer: *mut c_void, file: *const u8, line: u32, function: *const u8, name: *const u8);
+    pub fn engine_write_u32(value: *const c_void, writer: Option<BufferWriter>, file: *const u8, line: u32, function: *const u8, name: *const u8);
     /// 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12
     pub fn engine_statistics_notify(listener: Option<StatisticsListener>, place: u32, event: u32, amount: u32);
     /// 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
@@ -123,6 +123,8 @@ unsafe extern "C" {
     pub fn engine_release_item(object: Option<Artefact>, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: Option<SceneModel>, count: *mut u32);
+    /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    pub fn engine_explosion_reach(ray: *const f32, manager: Option<BulletManager>, centre: *const f32, strength: f32, target: *const c_void) -> f32;
 }
 
 #[allow(dead_code)]
@@ -149,6 +151,14 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: Option<TextTranslator>, key: *const u8, out: *mut u8);
+    /// 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_insert(visual: Option<RenderVisual>, scene: Option<GameScene>);
+    /// 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_remove(visual: Option<RenderVisual>, scene: Option<GameScene>);
+    /// 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_insert(light: Option<ObjectLight>);
+    /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_remove(light: Option<ObjectLight>);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -1084,6 +1094,15 @@ impl Bullet {
         unsafe { self.0.byte_add(0x48).cast::<Option<GameMaterial>>().read_volatile() }
     }
 
+    /// +0x4c (ptr<survarium::game_material>): the material it last struck: the triangle's, or the manager's default for an unassigned 0FFFFh (check_collision 0x32D87B; the material pair's second index, process_front_face_piercing 0x32E585)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn surface(self) -> Option<GameMaterial> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<GameMaterial>>().read_volatile() }
+    }
+
     /// +0x80 (u8): set: no hit sound (process_front_face_piercing 0x32E6CC)
     ///
     /// # Safety
@@ -1190,6 +1209,15 @@ impl BulletManager {
     #[inline(always)]
     pub unsafe fn materials(self) -> Option<GameMaterialManager> {
         unsafe { self.0.byte_add(0x94).cast::<Option<GameMaterialManager>>().read_volatile() }
+    }
+
+    /// +0x98 (ptr<vostok::physics::bullet_physics_world>): physics world used for ray tests and lamp history
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics(self) -> Option<BulletPhysicsWorld> {
+        unsafe { self.0.byte_add(0x98).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
     }
 }
 
@@ -2457,6 +2485,593 @@ impl CcStringStorage {
     }
 }
 
+/// A vostok::engine_cfg (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EngineCfg(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EngineCfg {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): value bits of a binary config node
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (ptr<vostok::engine_cfg>): child array when node_type is table or array
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn children(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::engine_cfg>): child array when node_type is table or array
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_children(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+
+    /// +0x14 (u16): binary config type: integer 1, float 2, table 3, array 4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn node_type(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x14).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x16 (u16): child count for tables and arrays
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x16).cast::<u16>().as_ptr() }
+    }
+
+    /// 0x18 bytes: binary config record stride, cfg_child 0xF6B10
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::engine_cfgs (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct EngineCfgStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl EngineCfgStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> EngineCfg {
+        EngineCfg(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<EngineCfg> {
+        (!rooms.is_empty()).then(|| EngineCfg(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::binary_config (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BinaryConfig(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BinaryConfig {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x108 (ptr<vostok::engine_cfg>): root record of the loaded binary config
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn root(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x108).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+}
+
+/// A survarium::simple_game_project (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SimpleGameProject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SimpleGameProject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x17c (ptr<vostok::binary_config>): project binary config, insert 0x285750
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x17c).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+
+    /// +0x180 (ptr<survarium::game_scene>): project scene, insert_static 0x285540
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Option<GameScene> {
+        unsafe { self.0.byte_add(0x180).cast::<Option<GameScene>>().read_volatile() }
+    }
+
+    /// +0x184 (ptr<survarium::project_object_slot>): first pointer in the project object vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn objects(self) -> Option<ProjectObjectSlot> {
+        unsafe { self.0.byte_add(0x184).cast::<Option<ProjectObjectSlot>>().read_volatile() }
+    }
+
+    /// +0x188 (ptr<survarium::project_object_slot>): end of the project object vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn objects_end(self) -> Option<ProjectObjectSlot> {
+        unsafe { self.0.byte_add(0x188).cast::<Option<ProjectObjectSlot>>().read_volatile() }
+    }
+
+    /// +0x1e8 (ptr<survarium::render_visual>): first render visual
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn visuals(self) -> Option<RenderVisual> {
+        unsafe { self.0.byte_add(0x1e8).cast::<Option<RenderVisual>>().read_volatile() }
+    }
+
+    /// +0x1ec (u32): number of render visuals
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn visual_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1ec).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::project_object_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectObjectSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProjectObjectSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::project_object>): object vector element
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> Option<ProjectObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ProjectObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::project_object>): object vector element
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_object(self, value: Option<ProjectObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ProjectObject>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: project vector stores pointers
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::project_object_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ProjectObjectSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl ProjectObjectSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ProjectObjectSlot {
+        ProjectObjectSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ProjectObjectSlot> {
+        (!rooms.is_empty()).then(|| ProjectObjectSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::project_object (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectObject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProjectObject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): native interface identity before binding
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (obj<survarium::object_light>): only when the native vtable identifies object_light
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn light(self) -> ObjectLight {
+        ObjectLight(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A survarium::render_visual (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderVisual(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderVisual {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): render visual insertion/removal interface
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x48 bytes: render visual stride in insert_static 0x285540
+    pub const SIZE: usize = 0x48;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::render_visuals (0x48 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RenderVisualStorage([u8; 0x48]);
+
+#[allow(dead_code)]
+impl RenderVisualStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x48])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RenderVisual {
+        RenderVisual(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RenderVisual> {
+        (!rooms.is_empty()).then(|| RenderVisual(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::object_light (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectLight(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectLight {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): light object interface
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x140 (f32): translation float3, object_light::load 0x291720
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn position(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x140).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::render_visual_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderVisualMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderVisualMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x8 bytes: two native virtual methods: insert and remove
+    pub const SIZE: usize = 0x8;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::render_visual_methodss (0x8 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RenderVisualMethodsStorage([u8; 0x8]);
+
+#[allow(dead_code)]
+impl RenderVisualMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x8])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RenderVisualMethods {
+        RenderVisualMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RenderVisualMethods> {
+        (!rooms.is_empty()).then(|| RenderVisualMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::object_light_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectLightMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectLightMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x28 bytes: ten methods, insert/remove at indices 8 and 9
+    pub const SIZE: usize = 0x28;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::object_light_methodss (0x28 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ObjectLightMethodsStorage([u8; 0x28]);
+
+#[allow(dead_code)]
+impl ObjectLightMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x28])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ObjectLightMethods {
+        ObjectLightMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ObjectLightMethods> {
+        (!rooms.is_empty()).then(|| ObjectLightMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::project_insert_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectInsertFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProjectInsertFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::physics::bullet_physics_world>): insert entry ESP+4: the physics world, not scene camera director
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics(self) -> Option<BulletPhysicsWorld> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
+    }
+}
+
+/// A survarium::history_save_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HistorySaveFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HistorySaveFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::buffer_writer>): serialize epilogue EBP+8: writer argument
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn writer(self) -> Option<BufferWriter> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BufferWriter>>().read_volatile() }
+    }
+}
+
 /// A survarium::artefact (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -3628,6 +4243,72 @@ impl StatisticsListener {
     }
 }
 
+/// A survarium::explosion_params (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExplosionParams(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ExplosionParams {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x28 (f32): the blast's splash_radius, after its thrower's modifier 0Ch (grenade_set_core +2A0h read at 0x309BDD, the copy's +28h at 0x30A3DC): bullet_manager::explode's objects within it (0x33963D) take damage
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn splash_radius(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x28).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x34 (f32): its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn splash_pierce(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x34).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::explode_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExplodeFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ExplodeFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::bullet_manager>): bullet_manager::explode's first stack argument: the core world's bullet manager (game_world_core +18F58h; 0x30A4CF, 0x305711)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manager(self) -> Option<BulletManager> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BulletManager>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<f32>): its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn centre(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().read_volatile() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -3733,6 +4414,21 @@ impl TextTranslator {
     }
 }
 
+/// A survarium::game_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameScene(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameScene {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// A vostok::static_model_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -3768,6 +4464,20 @@ pub mod image {
     pub fn localization() -> BufferString {
         // SAFETY: an image VA, not 0.
         BufferString(unsafe { NonNull::new_unchecked(0x21e75e0 as *mut c_void) })
+    }
+
+    /// 0xa029b4 (obj<survarium::render_visual_methods>, survarium::image): render_visual native vtable including RTTI at -4
+    #[inline(always)]
+    pub fn visual_methods() -> RenderVisualMethods {
+        // SAFETY: an image VA, not 0.
+        RenderVisualMethods(unsafe { NonNull::new_unchecked(0xa029b4 as *mut c_void) })
+    }
+
+    /// 0xa0adec (obj<survarium::object_light_methods>, survarium::image): object_light native vtable including RTTI at -4
+    #[inline(always)]
+    pub fn light_methods() -> ObjectLightMethods {
+        // SAFETY: an image VA, not 0.
+        ObjectLightMethods(unsafe { NonNull::new_unchecked(0xa0adec as *mut c_void) })
     }
 
     /// 0xa04174 (u32, survarium::image): client weapon active interface; constructor 0x243640
@@ -4149,6 +4859,108 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<OptionsCallbackFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(OptionsCallbackFrame)
+        }
+    }
+
+    /// project.insert (0x285750): before insert_static, ECX project and ESP+4 physics
+    pub mod project_insert {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::simple_game_project (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(SimpleGameProject)
+        }
+
+        /// the site's ESP: a survarium::project_insert_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProjectInsertFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProjectInsertFrame)
+        }
+    }
+
+    /// project.removed (0x285614): remove_static epilogue, after native object removals
+    pub mod project_removed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::simple_game_project (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SimpleGameProject)
+        }
+    }
+
+    /// project.destroy (0x285330): destructor before any member is released
+    pub mod project_destroy {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::simple_game_project (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(SimpleGameProject)
+        }
+    }
+
+    /// bullet_history.saved (0x321c3b): serialize epilogue, after native bullet history
+    pub mod bullet_history_saved {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::bullet_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletManager)
+        }
+
+        /// EBP: a survarium::history_save_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<HistorySaveFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HistorySaveFrame)
+        }
+    }
+
+    /// bullet_history.loaded (0x321d01): deserialize epilogue, after native bullet history
+    pub mod bullet_history_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::bullet_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletManager)
+        }
+
+        /// EBX: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferReader)
         }
     }
 
@@ -4587,6 +5399,126 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
+        }
+    }
+
+    /// bullet.decal_front (0x32e672): process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there
+    pub mod bullet_decal_front {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_back (0x32e8cc): process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there
+    pub mod bullet_decal_back {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_reflect (0x32eaf2): process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there
+    pub mod bullet_decal_reflect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_collide (0x32ed71): process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there
+    pub mod bullet_decal_collide {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet_manager.explode (0x339630): bullet_manager::explode entry (sub esp,0BCh): ESI the splash, ESP+4 the bullet manager, ESP+8 the centre; every blast, a grenade's (0x30A4ED) and a booby trap's (0x305728)
+    pub mod bullet_manager_explode {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::explosion_params (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn params(machine: &impl Machine) -> Option<ExplosionParams> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ExplosionParams)
+        }
+
+        /// the site's ESP: a survarium::explode_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ExplodeFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ExplodeFrame)
         }
     }
 }
