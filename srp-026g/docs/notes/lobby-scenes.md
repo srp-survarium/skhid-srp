@@ -145,8 +145,17 @@ against the original's code on the same objects; captured in a game, below):
   lobby is hidden is put in at once. The lobby on return is the wanted one.
 - **The game closing:** from then on nothing is asked and results are let go without the lobby
   menu being touched.
-- **The two hitches** (2026-10-30, headless, a diagnostics build's `srp_lobby_scene.txt`: each
-  action with the lobby's frame count and the clock's milliseconds): STALLS.
+- **Where the time goes** (2026-10-30, headless on this machine, a diagnostics build's
+  `srp_lobby_scene.txt`: each action with the lobby's frame count and the clock's milliseconds;
+  three changes, the Basement to the Bunker, the Room to the Hangar, a squad joined and left):
+  the probe's config came in the same frame (6..7 ms); the black took 8 frames; the project's load
+  behind it 10..12 frames, 3.9..6.9 s, the frames going on at the lobby's rate meanwhile (its cook
+  is the resource system's, off the game's own frame but for its results' callback); the swap
+  (`put_in`, the game's thread, in the results' callback) 0..3 ms. The game drew the lobby at
+  about 2.3 frames a second all along here (before a change as during it: a headless display
+  without the GPU's own driver), so the "two 3 s stalls" of the first capture were that frame
+  rate, a frame being 0.35..0.6 s, and the movie's 250 ms tween ending within one frame: no step
+  of a change stalls the game's thread for long. Not measured on a real display.
 - **Costs and not known:** the eight requests of a change's query name one config (the resource
   system's handling of one name eight times in a query is read from the stock flow only, not
   seen). What the lobby's track effect plays (an ambient effect; GUESS). F11's hidden interface
