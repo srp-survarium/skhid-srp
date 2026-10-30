@@ -5,6 +5,8 @@ package survarium.player
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.geom.Rectangle;
+   import flash.text.TextField;
+   import flash.text.TextFormat;
    import panel_fla.WeightContainer_44;
    import survarium.data.LocalizationData;
 
@@ -24,9 +26,11 @@ package survarium.player
       private var _box:Sprite;
       private var _widget:WeightContainer_44;
       private var _tip:WeightTip;
+      private var _weight:MovieClip;
       // `weight`: the weight's widget, in its place on its frame.
       public function SpeedIndicator(weight:MovieClip)
       {
+         _weight = weight;
          var frame:Bitmap = new Bitmap(new WeightFrame());
          _box = new Sprite();
          _box.name = "speed";
@@ -50,14 +54,28 @@ package survarium.player
          panel.addChildAt(_box,panel.getChildIndex(weight));
          _tip.validateNow();
       }
+      private static function copy(field:TextField, like:TextField, text:String, colour:String) : void
+      {
+         field.styleSheet = null;
+         field.embedFonts = like.embedFonts;
+         var format:TextFormat = like.length > 0 ? like.getTextFormat(0,like.length) : like.defaultTextFormat;
+         if(colour != null) format.color = uint("0x" + colour.replace("#",""));
+         field.defaultTextFormat = format;
+         field.text = text;
+         field.setTextFormat(format);
+      }
       public function update(speed:SpeedExplanation) : void
       {
          _box.visible = speed != null;
          _tip.updateEffects(speed);
          if(speed == null) return;
-         _widget.textFieldLabel.text = LocalizationData.getName("st_srp_speed_label");
-         _widget.textFieldValue.styleSheet = MainScene.textStyleSheet;
-         _widget.textFieldValue.text = speed.value;
+         // The weight's own fields' formats as the game draws them (font, size, bold),
+         // copied at each update: no style sheet on the speed's fields, whose markup
+         // the game drew small (the owner's screenshot, 2026-10-30); the value's colour
+         // the style sheet's colour of its style.
+         copy(_widget.textFieldLabel,_weight.textFieldLabel,LocalizationData.getName("st_srp_speed_label"),null);
+         var style:Object = MainScene.textStyleSheet != null ? MainScene.textStyleSheet.getStyle(speed.valueStyle) : null;
+         copy(_widget.textFieldValue,_weight.textFieldValue,speed.value,style != null ? style.color : null);
       }
    }
 }

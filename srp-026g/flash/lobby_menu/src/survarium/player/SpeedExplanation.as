@@ -23,11 +23,15 @@ package survarium.player
       }
       public function get total() : Number { return _parts.total(_weight); }
       private function get percent() : Number { return Math.round(total * 100); }
-      // The total as the box beside the weight shows it, in the weight's colours.
+      // The total as the box beside the weight shows it: its text, and its style's name
+      // in the lobby's style sheet (coral below 100 %, green above: the weight's).
       public function get value() : String
       {
-         var style:String = percent < 100 ? WeightEffects.WARNING_STYLE : percent > 100 ? "green" : "highlight";
-         return Util.styledChar(LocalizationData.format("st_srp_unit_percent",percent.toString()),style);
+         return LocalizationData.format("st_srp_unit_percent",percent.toString());
+      }
+      public function get valueStyle() : String
+      {
+         return percent < 100 ? WeightEffects.WARNING_STYLE : percent > 100 ? "green" : "highlight";
       }
       public function get title() : String { return LocalizationData.format("st_srp_speed_title",titleValue); }
       public function get titleValue() : String { return LocalizationData.format("st_srp_unit_percent",percent.toString()); }

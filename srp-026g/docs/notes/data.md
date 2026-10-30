@@ -839,3 +839,25 @@ limit beside the weight ("/ 30"):
 - **Compact.** Rows 24 px (the text's line), the icons at 0.7 of the native
   row's beside their text, tight margins, each row one line, and the card as
   wide as its widest row or heading. The native card skin and fonts as they are.
+
+### Alignment, from the game's own code paths (2026-10-30, after the owner's screenshots)
+
+In the game the rows' icons sat above their text (the compact pass scaled the
+icon from its top-left), the filter icons did not show (the itemIcon taken out
+of its renderer: FilterItem's own state change sends an itemIcon with no data
+to frame 1 and hides it), the headings had a gap under them (the separator's
+field box, not its text), and the speed cell's value was small (the style sheet
+on a field made in code).
+
+- Rows keep the native row's own layout (icon column, text x, their vertical
+  alignment) at its own size; one pitch for every row, measured from the first
+  native row; each heading takes its text's own line (`textHeight`) with the
+  same gap above and below, the title's and the sections' alike.
+- A group icon is the shop's whole filter renderer given its filter by
+  `setData({icon, enabled})`, as FilterList does, so FilterItem itself draws its
+  itemIcon at frame 300 + icon; its button background hidden, fitted into the
+  atlas icons' box from its drawn bounds before the card shows.
+- Packrat's row has the weight icon (12).
+- The speed cell's word and value take the weight's own fields' formats as the
+  game draws them, copied at each update, with no style sheet; the value's
+  colour is its style's colour in the lobby's sheet.

@@ -131,7 +131,7 @@ package {
    var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,10]],["AK-74M",-.05,8]));
    var x:Object=e.speedExplanation;
    require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% - 5%: "+x.total);
-   require(x.value.indexOf("97%")>=0 && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
+   require(x.value=="97%" && x.valueStyle=="weight_warning" && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
    var rows:Array=x.rows();
    // One row each thing, by its own name, biggest speed-up first; green faster, red slower.
    require(rows.length==5,"the weight, the skill, two items and the weapon: "+rows.length);
@@ -211,7 +211,7 @@ package {
    var all:String="";for each(var r:Object in rows)all+=(r.label||r.heading)+"\n";
    for each(var want:String in ["Duty suit <green>+5 kg</green>","Anomalous Force Protein <green>+5 kg</green>","Athlete"+" <green>+4 kg</green>","Packrat"+" <green>-15% weight penalty</green>"])
     require(all.indexOf(want)>=0,"row "+want+" in "+all);
-   require(rows[6].label.indexOf("+4 kg")>=0 && rows[7].icon==11,"biggest first, Packrat last: "+rows[6].label);
+   require(rows[6].label.indexOf("+4 kg")>=0 && rows[7].icon==12 && rows[7].label.indexOf("Packrat")==0,"biggest first, Packrat last with the weight icon: "+rows[6].label);
    require(Effects.parse(0,0,0,0,0,30,0,0).withItems(kit([],null,[])).rows().length==4,"only the heading and the base when nothing raises it");
    require(Effects.parse(-.1,.75,0).rows().length==2,"an older exe: the weight rows only");
   }
@@ -335,7 +335,15 @@ package {
      // The drawn icons: the shop filter's sprite at its category's frame in the item rows.
      var FW:Object=domain.getDefinition("survarium.controls.FiltersWindow");
      for each(var gi:Array in [[3,10],[4,3],[6,8]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
-      require(holder.name=="group"+FW.filterIcon(gi[1]) && holder.getChildAt(0).currentFrame==300+FW.filterIcon(gi[1]) && holder.width>20 && holder.width<=39,"row "+gi[0]+": "+holder.name+" frame "+holder.getChildAt(0).currentFrame+" "+holder.width);}
+      // The shop's own renderer, its data {icon}, its icon at that frame, fitted in the atlas icons' box.
+      var shop:Object=holder.getChildAt(0);var ib:Rectangle=shop.itemIcon.getBounds(holder);
+      require(holder.name=="group"+FW.filterIcon(gi[1]) && getQualifiedClassName(shop)=="FilterItemCatRenderer" && shop.data.icon==FW.filterIcon(gi[1]) && shop.itemIcon.currentFrame==300+FW.filterIcon(gi[1]) && shop.itemIcon.visible,"row "+gi[0]+": "+holder.name+" frame "+shop.itemIcon.currentFrame);
+      require(ib.width<=38.5 && ib.height<=38.5 && Math.max(ib.width,ib.height)>=37 && Math.abs(ib.x+ib.width/2-19)<1 && Math.abs(ib.y+ib.height/2-19)<1,"row "+gi[0]+" icon fitted and centred in the icons' box: "+ib);}
+     // One icon column and one text x for every row, one pitch.
+     var rowsDrawn:Array=[];for(var rr:int=3;rr<card.numChildren;rr++)if(card.getChildAt(rr).hasOwnProperty("textFieldLabel"))rowsDrawn.push(card.getChildAt(rr));
+     rowsDrawn.sortOn("y",Array.NUMERIC);
+     for each(var rd:Object in rowsDrawn)require(rd.x==rowsDrawn[0].x && rd.iconContainer.x==rowsDrawn[0].iconContainer.x && rd.iconContainer.scaleX==rowsDrawn[0].iconContainer.scaleX && rd.textFieldLabel.x==rowsDrawn[0].textFieldLabel.x,"one icon column and one text x");
+     require(rowsDrawn[1].y-rowsDrawn[0].y==rowsDrawn[2].y-rowsDrawn[1].y && rowsDrawn[5].y-rowsDrawn[4].y==rowsDrawn[1].y-rowsDrawn[0].y,"one row pitch in both sections");
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
      var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");
      require(bi>=0 && bonus.getTextFormat(bi,bi+1).color==0x87A816,"a part that speeds up is green, the card rows' green: "+bonus.getTextFormat(bi,bi+1).color.toString(16));

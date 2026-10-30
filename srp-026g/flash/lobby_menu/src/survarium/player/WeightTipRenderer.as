@@ -3,7 +3,7 @@ package survarium.player
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
-   import flash.utils.Dictionary;
+   import flash.geom.Rectangle;
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFormat;
@@ -32,10 +32,12 @@ package survarium.player
       private var _groups:Array = [];
       // The modifier atlas icons' size, which a group icon is fitted to.
       private static const ICON:Number = 38;
-      // A row's height and its icon's scale against the native row's: the text's line.
-      private static const ROW:Number = 24;
-      private static const ICON_SCALE:Number = 0.7;
-      private var _compacted:Object = new Dictionary(true);
+      // The space above and below a heading's text, and a row's spacing.
+      private static const GAP:Number = 3;
+      private var _groupHolders:Array = [];
+      private var _pitch:Number = NaN;
+      // Laid out, the group icons not yet fitted: the card shows once they are.
+      private var _laidOut:Boolean = false;
 
       public function WeightTipRenderer()
       {
@@ -70,40 +72,54 @@ package survarium.player
          field.setTextFormat(format,at,at + part.length);
       }
 
-      // The row's icon scaled to its text, the text moved up to it; once a row.
-      private function compact(row:ModificatorListRenderer) : void
+      // The native row's own layout (icon column, text x, their vertical alignment),
+      // its text on one line as long as it is, so the card fits its widest row.
+      private function oneLine(row:ModificatorListRenderer) : void
       {
-         if(_compacted[row]) return;
-         _compacted[row] = true;
-         var icon:Number = row.iconContainer.width;
-         row.iconContainer.scaleX *= ICON_SCALE;
-         row.iconContainer.scaleY *= ICON_SCALE;
-         row.textFieldLabel.x -= icon * (1 - ICON_SCALE);
-         // One line as long as its text: the card fits its widest row.
          row.textFieldLabel.wordWrap = false;
       }
 
-      // Row `i`'s group icon: its filter renderer's itemIcon at frame 300 + `group`
-      // (FilterItem's own), fitted to the atlas icons' size; the renderer then goes.
+      // Row `i`'s group icon, drawn the way the shop draws it: the filter's own
+      // renderer (FilterItemCatRenderer) given the filter by setData({icon}), so FilterItem
+      // itself sends its itemIcon (sprite 1125) to frame 300 + icon at every state
+      // change; enabled (the shop's "up", not the dimmed "disabled"), its button
+      // background hidden, no mouse. Fitted to the atlas icons'
+      // box once it is drawn (fitGroups).
       private function groupIcon(i:int, group:int) : Sprite
       {
-         var source:MovieClip = _groups[i];
-         var clip:MovieClip = source.itemIcon;
-         // The renderer no longer owns it (its draw would send it back to frame 1).
-         source.itemIcon = null;
-         source.removeChild(clip);
-         removeChild(source);
-         _groups[i] = null;
-         clip.gotoAndStop(300 + group);
+         var filter:MovieClip = _groups[i];
+         removeChild(filter);
+         filter.mouseEnabled = filter.mouseChildren = false;
+         // The list's own call (FilterList gives each renderer its filter so).
+         filter.setData({icon:group,tip:"",selected:false,enabled:true});
+         filter.validateNow();
+         filter.visible = true;
          var holder:Sprite = new Sprite();
          holder.name = "group" + group;
-         holder.addChild(clip);
-         var size:Number = Math.max(clip.width,clip.height);
-         if(size > 0) clip.scaleX = clip.scaleY = clip.scaleX * ICON / size;
-         var box:Object = clip.getBounds(holder);
-         clip.x += (ICON - box.width) / 2 - box.x;
-         clip.y += (ICON - box.height) / 2 - box.y;
+         holder.addChild(filter);
+         _groupHolders.push(holder);
          return holder;
+      }
+
+      // Each group icon fitted into the atlas icons' box (ICON x ICON) and centred,
+      // from its drawn bounds; its button background hidden. False until all are drawn.
+      private function fitGroups() : Boolean
+      {
+         for each(var holder:Sprite in _groupHolders)
+         {
+            var filter:MovieClip = holder.getChildAt(0) as MovieClip;
+            if(filter.itemIcon == null) return false;
+            for(var c:int = 0; c < filter.numChildren; c++)
+               if(filter.getChildAt(c) != filter.itemIcon) filter.getChildAt(c).visible = false;
+            var box:Rectangle = filter.itemIcon.getBounds(holder);
+            if(box.width <= 0 || box.height <= 0) return false;
+            var scale:Number = Math.min(ICON / box.width,ICON / box.height) * filter.scaleX;
+            filter.scaleX = filter.scaleY = scale;
+            box = filter.itemIcon.getBounds(holder);
+            filter.x += (ICON - box.width) / 2 - box.x;
+            filter.y += (ICON - box.height) / 2 - box.y;
+         }
+         return true;
       }
 
       override protected function invalidateData() : void
@@ -160,6 +176,14 @@ package survarium.player
             if(skin.criticalSeparator == null || skin.criticalSeparator.textField == null) return;
          for each(var source:MovieClip in _groups)
             if(source != null && source.itemIcon == null) return;
+         if(_laidOut)
+         {
+            if(!fitGroups()) return;
+            alpha = 1;
+            removeEventListener(Event.ENTER_FRAME,prepare);
+            dispatchEvent(new Event(Event.RESIZE));
+            return;
+         }
          for each(skin in _sectionSkins)
          {
             var divider:MovieClip = skin.criticalSeparator;
@@ -175,8 +199,7 @@ package survarium.player
          // Compact: the card as wide as its widest row or heading, rows and margins tight,
          // the icons scaled to the text (the native row's font and skin as they are).
          var w:Number = _heading.width + 12;
-         _heading.y = 4 - _heading.textField.y;
-         var y:Number = 6 + _heading.textField.height;
+         var y:Number = placeHeading(_heading,2);
          var entries:Array = effects.rows();
          var nextSection:int = 0;
          for(var i:int = 0; i < _rows.length; i++)
@@ -187,19 +210,21 @@ package survarium.player
                var heading:MovieClip = _sections[nextSection++];
                heading.textField.text = entry.heading;
                colourHeading(heading.textField,entry.headingValue,entry.headingStyle);
-               heading.y = y + 2 - heading.textField.y;
-               y += heading.textField.height + 4;
+               y = placeHeading(heading,y);
                continue;
             }
             var row:ModificatorListRenderer = _rows[i];
             row.validateNow();
             row.data = {icon:entry.group != undefined ? groupIcon(i,entry.group) : icons.getIcon(entry.icon),label:entry.label};
             row.validateNow();
-            compact(row);
+            oneLine(row);
             row.x = 8;
             row.y = y;
             w = Math.max(w,row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth + 12);
-            y += Math.max(ROW,row.textFieldLabel.textHeight + 4);
+            // One pitch for every row: the native row's own height (icon and text line).
+            if(isNaN(_pitch)) _pitch = Math.ceil(Math.max(row.iconContainer.y + ICON * row.iconContainer.scaleY,
+               row.textFieldLabel.y + row.textFieldLabel.textHeight + 4)) + GAP;
+            y += _pitch;
          }
          _background.x = _background.y = 0;
          _background.width = Math.ceil(w);
@@ -210,9 +235,20 @@ package survarium.player
          _body.height = _background.height - 4;
          _heading.x = (_background.width - _heading.width) / 2;
          for each(var sectionHeading:MovieClip in _sections) sectionHeading.x = _heading.x;
+         _laidOut = true;
+         if(!fitGroups()) return;
          alpha = 1;
          removeEventListener(Event.ENTER_FRAME,prepare);
          dispatchEvent(new Event(Event.RESIZE));
+      }
+
+      // A heading at `y`: its text's own line (textHeight, not the field's box) with
+      // GAP above and below; returns where the next line starts. The same for the
+      // title and every section's.
+      private function placeHeading(heading:MovieClip, y:Number) : Number
+      {
+         heading.y = y + GAP - heading.textField.y;
+         return y + GAP + heading.textField.textHeight + 4 + GAP;
       }
    }
 }

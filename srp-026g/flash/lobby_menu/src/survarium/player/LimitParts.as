@@ -58,7 +58,7 @@ package survarium.player
          if(_packrat < 0)
          {
             var magnitude:Number = Math.round(-_packrat * 1000) / 10;
-            result.push({icon:11,label:SpeedParts.skillName(202) + " " +
+            result.push({icon:12,label:SpeedParts.skillName(202) + " " +
                Util.styledChar(LocalizationData.format("st_srp_weight_penalty","-" + magnitude.toString()),"green")});
          }
          return result;
