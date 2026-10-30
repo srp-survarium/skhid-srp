@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn a_turn_is_the_difference_of_two_elevations_across_the_kink() {
-        // 15 degrees below the level: the bots' old turn of -15 degrees as a radian left it 17.6 degrees down.
+        // 15 degrees below the level: the bots' old turn of -15 degrees as a radian left it 17.7 degrees down.
         let down = Pitch::new(0.0).turn_for(PitchScale::Client, (-15.0f32).to_radians());
         assert!((down * 67.48 + 15.0).abs() < 1e-3, "{down}");
         // From 10 degrees above to 5 below: 10 degrees on the 60 side, 5 on the 67.48 side.
@@ -138,6 +138,6 @@ mod tests {
         // The bug in numbers: a target 15 degrees below the eye, the bot sends -15 degrees as a radian turn.
         let sent = (-15.0f32).to_radians();
         let got = Pitch::new(sent).elevation(PitchScale::Client).to_degrees();
-        assert!((got + 17.6).abs() < 0.05, "{got}");
+        assert!((got + 17.67).abs() < 0.05, "{got}");
     }
 }

@@ -30,7 +30,7 @@ switch values aim: combat.worth.hurt_from=seen friends.spread_source=data
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values kin: jump_snap=by_keys
+switch values kin: jump_snap=by_keys pitch_scale=radian
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}

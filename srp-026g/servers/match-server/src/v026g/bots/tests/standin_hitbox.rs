@@ -1089,6 +1089,7 @@ mod game_tests {
             aim_state,
             cone,
             offset,
+            rise: aimed_at.map(|(t, ..)| fight_tally::Rise::of(eye, view_dir, Game::chest(&game.bodies[t]))),
             landed: Default::default(),
         });
         let Some((target, along)) = best else {

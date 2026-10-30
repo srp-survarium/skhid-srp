@@ -1387,6 +1387,7 @@ impl Game {
             aim_state,
             cone,
             offset,
+            rise: aimed_at.map(|(t, ..)| fight_tally::Rise::of(eye, view_dir, Self::chest(&self.bodies[t]))),
             landed,
         });
         match self.volume {
