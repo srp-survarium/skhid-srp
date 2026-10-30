@@ -4896,6 +4896,14 @@ impl Reflex {
         }
     }
 
+    /// Where this bot's own senses had the enemy `who` staying (for at least `camp_ms`), if they had.
+    pub fn camp_of(&self, who: Place, camp_ms: u32) -> Option<Vec3> {
+        self.camps
+            .iter()
+            .find(|camp| camp.who == who && camp.last >= camp.since + camp_ms)
+            .map(|camp| camp.at)
+    }
+
     /// Play 20: the view is held for a grenade: from the key's press to the
     /// launch and `grenade_look_after_ms` more (the grenade leaves along the
     /// view then). The play's use of something waits for it
