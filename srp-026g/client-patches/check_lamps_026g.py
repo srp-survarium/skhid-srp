@@ -196,7 +196,8 @@ class Game:
         for reg, val in (regs or {}).items():
             u.reg_write(reg, val)
         u.reg_write(UC_X86_REG_EFLAGS, flags)
-        u.emu_start(site, stop, count=2_000_000)
+        # Vector binds 99 fixtures among ~1,700 visuals: 2.6M instructions.
+        u.emu_start(site, stop, count=10_000_000)
         assert u.reg_read(UC_X86_REG_EIP) == stop, hex(u.reg_read(UC_X86_REG_EIP))
         return u.reg_read(UC_X86_REG_ESP)
 

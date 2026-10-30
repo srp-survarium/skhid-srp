@@ -141,12 +141,51 @@ class Lamps(unittest.TestCase):
         indices = [0, 1, 2, 0, 3, 1]
         data = (struct.pack('<III', 3, 4 + 28 * 4, 4) + b''.join(vertices)
                 + struct.pack('<III6H', 4, 16, 6, *indices))
-        blob, points, triangles = pack.cropped(data, -.1)
+        blob, points, triangles = pack.without(data, pack.below(-.1))
         result, result_indices = pack.mesh_tools.mesh(blob)
         self.assertEqual(result, vertices[:3])
         self.assertEqual(result_indices, [0, 1, 2])
         self.assertEqual(triangles, 1)
         self.assertEqual(len(points), 3)
+
+    def test_tube_parts_go_whole_and_the_housing_stays(self):
+        # A housing quad and a tube, joined to nothing, its UVs split at a
+        # seam (a duplicated corner): every tube triangle goes.
+        def vertex(x, y, z, u, v):
+            return struct.pack('<3f', x, y, z) + bytes(12) + struct.pack('<2e', u, v)
+        vertices = [vertex(0, 0, 0, .1, .6), vertex(1, 0, 0, .2, .6), vertex(0, 0, 1, .1, .7),
+                    vertex(0, -1, 0, .9, .1), vertex(1, -1, 0, .9, .2), vertex(0, -1, 1, .95, .1),
+                    vertex(1, -1, 0, .5, .9), vertex(1, -1, 1, .5, .95)]
+        indices = [0, 1, 2, 3, 4, 5, 5, 6, 7]
+        data = (struct.pack('<III', 3, 4 + 28 * len(vertices), len(vertices)) + b''.join(vertices)
+                + struct.pack('<III9H', 4, 22, 9, *indices))
+        blob, points, triangles = pack.without(data, pack.TUBES_MIDLE)
+        result, result_indices = pack.mesh_tools.mesh(blob)
+        self.assertEqual((result, result_indices, triangles), (vertices[:3], [0, 1, 2], 1))
+
+    def test_tubes_of_their_own_break_in_a_housing_that_stays(self):
+        housing = dict(visual_name='props/light/lamp_midle_04', position=[0., 5., 0.],
+                       rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        tube = dict(visual_name='fx/lamp2', position=[0., 4.95, .2], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        lone = dict(housing, position=[10., 5., 0.])
+        light = dict(game_object_type='light', full_name='l', position=[0., 4.8, 0.])
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (housing, tube, lone):
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (housing, tube, lone)])),
+                                                 ('client_objects', (4, [record(light)]))])))
+        bounds = {'props/light/lamp_midle_04': ([-.351, -.107, -.265], [.35, .007, .265]),
+                  'fx/lamp2': ([-.347, -.044, -.024], [.347, 0., .026])}
+        _, additions, spec = edits.author('p', original, bounds, 29)
+        self.assertEqual(additions, [])
+        lamp, = spec['value']['lamps'].values()
+        self.assertEqual(lamp['visuals'], {'intact0': {'index': 1, 'state': 0}})
+        self.assertEqual(len(lamp['lights']), 1)
+        self.assertAlmostEqual(lamp['min_y'], 4.893)   # the housing's bottom
+        data = bytearray(original)
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', data), [])
 
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'
@@ -163,15 +202,16 @@ class Lamps(unittest.TestCase):
                 for axis in ('x', 'y', 'z'):
                     self.assertLess(lamp['min_' + axis], lamp['max_' + axis])
                 states = {v['state'] for v in lamp['visuals'].values()}
-                self.assertEqual(states, {0, 1})
+                self.assertIn(0, states)   # tubes of their own have no broken model
+                self.assertLessEqual(states, {0, 1})
                 visual_ids.extend(v['index'] for v in lamp['visuals'].values())
                 light_positions.extend(tuple(l[k] for k in ('x', 'y', 'z')) for l in lamp['lights'].values())
             self.assertEqual(len(visual_ids), len(set(visual_ids)))
             self.assertEqual(len(light_positions), len(set(light_positions)))
             self.assertLessEqual(len(visual_ids) + len(light_positions), 1024)
-        self.assertEqual(maps, {f'level_0{i}' for i in range(2, 9)} |
+        self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
                          {'v011e_level_03', 'v011e_level_04', 'v021d_level_03', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 92)
+        self.assertEqual(len(source['add_value']), 96)
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

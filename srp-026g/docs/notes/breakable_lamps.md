@@ -7,11 +7,15 @@ A new match restores every lamp. The lamp does
 not change the bullet's trajectory or the map's collision mesh.
 
 The content list covers levels 02–08, all their day/evening/rain variants
-and modes 2–5, plus the v0.11 Vostok and Chemical Plant and v0.21 Vostok and
-Mamayev Kurgan day variants in modes 2 and 4: 92 projects, 1,129 fixture
-placements and 699 linked lights. It covers bare bulbs, ceiling lamps, white
-wall lamps, red alarm lamps, green lamps with/without wires and fluorescent
-tubes. Streetlights and other fixture models are not yet configured. It
+and modes 2–5, London (level_09) in modes 2–5, plus the v0.11 Vostok and
+Chemical Plant and v0.21 Vostok and Mamayev Kurgan day variants in modes 2
+and 4: 96 projects, 2,487 fixtures and 857 linked lights. It covers bare
+bulbs, ceiling lamps, white wall lamps, red alarm lamps, green lamps
+with/without wires and fluorescent fixtures (tubes, ceiling grids, hanging
+double tubes). Streetlights and other fixture models are not yet configured.
+Fixtures with no glass to break stay scenery: empty fluorescent fittings
+(`fluor_lamp_base`, `lamp_big_03`, a `lamp_midle_04` without tubes) and
+v0.11's `lamp_midle_0N`, older meshes than the stock broken housings. It
 does not darken baked lights, sunlight, environment probes or ambient light.
 
 ## Content
@@ -32,19 +36,36 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
 - Nearby light/cone assignments are explicit in the list, not guessed at
   runtime. Authoring rejects ambiguous assignments. Overlapping bulb and cover
   meshes, such as level_06's ceiling fixture, are one lamp.
+- Lit tubes that are models of their own (`fx/lamp2` and its two flicker
+  variants, three in a tubeless `lamp_midle_04` housing on Vector and London)
+  are intact visuals with no broken one: breaking hides them. The housing is
+  part of the fixture's bounds, so a shot into it breaks the tubes, but is
+  not bound: it stays. A housing without such tubes is not a lamp.
 
-The pack `breakable-lamps@1` supplies `props/light/srp_lamp_broken` and
-`props/light/srp_plafon_lamp_broken`. `scripts/breakable-lamps/make_pack.py`
-keeps the stock unlit models' socket/cap triangles above their lips, with the
-original normals, UVs and material. The glass below is removed, the bounds
-and vertex/triangle counts are recomputed, and model collision is disabled.
-`stock.json` pins every input. White and alarm lamps use the stock
+A broken model is its intact model without its glass, nothing else: the
+other triangles keep their vertices, normals, UVs and material, on every LOD.
+The pack `breakable-lamps@2` (`scripts/breakable-lamps/make_pack.py`) makes
+them from stock models, recomputes bounds and vertex/triangle counts and
+disables model collision; `stock.json` pins every input.
+
+- `srp_lamp_broken`: the bulb's socket, the triangles above its last ring
+  (local y -0.0578); the glass below goes.
+- `srp_plafon_lamp_broken`: the stock unlit `plafon_lamp` whole. It is metal
+  only (cap, rings, cage): its glass dome is `plafon_lamp_on`, a model of its
+  own, and v0.11's `plafon_lamp` is this model plus that dome. Version 1 cut
+  it at the cap's lip, which dropped the cage and, by 0.3 mm of rounding, the
+  cap's down-facing faces: seen from below, the broken lamp drew nothing.
+- `srp_lamp_midle_01/02/03_broken`, `srp_lamp_big_01_broken`: the fluorescent
+  housings without their tubes and broken tube ends. Each tube is a connected
+  part of its own, textured from a tube region of the `lamp_school` atlas.
+
+White and alarm lamps use the stock
 `white_broken` and `alarm_broken` models; green lamps and fluorescent tubes
 use their empty fittings. Imported fixtures use their ported replacement
 models, except for the generated bulb sockets and ceiling caps. Overlapping
 lit/unlit covers share one replacement instead of drawing it twice.
 Build this resource-porter pack into
-`$SKHID_PACKS_DIR/breakable-lamps-1`, then use `release/build-content` normally.
+`$SKHID_PACKS_DIR/breakable-lamps-2`, then use `release/build-content` normally.
 No release patch is assembled by the authoring tools.
 
 ## Rust implementation and ownership
@@ -132,7 +153,7 @@ the release workflow's responsibility; this feature does not change `REVISION`.
 
 `check_lamps_026g.py <original exe>` runs native config lookup, project
 iteration/vtable dispatch, visual/light methods, bullet history and installed
-hooks in Unicorn. It covers all 92 authored variants, hits, occlusion,
+hooks in Unicorn. It covers all 96 authored variants, hits, occlusion,
 repeated hits, quiet bullets, effects, history loading, malformed suffixes,
 rollback/resimulation, ordinary removal, destructor fallback and reset.
 Additional cases verify that a wrong binding leaves the map unbound and a

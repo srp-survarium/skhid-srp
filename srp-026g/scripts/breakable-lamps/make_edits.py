@@ -34,7 +34,23 @@ REPLACEMENTS = {
     prefix + intact: broken if '/srp_' in broken else prefix + broken
     for prefix in ('', 'ported/v011e/', 'ported/v021d/')
     for intact, broken in BASE_REPLACEMENTS.items()
+} | {
+    # Fluorescent fixtures with their tubes in the model, stock only (v0.11's
+    # lamp_midle models are other meshes): the housing stays, the tubes go.
+    'props/light/lamp_midle_01': 'props/light/srp_lamp_midle_01_broken',
+    'props/light/lamp_midle_02': 'props/light/srp_lamp_midle_02_broken',
+    'props/light/lamp_midle_03': 'props/light/srp_lamp_midle_03_broken',
+    'props/light/lamp_big_01': 'props/light/srp_lamp_big_01_broken',
 }
+# Lit tubes that are models of their own (Vector, level_09: fx/lamp2 and its
+# two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
+# A broken fixture hides them; nothing replaces them.
+GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+# Housings that stay when their glass breaks. A housing belongs to a fixture
+# (its bounds, so a shot into the housing breaks the tubes) only together
+# with glass; on its own it is scenery.
+HOUSINGS = {'props/light/lamp_midle_04'}
+PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Light shafts are ordinary render visuals, independently of object_light.
 # Stock, v0.21 and v0.11 use the same converted mesh (CRC d3f2a927),
 # v0.11 uses a different model name and full opacity (stock uses 0.05).
@@ -76,9 +92,7 @@ def selector(v):
 def author(path, data, bounds, break_material):
     root = tree(data)
     visuals = root.get('render_visuals', [])
-    components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in REPLACEMENTS]
-    if not components:
-        return [], [], None
+    components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
     # through its cover must extinguish the bulb inside it as well.
     lamps, boxes = [], []
@@ -93,6 +107,11 @@ def author(path, data, bounds, break_material):
             box = ([min(a, b) for a, b in zip(box[0], other[0])],
                    [max(a, b) for a, b in zip(box[1], other[1])])
         lamps.append(group); boxes.append(box)
+    fixtures = [(group, box) for group, box in zip(lamps, boxes)
+                if any(v['visual_name'] not in HOUSINGS for _, v in group)]
+    if not fixtures:
+        return [], [], None
+    lamps, boxes = map(list, zip(*fixtures))
     centers = [[(a + b) / 2 for a, b in zip(lo, hi)] for lo, hi in boxes]
     lights, cones = [[] for _ in lamps], [[] for _ in lamps]
 
@@ -155,6 +174,8 @@ def author(path, data, bounds, break_material):
 
     additions, added = [], set()
     for _, v in components:
+        if v['visual_name'] not in REPLACEMENTS:
+            continue
         match = selector(v)
         replacement = REPLACEMENTS[v['visual_name']]
         broken_key = json.dumps(dict(match, visual_name=replacement), sort_keys=True)
@@ -178,9 +199,12 @@ def author(path, data, bounds, break_material):
     for i, group in enumerate(lamps):
         vs, broken_indices = {}, set()
         for j, (_, v) in enumerate(group):
-            broken = dict(v, visual_name=REPLACEMENTS[v['visual_name']])
+            if v['visual_name'] in HOUSINGS:
+                continue
             vs[f'intact{j}'] = {'index': index(v), 'state': 0}
-            broken_index = index(broken)
+            if v['visual_name'] in GLASS:
+                continue
+            broken_index = index(dict(v, visual_name=REPLACEMENTS[v['visual_name']]))
             if broken_index not in broken_indices:
                 vs[f'broken{j}'] = {'index': broken_index, 'state': 1}
                 broken_indices.add(broken_index)
@@ -217,7 +241,7 @@ def check_built(path, data):
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = model in REPLACEMENTS and all(
+                ok = (model in REPLACEMENTS or model in GLASS) and all(
                     row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
@@ -246,7 +270,7 @@ def main():
         if p.parts[-3] != 'lobby_scene' and p.parts[-2].endswith(('_2', '_3', '_4', '_5')):
             projects.append(p)
     used = {v.get('visual_name') for p in projects
-            for v in tree(p.read_bytes()).get('render_visuals', [])} & REPLACEMENTS.keys()
+            for v in tree(p.read_bytes()).get('render_visuals', [])} & PARTS
     bounds = {}
     for name in sorted(used):
         b = (args.stock / f'models/{name}.model/render/export_properties').read_bytes()
