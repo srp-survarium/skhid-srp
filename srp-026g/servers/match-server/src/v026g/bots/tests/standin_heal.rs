@@ -757,6 +757,8 @@ mod tests {
 
     #[test]
     fn the_dead_slot_goes_back_to_store_and_the_world_shows_it_so() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         let mut heal = spawned();
         heal.press(0, 0);
         let alive = heal.readings(true);
@@ -954,6 +956,8 @@ mod tests {
 
     #[test]
     fn a_short_run_heals_its_bots_and_presses_no_empty_slot() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         let game = short_run(120_000, rework_on(), |_, _, _, _| {});
         let used = game
             .drug_log
@@ -981,6 +985,8 @@ mod tests {
     /// took the assignment, stamped `last_ran` and ended the route at each.)
     #[test]
     fn a_heal_is_a_press_and_the_running_play_assignment_and_route_are_untouched() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         use crate::v026g::bots::plays::PlayKind;
         use crate::v026g::drive::key;
         // A bot's assignment, the plays it has run, and whether it has a route, before a poll.

@@ -22,6 +22,9 @@ serde = { workspace = true }
 # Game data made up for tests (`v026g::maps::fixtures`), for the tests of
 # the crates that use this one.
 fixtures = []
+# What only the tests use: the kit and upgrade switches set for one thread (`v026g::loadouts::KitSwitches::scope`), so tests of
+# the old kit and of the new run in one process. Enabled by the dev-dependencies of the crates whose tests need it.
+test-support = []
 
 [dev-dependencies]
 # The content edit lists, read by the modification tests
