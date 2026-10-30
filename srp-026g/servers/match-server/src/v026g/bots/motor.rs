@@ -1301,7 +1301,7 @@ impl Motor {
         self.sprint_by_the_bar(route, s);
         // A planned drop is a link too: timed from the lining up to it.
         if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
-            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing };
+            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
             if self.links.idle() {
                 self.links.begin(self.clock, link, pose.feet, pose.speed);
             }
@@ -1951,7 +1951,8 @@ impl Motor {
             Leap::SprintGap(_) if self.feel.sprint_gaps => link_time::Kind::SprintGap,
             Leap::Gap(_) | Leap::SprintGap(_) => link_time::Kind::Gap,
         };
-        self.links.begin(self.clock, link_time::Link { kind, take_off, landing }, feet, pose.speed);
+        let top = route.ledge_top(k);
+        self.links.begin(self.clock, link_time::Link { kind, take_off, landing, top }, feet, pose.speed);
         Some(Ahead {
             aim,
             lined,
@@ -2067,7 +2068,7 @@ impl Motor {
         jump.pressed = Some(self.clock);
         jump.back = true;
         self.jump_try = Some(jump);
-        self.links.pressed(self.clock);
+        self.links.pressed(self.clock, pose.feet, pose.speed);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
