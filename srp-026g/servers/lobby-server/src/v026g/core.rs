@@ -214,6 +214,10 @@ pub(super) struct Core<'a> {
     /// die of one (`show_results`). A lobby started anew knows of none, so
     /// a game that outlived it is shown no screen until its next match.
     pub sent_to_match: HashSet<u32>,
+    /// The sessions whose match ended while their game was still in it,
+    /// and until when their results screen waits for the game to say it is
+    /// back (`play::Core::end_running`).
+    pub results_wait: HashMap<u32, Instant>,
     /// The choices of a match against bots held for the players' Play, by
     /// account, kept a while after they ran out (`pvb`).
     pub pvb_holds: HashMap<u32, super::pvb::Hold>,
@@ -281,6 +285,7 @@ impl<'a> Core<'a> {
             clan: Default::default(),
             away: HashMap::new(),
             sent_to_match: HashSet::new(),
+            results_wait: HashMap::new(),
             // A key is not one a match of the lobby before a restart had,
             // which a window still open may name: the keys start at the
             // time.
@@ -931,6 +936,7 @@ impl<'a> Core<'a> {
         }
 
         self.check_matches(now);
+        self.results_waited(now);
         self.log_predictions(now);
         self.collect_away(now);
         self.clan_matches(now);

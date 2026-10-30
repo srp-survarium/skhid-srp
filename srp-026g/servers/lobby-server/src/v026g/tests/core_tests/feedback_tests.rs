@@ -467,6 +467,9 @@ fn a_row_of_an_open_results_screen_is_answered_however_many_matches_ended_since(
     for index in 0..80 {
         world.settle_another(alice, 0xB000 + index);
     }
+    // The lobby's next pass shows her the last of them (she is in the lobby).
+    world.advance(Duration::from_secs(1));
+    world.take(alice);
     assert_eq!(details(&mut world, 2, match_id), 1);
     // A match whose screen nobody was sent has gone, as before.
     assert!(world.results.find(0xB000).is_none());
@@ -478,6 +481,8 @@ fn a_row_of_an_open_results_screen_is_answered_however_many_matches_ended_since(
     for index in 0..80 {
         world.settle_another(alice, 0xC000 + index);
     }
+    world.advance(Duration::from_secs(1));
+    world.take(alice);
     assert_eq!(details(&mut world, 1, 0xB000 + 79), 1);
     assert!(world.results.find(0xC000).is_none());
     // (The first match is kept too: Bob's screen of it may be open.)

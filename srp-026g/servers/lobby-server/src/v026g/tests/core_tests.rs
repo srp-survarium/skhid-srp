@@ -2010,10 +2010,24 @@ fn a_client_whose_link_broke_connects_again_with_its_session() {
 // ------------------------------------------------- results and rewards
 
 impl World {
+    /// [`Self::match_over`], then what each game still in the match does
+    /// with its 0xEA: it closes the match and says it is back (`31 .. 01`).
+    fn end_match(&mut self, match_id: u32, winner: u8) {
+        self.match_over(match_id, winner);
+        self.settle();
+        let closing: Vec<usize> = (0..self.clients.len())
+            .filter(|&index| self.core.results_wait.contains_key(&self.ids[index].1))
+            .collect();
+        for index in closing {
+            let (id, body) = request::leave(1, true);
+            self.client(index).send(id, &body);
+        }
+    }
+
     /// The match server's result for a match the lobby made, settled as
     /// `servers/srp` does it: team `winner` brought the batteries home,
     /// everyone was in to the end, the first player made three kills.
-    fn end_match(&mut self, match_id: u32, winner: u8) {
+    fn match_over(&mut self, match_id: u32, winner: u8) {
         let setup = self
             .host
             .made
@@ -2325,6 +2339,48 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
         }
     )));
     assert_eq!(world.account(alice).exp_total, paid.exp_total);
+    world.assert_clean();
+}
+
+#[test]
+fn the_results_screen_waits_for_the_game_to_close_its_match() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let (match_id, alice_team) = world.match_of(alice, bob);
+
+    // The match server's end. Both games hear it on the match link (0xEA),
+    // which closes the match and opens the screen with its spinner, and
+    // which a screen sent now could overtake: that opening would empty it.
+    // In the lobby, and no screen yet, nor on the lobby's next passes.
+    world.match_over(match_id, alice_team);
+    world.settle();
+    for client in [alice, bob] {
+        let decoded = world.take(client);
+        assert_eq!(queue_state(&decoded), Some(ClientState::Lobby));
+        assert!(screens(&decoded).is_empty(), "{decoded:?}");
+    }
+    world.advance(Duration::from_secs(2));
+    assert!(screens(&world.take(alice)).is_empty());
+    assert!(screens(&world.take(bob)).is_empty());
+
+    // Alice's game closed the match (`31 .. 01`): her screen, once.
+    world.ask(alice, request::leave(1, true));
+    let decoded = world.take(alice);
+    assert_eq!(screens(&decoded).len(), 1, "{decoded:?}");
+    assert_eq!(screens(&decoded)[0].0, match_id);
+    world.advance(Duration::from_secs(1));
+    assert!(screens(&world.take(alice)).is_empty());
+
+    // Bob's game never says so (its match link went silent: it closes the
+    // match without a word and opens no screen): his comes all the same,
+    // 10 s after the end.
+    world.advance(Duration::from_secs(5));
+    assert!(screens(&world.take(bob)).is_empty());
+    world.advance(Duration::from_secs(3));
+    let decoded = world.take(bob);
+    assert_eq!(screens(&decoded).len(), 1, "{decoded:?}");
+    assert!(world.core.results_wait.is_empty());
     world.assert_clean();
 }
 

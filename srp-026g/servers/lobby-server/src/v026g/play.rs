@@ -48,6 +48,13 @@ const UNMADE_MATCH: Duration = Duration::from_secs(10);
 /// How often the log has what the sides of a match being played count for.
 const PREDICTION_EVERY: Duration = Duration::from_secs(60);
 
+/// The longest a results screen waits for the game to say it is back from
+/// its match (`Core::end_running`). Its `31 .. 01` comes within a second;
+/// a game whose match link went silent closes the match without a word
+/// (`close_current_match(0)`, its link's 5 s timeout, match.md section 24)
+/// and opens no screen, which the `97` then opens by itself.
+const RESULTS_WAIT: Duration = Duration::from_secs(10);
+
 /// The seconds a step of the client's search screen takes (0x85 "in the
 /// queue"; the game draws nothing of it with 0). Only a clan team's wait
 /// shows that screen now.
@@ -756,6 +763,10 @@ impl Core<'_> {
             player.in_match = None;
             player.connect = None;
         }
+        if left_match {
+            // Its game has closed the match and opened the results screen.
+            self.results_wait.remove(&who.session_id);
+        }
         if !left_match {
             // A clan team it waited with does not wait any more.
             self.clan_left_queue(who.account_id);
@@ -1179,7 +1190,7 @@ impl Core<'_> {
             .map(|(id, _)| *id)
             .collect();
         for id in over {
-            self.finish(id);
+            self.finish(id, now);
         }
         for (id, formed_at) in self.store.matchmaking().matches() {
             if !self.matches.contains_key(&id)
@@ -1192,7 +1203,7 @@ impl Core<'_> {
     }
 
     /// [`super::Inbox::match_finished`], by the id the clients were told.
-    pub(super) fn match_finished(&mut self, finished: super::MatchFinished, _now: Instant) {
+    pub(super) fn match_finished(&mut self, finished: super::MatchFinished, now: Instant) {
         let ticket_match_id = finished.match_id;
         let id = self
             .matches
@@ -1200,27 +1211,28 @@ impl Core<'_> {
             .find(|(_, running)| running.ticket.match_id == ticket_match_id)
             .map(|(id, _)| *id);
         match id {
-            Some(id) if finished.not_made => self.finish_not_made(id),
-            Some(id) => self.finish(id),
+            Some(id) if finished.not_made => self.finish_not_made(id, now),
+            Some(id) => self.finish(id, now),
             None => log::debug!("Match {ticket_match_id:#x} is over; the lobby had freed it"),
         }
     }
 
     /// The match is over: its seats are free, and its players who are
     /// still marked in it are told they are in the lobby (`85 00`; the
-    /// client's Play is off in any other state).
-    fn finish(&mut self, match_id: u32) {
-        self.end_running(match_id, true);
+    /// client's Play is off in any other state). Their results screen waits
+    /// for their game to close the match (`Self::end_running`).
+    fn finish(&mut self, match_id: u32, now: Instant) {
+        self.end_running(match_id, true, now);
     }
 
     /// A room's match called off before its countdown (`match.md` section
     /// 34): as [`Self::finish`], with its room going on as for a match that
     /// could not be made, and no results (there are none).
-    fn finish_not_made(&mut self, match_id: u32) {
-        self.end_running(match_id, false);
+    fn finish_not_made(&mut self, match_id: u32, now: Instant) {
+        self.end_running(match_id, false, now);
     }
 
-    fn end_running(&mut self, match_id: u32, made: bool) {
+    fn end_running(&mut self, match_id: u32, made: bool, now: Instant) {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
@@ -1250,11 +1262,27 @@ impl Core<'_> {
             }
             player.in_match = None;
             player.connect = None;
+            let session_id = player.session_id;
             self.send(addr, lobby::client_state(&ClientState::Lobby, None));
+            // Its game is still in the match: the screen goes once the game
+            // says it is back (`31 .. 01`, `Self::leave`), which its 0xEA
+            // handler sends as it closes the match and opens the screen
+            // with its "receiving the statistics" spinner
+            // (`close_current_match(3)`, match.md section 24). That opening
+            // empties a screen already filled (`VictoryScreen.prepare`), and
+            // a `97` sent now could overtake the 0xEA, which goes on the
+            // match link a few tens of ms earlier and, lost, again only
+            // after its 250 ms: the player would be left with the spinner.
             if made {
-                self.show_results(addr, false);
+                self.results_wait.insert(session_id, now + RESULTS_WAIT);
             }
         }
+    }
+
+    /// The results screens that waited [`RESULTS_WAIT`] for their game: the
+    /// lobby's pass shows them as to any player in the lobby.
+    pub(super) fn results_waited(&mut self, now: Instant) {
+        self.results_wait.retain(|_, until| *until > now);
     }
 
     /// The results of the matches the account's client has not been shown
@@ -1279,6 +1307,10 @@ impl Core<'_> {
         let Some(who) = self.who(addr) else {
             return;
         };
+        // Its game is still closing the match (`Self::end_running`).
+        if self.results_wait.contains_key(&who.session_id) {
+            return;
+        }
         let Some(unseen) = self.results.take_unseen(who.account_id) else {
             return;
         };
