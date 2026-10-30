@@ -102,6 +102,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ThroughCounts::default()),
         Box::new(SenseCounts::default()),
         Box::new(SniperCounts::new(n)),
+        Box::new(GunShots::new(n)),
     ]
 }
 

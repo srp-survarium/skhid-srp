@@ -1,0 +1,115 @@
+owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 % hit (mean cone 0.00 deg, off the chest 0.00 deg)
+{
+  "gun_shots": {
+    "ak_74u/bots": {
+      "by_aim": [
+        [
+          343,
+          257
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "by_band": [
+        [
+          59,
+          44
+        ],
+        [
+          71,
+          54
+        ],
+        [
+          90,
+          67
+        ],
+        [
+          55,
+          41
+        ],
+        [
+          68,
+          51
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "by_burst": [
+        [
+          343,
+          343,
+          257
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "by_crouch": [
+        [
+          343,
+          257
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "by_shooter_moving": [
+        [
+          343,
+          257
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "by_target_moving": [
+        [
+          102,
+          79
+        ],
+        [
+          241,
+          178
+        ]
+      ],
+      "cone_deg_sum": 0.0,
+      "hits": 257,
+      "off_deg_sum": 0.0,
+      "pauses": [
+        0,
+        0,
+        340,
+        0
+      ],
+      "shots": 343,
+      "shots_all": 343
+    }
+  }
+}
