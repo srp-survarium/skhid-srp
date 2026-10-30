@@ -27,16 +27,16 @@ item's faction, level, slots and drop weight from its config in the server game 
 - Donor faces: `bandit_01_head_03`, `neutral_03_head`, the face under the knit cap
   (`neutral_01_head`), the faces under the balaclavas.
 - `bandit_01_hand`, `bandit_01_hand_v2`: bare hands (`hand` with a wristwatch and a bracelet,
-  `hand_v2` without). The bomber takes only their forearms (its sleeves are pushed up).
+  `hand_v2` without).
 
 ## The items
 
 | id | item | slot | faction | level | copies (stats, price, drop, bonuses) | model | icon |
 |---|---|---|---|---|---|---|---|
-| 1864 | Leather bomber jacket | torso | 2 Black Market | 3 | Thug's jacket (32) | `bandit_01_torso_s1` + the forearms of `bandit_01_hand` | [1, 9] |
+| 1864 | Leather bomber jacket | torso | 2 Black Market | 3 | Thug's jacket (32) | `bandit_01_torso_s1` + the native forearms | [1, 9] |
 | 1865 | Track pants | legs | 2 Black Market | 3 | Reinforced jeans (44) | `bandit_01_legs_s1` | [2, 9] |
 | 1866 | Sneakers | boots (`data_full`) | 2 Black Market | 1 | Cossacks (24) | `bandit_01_boot` | [3, 9] |
-| 1867 | Novice's hood | helmet, covers the mask | 1 Scavengers | 3 | Scavenger hood (892) | `neutral_01_helmet` | [4, 9] |
+| 1867 | Novice's hood | helmet, covers the mask | 1 Scavengers | 3 | Scavenger hood (892) | `neutral_01_helmet` + the Scavenger hood's cowl | [4, 9] |
 | 1822 | Novice's field jacket | torso | 1 Scavengers | 1 | Quilted jacket (31) | `neutral_01_torso_s1` (canteen, knife, pouch) | [19, 6] |
 | 1868 | Novice's field jacket with pouches | torso | 1 Scavengers | 1 | Quilted jacket (31) | `neutral_01_torso_v2_s1` (two belt pouches) | [5, 9] |
 | 1869 | Novice's backpack | back | 1 Scavengers | 1 | Backpack with container (49) | `neutral_01_back` | [6, 9] |
@@ -86,6 +86,31 @@ item's faction, level, slots and drop weight from its config in the server game 
   over the native skull.
 - The Novice jeans' waist is black in the STK2 map (hidden by STK2's jacket); it is
   painted over with the denim below it, reflected.
+
+## Version 2 (the owner's local test, 2026-10-30)
+
+- "The Novice jeans have a hole at the top; you can see behind the model": they ended at
+  0.94-0.96 m, where STK2's long jacket covered them, and the background showed between
+  them and shorter jackets (no body is drawn under trousers). A band now closes them up
+  to the native legs' top ring (1.04 m, which every stock torso covers). Rendered against
+  a magenta background with every stock `torso_s1` and the four new torsos from six
+  views, the background showing in the waist band went from 75,854 to 61,927 pixels: the
+  same as stock trousers (Linen pants 63,039, Jeans 63,717; what is left is between the
+  arms and the body).
+- "With the bomber, any gloves clip into it": its bare forearms were the donor's (from
+  `bandit_01_hand`) and stood through the gloves' cuffs. Now each variant draws the native
+  body's forearms (`base_character_torso_s1`/`_s2`/`_s3`, native skin), as the stock
+  bare-armed torsos (the Leather sleeveless jacket) do, for which every stock glove is
+  made.
+- "The hood is not modelled at the bottom, compared to the Scavenger hood": the stock
+  Scavenger hood's cowl (below 1.58 m, its own skin over the neck and shoulders) is joined
+  under it, on a patch of the hood's own canvas.
+- "The icons are too small", "the boots from another angle", "the sneakers a bit
+  smaller": icons are fitted to the stock icons' fill of their slot (81 px high, boots
+  76, gloves 77), the boots seen level with their black shaft openings capped for the
+  icon, the sneakers 15 % smaller.
+- Packs `@2` (all three; the loner's changed only where it is fitted to the other
+  outfits).
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -107,8 +132,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@1`, `stk2-novice@1`,
-  `stk2-loner@1` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-<outfit>-1`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@2`, `stk2-novice@2`,
+  `stk2-loner@2` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-<outfit>-2`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
