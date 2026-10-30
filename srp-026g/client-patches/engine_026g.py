@@ -5,12 +5,14 @@ compiler (LTO) gave the real one.
 
     python engine_026g.py --write
         writes engine_026g.h (the C declarations), engine_026g.inc (their
-        externs for NASM patches), engine_026g.rs (the Rust patches' `raw`
-        layer: these declarations and fields_026g.tsv's fields) and
-        engine_026g.asm (the thunks and the direct functions' addresses, the
-        arena's block engine.code: link_026g.py links it)
+        externs for NASM patches), engine_026g.rs (their declarations for
+        Rust with C's types: research_arena's), raw_026g.rs (the Rust
+        patches' `raw` layer: the declarations typed by the kinds'
+        handles, fields_026g.tsv's kinds and fields, sites_026g.tsv's
+        `holds`) and engine_026g.asm (the thunks and the direct functions'
+        addresses, the arena's block engine.code: link_026g.py links it)
     python engine_026g.py --check
-        says whether those four files are what engine_026g.tsv and the
+        says whether those five files are what engine_026g.tsv and the
         re-kit rows give here (the self-test runs the same)
 
 The library's functions are engine_026g.tsv's rows (in any order: each is a
@@ -27,22 +29,26 @@ global symbol of its own, which the link resolves for every caller):
                thunk, below), "stdcall", "cdecl" or "thiscall" (directly, in
                that convention, which the re-kit's rows must be: the symbol
                is the real VA, no thunk), "import" (va is the exe's IAT slot
-               of a kernel32 function, stdcall; the symbol is the slot;
+               of an imported function, stdcall: kernel32's, or a
+               delay-loaded one's slot, whose first call loads it; the
+               symbol is the slot;
                arguments "-", no re-kit row)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
-field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
-address, for the `vostok` layer (rust_patches.md). An offset may be
+field, offset, type, about): each kind a handle `raw::<Kind>` (a
+`#[repr(transparent)]` pointer, never 0, made only in `raw`), each field
+its accessor `handle.<field>()` by its type: a plain value's place, a
+`ptr<kind>`'s handle (an Option), a `ptr<u8>`/`ptr<f32>`'s pointer, an
+`obj<kind>`'s handle (the object inside, at the offset); a `size` row is
+the kind's size (an array's stride, `<Kind>Storage`: room of ours for one).
+A prototype's `struct <kind> *` is that kind's handle in `raw`, and a lohook
+site's `holds` in sites_026g.tsv (`name=REGISTER:kind`, ESP the site's
+own; or `name=REGISTER:u32`, a plain value) its typed register, `raw::site::<site>::<name>` (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
-itself: its rows are VAs of the game's data (a vtable), generated as
-constants `raw::image::<FIELD>`, the address only. Vostok compares vtable
-addresses or reads a named global under the engine lifetime contract.
-
-callbacks_026g.tsv declares Vostok-owned native callbacks. This generator
-adds their aligned entry declarations to Rust's raw layer; hooks_026g.py
-generates the entries and forwarding shims. A callback is not a callable
-engine address and is not included in the engine thunk library.
+itself: its rows are VAs of the game's data, up to the end of .data: a
+`u32` a constant `raw::image::<FIELD>` (a vtable vostok compares with), an
+`obj<kind>` its handle `raw::image::<field>()` (the game language's string).
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -78,8 +84,9 @@ HERE = Path(__file__).resolve().parent
 REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
 FIELDS = HERE / "fields_026g.tsv"
-CALLBACKS = HERE / "callbacks_026g.tsv"
+SITES = HERE / "sites_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
+RAW = HERE / "raw_026g.rs"
 CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
@@ -221,7 +228,7 @@ def function(row, abi=None, inputs=None):
             raise Refused(f"{name}: an import's arguments are \"-\" (stdcall, its prototype's)")
         return {"symbol": name, "va": va, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params,
                 "ret": ret, "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
-                "name": "kernel32 (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
+                "name": "an import (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
                 "vostok": vostok}
     tokens = [] if row["arguments"].strip() == "-" else [a.partition(":") for a in row["arguments"].split()]
     if any(not word for _, _, word in tokens):
@@ -297,35 +304,116 @@ def functions(spec=None, abi=None, inputs=None):
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # An `::image` row's VA: inside the exe's image (its data sections).
-# Original 2777 preferred base + SizeOfImage, including zero-filled .data
-# (the allocator pointer is beyond the file-backed portion of that section).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xa425000
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA2B6000          # through .data (its zero-filled tail too)
+KIND = r"[a-z][a-z0-9_]*(?:::[a-z][a-z0-9_]*)+"
+# a field's type: a plain value; `ptr<kind>` (a pointer to one, 0 none) or
+# `ptr<u8>` or `ptr<f32>` (to plain data: a C string, a buffer, matrices); `obj<kind>` (one inside the
+# object at the offset); `size` (the offset is the kind's size: its array's
+# stride, our own room for one).
+TYPED = re.compile(rf"(ptr|obj)<({KIND}|u8|f32)>")
+
+
+def module_of(kind):
+    return kind.rpartition("::")[2]
+
+
+def camel(name):
+    return "".join(part[:1].upper() + part[1:] for part in name.split("_"))
 
 
 def fields(path=None):
-    """fields_026g.tsv's rows: [{kind, module, field, offset, type, about}]."""
-    out, seen = [], set()
+    """fields_026g.tsv's rows: [{kind, module, field, offset, type, of, target, about}]: `of` is "value"
+    (`type` a plain one), "ptr", "data" (ptr<u8>, ptr<f32>), "obj" or "size"; `target` the kind a ptr or obj
+    names."""
+    out, seen, sized = [], set(), set()
     for row in read_tsv(FIELDS if path is None else path):
         kind, field, kind_type = row["kind"].strip(), row["field"].strip(), row["type"].strip()
-        module = kind.rpartition("::")[2]
+        module = module_of(kind)
         offset = number(row["offset"])
         image = module == "image"
         low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
-        if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
-                or kind_type not in FIELD_TYPES or not low <= offset < high or offset % FIELD_TYPES[kind_type] \
-                or (module, field) in seen:
+        typed = TYPED.fullmatch(kind_type)
+        of, target = ("value", None) if kind_type in FIELD_TYPES else ("size", None) if kind_type == "size" \
+            else (("data" if typed.group(2) in ("u8", "f32") else typed.group(1)), typed.group(2)) if typed else (None, None)
+        if of == "obj" and target in ("u8", "f32"):
+            of = None
+        align = FIELD_TYPES.get(kind_type, 4) if of != "size" else 1
+        if not re.fullmatch(KIND, kind) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) or of is None \
+                or not low <= offset < high or offset % align or (module, field) in seen \
+                or (image and of not in ("value", "obj")) or (of == "size" and (offset <= 0 or module in sized)):
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
                           f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
-                          f"of {', '.join(FIELD_TYPES)}")
+                          f"of {', '.join(FIELD_TYPES)}, ptr<kind>, ptr<u8>, obj<kind> or size (a kind's, "
+                          "once, not an image's)")
         seen.add((module, field))
+        if of == "size":
+            sized.add(module)
         out.append({"kind": kind, "module": module, "field": field, "offset": offset, "type": kind_type,
-                    "about": row["about"].strip()})
+                    "of": of, "target": target, "about": row["about"].strip()})
     return out
+
+
+def kinds(fields_):
+    """{module: {kind, type, size, fields}} of every kind a row names or points to (not the image): one
+    Rust handle each, named for the kind's last part, which is the kind's C tag in a prototype too."""
+    out = {}
+    for name in [x["kind"] for x in fields_] + [x["target"] for x in fields_ if x["of"] in ("ptr", "obj")]:
+        module = module_of(name)
+        if module == "image":
+            continue
+        if module in out and out[module]["kind"] != name:
+            raise Refused(f"fields_026g.tsv: {out[module]['kind']} and {name}: two kinds of one name")
+        out.setdefault(module, {"kind": name, "type": camel(module), "size": None, "fields": []})
+    for x in fields_:
+        if x["module"] == "image":
+            continue
+        if x["of"] == "size":
+            out[x["module"]]["size"] = x
+        else:
+            out[x["module"]]["fields"].append(x)
+    return out
+
+
+def site_holds(kinds_, path=None):
+    """sites_026g.tsv's `holds`, what each site's registers hold: [(site, va, what, [(name, location,
+    module)])], a location a register (EAX..EBP) or ESP (the site's own), each `name=LOCATION:kind`, or
+    `name=REGISTER:u32` (module None: the register's value itself)."""
+    out = []
+    for row in read_tsv(SITES if path is None else path):
+        text = (row.get("holds") or "").strip()
+        if text in ("", "-"):
+            continue
+        holds = []
+        for token in text.split():
+            match = re.fullmatch(rf"([a-z][a-z0-9_]*)=(EAX|ECX|EDX|EBX|ESP|EBP|ESI|EDI):({KIND}|u32)", token)
+            value = match is not None and match.group(3) == "u32"
+            if not match or (value and match.group(2) == "ESP") \
+                    or (not value and (module_of(match.group(3)) not in kinds_
+                                       or kinds_[module_of(match.group(3))]["kind"] != match.group(3))) \
+                    or match.group(1) in [h[0] for h in holds]:
+                raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
+                              "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
+            holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
+        out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), holds))
+    return out
+
+
+def raw_type(kind, tags, prefix=""):
+    """The `raw` layer's Rust type of a C type: a pointer to a struct whose tag is a kind of
+    fields_026g.tsv is that kind's handle (`Option<Handle>`: C may pass or return 0), a pointer to one
+    a pointer to such an Option; anything else as rust_type."""
+    tokens = re.findall(r"\*|[A-Za-z_]\w*", kind)
+    words = [t for t in tokens if t not in ("*", "const")]
+    stars = tokens.count("*")
+    if words[:1] == ["struct"] and len(words) == 2 and words[1] in tags and stars in (1, 2):
+        handle = f"Option<{prefix}{camel(words[1])}>"
+        return handle if stars == 1 else f"*mut {handle}"
+    return rust_type(kind)
 
 
 def describe(f):
     if f["call"] == "import":
-        return f"the IAT slot {f['va']:#x} (kernel32, stdcall)"
+        return f"the IAT slot {f['va']:#x} (an import, stdcall)"
     where = describe_args(f["params"], f["args"])
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
             + (f"; {f['result']}" if f["result"] else "")
@@ -443,47 +531,15 @@ def rust_type(kind):
     return out
 
 
-def callbacks(path=None):
-    """Callbacks owned by Vostok, rather than replacements of game functions.
-
-    The generated NASM entry aligns the native stack before entering Rust.
-    Only pointer/u32 arguments and a void result are needed at this boundary;
-    reject other layouts rather than silently count them as one stack word.
-    """
-    out, seen = [], set()
-    for row in read_tsv(CALLBACKS if path is None else path):
-        ret, symbol, params = parse_prototype(row["prototype"])
-        handler = row["handler"]
-        if ret != "void" or not re.fullmatch(r"callback_[a-z][a-z0-9_]*", symbol) \
-                or not re.fullmatch(r"[a-z][a-z0-9_]*::[a-z][a-z0-9_]*", handler) \
-                or symbol in seen or not params:
-            raise Refused(f"callbacks_026g.tsv: invalid or duplicate boundary: {row}")
-        types = [rust_type(kind) for kind, _ in params]
-        if any(t != "u32" and not t.startswith(("*const ", "*mut ")) for t in types):
-            raise Refused(f"{symbol}: a callback argument must occupy one native dword")
-        seen.add(symbol)
-        out.append({"symbol": symbol, "handler": handler, "params": params,
-                    "shim": "hook_" + symbol, "about": row["about"]})
-    return out
-
-
-def rust_text(fs, fields_=(), callbacks_=()):
-    """The `raw` layer: every function (a thunk's cdecl, or the function's
-    own convention), the imports, the fields' addresses."""
-    lines = [f"// The Rust patches' `raw` layer ({GENERATED}, and fields_026g.tsv).",
-             "//",
-             "// The game's functions as the link gives them: a thunk (cdecl, block",
-             "// engine.code) or the function itself in its own convention; kernel32's",
-             "// imports (their IAT slots); the address of each field. Unsafe, no logic:",
-             "// only `vostok` calls these (rust_patches.md).",
-             "",
-             "#[allow(unused_imports)]",
-             "use core::ffi::c_void;"]
+def rust_functions(fs, tags=()):
+    """The extern declarations of every function (a thunk's cdecl, or the function's own convention) and
+    the imports, a pointer to a struct of `tags` its handle (raw_type)."""
+    lines = []
 
     def signature(f):
-        params = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}: {rust_type(kind)}"
+        params = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}: {raw_type(kind, tags)}"
                            for kind, name in f["params"])
-        ret = "" if return_kind(f["ret"]) is None else f" -> {rust_type(f['ret'])}"
+        ret = "" if return_kind(f["ret"]) is None else f" -> {raw_type(f['ret'], tags)}"
         return params, ret
     for abi in ("C", "stdcall", "cdecl", "thiscall"):
         group = [f for f in fs if {"thunk": "C"}.get(f["call"], f["call"]) == abi]
@@ -498,38 +554,166 @@ def rust_text(fs, fields_=(), callbacks_=()):
         lines += ["", "#[allow(dead_code, non_upper_case_globals)]", 'unsafe extern "C" {']
         for f in imports:
             params, ret = signature(f)
-            types = ", ".join(rust_type(kind) for kind, _ in f["params"])
+            types = ", ".join(raw_type(kind, tags) for kind, _ in f["params"])
             lines += [f"    /// {describe(f)}: {f['prototype']}",
                       f'    pub static {f["symbol"]}: unsafe extern "stdcall" fn({types}){ret};']
         lines.append("}")
-    if callbacks_:
-        lines += ["", "// Native callbacks: addresses of the generated aligned NASM entries.",
-                  'unsafe extern "C" {']
-        for cb in callbacks_:
-            params = ", ".join(f"{name}: {rust_type(kind)}" for kind, name in cb["params"])
-            lines += [f"    /// {cb['about']}", f"    pub fn {cb['symbol']}({params});"]
+    return lines
+
+
+def rust_text(fs):
+    """The library's Rust declarations (C's types, a struct `c_void`), for a crate that calls the
+    functions as C does (research_arena); the Rust patches' crate has its typed `raw` (raw_text)."""
+    lines = [f"// The engine-function library's Rust declarations ({GENERATED}).",
+             "//",
+             "// The game's functions as the link gives them: a thunk (cdecl, block",
+             "// engine.code) or the function itself in its own convention; the",
+             "// imports (their IAT slots, delay-loaded ones too). C's types: research_arena's.",
+             "// The Rust patches (rust/patches) have their typed `raw` layer instead,",
+             "// raw_026g.rs (rust_patches.md).",
+             "",
+             "#[allow(unused_imports)]",
+             "use core::ffi::c_void;"]
+    return "\n".join(lines + rust_functions(fs)) + "\n"
+
+
+SAFETY_ALIVE = "`self` is alive (its fields are its kind's: the type says so)."
+
+
+def raw_kind(k, kinds_):
+    """A kind's handle: the newtype, its accessors, its size's array and storage."""
+    t, name = k["type"], k["kind"]
+    lines = ["", f"/// A {name} (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,",
+             "/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).",
+             "#[repr(transparent)]", "#[derive(Clone, Copy, Debug, PartialEq, Eq)]",
+             f"pub struct {t}(NonNull<c_void>);", "", "#[allow(dead_code)]", f"impl {t} {{",
+             "    /// Its address as a value (an id, a compare): never read through.",
+             "    #[inline(always)]",
+             "    pub fn address(self) -> u32 {", "        self.0.as_ptr() as usize as u32", "    }"]
+    for x in k["fields"]:
+        off = x["offset"]
+        at = f"+{off:#x}" if off >= 0 else f"-{-off:#x}"
+        place = f"self.0.byte_add({off:#x})" if off >= 0 else f"self.0.byte_sub({-off:#x})"
+        doc = ["", f"    /// {at} ({x['type']}): {x['about']}", "    ///", "    /// # Safety",
+               f"    /// {SAFETY_ALIVE}", "    #[inline(always)]"]
+        if x["of"] == "value":
+            lines += doc + [f"    pub unsafe fn {x['field']}(self) -> *mut {x['type']} {{",
+                            f"        unsafe {{ {place}.cast::<{x['type']}>().as_ptr() }}", "    }"]
+        elif x["of"] == "obj":
+            lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {kinds_[module_of(x['target'])]['type']} {{",
+                            f"        {kinds_[module_of(x['target'])]['type']}(unsafe {{ {place} }})", "    }"]
+        else:
+            value = f"*mut {x['target']}" if x["of"] == "data" else f"Option<{kinds_[module_of(x['target'])]['type']}>"
+            lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {value} {{",
+                            f"        unsafe {{ {place}.cast::<{value}>().read_volatile() }}", "    }"]
+            if k["size"]:                              # a kind we have room for: one we fill
+                lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
+                                f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
+    size = k["size"]
+    if size:
+        n = size["offset"]
+        lines += ["",
+                  f"    /// {size['offset']:#x} bytes: {size['about']}",
+                  f"    pub const SIZE: usize = {n:#x};",
+                  "",
+                  "    /// The `index`th of an array of them that starts at this one.",
+                  "    ///", "    /// # Safety", "    /// The array has more than `index`.",
+                  "    #[inline(always)]",
+                  "    pub unsafe fn at(self, index: usize) -> Self {",
+                  "        Self(unsafe { self.0.byte_add(index * Self::SIZE) })", "    }",
+                  "",
+                  "    /// Which of an array that starts at `first` this one is (None before `first`, or between two).",
+                  "    #[inline(always)]",
+                  "    pub fn index_from(self, first: Self) -> Option<usize> {",
+                  "        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;",
+                  "        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)", "    }"]
+    lines.append("}")
+    if size:
+        n = size["offset"]
+        lines += ["", f"/// Room of ours for {name}s ({n:#x} bytes, aligned to 4), zeroed: a local the game fills,",
+                  "/// or one we fill for it.",
+                  "#[repr(C, align(4))]", f"pub struct {t}Storage([u8; {n:#x}]);", "",
+                  "#[allow(dead_code)]", f"impl {t}Storage {{",
+                  "    pub const fn zeroed() -> Self {", f"        Self([0; {n:#x}])", "    }", "",
+                  "    /// The one this room holds (alive while the room is).",
+                  "    #[inline(always)]",
+                  f"    pub fn handle(&mut self) -> {t} {{", f"        {t}(NonNull::from(self).cast())", "    }", "",
+                  "    /// The first of these rooms, an array of them (None when there is none).",
+                  "    #[inline(always)]",
+                  f"    pub fn first(rooms: &mut [Self]) -> Option<{t}> {{",
+                  f"        (!rooms.is_empty()).then(|| {t}(NonNull::from(rooms).cast()))", "    }",
+                  "}"]
+    return lines
+
+
+def raw_text(fs, fields_, sites=None):
+    """The Rust patches' `raw` layer: a handle per kind (fields_026g.tsv) with its fields, the functions
+    typed by those handles, the image's data, and what each lohook site's registers hold."""
+    kinds_ = kinds(fields_)
+    holds = site_holds(kinds_, sites)
+    lines = [f"// The Rust patches' `raw` layer ({GENERATED}; fields_026g.tsv and",
+             "// sites_026g.tsv's `holds`).",
+             "//",
+             "// The only layer that knows the game's memory: a handle per kind, a",
+             "// `#[repr(transparent)]` pointer (never 0) with an accessor per field of",
+             "// its own (a value's place, a pointer's kind, an object inside it); the",
+             "// game's functions typed by those handles (a thunk, cdecl, block",
+             "// engine.code, or the function in its own convention; the imports);",
+             "// the image's data; what a lohook site's registers hold. A handle is",
+             "// made here alone: from a typed field, a function's result or a site's",
+             "// register. Unsafe, no logic: only `vostok` uses it (rust_patches.md).",
+             "",
+             "#[allow(unused_imports)]",
+             "use core::ffi::c_void;",
+             "#[allow(unused_imports)]",
+             "use core::ptr::NonNull;"]
+    lines += rust_functions(fs, set(kinds_))
+    for module in kinds_:
+        lines += raw_kind(kinds_[module], kinds_)
+    images = [x for x in fields_ if x["module"] == "image"]
+    if images:
+        lines += ["", "/// The image's data: VAs of the game's (fields_026g.tsv, the kinds ending in ::image).",
+                  "#[allow(dead_code)]", "pub mod image {", "    #[allow(unused_imports)]", "    use super::*;"]
+        for x in images:
+            lines += ["", f"    /// {x['offset']:#x} ({x['type']}, {x['kind']}): {x['about']}"]
+            if x["of"] == "value":
+                lines.append(f"    pub const {x['field'].upper()}: u32 = {x['offset']:#x};")
+            else:
+                t = kinds_[module_of(x["target"])]["type"]
+                lines += ["    #[inline(always)]", f"    pub fn {x['field']}() -> {t} {{",
+                          f"        // SAFETY: an image VA, not 0.",
+                          f"        {t}(unsafe {{ NonNull::new_unchecked({x['offset']:#x} as *mut c_void) }})", "    }"]
         lines.append("}")
-    for module in dict.fromkeys(x["module"] for x in fields_):
-        group = [x for x in fields_ if x["module"] == module]
-        if module == "image":
-            lines += ["", f"/// {group[0]['kind']}: VAs of the game's data (fields_026g.tsv).", "#[allow(dead_code)]",
-                      "pub mod image {"]
-            for x in group:
-                lines += ["", f"    /// {x['offset']:#x} ({x['type']}): {x['about']}",
-                          f"    pub const {x['field'].upper()}: u32 = {x['offset']:#x};"]
-            lines.append("}")
-            continue
-        lines += ["", f"/// {group[0]['kind']}'s fields (fields_026g.tsv).", "#[allow(dead_code)]",
-                  f"pub mod {module} {{", "    use core::ffi::c_void;"]
-        for x in group:
-            off = x["offset"]
-            at = f"+{off:#x}" if off >= 0 else f"-{-off:#x}"
-            expr = f"this.byte_add({off:#x})" if off >= 0 else f"this.byte_sub({-off:#x})"
-            lines += [f"", f"    /// {at} ({x['type']}): {x['about']}", "    ///",
-                      "    /// # Safety", f"    /// `this` is a {x['kind']}.", "    #[inline(always)]",
-                      f"    pub unsafe fn {x['field']}(this: *mut c_void) -> *mut {x['type']} {{",
-                      f"        unsafe {{ {expr}.cast() }}", "    }"]
-        lines.append("}")
+    lines += ["", "/// A general-purpose register at a hook's site.", "#[derive(Clone, Copy, Debug, PartialEq, Eq)]",
+              "pub enum Register {", "    Eax,", "    Ecx,", "    Edx,", "    Ebx,", "    Esp,", "    Ebp,", "    Esi,",
+              "    Edi,", "}", "",
+              "/// The machine at a lohook's site (vostok's `Context`): what a site's typed registers are read from.",
+              "pub trait Machine {", "    /// A register as the hook's entry saved it.",
+              "    fn register(&self, register: Register) -> u32;",
+              "    /// ESP as the site's own code has it (not the entry's).", "    fn site_esp(&self) -> u32;", "}",
+              "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.",
+              "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;"]
+    for site, va, what, regs in holds:
+        lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
+                  "        #[allow(unused_imports)]", "        use super::*;"]
+        for name, location, module in regs:
+            if module is None:
+                lines += ["", f"        /// {location}: a u32 value.",
+                          "        ///", "        /// # Safety", "        /// `machine` is at this site.",
+                          "        #[inline(always)]",
+                          f"        pub unsafe fn {name}(machine: &impl Machine) -> u32 {{",
+                          f"            machine.register(Register::{location.title()})", "        }"]
+                continue
+            t = kinds_[module]["type"]
+            value = "machine.site_esp()" if location == "ESP" else f"machine.register(Register::{location.title()})"
+            lines += ["", f"        /// {'the site' + chr(39) + 's ESP' if location == 'ESP' else location}: "
+                          f"a {kinds_[module]['kind']} (None for 0).",
+                      "        ///", "        /// # Safety", "        /// `machine` is at this site.",
+                      "        #[inline(always)]",
+                      f"        pub unsafe fn {name}(machine: &impl Machine) -> Option<{t}> {{",
+                      f"            NonNull::new({value} as usize as *mut c_void).map({t})", "        }"]
+        lines.append("    }")
+    lines.append("}")
     return "\n".join(lines) + "\n"
 
 
@@ -545,10 +729,10 @@ def assemble(text, va=0x10000000, tools=None):
 
 
 def outputs(spec=None, abi=None, inputs=None):
-    """{path: bytes} of the four files."""
+    """{path: bytes} of the five files."""
     fs = every_function(spec, abi, inputs)
     return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
-            RUST: rust_text(fs, fields(), callbacks()).encode()}
+            RUST: rust_text(fs).encode(), RAW: raw_text(fs, fields()).encode()}
 
 
 def stale():

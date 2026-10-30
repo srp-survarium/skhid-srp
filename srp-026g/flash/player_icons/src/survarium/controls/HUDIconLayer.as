@@ -87,8 +87,10 @@ package survarium.controls
       // metres, owner, the team taking it, its capture 0..100, the ms left of
       // its capture or neutralisation (0 none), whether the game's own player
       // is inside; then a number a unit: whether both teams are inside;
-      // finally whether the viewed player is aiming down sights.
-      // An older sender omits the aim flag (visible). Under the players' icons.
+      // then whether the viewed player is aiming down sights, and the sole
+      // occupying team for each unit (2 nobody/both). This differs from the
+      // progress team during neutralisation. Older senders omit either tail:
+      // no aim fade or enemy warning is inferred from incomplete information.
       public function research_markers(values:Array) : void
       {
          var ownTeam:uint = uint(values[0]);
@@ -98,6 +100,7 @@ package survarium.controls
          var i:uint = 0;
          var at:uint;
          var contested:uint;
+         var advancingAt:uint;
          var marker:ResearchMarker;
          while(this._research.length < count)
          {
@@ -113,13 +116,14 @@ package survarium.controls
             contested = 2 + 10 * count + i;
             if(i >= count || at + 9 >= values.length || uint(values[at + 1]) == 0)
             {
-               marker.visible = false;
+               marker.hide();
             }
             else
             {
                marker.x = Number(values[at + 2]);
                marker.y = Number(values[at + 3]) - ResearchMarker.LIFT;
-               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]),contested < values.length && uint(values[contested]) != 0);
+               advancingAt = aimAt + 1 + i;
+               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]),contested < values.length && uint(values[contested]) != 0,advancingAt < values.length ? uint(values[advancingAt]) : ResearchMarker.NO_TEAM);
                marker.visible = true;
             }
             i++;

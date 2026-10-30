@@ -6,12 +6,11 @@
 # release/patches.tsv, exactly those, in its order:
 #   1. reads the list (every row checked: name, sha256, size, its URLs, the
 #      first on $SKHID_PATCHES_URL);
-#   2. downloads each row's first URL: it must answer 200 with the row's
-#      size and sha256 (what players' updaters will get); each mirror after
-#      it must give the same, as the updater fetches it (redirects
-#      followed, not a web page), checked whole once and then by its first
-#      bytes (lib.sh check_patch_url, its cache in
-#      ~/.cache/skhid-release/patch-urls.checked);
+#   2. uses the local patch cache, checking each file's size and sha256;
+#      downloads a missing or invalid file from its first URL (HTTP 200).
+#      Checks every URL as the updater fetches it (redirects followed, not
+#      a web page), whole once and then by its first bytes (lib.sh
+#      check_patch_url). Cached bytes never replace URL availability checks;
 #   3. srp-game-data build --db $SKHID_STOCK_DB --patch "<file>=<urls>" ...
 #      --out <file> (the row's URLs, one space apart), then srp-game-data
 #      info <file>, which must name the list's patches and no other, and
@@ -49,24 +48,20 @@ check=$(check_data_bin)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+cache_patches
 args=()
 while read -r name sha size urls; do
     [[ -n $name ]] || continue
     read -r -a each <<<"$urls"
     url=${each[0]}
-    status=$(http_get "$url" "$work/$name")
-    [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
-    got=$(sha256_of "$work/$name")
-    [[ $got == "$sha" ]] || die "GET $url gave sha256 $got; $PATCH_LIST says $sha"
-    got=$(size_of "$work/$name")
-    [[ $got == "$size" ]] || die "GET $url gave $got bytes; $PATCH_LIST says $size"
-    say "$name: 200, $size bytes, sha256 $sha, as the list says"
+    check_patch_url "$url" "$sha" "$size" "$work" || die "$name: $URL_PROBLEM"
+    say "$name: $url: $CHECKED; cached $size bytes, sha256 $sha, as the list says"
     for mirror in "${each[@]:1}"; do
         check_patch_url "$mirror" "$sha" "$size" "$work" ||
             die "$name: $URL_PROBLEM (a mirror in $PATCH_LIST: put it right, or take it out of the row)"
         say "$name: mirror $mirror: $CHECKED, as the list says"
     done
-    args+=(--patch "$work/$name=$urls")
+    args+=(--patch "$PATCH_CACHE/$name=$urls")
 done <<<"$LIST"
 ((${#args[@]})) || say "no patch in $PATCH_LIST"
 

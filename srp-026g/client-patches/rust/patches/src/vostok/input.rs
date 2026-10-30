@@ -1,9 +1,7 @@
 //! The player's input: survarium::player_input_handler, which turns the
 //! keys' events into the input sent each tick.
 
-use core::ffi::c_void;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 
 use super::hook::{Handle, Thread};
 use crate::raw;
@@ -19,14 +17,20 @@ impl Action {
     pub const COMMIT_SUICIDE: Action = Action(0x1F);
     /// spot.
     pub const SPOT: Action = Action(0x22);
+    /// artefact (action table entry 0xA74D5C): unused by the game; patch 78
+    /// gives it the default key H and a controls row (patch 62's table), and
+    /// holding it makes a quick-use key offer that slot's artefact.
+    pub const ARTEFACT: Action = Action(0x23);
 }
 
-/// What the input handler holds of an action: its last key event.
+/// What the input handler holds of an action: its last key event, as
+/// on_keyboard_action pushes it (0.10b `player_input_handler::action_state_enum`:
+/// down 0, up 1, hold 2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionState {
     Down,
-    Repeat,
     Up,
+    Hold,
 }
 
 /// A state the game gave that is none of [`ActionState`]'s.
@@ -37,9 +41,31 @@ impl ActionState {
     pub fn parse(raw: u32) -> Result<ActionState, UnknownActionState> {
         match raw {
             0 => Ok(ActionState::Down),
-            1 => Ok(ActionState::Repeat),
-            2 => Ok(ActionState::Up),
+            1 => Ok(ActionState::Up),
+            2 => Ok(ActionState::Hold),
             other => Err(UnknownActionState(other)),
+        }
+    }
+}
+
+/// A key's event as player_input_handler::on_keyboard_action is given it
+/// (its third argument; 0.10b `input::enum_keyboard_action`: down 1, up 2,
+/// hold 3, the game pushing them as [`ActionState`]'s 0, 1, 2 at 0x23FEA4,
+/// 0x23FF14, 0x23FED8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyboardAction {
+    Down,
+    Up,
+    Hold,
+}
+
+impl KeyboardAction {
+    pub fn parse(raw: u32) -> Option<KeyboardAction> {
+        match raw {
+            1 => Some(KeyboardAction::Down),
+            2 => Some(KeyboardAction::Up),
+            3 => Some(KeyboardAction::Hold),
+            _ => None,
         }
     }
 }
@@ -97,64 +123,63 @@ impl ActionMask {
 /// The input handler, while it builds an input. A [`Handle`]: the generated
 /// shim makes it from a hook's argument; a patch receives it.
 pub struct InputHandler<'t> {
-    this: NonNull<c_void>,
+    this: raw::PlayerInputHandler,
     thread: PhantomData<&'t Thread>,
 }
 
 impl<'t> Handle<'t> for InputHandler<'t> {
-    unsafe fn from_raw(_: &'t Thread, raw: u32) -> Option<Self> {
-        NonNull::new(raw as usize as *mut c_void).map(|this| InputHandler { this, thread: PhantomData })
+    type Raw = raw::PlayerInputHandler;
+
+    unsafe fn from_raw(_: &'t Thread, raw: Option<raw::PlayerInputHandler>) -> Option<Self> {
+        raw.map(|this| InputHandler { this, thread: PhantomData })
     }
 }
 
 impl<'t> InputHandler<'t> {
-    /// At `input_builder.end` (process_first_person_mode's epilogue: EBX the
-    /// handler).
+    /// At `input_builder.end` (process_first_person_mode's epilogue).
     pub fn at_builder_end(ctx: &'t super::Context<'_>) -> Option<InputHandler<'t>> {
-        NonNull::new(ctx.reg(super::Reg::Ebx) as usize as *mut c_void).map(|this| InputHandler { this, thread: PhantomData })
+        // SAFETY: the context is this site's: the handler building the input,
+        // alive until the epilogue returns, on the hook's thread.
+        let this = unsafe { raw::site::input_builder_end::handler(ctx) }?;
+        Some(InputHandler { this, thread: PhantomData })
     }
 }
 
 impl InputHandler<'_> {
-    pub(in crate::vostok) fn ptr(&self) -> *mut c_void {
-        this_ptr(self.this)
+    pub(in crate::vostok) fn raw(&self) -> raw::PlayerInputHandler {
+        self.this
     }
 
     /// The state of `action`: `None` when the handler has none, or when it
     /// is no [`ActionState`].
     pub fn action_state(&self, action: Action) -> Option<ActionState> {
         let mut state = 0;
-        // SAFETY: `this` is the game's input handler (Handle's contract), on
-        // the game's thread (the Thread it borrows); action_present reads
-        // the handler and writes `state` alone.
-        let present = unsafe { raw::engine_action_present(self.ptr(), action.0, &mut state) };
+        // SAFETY: the handler is alive for the hook, on the game's thread (the
+        // Thread it borrows); action_present reads it and writes `state` alone.
+        let present = unsafe { raw::engine_action_present(Some(self.this), action.0, &mut state) };
         if present == 0 {
             return None;
         }
         ActionState::parse(state).ok()
     }
 
-    /// Adds `actions` to the mask of the input being built.
     /// The action mask of the input being built.
     pub fn actions(&self) -> ActionMask {
-        // SAFETY: the handle is a live player_input_handler on the hook's thread.
-        ActionMask(unsafe { *raw::player_input_handler::actions(self.ptr()) })
+        // SAFETY: the handler is alive for the hook, on its thread.
+        ActionMask(unsafe { *self.this.actions() })
     }
 
     pub fn set_actions(&mut self, actions: ActionMask) {
         // SAFETY: as actions.
-        unsafe { *raw::player_input_handler::actions(self.ptr()) = actions.0 }
+        unsafe { *self.this.actions() = actions.0 }
     }
 
+    /// Adds `actions` to the mask of the input being built.
     pub fn add_actions(&mut self, actions: ActionMask) {
-        // SAFETY: as action_state; the mask is the handler's own field,
-        // which the input builder goes on filling after the hook.
-        unsafe { *raw::player_input_handler::actions(self.ptr()) |= actions.0 }
+        // SAFETY: as actions; the mask is the handler's own, which the input
+        // builder goes on filling after the hook.
+        unsafe { *self.this.actions() |= actions.0 }
     }
-}
-
-fn this_ptr(this: NonNull<c_void>) -> *mut c_void {
-    this.as_ptr()
 }
 
 #[cfg(test)]
@@ -164,7 +189,16 @@ mod tests {
     #[test]
     fn states_parsed_and_refused() {
         assert_eq!(ActionState::parse(0), Ok(ActionState::Down));
-        assert_eq!(ActionState::parse(2), Ok(ActionState::Up));
+        assert_eq!(ActionState::parse(1), Ok(ActionState::Up));
+        assert_eq!(ActionState::parse(2), Ok(ActionState::Hold));
         assert_eq!(ActionState::parse(7), Err(UnknownActionState(7)));
+    }
+
+    #[test]
+    fn keyboard_actions_are_the_engines() {
+        assert_eq!(KeyboardAction::parse(1), Some(KeyboardAction::Down));
+        assert_eq!(KeyboardAction::parse(2), Some(KeyboardAction::Up));
+        assert_eq!(KeyboardAction::parse(3), Some(KeyboardAction::Hold));
+        assert_eq!(KeyboardAction::parse(0), None);
     }
 }

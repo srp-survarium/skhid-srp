@@ -24,23 +24,26 @@
 
 pub mod bullet;
 pub mod camera;
+pub mod carry_runtime;
+pub mod carry_ground;
+pub mod carry_flower;
 mod cell;
 pub mod clock;
 mod context;
 pub mod draw;
+pub mod headwear;
 mod hook;
 mod input;
+pub mod inventory;
 mod keyboard;
+pub mod language;
 pub mod log;
 mod options;
 pub mod parse;
-pub mod pickup_input;
-pub mod resources;
 mod rt;
 mod sync;
 pub mod trace;
 pub mod types;
-pub mod weapon;
 pub mod world;
 mod ui;
 
@@ -66,7 +69,7 @@ pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
+pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::TabTest;
 pub use options::OptionsRead;
 pub use rt::c_u32;
@@ -74,3 +77,6 @@ pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 mod consumable;
 pub use consumable::QuickSlotActivity;
+
+mod artefact;
+pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

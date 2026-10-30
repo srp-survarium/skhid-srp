@@ -1,6 +1,9 @@
 # Dropped weapon pickup — implementation evidence
 
-Work in progress; no gameplay hook is installed yet.
+Work in progress; no gameplay hook is installed yet. The client patch (patch 83)
+is parked unbuilt in `client-patches/parked/dropped_weapons/`: it predates main's
+typed `raw` layer and has to be ported to it; paths below named
+`rust/patches/src/...` and the table rows are there now.
 
 ## Implemented shared logic
 

@@ -356,13 +356,12 @@ fn the_match_level_multiplies_the_rewards() {
 }
 
 /// A player of team 0 with premium, a quest faction and the counters of a
-/// results screen: `kills`, `assists` and an other score of `artefacts` × 2
-/// and `brought` hundredths of a battery × 10.
+/// results screen: `kills`, `assists` and an other score of `brought`
+/// hundredths of a battery × 10.
 fn screen_match(
     level: u16,
     kills: u16,
     assists: u16,
-    artefacts: u16,
     brought: u16,
 ) -> (GameAccounts, MatchResult) {
     let players = vec![
@@ -376,7 +375,6 @@ fn screen_match(
                     (event::KILL, kills),
                     (event::ASSIST, assists),
                     (event::DEATH, 9),
-                    (event::ARTEFACT, artefacts),
                     (event::BRING_VICTORY_ITEM, brought),
                 ],
             ),
@@ -401,9 +399,10 @@ fn screen_match(
 /// the premium block and the totals come out.
 #[test]
 fn the_second_screen_comes_out() {
-    // The other score, 59: two artefacts (4) and five and a half batteries
-    // brought (55).
-    let (store, result) = screen_match(15, 19, 8, 2, 550);
+    // The other score, 59: five and nine tenths batteries brought (matched
+    // as two artefacts and five and a half batteries while an artefact
+    // weighed 2).
+    let (store, result) = screen_match(15, 19, 8, 590);
     assert_eq!(result.players[0].score, 289);
     let report = Results::new()
         .settle(&result, &store, &terms(), &mut Rng::new(1))
@@ -450,9 +449,10 @@ fn the_second_screen_comes_out() {
 /// more, and half of the rows.
 #[test]
 fn the_first_screen_comes_out_but_for_its_kills() {
-    // The other score, 33: four artefacts (8) and two and a half batteries
-    // brought (25).
-    let (store, result) = screen_match(1, 17, 4, 4, 250);
+    // The other score, 33: three and three tenths batteries brought
+    // (matched as four artefacts and two and a half batteries while an
+    // artefact weighed 2).
+    let (store, result) = screen_match(1, 17, 4, 330);
     assert_eq!(result.players[0].score, 223);
     // Her first victory of the day.
     store.get(10).unwrap().locked().extras.bonus = Default::default();
@@ -801,7 +801,12 @@ fn a_solo_match_pays_in_full_and_moves_no_rating() {
         0,
         0,
         "Alice",
-        counters_of(0, &[(event::ARTEFACT, 2)]),
+        // Two artefacts, the first into an empty slot (event 5 and 16),
+        // the second with every slot full (event 5 alone).
+        counters_of(
+            0,
+            &[(event::ARTEFACT, 2), (event::WINNING_TEAM_VI_BONUS, 1)],
+        ),
     )];
     let store = accounts(&players);
     let mut result = result(players);
@@ -811,11 +816,11 @@ fn a_solo_match_pays_in_full_and_moves_no_rating() {
         .unwrap();
     let alice = &report.players[0];
     assert!(alice.reward.won);
-    // Two artefacts are 4 points of other score (28.15 silver, 2.46
-    // experience) on the fixed part of a match won.
-    assert_eq!(alice.reward.score, 4);
-    assert_eq!(columns(&alice.full, 2), (4.0, 110, 125, 0));
-    assert_eq!(alice.reward.experience, 125);
+    // The two artefacts are 15 + 5 points of other score (140.8 silver,
+    // 12.3 experience) on the fixed part of a match won.
+    assert_eq!(alice.reward.score, 20);
+    assert_eq!(columns(&alice.full, 2), (5.0, 223, 135, 0));
+    assert_eq!(alice.reward.experience, 135);
     assert_eq!(alice.reward.rating_after, 100);
     assert_eq!(account(&store, 10).rating, 100);
     assert_eq!(report.stats.rows.len(), 1);

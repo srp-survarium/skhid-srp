@@ -132,7 +132,6 @@ services:
       - SRP_CLOCK_CORRECTION
       - SRP_CHECK_INITIAL_WORLD
       - SRP_COMPRESS_STATE
-      - SRP_BLACKOUT
       - SRP_ENTRY_STATE_SECONDS
       - SRP_RELAY_PACK_MS
       - SRP_PACKET_LOG
@@ -218,6 +217,13 @@ services:
         && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     ports:
       - "${SRP26_HTTPS_PORT:-443}:443/tcp"
+    # Plain TCP only: Caddy (Go 1.24+) listens with multipath TCP wherever
+    # the kernel allows it, and 443 is published straight to it, which puts
+    # the kernel's MPTCP code (remote use-after-free, 2026) before anyone
+    # on the internet. Off in this container's network namespace, Go falls
+    # back to TCP; clients notice nothing.
+    sysctls:
+      net.mptcp.enabled: 0
     volumes:
       - caddy26-data:/data
     read_only: true

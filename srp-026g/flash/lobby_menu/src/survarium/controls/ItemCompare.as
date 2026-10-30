@@ -10,6 +10,7 @@ package survarium.controls
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
+   import survarium.item.WeaponDetails;
    import survarium.constants.ModifierType;
    import survarium.constants.SuperCategory;
    import survarium.constants.ItemCategory;
@@ -86,6 +87,16 @@ package survarium.controls
          }
       }
       
+      // A card property a modifier of another property changes: a weapon's aim-time roll (102,
+      // 2070..2074) scales its aim time (133, parameters/aim_time) since weapon-rolls-1.
+      private static const MODIFIED_BY:Object = {133:102};
+
+      // Whether a modifier of `modifierProp` changes the card property `prop`.
+      private static function modifies(modifierProp:int, prop:int) : Boolean
+      {
+         return modifierProp == prop || MODIFIED_BY[prop] === modifierProp;
+      }
+
       public static function setPropsDescriptor(descriptor:PropertiesDescriptor) : void
       {
          trace("setPropsDescriptor::",descriptor);
@@ -184,6 +195,10 @@ package survarium.controls
       {
          return this._primary;
       }
+
+      public function getSecondaryData() : Object { return this._secondary; }
+
+      public function refreshComparison() : void { updateData(); }
       
       public function setSecondaryWeapon(item:Object) : void
       {
@@ -220,6 +235,7 @@ package survarium.controls
          trace("ItemCompare::updateData");
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
          var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
+         var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
@@ -240,7 +256,7 @@ package survarium.controls
                {
                   for each(modifierProp in modifierEntry.props)
                   {
-                     if(modifierProp.prop_id == propDescription.prop_id)
+                     if(modifies(modifierProp.prop_id,propDescription.prop_id))
                      {
                         propValue = Number(modifierProp.prop_value);
                         if(propValue != Number(modifierProp.prop_value))
@@ -263,7 +279,8 @@ package survarium.controls
             }
             else
             {
-               total = base * (1 + modifier_value);
+               // The cook's type 2: base * max(0, 1 + sum) (0x358010).
+               total = base * Math.max(0,1 + modifier_value);
             }
             if(modifierType == ModifierType.MULTIPLY)
             {
@@ -296,6 +313,7 @@ package survarium.controls
          }
          for each(var s:Object in this._primary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -344,6 +362,7 @@ package survarium.controls
          }
          for each(s in this._secondary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)

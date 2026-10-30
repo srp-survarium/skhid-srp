@@ -11,6 +11,8 @@ package survarium.controls
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponDetails;
+   import survarium.item.WeaponDetailsView;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
@@ -71,11 +73,69 @@ package survarium.controls
       protected var _spr:Sprite = new Sprite();
       
       protected var _displayOrange:Boolean = false;
+
+      private var _weaponDetails:WeaponDetails;
+      private var _detailsText:WeaponDetailsView;
+      private var _detailsMode:String = "none";
       
       public function ItemInfoRenderer()
       {
          super();
          this.init();
+         addEventListener(Event.ADDED_TO_STAGE,detailsAdded,false,0,true);
+         addEventListener(Event.REMOVED_FROM_STAGE,detailsRemoved,false,0,true);
+      }
+
+      private function detailsAdded(e:Event) : void
+      {
+         addEventListener(Event.ENTER_FRAME,detailsFrame,false,0,true);
+      }
+
+      private function detailsRemoved(e:Event) : void
+      {
+         removeEventListener(Event.ENTER_FRAME,detailsFrame);
+      }
+
+      private function detailsFrame(e:Event) : void
+      {
+         var mode:String = detailsMode();
+         if(mode == _detailsMode) return;
+         itemCompare.refreshComparison();
+         updateDetailsText();
+         layoutDetails();
+         dispatchEvent(new Event(Event.RESIZE));
+      }
+
+      private function detailsMode() : String
+      {
+         if(_data == null) return "none";
+         if(_weaponDetails == null) return MainScene.isCtrl ? "none-neutral" : "none";
+         if(!MainScene.isShift) return MainScene.isCtrl ? "compact-neutral" : "compact";
+         return MainScene.isCtrl ? "expanded-neutral" : "expanded";
+      }
+
+      private function updateDetailsText() : void
+      {
+         _detailsMode = detailsMode();
+         if(_detailsText == null && _weaponDetails != null)
+         {
+            _detailsText = new WeaponDetailsView();
+            addChild(_detailsText);
+         }
+         if(_detailsText != null)
+         {
+            _detailsText.visible = _weaponDetails != null;
+            _detailsText.show(_weaponDetails,_detailsMode == "expanded" || _detailsMode == "expanded-neutral",itemCompare);
+         }
+      }
+
+      // Transfer the native warning graphics without leaving the full item's
+      // deferred comparison layout attached to them.
+      public static function warningSkin() : ItemInfoRenderer
+      {
+         var skin:ItemInfoRenderer = new InventoryItemHint();
+         skin.itemCompare.removeEventListener(Event.RESIZE,skin.layoutDetails);
+         return skin;
       }
       
       override public function get width() : Number
@@ -245,6 +305,8 @@ package survarium.controls
          var iconFrame:uint = 0;
          this._data = value;
          var item:ItemData = this._data as ItemData;
+         _weaponDetails = WeaponDetails.read(item);
+         updateDetailsText();
          if(!item)
          {
             return;
@@ -342,17 +404,7 @@ package survarium.controls
             trace("c");
             this.textFieldItemLevel.visible = false;
          }
-         if(this.textFieldDescription.visible)
-         {
-            this.topBlackContainer.height = this.textFieldDescription.height + this.textFieldDescription.y;
-         }
-         else
-         {
-            this.topBlackContainer.height = this.itemAmmoName.visible ? 55 : 37;
-         }
-         this.propsTopLine.visible = false;
-         this.propsTopLine.y = this.topBlackContainer.y + this.topBlackContainer.height;
-         this.itemCompare.y = this.propsTopLine.y + 10;
+         this.layoutHeader(this.naturalHeaderHeight());
          this.itemCompare.setPrimaryWeapon(item);
          trace("updateIIR::2",this._data.name,this._data.modifiers);
          var regularModifiers:Array = [];
@@ -384,10 +436,45 @@ package survarium.controls
 
       }
 
+      private function naturalHeaderHeight() : Number
+      {
+         return textFieldDescription.visible ? textFieldDescription.y + textFieldDescription.height : (itemAmmoName.visible ? 55 : 37);
+      }
+
+      private function layoutHeader(headerHeight:Number) : void
+      {
+         topBlackContainer.height = headerHeight;
+         propsTopLine.visible = false;
+         propsTopLine.y = topBlackContainer.y + topBlackContainer.height;
+         itemCompare.y = propsTopLine.y + 10;
+      }
+
+      // Optics descriptions can wrap. Reserve the taller natural header on
+      // both weapon cards so every comparison row starts at the same height.
+      public function alignComparisonHeader(peer:ItemInfoRenderer) : void
+      {
+         var ownHeight:Number = naturalHeaderHeight();
+         var peerHeight:Number = peer == null ? 0 : peer.naturalHeaderHeight();
+         if(peer != null && _data != null && peer._data != null && _data.isWeapon && peer._data.isWeapon)
+            ownHeight = peerHeight = Math.max(ownHeight,peerHeight);
+         layoutHeader(ownHeight);
+         layoutDetails();
+         if(peer != null)
+         {
+            peer.layoutHeader(peerHeight);
+            peer.layoutDetails();
+         }
+      }
+
       // The comparison can add/remove rows after the item has been assigned.
       // One layout owner sizes the card and every section for either callback.
       private function layoutDetails(e:Event = null) : void
       {
+         // Native timeline children can dispatch RESIZE before this card has
+         // data/providers. The final data setter lays it out once all exist.
+         if(_data == null || modifiersList.dataProvider == null || defaultModifiersList.dataProvider == null || criticalModifiersList.dataProvider == null) return;
+         if(modifiersList.container == null || defaultModifiersList.container == null || criticalModifiersList.container == null) return;
+         if(e != null) updateDetailsText();
          var regularHeight:uint = this.modifiersList.container.height * this.modifiersList.scaleY;
          var defaultHeight:uint = this.defaultModifiersList.container.height * this.defaultModifiersList.scaleY;
          var criticalHeight:uint = this.criticalModifiersList.container.height * this.criticalModifiersList.scaleY;
@@ -397,6 +484,11 @@ package survarium.controls
          trace("IIR::FRED",this.itemCompare,this.defaultModfiersBack,this.propsBottomLine,this.bottomBackContainer,this.bottomLine,this.background);
          this.defaultModfiersBack.height = defaultHeight + 11;
          this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
+         if(_detailsText != null && _detailsText.visible)
+         {
+            _detailsText.y = this.propsBottomLine.y + 2;
+            this.propsBottomLine.y = _detailsText.y + _detailsText.height + 6;
+         }
          this.bottomBackContainer.y = this.propsBottomLine.y;
          this.bottomBackContainer.height = regularHeight + criticalHeight + defaultHeight + (hasModifiers ? 14 : 0) + (hasCriticalModifiers ? 40 : 0) + (Boolean(regularHeight) || Boolean(criticalHeight) ? 5 : 0);
          this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;

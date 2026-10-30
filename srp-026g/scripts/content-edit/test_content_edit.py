@@ -62,6 +62,14 @@ def value(data, path):
 
 
 class MapEditorEdits(unittest.TestCase):
+    def test_hud_string_rows_append_without_changing_neighbors(self):
+        data = config({'hud_strings': [['existing', 'st_existing']], 'other': ['unchanged']})
+        self.assertEqual(ce.append_rows(data, 'hud_strings', [['carry', 'st_carry']]), 1)
+        self.assertEqual(value(data, 'hud_strings[0][0]'), 'existing')
+        self.assertEqual(value(data, 'hud_strings[1][0]'), 'carry')
+        self.assertEqual(value(data, 'hud_strings[1][1]'), 'st_carry')
+        self.assertEqual(value(data, 'other[0]'), 'unchanged')
+
     def test_vectors_and_nested_keys_keep_other_values(self):
         data = fixture()
         before = dict((p, (t, v)) for p, t, v in ce.walk(data))
@@ -96,6 +104,99 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[1]/geometries[0]/name'), 'copy-geometry')
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
+
+    def test_modifier_retarget_by_its_path(self):
+        """A modification's modifiers differ only in their `path`: `where` takes a path in the entry."""
+        def modifier(key):
+            return {'path': ['recoil', key], 'value': -0.02, 'type': 2}
+        data = config({'modifications': [{'id': 2080, 'modifiers': [modifier('a'), modifier('b'), modifier('c')]}]})
+        ce.set_entry(data, 'modifications', {'id': 2080}, {'modifiers[0]/path[1]': 'a'},
+                     {'modifiers[0]/path[1]': 'max_top_recoil'})
+        with self.assertRaises(ValueError):  # every modifier has this value and type
+            ce.remove_entry(bytearray(data), 'modifications[0]/modifiers', {'type': 2})
+        ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        with self.assertRaises(ValueError):  # gone: a second removal is refused
+            ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        self.assertEqual([value(data, 'modifications[0]/modifiers[%d]/path[1]' % i) for i in range(2)],
+                         ['max_top_recoil', 'c'])
+        self.assertTrue(ce.same(value(data, 'modifications[0]/modifiers[1]/value'), -0.02))
+        ce.walk(data)
+
+    def test_append_item_to_a_root_list_of_numbers(self):
+        """An item's default_modifications gains a value; a value it holds already is refused."""
+        data = config({'default_modifications': [1030, 1050], 'other': 7})
+        ce.append_item(data, 'default_modifications', 1103)
+        self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1050, 1103])
+        with self.assertRaises(ValueError):
+            ce.append_item(data, 'default_modifications', 1050)
+        with self.assertRaises(ValueError):
+            ce.append_item(data, 'default_modifications', 'text')
+        self.assertEqual(value(data, 'other'), 7)
+        ce.walk(data)
+
+    def test_cli_checks_set_and_append_item_of_a_root_list(self):
+        """The whole tool on a suit-like config: a default replaced by `set`, two appended; the check
+        afterwards expects exactly those changes."""
+        edits = {'set': [{'file': 'suit', 'path': 'default_modifications[1]', 'from': 1112, 'to': 1113}],
+                 'append_item': [{'file': 'suit', 'path': 'default_modifications', 'value': 1103},
+                                 {'file': 'suit', 'path': 'default_modifications', 'value': 1094}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/suit').write_bytes(bytes(config({'default_modifications': [1030, 1112], 'weight': 3.5})))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/suit').read_bytes())
+            self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1113, 1103, 1094])
+
+    def test_cli_promotes_rolled_defaults_of_equipment_only(self):
+        """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
+        only; a stronger one, a kind that never rolls and a wear-only one stay; the check afterwards
+        expects exactly that."""
+        def mask(kind):
+            return '0' * kind + '1' + '0' * (40 - kind)
+        def row(mid, kind, weight, path):
+            return {'id': mid, 'type_mask': mask(kind), 'drop_weight': weight,
+                    'modifiers': [{'path': path, 'value': 0.01, 'type': 2}]}
+        speed = [row(1110 + i, 23, w, ['parameters', 'movement_speed_modifier'])
+                 for i, w in enumerate([10.0, 8.0, 6.4, 5.12, 4.096])]
+        wear = [row(1200 + i, 32, w, ['parameters', 'degrade_per_match']) for i, w in enumerate([10.0, 8.0])]
+        slot = [row(1030, 15, 0.0, ['parameters', 'pocket_slots_modifier'])]
+        live = {
+            'gameplay/items/modifications/modifications.options': config({'modifications': speed + wear + slot}),
+            'gameplay/db_static_dictionaries': config({'items_dict': [
+                {'cfg_name': 'gameplay/items/armour/torso/suit.options', 'item_category': 3},
+                {'cfg_name': 'gameplay/items/armour/legs/fast.options', 'item_category': 5},
+                {'cfg_name': 'gameplay/items/weapons/gun.options', 'item_category': 8}]}),
+            'gameplay/items/armour/torso/suit.options': config({'default_modifications': [1030, 1110, 1200]}),
+            'gameplay/items/armour/legs/fast.options': config({'default_modifications': [1114]}),
+            'gameplay/items/weapons/gun.options': config({'default_modifications': [1112]}),
+        }
+        edits = {'promote_rolled_defaults': [{'categories': [1, 2, 3, 4, 5, 6, 7], 'from_top': 2}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for path, data in live.items():
+                (root / 'live' / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / 'live' / path).write_bytes(bytes(data))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            suit = bytearray((root / 'out/gameplay/items/armour/torso/suit.options').read_bytes())
+            # +1 % -> the second strongest (1113); the item slot and the wear-only bonus stay.
+            self.assertEqual(ce.items_of(suit, 'default_modifications'), [1030, 1113, 1200])
+            # It only raises: the top strength (+5 %, 1114) stays.
+            fast = bytearray((root / 'out/gameplay/items/armour/legs/fast.options').read_bytes())
+            self.assertEqual(ce.items_of(fast, 'default_modifications'), [1114])
+            self.assertNotIn('legs/fast.options default_modifications', result.stdout)
+            # A weapon is left alone (not written: unchanged).
+            self.assertFalse((root / 'out/gameplay/items/weapons/gun.options').exists())
 
     def test_cli_checks_add_remove_and_entry_index_shifts(self):
         edits = {

@@ -10,14 +10,30 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
   Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots
   and clan-team matches stay (clan matches: a uniform random map, no bots).
-- **Making one:** team size 6 v 6 to 10 v 10 and players to start 1 v 1 to 3 v 3 (an open
-  room's; a private one has neither, "A private room is started by its owner"); max level
-  (equipment cap; 0 = any; never below the maker's own gear; an open room's only); the time to start, 30 s to
-  1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
-  Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
-  experimental maps addable). Named after its
-  maker; never changed once made. No level is chosen: the room's level is its members'
-  match level.
+- **Public rooms (2026-10-28):** none at startup. Play uses two equipment brackets:
+  up to level 10 (including the starter's internal level 0), and above 10 up to 15.
+  It creates the first room of that bracket only when needed. Each public room is
+  8 v 8, starts from 1 v 1, uses the standard non-experimental map pool, and keeps
+  the existing 15 s vote plus 30 s wait.
+  - Play fills an eligible room in its bracket first (nearest level, then fullest).
+    When all are full it queues, choosing a shortest queue. Repeated Play keeps
+    the same queue position.
+  - Six ready Play users waiting across that bracket's queues open another room;
+    up to 16 transfer together, oldest first. This repeats with demand: no fixed
+    three-plus-one limit. The operator's existing `SRP_ROOMS_MAX` still applies;
+    at that limit, or if creation fails, everyone keeps waiting.
+  - Explicitly chosen queues do not count toward expansion and never move with it.
+    Disconnected games, restarted games not yet told their queue, and unplayable
+    loadouts do not count. A changed equipment bracket is routed again.
+  - Players up to level 10 may explicitly join a level-15 room through Rooms.
+    Play does not put them there automatically. The switch suggestion is only
+    from a level-15 room to an available level-10 room the player can enter.
+  - No member and no queue: the room disappears. An empty public room with
+    waiters survives to admit them, including when everyone leaves after a match.
+- **Making one:** players may create private rooms only, with a required 4-digit
+  PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
+  controls. The server refuses a public CREATE request (code 16), including from
+  older movies, without changing the player's current room or queue.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
@@ -51,11 +67,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     "Match …: private room, no rewards". Rooms without a PIN, clan matches and Play vs Bots
     pay as before. The site's room rules say so; no in-game text (it needs the lobby movie,
     parked).
-- **Play:** goes straight into a room, no search shown: of the open rooms that let the player
-  in, the one nearest its level however far (too few online to leave anyone out), then the
-  fullest; no squad, friend or clan preference; none: a new room for it (8 v 8, any max level, 30 s, the whole pool, from
-  1 v 1). Only a room made by hand has a max level. A running match is
-  joined at once. A player with a seat in a match goes back to it.
+- **Play:** follows the bracket and scaling rules above, with no old search screen.
+  A room's running match is joined through the existing late-join flow. A player
+  with a seat in a match goes back to it.
 - **Members:** stay in their room from match to match until they press Leave, the owner
   kicks them (only in a room with a PIN; they may not come back), the room is disbanded,
   or their game is gone for good. Except who came by Play:
@@ -73,7 +87,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     one and leaves after it: Play is for a match, not for a trip back to the lobby.
   - Joining the room (back after it left, or from inside it) makes one by Play a chosen
     member. A match called off before its countdown was not played: nobody leaves.
-  - A room nobody is left in is gone, as always.
+  - A room with no members or queue is gone.
 - **Lost (game crashed, killed, link silent; or started anew):** the place is kept for about 90 s (the link's
   30 s + the session's 60 s), the member shown grey (`away`); Play within it goes back to the
   same seat, state kept (Play stays usable while their row says they play the match). After
@@ -175,6 +189,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     show no max level (the server tells 0). On the server a private room's settings have no
     max level at all (`rooms::Door::Pin`).
   - Open rooms and Play keep their size, players to start, max level and countdown.
+- **The chosen room beside the list** (the owner's of 2026-10-29: it flipped between two layouts):
+  one layout through the vote. Before the vote, and while no card leads alone (the server then
+  sends map 0), the map's render keeps its place empty and "Map chosen by vote" takes the map's
+  line; its members are always in two columns.
+- **The room's own view** (the owner's of 2026-10-29): a vote card's mode tag is as wide as its
+  name; no hint line beside "Vote for the next map"; while its match is played, the bar says
+  the map and mode it is played on (the state's `L` row) under the join hint.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
@@ -200,23 +221,28 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     30 s at most: `match.md` §33):
     "A player's game is loading; joining opens in a moment." (2)
   - 30 s or less left: "Under 30 s left: you'll play the next match." (3)
-  - the side it would go to full (the room's size), or no place left in the match: "The match is full." (4)
+  - the side it would go to full (the room's size): "The match is full." (4)
+  - all 20 lifetime roster places used, even if players have left: "This match has reached its
+    player limit. You'll join the next match." (7). The newcomer remains a room member and
+    plays its next match; the public room's separate capacity is still 16 members.
   - a maintenance within 30 min: "Server maintenance soon: no new joins." (5)
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
   - its own kit or gear unfit: the red mark's text, as before a match (no seconds either).
 - **In the match (Tab list), to do:** a lost player's row stays grey for the 90 s; one who
   left to the lobby, or is lost past the 90 s, has its row removed; coming back after the
   90 s is a new person (a new place, fresh state).
-- **Switch to a lower max level:** a member not playing a match is offered, beside Leave,
-  "Switch room", with why beside it ("Fairer match: opponents' gear up to level N"; then whose, how
-  full; the owner's of 2026-10-20: why to switch was not clear): the open room (no PIN, a place free, not kicked from) of the lowest max
-  level that takes its equipment and is lower than its own room's (none set counts as the
-  highest); then the fullest. One click joins it, out of the room it was in.
+- **Switch to a lower max level:** a member of a level-15 public room, free to
+  join and equipped at level 10 or below, is offered an available level-10 room
+  (fullest first). No other better-room suggestions. One click joins it.
 - **Queue:** a full room offers "Queue": from no room only, one queue at a time, PIN asked
   up front. The first who still may come is put in when a place frees (straight into a
   running match); its place shown in the window and the Rooms tab ("Queue 2"). Joining or
   making a room, Play, Leave queue or its game going take it out; a room gone takes its
   queue.
+  - For the selected room whose queue the player is in, the footer's "Queue" becomes
+    "Leave queue", enabled even if the kit cannot play. Cancellation restores the usual
+    Join/Queue action. Above the list there is only the queue position and room name,
+    with no second Leave queue button.
 - **Maintenance:** within 30 min of one, no vote or match starts and no room is made; a room
   not playing is disbanded at once, one playing after its match (code 9 to its members and
   queue).
@@ -284,6 +310,14 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   the window hidden (not the match start's 15).
 - **Site:** the launcher shows rooms and players in rooms; `/api/stats` has `rooms`,
   `in_rooms`, `queued` (in room queues).
+- **The list's table:** each column as wide as its header and its texts need in every
+  language (the longest map name, "Any", a vote's time), each header and cell given its
+  column's width (none runs into the next); the name takes the rest and a long one is cut
+  with "…"; the next map's weather in small type under its name. The side panel shows the
+  map and weather on one line, the mode under them; a card's mode tag widens for a long mode
+  name and its map name runs up to the votes. `scripts/rooms-start/check.sh` checks, in every
+  language, the list, a room in each phase and hint, and the create window: no text cut by
+  its field, no two on one line meeting (`ROOMS OVERLAP` lines), 5% of the width to spare.
 - **The list's side panel: who is in the room** (the owner's of 2026-10-20: "down there is
   enough space for a list of players", "below state"; "it should also show a player level in
   room people list preview"; "make sure we properly handle long names"):

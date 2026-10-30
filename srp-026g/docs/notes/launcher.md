@@ -924,6 +924,19 @@ If HKCU cannot be written the choice still applies for the running process but i
 has loaded or failed (`on_new_form_ready` 0x167BF) the new window is shown at the old position and the
 old form is destroyed. No process restart, no `-language=` re-launch. The updater is not informed.
 
+### 10.4 The drop-down (PROVEN, `language_menu::language_menu` 0x1942F)
+
+The button's click is `expand_button_click` 0x19A08 (cdecl, the menu): it toggles `set_state`
+0x1998D (+150h, open or not), which resizes the menu's window (+4) to +140h/+144h (closed) or
++148h/+14Ch (open) and shows or hides the rows (0x19945). The five rows are made in a loop at
+0x196EC..0x19837 (`cmp [ebp+0Ch],5`): row i's two image buttons at +0DCh/+0E0h + 0Ch*i, its
+window at +0E4h + 0Ch*i, its click context {menu, i} at +118h + 8*i, 12h pixels apart; its label
+`[i*8+48280h]`. The destructor walks the same five (0x19896). `language_selected` 0x19A20 takes
+that context: `settings::set_language` with the menu's settings (+154h), then closes it. The
+button's label is `[index*8+48280h]` (0x19663). The menu is a member of the form (+0B48h), so its
+row arrays cannot grow; the Skhid launcher opens a Windows menu from the click instead
+(`client-patches/launcher/README.md`, patch 14).
+
 ---
 
 ## 11. Settings window (gear)

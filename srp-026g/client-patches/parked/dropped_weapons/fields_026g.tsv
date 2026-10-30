@@ -1,0 +1,114 @@
+kind	field	offset	type	about
+survarium::game	items_dictionary	0x53A4	u32	player cook2025EB..2025FD obtains dictionary through game_world+9C; borrowed for this game's lifetime
+survarium::input_world_wrapper	options	0x124	u32	pvp_match_core constructor2D563B stores match options from map callback2CC105; check_pickup_context.py executes argument assembly and field write
+survarium::input_world_wrapper	physics_world	0x130	u32	pvp_match_core constructor2D567B stores map cook physics pointer; cook destroy2CBBE0 first destroys match/core then finalizes/destroys/frees this pointer; check_pickup_context.py
+survarium::match_options	seed	0x577B0	u32	inventory recipe2028A0 reads match seed; also core constructor2D01D7; scalar, not a pointer
+survarium::image	pvp_match_vtable	0xA102DC	u32	pvp_match_core constructor2D560C and destructor2D575B primary vtable
+survarium::image	weapon_item_vtable	0xA0422C	u32	client weapon inventory_item interface; ctor 243640, item-to-base thunks 246350/246370
+survarium::image	weapon_core_item_vtable	0xA1114C	u32	weapon_core inventory_item interface; ctor 2DF0D0; serialize starts from active base at 2E3130
+survarium::weapon_item	active_object	-0x10	u32	address of enclosing active-object interface, NOT a pointer field; 246350/246370 subtract 10h
+survarium::weapon_core	inventory	0x260	u32	inventory_item+250h; initialize uses it at 2E2AAD
+survarium::weapon_core	ammo	0x538	u32	retained current ammo stack; load_magazine 2E17D1
+survarium::weapon_core	ammo_slots	0x5AC	u32	compatible inventory slot indices; initialize 2E2A99..2E2ABA
+survarium::weapon_core	ammo_slot_count	0x5B0	u8	compatible ammo slot count, set 2E41E5
+survarium::weapon_core	ammo_kind	0x5B1	u8	selected ordinal in ammo_slots; 2E2AA3 and serializer 2E31FD
+survarium::weapon_core	magazine_capacity	0x5E4	u8	loaded by config; load_magazine reads at 2E1830
+survarium::weapon_core	magazine	0x5E5	u8	loaded rounds; load_magazine and serializer 2E31BD
+survarium::weapon_core	double_handed	0x5E9	u8	config double_handed -> 30AB8D..30ABC0, active-object base
+survarium::weapon_core	has_chamber	0x5F0	u8	separate chamber supported; 2E2858 and serializer 2E3209
+survarium::weapon_core	chambered	0x5F1	u8	separate round present; unload_ammo and serializer 2E3226
+survarium::image	inventory_vtable	0xA137EC	u32	native inventory resource vtable, constructor 2FC501
+survarium::image	inventory_recipe_helper	0x9FD808	u32	variant<32> concrete helper for inventory_cooker_data*, builder 2028E0
+survarium::image	game_allocator	0x1F1D9C4	u32	address of allocator pointer used by inventory cooker 2C75C2
+vostok::unmanaged_resource	references	0xD0	u32	resource reference count; inventory retained at 2C7C8D and released via E0210
+vostok::queries_result	first_unmanaged	0x12C	u32	first query entry (50h) + unmanaged resource (DCh), e.g. 24A92F
+survarium::inventory_recipe	profile	0x0	u32	inventory_cooker_data builder 20284C..2028A6; forwarded to inventory cook
+survarium::inventory_recipe	kit	0x4	u8	inventory_cooker_data builder 20284C..2028A6; forwarded to inventory cook
+survarium::inventory_recipe	dictionary	0x8	u32	inventory_cooker_data builder 20284C..2028A6; forwarded to inventory cook
+survarium::inventory_recipe	physics_world	0xC	u32	builder202869 copies stage+A8; map cook2CC6DC/2CC6F9 supplies bullet_physics_world constructed74950; armor class49 recipe reads it at2C7102; pointer lifetime must follow the match owner
+survarium::inventory_recipe	game_world	0x10	u32	builder202872 copies player-cook stage+A4, also cached at+1E4 by2025E0; its+9C is game; forwarded to weapon recipe at2C735C
+survarium::inventory_recipe	match_seed	0x14	u32	scalar static-info seed, NOT a pointer:202885..2028A6 obtains match options through network-client vtable+34 and copies options+577B0; forwarded at2C7368
+survarium::inventory_recipe	flag	0x18	u8	inventory_cooker_data builder 20284C..2028A6; forwarded to inventory cook
+vostok::resource_cook	reuse	0xC	u32	inventory/weapon registration sets 0; name-registry gate 108A1B skips reuse unless 1 (check_pickup_cooks.py)
+survarium::image	ammo_item_vtable	0xA1C9BC	u32	class 48h ammo allocation branch 31F7B7..31F7FF; inventory_item base with ammo_data at +268h
+survarium::weapon_core	user	0x8	u32	constructor clears at 2DF0F5; set_user 2E2990 writes the player here
+survarium::weapon_core	load_on_initialize	0x5F4	u8	initialize 2E2B71 gates load_magazine; clear to preserve pickup's loaded ammo
+survarium::inventory_item	owner	0x250	u32	set_owner 243590; weapon active-object base has this at +260h
+survarium::inventory_item	slot	0x254	u32	set_owner 243590 stores native inventory slot here
+survarium::inventory	weight_dirty	0x184	u8	inventory cook 2C7818; load_magazine also marks inventory weight dirty
+survarium::player_profile	kit_count	0x57	u8	bounded profile-body copy; check_pickup_profile.py covers all three kits
+survarium::player_profile	item_count	0x1564	u8	profile body has up to 69 item descriptions; check_pickup_profile.py
+survarium::player_profile	kit_slots	0x98	u32	query_inventory_item 2C6FAA; 23 pairs of u16 item index/count in each 704h kit
+survarium::weapon_core	item	0x10	u8	address of embedded inventory_item interface (not a pointer); ctor 2DF0E5 and registration 2E30FF
+survarium::image	weapon_active_vtable	0xA04174	u32	client weapon active-object vtable, constructor 243656
+survarium::image	weapon_core_active_vtable	0xA11094	u32	weapon_core active-object vtable, constructor 2DF116
+survarium::weapon_core	vtable	0x0	u32	active-object vtable; paired with the item interface at +10h
+survarium::weapon_core	core	0x4	u32	game_core; registration writes at 2E3117
+survarium::weapon_core	active_id	0xC	u8	byte registry ID; FF means unregistered, constructor 2DF0F8 and binder 2E311F
+survarium::weapon_core	item_core	0x258	u32	inventory_item core at item+248h; binder 2E3124
+survarium::player	core	0x120	u32	game_core; bind 2D75B7 and held-object restore 2DB63E
+survarium::player	pending_item	0x12C	u32	desired active-object pointer; normal switch 2D76AD
+survarium::player	animation_player	0x750	u8	address of animation player, not a pointer; normal switch 2D76E5
+survarium::game_core	active_begin	0x18B4C	u32	active-object registry begin; binder 2E3102 and deserializer 2DB644
+survarium::game_core	active_end	0x18B50	u32	active-object registry end; fixed capacity 255 pointers; binder 2E3112
+survarium::item	condition_bits	0x260	u32	non-stackable item condition as serialized f32 bits; 2FFE2E..2FFE40 and 2FFF3B..2FFF52
+survarium::weapon_core	snapshot_state_word	0x5BC	u32	first weapon-specific word serialized 2E315D and restored 2E34C1; exact bits retained
+survarium::weapon_core	last_tick_time	0x5A4	u32	m_last_tick_time_in_ms label A10F5C, serialized 2E317D
+survarium::weapon_core	fire_queue_type	0x5E6	u8	m_fire_queue_type label A10FA8, serialized 2E31DD
+survarium::game_core	roster_begin	0x18458	u32	vector of 30h player-place records; item owner decoding 2FFF7E, count 2D0AB0
+survarium::game_core	roster_end	0x1845C	u32	end of 30h player-place records; count 2D0AB0..2D0ACB
+survarium::roster_place	kits	0x0	u32	three kit player pointers; owner decode 2FFF6C..2FFF87
+survarium::roster_place	end	0x30	u8	address after one roster record, not a field; indexing 2FFF72..2FFF84
+survarium::game_core	input_lists	0x2FCC	u32	per-place input lists; native change_player_input 1FAB50 and move/discard
+survarium::game_core	local_input_place	0x18FDC	u8	local input place; 20 for server, compared at 1FB4E5
+survarium::game_core	server_inputs	0x18FDD	u8	server-input combine policy; checked at 1FB479
+survarium::input_list	first	0x4	u32	oldest input node; next at node+0, changed by 2D4850/27E920
+survarium::input_list	end	0x480	u8	one-past list storage, used as per-place stride at 1FB421
+survarium::input_node	next	0x0	u32	next input node; oldest to newest
+survarium::input_node	time	0x20	u32	effective input time, moved by local merge 1FB31C
+survarium::input_node	corrected	0x26	u8	has corrected input portion; move preserves it at 27D76A
+survarium::move_input_frame	core	0x8	u32	EBP frame at 27D802 after inner placement; move_player_input core argument
+survarium::move_input_frame	place	0xC	u32	EBP frame at 27D802; move_player_input place argument
+survarium::move_input_end_stack	effective_time	0x1C	u32	site ESP at 27D802; inner 1FAB50 output local initialized -1 at 27D7F5
+survarium::change_input_frame	place_flags	0x18	u32	EBP at 1FB349; packed place and flag of the locally coalesced input
+survarium::discard_input_frame	core	0x8	u32	EBP at successful discard 27DCB7; live game core argument
+survarium::discard_input_frame	place	0xC	u32	EBP at successful discard 27DCB7; player place argument
+survarium::match_message_table	received_max	0x5	u8	upper incoming ID bound initialized F6 at 2792D0; parser 3FA412 reads getter+4/+5
+survarium::match_message_table	sending_min	0x6	u8	lower outgoing ID bound initialized D8 at 2792D4
+survarium::message_length_frame	begin	0xC	u32	EBP at 279694; by-value buffer_reader begin
+survarium::message_length_frame	cursor	0x10	u32	EBP at 279694; by-value buffer_reader cursor
+survarium::message_length_frame	size	0x14	u32	EBP at 279694; by-value buffer_reader size
+survarium::message_length_frame	ok	0x1C	u32	EBP at 279694; output bool pointer set true at 279691
+survarium::network_client	match_world	0x1F1C40	u32	world wrapper used by ordinary input receiver 27C289/27C2CA; null before match world exists
+survarium::network_client	match_state	0x1F1C64	u32	packet dispatcher state; input handlers require 2 at 27A439
+survarium::input_world_wrapper	core	0x1F8	u8	embedded core address (not a pointer), ordinary relay 27C30D
+survarium::input_world_wrapper	clock	0x191B8	u32	input time base passed to native deserialize at 27C2D5
+survarium::player_input	place	0xC	u8	decoded native input player; deserialize318458, both relay call sites keep input in ESI
+survarium::input_stats_stack	return_address	0x0	u32	entry ESP at27C1F0; single return27C32D or batch27C5CD
+survarium::input_stats_stack	single_effective_time	0x14	u32	entry ESP at27C1F0 from single relay; output native caller Base+Ch, stats ESP=Base-8
+survarium::batch_input_frame	effective_time	-0x10	u32	caller EBP still live at27C1F0 before prologue; output initialized at27C5B5
+survarium::image	single_relay_stats_return	0x27C32D	u8	return from stats registration after ordinary single input placement
+survarium::image	batch_relay_stats_return	0x27C5CD	u8	return from stats registration after each batched input placement
+survarium::input_send_context	transport_slot	0x0	u32	27EAFF reads context[0], then transport pointer from that slot
+survarium::input_send_context	core	0x4	u32	27EA64 selects world core
+survarium::input_transport_slot	transport	0x0	u32	27EB15 dereferences transport holder
+survarium::input_send_stack	actions	0x24	u32	27EAF2 stores selected action mask at site ESP+24h
+survarium::input_send_stack	place	0x2C	u8	27EAD8 stores selected place at site ESP+2Ch
+survarium::input_node	precise	0x24	u8	27EAFC selects DC/DD time encoding
+survarium::input_node	action_high_bit	0x27	u8	27EAEF/3184F4 restore action bit31
+survarium::input_match_transport	vtable	0x0	u32	concrete match_client interface at A08864
+survarium::input_match_packet	writer	0x2A8	u8	27EB34 selects initialized packet buffer_writer
+survarium::image	input_match_transport_vtable	0xA08864	u32	match_client concrete interface, +18 new_packet279FE0, +1C enqueue27A2A0
+survarium::weapon_model	render_instance	0x108	u32	skeleton render instance, weapon::draw244EE1 and update_skeleton244F54
+vostok::render::skeleton_render_model_instance	original	0x62B4	u32	retained model resource, update_render_matrices15A5AA
+vostok::render::skeleton_render_model	bounds	0x108	f32	authored local box minXYZ/maxXYZ, 24 bytes copied15A5B0; renderer rotates it Y(pi) at15A77F before including bone origins
+survarium::game_world	match_wrapper	0x4D4C	u32	match wrapper containing core at+1F8; tick1F7906 and set_match1F9740, zero in lobby
+survarium::game_core	pending_local_input	0x18FCC	u32	earliest unsnapped local input, FFFFFFFF none; local merge1FB353, fire boundary clears1FB3A2, snap2D4E46
+survarium::input_node	actions	0xC	u32	combined action mask, local insertion1FB385 and merge1FB346
+survarium::local_input_end_stack	effective_time	0x14	u32	game_world::tick site1F7928 after1EEDE0 ret12; output initialized at pre-call ESP+20 and now siteESP+14
+survarium::local_input_end_stack	input_time	0x28	u32	game_world::tick site1F7928, original input time stored1F7910 before three argument pops
+survarium::local_input_end_stack	input_actions	0x24	u32	game_world::tick site1F7928, native player_input action mask stored1F78FA
+survarium::local_input_end_stack	input_place	0x2C	u8	game_world::tick site1F7928, native player_input place stored1F78F2
+survarium::local_input_end_stack	player	0x18	u32	game_world::tick site1F7928 reloads local player from this stack local
+survarium::player	input_handler	0xF470	u32	local input handler loaded1F78D6 and1F792C
+survarium::player_input_handler	previous_actions	0x344	u32	previous submitted action mask, updated only after local completion at1F7944

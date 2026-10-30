@@ -39,9 +39,10 @@ answers root.interface_hidden with a bool:
 - the options' controls: game_options' own functions on a made-up options
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
-  sent to the movie (0x2019E0) are the original's 40 and a 41st (19h,
-  st_hide_interface_action, group 2, type 1); the keys read from the binder
-  (0x201CF0) the original's 40 and (19h, kF11); a key kF9 set for 19h
+  sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
+  st_hide_interface_action, group 2, type 1) and patch 78's 42nd (23h,
+  st_hold_artifact_action); the keys read from the binder (0x201CF0) the
+  original's 40, (19h, kF11) and (23h, kH, its new default); a key kF9 set for 19h
   (0x2013A0) is kept in the 41st row and in no row of the original; the
   accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
   original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
@@ -74,9 +75,10 @@ ICONS_HOLDER, ICONS_UI, ICONS_MOVIE = 0x20073000, 0x20074000, 0x20075000
 # The keys bound (DIK code: action id), as the defaults have them: F11
 # toggle_replay_ui (kinds 5), C character (2) and crouch_toggle (5), F friends
 # (2) and melee (5), W forward (5), F6 next_player (5; the lobby's Play at
-# 0x26CDA2); H and Enter nothing.
+# 0x26CDA2), H artefact (5; patch 78's default, nothing in the lobby); Enter
+# nothing.
 F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
-BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6}
+BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x23: H}
 
 
 KEY_NAMES = 0xA74FA0                   # the key names: 88h-byte {name, DIK code, ...}, to a null name
@@ -434,15 +436,16 @@ def main():
     s_opt, p_opt = Options(original), Options(bytes(built))
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
-    new = {"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"}
-    report(len(a_rows) == 40 and len(b_rows) == 41 and b_rows[:40] == a_rows and b_rows[40] == new
+    new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
+           {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"}]
+    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == a_rows and b_rows[40:] == new
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
-           f"{b_rows[40] if len(b_rows) > 40 else None}")
+           f"{b_rows[40:]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1)],
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x23, "kH", 1)],
            f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
     for run in (s_opt, p_opt):
         run.emu.mem_write(OUT, b"kF9\0")

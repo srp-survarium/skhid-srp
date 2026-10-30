@@ -141,6 +141,7 @@ package
    import survarium.messages.MessageQuestInfo;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
+   import survarium.player.WeightEffects;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
@@ -521,6 +522,8 @@ package
          _overlay = new Sprite();
          _corner = new Sprite();
          _cards = new Sprite();
+         itemHintRenderer.addEventListener(Event.RESIZE,onWeaponDetailsResize);
+         itemHintRendererSec.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          this._stageLayer.addChild(this._layers);
          this._stageLayer.addChild(this._overlay);
          this._overlay.addChild(this._corner);
@@ -1188,6 +1191,7 @@ package
          styleObject = new Object();
          styleObject.color = "#e9b838";
          style.setStyle("gold",styleObject);
+         style.setStyle(WeightEffects.WARNING_STYLE,{color:WeightEffects.WARNING_COLOR,display:"inline"});
          styleObject = new Object();
          styleObject.color = "#FEE2B2";
          style.setStyle("beige_bright",styleObject);
@@ -1389,6 +1393,7 @@ package
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onHiddenKeyUp,false,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownStage);
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onKeyUpStage);
+         stage.addEventListener(Event.DEACTIVATE,this.clearDetailKeys);
          stage.addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
          stage.addEventListener(MouseCursorEvent.CURSOR_CHANGE,this.onChangeCursor);
          this.parseSpriteSheets();
@@ -1812,6 +1817,7 @@ package
             }
          }
          this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.alignComparisonHeader(secondData != null ? this.itemHintRendererSec : null);
          var delay:Number = 0.3;
          var length:Number = 0.2;
          this.itemHintRenderer.alpha = 0;
@@ -1859,6 +1865,7 @@ package
             this._cards.addChild(this.itemHintRendererSec);
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec);
             var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
             var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
             right.x = this.craftWindow.x - right.width - 3;
@@ -1874,6 +1881,7 @@ package
 
       private function onHintTargetRender(e:Event) : void
       {
+         this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec.parent != null ? this.itemHintRendererSec : null);
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
          {
             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.bundleList.y + 55;
@@ -1903,6 +1911,21 @@ package
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRenderer.width - 1;
          }
+      }
+
+      private function onWeaponDetailsResize(e:Event) : void
+      {
+         if(itemHintRenderer.parent == null) return;
+         itemHintRenderer.alignComparisonHeader(itemHintRendererSec.parent != null ? itemHintRendererSec : null);
+         if(_pdTarget != null && !craftOpen())
+         {
+            onHintTargetRender(null);
+            return;
+         }
+         var h:Number = itemHintRenderer.height;
+         if(itemHintRendererSec.parent != null) h = Math.max(h,itemHintRendererSec.height);
+         itemHintRenderer.y = Math.max(0,Math.min(itemHintRenderer.y,MainScene.stageHeight - h - 2));
+         if(itemHintRendererSec.parent != null) itemHintRendererSec.y = itemHintRenderer.y;
       }
       
       private function hideItemHint(e:Event) : void
@@ -3785,6 +3808,7 @@ package
          relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
+         var relocate:Function;
          if((value.is_stack))
          {
             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
@@ -3802,7 +3826,10 @@ package
          else
          {
             _relocateArray = [relocate_object];
-            this.player_profile._relocateFunction(_relocateArray);
+            // Read first, then called: Scaleform throws "is not a function" when the
+            // class's getter is called in place (as DragRegion does it).
+            relocate = this.player_profile._relocateFunction;
+            relocate(_relocateArray);
          }
       }
       
@@ -3918,12 +3945,13 @@ package
          this.player_profile.updateSlots(artifactSlots,itemSlots);
       }
       
-      public function update_player_items_weight(cur:Number, max:Number) : void
+      public function update_player_items_weight(cur:Number, max:Number, movement:Number = NaN, spending:Number = NaN, sprint:Number = NaN, skills:Number = NaN, bearArms:Number = NaN,
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN, spending19:Number = NaN, spending67:Number = NaN) : void
       {
          trace("load_weigth:",cur,max);
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
-         this.player_profile.updateWeight(cur,max);
+         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void
@@ -6238,6 +6266,7 @@ package
       
       private function onKeyUpStage(e:KeyboardEvent) : void
       {
+         if(e.keyCode == KeyCode.LEFT_SHIFT) MainScene.isShift = false;
          trace("KEY_DOWN_CODE_STAGE:",name,e.keyCode,e.target,e.currentTarget,e.isDefaultPrevented(),MainScene.isShift,"stage::",stage.focus);
          if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
          {
@@ -6270,6 +6299,12 @@ package
       {
          trace("root.enable_second_weapon",boolean);
          this.player_profile.enableSecondWeapon(boolean);
+      }
+
+      private function clearDetailKeys(e:Event) : void
+      {
+         MainScene.isShift = false;
+         MainScene.isCtrl = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void

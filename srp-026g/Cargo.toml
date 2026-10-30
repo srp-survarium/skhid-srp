@@ -5,6 +5,7 @@ members = [
   "crates/research-rule",
   "crates/resources-db",
   "crates/session",
+  "crates/artefact-carry",
   "crates/ragdoll",
   "crates/weapon-pickup",
   "crates/survarium",

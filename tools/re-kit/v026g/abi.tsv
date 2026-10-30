@@ -322,6 +322,7 @@ va	name	source	ret_cleanup	result
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	manual	20	
 0x0011e820	vostok::render::system_renderer::draw_render_models_selection	manual	8	
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	manual	4	
+0x00120560	vostok::math::modf	manual	0	x87 ST0: the fractional part of the float in XMM0 (CRT modf 0x428910); the integer part as a float at [stack+4] (emulated: 1.75 -> 1, -2.25 -> -2, -0.8 -> -0)
 0x00120a50	vostok::render::texture_gpu_converter_cook::texture_gpu_converter_cook	manual	0	EAX: fixed global cook object address
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	manual	20	EAX: address of caller-supplied pointer/count result storage on both locally returning paths
 0x00120c70	vostok::render::texture_gpu_converter_cook::deallocate_resource	manual	4	
@@ -577,7 +578,6 @@ va	name	source	ret_cleanup	result
 0x0016c1a0	vostok::render::effect_block_compression::compile	manual	12	
 0x0016c520	vostok::render::model_factory::create_render_surface	manual	0	EAX: constructed surface pointer or null on allocation failure; invalid target dispatch does not reach a normal result
 0x0016c8b0	vostok::render::model_factory::create_render_model	manual	0	EAX: model pointer or zero on observed allocation-null branches
-0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX (32bits): destination24-byte bounds pointer
 0x0016e460	vostok::render::static_render_model_instance::get_surfaces_count	manual	0	EAX (32bits): zero-extended byte surface count; EAX range0..255
 0x0016e500	vostok::render::static_render_surface::fill_lpv_vertex_color	manual	8	
 0x0016e550	vostok::render::static_render_surface::add_shadow_vertices	manual	8	
@@ -892,6 +892,7 @@ va	name	source	ret_cleanup	result
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f17c0	survarium::player::collision_transform	manual	0	EAX = ECX+2F4h (player+40Ch, the world transform)
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
+0x001f2720	survarium::player::insert	manual	4	none; base_player::insert 0x2DA850 (+33Fh := 1; alive: activate_physics 0x2D9930; link 1: the world's tick lists +18860h/+18880h), then the 3D icon's and models' part (+0F4E0h := 1, 0x1F2300 with link 1); the respawn rule calls it through vtable+20h with 1 (0x316EA9)
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
@@ -969,7 +970,7 @@ va	name	source	ret_cleanup	result
 0x0023ff50	survarium::player_input_handler::on_mouse_key_action	manual	12	AL: zero at each local return; higher EAX bits unspecified
 0x00240050	survarium::player_input_handler::process_toggle_action	manual	4	
 0x00240170	survarium::player_input_handler::process_dependent_actions	manual	12	
-0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	
+0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	none; yaw delta -= x/180*pi (0xA2D7E8, 0x9CC970) * the horizontal sensitivity (radians); pitch delta -= y/180*pi * the same * window H/W * 3/pi (0xA2DAC4, as 0.10b's 0.95492965): a look-pitch unit is pi/3 rad (60 deg) of mouse turn
 0x00241090	survarium::player_input_handler::on_before_processing	manual	4	
 0x00241170	survarium::player_input_handler::on_after_processing	manual	4	
 0x00241200	survarium::player_input_handler::alt_is_held	manual	0	EAX: 1 when the left or the right Alt key is down
@@ -996,7 +997,6 @@ va	name	source	ret_cleanup	result
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
 0x00243dd0		auto	4	
-0x00243fa0		auto	4	
 0x00244570		auto	0	
 0x002445e0		auto	4	
 0x00244610		auto	4	
@@ -1161,6 +1161,7 @@ va	name	source	ret_cleanup	result
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
+0x002da850	survarium::base_player::insert	manual	4	none; +33Fh := 1 (0x2DA869); alive: activate_physics 0x2D9930 and the bone bodies; link 1 and a world (+120h): the tick lists +18860h/+18880h linked (unconditionally: never twice)
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
 0x002dc0b0	survarium::base_player::set_spotted	manual	4	
@@ -1182,7 +1183,7 @@ va	name	source	ret_cleanup	result
 0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	
 0x002e1b50		auto	0	
 0x002e1bf0		auto	0	
-0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	
+0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
 0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
 0x002e2990		auto		
@@ -1198,14 +1199,16 @@ va	name	source	ret_cleanup	result
 0x002e3390	survarium::weapon_core::on_player_death	manual	0	
 0x002e3490	survarium::weapon_core::deserialize	manual	12	
 0x002e3800	survarium::weapon_core::could_be_used	manual	4	
-0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	
-0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	
+0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	ST0 = (0.5 - clamp(0.5*[ECX+474h] (the kick's side axis x) + [ECX+2CCh] if [ECX+5E8h] (breath sway, +288h+44h), -0.5..0.5)) * entry ESP+4 (clip length); get_recoil_expression's lexeme 1, the weapon's recoil_animations[1] (recoil_horiz): kick x = +1 at the clip's start, -1 at its end
+0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	ST0 = (clamp([ECX+2D0h] if [ECX+5E8h] else 0 (breath sway, +288h+48h), -0.5..0.5) + 0.5) * entry ESP+4 (clip length); get_recoil_expression's lexeme 0, recoil_animations[0] (recoil_vert): the sway only, no kick
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
 0x002e3a70		auto	0	
 0x002e3aa0		auto	0	
 0x002e4280	survarium::weapon_core::time_calculator_id	manual	4	
 0x002e4300	survarium::weapon_core::time_calculator	manual	8	
 0x002e43a0	survarium::weapon_core::player_stance	manual	0	
+0x002e4850	boost::random::normal_distribution<float>::operator()<boost::random::minstd_rand>	manual	0	XMM0: mean + sigma x Box-Muller sample; EDI = {mean +0, sigma +4, r1 +8, r2 +0Ch, rho +10h, cached +14h}, EAX = the generator; rho = sqrt(-2 ln(1 - r2)), cos/sin of 2 pi r1 by the cached flag
+0x002e49f0	boost::random::uniform_real_distribution<float>::operator()<boost::random::minstd_rand>	manual	0	XMM0: uniform in [a, b) (stack+4, stack+8), rejection on b; ESI = minstd_rand state (x 48271 mod 2^31 - 1)
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
@@ -1398,9 +1401,16 @@ va	name	source	ret_cleanup	result
 0x0032ee20	survarium::bullet::change_trajectory	manual	4	
 0x0032ee90		auto	8	
 0x0032fcc0	survarium::usable_object_user_data::serialize	manual	0	
+0x0032fe40	survarium::linear_interpolator::tick	manual	0	ECX = {current +0, start +4, target +8, duration s +0Ch, start time ms +10h}, EDX = now ms: current = start + (target - start) x elapsed/duration, snapping to target (duration 0, start time -1) when elapsed >= duration; AL = still moving
 0x0032fee0	survarium::transition_helper::serialize	manual	0	
 0x0032ff70	survarium::transition_helper::deserialize	manual	0	
+0x00331150	survarium::dispersion_calculator::fire	manual	4	EDI = dispersion_calculator (weapon_core+3F8h), stack+4 = now ms: shot part (+20h interpolator) = min(current + apply_modifier(one_shoot_dispersion_amount +3DCh, w = +34h, index 0 dispersion), max_dispersion +3ECh), then a linear fall to 0 over value / speed_of_aiming (+3E4h, raw) from now
+0x00331220	survarium::dispersion_calculator::get_static_dispersion	manual	0	XMM0: base_dispersion (weapon +3D8h) x the ammo's dispersion (ammo +26Ch, data/dispersion; 1 without ammo); ECX = dispersion_calculator
 0x003312f0	survarium::dispersion_calculator::serialize	manual	4	
+0x00331330	survarium::dispersion_calculator::tick	manual	20	EDI = dispersion_calculator: w (+34h) = skill influence of the stance; target T = apply_modifier((aimed ? aim_multiplier +3F4h : from_the_hip_multiplier +3F0h) x stance dispersion (0x331560) + injury (0x3317C0), w, index 0); state part (+0Ch interpolator) restarts toward T when T changes, at growth_speed (+3E8h) up, apply_modifier(speed_of_aiming +3E4h, 1, index 1 aiming_speed) down
+0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984
+0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4]; idle_dispersion +0, idle_aim_dispersion +4, crouch +18h/+1Ch, ...): aimed as is, from the hip through apply_modifier(index 38h dispersion_from_hip); at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
+0x003317c0	survarium::character_dispersion_calculator::get_broken_hands_penalty	manual	4	XMM0: 0 with no broken hand, else injury_penalty_for_double_handed (+34h) / _for_one_handed (+38h), through apply_modifier(index 41h injury_penalty)
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
@@ -1443,13 +1453,13 @@ va	name	source	ret_cleanup	result
 0x0033e3a0	survarium::oxygen_tank::action	manual	8	
 0x0033e400	survarium::oxygen_tank::set_active	manual	0	
 0x0033e5d0	survarium::oxygen_tank::tick	manual	12	
-0x0033e6f0	survarium::oxygen_tank::reduce_damage	manual	12	
+0x0033e6f0	survarium::oxygen_tank::reduce_damage	manual	12	the damage at stack+8 in place: 0 below the matching influence's threshold (+88h), else (damage - threshold) x hit_coeff (+84h); unchanged without a match (observed)
 0x0033e740	survarium::oxygen_tank::get_item_props	manual	4	
 0x0033e790	survarium::oxygen_tank::serialize	manual	8	
 0x0033e7f0	survarium::oxygen_tank::deserialize	manual	12	
 0x0033eaa0	survarium::armor::armor	manual	8	
 0x0033efc0	survarium::armor::`scalar deleting destructor'	manual	4	
-0x0033f0c0	survarium::armor::on_holder_assigned	manual	0	
+0x0033f0c0	survarium::armor::on_holder_assigned	manual	0	adds the item's per-type armour of each covered part into the body part's total (0x33F2DD) and its health/regeneration_speed (+9Ch/+A4h, 0x33F297) (observed)
 0x0033f3a0	survarium::armor::add_modifiers	manual	0	
 0x0033fde0	survarium::player_history_item::serialize	manual	0	
 0x0033fee0	survarium::player_history_item::deserialize	manual	4	
@@ -1974,6 +1984,12 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x003b7bd0	vostok::input::input_world::tick	manual	4	
+0x003b8cc0	vostok::input::platform::keyboard::on_activate	manual	0	
+0x003b8cf0	vostok::input::platform::keyboard::on_deactivate	manual	0	
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	manual	4	EAX: 1 the key down (bit 7 of its state), else 0
+0x003b8d20	vostok::input::platform::keyboard::execute	manual	0	
+0x003b9af0	vostok::input::platform::keyboard::process	manual	4	
 0x00306d50		manual	0	EAX: the material pair record of the two material ids (a 128x128 table at +308h, each id first mapped by its material's +66h base id, the default id +1030Ch for an empty slot): +8 the decals, +18h the sound, +24h..+28h the particles (4-byte slots, the next one +64h), +74h the particles' parameter, +8Ch the decal's size
 0x003223e0	survarium::bullet_manager::play_particle	manual	20	none; queues the particle at the point (a functor on the manager's +30h stack, run after the bullets' tick, threads too); nothing when the manager's +90h (the renderer) is 0
 0x003222f0	survarium::bullet_manager::play_sound	manual	12	none; queues the sound at the point as play_particle does
@@ -2060,3 +2076,57 @@ va	name	source	ret_cleanup	result
 0x002cbc60	survarium::pvp_match_core_cook::on_subresources_loaded	manual	44	Descriptive callback label: ECX cook; query result plus eight map words, physics pointer and config pointer; assembles19 constructor arguments; physics becomes constructor arg8, options arg4; check_pickup_context.py
 0x002cc270	survarium::pvp_match_core_cook::translate_query	manual	4	Descriptive cook label: builds bullet physics world, submits scene/players; bound callback2CC9D0/2CCCD0 passes physics as callback stack+28; native player recipe flag set0 at2CC6F5
 0x002d55b0	survarium::pvp_match_core::pvp_match_core	manual	76	EAX wrapper; constructor arg4 match options stored+124 at2D563B, arg8 physics stored+130 at2D567B, embedded core at+1F8; original field writes checked by check_pickup_context.py
+0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	manual	0	void
+0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
+0x000e3c10	vostok::core::preinitialize	manual		
+0x000ddeb0	vostok::command_line::key<string>::is_set	manual	0	AL: 1 when the key is on the command line (its value then copied into EAX's buffer_string), 0 when not
+0x001e9030	survarium::game::save_user_config	manual	0	void: console_commands::save (0xEBE60) of user.cfg in the user data folder (vtable+50h of the engine world [0x1F1D63C], else "")
+0x000ec860	vostok::console_commands::cc_string::cc_string	manual	16	
+0x001ff5d0	survarium::game_options::scaleform_callback	manual	16	void: an unknown method name returns at 0x1FF96E (pop edi / esi / ebp, ret 10h at 0x1FF971)
+0x00329b20	survarium::player_stamina::update_weight_modifiers	manual	4	updates stamina-spend node +58h (index 19) and movement node +68h (index 4); descriptive RE name; data.md weight section
+0x00329290	survarium::player_stamina::player_stamina	manual	4	EAX: stamina initialized from 40-byte base parameters, modifiers pointer +48h
+0x002dbf40	survarium::base_player::can_sprint	manual	4	EAX: boolean; rejects low stamina, weight >= modified maximum unless modifier 31, and Heavyweight modifier 32
+0x002221e0	survarium::lobby_menu::update_player_items_weight	manual	0	void; root.update_player_items_weight with profile weight and modified capacity; descriptive RE name
+0x002f7660	survarium::player_profile::apply_kit_parameter	manual	0	XMM0: base parameter with selected kit skills then equipped-item modifiers; descriptive RE name
+0x00331840	survarium::weapon_recoil_parameters::load	manual	8	EAX: output block; descriptive name. Horizontal config ranges divided by 21.48, vertical by 63.735; not degrees.
+0x00330ee0	survarium::weapon_dispersion_parameters::load	manual	8	EAX: output block; descriptive name. speed_of_aiming at +0x0c, growth_speed at +0x10, direct scalar copies. Optional from_the_hip_multiplier (+0x18) and aim_multiplier (+0x1c) default to 1.0 at 0x330FE3/0x331034 (constant 0xA70884).
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	manual	4	EAX: output block; descriptive name. Horizontal/vertical amplitudes and base_period copied directly.
+0x002f1430	survarium::item_config_cook::find_modifier_target	manual	0	EAX: matching config node or null; missing path at 0x2F1462 returns null, skipped by cook at 0x2F1ABF.
+0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
+0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
+0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: encoded slot ((external array - inventory - 0x10c) SAR 2) + container ordinal, or fixed slot; 23 when absent
+0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
+0x00313470	survarium::artefact_base::on_taken	manual	0	no result used
+0x00313490	survarium::artefact_base::on_removed	manual	0	no result used
+0x002e30f0	survarium::weapon_core::register_in_game_world	manual	4	no result used
+0x002d4540	survarium::active_objects::append	manual	4	no result used
+0x00299830	survarium::empty_hands::empty_hands	manual	8	EAX: constructed object
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	manual	0	no result used
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	manual	0	no result used
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	manual	0	no result used
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	manual	0	no result used
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	manual	4	EAX: output expression pair address
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	manual	0	no result used
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	manual	4	EAX: destination
+0x002fb8a0	survarium::weapon_user_animations_selector::~weapon_user_animations_selector	manual	4	no result used
+0x00231bc0	survarium::hit_animations_selector::~hit_animations_selector	manual	0	no result used
+0x002d86e0	survarium::base_player::apply_new_input	manual	8	no result
+0x002daa60	survarium::base_player::tick	manual	4	no result
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	manual	4	none; retains queries_result resources 0/1/2 at Lifebone +4ACh/+4B0h/+4B4h; EDI this, entry ESP+4 result
+0x002fffd0	survarium::inventory_item::register_in_game_world	manual	4	ECX item; stack+4 core world written to +248h
+0x00313200	survarium::artefact_base::tick	manual	8	ECX item; stack delta_ms, now_ms; unowned states only cool down
+0x002e0f60	survarium::weapon_core::look_pitch	manual	0	ST0 = clamp([[ECX+8]+48Ch] (the player's base look pitch) + [ECX+474h+4] (the kick's y, recoil object at +468h), -1 (0xA2D778) .. 1 (0xA70884)); weapon_core vtable +8, read by look_time_factor_calculator 0x2FBF90
+0x002fbf90	survarium::base_player::look_time_factor_calculator	manual	24	ST0 = min((look_pitch + 1) * 0.5 (0x927A44), 0.99999 (0xA2D9D8)) * entry ESP+4 (clip length); look_pitch: [ECX+128h]'s vtable +8 (weapon_core::look_pitch 0x2E0F60). Drives the look clips; the first-person camera is bone Item (computed_head_transform 0x2DA4B0, Item's parent is Root), turned only by on_site_camera_look: +67.5 deg at time 0, 0 at the middle, -60.0 deg at the end, linear on each side (decoded from 0.26g's clip, 2026-10-29): 60 deg of view per pitch unit up, 67.5 down
+0x002e39b0	survarium::weapon_core::computed_vertical_recoil_time	manual	4	ST0 = [ECX+47Ch] (recoil object +14h: the camera-shake weight z, 0..1) if [ECX+8] (the user) and byte [user+33Ch] are set, else 0. One stack argument: the camerashake lexeme's weight calculator (lexeme +0Ch delegate, built by 0x2E13A0), not a time calculator; the name is the 0.21d match's.
+0x002e13a0	survarium::weapon_core::get_camera_shake_lexeme	manual	4	Builds the lexeme of recoil_animations[2] (camerashake_v2) into ECX: weight calculator 0x2E39B0 (+0Ch), animated object the user (+2Ch), time scale (+44h) = weapon +450h (shake_time_scale) when [[weapon+330h]+124h] == 5 (fire state; 0.10b order inactive, show, hide, idle, reload, fire, aim, aim_fire, chamber, chamber_aimed) else 0, time-sync group 1 (+4Ch), additivity priority 5 (+54h). Called last by get_recoil_expression (0x2E1369). Lexeme offsets: 0.10b animation_lexeme_parameters plus 0Ch before animated_object.
+0x00329ff0	survarium::body_part_parameters::hit_by_type	manual	20	the hit's damage in place: D x (1 - clamp(A - P, 0, 1)), A the part's summed armour for the hit type (its type list at +18h, value +8), P the penetration (0x32A07E..0x32A0AC; observed)
+0x00331a50	survarium::weapon_recoil_calculator::tick	manual	4	Recoil object in ESI (weapon_core+468h): until 60/rpm after the last shot moves side x (+0Ch), top y (+10h) and shake z (+14h) at their speeds (+18h, +1Ch, +20h); for the rest of the tick the PID 0x3321E0 pulls all three to 0. Clamps x and y to -1..1, z to 0..1.
+0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each times apply_modifier (0x2D5AE0, index 12h); x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
+0x003321e0	survarium::weapon_recoil_calculator::compensation_pid	manual	4	One PID over the three axes (x, y, z at EDX, state at ECX = recoil object +24h: integrals +18h..+20h, previous errors +0Ch..+14h, gains Kp/Ki/Kd +24h/+28h/+2Ch); XMM4 = dt. Writes the three outputs at [EAX] (the tick negates them into the speeds).
+0x0033e680	survarium::oxygen_tank::find_influence	manual	8	EAX the influence row {body_part at +70h, hit_type, hit_coeff +84h, threshold +88h} matching the hit's body part and type, or 0 (observed)
+0x0026dac0	survarium::base_game_statistics_handler::on_artefact_taken	manual	8	
+0x002f55f0	survarium::shared_statistics::on_artefact_taken	manual	4	
+0x002dbb50	survarium::base_player::movement_speed	manual	16	XMM0: max(m, v x max(0, 1 + S4)), m = 0x2F0980 on the player +190h, v = 0x2F0980 on +15Ch, S4 = apply_modifier 0x2D5AE0 index 4 on the kit container (profile [player+6B8h] + kit [player+115h] x 704h + 0F4h); with the byte flag, the lower of that and apply_modifiers 0x2D5BC0 with the extra {4, 1.0}, {20, 1.0}

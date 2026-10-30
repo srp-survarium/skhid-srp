@@ -1,0 +1,21 @@
+site	va	kind	callee	span	exits	holds	what
+pickup_core.constructed	0x2D020A	lohook	-	5	-	-	core constructor epilogue: EBX core, before pop edi/pop esi/mov eax,ebx/pop ebx
+pickup_core.destroying	0x2D02A6	lohook	-	6	-	-	core destructor before first cleanup: EBP core, mov eax,[ebp+18F58h]
+pickup_input.local_merged	0x1FB349	lohook	-	6	-	-	local coalescing completed: EBX core, ESI node, EBP change_input frame
+pickup_input.tick_snap	0x2D4F3B	lohook	-	5	-	-	before native tick-snap store: EBX core, EDI input node, ESI new time; mov [edi+20h],esi/test eax,eax
+pickup_input.moved	0x27D802	lohook	-	5	-	-	move after inner placement: EAX status, EBX source identity, EBP arguments, site ESP+1Ch effective time
+pickup_input.discarded	0x27DCB7	lohook	-	5	-	-	successful discard after unlink/pool return/dirty notification: EBX removed node identity, EBP core/place arguments; pop edi/pop esi/xor eax,eax/pop ebx
+pickup_transport.ranges	0x2792DC	lohook	-	6	-	-	match info getter constructed bounds at ESI; before vtable store
+pickup_transport.length	0x279694	lohook	-	6	return@0x2796A6	-	length switch before subtract D8: ESI unsigned id, EBP frame, EAX ok pointer already set true; return epilogue preserves chosen EAX length
+pickup_transport.sending	0x279A60	lohook	-	6	input@0x279A95	-	sending info switch: ECX unsigned id, EAX info output; input exit uses native 500ms lifetime/50ms retry/plain fixed flags
+pickup_transport.received	0x279B10	lohook	-	6	input@0x279B67	-	received info switch: ECX unsigned id, EAX info output; input exit uses native 250ms lifetime/50ms retry/plain fixed flags
+pickup_transport.dispatch	0x27A322	lohook	-	5	processed@0x27A6FC	-	before message switch: EAX ID, ESI network client, EBX reader; common completion preserves native packet recording
+pickup_input.relay_end	0x27C1F0	lohook	-	6	-	-	statistics entry before prologue: EAX placement status, EDX client, ESI input; return27C32D single or27C5CD batch
+pickup_input.evicting	0x2D48C7	lohook	-	5	-	-	generic nonempty list eviction before unlink: EAX list, head at list+4; filter to registered world input lists; mov ecx,[eax+4]/dec dword[eax]
+pickup_input.moving	0x27D7F5	lohook	-	8	-	-	after source extraction before inner placement: EAX core, EBX source identity; replay effective-time sentinel initialization; every return continues to moved27D802
+pickup_input.sending	0x27EAFF	lohook	-	5	queued@0x27EB4D	-	input history sender before node ESI becomes transport slot: ECX selected rotation, EBP context, ESP+24 actions/+2C place; sent flag already set, queued continues native loop
+pickup_draw.begin	0x1F7C6C	lohook	-	7	-	-	game_world EBX, before mt_player_draw flag chooses parallel tasks or synchronous player draws; previous simulation movement joined
+pickup_draw.complete	0x1F7E0B	lohook	-	5	-	-	game_world EBX, both draw paths joined; parallel tasks waited by10D4E0 at1F7D7F, serial loop ends1F7E09
+pickup_draw.weapon	0x2477C8	lohook	-	6	-	-	player EBX, exact chosen held-item world transform EAX, before mov ecx,[ebx+128] and virtual draw; after ragdoll Weapon bone pose
+pickup_player.death	0x1F28E0	lohook	-	5	-	-	client player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push edi/mov edi,ecx/push1
+pickup_base_player.death	0x2D77C0	lohook	-	5	-	-	base player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push esi/mov esi,ecx/push1

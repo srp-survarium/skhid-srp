@@ -56,40 +56,37 @@ global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
 global engine_point_to_screen
-global engine_query_resources_wait
-global engine_inventory_recipe_type
-global engine_profile_destroy
-global engine_resource_cook
-global engine_profile_copy_body
-global engine_weapon_set_user
-global engine_weapon_initialize
-global engine_weapon_activate
-global engine_weapon_deactivate
-global engine_weapon_core_set_user
-global engine_weapon_core_initialize
-global engine_weapon_core_activate
-global engine_weapon_core_deactivate
-global engine_item_set_owner
-global engine_inventory_set
-global engine_animation_forget_weapon
-global engine_inventory_resupply
-global engine_inventory_check_resupply
-global engine_weapon_core_deserialize
-global engine_change_player_input
-global engine_discard_player_input
-global engine_match_new_packet
-global engine_match_enqueue
-global engine_buffer_write
+global engine_cc_string
+global engine_setlocale
+global engine_save_user_config
+global engine_translate_text
+global engine_get_user_default_lcid
+global engine_inventory_remove
+global engine_inventory_take_artefact
+global engine_quick_inventory_slot
+global engine_core_active_player
+global engine_add_model
+global engine_remove_model
+global engine_update_model
+global engine_static_model_bounds
+global engine_release_item
+global engine_release_model
+global engine_player_insert
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
-engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
-engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
-engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (kernel32, stdcall)
+engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
+engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
+engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
 engine_match_options equ 0x219990   ; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
 engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
-engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
-engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
-engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
+engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
+engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (an import, stdcall)
+engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly
+engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
+engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
+engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
+engine_player_insert equ 0x1f2720   ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -822,14 +819,18 @@ engine_point_to_screen:
     ret
 
     align 16, db 0xCC
-engine_query_resources_wait:
-    ; 0xe5c20 vostok::resources::query_resources_and_wait: parameters EAX; pops 0
+engine_cc_string:
+    ; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
     push ebp
     push ebx
     push esi
     push edi
-    mov eax, [esp + 20]   ; parameters
-    call 0xe5c20
+    push dword [esp + 36]   ; saved -> 16
+    push dword [esp + 36]   ; size -> 12
+    push dword [esp + 36]   ; buffer -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0xec860
     pop edi
     pop esi
     pop ebx
@@ -837,13 +838,15 @@ engine_query_resources_wait:
     ret
 
     align 16, db 0xCC
-engine_inventory_recipe_type:
-    ; 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+engine_inventory_remove:
+    ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
     push ebp
     push ebx
     push esi
     push edi
-    call 0x205c60
+    mov esi, [esp + 20]   ; inventory
+    mov eax, [esp + 24]   ; slot
+    call 0x2fc680
     pop edi
     pop esi
     pop ebx
@@ -851,14 +854,15 @@ engine_inventory_recipe_type:
     ret
 
     align 16, db 0xCC
-engine_profile_destroy:
-    ; 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+engine_inventory_take_artefact:
+    ; 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
     push ebp
     push ebx
     push esi
     push edi
-    mov ecx, [esp + 20]   ; profile
-    call 0x26f3b0
+    push dword [esp + 24]   ; incoming -> 4
+    mov eax, [esp + 24]   ; inventory
+    call 0x2fc850
     pop edi
     pop esi
     pop ebx
@@ -866,14 +870,15 @@ engine_profile_destroy:
     ret
 
     align 16, db 0xCC
-engine_resource_cook:
-    ; 0x102cd0 vostok::resources::find_cook_by_class: class_id EDI; pops 0; EAX
+engine_quick_inventory_slot:
+    ; 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
     push ebp
     push ebx
     push esi
     push edi
-    mov edi, [esp + 20]   ; class_id
-    call 0x102cd0
+    push dword [esp + 24]   ; ordinal -> 8
+    push dword [esp + 24]   ; inventory -> 4
+    call 0x2fe7f0
     pop edi
     pop esi
     pop ebx
@@ -881,15 +886,16 @@ engine_resource_cook:
     ret
 
     align 16, db 0xCC
-engine_profile_copy_body:
-    ; 0x284dc0 survarium::player_profile::copy_body: destination ESP+4, source ESP+8; pops 8; EAX
+engine_core_active_player:
+    ; 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 24]   ; source -> 8
-    push dword [esp + 24]   ; destination -> 4
-    call 0x284dc0
+    mov esi, [esp + 20]   ; world
+    mov ecx, [esp + 24]   ; place
+    mov edi, [esp + 28]   ; out
+    call 0x2d0ab0
     pop edi
     pop esi
     pop ebx
@@ -897,15 +903,18 @@ engine_profile_copy_body:
     ret
 
     align 16, db 0xCC
-engine_weapon_set_user:
-    ; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4
+engine_add_model:
+    ; 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 24]   ; player -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x2445e0
+    push dword [esp + 36]   ; second -> 16
+    push dword [esp + 36]   ; first -> 12
+    push dword [esp + 36]   ; scene -> 8
+    push dword [esp + 32]   ; renderer -> 4
+    mov eax, [esp + 40]   ; model
+    call 0x21cd0
     pop edi
     pop esi
     pop ebx
@@ -913,14 +922,16 @@ engine_weapon_set_user:
     ret
 
     align 16, db 0xCC
-engine_weapon_initialize:
-    ; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0
+engine_remove_model:
+    ; 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
     push ebp
     push ebx
     push esi
     push edi
-    mov ecx, [esp + 20]   ; weapon
-    call 0x2449e0
+    push dword [esp + 28]   ; scene -> 8
+    push dword [esp + 24]   ; renderer -> 4
+    mov eax, [esp + 32]   ; model
+    call 0x21f40
     pop edi
     pop esi
     pop ebx
@@ -928,15 +939,18 @@ engine_weapon_initialize:
     ret
 
     align 16, db 0xCC
-engine_weapon_activate:
-    ; 0x244610 survarium::weapon::activate: weapon ECX, switch_flag ESP+4; pops 4
+engine_update_model:
+    ; 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 24]   ; switch_flag -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x244610
+    push dword [esp + 36]   ; second -> 16
+    push dword [esp + 36]   ; first -> 12
+    push dword [esp + 36]   ; scene -> 8
+    push dword [esp + 32]   ; renderer -> 4
+    mov eax, [esp + 40]   ; model
+    call 0x22280
     pop edi
     pop esi
     pop ebx
@@ -944,15 +958,15 @@ engine_weapon_activate:
     ret
 
     align 16, db 0xCC
-engine_weapon_deactivate:
-    ; 0x244860 survarium::weapon::deactivate: weapon ECX, clear_user ESP+4; pops 4
+engine_static_model_bounds:
+    ; 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 24]   ; clear_user -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x244860
+    push dword [esp + 24]   ; bounds -> 4
+    mov ecx, [esp + 24]   ; instance
+    call 0x16e420
     pop edi
     pop esi
     pop ebx
@@ -960,15 +974,15 @@ engine_weapon_deactivate:
     ret
 
     align 16, db 0xCC
-engine_weapon_core_set_user:
-    ; 0x2e2990 survarium::weapon_core::set_user: weapon ECX, player ESP+4; pops 4
+engine_release_item:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 24]   ; player -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x2e2990
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx
@@ -976,237 +990,15 @@ engine_weapon_core_set_user:
     ret
 
     align 16, db 0xCC
-engine_weapon_core_initialize:
-    ; 0x2e2a30 survarium::weapon_core::initialize: weapon ECX; pops 0
+engine_release_model:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     push ebp
     push ebx
     push esi
     push edi
-    mov ecx, [esp + 20]   ; weapon
-    call 0x2e2a30
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_weapon_core_activate:
-    ; 0x2e2cc0 survarium::weapon_core::activate: weapon ECX, switch_flag ESP+4; pops 4
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; switch_flag -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x2e2cc0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_weapon_core_deactivate:
-    ; 0x2e2db0 survarium::weapon_core::deactivate: weapon ECX, clear_user ESP+4; pops 4
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; clear_user -> 4
-    mov ecx, [esp + 24]   ; weapon
-    call 0x2e2db0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_item_set_owner:
-    ; 0x243590 survarium::inventory_item::set_owner: item ECX, inventory ESP+4, slot ESP+8; pops 8
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; slot -> 8
-    push dword [esp + 28]   ; inventory -> 4
-    mov ecx, [esp + 28]   ; item
-    call 0x243590
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_inventory_set:
-    ; 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; item -> 4
-    mov esi, [esp + 24]   ; inventory
-    mov edi, [esp + 28]   ; slot
-    call 0x2fc620
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_animation_forget_weapon:
-    ; 0x3919e0 animation::player::forget_active_object: animation EAX, weapon EDX; pops 0
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov eax, [esp + 20]   ; animation
-    mov edx, [esp + 24]   ; weapon
-    call 0x3919e0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_inventory_resupply:
-    ; 0x2fdc10 survarium::inventory::resupply_from_profile: inventory ESP+4, profile ESP+8, kit ESP+12; pops 12
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; kit -> 12
-    push dword [esp + 28]   ; profile -> 8
-    push dword [esp + 28]   ; inventory -> 4
-    call 0x2fdc10
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_inventory_check_resupply:
-    ; 0x2fdf50 survarium::inventory::check_resupply: kit EAX, inventory ESP+4, profile ESP+8; pops 8; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; profile -> 8
-    push dword [esp + 28]   ; inventory -> 4
-    mov eax, [esp + 28]   ; kit
-    call 0x2fdf50
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_weapon_core_deserialize:
-    ; 0x2e3490 survarium::weapon_core::deserialize: weapon ECX, reader ESP+4, client_reader ESP+8, context ESP+12; pops 12
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 32]   ; context -> 12
-    push dword [esp + 32]   ; client_reader -> 8
-    push dword [esp + 32]   ; reader -> 4
-    mov ecx, [esp + 32]   ; weapon
-    call 0x2e3490
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_change_player_input:
-    ; 0x1fab50 survarium::game_world_core::change_player_input: core ESP+4, rotation ESP+8, actions ESP+12, time ESP+16, place_flags ESP+20, network ESP+24, corrected ESP+28, precise ESP+32, effective_time ESP+36; pops 36; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 52]   ; effective_time -> 36
-    push dword [esp + 52]   ; precise -> 32
-    push dword [esp + 52]   ; corrected -> 28
-    push dword [esp + 52]   ; network -> 24
-    push dword [esp + 52]   ; place_flags -> 20
-    push dword [esp + 52]   ; time -> 16
-    push dword [esp + 52]   ; actions -> 12
-    push dword [esp + 52]   ; rotation -> 8
-    push dword [esp + 52]   ; core -> 4
-    call 0x1fab50
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_discard_player_input:
-    ; 0x27d820 survarium::game_world_core::discard_player_input: time EAX, core ESP+4, place ESP+8; pops 8; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; place -> 8
-    push dword [esp + 28]   ; core -> 4
-    mov eax, [esp + 28]   ; time
-    call 0x27d820
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_match_new_packet:
-    ; 0x279fe0 survarium::match_client::new_packet: client ECX, message ESP+4; pops 4; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; message -> 4
-    mov ecx, [esp + 24]   ; client
-    call 0x279fe0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_match_enqueue:
-    ; 0x27a2a0 survarium::match_client::enqueue: client ECX, packet ESP+4; pops 4
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; packet -> 4
-    mov ecx, [esp + 24]   ; client
-    call 0x27a2a0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_buffer_write:
-    ; 0x7ac10 vostok::network_core::buffer_writer::w: writer ESP+4, bytes ESP+8, count EDI; pops 8
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; bytes -> 8
-    push dword [esp + 24]   ; writer -> 4
-    mov edi, [esp + 36]   ; count
-    call 0x7ac10
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx

@@ -5,7 +5,9 @@
 # move buttons (» «) for a private room's owner only, never for a member, an open room or a room
 # playing its match; its two team columns, a member in the other after a move; no "N v N" and no
 # max level for a private room (its info line, its list row, the facts beside the list); the create
-# window's sliders hidden once a PIN is typed, Max level too.
+# window's sliders hidden once a PIN is typed, Max level too. Then in every language (the dictionaries'
+# texts): the list, a room in each phase and hint, and the create window, no text cut by its field
+# and no two on one line meeting (a "ROOMS OVERLAP" line each).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail
@@ -20,11 +22,14 @@ else
     work=$(mktemp -d)
 fi
 
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
+
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/RoomsHarness.swf" "$here/RoomsHarness.as" >"$work/RoomsHarness.mxmlc.log" 2>&1 \
     || { cat "$work/RoomsHarness.mxmlc.log"; exit 1; }

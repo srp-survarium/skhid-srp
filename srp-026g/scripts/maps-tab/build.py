@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the website's Maps tab (`/maps`) from the game as Skhid's players have it.
+"""Builds the website's maps (`/wiki/maps`) from the game as Skhid's players have it.
 
     python3 -I build.py --stock <resources.db> --patches <dir> --dbgrab <dbgrab> --ffdec <ffdec-cli.jar>
                         --icons <dir> [--list release/patches.tsv] [--out srp-026g/servers/web-server/maps]

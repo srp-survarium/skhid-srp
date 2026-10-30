@@ -52,17 +52,19 @@
 ; read from the binder, the keys applied with the console's bind/unbind),
 ; each counting 28h rows. A key set for an action without a row is kept
 ; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
-; table again, the same 40 rows (each row's pointers its own), and a 41st:
+; table again, the same 40 rows (each row's pointers its own), a 41st:
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
-; (content edit hide-interface-1.json); patch_026g.py points the six
-; functions at it and makes their counts 29h. The binding is the binder's
+; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
+; artefact (23h, default H, its default key patch_026g.py's
+; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action; patch_026g.py points the six
+; functions at it and makes their counts 2Ah. The binding is the binder's
 ; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
 ; back by the binder's own bind command (its save 0x207450 writes every bound
 ; action).
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 42 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -78,6 +80,7 @@ section .text
 %define LOBBY_MOVIE 0x690          ; the lobby menu's movie holder: [[+690h]+108h]+4
 %define NO_ACTION 0x49             ; the binder's answer for a key without an action
 %define TOGGLE_UI 0x19             ; toggle_replay_ui
+%define HOLD_ARTIFACT 0x23         ; artefact: unused by the game; patch 78 holds it with a quick-use key
 %define MATCH_KINDS 1              ; the kind the game world asks (0x25CD5F)
 
 ; The case of action 19h in on_keyboard_action, at 0x25CED1 (`mov esi,[esp+10h] /
@@ -287,6 +290,9 @@ hide_interface:
 hide_interface_label:
     db "st_hide_interface_action", 0
 
+hold_artifact_label:
+    db "st_hold_artifact_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -342,3 +348,4 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
     CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
+    CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord

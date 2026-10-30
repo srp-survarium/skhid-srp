@@ -6,6 +6,882 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x243fa0 weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal: lohook -> artefact_carry_on_weapon_hide
+global artefact_carry_on_weapon_hide
+extern hook_artefact_carry_on_weapon_hide
+artefact_carry_on_weapon_hide:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_weapon_hide
+    mov edx, artefact_carry_on_weapon_hide_replay
+    cmp eax, 0
+    je artefact_carry_on_weapon_hide_go
+    mov edx, 0x243fa6
+    cmp eax, 1
+    je artefact_carry_on_weapon_hide_go
+    ud2
+artefact_carry_on_weapon_hide_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_weapon_hide_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x243fa6
+
+; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> artefact_carry_on_input
+global artefact_carry_on_input
+extern hook_artefact_carry_on_input
+artefact_carry_on_input:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_input
+    mov edx, artefact_carry_on_input_replay
+    cmp eax, 0
+    je artefact_carry_on_input_go
+    mov edx, 0x2d86e6
+    cmp eax, 1
+    je artefact_carry_on_input_go
+    ud2
+artefact_carry_on_input_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_input_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2d86e6
+
+; 0x2d876f set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched: lohook -> artefact_carry_on_filter
+global artefact_carry_on_filter
+extern hook_artefact_carry_on_filter
+artefact_carry_on_filter:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_filter
+    mov edx, artefact_carry_on_filter_replay
+    cmp eax, 0
+    je artefact_carry_on_filter_go
+    mov edx, 0x2d8774
+    cmp eax, 1
+    je artefact_carry_on_filter_go
+    ud2
+artefact_carry_on_filter_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_filter_replay:
+    db 0x50, 0x8d, 0x54, 0x24, 0x28
+    jmp 0x2d8774
+
+; 0x2daac1 base_player tick before held object tick; EBX player, updated time at +324h: lohook -> artefact_carry_on_tick
+global artefact_carry_on_tick
+extern hook_artefact_carry_on_tick
+artefact_carry_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_tick
+    mov edx, artefact_carry_on_tick_replay
+    cmp eax, 0
+    je artefact_carry_on_tick_go
+    mov edx, 0x2daac7
+    cmp eax, 1
+    je artefact_carry_on_tick_go
+    ud2
+artefact_carry_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_tick_replay:
+    db 0x8b, 0x8b, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2daac7
+
+; 0x2d6990 base_player constructor entry; stack first argument destination, identity only: lohook -> artefact_carry_on_construct
+global artefact_carry_on_construct
+extern hook_artefact_carry_on_construct
+artefact_carry_on_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_construct
+    mov edx, artefact_carry_on_construct_replay
+    cmp eax, 0
+    je artefact_carry_on_construct_go
+    mov edx, 0x2d6995
+    cmp eax, 1
+    je artefact_carry_on_construct_go
+    ud2
+artefact_carry_on_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_construct_replay:
+    db 0x83, 0xec, 0x44, 0x53, 0x55
+    jmp 0x2d6995
+
+; 0x2db47e base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp: lohook -> artefact_carry_on_save
+global artefact_carry_on_save
+extern hook_artefact_carry_on_save
+artefact_carry_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_save
+    mov edx, artefact_carry_on_save_replay
+    cmp eax, 0
+    je artefact_carry_on_save_go
+    mov edx, 0x2db483
+    cmp eax, 1
+    je artefact_carry_on_save_go
+    ud2
+artefact_carry_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_save_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x2db483
+
+; 0x2dbab5 base_player deserialize after final native field; EBX player, ESI reader: lohook -> artefact_carry_on_load
+global artefact_carry_on_load
+extern hook_artefact_carry_on_load
+artefact_carry_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_load
+    mov edx, artefact_carry_on_load_replay
+    cmp eax, 0
+    je artefact_carry_on_load_go
+    mov edx, 0x2dbabc
+    cmp eax, 1
+    je artefact_carry_on_load_go
+    ud2
+artefact_carry_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_load_replay:
+    db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
+    jmp 0x2dbabc
+
+; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones: lohook -> artefact_carry_on_weapon
+global artefact_carry_on_weapon
+extern hook_artefact_carry_on_weapon
+artefact_carry_on_weapon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_weapon
+    mov edx, artefact_carry_on_weapon_replay
+    cmp eax, 0
+    je artefact_carry_on_weapon_go
+    mov edx, 0x2477ce
+    cmp eax, 1
+    je artefact_carry_on_weapon_go
+    mov edx, 0x2477df
+    cmp eax, 2
+    je artefact_carry_on_weapon_go
+    ud2
+artefact_carry_on_weapon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_weapon_replay:
+    db 0x8b, 0x8b, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2477ce
+
+; 0x25ebb0 Spring client update entry; ECX callback; done is native bare ret, no prologue executed: lohook -> artefact_carry_on_spring
+global artefact_carry_on_spring
+extern hook_artefact_carry_on_spring
+artefact_carry_on_spring:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_spring
+    mov edx, artefact_carry_on_spring_replay
+    cmp eax, 0
+    je artefact_carry_on_spring_go
+    mov edx, 0x25ebb6
+    cmp eax, 1
+    je artefact_carry_on_spring_go
+    mov edx, 0x25ec84
+    cmp eax, 2
+    je artefact_carry_on_spring_go
+    ud2
+artefact_carry_on_spring_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_spring_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25ebb6
+
+; 0x25f100 Lifebone client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_lifebone
+global artefact_carry_on_lifebone
+extern hook_artefact_carry_on_lifebone
+artefact_carry_on_lifebone:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_lifebone
+    mov edx, artefact_carry_on_lifebone_replay
+    cmp eax, 0
+    je artefact_carry_on_lifebone_go
+    mov edx, 0x25f106
+    cmp eax, 1
+    je artefact_carry_on_lifebone_go
+    mov edx, 0x25f1d4
+    cmp eax, 2
+    je artefact_carry_on_lifebone_go
+    ud2
+artefact_carry_on_lifebone_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_lifebone_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25f106
+
+; 0x25f640 Onyx client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_onyx
+global artefact_carry_on_onyx
+extern hook_artefact_carry_on_onyx
+artefact_carry_on_onyx:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_onyx
+    mov edx, artefact_carry_on_onyx_replay
+    cmp eax, 0
+    je artefact_carry_on_onyx_go
+    mov edx, 0x25f646
+    cmp eax, 1
+    je artefact_carry_on_onyx_go
+    mov edx, 0x25f714
+    cmp eax, 2
+    je artefact_carry_on_onyx_go
+    ud2
+artefact_carry_on_onyx_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_onyx_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25f646
+
+; 0x25fb80 Rattle client update entry; ECX callback; done is native bare ret: lohook -> artefact_carry_on_rattle
+global artefact_carry_on_rattle
+extern hook_artefact_carry_on_rattle
+artefact_carry_on_rattle:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_rattle
+    mov edx, artefact_carry_on_rattle_replay
+    cmp eax, 0
+    je artefact_carry_on_rattle_go
+    mov edx, 0x25fb86
+    cmp eax, 1
+    je artefact_carry_on_rattle_go
+    mov edx, 0x25fc54
+    cmp eax, 2
+    je artefact_carry_on_rattle_go
+    ud2
+artefact_carry_on_rattle_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_rattle_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x25fb86
+
+; 0x2da769 before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h: lohook -> artefact_carry_on_damage_bones
+global artefact_carry_on_damage_bones
+extern hook_artefact_carry_on_damage_bones
+artefact_carry_on_damage_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_damage_bones
+    mov edx, artefact_carry_on_damage_bones_replay
+    cmp eax, 0
+    je artefact_carry_on_damage_bones_go
+    mov edx, 0x2da76f
+    cmp eax, 1
+    je artefact_carry_on_damage_bones_go
+    ud2
+artefact_carry_on_damage_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_damage_bones_replay:
+    db 0x8b, 0x87, 0x98, 0x04, 0x00, 0x00
+    jmp 0x2da76f
+
+; 0x25e91a artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only: lohook -> artefact_carry_on_flower_query
+global artefact_carry_on_flower_query
+extern hook_artefact_carry_on_flower_query
+artefact_carry_on_flower_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_query
+    mov edx, artefact_carry_on_flower_query_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_query_go
+    mov edx, 0x25e923
+    cmp eax, 1
+    je artefact_carry_on_flower_query_go
+    mov edx, 0x25e928
+    cmp eax, 2
+    je artefact_carry_on_flower_query_go
+    ud2
+artefact_carry_on_flower_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_query_replay:
+    db 0xb9, 0x03, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x2c
+    jmp 0x25e923
+
+; 0x260278 Lifebone assignment call: EDI item EBX queries_result; retain fourth model: lohook -> artefact_carry_on_flower_ready
+global artefact_carry_on_flower_ready
+extern hook_artefact_carry_on_flower_ready
+artefact_carry_on_flower_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_ready
+    mov edx, artefact_carry_on_flower_ready_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_ready_go
+    mov edx, 0x26027e
+    cmp eax, 1
+    je artefact_carry_on_flower_ready_go
+    ud2
+artefact_carry_on_flower_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_ready_replay:
+    db 0x8b, 0x8b, 0x2c, 0x01, 0x00, 0x00
+    jmp 0x26027e
+
+; 0x25efe0 Lifebone destructor entry: ECX item; remove held model and release owned resource: lohook -> artefact_carry_on_flower_destroy
+global artefact_carry_on_flower_destroy
+extern hook_artefact_carry_on_flower_destroy
+artefact_carry_on_flower_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_flower_destroy
+    mov edx, artefact_carry_on_flower_destroy_replay
+    cmp eax, 0
+    je artefact_carry_on_flower_destroy_go
+    mov edx, 0x25efe9
+    cmp eax, 1
+    je artefact_carry_on_flower_destroy_go
+    ud2
+artefact_carry_on_flower_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_flower_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0xa4, 0x04, 0x00, 0x00
+    jmp 0x25efe9
+
+; 0x2d77c0 base_player::on_player_death entry, ECX live player before remove_alive/inventory death: lohook -> artefact_carry_on_death
+global artefact_carry_on_death
+extern hook_artefact_carry_on_death
+artefact_carry_on_death:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_death
+    mov edx, artefact_carry_on_death_replay
+    cmp eax, 0
+    je artefact_carry_on_death_go
+    mov edx, 0x2d77c5
+    cmp eax, 1
+    je artefact_carry_on_death_go
+    ud2
+artefact_carry_on_death_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_death_replay:
+    db 0x56, 0x8b, 0xf1, 0x6a, 0x01
+    jmp 0x2d77c5
+
+; 0x313735 artefact_base::serialize after native state-dependent fields; ESI item EDI writer: lohook -> artefact_carry_on_ground_save
+global artefact_carry_on_ground_save
+extern hook_artefact_carry_on_ground_save
+artefact_carry_on_ground_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_ground_save
+    mov edx, artefact_carry_on_ground_save_replay
+    cmp eax, 0
+    je artefact_carry_on_ground_save_go
+    mov edx, 0x31373b
+    cmp eax, 1
+    je artefact_carry_on_ground_save_go
+    ud2
+artefact_carry_on_ground_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_ground_save_replay:
+    db 0x8d, 0x86, 0xa0, 0x02, 0x00, 0x00
+    jmp 0x31373b
+
+; 0x3137ec artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader: lohook -> artefact_carry_on_ground_load
+global artefact_carry_on_ground_load
+extern hook_artefact_carry_on_ground_load
+artefact_carry_on_ground_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_ground_load
+    mov edx, artefact_carry_on_ground_load_replay
+    cmp eax, 0
+    je artefact_carry_on_ground_load_go
+    mov edx, 0x3137f1
+    cmp eax, 1
+    je artefact_carry_on_ground_load_go
+    ud2
+artefact_carry_on_ground_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_ground_load_replay:
+    db 0x8b, 0x47, 0x04, 0x8b, 0x08
+    jmp 0x3137f1
+
+; 0x1f28e0 client player death override, ECX player; inlines base teardown, does not call 0x2D77C0: lohook -> artefact_carry_on_client_death
+global artefact_carry_on_client_death
+extern hook_artefact_carry_on_client_death
+artefact_carry_on_client_death:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_client_death
+    mov edx, artefact_carry_on_client_death_replay
+    cmp eax, 0
+    je artefact_carry_on_client_death_go
+    mov edx, 0x1f28e5
+    cmp eax, 1
+    je artefact_carry_on_client_death_go
+    ud2
+artefact_carry_on_client_death_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_client_death_replay:
+    db 0x57, 0x8b, 0xf9, 0x6a, 0x01
+    jmp 0x1f28e5
+
+; 0x23fe42 player_input_handler::on_keyboard_action after the binder's answer: EDI the key's action (49h none, gone), EBP the frame; before mov esi,[ebp+10h] / cmp esi,1: lohook -> artefact_carry_on_key
+global artefact_carry_on_key
+extern hook_artefact_carry_on_key
+artefact_carry_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_key
+    mov edx, artefact_carry_on_key_replay
+    cmp eax, 0
+    je artefact_carry_on_key_go
+    mov edx, 0x23fe48
+    cmp eax, 1
+    je artefact_carry_on_key_go
+    ud2
+artefact_carry_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_key_replay:
+    db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
+    jmp 0x23fe48
+
+; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
+global artefact_score_on_transfer
+extern hook_artefact_score_on_transfer
+artefact_score_on_transfer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_score_on_transfer
+    mov edx, artefact_score_on_transfer_replay
+    cmp eax, 0
+    je artefact_score_on_transfer_go
+    mov edx, 0x31c816
+    cmp eax, 1
+    je artefact_score_on_transfer_go
+    ud2
+artefact_score_on_transfer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_score_on_transfer_replay:
+    db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
+    jmp 0x31c816
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info
@@ -279,10 +1155,10 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
-; 0x1f28e0 client player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push edi/mov edi,ecx/push1: lohook -> dropped_weapons_on_player_death
-global dropped_weapons_on_player_death
-extern hook_dropped_weapons_on_player_death
-dropped_weapons_on_player_death:
+; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
+global language_on_configs_start
+extern hook_language_on_configs_start
+language_on_configs_start:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -299,548 +1175,29 @@ dropped_weapons_on_player_death:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_dropped_weapons_on_player_death
-    mov edx, dropped_weapons_on_player_death_replay
+    call hook_language_on_configs_start
+    mov edx, language_on_configs_start_replay
     cmp eax, 0
-    je dropped_weapons_on_player_death_go
-    mov edx, 0x1f28e5
+    je language_on_configs_start_go
+    mov edx, 0x1ea216
     cmp eax, 1
-    je dropped_weapons_on_player_death_go
+    je language_on_configs_start_go
     ud2
-dropped_weapons_on_player_death_go:
+language_on_configs_start_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-dropped_weapons_on_player_death_replay:
-    db 0x57, 0x8b, 0xf9, 0x6a, 0x01
-    jmp 0x1f28e5
-
-; 0x2d77c0 base player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push esi/mov esi,ecx/push1: lohook -> dropped_weapons_on_base_player_death
-global dropped_weapons_on_base_player_death
-extern hook_dropped_weapons_on_base_player_death
-dropped_weapons_on_base_player_death:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_base_player_death
-    mov edx, dropped_weapons_on_base_player_death_replay
-    cmp eax, 0
-    je dropped_weapons_on_base_player_death_go
-    mov edx, 0x2d77c5
-    cmp eax, 1
-    je dropped_weapons_on_base_player_death_go
-    ud2
-dropped_weapons_on_base_player_death_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_base_player_death_replay:
-    db 0x56, 0x8b, 0xf1, 0x6a, 0x01
-    jmp 0x2d77c5
-
-; 0x2d020a core constructor epilogue: EBX core, before pop edi/pop esi/mov eax,ebx/pop ebx: lohook -> dropped_weapons_on_constructed
-global dropped_weapons_on_constructed
-extern hook_dropped_weapons_on_constructed
-dropped_weapons_on_constructed:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_constructed
-    mov edx, dropped_weapons_on_constructed_replay
-    cmp eax, 0
-    je dropped_weapons_on_constructed_go
-    mov edx, 0x2d020f
-    cmp eax, 1
-    je dropped_weapons_on_constructed_go
-    ud2
-dropped_weapons_on_constructed_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_constructed_replay:
-    db 0x5f, 0x5e, 0x8b, 0xc3, 0x5b
-    jmp 0x2d020f
-
-; 0x2d02a6 core destructor before first cleanup: EBP core, mov eax,[ebp+18F58h]: lohook -> dropped_weapons_on_destroying
-global dropped_weapons_on_destroying
-extern hook_dropped_weapons_on_destroying
-dropped_weapons_on_destroying:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_destroying
-    mov edx, dropped_weapons_on_destroying_replay
-    cmp eax, 0
-    je dropped_weapons_on_destroying_go
-    mov edx, 0x2d02ac
-    cmp eax, 1
-    je dropped_weapons_on_destroying_go
-    ud2
-dropped_weapons_on_destroying_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_destroying_replay:
-    db 0x8b, 0x85, 0x58, 0x8f, 0x01, 0x00
-    jmp 0x2d02ac
-
-; 0x1fb349 local coalescing completed: EBX core, ESI node, EBP change_input frame: lohook -> dropped_weapons_on_local_merge
-global dropped_weapons_on_local_merge
-extern hook_dropped_weapons_on_local_merge
-dropped_weapons_on_local_merge:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_local_merge
-    mov edx, dropped_weapons_on_local_merge_replay
-    cmp eax, 0
-    je dropped_weapons_on_local_merge_go
-    mov edx, 0x1fb34f
-    cmp eax, 1
-    je dropped_weapons_on_local_merge_go
-    ud2
-dropped_weapons_on_local_merge_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_local_merge_replay:
-    db 0x8b, 0x4d, 0x14, 0x8b, 0x55, 0x14
-    jmp 0x1fb34f
-
-; 0x2d4f3b before native tick-snap store: EBX core, EDI input node, ESI new time; mov [edi+20h],esi/test eax,eax: lohook -> dropped_weapons_on_tick_snap
-global dropped_weapons_on_tick_snap
-extern hook_dropped_weapons_on_tick_snap
-dropped_weapons_on_tick_snap:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_tick_snap
-    mov edx, dropped_weapons_on_tick_snap_replay
-    cmp eax, 0
-    je dropped_weapons_on_tick_snap_go
-    mov edx, 0x2d4f40
-    cmp eax, 1
-    je dropped_weapons_on_tick_snap_go
-    ud2
-dropped_weapons_on_tick_snap_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_tick_snap_replay:
-    db 0x89, 0x77, 0x20, 0x85, 0xc0
-    jmp 0x2d4f40
-
-; 0x27d802 move after inner placement: EAX status, EBX source identity, EBP arguments, site ESP+1Ch effective time: lohook -> dropped_weapons_on_moved
-global dropped_weapons_on_moved
-extern hook_dropped_weapons_on_moved
-dropped_weapons_on_moved:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_moved
-    mov edx, dropped_weapons_on_moved_replay
-    cmp eax, 0
-    je dropped_weapons_on_moved_go
-    mov edx, 0x27d807
-    cmp eax, 1
-    je dropped_weapons_on_moved_go
-    ud2
-dropped_weapons_on_moved_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_moved_replay:
-    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
-    jmp 0x27d807
-
-; 0x27dcb7 successful discard after unlink/pool return/dirty notification: EBX removed node identity, EBP core/place arguments; pop edi/pop esi/xor eax,eax/pop ebx: lohook -> dropped_weapons_on_discarded
-global dropped_weapons_on_discarded
-extern hook_dropped_weapons_on_discarded
-dropped_weapons_on_discarded:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_discarded
-    mov edx, dropped_weapons_on_discarded_replay
-    cmp eax, 0
-    je dropped_weapons_on_discarded_go
-    mov edx, 0x27dcbc
-    cmp eax, 1
-    je dropped_weapons_on_discarded_go
-    ud2
-dropped_weapons_on_discarded_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_discarded_replay:
-    db 0x5f, 0x5e, 0x33, 0xc0, 0x5b
-    jmp 0x27dcbc
-
-; 0x2792dc match info getter constructed bounds at ESI; before vtable store: lohook -> dropped_weapons_on_transport_ranges
-global dropped_weapons_on_transport_ranges
-extern hook_dropped_weapons_on_transport_ranges
-dropped_weapons_on_transport_ranges:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_transport_ranges
-    mov edx, dropped_weapons_on_transport_ranges_replay
-    cmp eax, 0
-    je dropped_weapons_on_transport_ranges_go
-    mov edx, 0x2792e2
-    cmp eax, 1
-    je dropped_weapons_on_transport_ranges_go
-    ud2
-dropped_weapons_on_transport_ranges_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_transport_ranges_replay:
-    db 0xc7, 0x06, 0x14, 0x84, 0xa0, 0x00
-    jmp 0x2792e2
-
-; 0x279694 length switch before subtract D8: ESI unsigned id, EBP frame, EAX ok pointer already set true; return epilogue preserves chosen EAX length: lohook -> dropped_weapons_on_transport_length
-global dropped_weapons_on_transport_length
-extern hook_dropped_weapons_on_transport_length
-dropped_weapons_on_transport_length:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_transport_length
-    mov edx, dropped_weapons_on_transport_length_replay
-    cmp eax, 0
-    je dropped_weapons_on_transport_length_go
-    mov edx, 0x27969a
-    cmp eax, 1
-    je dropped_weapons_on_transport_length_go
-    mov edx, 0x2796a6
-    cmp eax, 2
-    je dropped_weapons_on_transport_length_go
-    ud2
-dropped_weapons_on_transport_length_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_transport_length_replay:
-    db 0x81, 0xee, 0xd8, 0x00, 0x00, 0x00
-    jmp 0x27969a
-
-; 0x279a60 sending info switch: ECX unsigned id, EAX info output; input exit uses native 500ms lifetime/50ms retry/plain fixed flags: lohook -> dropped_weapons_on_transport_sending
-global dropped_weapons_on_transport_sending
-extern hook_dropped_weapons_on_transport_sending
-dropped_weapons_on_transport_sending:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_transport_sending
-    mov edx, dropped_weapons_on_transport_sending_replay
-    cmp eax, 0
-    je dropped_weapons_on_transport_sending_go
-    mov edx, 0x279a66
-    cmp eax, 1
-    je dropped_weapons_on_transport_sending_go
-    mov edx, 0x279a95
-    cmp eax, 2
-    je dropped_weapons_on_transport_sending_go
-    ud2
-dropped_weapons_on_transport_sending_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_transport_sending_replay:
-    db 0x81, 0xc1, 0x28, 0xff, 0xff, 0xff
-    jmp 0x279a66
-
-; 0x279b10 received info switch: ECX unsigned id, EAX info output; input exit uses native 250ms lifetime/50ms retry/plain fixed flags: lohook -> dropped_weapons_on_transport_received
-global dropped_weapons_on_transport_received
-extern hook_dropped_weapons_on_transport_received
-dropped_weapons_on_transport_received:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_transport_received
-    mov edx, dropped_weapons_on_transport_received_replay
-    cmp eax, 0
-    je dropped_weapons_on_transport_received_go
-    mov edx, 0x279b16
-    cmp eax, 1
-    je dropped_weapons_on_transport_received_go
-    mov edx, 0x279b67
-    cmp eax, 2
-    je dropped_weapons_on_transport_received_go
-    ud2
-dropped_weapons_on_transport_received_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_transport_received_replay:
-    db 0x81, 0xc1, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x279b16
-
-; 0x27a322 before message switch: EAX ID, ESI network client, EBX reader; common completion preserves native packet recording: lohook -> dropped_weapons_on_packet
-global dropped_weapons_on_packet
-extern hook_dropped_weapons_on_packet
-dropped_weapons_on_packet:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_packet
-    mov edx, dropped_weapons_on_packet_replay
-    cmp eax, 0
-    je dropped_weapons_on_packet_go
-    mov edx, 0x27a327
-    cmp eax, 1
-    je dropped_weapons_on_packet_go
-    mov edx, 0x27a6fc
-    cmp eax, 2
-    je dropped_weapons_on_packet_go
-    ud2
-dropped_weapons_on_packet_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_packet_replay:
-    db 0x05, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x27a327
-
-; 0x27c1f0 statistics entry before prologue: EAX placement status, EDX client, ESI input; return27C32D single or27C5CD batch: lohook -> dropped_weapons_on_relay_end
-global dropped_weapons_on_relay_end
-extern hook_dropped_weapons_on_relay_end
-dropped_weapons_on_relay_end:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_relay_end
-    mov edx, dropped_weapons_on_relay_end_replay
-    cmp eax, 0
-    je dropped_weapons_on_relay_end_go
-    mov edx, 0x27c1f6
-    cmp eax, 1
-    je dropped_weapons_on_relay_end_go
-    ud2
-dropped_weapons_on_relay_end_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_relay_end_replay:
+language_on_configs_start_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27c1f6
+    jmp 0x1ea216
 
-; 0x2d48c7 generic nonempty list eviction before unlink: EAX list, head at list+4; filter to registered world input lists; mov ecx,[eax+4]/dec dword[eax]: lohook -> dropped_weapons_on_evicting
-global dropped_weapons_on_evicting
-extern hook_dropped_weapons_on_evicting
-dropped_weapons_on_evicting:
+; 0x1ea306 on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded: lohook -> language_on_configs_texts
+global language_on_configs_texts
+extern hook_language_on_configs_texts
+language_on_configs_texts:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -857,29 +1214,29 @@ dropped_weapons_on_evicting:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_dropped_weapons_on_evicting
-    mov edx, dropped_weapons_on_evicting_replay
+    call hook_language_on_configs_texts
+    mov edx, language_on_configs_texts_replay
     cmp eax, 0
-    je dropped_weapons_on_evicting_go
-    mov edx, 0x2d48cc
+    je language_on_configs_texts_go
+    mov edx, 0x1ea30c
     cmp eax, 1
-    je dropped_weapons_on_evicting_go
+    je language_on_configs_texts_go
     ud2
-dropped_weapons_on_evicting_go:
+language_on_configs_texts_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-dropped_weapons_on_evicting_replay:
-    db 0x8b, 0x48, 0x04, 0xff, 0x08
-    jmp 0x2d48cc
+language_on_configs_texts_replay:
+    db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
+    jmp 0x1ea30c
 
-; 0x27d7f5 after source extraction before inner placement: EAX core, EBX source identity; replay effective-time sentinel initialization; every return continues to moved27D802: lohook -> dropped_weapons_on_moving
-global dropped_weapons_on_moving
-extern hook_dropped_weapons_on_moving
-dropped_weapons_on_moving:
+; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
+global language_on_options_call
+extern hook_language_on_options_call
+language_on_options_call:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -896,71 +1253,32 @@ dropped_weapons_on_moving:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_dropped_weapons_on_moving
-    mov edx, dropped_weapons_on_moving_replay
+    call hook_language_on_options_call
+    mov edx, language_on_options_call_replay
     cmp eax, 0
-    je dropped_weapons_on_moving_go
-    mov edx, 0x27d7fd
+    je language_on_options_call_go
+    mov edx, 0x1ff5d6
     cmp eax, 1
-    je dropped_weapons_on_moving_go
-    ud2
-dropped_weapons_on_moving_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_moving_replay:
-    db 0xc7, 0x44, 0x24, 0x40, 0xff, 0xff, 0xff, 0xff
-    jmp 0x27d7fd
-
-; 0x27eaff input history sender before node ESI becomes transport slot: ECX selected rotation, EBP context, ESP+24 actions/+2C place; sent flag already set, queued continues native loop: lohook -> dropped_weapons_on_send
-global dropped_weapons_on_send
-extern hook_dropped_weapons_on_send
-dropped_weapons_on_send:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_send
-    mov edx, dropped_weapons_on_send_replay
-    cmp eax, 0
-    je dropped_weapons_on_send_go
-    mov edx, 0x27eb04
-    cmp eax, 1
-    je dropped_weapons_on_send_go
-    mov edx, 0x27eb4d
+    je language_on_options_call_go
+    mov edx, 0x1ff971
     cmp eax, 2
-    je dropped_weapons_on_send_go
+    je language_on_options_call_go
     ud2
-dropped_weapons_on_send_go:
+language_on_options_call_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-dropped_weapons_on_send_replay:
-    db 0x8b, 0x75, 0x00, 0x33, 0xdb
-    jmp 0x27eb04
+language_on_options_call_replay:
+    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x1ff5d6
 
-; 0x1f7c6c game_world EBX, before mt_player_draw flag chooses parallel tasks or synchronous player draws; previous simulation movement joined: lohook -> dropped_weapons_on_draw_begin
-global dropped_weapons_on_draw_begin
-extern hook_dropped_weapons_on_draw_begin
-dropped_weapons_on_draw_begin:
+; 0x27c116 network_client::process_dynamic_match_info (0xE8) after game_world_core::deserialize 0x2D0B70, where its two branches (compressed 0x27C0D9, raw 0x27C111) join: mov eax,[edi+4] / test eax,eax; EDI the client (mov edi,ecx at 0x27BFFB): lohook -> late_join_insert_on_world_loaded
+global late_join_insert_on_world_loaded
+extern hook_late_join_insert_on_world_loaded
+late_join_insert_on_world_loaded:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -977,102 +1295,24 @@ dropped_weapons_on_draw_begin:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_dropped_weapons_on_draw_begin
-    mov edx, dropped_weapons_on_draw_begin_replay
+    call hook_late_join_insert_on_world_loaded
+    mov edx, late_join_insert_on_world_loaded_replay
     cmp eax, 0
-    je dropped_weapons_on_draw_begin_go
-    mov edx, 0x1f7c73
+    je late_join_insert_on_world_loaded_go
+    mov edx, 0x27c11b
     cmp eax, 1
-    je dropped_weapons_on_draw_begin_go
+    je late_join_insert_on_world_loaded_go
     ud2
-dropped_weapons_on_draw_begin_go:
+late_join_insert_on_world_loaded_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-dropped_weapons_on_draw_begin_replay:
-    db 0x80, 0x3d, 0xd2, 0xd9, 0xf1, 0x01, 0x00
-    jmp 0x1f7c73
-
-; 0x1f7e0b game_world EBX, both draw paths joined; parallel tasks waited by10D4E0 at1F7D7F, serial loop ends1F7E09: lohook -> dropped_weapons_on_draw_complete
-global dropped_weapons_on_draw_complete
-extern hook_dropped_weapons_on_draw_complete
-dropped_weapons_on_draw_complete:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_draw_complete
-    mov edx, dropped_weapons_on_draw_complete_replay
-    cmp eax, 0
-    je dropped_weapons_on_draw_complete_go
-    mov edx, 0x1f7e10
-    cmp eax, 1
-    je dropped_weapons_on_draw_complete_go
-    ud2
-dropped_weapons_on_draw_complete_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_draw_complete_replay:
-    db 0x80, 0x7c, 0x24, 0x0f, 0x00
-    jmp 0x1f7e10
-
-; 0x2477c8 player EBX, exact chosen held-item world transform EAX, before mov ecx,[ebx+128] and virtual draw; after ragdoll Weapon bone pose: lohook -> dropped_weapons_on_weapon_draw
-global dropped_weapons_on_weapon_draw
-extern hook_dropped_weapons_on_weapon_draw
-dropped_weapons_on_weapon_draw:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_dropped_weapons_on_weapon_draw
-    mov edx, dropped_weapons_on_weapon_draw_replay
-    cmp eax, 0
-    je dropped_weapons_on_weapon_draw_go
-    mov edx, 0x2477ce
-    cmp eax, 1
-    je dropped_weapons_on_weapon_draw_go
-    ud2
-dropped_weapons_on_weapon_draw_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-dropped_weapons_on_weapon_draw_replay:
-    db 0x8b, 0x8b, 0x28, 0x01, 0x00, 0x00
-    jmp 0x2477ce
+late_join_insert_on_world_loaded_replay:
+    db 0x8b, 0x47, 0x04, 0x85, 0xc0
+    jmp 0x27c11b
 
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
@@ -1311,6 +1551,126 @@ ragdoll_on_held_item_replay:
     db 0x8b, 0xb3, 0x28, 0x01, 0x00, 0x00
     jmp 0x247555
 
+; 0x2477df mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command: lohook -> ragdoll_on_post_bones
+global ragdoll_on_post_bones
+extern hook_ragdoll_on_post_bones
+ragdoll_on_post_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_post_bones
+    mov edx, ragdoll_on_post_bones_replay
+    cmp eax, 0
+    je ragdoll_on_post_bones_go
+    mov edx, 0x2477e8
+    cmp eax, 1
+    je ragdoll_on_post_bones_go
+    mov edx, 0x24781e
+    cmp eax, 2
+    je ragdoll_on_post_bones_go
+    ud2
+ragdoll_on_post_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_post_bones_replay:
+    db 0x8b, 0x4d, 0xe4, 0x8b, 0x93, 0x90, 0xf2, 0x00, 0x00
+    jmp 0x2477e8
+
+; 0x15a950 update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization: lohook -> ragdoll_on_render_bones
+global ragdoll_on_render_bones
+extern hook_ragdoll_on_render_bones
+ragdoll_on_render_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_render_bones
+    mov edx, ragdoll_on_render_bones_replay
+    cmp eax, 0
+    je ragdoll_on_render_bones_go
+    mov edx, 0x15a957
+    cmp eax, 1
+    je ragdoll_on_render_bones_go
+    ud2
+ragdoll_on_render_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_render_bones_replay:
+    db 0x80, 0xbf, 0xd8, 0x62, 0x00, 0x00, 0x00
+    jmp 0x15a957
+
+; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]: lohook -> ragdoll_on_killed
+global ragdoll_on_killed
+extern hook_ragdoll_on_killed
+ragdoll_on_killed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_killed
+    mov edx, ragdoll_on_killed_replay
+    cmp eax, 0
+    je ragdoll_on_killed_go
+    mov edx, 0x2da3e5
+    cmp eax, 1
+    je ragdoll_on_killed_go
+    ud2
+ragdoll_on_killed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_killed_replay:
+    db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da3e5
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
@@ -1357,6 +1717,3 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
-
-; Trivial boost function invoker: buffer holds the completion pointer; result is queries_result. Native copying/dispatch proven by check_pickup_resource_query.py.
-RUST_CDECL callback_inventory_ready, hook_callback_inventory_ready, 2

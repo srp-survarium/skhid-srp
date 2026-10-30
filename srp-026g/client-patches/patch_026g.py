@@ -485,7 +485,9 @@ Patches:
   arena's blocks match_keys.code and .state): the game world's
   on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
   movie's root.select_kit_key for a key 1 to 3 going down while the hud
-  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
+  shows the cursor and has shown it for 300 ms (its handler's slot +14h,
+  0x9FC59C, after each poll, GetTickCount: a key pressed before then, or in
+  the frame the kits came, picks nothing), and goes on as before; the hud's constructor call (0x1F6845)
   registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
@@ -698,7 +700,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 36
+REVISION = 38
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1187,7 +1189,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "late_join_insert")
 
 
 def rust_hooks(original):
@@ -1400,6 +1402,19 @@ REPLAY_LINK_VA = SECTION_VA + REPLAY_LINK_OFFSET
 REPLAY_LINK_HANDLER = 0x28CDA0
 REPLAY_LINK_HOOK = (0x28CDB6, bytes.fromhex("6a016a006a00"), 0, 0xE9)
 REPLAY_LINK_BUFFER = 0x1E6144                 # in the lobby client
+
+# The Knowledge database callback (0x28CAB0) copies this fixed prefix to
+# its stack, appends ru/en and /Knowledgebase/List, then ShellExecuteA's it.
+# Keep the native browser call and stack cleanup, but skip both appends:
+# the wiki chooses its language from the browser and its own language switch.
+KNOWLEDGE_BASE_URL = b"https://026g.skhid.link/wiki"
+KNOWLEDGE_BASE_ORIGINAL = b"https://support.survarium.com/index.php?/\0"
+KNOWLEDGE_BASE = (
+    (0xA0A7A8, KNOWLEDGE_BASE_ORIGINAL,
+     (KNOWLEDGE_BASE_URL + b"\0").ljust(len(KNOWLEDGE_BASE_ORIGINAL), b"\0")),
+    (0x28CBA3, bytes.fromhex("e8d3a31900"), b"\x90" * 5),
+    (0x28CBB7, bytes.fromhex("e8bfa31900"), b"\x90" * 5),
+)
 
 # One upgrade on several items (patch 30, client_patch.md section 3.28):
 # shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
@@ -2049,12 +2064,24 @@ ARTEFACTS_SIZES = (
 #   0x26B916: with the option on, in a match, a player's line on a channel
 #   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
 # No base relocation is under a site and no branch aims inside one.
+# And a slot (MATCH_KEYS_POLL_SLOT): the game world's input handler's +14h
+# (its vtable 0x9FC588; `ret 4` at 0x75AF0 in the original), which the input
+# world's tick (0x3B7BD0) calls for every handler after it polled the devices
+# and before they hand out the keys: match_keys_poll sets the kits' screen's
+# state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
+# first poll the kits are up at, with its time; OPEN from the first poll 300
+# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# that went down in the frame the kits came, in play, is handed out in their
+# first tick and picks nothing, nor does one pressed in their first 300 ms
+# (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
     (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
+MATCH_KEYS_POLL_SLOT = (0x9FC59C, struct.pack("<I", 0x75AF0), "match_keys_poll")   # the handler's slot +14h
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
@@ -2088,7 +2115,7 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# 2Ah rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2117,8 +2144,20 @@ def hide_ui_table_writes(linked):
     table = linked.symbols["controls"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
-    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + len(CONTROLS_ADDED)]) + old[at + 1:])
+            for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
+
+
+# The rows `controls` adds after the game's 28h: (action, label key).
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
+# Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
+# own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
+# nothing in the game reads and had no default key, gets H (the binder's
+# set_default_controls 0x2078A0 binds each entry's +10h at its construction,
+# before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
+# 42nd of `controls`.
+ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -2328,6 +2367,8 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    MATCH_KEYS_POLL_SLOT[0]: (SLOT, "the game world's input handler's slot +14h (vtable 0x9FC588; thiscall, the "
+                                    "input world; the input world's tick calls it after the poll): poll", None, None),
     # the key that hides the interface, patch 62 (in `.srpx`)
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
@@ -2360,6 +2401,14 @@ INSTALLS = {
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
 }
+# Explain weight in the lobby; presentation only, no simulation changes.
+WEIGHT_UI_HOOKS = (
+    (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
+    (0x2222EB, bytes.fromhex("e810f32e00"), "weight_ui_display", 0xE8),
+)
+INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
+INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2546,6 +2595,8 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
+    ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
+    ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
     ArenaBlock("research.code", "code", 0x1000,
                ("research_026g.asm", "research_arena/Cargo.toml")),
@@ -3152,6 +3203,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     # Every build: `stage.focus` reads null for a focused object without its
     # ActionScript object (patch 52; no relocation under the 46 bytes).
     patch(data, *STAGE_FOCUS)
+    for va, expected, new in KNOWLEDGE_BASE:
+        patch_section_value(data, va, expected, new)
+    rewritten.extend((va, va + len(expected)) for va, expected, _ in KNOWLEDGE_BASE[1:])
     rewritten.append((STAGE_FOCUS[0], STAGE_FOCUS[0] + len(STAGE_FOCUS[1])))
     if mode == "hash-mismatch":
         if len(cave) > HASH_MISMATCH_SIZE:
@@ -3612,12 +3666,15 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                slot, old, symbol = MATCH_KEYS_POLL_SLOT
+                patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
@@ -3678,7 +3735,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
-                     "the keys 1, 2 and 3 pick a kit while the kits are shown, "
+                     "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
+                     "they came or in their first 300 ms), "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "

@@ -1569,18 +1569,21 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's block `artefacts.code`, a code page (0xA431000 as the link places it today, §0.3; the hooks jump to its six global entries by name), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
 
-### 3.53 The keys 1, 2 and 3 pick a kit; a match chat option (written 2026-10-23, README patch 58, the next release's revision; the rules: `match-hud-options.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own cvar code; not run in a game
+### 3.53 The keys 1, 2 and 3 pick a kit; a match chat option (written 2026-10-23, README patch 58, the next release's revision; the rules: `match-hud-options.md`) — PROVEN in the code, the four entries run with Unicorn with the game's own cvar code and input tick; not run in a game
 
 A player's asks (board T29): number keys for the kit choice before a respawn (misclicks), and an option to turn the in-game chat off.
 
 - **The kit picker** (PROVEN). The kits before a respawn and before the start are the hud movie's `_profilePanel` (`HUDProfileSelector`, its `SrvProfileSelectorHUD`, a `ProfileSelector` whose `tabPage` is a CLIK ButtonBar of three tabs, `SrvPlayerProfileTabHUD`), shown by `root.show_profiles_selector` (0x2383B0, with `show_cursor` 0x23A930: the hud's +2DCh). A click changes `tabPage.selectedIndex`; its INDEX_CHANGE runs `onProfileSelected`, which calls `ExternalInterface.call("profile_changed", index)`: the exe's 0x233F06 -> 0x1F8070 queues the kit input (§3.29; patch 31 keeps the kits shown after it). A tab is greyed (`enabled` false, `setup_player_profiles`: a kit that is not complete) and does nothing; a click on the chosen tab changes nothing (`set selectedIndex` returns on the same index). No new message: a key does what a click does.
-- **Where the keys go** (PROVEN). `vostok::input` hands a key to the input handlers by priority; the game world's (`input_priority` 0x1F63D0: 7) comes before the player's (10). The game world's `on_keyboard_action` (0x25CD00, slot 0 of the vtable 0x9FC588 at game_world+1F8h; thiscall, the input world, the DirectInput key, the kind; `ret 0Ch`; re-kit abi rows) asks the input world whether Tab is held (0x2384C0, `root.show_player_list`), returns 0 for a held Tab, then at 0x25CD41 `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` (kind 1, a key down; 0x25CF0D `xor al,al` and the epilogue) and handles chat (0x3F, Enter, numpad Enter), L, Esc and its actions 11h..19h by bind; anything else returns 0 and goes on to the player's handler (`on_keyboard_action` 0x23FE00, kinds 1/2/3 pushed as states 0/1/2). The hud movie gets keys only from the chat handler (0x20899D, `0x1FDD70`, while the chat is typed in): `HUD.as` sees no 1, 2 or 3 on the kit screen.
+- **Where the keys go** (PROVEN). `vostok::input` hands a key to the input handlers by priority; the game world's (`input_priority` 0x1F63D0: 7) comes before the player's (10). The game world's `on_keyboard_action` (0x25CD00, slot 0 of the vtable 0x9FC588 at game_world+1F8h; thiscall, the input world, the DirectInput key, the kind; `ret 0Ch`; re-kit abi rows) asks the input world whether Tab is held (0x2384C0, `root.show_player_list`), returns 0 for a held Tab, then at 0x25CD41 `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` (kind 1, a key down; 0x25CF0D `xor al,al` and the epilogue; the kinds are the keyboard's: 1 down, 2 up, 3 held) and handles chat (0x3F, Enter, numpad Enter), L, Esc and its actions 11h..19h by bind; anything else returns 0 and goes on to the player's handler (`on_keyboard_action` 0x23FE00, kinds 1/2/3 pushed as states 0/1/2). The hud movie gets keys only from the chat handler (0x20899D, `0x1FDD70`, while the chat is typed in): `HUD.as` sees no 1, 2 or 3 on the kit screen.
 - **The patch, keys** (`MATCH_KEYS_HOOKS[0]`, JUMP at 0x25CD41, ten bytes -> `jmp match_keys_keyboard` + five nops): the kind's test again; for a key down with DIK 2..4 while the handler's +2E0h (the hud's cursor) is set and the movie is there, `engine_movie_invoke([[[edi+0Ch]+108h]+4], "root.select_kit_key", 0, {0, 4 uint, key-2}, 1)` (as the hud's own calls, 0x2384C0), all registers kept (pushad), then `jmp 0x25CD4B`; any other kind `jmp 0x25CF0D`. The key is not taken. `HUD.select_kit_key` returns unless `_profilePanel.visible` and the chat is not being typed in (a flag `focus_chat` sets and clears, or `stage.focus` on its input; not the input's `visible`, which `SrvGameChat`'s timeline starts true until the chat is first closed); `ProfileSelector.pickByKey` sets `tabPage.selectedIndex` for a kit that is enabled and not the chosen one.
+- **The input tick** (PROVEN, 2026-10-25). `game::tick` (0x1EC890) runs the input world's tick (0x3B7BD0, slot 0 of the input world 0xAA5430, `[game+5358h]`, at 0x1ECB67) before the game world's update (`[game+539Ch]` vtable+8 at 0x1ECBE1), whose hud turns to the kits when the local player dies. The tick (thiscall, the time; `ret 4`; it runs while the world is active, +34h) polls each device (the keyboard is +24h: its execute, vtable+20h 0x3B8D20, `GetDeviceData` into its buffer +408h, 14h a DIDEVICEOBJECTDATA, the count +404h, and the state of each key +4 + 4 x DIK, 80h down), then calls every handler's slot +14h with the input world, then each device's process (the keyboard's, vtable+24h 0x3B9AF0: each polled event in order, kind 1 for 80h down and 2 for up, then kind 3 for every key down, every tick), then every handler's slot +18h. A key's kind 1 is an edge: a key held makes kind 3 only. The game world's handler has `ret 4` (0x75AF0) in both slots (0x9FC59C, 0x9FC5A0).
+- **Why kit 3 came after a death** (PROVEN, the owner's report 2026-10-25: "I often press 3 mid-fight to heal with the medkit, I die, and I swap to my 3rd kit"). Not a held key (that is kind 3, which the hook let by), and no queue of the patch's own: the hook asked the cursor when the key was handed out, not when it went down. A tick hands out what its poll got, every key that went down since the poll before; the death turns the hud to the kits in the game world's update after that poll. So the first tick on the death screen handed out, as kind 1 with the cursor shown, the key 3 pressed in play in the frame of the death (after that frame's poll), and `select_kit_key(2)` picked kit 3 at once: `profile_changed` queues the kit input (0xDE) for the next send, and the server makes it the next life's kit at its tick (§3.29); only another pick undoes it. The keys were taken in every state with the cursor: the death screen from the first tick after the death through the respawn countdown (the death camera is that screen, patch 46), and the kits before the start (patch 31). Run on main's build (rev 34) with the game's tick: 3 held at the death, nothing; 3 pressed or tapped in the death's frame, kit 3.
+- **The patch, the kits' first 300 ms** (`MATCH_KEYS_POLL_SLOT`, SLOT at 0x9FC59C, `ret 4` 0x75AF0 -> `match_keys_poll`): the slot runs after each poll, before its keys are handed out, and moves `kit_keys` (match_keys.state) by the cursor (+2E0h) and GetTickCount (its import 0x870090, as bake_cache's): hidden CLOSED (`kit_keys_since` cleared); shown, from CLOSED OPENING with the time now in `kit_keys_since` (the kits came after the last poll: a key of this one may have gone down before them); from OPENING OPEN once now - since (unsigned, over the wrap) is `KIT_KEYS_DELAY` (300 ms) or more, else OPENING; from OPEN OPEN. The owner's rule (2026-10-25, after the first version, which opened at the next poll): a player still pressing 3 to heal just after the death presses on the kits before seeing them, so the keys pick nothing for 300 ms after the kits appear. `match_keys_keyboard` picks only in OPEN (and with the cursor still shown). OPEN comes at a later poll than the one that saw the kits, so a key pressed in their frame is OPENING's; a key pressed in their first 300 ms (less a frame: a press is taken at the poll that hands it out) is OPENING's; held, either makes no kind 1 until let go and pressed again. The same holds for the kits before the start. Nothing else changes: the keys go on to the game as before (1/2/3 the quick slots in play). The pointer in .rdata is the vtable's, under a base relocation already (the exe is never rebased).
 - **The option** (PROVEN). The gameplay options (`options_tab::options_tab` 0x262300, tab 0) make option 4 at 0x262454: `options_item_bool` (vtable 0xA06744) named "g_private_messages_in_game" (0xA064FC, in the exe there alone), labelled `st_private_messages_in_game_option`. `options_item_base::options_item_base` (0x260E90) looks its command up by name (0xEB7C0, the list 0x1F1D66C) and logs a warning when there is none: there is none, so the option has no value and nothing reads it; `main_menu.swf`'s timeline greys its checkbox (`_no_in_batle.enabled = false`, as the other social options, which are dead the same way: g_invite_from_friends, g_friends_signin_notification, g_messages_only_from_friends, g_hide_spam). The options are made by `game_options::on_resources_ready` (from `game_options::initialize` 0x1FFC10, called at 0x1EAC7C after the base resources).
-- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; the content edit `match-chat-off-1.json` labels it "Hide chat in match".
+- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; `client-patches/localization/*.tsv` labels it "Hide chat in match".
 - **The patch, the lines** (`MATCH_KEYS_HOOKS[2]`, CALLEE at 0x26B916, `call 0x208AD0` -> `call match_keys_chat`): `process_incoming_text_message` (0x26B6F0, message 0xA2) gives every line it shows to `chat_handler::add_message` (0x208AD0; stdcall: the handler, the channel, the body, the name, the tag; `ret 14h`). `chat_handler::set_mode` (0x209430) sets the handler's movie (+14h) and +0Dh: 1 with the hud (the game world's `on_activate`, 0x1F93C5), 0 with the lobby's (0x21D34F); add_message gives channels 1 and 4 to the lobby's movie while +0Dh is set. `match_keys_chat`: option on, +0Dh set and channel 3 or 5..9 -> `ret 14h` (eax not kept: add_message's own eax is garbage, the caller's next call `add_to_recent_list` 0x209330 takes the name and edi); else `jmp 0x208AD0`. The server relays a line to everyone but its sender (`relay`, `**id != from`), and the sender's own line is shown by the local echo (`messaging_client` 0x26ADF4, another call): it stays.
 - **What changes:** in a match, keys 1, 2 and 3 pick kit 1, 2 and 3 on the kit screen (the key also reaches the player's handler as before, which a dead player's game does not send); with "Hide chat in match" checked, no other player's line appears in the match chat. No simulation change.
-- **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): 72 key cases, the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
+- **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): the poll's ten cases (299 and 300 ms, over GetTickCount's wrap too), 216 key cases (each state of `kit_keys`), 64 input-tick runs of the game's own tick and keyboard process (keys 1 to 4, GetTickCount from 1000 and from before its wrap: pressed 100 and 250 ms after the kits appear, none; 350 ms after, a pick; pressed at 100 ms and held into OPEN, none until let go and pressed again; held into the kits; pressed in their frame; in play; a respawn and a death), the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
 
 ### 3.54 One key hides the interface, in a match and in the lobby (written 2026-10-23, README patch 62, the next release's revision; the rules: `hide-ui-key.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own show_ui and get_binded_action; not run in a game
 
@@ -2064,12 +2067,12 @@ section table (0x210..0x400): 12 slots
   .srpx                                            (the arena, 12)
 
 .srpx (VA 0xA42D000), its first blocks (the lock records every block):
-  research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3804
+  research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3874
   research.state   state 0x1000  research_arena STATE                 -> 0xa431000, 0x44
   artefacts.code   code  0x1000  artefacts_026g.asm                   -> 0xa432000, 0x440
   engine.code      code  0x1000  engine_026g.asm (0.5)                -> 0xa433000, 0x5dd
-  match_keys.code  code  0x1000  match_keys_026g.asm (patch 58)       -> 0xa434000, 0x108
-  match_keys.state state 0x1000  its option's variable                -> 0xa435000, 0x4a
+  match_keys.code  code  0x1000  match_keys_026g.asm (patch 58)       -> 0xa434000, 0x168
+  match_keys.state state 0x1000  its option's variable, kit_keys      -> 0xa435000, 0x50
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 
@@ -2364,8 +2367,219 @@ filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
 
+### Lobby weight explanation
 
-## Dropped-weapon input ownership (patch 78, in progress)
+`weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
+`weight_ui.state` arena blocks. The jump at 0x22110F saves the machine state,
+reads the current lobby's player stamina config, replays `mov eax,[esi+108h]`,
+then continues at 0x221115. The call at 0x2222EB replaces only the lobby weight
+GFx invocation: the original movie arguments supply current and modified maximum
+weight; `engine_apply_modifier` (0x2D5AE0) on `profile + F4h + kit * 704h`
+supplies modifiers 26, 31 and 32, matching the stamina calculation. The profile
+equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
+switch crashes with equipped gear, now covered by the native regression check.
+The callback gains movement/spending fractions and sprint state
+(0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It also gives the kit's own movement-speed modifier (the raw float of index
+4: the skills) and whether Bear Arms (modifier 62, additive) is on, for the
+speed shown beside the weight (`data.md`, "The kit's movement speed").
+And the carry limit's parts: the menu's base limit (+3118h), the kit's floats
+of modifiers 5 (skills) and 26 (Packrat) (`data.md`, "The carry limit by
+source"): ten arguments in all.
+It retains the original two arguments if the config is unavailable or invalid.
+The shim preserves registers, flags and floating-point state and returns with
+the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
+the original callback and kit evaluator; `data.md` records the formula evidence.
+No gameplay calculation or release revision changes.
+
+### Knowledge database link
+
+The lobby's Knowledge database button keeps its confirmation dialog and native
+`go_to_knowledge_base` callback (0x28CAB0), but opens
+`https://026g.skhid.link/wiki`. `KNOWLEDGE_BASE` replaces the fixed URL prefix at
+0xA0A7A8 and NOPs the two `strcat_s` calls at 0x28CBA3/0x28CBB7 that appended
+the old support site's language and path. Their argument pushes and cdecl stack
+cleanup remain paired. ShellExecuteA, `AL=1`, and `ret 4` stay unchanged. The wiki
+uses browser language selection and its own language switch. No new code arena
+is needed for these constant-data/in-place removals. `check_knowledge_base_026g.py`
+executes the original and patched callback in every game language, capturing
+the browser call and checking its URL, arguments, preserved ESI and stack.
+
+### Weapon detail cards
+
+`weapon-details-ui-1.json` copies each weapon's existing configuration values
+into non-comparable UI properties 138–159; it changes no simulation parameters.
+`WeaponDetails.as` reads those values for inventory and shop cards. The compact
+card replaces the ambiguous distance row with the full-damage distance and the
+minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
+draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
+spread/recovery and sway. Wear rates and reliability are deliberately excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded.
+
+Recoil and spread are not labelled degrees: the native recoil loader at
+0x331840 divides horizontal config values by 21.48 and vertical values by
+63.735. The dispersion loader at 0x330EE0 copies growth and recovery rates
+directly, as the breath loader at 0x2DEBC0 does for amplitudes and period.
+The UI reports each weapon's own base recoil/spread/sway values, named in each
+language's own recoil, spread and sway words (the stock dictionary's: Russian
+отдача, разброс, раскачивание). Vertical (initial upward) recoil
+shows `[min_top, max_top]`; horizontal (initial sideways) recoil shows
+`[min_right - max_left, max_right - min_left]`, matching the engine's independent
+right-minus-left draws. Variability is the standard deviation: upward range
+width divided by `sqrt(12)`, sideways `sqrt((right_width² + left_width²) / 12)`.
+These describe the initial shot impulse before accumulation and recovery.
+Signed sideways ranges stay neutral; lower variability compares as better.
+Upward ranges compare as better only when both endpoints are no higher and at
+least one is lower, using displayed precision; crossing ranges stay neutral.
+The values are relative configuration units, not degrees.
+An early AK-74M = 100% benchmark was removed because it looked like a
+weapon parameter and obscured the actual values.
+Missing detail metadata retains the original distance row. Native card layout
+owns resizing, and lobby positioning is refreshed when Shift changes its height.
+
+Focused check: `scripts/weight-ui/check_ui.sh <lobby.swf> <output-dir>
+scripts/weapon-details/WeaponDetailsHarness.as DETAILS` exercises native card
+expansion/collapse, comparison colors, translated heights, base values and old
+content fallback. In every language, compact and expanded, and beside the widest
+values of the live weapons (MSBS: -0.58…0.58, 1.98…2.2), every label is one line
+ending left of its value and every heading one line, with 5% of the width to
+spare (Ruffle lays out the embedded Calibri close to, not exactly as, Scaleform);
+each miss is printed as a `DETAILS OVERFLOW` line. A label that would not fit
+wraps before its value rather than under it (`LabelDiffIndicator`), the row
+taking the lines. The existing weight harness also checks the shop constructor.
+
+Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
+`WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,
+transforms and original row spacing from `ItemCompare`.
+An initial dynamic `TextField` copied from the empty description rendered with
+tiny black fallback text in Scaleform despite looking legible in Ruffle.
+An intermediate fix still overrode the original gray/bold labels, gold numbers
+and column geometry. `LabelDiffIndicator.setDetailText` now follows the original
+formatter and only substitutes the read-only value string and hides bars (these
+base fields have no comparison ranges). Native unit spacing is retained; long
+notes wrap at the original columns. The harness compares font, size, boldness,
+alignment, color, global text scale, columns and row spacing against the card's
+original rows, as well as checking value and frame bounds in every language (the texts are
+`st_srp_weapon_*` and `st_srp_unit_*` dictionary keys, localization/README.md).
+
+Headings and the Shift hint are separate caption entries,
+rendered with native embedded-font fields by `WeaponDetailCaption`; headings
+have brighter, larger text on a near-black divider band, while the Shift hint is muted gray.
+Only numeric entries use the stat-row formatter. Comparison cards reserve the
+larger of each pair's wrapped label heights. Missing `from_the_hip_multiplier`
+now displays 1x (including Kiparis), matching the loader's 0x330FE3 branch to the
+1.0 constant at 0xA70884, rather than omitting the row and shifting every later
+stat. The harness verifies matching row positions and caption contrast as well.
+Compared weapon cards also reserve the larger natural header height, including
+wrapped optics descriptions, so their original and added stats align. Returning
+to a single card restores its natural header. The redundant "Weapon modifiers
+only" note is omitted. Early comparison resize events wait for the three bonus
+list containers as well as their data providers before laying out the card.
+
+Each stat has a stable property id and an explicit comparison direction. Higher
+damage/range and recovery rate are better; lower times, recoil, spread and sway
+amplitudes are better. Zoom and sway period are neutral traits. Draw/holster,
+damage-floor distance/amount and horizontal/vertical sway have separate rows so
+one value cannot inherit another value's color. The native row formatter supplies
+red/green; equal displayed values retain the original neutral color (comparison
+scores use display precision, avoiding float-noise differences).
+Holding Ctrl suppresses comparison colors and difference bars in both original
+and added card rows, independently of Shift's expanded view. Releasing Ctrl
+restores comparisons without changing values. The harness covers both key orders
+and restores both original and added colors.
+
+Audit of all 83 weapon configurations: none of these displayed parameters is
+constant across every weapon. The minimum damage fraction is the closest: 60%
+for 82 weapons, 80% for Winchester 1894. No varying stat was removed as a constant.
+
+`WeaponDetails.read` applies only `item.modifiers` (already containing defaults),
+never the profile, gloves or other equipped items. Property 24 scales both
+falloff distances by `max(0, 1 + sum)`; property 114 scales weapon reload time by
+`max(0, 1 - sum)`. The opposite reload sign is explicit in weapon modification
+2040..2044 and defect 3040: the UI calls a reload improvement positive while its
+config change to `parameters/reload_time` is negative. The native type-2 operator
+at 0x358010 sums percentages, clamps `1 + sum` at zero, then multiplies the base.
+Values are copied before modification and comparisons use the resulting values.
+
+Existing data issue, deliberately not masked by UI: recoil modifications
+2080..2084 and defect 3060 target `max_first_shoot_*` / `*_queue_shoot_*` fields,
+absent from current weapons' recoil blocks. `find_modifier_target` 0x2F1430
+returns null for missing paths; the cook skips them at 0x2F1ABF. Current recoil
+loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
+The card therefore does not invent a recoil reduction. Likewise a base-dispersion
+upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+separate view FOV does not change the explicitly labelled base aim-zoom parameter.
+
+### Artefact score (patch 80)
+
+`artefact_score` (Rust, `vostok::ArtefactPickup`) is a lohook at 0x31C810 in
+`artefact_container_core::use_execute`, after the collection time and before
+`transfer_artefact` (`lea eax,[ebx+108h]`, 6 bytes; EBX the user, EDI the
+container). It reads the user's artefact slots as `inventory::take_artefact`
+0x2FC850 is about to search them ([inventory+168h] the first slot, byte
+[+16Ch] how many; an empty slot holds 0): an empty one, Free; none, Full (the
+game then replaces the first slot's artefact, 0x2FC897, as before). Free
+counts event 16 for the user's place [player+114h] and kit [player+115h] in
+the statistics of [[container+54h]+18FA8h] (+8 the shared ones, a place's
+record 1F8h, events[28][3] u16): the cell + 1 with no bound, then
+`notify_listener` 0x2F5D40 (place, 16, 1) when the listener (+31A0h) is set,
+exactly as `on_artefact_taken` 0x2F55F0 counts event 5 after the transfer.
+No statistics handler (0 before start_match and after finish_match), or a
+place or kit that is no record's: nothing, as the game counts nothing then.
+0.26g counts event 16 nowhere else (its finish_match 0x2F4CF0 counts 11, 12
+and 27; no `inc` of a +60h..+64h cell in .text), so srp reuses it.
+
+Simulation: the count is in the world's statistics, so every client of a match
+must run it (a release's revision; the session refuses older replays). No
+state is kept between hooks: a rollback re-runs the same pickup on the same
+slots. `check_artefact_score_026g.py` runs the installed hook to the push after
+the site on made-up objects (Free, Full, no slots, no listener, no handler,
+places and kits out of range, the wrap), the game's own event 5 count on the
+same statistics (the same indexing), and take_artefact's own search to its
+two branches on the same layouts.
+
+### Players put into a loaded world (patch 82)
+
+Only a spawn inserts a player: `player::insert` 0x1F2720 (the respawn rule's
+spawn calls it through vtable+20h with 1 at 0x316EA9) runs
+`base_player::insert` 0x2DA850, the one writer of m_has_been_inserted [+33Fh]
+:= 1 (0x2DA869; `base_player::remove` 0x2DA790 writes 0), which for an alive
+player activates its physics (0x2D9930) and, with 1 and a world, links the
+world's tick lists (+18860h, +18880h: unconditionally, so never twice), then
+sets the 3D icon's and models' part (+0F4E0h, 0x1F2300). A world loaded from
+the server, 0xE8 through `game_world_core::deserialize` 0x2D0B70 and
+`base_player::deserialize` 0x2DB490, sets m_is_alive [+33Ch] alone
+(0x2DB4E8). So on a client that joins a match late (or is resynced while a
+player it had dead is alive again), every such player is alive and outside
+the world until its next spawn: `update_minimap_players` 0x239420 skips it
+(0x2394D1: minimap and Tab map), the 3D icon too (0x1F2AE0), and the rule's
+living list (0x3168D9, 0x316987). Seen live in rev 38 (match 0x107a2189: the
+allies who had not died since a late joiner came were missing from its map).
+
+`late_join_insert` (Rust, `vostok::world::NetworkClient::at_world_loaded`,
+`Player::enter_world`) is a lohook at 0x27C116 in
+`network_client::process_dynamic_match_info`, where the compressed (0x27C0D9)
+and raw (0x27C111) loads join (`mov eax,[edi+4]` / `test eax,eax`, 5 bytes;
+EDI the client). For each place of the match options, the place's active
+player (get_active_player 0x27A9C0, its reference given back) that is alive
+and not inserted is inserted with 1, as its spawn did on the other clients.
+An inserted or a dead player is left as it is (a dead one still inserted is
+the rule's to remove). Simulation: the joiner's living list and physics now
+hold those players as every other client's does (the `next` row).
+`check_late_join_insert_026g.py` runs the installed hook to the je after the
+site with the client's functions and insert stubbed: alive and outside,
+inserted once with 1; inserted, dead, empty places untouched; a second load
+inserts nobody; the references given back; registers and stack kept.
+
+## Dropped-weapon input ownership (patch 83, parked)
+
+**Parked, not built.** The Rust patch was written against the untyped `raw`
+layer that main has since replaced (typed handles, `rust_patches.md`). Its code,
+its table rows (engine, fields, sites, callbacks), the vostok `world.rs`
+additions and the `check_engine_026g.py` extension are kept, unported, in
+`client-patches/parked/dropped_weapons/`; nothing of it is in the arena, the
+hook tables or the exe. Restarting the client side means porting it to typed
+kinds. What follows describes the parked code.
 
 The Rust `dropped_weapons` hooks create and destroy a separate input-journal
 owner for each native world, and observe local input merging, tick snapping,

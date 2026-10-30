@@ -615,3 +615,262 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
 8. Award type 0 / param semantics in `unique_awards` (experience? gold?). **2026-10-12: settled, premium.md §5.**
 9. 28 victory-screen event categories versus 0.21d's 24 `match_stats_events`: which 4 are new
    (likely steal_box, grenade, melee, entrap kills, going by the new quest goals; **GUESS**).
+
+## Carried weight: movement and sprint (2026-10-28)
+
+Checked against the original 0.26g executable and `default.player` from both
+`resources/game-026g/server-game-data.db` and the local October 28 diagnostic
+server-game-data copy. Both have the same stamina parameters. No gameplay change.
+
+Let `W` be inventory weight, `M` be maximum carried weight after modifier 5
+(base 30 kg plus capacity bonuses), and `q = clamp((W - 20) / (M - 20), 0, 1)`.
+The 20 kg threshold is `min_carried_weight`; bonuses to maximum weight do not
+raise it. With no other modifiers:
+
+- Weight contributes `-0.20 * q` to movement-speed modifier 4. It affects the
+  normal movement-speed evaluator, including walking, crouching, aiming and
+  sprinting. Other movement bonuses/penalties add in the same modifier sum;
+  `base_player::movement_speed` also enforces its per-mode minimum speed.
+- Weight contributes `+1.50 * q` to stamina-spend modifier 19. Sprint's base
+  drain is 5 units/s, so it becomes `5 * (1 + 1.50 * q)` before other modifiers.
+  Stamina capacity is 100. At 25 kg: speed -10%, drain 8.75/s (+75%).
+- `is_overburdened` is true at **W >= M**, including equality. The sprint
+  eligibility check rejects it. Modifier 31 (`can_sprint`, skill 213) bypasses
+  this weight gate, but retains both weight penalties and the other sprint gates.
+- Both penalties stop growing at M: extra weight does not slow movement further.
+- Skill 202 (`overweight_penalty`) is -5% per rank, multiplicative on the
+  -0.20 coefficient: at five ranks the maximum speed loss is 15%, not zero.
+  It does not reduce weight's extra stamina spending.
+- Skill 209 is +2 kg capacity per rank. At five ranks M=40: 30 kg has -10%
+  movement and +75% stamina spending, and still permits sprinting.
+- Skill 214 (`max_carried_weight_ultimate`, Heavyweight) makes the movement
+  penalty zero; `base_player::can_sprint` separately forbids sprinting entirely.
+
+| Weight, no bonuses | Weight's speed penalty | Sprint stamina/s | Weight permits sprint |
+| --- | ---: | ---: | --- |
+| <=20 kg | 0% | 5 | yes |
+| 22.5 kg | -5% | 6.875 | yes |
+| 25 kg | -10% | 8.75 | yes |
+| 27.5 kg | -15% | 10.625 | yes |
+| >=30 kg | -20% | 12.5 if the weight gate is bypassed | no |
+
+Native evidence (preferred VAs): `stamina_base_parameters::load` 0x329120
+maps the config fields to +18h/+1Ch/+20h/+24h; constructor 0x329290 makes
+nodes 19 and 4. `player_stamina::update_weight_modifiers` 0x329B20 (descriptive
+RE name) calculates q and updates these nodes, called at 0x2DAAB5 after
+`inventory::update_weight` reports a change. `apply_modifier` 0x2D5AE0 adds
+modifier 5 but multiplies parameters 4, 19 and 26 by max(0, 1 + modifier sum).
+`player_stamina::sprint` 0x329A70 applies 19 then additive 67 to the drain.
+`is_overburdened` 0x329C60 compares W >= M; `base_player::can_sprint` 0x2DBF40
+calls it and checks modifier 32. Movement evaluates modifier 4 at 0x2DBB50.
+
+Verification: executed the original 0x329B20, 0x2D5AE0 and 0x329C60 in Unicorn,
+with real native modifier lists. All 60 combinations passed: 12 weights
+(including exact 20/30/40 and just below the limits) across no skills, +10 kg,
+-25% penalty, Heavyweight and the overweight-sprint skill. Full sprint eligibility
+and its Heavyweight exclusion were inspected in disassembly, not emulated.
+
+The lobby now colors current weight coral (`#F18A78`) while weight reduces
+movement, and retains red at/above maximum. Hovering uses `WeightTipRenderer`:
+the weapon card's native frame, black backing, critical-damage divider and
+`SrvModifierLabeledRenderer` rows. Movement and energy costs use the existing
+modifier atlas icons 11 and 16 (defects 4070 and 4110 in `modifications.options`),
+with the game's localized stat labels and red penalty values. Weight/Heavyweight
+sprint restrictions get a further row. Normal weight keeps the existing highlight
+color. Explanations follow the six lobby languages.
+
+Native Scaleform initializes the card's nested heading and modifier-row fields
+on their first frame after attachment; construction and `ADDED_TO_STAGE` are
+too early, although Ruffle already exposes those fields then. The renderer
+keeps the skin attached and transparent until its heading exists, then lets the
+new rows initialize before filling, sizing and revealing the card. A resize
+event reapplies screen-edge placement. Verified in the real lobby at 21.90/30 kg:
+coral weight, movement -3.8%, sprint stamina use +28.5%, and both native icons.
+
+Weapons also carry their own `parameters/movement_speed_modifier` (e.g. the
+PKP has -0.05 independently of its 7 kg weight). `weapon-movement-ui-1.json`
+copies that parameter into native card property 105 at content-build time.
+`WeaponMovement` moves it from the main stat table to a built-in modifier row,
+using icon 11 and the usual signed percentage/color formatting. Zero has no
+row; penalties stay in built-in bonuses, not critical damage. Shared item
+descriptors remain intact across shop/inventory cards. The edit changes only
+`ui_desc/props_list`, leaving gameplay parameters and modifications untouched.
+All three descriptor consumers (`ItemFactory`, `InventoryList`, and the shop's
+own `GangShop.createItem`) call the same adapter. The UI harness exercises the
+real shop price-list/reconnect path, including zero, negative, positive and
+golden weapons, whose silver bonus is retained.
+This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
+rewrite its card, just as it does not change the weapon's weight.
+
+`weight_ui_026g` caches the same player stamina config at 0x22110F, owned by that
+lobby instance. At 0x2222EB it extends the existing two-number movie callback
+with movement/spending fractions and a sprint state. The selected kit's native
+`player_params_modifiers_container::apply_modifier` at 0x2D5AE0 evaluates
+modifiers 26, 31 and 32, matching the stamina calculation; current/max weight
+remain the native callback's values, including equipment capacity bonuses.
+The profile helper at 0x2F7660 is only for equipment-compatible indices: its
+equipped-item path has an unchecked switch and crashes on 26/31/32. The real
+game exposed this after login; the regression check now includes equipped kits.
+Missing config or an invalid interval keeps the old two-number callback,
+which the movie treats as unknown effects and shows without an explanation.
+`check_weight_ui_026g.py` runs 100 native callback cases, including modified
+config, kit changes, skill combinations, exact limits and compatibility paths.
+`scripts/weight-ui/check_ui.sh` checks rendered colors, native tooltip layout,
+live refresh, removal and localization in Ruffle. Its real hover check also
+caught the shared tooltip timer's missing repeat count: `TIMER_COMPLETE` now
+fires once after the existing 300 ms delay.
+
+## The kit's movement speed beside the weight (2026-10-29)
+
+The owner: show the final speed beside the weight, with everything the game
+takes into account, as its own indicator ("some might think this is
+associated with weight"). Left of the weight the lobby shows a box of the
+same kind: the weight's frame (`WeightFrame`, the original's bitmap under
+playerWeight) beside the weight's, with "Speed" and "97%" in a second copy
+of the weight's own symbol (`SpeedIndicator`; its fonts, sizes, colours and
+baseline; no bar; coral below 100 %, green above). A TextField made in code
+lost the value's size to the style sheet in the game (the owner's 2026-10-29
+screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
+tooltip, on the whole box, has the total in the heading (in the rows' colours: green
+faster, red slower, white at 100 %; a TextFormat from the rows' style sheet,
+as the heading takes none) then each thing that
+changes the speed by its own name, one row each (the owner, 2026-10-30): the
+weight ("Weight"), the skill (Rapid, its game name), every armour piece and
+pocket item by its displayed name with the sum of its own modifications
+(built-in, rolled, defects: "Freedom suit +4 %", "Tornado Energy Drink
++5 %"), and the weapon in hand ("AK-74M -5 %"). None at 0; biggest speed-up
+first, biggest slow-down last; green faster, red slower (the item card rows'
+own colours, `ModificatorListRenderer`'s style sheet). The total is summed
+from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
+symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
+simulation change.
+
+- **The game's rule.** `base_player::movement_speed` 0x2DBB50 returns
+  `max(m, v x max(0, 1 + S4))`: `v` the mode's speed (0x2F0980 on the
+  player's +15Ch table), `m` its minimum (+190h), `S4` the sum of player
+  modifier 4 through `apply_modifier` 0x2D5AE0 (multiplicative index:
+  `B x max(0, 1 + S)`) on the kit container. Aiming also takes the lower of
+  that and `apply_modifiers` 0x2D5BC0 with modifiers 4 and 20.
+- **What S4 holds in a match**, all in one sum:
+  - the kit's own float: the skills (skill 208 `movement_speed`, +1 % a rank);
+  - the armour's nodes (`armor::add_modifiers` 0x33F3A0): every built-in,
+    rolled and defect modification of movement speed (prop 105). Armour has
+    no base movement parameter (all 0, `armour-params.md`);
+  - the weapon in hand's own `parameters/movement_speed_modifier` (its node
+    +610h, added in `weapon_core::initialize` 0x2E2C26..0x2E2C9C), left out
+    when it is a penalty and modifier 62 (Bear Arms, skill 112) is above 0;
+  - the weight: `-0.20 x q`, scaled by skill 202 (the section above);
+  - the boosters the kit carries: a booster works by being in a pocket. At
+    every spawn the inventory fill 0x2FCB70 (called at 0x2DADBB) calls every
+    item of the 23 slots, pockets included (0x2FD1A5); a booster's
+    (`survarium::booster`, constructor 0x33F690; 0x33F960 -> 0x33F990) adds an
+    entry for each non-zero parameter to the kit's lists (`player_bots.md`,
+    `one-pocket-a-type.md`). So it counts always while carried, not only when
+    used. The Tornado energy drink (`speed_booster`, dict 340) has default
+    modifications 1114 (movement speed +5 %) and 1104 (stamina regeneration
+    +10 %): +5 % speed while it is in a pocket of the kit.
+- **The lobby's parts.** The exe's weight callback (`weight_ui_026g.c`)
+  gives the skills (the raw kit float of index 4: in the lobby the items are
+  not in the container) and whether Bear Arms is on, besides the weight. The
+  movie adds the equipped armour's prop 105 modifiers (HEAD..FOOT) as
+  **bonuses**, the pockets' (QUICK_1..QUICK_6) as **boosters**, and the first
+  weapon's own movement (prop 105, which
+  `WeaponMovement` puts in its built-in rows) as **equipment**: the weapon in
+  hand at spawn (LIKELY; switching to the second weapon changes this part in a
+  match). Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
+  percentage of the base speed.
+- **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
+  aiming's lower speed.
+- An older exe (five arguments) shows no speed and the old tooltip.
+
+### The carry limit by source, in the weight's tooltip (2026-10-30)
+
+The owner: "can weight show packrat effect in pop up?", then: what raises the
+carry limit, by source, like the speed. The tooltip has two sections: under its title
+("Weight effects") the weight's effects, then a second divider of the same
+kind headed "Weight" (the weight label's own key, `equipment_weight`) over the
+limit's rows. After its weight rows the weight's
+tooltip lists the base limit, then each thing that changes it by its own
+name, one row each, none at 0, biggest first (the skill, Athlete; each armour
+piece and pocket item by its displayed name), then Packrat, adding up to the
+limit beside the weight ("/ 30"):
+
+- **The exe's limit.** The lobby's maximum is `apply_kit_parameter(kit, 5)`
+  0x2F7660 (called at 0x222217): the menu's base (+3118h, 30 kg) through
+  `apply_modifier` 0x2D5AE0 index 5 (additive: base + the kit's float), then
+  each kit item's parameter and modifications (0x2F7470), the armour's and the
+  pockets' alike.
+- **Base limit**: the menu's +3118h, from the exe's callback.
+- **Skills**: the kit's float of modifier 5 (Athlete, skill 209, +2 kg a rank),
+  from the exe's callback.
+- **Bonuses**: the armour's (HEAD..FOOT) weight-limit modifications (prop 106,
+  1120..1124: +1..+5 kg; the Duty suit's built-in 1124).
+- **Boosters**: the pockets' (the Anomalous Force Protein, `weight_booster`,
+  built-in 1124: +5 kg while carried, as every booster).
+- The items' own parameters (beyond their modifications) are 0 in every
+  config so far, so the rows add up to the exe's limit.
+- **Skill names** are the skill tree's: the exe gives each skill's name with its
+  properties (`root.fill_skills_properties`), which `CharWindow` records by id
+  (`SkillNames`); the movie's dictionary has no skill names (a looked-up
+  `movement_speed_name` showed "#movement_speed_name" in the game). Before the
+  exe has given them a row says "Skills".
+- **Packrat** (skill 202):
+  the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
+- Green raises the limit (or lowers the penalty), red lowers it, as the rows;
+  the weight-limit modifications' icon (12), Packrat's the speed icon (11).
+
+### The tooltips' icons, the stamina section, compactness (2026-10-30)
+
+- **Group icons.** An item's row has its group's icon, the shop filter's own:
+  `FilterItemCatRenderer`'s `itemIcon` (sprite 1125) at frame 300 + the icon
+  `FiltersWindow` gives the item's category (`FiltersWindow.filterIcon`, from
+  the same lists the shop registers; the wiki's `groups/` icons). The weight
+  and skill rows keep the modifier atlas icons.
+- **Sprint stamina use** is the speed tooltip's second section, headed by its
+  total like the speed ("Sprint stamina use: 90%", `st_srp_weight_sprint_stamina`).
+  `player_stamina::sprint` 0x329A70: the base drain through `apply_modifier`
+  0x2D5AE0 index 19 (`stamina_spending_speed`: the weight's node, +1.5 x q;
+  each item's energy-cost modifications, prop 116; the kit's float) then index
+  67 (`stamina_spending_speed_skill`, skill 201), both multiplicative:
+  `(1 + S19) x (1 + S67)`. One row each source by name (the item, the skill by
+  the skill tree's name, the weight), less use green, more red, smallest
+  first. The exe's callback gives the kit's floats of 19 and 67: twelve
+  arguments.
+- **Compact.** Rows 24 px (the text's line), the icons at 0.7 of the native
+  row's beside their text, tight margins, each row one line, and the card as
+  wide as its widest row or heading. The native card skin and fonts as they are.
+
+### Alignment, from the game's own code paths (2026-10-30, after the owner's screenshots)
+
+In the game the rows' icons sat above their text (the compact pass scaled the
+icon from its top-left), the filter icons did not show (the itemIcon taken out
+of its renderer: FilterItem's own state change sends an itemIcon with no data
+to frame 1 and hides it), the headings had a gap under them (the separator's
+field box, not its text), and the speed cell's value was small (the style sheet
+on a field made in code).
+
+- Rows keep the native row's own layout (icon column, text x, their vertical
+  alignment) at its own size; one pitch for every row, measured from the first
+  native row; each heading takes its text's own line (`textHeight`) with the
+  same gap above and below, the title's and the sections' alike.
+- A group icon is the shop's whole filter renderer given its filter by
+  `setData({icon, enabled})`, as FilterList does, so FilterItem itself draws its
+  itemIcon at frame 300 + icon; its button background hidden, fitted into the
+  atlas icons' box from its drawn bounds before the card shows.
+- Packrat's row has the weight icon (12).
+- The speed cell's word and value take the weight's own fields' formats as the
+  game draws them, copied at each update, with no style sheet; the value's
+  colour is its style's colour in the lobby's sheet.
+
+### The group icons' glyph, and the boosters' icons (2026-10-30)
+
+- The filter sprite (1125) keeps a small marker shape at its origin on every
+  frame besides the frame's glyph; its whole bounds took both in, so a glyph
+  was fitted small and off-centre (the protein's row in the game), or out of
+  sight. A group icon is now fitted by its glyph alone (the frame's largest
+  shape; the marker hidden) into the modifier icons' glyph box (7,9 26 x 21 in
+  their 38 x 38 cell, measured from their opaque pixels), centred on it, once
+  its frame and bounds hold for two frames running.
+- A pocket's booster has the effect's own icon (speed 11, carry limit 12,
+  stamina 16): the shop's consumables filter icon is a thin stroke that suits
+  none of them. Armour and weapons keep their group's.

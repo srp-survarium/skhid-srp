@@ -11,6 +11,7 @@ package survarium.rooms
     import survarium.constants.RoomFit;
     import survarium.constants.RoomPhase;
     import survarium.constants.UiSound;
+    import survarium.data.LocalizationData;
 
     // The asker's room, after the design: what it is, the banner with the
     // countdown, the vote (always there) and the members, each place of the
@@ -33,6 +34,8 @@ package survarium.rooms
         private var _banner:TextField;
         private var _bannerLabel:TextField;
         private var _bannerHint:TextField;
+        // In its match: the map and mode it is played on, under the hint.
+        private var _bannerMap:TextField;
         internal var _alerted:Boolean = false;
         // A right-click on a member: the game's right-click menu with "Show
         // player's information" (LobbyMenu.showPlayerInfoMenu, the
@@ -55,9 +58,9 @@ package survarium.rooms
             var room:Object = win._room;
             // A private room has no size or max level of its own (the owner's
             // of 2026-10-26).
-            var info:String = win.say("level") + " " + String(room.level)
-                + (room.pin ? "" : "  ·  " + win.say("max") + " " + win.levelText(room.max) + "  ·  " + room.size + " v " + room.size)
-                + "  ·  " + win.say("pool") + " " + room.pool + "  ·  " + win.say("code") + " " + room.key + (room.pin ? "  ·  PIN" : "");
+            var info:String = win.say("st_srp_rooms_level") + " " + String(room.level)
+                + (room.pin ? "" : "  ·  " + win.say("st_srp_rooms_max") + " " + win.levelText(room.max) + "  ·  " + room.size + " v " + room.size)
+                + "  ·  " + win.say("st_srp_rooms_pool") + " " + room.pool + "  ·  " + win.say("st_srp_rooms_code_label") + " " + room.key + (room.pin ? "  ·  PIN" : "");
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.
             var band:Shape = new Shape();
@@ -67,11 +70,13 @@ package survarium.rooms
             look._content.addChild(band);
             _bannerLabel = look.text(look._content, "", 16, 90, 300, 15, RoomsLook.GREY);
             _banner = look.text(look._content, "", 260, 82, 200, 30, room.phase == RoomPhase.WAITING ? RoomsLook.LIGHT : RoomsLook.GOLD);
-            _bannerHint = look.text(look._content, "", 440, 91, look._w - 456, 15, RoomsLook.GREY);
+            // In its match: the hint higher, the match's map and mode under it.
+            var playing:Boolean = room.phase == RoomPhase.IN_MATCH;
+            _bannerHint = look.text(look._content, "", 440, playing ? 81 : 91, look._w - 456, 15, RoomsLook.GREY);
+            _bannerMap = look.text(look._content, "", 440, 101, look._w - 456, 13, RoomsLook.LIGHT);
             banner();
             var y:Number = 140;
-            look.text(look._content, win.say("vote").toUpperCase(), 16, y, 400, 16, RoomsLook.LIGHT);
-            look.text(look._content, win.say("voteHint"), 360, y + 1, look._w - 376, 14, RoomsLook.GREY);
+            look.text(look._content, win.say("st_srp_rooms_vote").toUpperCase(), 16, y, 400, 16, RoomsLook.LIGHT);
             y += 28;
             var cw:int = int((look._w - 32 - 2 * 14) / 3);
             // A private room's teams take a line more under the cards.
@@ -107,20 +112,22 @@ package survarium.rooms
                 if (room.phase == RoomPhase.COUNTDOWN && !chosen)
                     cell.alpha = 0.45;
                 if (chosen)
-                    look.text(cell, win.say("nextMap").toUpperCase(), cw - 120, 13, 108, 13, 0xFFFFFF, "right");
+                    look.text(cell, win.say("st_srp_rooms_next_map").toUpperCase(), cw - 120, 13, 108, 13, 0xFFFFFF, "right");
+                var votes:TextField = look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 if (e != null)
                 {
+                    // The mode's tag as wide as its name (at most the card's
+                    // width less its margins); the map's name up to the votes.
+                    var mode:TextField = look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
                     var tag:Shape = new Shape();
                     tag.graphics.lineStyle(1, RoomsLook.modeColour(e.mode));
                     tag.graphics.beginFill(0x000000, 0.7);
-                    tag.graphics.drawRect(10, 10, cw * 0.55, 24);
+                    tag.graphics.drawRect(10, 10, Math.min(cw - 20, mode.textWidth + 16), 24);
                     tag.graphics.endFill();
-                    cell.addChild(tag);
-                    look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw * 0.55 - 12, 13, 0xFFFFFF);
-                    look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 80, 21, 0xFFFFFF);
+                    cell.addChildAt(tag, cell.getChildIndex(mode));
+                    look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
                     look.text(cell, win.weatherName(e.weather).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0);
                 }
-                look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 cell.buttonMode = true;
                 cell.mouseChildren = false;
                 cell.name = String(i);
@@ -140,12 +147,12 @@ package survarium.rooms
             panel.graphics.drawRect(16, y, look._w - 32, look._h - RoomsLook.FOOT_H - y - 8);
             panel.graphics.endFill();
             look._content.addChild(panel);
-            look.text(look._content, win.say("players").toUpperCase(), 28, y + 10, 140, 15, RoomsLook.LIGHT);
+            look.text(look._content, win.say("st_srp_rooms_players").toUpperCase(), 28, y + 10, 140, 15, RoomsLook.LIGHT);
             // A private room: its owner's two teams (the owner's of
             // 2026-10-26); an open room: one list, the sides drawn at the start.
             var arranged:Boolean = room.pin && room.teams != null;
-            var hint:String = !arranged ? win.say("teams") : !room.owner ? win.say("teamsMember")
-                : room.phase == RoomPhase.WAITING ? win.say("teamsOwner") : win.say("teamsLater");
+            var hint:String = !arranged ? win.say("st_srp_rooms_teams") : !room.owner ? win.say("st_srp_rooms_teams_member")
+                : room.phase == RoomPhase.WAITING ? win.say("st_srp_rooms_teams_owner") : win.say("st_srp_rooms_teams_later");
             look.text(look._content, room.members.length + " / " + room.size * 2 + "   ·   " + hint,
                 160, y + 11, look._w - 200, 14, RoomsLook.GREY);
             look.line(look._content, 17, y + 38, look._w - 34);
@@ -187,11 +194,11 @@ package survarium.rooms
                             moving ? (t == 0 ? "»" : "«") : null);
                         k++;
                     }
-                    look.text(inner, win.say(t == 0 ? "team1" : "team2").toUpperCase() + "   " + k + " / " + perTeam,
+                    look.text(inner, win.say(t == 0 ? "st_srp_rooms_team_1" : "st_srp_rooms_team_2").toUpperCase() + "   " + k + " / " + perTeam,
                         2 * t * colW + 34, 0, 2 * colW - 50, 13, RoomsLook.GOLD);
                     // Its free places on one dim line after its last member.
                     if (k < perTeam)
-                        look.text(inner, win.say("openSlots").split("%N").join(String(perTeam - k)),
+                        look.text(inner, LocalizationData.format("st_srp_rooms_open_slots", perTeam - k),
                             (2 * t + int(k / down)) * colW + 34, TEAM_HEAD + (k % down) * rowH + int((rowH - 20) / 2),
                             colW - 50, 14, 0x4D5C67);
                 }
@@ -205,16 +212,16 @@ package survarium.rooms
             }
             // A room of a lower max level that takes us: one click there
             // (the server offers it only while we play no match).
-            var buttons:Array = [[win.say("leave"), onLeave, null]];
+            var buttons:Array = [[win.say("st_srp_rooms_leave"), onLeave, null]];
             // A private room waits for its owner's Start (no countdown).
             if (startsByOwner())
-                buttons.push([win.say("startMatch"), onStart, null]);
+                buttons.push([win.say("st_srp_rooms_start_match"), onStart, null]);
             if (room.joinIn >= 0)
-                buttons.push([win.say("joinMatch"), onJoinMatch, null]);
+                buttons.push([win.say("st_srp_rooms_join_match"), onJoinMatch, null]);
             if (room.switchTo != null)
             {
                 var to:Object = room.switchTo;
-                buttons.push([win.say("switchTo"), onSwitch, to]);
+                buttons.push([win.say("st_srp_rooms_switch_to"), onSwitch, to]);
                 // The game's own button, untinted (the owner's of 2026-10-21).
                 var made:Array = look.footer(buttons);
                 // Two buttons leave room for what the switch is; three do not.
@@ -224,8 +231,8 @@ package survarium.rooms
                 // whose it is and how full.
                 var room_w:Number = made[0].x - 28;
                 var fy:Number = look._h - RoomsLook.FOOT_H;
-                look.text(look._content, win.say("switchWhy").split("%L").join(String(to.max)), 16, fy + 5, room_w, 13, RoomsLook.GOLD);
-                look.text(look._content, win.say("switchWho").split("%N").join(to.name).split("%P").join(to.players + " / " + to.size * 2),
+                look.text(look._content, LocalizationData.format("st_srp_rooms_switch_why", to.max), 16, fy + 5, room_w, 13, RoomsLook.GOLD);
+                look.text(look._content, LocalizationData.format("st_srp_rooms_switch_who", to.name, to.players + " / " + to.size * 2),
                     16, fy + 24, room_w, 12, RoomsLook.GREY);
                 }
             }
@@ -249,7 +256,7 @@ package survarium.rooms
             inner.addChild(under);
             if (member == null)
             {
-                look.text(inner, win.say("open"), mx + 34, my + mid, colW - 50, 15, 0x4D5C67);
+                look.text(inner, win.say("st_srp_rooms_open"), mx + 34, my + mid, colW - 50, 15, 0x4D5C67);
                 return;
             }
             // A right-click on it: its equipment, by its place and the
@@ -282,7 +289,7 @@ package survarium.rooms
             // Away (its game gone for now): grey until it is back, or out
             // of the room after about 90 s (`memberColour`).
             RoomsLook.fitName(look.text(inner, "", nameX, my + mid, colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34), 16,
-                RoomsLook.memberColour(member)), member.name, member.owner ? "  (" + win.say("ownerTag") + ")" : "");
+                RoomsLook.memberColour(member)), member.name, member.owner ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
             var bx:Number = mx + colW - 44;
             // A private room's teams: small buttons inside the row (its rows
             // are lower than the game's button).
@@ -390,45 +397,48 @@ package survarium.rooms
                 return;
             var passed:int = int((getTimer() - win._roomAt) / 1000);
             var fit:int = myFit();
-            var unfit:String = fit == RoomFit.KIT ? win.say("unfitKit") : fit == RoomFit.GEAR ? win.say("unfitGear") : "";
+            var unfit:String = fit == RoomFit.KIT ? win.say("st_srp_rooms_unfit_kit") : fit == RoomFit.GEAR ? win.say("st_srp_rooms_unfit_gear") : "";
             if (win._room.phase == RoomPhase.VOTE)
             {
-                _bannerLabel.text = win.say("voting").toUpperCase();
+                _bannerLabel.text = win.say("st_srp_rooms_voting").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
-                _bannerHint.text = unfit != "" ? unfit : win.say("voteNow");
+                _bannerHint.text = unfit != "" ? unfit : win.say("st_srp_rooms_vote_now");
             }
             else if (win._room.phase == RoomPhase.COUNTDOWN)
             {
-                _bannerLabel.text = win.say("starts").toUpperCase();
+                _bannerLabel.text = win.say("st_srp_rooms_starts").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
                 var e:Object = win.entry(win._room.next);
-                _bannerHint.text = unfit != "" ? unfit : (e != null ? win.say("nextMap") + ": " + win.levelName(e.level) + " · "
+                _bannerHint.text = unfit != "" ? unfit : (e != null ? win.say("st_srp_rooms_next_map") + ": " + win.levelName(e.level) + " · "
                     + win.weatherName(e.weather) + " · " + win.modeName(e.mode) : "");
             }
             else if (win._room.phase == RoomPhase.IN_MATCH)
             {
-                _bannerLabel.text = win.say("playing").toUpperCase();
+                _bannerLabel.text = win.say("st_srp_rooms_playing").toUpperCase();
+                // The map its match is played on (the server's `L` row) and its mode.
+                var played:Object = win.entry(win._room.last);
+                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(played.mode) : "", "");
                 _banner.text = RoomsText.clock(win._room.secs + passed);
                 // Waiting to go into it: the seconds left, counted here; or
                 // why it cannot go in now; or its own kit or gear.
-                var why:String = "joinWhy" + win._room.joinWhy;
+                var why:String = RoomsText.joinWhyText(win._room.joinWhy);
                 _bannerHint.text = win._room.joinIn >= 0
-                    ? win.say("joinIn").split("%S").join(String(Math.max(0, win._room.joinIn - passed)))
-                    : RoomsText.known(why) ? win.say(why)
-                    : unfit != "" ? unfit : win.say("lateHint");
+                    ? LocalizationData.format("st_srp_rooms_join_in", Math.max(0, win._room.joinIn - passed))
+                    : why != "" ? why
+                    : unfit != "" ? unfit : win.say("st_srp_rooms_late_hint");
             }
             else if (win._room.pin)
             {
                 // A private room: its owner's Start, nobody's count.
-                _bannerLabel.text = win.say("waitingShort").toUpperCase();
+                _bannerLabel.text = win.say("st_srp_rooms_waiting_short").toUpperCase();
                 _banner.text = win._room.members.length + " / " + win._room.size * 2;
-                _bannerHint.text = unfit != "" ? unfit : win._room.owner ? win.say("startHint") : win.say("waitingOwner");
+                _bannerHint.text = unfit != "" ? unfit : win._room.owner ? win.say("st_srp_rooms_start_hint") : win.say("st_srp_rooms_waiting_owner");
             }
             else
             {
-                _bannerLabel.text = win.say("waitingShort").toUpperCase();
+                _bannerLabel.text = win.say("st_srp_rooms_waiting_short").toUpperCase();
                 _banner.text = win._room.members.length + " / " + win._room.min;
-                _bannerHint.text = win.say("waiting");
+                _bannerHint.text = win.say("st_srp_rooms_waiting");
             }
         }
 

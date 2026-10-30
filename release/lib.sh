@@ -12,6 +12,9 @@ DRY_RUN=${DRY_RUN:-0}
 # The two files of a release in <target dir>/download.
 ZIP_NAME=Survarium-0.26g-srp-files.zip
 DATA_NAME=server-game-data.db
+# Where a checkout keeps its item tables (srp-item-tables).
+# shellcheck disable=SC2034 # used by the scripts that source this
+ITEM_TABLES_DIR=srp-026g/docs/data
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
@@ -226,6 +229,22 @@ check_data_bin() {
         die "srp-check-game-data did not build"
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-check-game-data"
 }
+
+# Our srp-item-tables (the per-release item tables of a server game data
+# file, srp-026g/docs/data/: equipment.tsv, weapons.tsv):
+# $SRP_ITEM_TABLES_BIN, else built from this checkout (at nice 10).
+item_tables_bin() {
+    if [[ -n ${SRP_ITEM_TABLES_BIN:-} ]]; then
+        printf '%s\n' "$SRP_ITEM_TABLES_BIN"
+        return
+    fi
+    say "building srp-item-tables (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p web-server --bin srp-item-tables') >&2 ||
+        die "srp-item-tables did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
+}
+
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.

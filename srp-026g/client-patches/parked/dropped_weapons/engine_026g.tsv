@@ -1,0 +1,25 @@
+symbol	va	arguments	prototype	call	vostok
+engine_query_resources_wait	0x0e5c20	EAX:parameters	void engine_query_resources_wait(const void *parameters)	thunk
+engine_inventory_recipe_type	0x205c60	-	unsigned int engine_inventory_recipe_type(void)	thunk
+engine_profile_destroy	0x26f3b0	ECX:this	void engine_profile_destroy(void *profile)	thunk
+engine_resource_cook	0x102cd0	EDI:class	void *engine_resource_cook(unsigned int class_id)	thunk
+engine_profile_copy_body	0x284dc0	ESP+4:destination ESP+8:source	void *engine_profile_copy_body(void *destination, const void *source)	thunk
+engine_weapon_set_user	0x002445e0	ECX:weapon ESP+4:player	void engine_weapon_set_user(void *weapon, void *player)	thunk
+engine_weapon_initialize	0x002449e0	ECX:weapon	void engine_weapon_initialize(void *weapon)	thunk
+engine_weapon_activate	0x00244610	ECX:weapon ESP+4:switch_flag	void engine_weapon_activate(void *weapon, unsigned int switch_flag)	thunk
+engine_weapon_deactivate	0x00244860	ECX:weapon ESP+4:clear_user	void engine_weapon_deactivate(void *weapon, unsigned int clear_user)	thunk
+engine_weapon_core_set_user	0x002e2990	ECX:weapon ESP+4:player	void engine_weapon_core_set_user(void *weapon, void *player)	thunk
+engine_weapon_core_initialize	0x002e2a30	ECX:weapon	void engine_weapon_core_initialize(void *weapon)	thunk
+engine_weapon_core_activate	0x002e2cc0	ECX:weapon ESP+4:switch_flag	void engine_weapon_core_activate(void *weapon, unsigned int switch_flag)	thunk
+engine_weapon_core_deactivate	0x002e2db0	ECX:weapon ESP+4:clear_user	void engine_weapon_core_deactivate(void *weapon, unsigned int clear_user)	thunk
+engine_item_set_owner	0x00243590	ECX:item ESP+4:inventory ESP+8:slot	void engine_item_set_owner(void *item, void *inventory, unsigned int slot)	thunk
+engine_inventory_set	0x002fc620	ESI:inventory EDI:slot ESP+4:item	void engine_inventory_set(void *inventory, unsigned int slot, const unsigned int *item)	thunk
+engine_animation_forget_weapon	0x003919e0	EAX:animation EDX:weapon	void engine_animation_forget_weapon(void *animation, void *weapon)	thunk
+engine_inventory_resupply	0x002fdc10	ESP+4:inventory ESP+8:player_profile ESP+12:kit	void engine_inventory_resupply(void *inventory, void *profile, unsigned int kit)	thunk
+engine_inventory_check_resupply	0x002fdf50	EAX:kit ESP+4:inventory ESP+8:player_profile	unsigned int engine_inventory_check_resupply(unsigned int kit, void *inventory, void *profile)	thunk
+engine_weapon_core_deserialize	0x002e3490	ECX:weapon ESP+4:reader ESP+8:client_reader ESP+12:context	void engine_weapon_core_deserialize(void *weapon, void *reader, void *client_reader, unsigned int context)	thunk
+engine_change_player_input	0x001fab50	ESP+4:core ESP+8:rotation ESP+12:actions ESP+16:time ESP+20:place_flags ESP+24:network ESP+28:corrected ESP+32:precise ESP+36:effective_time	unsigned int engine_change_player_input(void *core, unsigned int rotation, unsigned int actions, unsigned int time, unsigned int place_flags, unsigned int network, unsigned int corrected, unsigned int precise, unsigned int *effective_time)	thunk
+engine_discard_player_input	0x0027d820	EAX:time ESP+4:core ESP+8:place	unsigned int engine_discard_player_input(unsigned int time, void *core, unsigned int place)	thunk
+engine_match_new_packet	0x00279fe0	ECX:client ESP+4:message	void *engine_match_new_packet(void *client, unsigned int message)	thunk
+engine_match_enqueue	0x0027a2a0	ECX:client ESP+4:packet	void engine_match_enqueue(void *client, void *packet)	thunk
+engine_buffer_write	0x0007ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:byte_count	void engine_buffer_write(void *writer, const void *bytes, unsigned int count)	thunk

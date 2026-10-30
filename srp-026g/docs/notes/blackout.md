@@ -1,8 +1,8 @@
-# Blackout (prototype)
+# Blackout
 
 The owner (2026-10-24): "make a game with all ui disabled and players having color bands to
-distinguish teams… this is the new battery mode". A prototype to try locally; the owner's
-changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner says so.
+distinguish teams… this is the new battery mode". The owner's changes of 2026-10-25 and
+2026-10-26 are in. Since 2026-10-28 it is a normal mode, with no server feature toggle.
 
 - **No bands for now** (the owner, 2026-10-26: "bands are fine, but we will do release without
   them, instead player markers should still be visible"): the painted team bands are parked on
@@ -16,7 +16,7 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
   row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
   blackout, then team deathmatch and Research (the owner, 2026-10-26).
-- **Offered** while the server runs with `SRP_BLACKOUT=on` (off by default): the rooms' pool then
+- **Always offered:** the rooms' pool
   holds each plain battery map of the match pool once more as Blackout.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).

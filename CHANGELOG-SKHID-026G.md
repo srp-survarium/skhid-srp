@@ -9,6 +9,30 @@ release that made it what it is now.
 
 ---
 
+## 28 Oct, 18:37 — Game update 37: matchmaking, Research warnings and map data (update required)
+
+<!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. Shipped: #691, #692, #463, #694, #695, #696. -->
+
+Update through the Skhid launcher before playing.
+
+- **Matchmaking:** public 8v8 rooms now open on demand, with equipment
+  brackets and improved queue transitions. Manually created rooms are
+  private. Blackout joins the normal mode pool.
+- **Research:** enemy capture and neutralisation attempts now trigger
+  pulsing warnings.
+- **Kit selection:** a short grace period when the kit screen opens
+  prevents a key pressed just before death from accidentally changing
+  your kit.
+- **Rewards:** farming limits now account for combat activity. Rewards
+  against bots are capped at equipment level 7, and eligible finishers
+  receive a minimum silver payout.
+- **Replays:** solo matches against bots can now be recorded and watched
+  from History.
+- **Map data:** removed 163.5 MiB of unused vegetation editor data across
+  four supported maps and both variants. All 172,493 plant placements
+  remain unchanged.
+
+
 ## 18 Oct, 14:43 — Game update 21: weapon balance, magazine on the weapon card, crash reports as ZIPs (update required)
 
 Start `Skhid.bat`: the launcher updates the game (`survarium_skhid.exe`
@@ -694,3 +718,39 @@ update changes what a match computes.
 - TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
 - TODO: #686 Fix Research markers and countdown layout using Rust
 - TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending
+
+## 29 Oct, 20:32 — TODO: the owner's words (update required)
+
+<!-- Revision 38 (026g-rev38), released 2026-10-29 20:32 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #698 Changelog: revision 37 for players, including rewards and solo replays
+- TODO: #727 Add weapons wiki, recoil comparison and detailed game tooltips
+- TODO: #739 Shop: buy an item by dropping it on its slot
+- TODO: #721 Game languages: ten dictionaries as TSVs, Belarusian, Czech/Hungarian/Finnish/Serbian, Language in Settings
+- TODO: #741 Rust patches: typed raw handles, layout only in raw
+- TODO: #745 Weapon rolls: recoil and aim time take effect; chamber time on the card
+- TODO: #716 Flag of Serbia decal: red over blue over white
+- TODO: #746 Site: the wiki takes the calculator and the maps, and gets a modifiers page
+- TODO: #750 Equipment through 0.29: 84 pieces, balanced against native gear
+- TODO: #752 Weapons wiki: shots at their own moments, views hold at their last shot, no Next shot
+- TODO: #699 Detach selected helmets on fatal headshots
+- TODO: #754 Equipment: its texts in all ten languages (release 38 content build)
+- TODO: #753 Weapons wiki: sideways kick at a degree a unit; smooth camera shake
+- TODO: #757 Wiki: Equipment, every armour piece with its protection, weight and bonuses
+- TODO: #755 Notes: what the 0.26g armour parameters do
+- TODO: #756 Headwear: the 0.29 helmets fly off on fatal headshots; the knit cap doesn't
+- TODO: #758 Wiki modifiers: Can roll leaves out what an item comes with
+- TODO: #760 Exoskeleton boots and gloves without their black areas (pack exo-gear@1)
+- TODO: #763 Exo boots' lobby icons at the stock boots' angle (exo-gear@2)
+- TODO: #762 Release: per-release item tables (equipment, weapons) in the record
+- TODO: #761 Wiki equipment: flying off only in the card's details
+- TODO: #759 Built-in bonuses at the second-strongest strength; exoskeleton suits buffed
+- TODO: #751 Carry and share artefacts with animated hand poses and death drops
+- TODO: #765 Match: an anomaly artefact pickup scores 15 (5 with full containers)
+- TODO: #770 Equipment 0.29: no donor placeholder descriptions
+- TODO: #771 Equipment 0.29: German placeholder descriptions too
+- TODO: #773 Weapon card: chambering time shows only the new value
+- TODO: #774 Exoskeleton gloves keep their stock icons (exo-gear@3)
+- TODO: #775 Equipment 0.29: no shader 0.26g lacks (Watchman gloves crash)
+- TODO: #777 Artefact carry: H held, then a quick key, raises the artefact
+- TODO: #779 Artefact carry: H's up comes from the key handler (stuck carry key)

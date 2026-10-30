@@ -9,50 +9,22 @@
 //! [`SkeletonId`], [`BodyId`]): a game address as a value, never read
 //! through.
 
-use core::ffi::c_void;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use super::context::{Context, Reg};
+use super::context::Context;
 use super::hook::Thread;
 use crate::raw;
 
-/// A game object's address, never null.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::vostok) struct Object(NonNull<c_void>);
-
-impl Object {
-    pub(in crate::vostok) fn at(raw: u32) -> Option<Object> {
-        NonNull::new(raw as usize as *mut c_void).map(Object)
-    }
-
-    pub(in crate::vostok) fn ptr(self) -> *mut c_void {
-        self.0.as_ptr()
-    }
-
-    pub(in crate::vostok) fn id(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// Reads a field (its address from `raw`).
+/// Reads a field's place (raw's accessor gives it).
 ///
 /// # Safety
-/// `at` is the field's address in a live object of its kind.
+/// `at` is the field's place in a live object.
 pub(in crate::vostok) unsafe fn read<T: Copy>(at: *mut T) -> T {
     unsafe { at.read_volatile() }
 }
 
-/// An object a pointer field names (0: none).
-///
-/// # Safety
-/// As `read`.
-pub(in crate::vostok) unsafe fn pointer(at: *mut u32) -> Option<Object> {
-    Object::at(unsafe { read(at) })
-}
-
-/// `count` f32 from a field on.
+/// `N` f32 from a field on.
 ///
 /// # Safety
 /// As `read`, for the whole run.
@@ -60,76 +32,80 @@ pub(in crate::vostok) unsafe fn floats<const N: usize>(at: *mut f32) -> [f32; N]
     unsafe { at.cast::<[f32; N]>().read_unaligned() }
 }
 
-/// The game world, at `game_world.after_move` (EBX, sites_026g.tsv).
+/// Writes `N` f32 from a field on.
+///
+/// # Safety
+/// As `floats`, and the run is the caller's to write now.
+pub(in crate::vostok) unsafe fn write_floats<const N: usize>(at: *mut f32, value: [f32; N]) {
+    unsafe { at.cast::<[f32; N]>().write_unaligned(value) }
+}
+
+/// The game world, at `game_world.after_move`.
 pub struct GameWorld<'t> {
-    this: Object,
+    this: raw::GameWorld,
     thread: &'t Thread,
 }
 
 impl<'t> GameWorld<'t> {
-    /// The world the site's EBX holds.
+    /// The world the site's code is ticking.
     pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
-        Object::at(ctx.reg(Reg::Ebx)).map(|this| GameWorld { this, thread: ctx.thread() })
+        // SAFETY: the context is this site's: the game world it ticks, alive
+        // on the game's thread.
+        let this = unsafe { raw::site::game_world_after_move::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
     }
 
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
-        // SAFETY: the game world (the site's register), its game, the game's client.
-        let client = unsafe {
-            let game = pointer(raw::game_world::game(self.this.ptr()).cast())?;
-            pointer(raw::game::network_client(game.ptr()).cast())?
-        };
-        Some(NetworkClient { this: client, thread: self.thread })
-    }
-
-    /// Current match loading inputs, scoped to this native tick. This does
-    /// not grant permission to dispatch resource callbacks during simulation.
-    pub fn pickup_resources(&self) -> Option<super::resources::MatchResources<'t>> {
-        super::resources::MatchResources::read(self.this, self.thread)
+        // SAFETY: the world, its game and the game's client, alive for the hook.
+        let this = unsafe { self.this.game()?.network_client() }?;
+        Some(NetworkClient { this, thread: self.thread })
     }
 }
 
 /// The network client: the match's places and the local player.
 pub struct NetworkClient<'t> {
-    this: Object,
+    this: raw::NetworkClient,
     thread: &'t Thread,
 }
 
 impl<'t> NetworkClient<'t> {
+    /// The client that has just loaded a world from the server (0xE8, at
+    /// `late_join.world_loaded`).
+    pub fn at_world_loaded(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+        // SAFETY: the site's EDI, the network client handling the message,
+        // alive on the game's thread for the hook.
+        let this = unsafe { raw::site::late_join_world_loaded::client(ctx) }?;
+        Some(NetworkClient { this, thread: ctx.thread() })
+    }
+
     /// The match's places' count (0 without match options).
     pub fn places(&self) -> u32 {
-        // SAFETY: the network client; match_options is its own (thiscall,
-        // the re-kit's), the options' count a byte field.
-        unsafe {
-            let options = raw::engine_match_options(self.this.ptr());
-            if options.is_null() { 0 } else { u32::from(read(raw::match_options::places(options))) }
-        }
+        // SAFETY: the client, alive for the hook; match_options is its own.
+        unsafe { raw::engine_match_options(Some(self.this)).map_or(0, |options| u32::from(read(options.places()))) }
     }
 
     /// The local player's place, if it has a player.
     pub fn local_place(&self) -> Option<u8> {
-        // SAFETY: the client's local player field, the player's place.
-        unsafe {
-            let local = pointer(raw::network_client::local_player(self.this.ptr()).cast())?;
-            Some(read(raw::player::place(local.ptr())))
-        }
+        // SAFETY: the client's local player, alive for the hook.
+        unsafe { Some(read(self.this.local_player()?.place())) }
     }
 
     /// The place's current player. get_active_player adds a reference; it is
     /// given back at once (the place holds its own), as the game does when
     /// the last one goes (0x0E0210).
     pub fn player(&self, place: u32) -> Option<Player<'t>> {
-        let mut out = 0u32;
-        // SAFETY: the client's own get_active_player (thiscall; it writes the
-        // player, a reference added, through `out`).
-        unsafe { raw::engine_active_player(self.this.ptr(), &mut out, place) };
-        let player = Object::at(out)?;
+        let mut out = None;
+        // SAFETY: the client's own get_active_player (it writes the player, a
+        // reference added, through `out`).
+        unsafe { raw::engine_active_player(Some(self.this), &mut out, place) };
+        let player = out?;
         // SAFETY: a player, its reference count a u32 the game changes with
         // locked instructions.
         unsafe {
-            let count = raw::player::references(player.ptr());
+            let count = player.references();
             if AtomicU32::from_ptr(count).fetch_sub(1, Ordering::AcqRel) == 1 {
-                raw::engine_release_object(player.ptr(), count);
+                raw::engine_release_object(Some(player), count);
                 return None;
             }
         }
@@ -145,6 +121,16 @@ pub enum Held {
     Battery,
     /// A weapon or another item.
     Item,
+}
+
+/// Where a player stands with the match's world: in it (`insert` ran: its
+/// physics and the world's tick lists hold it), alive but outside it (a
+/// world loaded from the server sets alive, never inserted), or dead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Presence {
+    InWorld,
+    Outside,
+    Dead,
 }
 
 /// A player as a value kept between hooks: its address, compared, never
@@ -163,181 +149,134 @@ pub struct BodyId(pub(in crate::vostok) u32);
 /// A player of the match.
 #[derive(Clone, Copy)]
 pub struct Player<'t> {
-    this: Object,
-    thread: &'t Thread,
+    pub(in crate::vostok) this: raw::Player,
+    pub(in crate::vostok) thread: &'t Thread,
 }
 
 impl<'t> Player<'t> {
-    /// The player a site's register names (`reg`, as sites_026g.tsv says).
-    pub(in crate::vostok) fn at(ctx: &'t Context<'_>, reg: Reg) -> Option<Player<'t>> {
-        Object::at(ctx.reg(reg)).map(|this| Player { this, thread: ctx.thread() })
+    pub fn eye_transform(&self) -> [f32; 16] {
+        // SAFETY: the live player's complete computed eye matrix.
+        unsafe { floats(self.this.eye()) }
+    }
+
+    pub fn inventory(&self) -> Option<super::inventory::Inventory<'t>> {
+        super::inventory::Inventory::of_player(self.this, self.thread)
+    }
+    pub fn core_skeleton(&self) -> Option<Skeleton<'t>> {
+        // SAFETY: the live core player retains its simulation skeleton.
+        Some(Skeleton { this: unsafe { self.this.core_skeleton() }?, thread: PhantomData })
+    }
+
+    /// The player a site's typed register holds (raw's `site`), on its hook's thread.
+    pub(in crate::vostok) fn of(ctx: &'t Context<'_>, this: Option<raw::Player>) -> Option<Player<'t>> {
+        this.map(|this| Player { this, thread: ctx.thread() })
     }
 
     pub fn id(&self) -> PlayerId {
-        PlayerId(self.this.id())
+        PlayerId(self.this.address())
+    }
+
+    /// The player's place in the match roster.
+    pub fn place(&self) -> u8 {
+        // SAFETY: the live base player's place byte.
+        unsafe { read(self.this.place()) }
     }
 
     /// In the match's world (m_has_been_inserted).
     pub fn inserted(&self) -> bool {
-        // SAFETY: a player's byte field.
-        unsafe { read(raw::player::inserted(self.this.ptr())) != 0 }
+        // SAFETY: the player is alive for the hook.
+        unsafe { read(self.this.inserted()) != 0 }
     }
 
     /// Alive (m_is_alive): a rollback or a loaded world sets it again.
     pub fn alive(&self) -> bool {
         // SAFETY: as inserted.
-        unsafe { read(raw::player::alive(self.this.ptr())) != 0 }
+        unsafe { read(self.this.alive()) != 0 }
+    }
+
+    /// Its [`Presence`], from m_is_alive and m_has_been_inserted.
+    pub fn presence(&self) -> Presence {
+        match (self.alive(), self.inserted()) {
+            (false, _) => Presence::Dead,
+            (true, true) => Presence::InWorld,
+            (true, false) => Presence::Outside,
+        }
+    }
+
+    /// Puts an alive player that is outside the world into it, as the
+    /// respawn rule's spawn does (player::insert 0x1F2720 with 1, called
+    /// through its vtable+20h at 0x316EA9): in-world set, physics activated,
+    /// the world's tick lists linked. Only from [`Presence::Outside`]: insert
+    /// links the tick lists unconditionally, twice would corrupt them.
+    pub fn enter_world(&self) {
+        if self.presence() == Presence::Outside {
+            // SAFETY: a live player of the loaded world on the game's thread;
+            // not yet inserted (checked above), so its lists are unlinked.
+            unsafe { raw::engine_player_insert(Some(self.this), 1) };
+        }
     }
 
     /// The life's spawn time (m_inserted_time_in_ms): one death a life.
     pub fn spawned(&self) -> u32 {
         // SAFETY: as inserted.
-        unsafe { read(raw::player::spawned(self.this.ptr())) }
-    }
-
-    /// Original match equipment, identified by this core and exact spawn.
-    /// The borrowed source can be captured into the match's template bank;
-    /// it is never kept as a raw pointer after this hook.
-    pub fn pickup_profile_source(&self) -> Option<super::resources::ProfileSource<'t>> {
-        super::resources::ProfileSource::read(self.this, self.thread)
-    }
-
-    /// A checked snapshot of weapon slots and carrying modifiers. Supply
-    /// each borrowed slot's resource owner from the match bank; stale owners
-    /// and external ammo without an owner are refused.
-    pub fn pickup_inventory(
-        &self,
-        borrowed: [Option<&super::resources::PreparedWeapon>; 2],
-    ) -> Option<super::weapon::PickupInventory> {
-        super::weapon::PickupInventory::read(self.this, borrowed)
-    }
-
-    /// Install an accepted pickup, retaining the displaced native weapon.
-    ///
-    /// # Safety
-    /// The match owner must restore/drop the returned owner on the simulation
-    /// thread before native respawn, snapshot replacement, player destruction
-    /// or world teardown changes its inventory or registry. This player and
-    /// its core must remain live until then, and callbacks cannot reenter the
-    /// transaction. The grant must belong to this exact simulation event.
-    pub unsafe fn install_pickup(
-        &self,
-        pickup: super::resources::PreparedWeapon,
-        grant: weapon_pickup::PickupGrant,
-    ) -> Result<
-        super::resources::InstalledPickup,
-        (
-            super::resources::InstallError,
-            super::resources::PreparedWeapon,
-        ),
-    > {
-        unsafe { pickup.install(self.this, grant) }
-    }
-
-    /// Attach the snapshot's borrowed slots around its native player decoder.
-    /// The decoder performs held/user/animation transitions; the returned
-    /// owners retain the displaced originals until restored by the match bank.
-    ///
-    /// # Safety
-    /// Old pickup owners must be restored and the target player/kit selected.
-    /// `decode` must run the complete trusted native player deserializer once,
-    /// without reentering ownership. Private reserves are restored before it.
-    /// Displaced originals are restored after it deactivates the old held item.
-    /// Resources must match the snapshot's templates. The same native lifetime
-    /// and exclusive-mapping contract as `install_pickup` applies afterward.
-    pub unsafe fn decode_pickup_slots<R>(
-        &self,
-        resources: &mut [Option<super::resources::SnapshotWeapon>; 2],
-        decode: impl FnOnce() -> R,
-    ) -> Result<super::resources::DecodedPickups<R>, super::resources::InstallError> {
-        unsafe { super::resources::decode_pickup_slots(self.this, resources, decode) }
-    }
-
-    /// Native crate hint/eligibility with original-profile accounting and
-    /// free private borrowed supplies. Supply both slot owners from the bank.
-    pub fn crate_availability(
-        &self,
-        inventory: &super::resources::CrateInventory<'_>,
-        borrowed: [Option<&super::resources::InstalledPickup>; 2],
-    ) -> Result<super::resources::CrateAvailability, super::resources::CrateError> {
-        super::resources::crate_availability(self.this, inventory, borrowed)
-    }
-
-    /// Complete an authorized native crate use. Returns private rounds added;
-    /// ordinary equipment keeps native profile/storage refill behavior.
-    pub fn complete_crate(
-        &self,
-        completion: &super::resources::CrateCompletion<'_>,
-        borrowed: [Option<&mut super::resources::InstalledPickup>; 2],
-    ) -> Result<u32, super::resources::CrateError> {
-        super::resources::complete_crate(self.this, completion, borrowed)
+        unsafe { read(self.this.spawned()) }
     }
 
     /// What it holds (+128h: mt_draw draws it at the "Weapon" bone).
     pub fn held(&self) -> Held {
-        // SAFETY: as inserted; the held item's vtable, a read of its first
-        // field.
+        // SAFETY: as inserted; the held item is alive as long.
         unsafe {
-            match pointer(raw::player::held_item(self.this.ptr()).cast()) {
+            match self.this.held_item() {
                 None => Held::Nothing,
-                Some(item) if read(item.ptr().cast::<u32>()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
+                Some(item) if read(item.vtable()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
                 Some(_) => Held::Item,
             }
         }
     }
 
-    /// The model's render instance and the scene renderer, what
+    /// The scene renderer and the model's render instance, what
     /// update_skeleton takes (mt_draw 0x2477E2..0x24780A).
-    pub(in crate::vostok) fn renderer(&self) -> Option<(*mut c_void, *mut c_void)> {
+    pub(in crate::vostok) fn renderer(&self) -> Option<(raw::SceneRenderer, raw::RenderModelInstance)> {
         // SAFETY: the player's model and game world, the world's game, its
-        // renderer, the renderer's scene renderer.
+        // renderer, the renderer's scene renderer: alive for the hook.
         unsafe {
-            let model = pointer(raw::player::model(self.this.ptr()).cast())?;
-            let world = pointer(raw::player::game_world(self.this.ptr()).cast())?;
-            let game = pointer(raw::game_world::game(world.ptr()).cast())?;
-            let renderer = pointer(raw::game::renderer(game.ptr()).cast())?;
-            let scene = pointer(raw::renderer::scene_renderer(renderer.ptr()).cast())?;
-            Some((scene.ptr(), raw::player_model::render_instance(model.ptr()).cast()))
+            let model = self.this.model()?;
+            let scene = self.this.game_world()?.game()?.renderer()?.scene_renderer()?;
+            Some((scene, model.render_instance()))
         }
     }
 
     /// The simulated transform, a row-vector 4x4 (rows i, j, k, place).
     pub fn transform(&self) -> [f32; 16] {
-        // SAFETY: the transform's 16 f32 from its field on.
-        unsafe { floats(raw::player::transform(self.this.ptr())) }
+        // SAFETY: the player is alive for the hook; 16 f32 from its field on.
+        unsafe { floats(self.this.transform()) }
     }
 
     /// The camera's transform's address (what update_camera gives the view
     /// in the first person): compared with what the site was given.
     pub(in crate::vostok) fn eye_address(&self) -> u32 {
         // SAFETY: an address only.
-        unsafe { raw::player::eye(self.this.ptr()) as usize as u32 }
+        unsafe { self.this.eye() as usize as u32 }
     }
 
     /// The physics world (the level's ray).
     pub fn physics_world(&self) -> Option<PhysicsWorld<'t>> {
         // SAFETY: as inserted.
-        let world = unsafe { pointer(raw::player::physics_world(self.this.ptr()).cast())? };
-        Some(PhysicsWorld { this: world, thread: self.thread })
+        let this = unsafe { self.this.physics_world() }?;
+        Some(PhysicsWorld { this, thread: self.thread })
     }
 
     /// Its model's skeleton.
     pub fn skeleton(&self) -> Option<Skeleton<'t>> {
-        // SAFETY: the player's model, the model's skeleton.
-        let skeleton = unsafe {
-            let model = pointer(raw::player::model(self.this.ptr()).cast())?;
-            pointer(raw::player_model::skeleton(model.ptr()).cast())?
-        };
-        Some(Skeleton { this: skeleton, thread: PhantomData })
+        // SAFETY: the player's model, the model's skeleton: alive for the hook.
+        let this = unsafe { self.this.model()?.skeleton() }?;
+        Some(Skeleton { this, thread: PhantomData })
     }
 
     /// Its hit model's body in the physics world (what a bullet's ray names).
     pub fn hit_body(&self) -> Option<BodyId> {
-        // SAFETY: the player's hit model, its body.
-        unsafe {
-            let model = pointer(raw::player::hit_model(self.this.ptr()).cast())?;
-            pointer(raw::hit_model::body(model.ptr()).cast()).map(|b| BodyId(b.id()))
-        }
+        // SAFETY: the player's hit model, its body: alive for the hook.
+        unsafe { self.this.hit_model()?.body() }.map(|body| BodyId(body.address()))
     }
 
     /// What each inventory slot's item weighs, kg (a piece's weight times a
@@ -346,16 +285,15 @@ impl<'t> Player<'t> {
     /// torso, back, legs, gloves, boots, then the weapons and the rest), to
     /// `f`; nothing without an inventory.
     pub fn slot_weights(&self, mut f: impl FnMut(usize, Option<f32>)) {
-        // SAFETY: the player's inventory field.
-        let Some(inventory) = (unsafe { pointer(raw::player::inventory(self.this.ptr()).cast()) }) else { return };
-        // SAFETY: addresses only: the slots' run and its end in the inventory.
-        let (first, end) = unsafe {
-            (raw::inventory::slots(inventory.ptr()), raw::inventory::slots_end(inventory.ptr()))
+        // SAFETY: the player's inventory, alive for the hook; its slots' run.
+        let Some((first, slots)) = (unsafe {
+            self.this.inventory().map(|inventory| (inventory.slots(), inventory.slots_end()))
+        }) else {
+            return;
         };
-        let slots = (end as usize - first as usize) / 4;
-        for slot in 0..slots {
+        for slot in 0..slots.index_from(first).unwrap_or(0) {
             // SAFETY: a slot of the run (below its end).
-            f(slot, unsafe { item_weight(first.cast::<u32>().add(slot)) });
+            f(slot, unsafe { item_weight(first.at(slot)) });
         }
     }
 }
@@ -363,15 +301,14 @@ impl<'t> Player<'t> {
 /// The weight of the item a slot holds.
 ///
 /// # Safety
-/// `slot` is an inventory slot.
-unsafe fn item_weight(slot: *mut u32) -> Option<f32> {
+/// `slot` is a live inventory's slot.
+unsafe fn item_weight(slot: raw::InventorySlot) -> Option<f32> {
     // SAFETY: the slot's item, its fields, its entry's.
     unsafe {
-        let item = pointer(slot)?;
-        let piece = read(raw::item::weight(item.ptr()));
-        let stack = pointer(raw::item::entry(item.ptr()).cast())
-            .is_some_and(|entry| read(raw::item_entry::stack(entry.ptr())) != 0);
-        let count = if stack { f32::from(read(raw::item::count(item.ptr()))) } else { 1.0 };
+        let item = slot.item()?;
+        let piece = read(item.weight());
+        let stack = item.entry().is_some_and(|entry| read(entry.stack()) != 0);
+        let count = if stack { f32::from(read(item.count())) } else { 1.0 };
         Some(piece * count)
     }
 }
@@ -379,36 +316,30 @@ unsafe fn item_weight(slot: *mut u32) -> Option<f32> {
 /// A model's skeleton: its bones, object_movement first, each its name and
 /// its parent (add_bone 0x3ACDA0's records).
 pub struct Skeleton<'t> {
-    this: Object,
+    this: raw::Skeleton,
     thread: PhantomData<&'t Thread>,
 }
 
 impl Skeleton<'_> {
+    pub fn bone_computed(&self, index: u32, layer: u8) -> bool {
+        // SAFETY: bounded native skeleton record.
+        self.bone(index).is_some_and(|bone| unsafe { read(bone.computed_layers()) & layer != 0 })
+    }
+
     pub fn id(&self) -> SkeletonId {
-        SkeletonId(self.this.id())
+        SkeletonId(self.this.address())
     }
 
     /// Its bones' count.
     pub fn bone_count(&self) -> u32 {
-        // SAFETY: the skeleton's count field.
-        unsafe { read(raw::skeleton::bone_count(self.this.ptr())) }
-    }
-
-    /// The bones' first record and a record's size.
-    fn records(&self) -> (*mut c_void, usize) {
-        // SAFETY: addresses only: the bones' run in the skeleton, a record's
-        // next one (its size).
-        unsafe {
-            let first = raw::skeleton::bones(self.this.ptr()).cast::<c_void>();
-            (first, raw::skeleton_bone::next_bone(first) as usize - first as usize)
-        }
+        // SAFETY: the skeleton is alive for the hook.
+        unsafe { read(self.this.bone_count()) }
     }
 
     /// The `index`th bone's record (within the count).
-    fn bone(&self, index: u32) -> Option<*mut c_void> {
-        let (first, size) = self.records();
+    fn bone(&self, index: u32) -> Option<raw::SkeletonBone> {
         // SAFETY: a record of the run (below the count).
-        (index < self.bone_count()).then(|| unsafe { first.byte_add(size * index as usize) })
+        (index < self.bone_count()).then(|| unsafe { self.this.bones().at(index as usize) })
     }
 
     /// Whether the `index`th bone is named `name` (false past the count or
@@ -417,8 +348,10 @@ impl Skeleton<'_> {
         let Some(bone) = self.bone(index) else { return false };
         // SAFETY: the record's name, a C string: compared up to its 0.
         unsafe {
-            let Some(text) = pointer(raw::skeleton_bone::name(bone).cast()) else { return false };
-            let text = text.ptr().cast::<u8>();
+            let text = bone.name();
+            if text.is_null() {
+                return false;
+            }
             for (n, &b) in name.as_bytes().iter().enumerate() {
                 if text.add(n).read_volatile() != b {
                     return false;
@@ -431,25 +364,23 @@ impl Skeleton<'_> {
     /// Whether the `index`th bone has a name at all.
     pub fn bone_has_name(&self, index: u32) -> bool {
         let Some(bone) = self.bone(index) else { return false };
-        // SAFETY: the record's name field.
-        unsafe { read(raw::skeleton_bone::name(bone)) != 0 }
+        // SAFETY: the record is the live skeleton's.
+        unsafe { !bone.name().is_null() }
     }
 
     /// The `index`th bone's parent's index (the record it names; the first
     /// record is index 0).
     pub fn bone_parent(&self, index: u32) -> Option<u32> {
         let bone = self.bone(index)?;
-        let (first, size) = self.records();
-        // SAFETY: the record's parent field.
-        let parent = unsafe { read(raw::skeleton_bone::parent(bone)) } as usize;
-        let offset = parent.checked_sub(first as usize)?;
-        (offset % size == 0).then_some((offset / size) as u32)
+        // SAFETY: the record's parent field, the skeleton's run.
+        let (parent, first) = unsafe { (bone.parent()?, self.this.bones()) };
+        parent.index_from(first).map(|i| i as u32)
     }
 }
 
 /// The physics world (the simulation's): read-only queries.
 pub struct PhysicsWorld<'t> {
-    this: Object,
+    this: raw::BulletPhysicsWorld,
     thread: &'t Thread,
 }
 
@@ -468,23 +399,18 @@ impl PhysicsWorld<'_> {
     /// the mask): the first hit. It changes nothing (Bullet's scratch only).
     pub fn ray_test(&self, origin: [f32; 3], direction: [f32; 3], length: f32, group: u32, mask: u32) -> Option<RayHit> {
         let _ = self.thread;
-        // the result: 28h bytes (ray_result's end)
-        let mut result = [0u32; 10];
-        // SAFETY: the physics world; the result is ours, its size the
-        // result's; the origin and direction float3s are ours.
+        let mut room = raw::RayResultStorage::zeroed();
+        let result = room.handle();
+        // SAFETY: the physics world, alive for the hook; the result is ours;
+        // the origin and direction float3s are ours.
         unsafe {
-            raw::engine_ray_test(self.this.ptr(), result.as_mut_ptr().cast(), origin.as_ptr(), direction.as_ptr(),
-                                 length, group, mask, core::ptr::null(), 0);
-            let at = result.as_mut_ptr().cast::<c_void>();
-            if read(raw::ray_result::object(at)) == 0 {
-                return None;
-            }
-            Some(RayHit { point: floats(raw::ray_result::point(at)), normal: floats(raw::ray_result::normal(at)) })
+            raw::engine_ray_test(Some(self.this), Some(result), origin.as_ptr(), direction.as_ptr(), length, group,
+                                 mask, core::ptr::null(), 0);
+            result.object()?;
+            Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) })
         }
     }
 }
-
-const _: () = assert!(size_of::<[u32; 10]>() == 0x28);
 
 impl BodyId {
     /// The body as a value (a shot's key).
