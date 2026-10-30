@@ -39,11 +39,12 @@ The language, once, before the dictionary loads:
 
 - Only registered languages are taken (`LANGUAGES` in `client-patches/localization_026g.py`); any
   other name (a typo, the engine's `original`) is passed over to the next source.
-- **No launcher language.** The launcher's menu choice (`HKCU\Software\Vostok Games\Survarium`,
-  `language`) is not read (the owner, 2026-10-29): its first start writes English when nothing was
-  chosen (`launcher.md` section 10.2), so it cannot tell a choice from a default. An existing player's
-  old launcher pick is not carried over: a first start with patch 79 takes the user locale, and
-  Settings fixes it once.
+- **The launcher's menu is this choice** (the owner, 2026-10-29, after a player's game started in
+  Polish, his Windows' language, while his launcher was in Russian): it lists every registered
+  language and writes this same `localization` line of user.cfg; at its start it shows the line's
+  language, else rule 3's. One store, user.cfg: the launcher's own registry value (`HKCU\Software\Vostok
+  Games\Survarium`, `language`) is no longer read or written (`client-patches/launcher/README.md`,
+  patch 14).
 - **The user locale, not the UI language.** The owner said locale; the game imports
   `GetUserDefaultLCID` (kernel32), and no `GetUserDefaultUILanguage`, which would need a looked-up
   function the engine-function library has no kind for. On Windows the two differ only when the
@@ -57,8 +58,8 @@ The language, once, before the dictionary loads:
 
 ## The start paths
 
-- **Launcher (PLAY):** passes no `-localization=`. Its language menu changes the launcher's texts.
-  The game does not read it; the game's language is changed in Settings only.
+- **Launcher (PLAY):** passes no `-localization=`. Its language menu writes the choice to user.cfg
+  before the game starts; the game reads it there (rule 2).
 - **Watch replay** (`updater_skhid.exe replay`): no `-localization=`; the replay plays in the game's
   saved language.
 - **`play_skhid.sh` / `play_skhid.bat`:** pass no language; a hand-typed `-localization=` on a
@@ -66,12 +67,14 @@ The language, once, before the dictionary loads:
 
 ## One list
 
-- The languages, their resource names, their own names and their Windows primary language ids are `LANGUAGES` in
-  `client-patches/localization_026g.py`. `python3 localization_026g.py --write` generates the exe's
-  table (`client-patches/languages_026g.rs`); `check_localization_026g.py` fails when it is stale.
+- The languages, their resource names, their own names, their Windows primary language ids and their
+  two-letter codes are `LANGUAGES` in `client-patches/localization_026g.py`. `python3
+  localization_026g.py --write` generates the exe's table (`client-patches/languages_026g.rs`) and the
+  launcher's (`client-patches/launcher/launcher_languages_026g.inc`; then assemble the launcher's .bin
+  again); `check_localization_026g.py` fails when either is stale.
 - The movie lists what the exe answers (`root.srp_language`): label, note, saved, running, then each
   language's name and own name. No list in the movie.
-- A new language: its `LANGUAGES` row (with its own name and primary language id), its complete TSV (the two Settings texts
+- A new language: its `LANGUAGES` row (with its own name, primary language id and code), its complete TSV (the two Settings texts
   `st_srp_language_option`, `st_srp_language_restart` included), `--write`.
 
 ## Known limits
