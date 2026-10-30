@@ -903,7 +903,8 @@ pub mod tally {
     }
 
     /// An anti-sniper smoke as planned: the thrower, its team, the sniper, his eye as sensed, the crossing, when begun, and
-    /// when the thrower's route first no longer ran by the crossing (a new route: the plan changed after the throw).
+    /// when the thrower's route first no longer ran by the crossing (a new route: the plan changed after the throw), and what
+    /// ended the route it had (`RouteEnd`'s name), if anything did.
     #[derive(Clone, Copy, Debug)]
     pub struct SniperPlan {
         pub place: usize,
@@ -912,19 +913,19 @@ pub mod tally {
         pub eye: super::Vec3,
         pub crossing: super::Vec3,
         pub time: u32,
-        pub route_left: Option<u32>,
+        pub route_left: Option<(u32, &'static str)>,
     }
 
     /// How long after its begin a plan's route is watched, ms (the throw classes' reach time).
     const SNIPER_ROUTE_WATCH_MS: u32 = 15_000;
 
     /// The bot at `place` at `now`: each of its plans begun within [`SNIPER_ROUTE_WATCH_MS`] whose crossing `on_route` no
-    /// longer holds for is marked as left.
-    pub fn sniper_routes(place: usize, now: u32, on_route: impl Fn(super::Vec3) -> bool) {
+    /// longer holds for is marked as left, with `why` (what last ended a route of the bot's).
+    pub fn sniper_routes(place: usize, now: u32, why: &'static str, on_route: impl Fn(super::Vec3) -> bool) {
         SNIPER_PLANS.with(|s| {
             for p in s.borrow_mut().iter_mut() {
                 if p.place == place && p.route_left.is_none() && now.saturating_sub(p.time) <= SNIPER_ROUTE_WATCH_MS && !on_route(p.crossing) {
-                    p.route_left = Some(now);
+                    p.route_left = Some((now, why));
                 }
             }
         });

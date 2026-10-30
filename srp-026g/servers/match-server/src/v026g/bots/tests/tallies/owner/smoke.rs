@@ -345,7 +345,7 @@ impl SmokeCounts {
                             "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms route left {:?}; {diag}",
                             plan.team, plan.place, plan.time, SNIPER_CLASSES[c], plan.who, him.alive, him.gun.class,
                             him.feet.distance_xz(plan.eye), plan.crossing.x, plan.crossing.y, plan.crossing.z, tick.saturating_sub(plan.time),
-                            route_left.map(|t| t.saturating_sub(plan.time))
+                            route_left.map(|(t, why)| (t.saturating_sub(plan.time), why))
                         );
                     }
                 }
