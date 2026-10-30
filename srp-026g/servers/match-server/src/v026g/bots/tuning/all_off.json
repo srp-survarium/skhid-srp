@@ -94,6 +94,12 @@
     "pocket_store": false,
     "smoke": "off"
   },
+  "pace": {
+    "calm_sprint": false,
+    "reserve": null,
+    "ring_death_spots": false,
+    "ring_radar": false
+  },
   "sense": {
     "bush_notice": 0.0,
     "grass_notice": 0.0,
