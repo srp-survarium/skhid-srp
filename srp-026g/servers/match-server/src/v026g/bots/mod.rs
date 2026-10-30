@@ -52,6 +52,7 @@ pub mod hazards;
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod link_time;
 pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
