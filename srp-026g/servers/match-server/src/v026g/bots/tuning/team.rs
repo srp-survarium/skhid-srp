@@ -451,6 +451,11 @@ pub struct ThinkTuning {
     /// the first leg of its route is the drop off the edge. Off: it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
+    /// A walked leg of a bot's route that crosses a doorway off its middle gets a corner at the middle of the opening
+    /// ([`super::super::doors::centre_of`], `Route::door_centred`): the pulled-straight leg cuts the jamb's corner over floors
+    /// 0.32 m from it, and the client's body holds 0.41 m (A66, Chemical Plant's 717 door). Off: the route as the planner
+    /// pulled it.
+    pub door_centres: bool,
     /// The bot's reckoned stamina bar (`stamina::Reckoning`) steers its legs: it lets go of the sprint at an empty bar
     /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
     /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off: the sprint and the jumps as before; the reckoning is counted.
@@ -472,6 +477,7 @@ impl Default for ThinkTuning {
             shut_in_gate: true,
             rest_off_lip: true,
             stranded_start: true,
+            door_centres: false,
             stamina: true,
             fall_lock: true,
         }

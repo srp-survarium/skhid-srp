@@ -1055,6 +1055,72 @@ impl Route {
         route
     }
 
+    /// This route with the middle of each doorway it crosses as a corner (`doors::centre_of`): a walked leg that crosses a
+    /// doorway off its middle gets a corner there, kept where both new legs are straight walks over the floors. The floors'
+    /// heights keep their places along the legs. Legs of a jump, a drop or under a low floor are left as they are.
+    pub fn door_centred(self, grid: &WalkGrid) -> Self {
+        let n = self.points.len();
+        if n < 2 {
+            return self;
+        }
+        let mut points: Vec<Waypoint> = Vec::with_capacity(n + 2);
+        // Per old leg (the one into point k): the corner put in it, if any.
+        let mut corner: Vec<Option<Vec3>> = vec![None; n];
+        for k in 0..n {
+            if k > 0 {
+                let (a, b) = (self.points[k - 1], self.points[k]);
+                if b.jump.is_none() && !b.low && b.at.y - a.at.y > -DROP_LINK_MIN_M
+                    && let Some(c) = super::doors::centre_of(grid, a.at, b.at)
+                    && let Some(node) = grid.locate(c, 0.3)
+                    && straight(grid, a.node, node)
+                    && straight(grid, node, b.node)
+                {
+                    points.push(Waypoint { at: c, node, jump: None, low: false });
+                    corner[k] = Some(c);
+                }
+            }
+            points.push(self.points[k]);
+        }
+        if corner.iter().all(Option::is_none) {
+            return self;
+        }
+        // The floors' distances along a leg are scaled to the leg's new length.
+        let mut new_at = Vec::with_capacity(n);
+        let mut total = 0.0f32;
+        for k in 0..n {
+            if k > 0 {
+                let (a, b) = (self.points[k - 1].at, self.points[k].at);
+                total += corner[k].map_or(a.distance_xz(b), |c| a.distance_xz(c) + c.distance_xz(b));
+            }
+            new_at.push(total);
+        }
+        let floors: Vec<(f32, f32)> = self
+            .floors
+            .iter()
+            .map(|&(d, y)| {
+                let k = self.along.partition_point(|&a| a < d);
+                if k == 0 {
+                    return (d, y);
+                }
+                if k >= n {
+                    return (new_at[n - 1] + (d - self.along[n - 1]), y);
+                }
+                let old_len = self.along[k] - self.along[k - 1];
+                let new_len = new_at[k] - new_at[k - 1];
+                let scale = if old_len > 1e-6 { new_len / old_len } else { 1.0 };
+                (new_at[k - 1] + (d - self.along[k - 1]) * scale, y)
+            })
+            .collect();
+        let Self { sprint_drops, ledge_leads, ledge_tops, planned, below_walk_m, .. } = self;
+        let mut route = Self::with_floors(points, floors);
+        route.sprint_drops = sprint_drops;
+        route.ledge_leads = ledge_leads;
+        route.ledge_tops = ledge_tops;
+        route.planned = planned;
+        route.below_walk_m = below_walk_m;
+        route
+    }
+
     /// This route with a jump from its end onto `to` (on floor `node`): a
     /// way out of a pocket, which no link of the grid makes
     /// (`escape.rs`). The floors along it are kept; the jump's leg is as

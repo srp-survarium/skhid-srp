@@ -74,7 +74,9 @@ struct Pass {
 }
 
 /// A walk of the J0 runner's kind (`Go::To` the goal) from `start` to `goal`, for `until` ms.
-fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> Pass {
+fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32, centred: bool) -> Pass {
+    let mut tuning = Tuning::default();
+    tuning.think.door_centres = centred;
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x717,
@@ -83,7 +85,7 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> 
         &teams,
         &[true, false],
         &[None, None],
-        Arc::new(Tuning::default()),
+        Arc::new(tuning),
         Trace::none(0),
     );
     bots.map_ready(world.clone());
@@ -254,14 +256,20 @@ fn door_717_walk() {
         let starts = ramp_turn_starts(grid, door, goal_node);
         println!("{project}: door at ({:.2}, {:.2}, {:.2}), goal ({:.2}, {:.2}, {:.2}); {} starts climb a ramp and turn before it", door.x, door.y, door.z, goal.x, goal.y, goal.z, starts.len());
         for (start, turn) in starts.iter().take(6) {
-            let pass = walk(&world, *start, goal, door, 90_000);
+          for centred in [false, true] {
+            let pass = walk(&world, *start, goal, door, 90_000, centred);
             println!(
-                "  from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest jamb {:.2} m at ({:.2}, {:.2}, {:.2}) ({} ms under the controller's {CONTROLLER_HOLD_M} m, {} ms under the body's radius {BODY_RADIUS_M} m), stuck notes {}, reached the goal {:?}",
+                "  door_centres {centred}: from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest jamb {:.2} m at ({:.2}, {:.2}, {:.2}) ({} ms under the controller's {CONTROLLER_HOLD_M} m, {} ms under the body's radius {BODY_RADIUS_M} m), stuck notes {}, reached the goal {:?}",
                 start.x, start.y, start.z, turn, pass.near_ms, pass.slow_ms, pass.jamb.0, pass.jamb.1.x, pass.jamb.1.y, pass.jamb.1.z, pass.under_hold_ms, pass.under_radius_ms, pass.stuck, pass.reached
             );
             for (t, f, v, w) in &pass.trace {
                 println!("      {t:6} ms feet ({:.2}, {:.2}, {:.2}) {v:.1} m/s wall {w:.2} m", f.x, f.y, f.z);
             }
+            if centred {
+                assert!(pass.jamb.0 >= CONTROLLER_HOLD_M, "the walk from {start:?} passes the jamb at {:.2} m", pass.jamb.0);
+                assert!(pass.reached.is_some(), "the walk from {start:?} reached the goal");
+            }
+          }
         }
     }
 }

@@ -119,6 +119,12 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
     }
 }
 
+/// A planned route with the middle of each doorway it crosses as a corner when `ThinkTuning::door_centres` is on
+/// ([`Route::door_centred`]).
+fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid) -> Route {
+    if tuning.think.door_centres { route.door_centred(grid) } else { route }
+}
+
 /// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
 fn stranded_leg(route: Route, feet: Vec3) -> Route {
     path::stranded::count();
@@ -871,7 +877,7 @@ fn drive_tick_inner(
                 }
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                bot.set_route(route.map(|route| (route, goal)), time);
+                bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
                 if shut_in {
@@ -1266,7 +1272,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((plain, at)), time);
+                        bot.set_route(Some((door_route(plain, tuning, &tactics.world.grid), at)), time);
                         bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
@@ -1295,7 +1301,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((partial, at)), time);
+                        bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
                         #[cfg(test)]
                         {
                             bot.bench_on_partial = true;
@@ -1348,7 +1354,7 @@ fn drive_tick_inner(
                         };
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                    bot.set_route(route.map(|route| (route, at)), time);
+                    bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
             }

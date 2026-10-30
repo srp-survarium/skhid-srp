@@ -40,6 +40,7 @@ pub mod contact;
 pub mod control;
 pub mod crossing;
 pub mod curve;
+pub mod doors;
 pub mod encode;
 pub mod escape;
 pub mod field_source;
