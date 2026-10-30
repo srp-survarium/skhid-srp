@@ -288,9 +288,14 @@ impl Pose {
         if (to - dir * along).length() > self.bound_radius {
             return None;
         }
+        // The shapes are tested from where the ray comes to the bounding sphere, not from where it starts: the quadratics of
+        // the sphere, the cylinder and the capsule subtract numbers of the size of the distance squared (a body 60 m away: 3,600
+        // against a shape's 0.0025), which f32 cannot hold, and a ray nearly along an arm's axis hits it by rounding alone.
+        let start = (along - self.bound_radius).max(0.0);
+        let near = origin + dir * start;
         self.shapes
             .iter()
-            .filter_map(|shape| Some((shape.ray(origin, dir)?, shape.param)))
+            .filter_map(|shape| Some((start + shape.ray(near, dir)?, shape.param)))
             .filter(|(t, _)| *t <= reach)
             .min_by(|a, b| a.0.total_cmp(&b.0))
     }
@@ -535,6 +540,27 @@ mod tests {
     }
 
     const FACING_Z: [f32; 2] = [0.0, 1.0];
+
+    /// A ray meets the same shape from 2 m as from 60 m: the shapes are tested from where the ray comes to the bounding sphere,
+    /// so the distance of the origin does not change the answer (f32 on a quadratic of 3,600 against a shape's 0.0025 made the
+    /// thin arm shapes hit by rounding alone, 60 m out: 51 % of the bench's hits landed on an arm).
+    #[test]
+    fn the_distance_of_the_origin_does_not_change_which_shape_a_ray_meets() {
+        let pose = Poses::shared().of(false, false);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        for sx in -10..=10 {
+            for sy in -10..=10 {
+                let aim = pose.bound_centre + Vec3::new(sx as f32 * 0.05, sy as f32 * 0.08, 0.0);
+                let first = |back: f32| pose.ray(aim - dir * back, dir, back + 5.0).map(|(t, p)| (t - back, p));
+                let (near, far) = (first(2.0), first(60.0));
+                match (near, far) {
+                    (Some((a, pa)), Some((b, pb))) => assert!(pa == pb && (a - b).abs() < 0.01, "{sx} {sy}: {near:?} {far:?}"),
+                    (None, None) => {}
+                    _ => panic!("{sx} {sy}: from 2 m {near:?}, from 60 m {far:?}"),
+                }
+            }
+        }
+    }
 
     /// The table parses into 19 shapes in each of the four poses, each shape with axes at right angles.
     #[test]
@@ -1050,6 +1076,34 @@ mod game_tests {
         let pierce = super::super::standin_damage::pierce_of(&probe.damage, gun("ak_74u").unwrap()).expect("its pierce");
         let (hit, damage, cover) = shot(Some(0.7 * pierce.value()), "ak_74u");
         assert!(hit && damage > 0.0 && damage < open_damage && cover == 1, "{hit} {damage} {open_damage} {cover}");
+    }
+
+    /// Against a body standing still the bullet's path hits where the instant ray does: the same lines over the chest and
+    /// head of a target 60 m away, a bolt action's 800 m/s bullet, hit on the instant ray and on the flown path alike
+    /// (the flown path sags 5 cm by then, so the two may differ at the edges only).
+    #[test]
+    fn a_flown_bullet_hits_a_standing_target_where_the_instant_ray_does() {
+        let hits = |path: BulletPath, item: &str| {
+            let mut count = 0;
+            for column in (-12..=12).step_by(2) {
+                for row in (0..15).step_by(2) {
+                    let mut game = two_bodies(HitVolume::BOXES);
+                    game.flight = path;
+                    game.bodies[0].gun = gun(item).expect("the gun");
+                    put(&mut game, 1, 10.0, 70.0, 0);
+                    game.bodies[1].step_vec = Vec3::ZERO;
+                    look_at(&mut game, Vec3::new(10.0 + column as f32 * 0.05, 0.2 + row as f32 * 0.1, 70.0));
+                    game.shot(0, 0.0);
+                    count += u32::from(game.shot_facts[0].hit.is_some());
+                }
+            }
+            count
+        };
+        for item in ["sv_98", "ak_74u"] {
+            let (instant, flown, still) = (hits(BulletPath::Instant, item), hits(BulletPath::Flown, item), hits(BulletPath::FlownBodiesStill, item));
+            assert_eq!(flown, still, "{item}: nothing moves, so carrying the bodies changes nothing");
+            assert!(flown * 10 >= instant * 9 && instant > 20, "{item}: instant {instant}, flown {flown} of 104 lines");
+        }
     }
 
     /// A wall across z = 20 from x = 5 to 15, 4 m high.
