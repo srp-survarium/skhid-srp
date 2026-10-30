@@ -3404,8 +3404,9 @@ impl Reflex {
         let Some(key) = self.smoke_key.filter(|_| self.can_smoke()) else {
             return false;
         };
-        // A smoke waits for no target: it is thrown before a crossing, not in a fight.
-        let fighting = self.target.is_some();
+        // A smoke waits for no target, but the one against the sniper it is outranged by: the matchup that names him
+        // (`outranged_by`) holds him as the target (h2h-sniper-vs-off-20261030T0040: 66 plans, none begun without this).
+        let fighting = self.target.is_some() && plan.for_use != super::smoke::SmokeUse::AntiSniper;
         if fighting || now < self.busy_until {
             return false;
         }
@@ -9085,9 +9086,8 @@ mod tests {
         reflex.set_smoke_key(Some(key));
         reflex.target = Some(1);
         assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "fighting");
-        assert!(!reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "fighting: a sniper's smoke is for a crossing");
+        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "the sniper it is outranged by, its target");
         reflex.target = None;
-        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "before a crossing he sees");
         assert_eq!((reflex.lane_smokes(), reflex.sniper_smokes()), (0, 1), "a sniper's smoke is not a lane's");
         assert!(!reflex.can_smoke(), "one at a time");
         // Facing the plan's view: pressed at once, held, let go, the look kept to the launch and after.
