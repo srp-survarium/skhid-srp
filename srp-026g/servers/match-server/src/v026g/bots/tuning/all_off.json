@@ -6,6 +6,7 @@
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,
+      "grenade_at_held": null,
       "grenade_chance": 0.15,
       "grenade_claim": false,
       "grenade_friend_m": 6.0,
