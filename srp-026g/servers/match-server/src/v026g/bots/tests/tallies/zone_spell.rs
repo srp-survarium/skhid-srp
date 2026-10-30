@@ -43,6 +43,7 @@ pub(crate) struct ZoneNow {
 /// A zone spell as the owner topic reads it (`tallies/owner/zone_deaths.rs`): who, how it began and what it took.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ZoneNote {
+    pub(crate) place: usize,
     pub(crate) team: u8,
     pub(crate) spell: ZoneSpell,
     /// The pool that ran out (0 body, 1 head, 2 infection, 3 pain) when the zones killed; none: the spell ended otherwise (left the zone, or killed by an enemy in it).
@@ -80,9 +81,9 @@ impl ZoneNote {
         )
     }
 
-    pub(crate) fn of(spell: &ZoneSpell, body: &Body, died: Option<u8>) -> Self {
+    pub(crate) fn of(place: usize, spell: &ZoneSpell, body: &Body, died: Option<u8>) -> Self {
         let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= spell.start;
-        Self { team: u8::from(body.team != 0), spell: *spell, died, fight, to: body.feet }
+        Self { place, team: u8::from(body.team != 0), spell: *spell, died, fight, to: body.feet }
     }
 }
 

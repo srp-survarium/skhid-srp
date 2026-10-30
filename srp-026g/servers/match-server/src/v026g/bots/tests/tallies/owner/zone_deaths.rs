@@ -123,11 +123,11 @@ impl Topic for ZoneDeaths {
         let mut sides = [Side::default(), Side::default()];
         let mut total = Side::default();
         // Spells under way when the match ends are spells too.
-        let open = game.bodies.iter().filter_map(|b| b.zone_spell.map(|spell| ZoneNote::of(&spell, b, None)));
+        let open = game.bodies.iter().enumerate().filter_map(|(place, b)| b.zone_spell.map(|spell| ZoneNote::of(place, &spell, b, None)));
         for note in game.zone_notes.iter().copied().chain(open) {
             sides[usize::from(note.team.min(1))].add(&note);
             total.add(&note);
-            eprintln!("  {}", note.line());
+            eprintln!("  {} {}", note.line(), before(run, &note));
         }
         let mut json = total.keyed();
         json["zd_by_team"] = serde_json::json!({ "0": sides[0].keyed(), "1": sides[1].keyed() });
@@ -139,6 +139,38 @@ impl Topic for ZoneDeaths {
         );
         vec![("zone_deaths", Part::new(json, text))]
     }
+}
+
+/// What the bot was doing before a spell began (from the run's per-tick record): its play, motives (`Bot::bench_why`), route and keys at the spell's start and
+/// 1 and 2 s before it, and when it left the upper floor (the last tick its feet were within 0.5 m of the height it dropped from) and in what state.
+fn before(run: &Run, note: &ZoneNote) -> String {
+    let Some(recs) = run.recs.get(note.place) else {
+        return String::new();
+    };
+    let at = (note.spell.start.saturating_sub(run.first_tick) / TICK_MS) as usize;
+    let show = |i: usize| -> String {
+        recs.get(i).map_or("-".to_owned(), |r| {
+            format!(
+                "{}/why{}/route{}/keys{:x}/air{}/{:.1}mps",
+                run.plays.get(usize::from(r.play)).map_or("?", String::as_str),
+                r.why,
+                u8::from(r.has_route),
+                r.keys,
+                u8::from(r.air),
+                r.speed
+            )
+        })
+    };
+    let top = note.spell.at.y + note.spell.drop_m;
+    let left = (0..=at.min(recs.len().saturating_sub(1))).rev().find(|&i| recs[i].feet.y >= top - 0.5);
+    format!(
+        "START[{}] M1S[{}] M2S[{}] LEFT[{}ms {}]",
+        show(at),
+        show(at.saturating_sub(TPS)),
+        show(at.saturating_sub(2 * TPS)),
+        left.map_or(-1, |i| ((at - i) as i64) * i64::from(TICK_MS)),
+        left.map_or("-".to_owned(), show)
+    )
 }
 
 /// A made-up spell: the flags, the motives and how it ended are filed under the body's team and counted once.
@@ -159,7 +191,7 @@ pub(crate) fn a_zone_spell_is_filed_under_its_team_with_its_flags_and_motives() 
         drop_m: 0.0,
         zone: Some(3),
     };
-    let note = |team: u8, s: ZoneSpell, died: Option<u8>| ZoneNote { team, spell: s, died, fight: false, to: Vec3::ZERO };
+    let note = |team: u8, s: ZoneSpell, died: Option<u8>| ZoneNote { place: 0, team, spell: s, died, fight: false, to: Vec3::ZERO };
     game.zone_notes.push(note(0, spell(why::CROSS, true, false, true), Some(0)));
     game.zone_notes.push(note(0, spell(why::PLAIN, false, true, false), None));
     game.zone_notes.push(note(1, spell(why::PLAIN | why::ZONE_OK, false, true, false), Some(2)));

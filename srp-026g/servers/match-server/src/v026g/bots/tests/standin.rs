@@ -1814,7 +1814,7 @@ impl Game {
             if !body.alive {
                 if let Some(spell) = body.zone_spell.take() {
                     self.zone_spells.push(spell.ended(body));
-                    self.zone_notes.push(ZoneNote::of(&spell, body, None));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                 }
                 continue;
             }
@@ -1853,7 +1853,7 @@ impl Game {
                     && tick >= spell.last + SPELL_GAP_MS
                 {
                     self.zone_spells.push(spell.ended(body));
-                    self.zone_notes.push(ZoneNote::of(&spell, body, None));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                     body.zone_spell = None;
                 }
                 continue;
@@ -1889,7 +1889,7 @@ impl Game {
             // What took the rest: the spell, and the enemy hits in it.
             let spell = body.zone_spell.take().expect("just set");
             self.zone_spells.push(spell.ended(body));
-            self.zone_notes.push(ZoneNote::of(&spell, body, Some(0)));
+            self.zone_notes.push(ZoneNote::of(place, &spell, body, Some(0)));
             eprintln!(
                 "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
                  the zones took {:.2}, last enemy hit {}",
@@ -1965,7 +1965,7 @@ impl Game {
             if !body.alive {
                 if let Some(spell) = body.zone_spell.take() {
                     self.zone_spells.push(spell.ended(body));
-                    self.zone_notes.push(ZoneNote::of(&spell, body, None));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                 }
                 continue;
             }
@@ -2011,7 +2011,7 @@ impl Game {
                     && tick >= spell.last + SPELL_GAP_MS
                 {
                     self.zone_spells.push(spell.ended(body));
-                    self.zone_notes.push(ZoneNote::of(&spell, body, None));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                     body.zone_spell = None;
                 }
                 continue;
@@ -2066,7 +2066,7 @@ impl Game {
             };
             let spell = body.zone_spell.take().expect("just set");
             self.zone_spells.push(spell.ended(body));
-            self.zone_notes.push(ZoneNote::of(&spell, body, Some(which as u8)));
+            self.zone_notes.push(ZoneNote::of(place, &spell, body, Some(which as u8)));
             eprintln!(
                 "  zone death ({}): at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, the zones took {:.2}",
                 ["body", "head", "infection", "pain"][which],
