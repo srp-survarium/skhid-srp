@@ -656,8 +656,8 @@ fn the_leaping_links_near_a_spot() {
             }
             let press = grid.off_link(a, b).map(|l| format!("{:?}", l.press)).unwrap_or_default();
             eprintln!(
-                "{kind:?} {a}->{b} from ({:.2},{:.2},{:.2}) to ({:.2},{:.2},{:.2}) rise {:+.2} across {:.2} {press} stand {}/{}",
-                pa.x, pa.y, pa.z, pb.x, pb.y, pb.z, pb.y - pa.y, pa.distance_xz(pb), grid.can_stand(a), grid.can_stand(b)
+                "{kind:?} {a}->{b} from ({:.2},{:.2},{:.2}) to ({:.2},{:.2},{:.2}) rise {:+.2} across {:.2} {press} stand {}/{} lead {:?}",
+                pa.x, pa.y, pa.z, pb.x, pb.y, pb.z, pb.y - pa.y, pa.distance_xz(pb), grid.can_stand(a), grid.can_stand(b), grid.press_lead(a, b)
             );
         }
     }
