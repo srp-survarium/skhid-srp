@@ -45,6 +45,10 @@ pub struct GridTuning {
     /// the spawn exit's wall at (94.9, 67.1): 0 of 74 presses got up). Off: a landing needs the body's width. On by default. A
     /// grid is the map's (see `gap_links`).
     pub landing_carry: bool,
+    /// With `landing_carry`: whether a Jump link no press keeps the body on the top of is kept where it is the only way to a floor
+    /// or back from it (`mapdata::Body::keep_last_resorts`). Off: they are all taken away and the floors only they led to are out of
+    /// reach: the live players stood on those floors in 0-7 lives of 1,000-3,000 a map (A170). A grid is the map's (see `gap_links`).
+    pub keep_last_resorts: bool,
     /// The standing jump's cap on the clients' body, metres: a Jump link above it is a sprint jump (a run-up with sprint
     /// held, apex 1.28 m, `mapdata::grid::SPRINT_JUMP_LOW_M`), kept without a run-up as the marginal jump the base made.
     /// The clip's root tops at 0.998 (`mapdata::grid::STANDING_JUMP_M`, PROVEN); whether the body reaches a ledge above it
@@ -63,6 +67,7 @@ impl Default for GridTuning {
             honest_drops: true,
             walk_off_lips: true,
             landing_carry: true,
+            keep_last_resorts: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
         }
     }
@@ -85,6 +90,7 @@ impl GridTuning {
             max_jump: if self.client_numbers { self.jump_cap_m.get() } else { body.max_jump },
             walk_off_lips: self.walk_off_lips,
             landing_carry: self.landing_carry,
+            keep_last_resorts: self.keep_last_resorts,
             ..body
         }
     }

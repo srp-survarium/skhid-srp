@@ -860,3 +860,264 @@ fn a_neck_of_the_exact_erosion() {
         );
     }
 }
+
+/// Every floor of the grid the server builds (`FLOOR` lines, tab-separated: project, x, y, z, 1 when a standing body fits) for the maps
+/// in `SRP_GRID_TABLE_MAPS`: two builds of the code are told apart by their floors.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_floor_list() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let projects: Vec<String> = std::env::var("SRP_GRID_TABLE_MAPS")
+        .unwrap_or_else(|_| "level_04_day_2".to_owned())
+        .split(',')
+        .map(str::to_owned)
+        .collect();
+    for project in &projects {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let body = Body {
+            max_jump: mapdata::grid::STANDING_JUMP_M,
+            erosion: mapdata::Erosion::Exact,
+            drop_flight_mps: 3.5,
+            walk_off_lips: true,
+            landing_carry: true,
+            ..Body::client()
+        };
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &map.walker_triangles(),
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &map.grid_seeds(),
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        for n in 0..grid.len() as NodeId {
+            let p = grid.position(n);
+            eprintln!("FLOOR\t{project}\t{:.2}\t{:.2}\t{:.2}\t{}", p.x, p.y, p.z, u8::from(grid.can_stand(n)));
+        }
+    }
+}
+
+/// The Jump links the grid keeps though no press keeps a body on their top (the only way to a floor, `drop_overshot_landings`), per map
+/// of `SRP_GRID_TABLE_MAPS`: how many, and what the grid reaches from the spawns with all of them taken away (the floors, the objectives
+/// that are out of reach then, and the gateways: the kept links from the floors still reached to those not). With
+/// `SRP_HUMAN_DIR=<dir of the <project>.tsv samples>` the live players' samples are put on the floors: the lives that stand on the floors
+/// out of reach, and where consecutive samples go from a floor still reached to one not (the way the grid is missing).
+/// Lines: `LASTRESORT` (a link), `GATEWAY` (a link into the lost floors), `LOST` (a summary), `HUMANCROSS` (a crossing, 1 m cells).
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_last_resort_links() {
+    use mapdata::grid::{SPRINT_TOP_M, STANDING_JUMP_M, WALK_CLIP_END_M, walking_press_lead};
+    use std::collections::{HashMap, HashSet, VecDeque};
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let projects: Vec<String> = std::env::var("SRP_GRID_TABLE_MAPS")
+        .unwrap_or_else(|_| "level_04_day_2".to_owned())
+        .split(',')
+        .map(str::to_owned)
+        .collect();
+    for project in &projects {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let body = Body {
+            max_jump: STANDING_JUMP_M,
+            erosion: mapdata::Erosion::Exact,
+            drop_flight_mps: 3.5,
+            walk_off_lips: true,
+            landing_carry: true,
+            ..Body::client()
+        };
+        let seeds = map.grid_seeds();
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &map.walker_triangles(),
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &seeds,
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        // The floors walked on past a landing along the jump (the carried landing's top), as the grid's own `top_run`.
+        let top_run = |from: Vec3, b: NodeId, want: f32| {
+            let pb = grid.position(b);
+            let across = from.distance_xz(pb);
+            let (ux, uz) = ((pb.x - from.x) / across, (pb.z - from.z) / across);
+            let (mut at, mut run) = (b, 0.0f32);
+            while run < want {
+                let here = grid.position(at);
+                let next = grid.links(at).find(|&(n, kind)| {
+                    let p = grid.position(n);
+                    let len = here.distance_xz(p);
+                    kind == mapdata::LinkKind::Walk
+                        && len > 1e-3
+                        && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99
+                        && grid.can_stand(n)
+                });
+                let Some((n, _)) = next else { break };
+                run += here.distance_xz(grid.position(n));
+                at = n;
+            }
+            run
+        };
+        let mut unfit: HashSet<(NodeId, NodeId)> = HashSet::new();
+        for a in 0..grid.len() as NodeId {
+            for (b, kind) in grid.links(a) {
+                if kind != mapdata::LinkKind::Jump {
+                    continue;
+                }
+                let (pa, pb) = (grid.position(a), grid.position(b));
+                let (rise, across) = (pb.y - pa.y, pa.distance_xz(pb));
+                if across < 1e-3 {
+                    continue;
+                }
+                let sprint = rise > STANDING_JUMP_M;
+                let fits = if sprint {
+                    let want = SPRINT_TOP_M - 0.5 * across;
+                    top_run(pa, b, want) + 1e-3 >= want
+                } else {
+                    walking_press_lead(rise, across, top_run(pa, b, WALK_CLIP_END_M)).is_some()
+                };
+                if !fits {
+                    unfit.insert((a, b));
+                    eprintln!(
+                        "LASTRESORT\t{project}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{rise:.2}\t{}",
+                        pa.x,
+                        pa.y,
+                        pa.z,
+                        pb.x,
+                        pb.y,
+                        pb.z,
+                        if sprint { "sprint" } else { "walk" }
+                    );
+                }
+            }
+        }
+        // What is reached from the spawns, with and without the unfit links.
+        let bfs = |from: NodeId, skip: bool| {
+            let mut seen = vec![false; grid.len()];
+            let mut queue = VecDeque::from([from]);
+            seen[from as usize] = true;
+            while let Some(a) = queue.pop_front() {
+                for (b, _) in grid.links(a) {
+                    if (skip && unfit.contains(&(a, b))) || seen[b as usize] {
+                        continue;
+                    }
+                    seen[b as usize] = true;
+                    queue.push_back(b);
+                }
+            }
+            seen
+        };
+        let mut starts: Vec<NodeId> = spawns.iter().filter_map(|&p| grid.locate(p, 1.5)).collect();
+        starts.sort_unstable();
+        starts.dedup();
+        let (mut lost, mut cut_any) = (vec![false; grid.len()], vec![false; grid.len()]);
+        for &s in &starts {
+            let (full, cut) = (bfs(s, false), bfs(s, true));
+            for n in 0..grid.len() {
+                lost[n] |= full[n] && !cut[n];
+                cut_any[n] |= cut[n];
+            }
+        }
+        let lost_n = lost.iter().filter(|&&l| l).count();
+        let objectives: Vec<NodeId> = seeds.iter().filter_map(|&p| grid.locate(p, 1.5)).collect();
+        let objectives_lost = objectives.iter().filter(|&&n| lost[n as usize]).count();
+        eprintln!(
+            "LOST\t{project}\tunfit links {}\tfloors {}\tspawns {}\tfloors lost with them away {lost_n}\tobjectives {} lost {objectives_lost}",
+            unfit.len(),
+            grid.len(),
+            starts.len(),
+            objectives.len()
+        );
+        for &n in &objectives {
+            if lost[n as usize] {
+                let p = grid.position(n);
+                eprintln!("LOSTOBJECTIVE	{project}	{:.2}	{:.2}	{:.2}", p.x, p.y, p.z);
+            }
+        }
+        for &(a, b) in &unfit {
+            if cut_any[a as usize] && lost[b as usize] {
+                let (pa, pb) = (grid.position(a), grid.position(b));
+                eprintln!("GATEWAY\t{project}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}", pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+            }
+        }
+        // The live players on those floors.
+        let Some(human_dir) = std::env::var_os("SRP_HUMAN_DIR").map(std::path::PathBuf::from) else { continue };
+        let Ok(text) = std::fs::read_to_string(human_dir.join(format!("{project}.tsv"))) else {
+            eprintln!("HUMAN\t{project}\tno samples");
+            continue;
+        };
+        let class = |x: f32, y: f32, z: f32| -> u8 {
+            match grid.locate(Vec3::new(x, y, z), 0.7) {
+                Some(n) if lost[n as usize] => 2,
+                Some(n) if cut_any[n as usize] => 1,
+                _ => 0,
+            }
+        };
+        type Sample = (u32, f32, f32, f32, bool);
+        let mut lives: HashMap<(String, String, String), Vec<Sample>> = HashMap::new();
+        for line in text.lines().skip(1) {
+            let f: Vec<&str> = line.split('\t').collect();
+            if f.len() < 11 {
+                continue;
+            }
+            let (Ok(t), Ok(x), Ok(y), Ok(z)) = (f[2].parse::<u32>(), f[3].parse::<f32>(), f[4].parse::<f32>(), f[5].parse::<f32>()) else {
+                continue;
+            };
+            lives.entry((f[0].to_owned(), f[1].to_owned(), f[10].to_owned())).or_default().push((t, x, y, z, f[8] == "1"));
+        }
+        let (mut on_lost, mut jumped_in) = (0usize, 0usize);
+        let mut crossings = HashMap::<(i32, i32, i32, i32), u32>::new();
+        for samples in lives.values_mut() {
+            samples.sort_by_key(|s| s.0);
+            let mut prev: Option<(u32, u8, bool, Vec3)> = None;
+            let mut stood = false;
+            for &(t, x, y, z, jumping) in samples.iter() {
+                let c = class(x, y, z);
+                stood |= c == 2;
+                if let Some((pt, pc, pj, pp)) = prev
+                    && pc == 1
+                    && c == 2
+                    && t - pt <= 3000
+                {
+                    eprintln!(
+                        "CROSSING	{project}	{} ms	from ({:.2},{:.2},{:.2}) to ({x:.2},{y:.2},{z:.2})	jumping {pj}/{jumping}",
+                        t - pt,
+                        pp.x,
+                        pp.y,
+                        pp.z
+                    );
+                    if jumping || pj {
+                        jumped_in += 1;
+                    } else {
+                        *crossings.entry((pp.x.round() as i32, pp.z.round() as i32, x.round() as i32, z.round() as i32)).or_default() += 1;
+                    }
+                }
+                prev = Some((t, c, jumping, Vec3::new(x, y, z)));
+            }
+            on_lost += usize::from(stood);
+        }
+        eprintln!(
+            "HUMAN\t{project}\tlives {}\tlives standing on the lost floors {on_lost}\tcrossings by a jump {jumped_in}\tcrossings on foot {}",
+            lives.len(),
+            crossings.values().sum::<u32>()
+        );
+        let mut top: Vec<_> = crossings.into_iter().collect();
+        top.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+        for ((px, pz, x, z), n) in top.into_iter().take(12) {
+            eprintln!("HUMANCROSS\t{project}\t{n}\tfrom ({px},{pz}) to ({x},{z})");
+        }
+    }
+}

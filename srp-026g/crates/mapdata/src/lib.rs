@@ -236,6 +236,10 @@ pub fn grid_key_with_links(
     // The carried landings are a switch too.
     if body.landing_carry {
         digest.u32(LANDING_CARRY_ALGO);
+        // Without the last-resort links is another grid (a key part only then: the keys of the others are the ones there were).
+        if !body.keep_last_resorts {
+            digest.u32(LANDING_CARRY_ALGO + 100);
+        }
     }
     // The default body's keys are the ones there were.
     if body.client_slope() {

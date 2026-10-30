@@ -135,6 +135,11 @@ pub struct Body {
     /// (a wall's top, a rail, a plank); a walking jump is pressed earlier for a short top ([`WalkGrid::press_lead`]). Off: the landing needs the body's width only ([`WalkGrid::lands`]). A build input: in
     /// the key when set; a grid read back is given it ([`WalkGrid::read`]).
     pub landing_carry: bool,
+    /// With [`Body::landing_carry`]: whether a Jump link no press keeps the body on the top of is kept where it is the only way to a
+    /// floor or back from it. Off: every such link is taken away, and the floors only they led to are out of reach (A170: the live
+    /// players stood on those floors in 0-7 lives of 1,000-3,000 a map, and never within 2 m of the 4 objectives they alone led to; on
+    /// the bench the bots pressed them, 3 of 81 up). A build input: in the key when off.
+    pub keep_last_resorts: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -178,6 +183,7 @@ impl Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
+            keep_last_resorts: true,
         }
     }
 }
@@ -225,6 +231,7 @@ impl Default for Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
+            keep_last_resorts: true,
         }
     }
 }
@@ -1008,6 +1015,12 @@ impl WalkGrid {
         }
         if failing.is_empty() {
             return (0, 0);
+        }
+        if !self.body.keep_last_resorts {
+            for &(a, d, _) in &failing {
+                wide.links[a as usize][d] = NONE;
+            }
+            return (failing.len(), 0);
         }
         // What each spawn gets to, and what gets back to it, and what the seeds together get to and get back to, before and after
         // the cut: a start's own ways are kept (a team's spawn is not served by the other's).
@@ -4896,6 +4909,11 @@ pub(crate) mod tests {
     /// A yard (x 0..10, z 0..10) with a ledge 0.9 m high from x 10 on, `depth` m deep and with nothing beyond it, with steps up to
     /// it from z 8 on when `steps`, `span` m wide (z) about z 5: built with the carried landings when `carry`. A seed on the yard's ground.
     fn ledge_island(depth: f32, span: f32, steps: bool, carry: bool) -> (WalkGrid, BuildStats) {
+        ledge_island_with(depth, span, steps, Body { landing_carry: carry, ..Body::default() })
+    }
+
+    /// [`ledge_island`] on a given body.
+    fn ledge_island_with(depth: f32, span: f32, steps: bool, body: Body) -> (WalkGrid, BuildStats) {
         let rise = 0.9;
         let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
         let (z0, z1) = (5.0 - 0.5 * span, 5.0 + 0.5 * span);
@@ -4907,7 +4925,6 @@ pub(crate) mod tests {
                 tris.extend(floor(x0, 8.0, x0 + 0.4, 10.0, rise / 5.0 * (s + 1) as f32));
             }
         }
-        let body = Body { landing_carry: carry, ..Body::default() };
         let seeds = [Vec3::new(2.0, 0.0, 5.0)];
         WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body, &seeds, &seeds)
     }
@@ -4966,6 +4983,20 @@ pub(crate) mod tests {
         assert!(top(&plain), "up the ledge without the carry: {stats:?}");
         let (grid, stats) = ledge_island(0.75, 0.5, false, true);
         assert!(top(&grid) && stats.overshot_kept > 0, "{stats:?}");
+    }
+
+    /// With the last resorts not kept, the jump that is the only way onto a ledge too short for it is taken away like the others, and the
+    /// ledge is out of reach.
+    #[test]
+    fn a_last_resort_is_cut_when_it_is_not_kept() {
+        let top = |grid: &WalkGrid| {
+            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.5).unwrap();
+            grid.locate(Vec3::new(10.4, 0.9, 5.0), 0.3).is_some_and(|b| grid.distances_from(&[a]).reaches(b))
+        };
+        let (kept, stats) = ledge_island_with(0.75, 0.5, false, Body { landing_carry: true, ..Body::default() });
+        assert!(top(&kept) && stats.overshot_kept > 0, "{stats:?}");
+        let (cut, stats) = ledge_island_with(0.75, 0.5, false, Body { landing_carry: true, keep_last_resorts: false, ..Body::default() });
+        assert!(!top(&cut) && stats.overshot_kept == 0 && stats.overshot_cut > 0, "{stats:?}");
     }
 
     /// A beam over a ledge's top, its underside 1.3 m over it (a crouched body goes under, a standing one does not), makes the floors
