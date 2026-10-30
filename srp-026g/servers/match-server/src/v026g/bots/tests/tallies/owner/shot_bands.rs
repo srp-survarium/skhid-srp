@@ -19,6 +19,9 @@ pub(super) struct ShotBands {
     bands: [[[u32; 2]; 6]; 2],
     /// By team, by band, for a target crossing at [`STRAFER_MPS`] or more: shots, hits, the lead's sum, the crossing speed's sum.
     strafers: [[[f64; 4]; 6]; 2],
+    /// By team, by band, for every shot at its target with a line: shots, the vertical offset's sum (m, up positive), the lateral
+    /// offset's absolute sum (m).
+    offsets: [[[f64; 3]; 6]; 2],
 }
 
 /// A target crossing the line of fire at this speed or more is a strafer, m/s.
@@ -35,6 +38,13 @@ impl Topic for ShotBands {
             if let Some((target, distance, _)) = fact.target {
                 let team = usize::from(game.bodies[fact.shooter].team).min(1);
                 self.shot(team, distance, fact.hit == Some(target));
+                if let Some(line) = fact.offset.and_then(|o| o.line) {
+                    let at = EDGES.iter().position(|&edge| distance < edge).unwrap_or(EDGES.len());
+                    let cell = &mut self.offsets[team][at];
+                    cell[0] += 1.0;
+                    cell[1] += f64::from(line.vertical);
+                    cell[2] += f64::from(line.lateral.abs());
+                }
                 // How the target crossed the line (to the shooter's right positive) and how far ahead of him the shot passed.
                 if let (Some(t), Some(s), Some(line)) =
                     (game.bodies.get(target), game.bodies.get(fact.shooter), fact.offset.and_then(|o| o.line))
@@ -63,17 +73,22 @@ impl Topic for ShotBands {
             let mut out = serde_json::Map::new();
             let mut line = format!("team {team}:");
             for (label, cell) in LABELS.iter().zip(bands) {
-                let strafer = self.strafers[team][LABELS.iter().position(|l| l == label).unwrap_or(0)];
+                let at = LABELS.iter().position(|l| l == label).unwrap_or(0);
+                let (strafer, offset) = (self.strafers[team][at], self.offsets[team][at]);
                 out.insert(
                     (*label).to_string(),
                     serde_json::json!({
                         "shots": cell[0], "hits": cell[1],
+                        "line_shots": offset[0], "line_vertical_sum": offset[1], "line_lateral_abs_sum": offset[2],
                         "strafer_shots": strafer[0], "strafer_hits": strafer[1],
                         "strafer_lead_sum": strafer[2], "strafer_cross_sum": strafer[3],
                     }),
                 );
                 if cell[0] > 0 {
                     line += &format!(" {label} {}/{} {:.1} %", cell[1], cell[0], 100.0 * f64::from(cell[1]) / f64::from(cell[0]));
+                }
+                if offset[0] > 0.0 {
+                    line += &format!(" [line {:+.2} m up, {:.2} m across]", offset[1] / offset[0], offset[2] / offset[0]);
                 }
                 if strafer[0] > 0.0 {
                     line += &format!(
