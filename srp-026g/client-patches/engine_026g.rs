@@ -143,6 +143,8 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
+    /// 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
+    pub fn engine_player_insert(player: *mut c_void, link: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

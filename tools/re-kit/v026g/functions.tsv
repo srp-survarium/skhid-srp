@@ -852,6 +852,7 @@ va	status	ref_021d	name
 0x001edbf0	reviewed	0x0015468c	survarium::game::play_ui_sound
 0x001f0090	reviewed	0x0015fdaa	survarium::items_dictionary::item_by_id
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
+0x001f2720	observed	0x00156ad2	survarium::player::insert
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks
@@ -1063,6 +1064,8 @@ va	status	ref_021d	name
 0x002d9a60	reviewed	0x001d5176	survarium::base_player::hit
 0x002d9ae0	reviewed	0x001d51e8	survarium::base_player::hit
 0x002d9b90	reviewed	0x001d524b	survarium::base_player::hit_impl
+0x002da790	observed	0x001d59c8	survarium::base_player::remove
+0x002da850	observed	0x001d5a25	survarium::base_player::insert
 0x002daf60	reviewed	0x001d5e96	survarium::base_player::serialize
 0x002db490	reviewed	0x001d61a3	survarium::base_player::deserialize
 0x002dc0b0	reviewed	0x001d6811	survarium::base_player::set_spotted
