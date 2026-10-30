@@ -21,7 +21,7 @@ pub(crate) struct StandInJump {
 /// at 0.998 m (PROVEN, the jump study). How far it carries was never
 /// measured: GUESS 0.6 m ahead, kept short on purpose.
 pub(crate) const STANDING_JUMP: StandInJump = StandInJump {
-    rise_m: 0.998,
+    rise_m: mapdata::grid::STANDING_JUMP_M,
     ahead_m: 0.6,
 };
 

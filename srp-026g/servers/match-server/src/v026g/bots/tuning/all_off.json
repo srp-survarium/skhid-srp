@@ -48,6 +48,7 @@
     "spot_cost": null
   },
   "feel": {
+    "band_from_grid": false,
     "band_jump_gate": false,
     "carrier_jump_m": null,
     "drop_aim": false,
@@ -87,7 +88,8 @@
     "on": false
   },
   "kin": {
-    "jump_snap": "any"
+    "jump_snap": "any",
+    "pitch_scale": "radian"
   },
   "kit": {
     "frags": "off",

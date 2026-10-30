@@ -177,15 +177,22 @@ pub struct Feel {
     /// A sprint gap link ([`Leap::SprintGap`]) is run up to at a sprint, the run turning onto the jump's way, and
     /// pressed at speed; off, it is made as a walking gap jump.
     pub sprint_gaps: bool,
-    /// A sprint-band ledge jump (a rise over [`WALK_JUMP_TOP_M`]) is pressed only with the sprint held and the speed
+    /// A sprint-band ledge jump (a link the grid labels a sprint jump, [`Feel::band_from_grid`]) is pressed only with the sprint held and the speed
     /// at [`SPRINT_PRESS_SPEED_MS`] or more, at the take-off as before it (the client makes the sprint jump only at
-    /// the walk cap, 3.5 m/s, with sprint and forward held; a walk jump tops at about 1.09 m); a body that arrives
+    /// the walk cap, 3.5 m/s, with sprint and forward held; a walk jump tops at 0.998 m); a body that arrives
     /// slower backs off for another run-up, each a try, and a link with no clear run of the grid's
     /// `mapdata::grid::SPRINT_RUN_UP_M` is given up at once so the route is planned again. The lining up of a sprint
     /// ledge or a sprint gap link ([`Feel::sprint_gaps`]) keeps the sprint, which the driver let go of for every
     /// jump's lining up. Off: the speed is asked only short of the take-off, a run-up as short as half
     /// of [`SPRINT_RUN_UP_M`] is taken, and the sprint is let go of.
     pub band_jump_gate: bool,
+    /// The sprint-band gate ([`Feel::band_jump_gate`]) covers every link the grid labels a sprint jump
+    /// ([`Route::sprint_ledge`]: a rise over the grid's jump cap, 0.998 m with the clients' numbers), not only those over
+    /// [`WALK_JUMP_TOP_M`]. The motor then keeps no number of its own for "what a walk jump reaches": the grid's label is
+    /// the one. A link of 1.0-1.09 m was labelled a sprint jump by the grid and pressed at a walk by the motor; the
+    /// client's walk jump is the `on_site_fwd` clip, whose root tops at 0.998 m (PROVEN, the jump study), and the
+    /// stand-in's too (0 of 53 such presses got up). Off: the gate starts at [`WALK_JUMP_TOP_M`].
+    pub band_from_grid: bool,
     /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
     /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
     /// walk's keys are the ones against the run until it is slow (the owner's rule, 2026-10-27: a landing run is
@@ -240,6 +247,7 @@ impl Default for Feel {
             drop_walk: true,
             sprint_gaps: true,
             band_jump_gate: true,
+            band_from_grid: true,
             landing_cancel_deg: 60.0,
             landing_cancel_drops: true,
             drop_truth: DropTruth::Links,
@@ -394,8 +402,12 @@ pub const SPRINT_GAP_TURN_M: f32 = 2.0;
 /// lower: the walk cap, 3.5 m/s times (1 + the movement modifiers), 3.32-3.70 (PROVEN, `get_move_direction` and the
 /// speed test at 0x33705A, the sprint-jump RE §1.2); this is the margin above it for the speed the body reckons.
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
-/// The highest rise a jump pressed without the sprint jump reaches, metres: its apex 1.0 and the settle onto the top,
-/// +1.08-1.09 (the 8f woodbox rows, PROVEN; a +1.36 face mounted 0 of 12 from a stand or a walk).
+/// The highest rise a jump pressed without the sprint jump was taken to reach, metres, under `Feel::band_from_grid` off: its
+/// apex 1.0 and a settle onto the top, +1.08-1.09. The 8f woodbox rows (PROVEN: a +1.00 box mounted 12 of 12, a +1.36 face
+/// 0 of 12, from a stand or a walk) read +1.06-1.08 on the top in every row, but the press row itself reads +0.07
+/// before the clip's rise has begun (the jump event is at frame 7), so the +0.07 is an offset of the rows' height, not a
+/// settle (LIKELY): the walk jump's top is the clip's apex, [`mapdata::grid::STANDING_JUMP_M`] 0.998. With the switch on
+/// the motor reads the grid's label instead of this number.
 pub const WALK_JUMP_TOP_M: f32 = 1.09;
 /// A sprint-band press needs the body's velocity within this of the jump's way, degrees, and its speed along that way
 /// at the press speed ([`SPRINT_PRESS_SPEED_MS`]): a body moving at 45 degrees to the way carries 3.5 m/s of 5 into the
@@ -863,6 +875,12 @@ impl Motor {
     /// one ([`Motor::jump_ahead`]): no crouch then.
     pub fn lining_up(&self) -> bool {
         self.lining != Lining::No
+    }
+
+    /// Whether a sprint-labelled link of `rise` is in the sprint band: over the walk jump's top, or ([`Feel::band_from_grid`])
+    /// whatever the rise, the grid's label having said it is over the jump cap.
+    fn over_walk_top(&self, rise: f32) -> bool {
+        self.feel.band_from_grid || rise > WALK_JUMP_TOP_M
     }
 
     /// A new tick's decision begins.
@@ -1498,7 +1516,7 @@ impl Motor {
         let sprint_ledge = route.sprint_ledge(k);
         let sprint_gap = self.feel.sprint_gaps && matches!(leap, Leap::SprintGap(_));
         let sprint = sprint_ledge || sprint_gap;
-        let band = self.feel.band_jump_gate && sprint_ledge && landing.y - take_off.y > WALK_JUMP_TOP_M;
+        let band = self.feel.band_jump_gate && sprint_ledge && self.over_walk_top(landing.y - take_off.y);
         if before_route > if sprint { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
             return None;
         }
@@ -1721,7 +1739,7 @@ impl Motor {
             return 0;
         }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
-        let band = self.feel.band_jump_gate && ahead.sprint && !ahead.run_through && ahead.rise > WALK_JUMP_TOP_M;
+        let band = self.feel.band_jump_gate && ahead.sprint && !ahead.run_through && self.over_walk_top(ahead.rise);
         let block = pose.sprint_block.or(aimed.then_some(SprintBlock::Aiming));
         let aligned = !band || press_aligned(pose.velocity, ahead.way);
         let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned));
@@ -1801,7 +1819,7 @@ impl Motor {
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
         if ahead.sprint && !ahead.run_through {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
-            if ahead.rise > WALK_JUMP_TOP_M {
+            if self.over_walk_top(ahead.rise) {
                 band_jumps::pressed(speed, self.sprinting);
                 band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Press);
                 // A press still followed when the next comes did not get up on its own.
@@ -3527,6 +3545,31 @@ mod tests {
         let refusals = band_jumps::Slot::RefusedSlow as usize..=band_jumps::Slot::RefusedDirection as usize;
         assert!(after[refusals.clone()].iter().sum::<u64>() > before[refusals].iter().sum::<u64>(), "the slow arrival was refused");
         assert!(on.up, "{:?}", on.poses.last());
+    }
+
+    /// A link the grid labels a sprint jump but of 1.07 m (over the grid's cap, under the walk jump's 1.09): without
+    /// `band_from_grid` the gate leaves it to the old fallback, pressed at the take-off at a walk (0 of 53 such presses got up in
+    /// the stand-in); with it the link is in the band, run up to and pressed only at speed with the sprint held.
+    #[test]
+    fn a_link_the_grid_calls_a_sprint_jump_is_in_the_band_whatever_its_rise() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(ledge_to(y)),
+            low: false,
+        };
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true };
+        let presses = |from_grid: bool| {
+            let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.07, true), p(14.0, 1.07, false)]);
+            assert_eq!(route.points()[2].jump, Some(Leap::SprintLedge));
+            let feel = Feel { band_jump_gate: true, band_from_grid: from_grid, ..Feel::default() };
+            climb_ledge_feel(&mut route, &ledge, Vec3::new(8.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 600, false, 0, feel)
+        };
+        let old = presses(false);
+        assert!(old.presses.first().is_some_and(|(_, at)| at.speed < SPRINT_PRESS_SPEED_MS), "{:?}", old.presses);
+        let new = presses(true);
+        assert!(!new.presses.is_empty(), "it runs up and jumps: {:?}", new.poses.last());
+        assert!(new.presses.iter().all(|(_, at)| at.speed >= SPRINT_PRESS_SPEED_MS), "{:?}", new.presses);
     }
 
     /// At a band jump's take-off at speed with the sprint held, a block the client's `can_sprint` says (aiming here) holds
