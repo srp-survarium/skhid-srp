@@ -602,6 +602,14 @@ fn drive_tick_inner(
     };
     intent.straight = Gates::straight(intent.straight, zone_out.is_some());
     let goal = goal.or(zone_out);
+    // [zones] On a floor a zone hurts on now, the legs run (`HazardTuning::run_out`).
+    if reacts && tuning.hazard.run_out && goal.is_some() {
+        let hurt = tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.on_at(node, time));
+        if Gates::runs_out(intent.pace, intent.crouch, hurt, over.legs.is_none()) {
+            intent.pace = Pace::Run;
+            super::hazards::damage_zone_fixes::asked_by(bot.team, || super::hazards::damage_zone_fixes::count(super::hazards::damage_zone_fixes::Ev::RunOut));
+        }
+    }
     #[cfg(test)]
     {
         bot.bench_why = 0;
@@ -1958,6 +1966,12 @@ impl Gates {
         goal.is_none() && !intent.zone_ok
     }
 
+    /// Whether a body on a floor a zone hurts on now (`hurt`) runs (`HazardTuning::run_out`): it was to walk, is not crouched and the reflex's legs
+    /// (a fight) are not on it.
+    pub(super) fn runs_out(pace: Pace, crouch: bool, hurt: bool, legs_free: bool) -> bool {
+        hurt && legs_free && !crouch && matches!(pace, Pace::Walk | Pace::Cruise | Pace::Arrive)
+    }
+
     /// Whether the walk is by keys with no route (`Intent::straight`): not when a zone's way out is the goal.
     pub(super) fn straight(straight: bool, zone_out: bool) -> bool {
         straight && !zone_out
@@ -2273,6 +2287,18 @@ mod tests {
         assert!(!Gates::wants_zone_way_out(&intent(true, false, false), goal));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), None));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), goal));
+    }
+
+    #[test]
+    fn a_body_in_a_hurting_zone_runs_unless_it_is_crouched_runs_already_or_the_reflex_has_its_legs() {
+        assert!(Gates::runs_out(Pace::Walk, false, true, true));
+        assert!(Gates::runs_out(Pace::Cruise, false, true, true));
+        assert!(Gates::runs_out(Pace::Arrive, false, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, false, true));
+        assert!(!Gates::runs_out(Pace::Walk, true, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, true, false));
+        assert!(!Gates::runs_out(Pace::Sneak, false, true, true));
+        assert!(!Gates::runs_out(Pace::Run, false, true, true));
     }
 
     #[test]
