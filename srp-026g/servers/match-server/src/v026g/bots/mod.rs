@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod apart;
 pub mod arc;
 pub mod artefact_know;
 pub mod body;

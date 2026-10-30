@@ -1521,6 +1521,18 @@ fn drive_tick_inner(
             decision.keys = keys;
         }
     }
+    // [spacing.apart] A teammate inside the body (no collision between teammates): a step away from him, over the ground the fight's own test finds clear. Not while the reflex
+    // strafes or fires, nor while a use is held, nor with a side key already down.
+    if tuning.spacing.apart && over.strafe == 0 && !over.fire && !using && decision.keys & (key::LEFT | key::RIGHT) == 0 {
+        let away = apart::key_away(me, view, tuning.spacing.apart_m.get());
+        if away != 0 {
+            let keys = decision.keys | away;
+            let to = me.feet + side_step(keys, away, me.yaw, tactics.clear_step_sees_lip);
+            if tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective) {
+                decision.keys = keys;
+            }
+        }
+    }
     // [lip guard] On a lip's floors the keys of this tick are played forward to a stop: a key that carries the
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was

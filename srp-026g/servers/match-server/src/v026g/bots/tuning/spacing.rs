@@ -39,10 +39,16 @@ pub struct SpacingTuning {
     pub buddy: bool,
     /// What the callouts tell and how old a place steers a play.
     pub callouts: Callouts,
+    /// A175 (the owner 2026-10-30: they should NOT stack, "too close to each other or maybe even inside each other, as there is no collision for teammates"; 0.87 % of the
+    /// bench's living teammate pair-seconds are within 1 m against the live players' 0.09 %, two thirds of it two bodies walking the same way in file): a bot with a living teammate
+    /// inside `apart_m` steps aside, away from him, where the ground that side is clear for a stride (`bots/apart.rs`, the fight's own side-step test). Off: the bots go through each other.
+    pub apart: bool,
+    /// The distance inside which a teammate is in the way, metres on the ground (and less than 2 m apart in height). The live players are within 1 m of a teammate in 0.38 % of the world samples.
+    pub apart_m: Metres,
 }
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1) }
     }
 }
