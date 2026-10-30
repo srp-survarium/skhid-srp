@@ -28,13 +28,18 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   65's hook): the hud movie told root.srp_hud_options(hide hit markers, hide
   scores), after patch 65's root.force_interface_hidden, exactly at a change
   of the hud movie or of a setting, and again at the next frame while the
-  movie refuses it (Invoke answering 0); nothing without a hud movie;
+  movie refuses it (Invoke answering 0), and again after a match's or a
+  replay's options read (a new match's hud can be made at the last one's
+  address; process_static_match_info 0x27B92D, a replay's chunk 1 0x1F0971,
+  after patch 65's hooks); nothing without a hud movie;
   registers and stack as the original's, which invokes nothing.
 """
 import struct
 import sys
 
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EBP, UC_X86_REG_EDI, UC_X86_REG_ESP
+from unicorn import UC_PROT_ALL
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EBP, UC_X86_REG_EDI, UC_X86_REG_ESI, \
+    UC_X86_REG_ESP
 
 import patch_026g as base
 import check_hide_ui_026g as hide
@@ -46,12 +51,49 @@ SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers",
                          "st_srp_hide_scores_option": b"Hide player scores"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
+# a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
+# lie in check_language_026g.py's DATA: these are their own)
+MATCH_OPTIONS, MATCH_WORK = 0x31000000, 0x31100000
 
 
 class Run(language.Run):
     def __init__(self, data):
         super().__init__(data)
         self.refused = False
+        self.emu.mem_map(MATCH_OPTIONS, 0x60000, UC_PROT_ALL)
+        self.emu.mem_map(MATCH_WORK, 0x10000, UC_PROT_ALL)
+
+    def new_match(self, replay):
+        """A match's options read, as check_blackout_026g.py's static_info and replay run
+        them (process_static_match_info from its pushes to past the site; a replay's chunk 1
+        from its reader's making to its `ret 8`), a match without Blackout: whether it went
+        on as the game's."""
+        payload = blackout.empty_options()
+        self.emu.mem_write(MATCH_OPTIONS, bytes(0x578A0))
+        self.emu.mem_write(MATCH_WORK, bytes(0x10000))
+        self.emu.mem_write(MATCH_WORK, payload)
+        world = hide.WORLD
+        self.emu.mem_write(world, bytes(0x10000))
+        if replay:
+            sp = hide.STACK + 0x8000
+            self.emu.mem_write(sp, bytes(0x100))
+            self.word(sp + 0x40, MATCH_OPTIONS)
+            self.word(sp, 0x55555555)
+            self.word(sp + 4, 0x66666666)
+            regs, esp = self.run(blackout.REPLAY_START, (blackout.REPLAY_RET,), sp,
+                                 {**hide.GAME, UC_X86_REG_EAX: MATCH_WORK, UC_X86_REG_ECX: len(payload),
+                                  UC_X86_REG_EDI: world})
+            return self.stopped == blackout.REPLAY_RET and esp == sp + 0x3C and regs[UC_X86_REG_EDI] == world
+        self.word(world, world + 0x8000)                  # [edi]: a vtable
+        self.word(world + 0x14, world + 0x1000)           # [edi+14h]+53A4h: the dictionary (none)
+        ebp = hide.STACK + 0x9000
+        for i, value in enumerate((MATCH_WORK, MATCH_WORK, len(payload))):
+            self.word(ebp - 0x2C + 4 * i, value)
+        sp = ebp - 0x100
+        regs, esp = self.run(blackout.STATIC_START, (blackout.STATIC_PAST,), sp,
+                             {**hide.GAME, UC_X86_REG_EDI: world, UC_X86_REG_ESI: MATCH_OPTIONS - 0xC,
+                              UC_X86_REG_EBP: ebp})
+        return self.stopped == blackout.STATIC_PAST and esp == sp and regs[UC_X86_REG_ESI] == MATCH_OPTIONS
 
     # a hud movie that refuses root.srp_hud_options (no root yet): its Invoke answers 0
     def stub(self, emu, address, size, _):
@@ -155,7 +197,8 @@ def main():
     # each frame: the hud told the settings at a change
     told = lambda movie, hits, scores: [(movie, "root.srp_hud_options", (hits, scores))]
     frames = [
-        # (what, the Settings' calls made first, the hud movie (0 none), it refuses, the hud's Invokes wanted)
+        # (what, the Settings' calls made first (None: a new match's options read, "replay" a replay's),
+        # the hud movie (0 none), it refuses, the hud's Invokes wanted)
         ("the first frame, both off", [], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 0, 0)),
         ("the next frame", [], hide.HUD_MOVIE, False, []),
         ("Hide hit markers checked", [("srp_hide_hit_markers", "1")], hide.HUD_MOVIE, False,
@@ -171,10 +214,21 @@ def main():
         ("the hud back, refusing (no root yet)", [], hide.HUD_MOVIE, True, told(hide.HUD_MOVIE, 0, 0)),
         ("the next frame, the movie taking it", [], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 0, 0)),
         ("the frame after", [], hide.HUD_MOVIE, False, []),
+        ("Hide hit markers checked", [("srp_hide_hit_markers", "1")], hide.HUD_MOVIE, False,
+         told(hide.HUD_MOVIE, 1, 0)),
+        ("a new match, its hud at the last one's address (a new root)", [None], hide.HUD_MOVIE, False,
+         told(hide.HUD_MOVIE, 1, 0)),
+        ("its next frame", [], hide.HUD_MOVIE, False, []),
+        ("a replay, its hud at the same address", ["replay"], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 1, 0)),
+        ("its next frame", [], hide.HUD_MOVIE, False, []),
     ]
     for case, calls, movie, refuses, want in frames:
-        for name, argument in calls:
-            ours.callback(name, argument)
+        for call in calls:
+            if call is None or call == "replay":
+                for r in (stock, ours):
+                    expect(r.new_match(call == "replay"), f"{case}: the options read goes on as the game's")
+                continue
+            ours.callback(*call)
         ours.refused = refuses
         a_kept, a_invoked = stock.frame(movie)
         b_kept, b_invoked = ours.frame(movie)

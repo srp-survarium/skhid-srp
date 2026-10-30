@@ -273,7 +273,8 @@ package survarium.controls
          trace("HUD_PL::sort",team);
          if(this._namesOnly)
          {
-            team.sortOn("name",Array.CASEINSENSITIVE);
+            // the id after the name: one order for equal names (Array.sortOn is not stable)
+            team.sortOn(["name","id"],[Array.CASEINSENSITIVE,Array.NUMERIC]);
          }
          else
          {

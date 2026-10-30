@@ -12,7 +12,10 @@
 //! - each frame's player icons update (`player_icons.update_start`, after
 //!   patch 65): the hud movie is told both settings
 //!   (`root.srp_hud_options(hide hit markers, hide scores)`), once for each
-//!   change of the movie or of a setting.
+//!   change of the movie or of a setting;
+//! - a match's options read (`static_info.options_read`,
+//!   `replay.options_read`, after patch 65): a new match, whose hud may be
+//!   another at the last one's address, is told again.
 //!
 //! What the hud does with them is the hud's (HUD.as): no hit marker on the
 //! crosshair; a Tab list of names only, by name. Nothing a match computes:
@@ -106,6 +109,22 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let label = call.translate(setting.label, &mut label);
     call.answer(c"root.srp_check_option", &[setting.name, label, if setting.on(thread) { c"1" } else { c"0" }]);
     Flow::Exit(HudOptionsOnOptionsCallExit::Done)
+}
+
+/// A new match (process_static_match_info 0x27B92D, a replay's chunk 1
+/// 0x1F0971): its hud movie can be made at the last match's address, a new
+/// root that was not told, so it is told again (as patch 65 tells its own).
+fn new_match(thread: &Thread) -> Flow<NoExit> {
+    TOLD.set(thread, None);
+    Flow::Continue
+}
+
+pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    new_match(ctx.thread())
+}
+
+pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    new_match(ctx.thread())
 }
 
 /// update_player_icons' start (0x23AA10), every frame of a match: the hud

@@ -55,7 +55,7 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 ## How
 
-- **Exe** (Rust, three lohooks of `hud_options.toml`, each after another patch's hook at the same
+- **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at the same
   site):
   - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the two saved
     bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs;
@@ -65,6 +65,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
     65): `root.srp_hud_options(hide hit markers, hide scores)` to the hud movie, once for each new
     hud movie or change.
+  - `static_info.options_read`, `replay.options_read` (a match's or a replay's options read,
+    after patch 65): the hud is told again, since a new match can make its hud movie at the last
+    one's address (as patch 65 tells its own state again).
 - **Settings code:** `vostok::settings` (the Settings' call, the save of user.cfg, `ConsoleBool`),
   shared with patch 79's Language choice.
 - **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden` and the Tab list's

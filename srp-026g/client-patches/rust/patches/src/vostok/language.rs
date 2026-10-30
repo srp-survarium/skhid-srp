@@ -9,7 +9,7 @@ use core::cell::UnsafeCell;
 use core::ffi::CStr;
 
 use super::hook::Thread;
-use super::settings::c_string;
+use super::settings::{Registration, c_string};
 use crate::raw;
 
 pub use super::ui::MAX_STRINGS;
@@ -106,12 +106,6 @@ pub fn user_locale(_: &Thread) -> LangId {
     // no arguments, an LCID whose low word is its LANGID.
     let lcid = unsafe { (raw::engine_get_user_default_lcid)() };
     LangId(lcid as u16)
-}
-
-/// Whether a console variable is in the engine's list yet.
-enum Registration {
-    Unregistered,
-    Registered,
 }
 
 /// The console variable object, a cc_string (cc_string::cc_string 0xEC860),

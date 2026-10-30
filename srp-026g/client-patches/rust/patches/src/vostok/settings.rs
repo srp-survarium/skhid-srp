@@ -49,8 +49,9 @@ struct BoolStorage {
     value: u8,
 }
 
-/// Whether a console variable is in the engine's list yet.
-enum Registration {
+/// Whether a console variable is in the engine's list yet (ConsoleBool's
+/// and language's ConsoleString's).
+pub(super) enum Registration {
     Unregistered,
     Registered,
 }
