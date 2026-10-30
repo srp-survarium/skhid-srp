@@ -1393,6 +1393,9 @@ pub enum LegsWhy {
     /// Play 20: standing still from the press to the launch, for the throw
     /// leaves from where the thrower is then.
     Throwing,
+    /// A smoke throw: standing still from the turn to the launch, as [`Self::Throwing`]; with `smoke.throw_keeps_route`
+    /// the route stays for the walk on after it.
+    ThrowingSmoke,
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
@@ -3539,7 +3542,7 @@ impl Reflex {
                 within_m: 1.0,
                 run: false,
                 crouch: me.crouched(),
-                why: LegsWhy::Throwing,
+                why: LegsWhy::ThrowingSmoke,
             }),
             band_m: self.band,
             ..Override::default()

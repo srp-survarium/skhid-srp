@@ -100,6 +100,11 @@ pub struct SmokeTuning {
     /// For this long after it was planned, ms: the throw's turn, hold and launch (`grenade_give_up_ms` 1.5 s +
     /// `grenade_launch_ms` 1.1 s + the look after 0.3 s); thrown, the cloud in the air counts.
     pub claim_ms: u32,
+    /// A bot standing to throw a smoke keeps its route (`LegsWhy::ThrowingSmoke`) and walks on along it once the smoke is
+    /// away: the smoke was planned for that route's crossing. Off: standing left it no goal and dropped its route
+    /// (`RouteEnd::NoGoal`, about 0.24 s into the throw), and the route drawn after the throw could miss the crossing
+    /// (`notes-route-20261030T0911`: both "route changed" throws of `h2h-sniper-d-20261030T0850`).
+    pub throw_keeps_route: bool,
 }
 
 impl SmokeTuning {
@@ -133,6 +138,7 @@ impl Default for SmokeTuning {
             spot_rules: true,
             claim_m: Metres::of(8.0),
             claim_ms: 3_000,
+            throw_keeps_route: true,
         }
     }
 }

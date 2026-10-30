@@ -1,3 +1,4 @@
+use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
 use super::*;
 
@@ -451,6 +452,8 @@ fn drive_tick_inner(
     }
     // The bench's stand-in camper and a script keep to their spots.
     let held = bot.control.holds_legs();
+    // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
+    let keeps_route = Gates::keeps_route(over.legs.filter(|_| !using && !held), tuning.smoke.throw_keeps_route);
     if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {
             at: legs.at,
@@ -1437,7 +1440,9 @@ fn drive_tick_inner(
             }
         }
         None => {
-            bot.end_route(RouteEnd::NoGoal, time);
+            if !keeps_route {
+                bot.end_route(RouteEnd::NoGoal, time);
+            }
             match aim {
                 Some(aim) => {
                     aiming_still = true;
@@ -1868,6 +1873,12 @@ impl Gates {
             _ => None,
         }
     }
+
+    /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
+    /// `smoke.throw_keeps_route` (the walk goes on along the route its crossing was planned for).
+    pub(super) fn keeps_route(legs: Option<Legs>, switch: bool) -> bool {
+        switch && legs.is_some_and(|legs| legs.why == LegsWhy::ThrowingSmoke)
+    }
 }
 
 #[cfg(test)]
@@ -1992,6 +2003,17 @@ mod tests {
             choose_step(left, left, true, true, false, true, only(right)),
             (Step::Stand, None)
         );
+    }
+
+    /// Standing to throw a smoke keeps the route with the switch on; any other stand, and the switch off, drop it.
+    #[test]
+    fn standing_to_throw_a_smoke_keeps_the_route_with_the_switch() {
+        let legs = |why| Some(Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why });
+        assert!(Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), true));
+        assert!(!Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), false));
+        assert!(!Gates::keeps_route(legs(LegsWhy::Throwing), true), "a frag throw drops it as before");
+        assert!(!Gates::keeps_route(legs(LegsWhy::Range), true));
+        assert!(!Gates::keeps_route(None, true));
     }
 
     #[test]
