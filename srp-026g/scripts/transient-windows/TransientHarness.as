@@ -26,7 +26,10 @@ package
    // - a press outside closes it and goes on to what it is on (its click arrives);
    // - Esc closes the top one first (the dropdown, then the match settings), then has nothing;
    // - the match settings opened over the rooms window are over it and take the press there;
-   //   closed, the top bar is under the rooms window again;
+   //   on the transient layer where they were, the top bar under the rooms window, none of it
+   //   over it; closed, back in the top bar;
+   // - the character panel's presets list: on the layer; a press on a row is its own (a choice),
+   //   Esc, a press outside, a window opening and the panel hidden close it;
    // - a resize closes them.
    // Prints "TRANSIENT ..." lines (trace) and ends with "TRANSIENT RESULT pass" or
    // "TRANSIENT RESULT fail: ...".
@@ -57,6 +60,8 @@ package
       private var settingsButton:Sprite;
 
       private var dropdown:*;
+
+      private var profile:*;
 
       private var failures:Array = [];
 
@@ -112,6 +117,13 @@ package
             rooms = new Win(panel);
             Win.me = rooms;
             lobby.addChild(rooms);
+            step = "the character panel";
+            profile = make("SrvLocalPlayerProfile");
+            profile.setAmmoShare(domain.getDefinition("survarium.ammo.AmmoShareLite").getInstance());
+            profile.x = 60;
+            profile.y = 120;
+            lobby.player_profile = profile;
+            lobby.addChild(profile);
             step = "History";
             history = make("SrvNotificationListSC");
             history.visible = false;
@@ -174,6 +186,7 @@ package
             checkPressOutside();
             checkEsc();
             checkOverRooms();
+            checkPresets();
             checkResize();
          }
          catch(err:Error)
@@ -208,6 +221,13 @@ package
       private function settingsClosed() : Boolean
       {
          return !settings.visible && !Transient.isOpen(settings);
+      }
+
+      // On the transient layer, over every regular window (the lobby root's children).
+      private function onLayer(view:DisplayObject) : Boolean
+      {
+         var layer:DisplayObjectContainer = Transient.layer as DisplayObjectContainer;
+         return layer != null && layer.contains(view) && view.parent != lobby;
       }
 
       private function above(a:DisplayObject, b:DisplayObject) : Boolean
@@ -256,18 +276,18 @@ package
       {
          pressHistory();
          expect("History opens, its button selected",historyOpen());
-         expect("History opened is over the windows open",above(history,rooms) && above(history,status) && above(history,shop));
+         expect("History opened is over the windows open",onLayer(history));
          openShop();
          expect("the shop opening closes History",historyClosed());
          expect("the shop is over History",above(shop,history));
          closeShop();
          pressHistory();
-         expect("History opens again over the shop's place",historyOpen() && above(history,shop));
+         expect("History opens again over the shop's place",historyOpen() && onLayer(history));
          rooms.show(true);
          expect("the rooms window opening closes History",historyClosed());
          expect("the rooms window is over History",above(rooms,history));
          pressHistory();
-         expect("History opens again over the rooms window",historyOpen() && above(history,rooms));
+         expect("History opens again over the rooms window",historyOpen() && onLayer(history));
          press(settingsButton);
          expect("a press on Settings closes History",historyClosed());
          rooms.show(false);
@@ -399,25 +419,105 @@ package
       }
 
       // The match settings under Play opened over the rooms window (the owner's screenshot of
-      // 2026-10-30: their list behind "Private room").
+      // 2026-10-30: their list behind "Private room"): carried onto the transient layer, where
+      // they were and as big; the top bar stays under the rooms window, none of it over it.
       private function checkOverRooms() : void
       {
          rooms.show(true);
          expect("the rooms window is over the top bar",above(rooms,status));
+         settings.visible = true;
+         var home:Rectangle = settings.getBounds(stage);
+         settings.visible = false;
+         var homeAt:int = status.getChildIndex(settings);
          pressArrow();
-         expect("the match settings open over the rooms window",settingsOpen() && above(status,rooms));
+         expect("the match settings open, off the top bar (on the transient layer)",settingsOpen() && settings.parent != status && !status.contains(settings));
          var box:Rectangle = settings.getBounds(stage);
+         trace("TRANSIENT match settings at home " + home + ", open " + box);
+         expect("the match settings are where they were and as big",Math.abs(box.x - home.x) < 0.5 && Math.abs(box.y - home.y) < 0.5 && Math.abs(box.width - home.width) < 0.5 && Math.abs(box.height - home.height) < 0.5);
+         expect("the top bar stays under the rooms window",above(rooms,status));
          var room:Rectangle = rooms.getBounds(stage);
          var at:Point = new Point(box.x + Math.min(box.width,room.width) / 2,Math.max(box.y,room.y) + 10);
-         trace("TRANSIENT match settings " + box + ", rooms window " + room + ", pressed at " + at);
+         trace("TRANSIENT rooms window " + room + ", pressed at " + at);
          expect("the press point is on both the match settings and the rooms window",box.containsPoint(at) && room.containsPoint(at));
-         var under:Array = stage.getObjectsUnderPoint(at);
-         var topmost:DisplayObject = under.length > 0 ? under[under.length - 1] as DisplayObject : null;
+         var topmost:DisplayObject = topmostAt(at);
          expect("the topmost thing there is the match settings' (" + topmost + ")",topmost != null && (topmost == settings || settings.contains(topmost)));
+         // Every 5 px of the rooms window's top 40 px and a grid over the rest, off the settings:
+         // nothing of the top bar is the topmost thing.
+         var covered:Array = [];
+         for(var y:Number = room.y + 1; y < room.bottom; y += (y < room.y + 40 ? 5 : 40))
+         {
+            for(var x:Number = room.x + 1; x < room.right; x += 20)
+            {
+               var p:Point = new Point(x,y);
+               if(box.containsPoint(p))
+                  continue;
+               var top:DisplayObject = topmostAt(p);
+               if(top != null && status.contains(top))
+                  covered.push(int(x) + "," + int(y) + " " + top.name);
+            }
+         }
+         expect("no part of the top bar is over the rooms window" + (covered.length > 0 ? " (" + covered.slice(0,5).join("; ") + ")" : ""),covered.length == 0);
          pressArrow();
          expect("the arrow closes the match settings",settingsClosed());
-         expect("closed, the top bar is under the rooms window again",above(rooms,status));
+         expect("closed, the match settings are back in the top bar where they were",settings.parent == status && status.getChildIndex(settings) == homeAt);
+         expect("closed, the top bar is still under the rooms window",above(rooms,status));
          rooms.show(false);
+      }
+
+      private function topmostAt(at:Point) : DisplayObject
+      {
+         var under:Array = stage.getObjectsUnderPoint(at);
+         return under.length > 0 ? under[under.length - 1] as DisplayObject : null;
+      }
+
+      // The character panel's presets list (its title opens it): a transient on the layer; a press
+      // on a row is its own (a choice), a press outside, Esc, a window opening and the panel
+      // hidden close it.
+      private function checkPresets() : void
+      {
+         var Profile:* = domain.getDefinition("survarium.player.LocalPlayerProfile");
+         var first:int = 2090000000;
+         var rows:Array = [{"place":first,"nickname":"P2;L;0;1;1;0;-1"}];
+         for(var n:int = 1; n <= 5; n++)
+            rows.push({"place":first + n,"nickname":n + ";1;" + (n * 3)});
+         expect("the presets are taken",Profile.presetsTake(rows));
+         var openList:Function = function():DisplayObject
+         {
+            var at:Point = profile.localToGlobal(new Point(40,15));
+            var local:Point = profile.globalToLocal(at);
+            profile.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true,false,local.x,local.y));
+            var top:DisplayObject = Transient.top() as DisplayObject;
+            return top != null && top != history && top != settings ? top : null;
+         };
+         pressHistory();
+         var list:DisplayObject = openList();
+         expect("a press on the presets title opens the list",list != null);
+         if(list == null)
+            return;
+         expect("the presets list opening closes History",historyClosed());
+         expect("the presets list is on the transient layer, off the panel",!profile.contains(list));
+         // Its rows are its own: a press on one chooses it (the active one here: no change) and
+         // closes the list by its own path.
+         press(list);
+         expect("a press on a presets row is the list's own (it chooses, the list closes)",!Transient.isOpen(list) && list.stage == null);
+         list = openList();
+         trace("TRANSIENT presets list again " + list);
+         lobby.has_active_window();
+         lobby.close_active_window();
+         expect("Esc closes the presets list",!Transient.isOpen(list) && list.stage == null);
+         lobby.has_active_window();
+         list = openList();
+         press(settingsButton);
+         expect("a press outside closes the presets list",list != null && !Transient.isOpen(list) && list.stage == null);
+         list = openList();
+         openShop();
+         expect("a window opening closes the presets list",list != null && !Transient.isOpen(list) && list.stage == null);
+         closeShop();
+         list = openList();
+         profile.visible = false;
+         expect("the panel hidden closes the presets list",list != null && !Transient.isOpen(list) && list.stage == null);
+         profile.visible = true;
+         expect("nothing is open after",!Transient.any());
       }
 
       private function checkResize() : void

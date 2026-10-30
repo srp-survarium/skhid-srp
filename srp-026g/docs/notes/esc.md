@@ -29,8 +29,8 @@ window: "we fixed that a few times already, but ... not from a single place".
   (the item search also empties, `item-search.md`, unless a message box is on top; the Upgrade
   window is not one); the next Esc closes the modal.
 - **Nothing open** (no modal, no text box): Esc is the game's (its menu).
-- **Transient windows first** (`transient-windows.md`: History, the match settings under Play, a
-  dropdown's open list): Esc closes the top one before anything else; they are not modals, and
+- **Transient windows first** (`transient-windows.md`: History, the match settings under Play,
+  the character panel's presets list, a dropdown's open list): Esc closes the top one before anything else; they are not modals, and
   a modal opening closes them.
 - **A match found or loading** (`set_mm_sync_state`, `set_loading_level`) closes the message up
   with `Message.close`, not as Esc: nothing is answered.
@@ -47,7 +47,6 @@ window: "we fixed that a few times already, but ... not from a single place".
 | Squad's player search | LOBBY | `SquadList.onItemClick` | closes it |
 | Rooms window | LOBBY | `RoomsWindow.show` | hides it |
 | Rooms join popup (loadout offer) | LOBBY | `RoomsWindow.takeOffer` | its Exit (no join) |
-| Character panel's presets list | LOBBY | `LocalPlayerProfile` (list opens) | closes it, no change |
 | Tutorial slides | LOBBY | `LobbyMenu.show_tutorial` | ends them |
 | Message box (any type) | MESSAGE | `Message.addMessageToStage` | `cancelByEsc` |
 | Right-click menu | MENU | `SrvContextMenu.show` | hides it |

@@ -2,31 +2,35 @@ package survarium.controls
 {
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
+   import flash.display.Sprite;
    import flash.display.Stage;
    import flash.events.Event;
    import flash.events.MouseEvent;
+   import flash.geom.Matrix;
 
    // The lobby's transient windows (docs/notes/transient-windows.md): History, the match
-   // settings under Play, a dropdown's list. They behave as an OS's or a browser's menus:
+   // settings under Play, the character panel's presets list, a dropdown's list. They behave as
+   // an OS's or a browser's menus:
    // - one at a time: opening one closes the others, but for the one it is opened from (a
    //   dropdown inside the match settings keeps them open);
    // - a press anywhere outside closes it, and the press goes on to what it is on;
    // - Esc closes it, the top one first (LobbyMenu.close_active_window);
    // - any regular window opening closes them all (Modals.open), and so does a resize;
-   // - while open it is drawn over every regular window.
+   // - while open it is drawn over every regular window: on the transient layer.
    // A transient enters as it opens (`open`) and leaves as it closes by its own path
    // (`closed`); closing it from here calls its `close`, which is what its own button does.
    public class Transient
    {
 
-      // The lobby's root, whose children are the regular windows: a transient's child of the
-      // root goes to its top while the transient is open, and back under the window it was
-      // under when it closes. Without a root (a harness's part), nothing moves.
-      public static var root:DisplayObjectContainer;
+      // The transient layer (LobbyMenu's, over the regular windows; CLIK's popup canvas is in
+      // it): an open transient is carried onto it, where it is drawn as at home, and goes back
+      // home as it closes. One already on it (a dropdown's list) stays. Without a layer (a
+      // harness's part), nothing moves.
+      public static var layer:DisplayObjectContainer;
 
       // {view, opener, close, place}, the one opened last at the end; each is inside the one
-      // before it (`opener` in the one before's `view`). `place`: null, or {top, under} for a
-      // root's child raised while it is open (raise).
+      // before it (`opener` in the one before's `view`). `place`: null, or {holder, home, at}
+      // for one carried onto the layer (carry).
       private static var _open:Array = [];
 
       private static var _stage:Stage;
@@ -46,7 +50,7 @@ package survarium.controls
             "view":view,
             "opener":opener,
             "close":close,
-            "place":raise(view)
+            "place":carry(view)
          };
          _open.push(entry);
          if(view.stage != null)
@@ -97,6 +101,12 @@ package survarium.controls
          return _open.length > 0;
       }
 
+      // The top transient (null: none).
+      public static function top() : DisplayObject
+      {
+         return _open.length > 0 ? _open[_open.length - 1].view : null;
+      }
+
       // Whether `view` is open now.
       public static function isOpen(view:DisplayObject) : Boolean
       {
@@ -120,9 +130,14 @@ package survarium.controls
          }
       }
 
+      // A press Scaleform gives the holder itself (scaleform-movie-pitfalls) is the transient's too.
       private static function holds(entry:Object, target:DisplayObject) : Boolean
       {
-         return within(entry.view,target) || entry.opener != null && within(entry.opener,target);
+         if(within(entry.view,target) || entry.opener != null && within(entry.opener,target))
+         {
+            return true;
+         }
+         return entry.place != null && entry.place.holder === target;
       }
 
       private static function within(box:DisplayObject, target:DisplayObject) : Boolean
@@ -159,7 +174,7 @@ package survarium.controls
          {
             if(_open[i].view === view)
             {
-               lower(_open[i]);
+               home(_open[i]);
                _open.splice(i,1);
             }
          }
@@ -169,38 +184,33 @@ package survarium.controls
          }
       }
 
-      // The root's child holding `view` goes to the top of the root (a dropdown's list, on the
-      // popup canvas over every window, stays where it is).
-      private static function raise(view:DisplayObject) : Object
+      // `view` onto the layer, in a holder drawn as its parent is (the layer's own coordinates),
+      // so it is where it was and as big, over every window. Its own coordinates are kept: its
+      // owner's layout still places it. A resize closes it (the holder would be stale).
+      private static function carry(view:DisplayObject) : Object
       {
-         if(root == null)
-         {
-            return null;
-         }
-         var top:DisplayObject = view;
-         while(top != null && top.parent != root)
-         {
-            top = top.parent;
-         }
-         if(top == null)
-         {
-            return null;
-         }
-         var at:int = root.getChildIndex(top);
-         if(at >= root.numChildren - 1)
+         var parent:DisplayObjectContainer = view.parent;
+         if(layer == null || parent == null || view === layer || layer.contains(view))
          {
             return null;
          }
          var place:Object = {
-            "top":top,
-            "under":root.getChildAt(at + 1)
+            "holder":new Sprite(),
+            "home":parent,
+            "at":parent.getChildIndex(view)
          };
-         root.setChildIndex(top,root.numChildren - 1);
+         var drawn:Matrix = parent.transform.concatenatedMatrix.clone();
+         var into:Matrix = layer.transform.concatenatedMatrix.clone();
+         into.invert();
+         drawn.concat(into);
+         place.holder.transform.matrix = drawn;
+         layer.addChild(place.holder);
+         place.holder.addChild(view);
          return place;
       }
 
-      // Back under the window it was under, if both are still there and it is above it.
-      private static function lower(entry:Object) : void
+      // Back home, where it was among its parent's children.
+      private static function home(entry:Object) : void
       {
          var place:Object = entry.place;
          entry.place = null;
@@ -208,15 +218,15 @@ package survarium.controls
          {
             return;
          }
-         var top:DisplayObject = place.top as DisplayObject;
-         var under:DisplayObject = place.under as DisplayObject;
-         if(top.parent != root || under.parent != root)
+         var view:DisplayObject = entry.view;
+         var parent:DisplayObjectContainer = place.home;
+         if(view.parent === place.holder)
          {
-            return;
+            parent.addChildAt(view,Math.min(int(place.at),parent.numChildren));
          }
-         if(root.getChildIndex(top) > root.getChildIndex(under))
+         if(place.holder.parent != null)
          {
-            root.setChildIndex(top,root.getChildIndex(under));
+            place.holder.parent.removeChild(place.holder);
          }
       }
 

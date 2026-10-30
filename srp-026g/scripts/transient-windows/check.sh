@@ -5,7 +5,8 @@
 # their dropdowns) and rooms window, and checks: History closed by the shop, the rooms window and a
 # press on Settings, opened again, kept with nothing else opened; one transient at a time (a
 # dropdown inside the match settings keeps them); a press outside closes them and still arrives;
-# Esc closes the top one first; the match settings over the rooms window, on top where pressed.
+# Esc closes the top one first; the match settings on the transient layer over the rooms window,
+# on top where pressed, no part of the top bar over it; the presets list; a resize.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

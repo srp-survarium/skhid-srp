@@ -199,6 +199,7 @@ package survarium.controls
          this.right_corner.btnShowDailyMessage.addEventListener(ButtonEvent.CLICK,this.showDailyMessage);
          trace("StatusPanel2",this.play_container.dropDownButton,this.panel_player.txLevel,this.matchSettings);
          this.dropDownButton = this.play_container.dropDownButton;
+         this.matchSettings.playContainer = this.play_container;
          this.dropDownButton.addEventListener(ButtonEvent.CLICK,this.showMatchSettings);
          this.panel_player.txLevel.text = "";
          this.matchSettings.visible = false;
@@ -210,8 +211,9 @@ package survarium.controls
       }
 
       // The match settings under Play (the arrow beside the mode) are a transient window
-      // (Transient): over every window while open; another window opening, a press outside them
-      // or Esc closes them as the arrow does. Their own dropdowns open inside them.
+      // (Transient): on the transient layer while open, over every window (the bar stays where it
+      // is); another window opening, a press outside them or Esc closes them as the arrow does.
+      // Their own dropdowns open from them.
       private function openMatchSettings(value:Boolean) : void
       {
          this.matchSettings.visible = value;

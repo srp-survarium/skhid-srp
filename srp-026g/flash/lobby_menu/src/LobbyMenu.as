@@ -461,14 +461,17 @@ package
       // bars, windows and chat are the root's children, and what the game first put on the stage is
       // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (every layer put
       // above the lobby: the front, top and top2 containers with messages, the wheels, the loading
-      // screen, the fades, the right-click menu, CLIK's popups) and over it _overlay, above every
-      // modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
+      // screen, the fades, the right-click menu), over them _transients (the transient windows
+      // while open, docs/notes/transient-windows.md, and CLIK's popups) and over it _overlay, above
+      // every modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
       // the status panel is), _cards (the item cards, drawn as the root is), CLIK's drag canvas and
       // the tooltips. toggle_interface hides the root, so all of it, in one step; nothing of the
       // interface is on the stage beside it.
       private var _stageLayer:Sprite;
 
       private var _layers:Sprite;
+
+      private var _transients:Sprite;
 
       private var _overlay:Sprite;
 
@@ -513,25 +516,27 @@ package
       }
 
       // The layers the game first put on the stage, in the root (see _stageLayer): made before
-      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go,
-      // Transient that the root's children are the regular windows.
+      // anything is added; CLIK's popup canvas, the right-click menu and the transient windows are
+      // told where theirs go.
       private function makeStageLayer() : void
       {
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          _layers = new Sprite();
+         _transients = new Sprite();
          _overlay = new Sprite();
          _corner = new Sprite();
          _cards = new Sprite();
          itemHintRenderer.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          itemHintRendererSec.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          this._stageLayer.addChild(this._layers);
+         this._stageLayer.addChild(this._transients);
          this._stageLayer.addChild(this._overlay);
          this._overlay.addChild(this._corner);
          this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
-         PopUpManager.layer = this._layers;
-         Transient.root = this;
+         PopUpManager.layer = this._transients;
+         Transient.layer = this._transients;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -4090,6 +4095,8 @@ package
          {
             return;
          }
+         // it covers the lobby: the transient windows (over the layers) close
+         Transient.closeAll();
          var _back_back:MovieClip = new BackBlack();
          this._top_container.addChild(_back_back);
          _back_back.width = stage.stageWidth;
@@ -5395,8 +5402,9 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // the match loads: the message up goes (closed, not answered as Esc would), else the top
-         // modal closes
+         // the match loads: the transient windows close (the loading screen is under their layer),
+         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
             Message.close(Message.isAnyMessage());

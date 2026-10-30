@@ -671,18 +671,13 @@ package survarium.gsearch
          return result;
       }
       
+      // The top bar's Play box (its Play and the arrow), told by the top bar: the settings are on
+      // the transient layer while open, not in the bar.
+      public var playContainer:Object;
+
       protected function pvbContainer() : Object
       {
-         var found:Object = null;
-         try
-         {
-            found = public::Object(this.parent).play_container;
-         }
-         catch(e:Error)
-         {
-            found = null;
-         }
-         return found;
+         return this.playContainer;
       }
       
       protected function pvbPlayButton() : Button
