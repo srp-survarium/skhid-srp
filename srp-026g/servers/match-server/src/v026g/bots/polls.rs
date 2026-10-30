@@ -13,7 +13,7 @@
 
 use super::Bots;
 use super::reflex::Lapse;
-use super::sense::{RayBudget, STARVED_PLACES};
+use super::sense::{HeardCounts, RayBudget, STARVED_PLACES};
 use super::view::PlaceView;
 
 /// The ping bands of a target, ms: unknown or under 20, 20 to 60, 60 to 150,
@@ -60,6 +60,8 @@ pub struct PollStats {
     pub exempt_rays: u64,
     pub starved_by_team: [u64; 2],
     pub starved_by_place: [u64; STARVED_PLACES],
+    /// What the bots' hearing did, by the hearer's team ([`HeardCounts`]).
+    pub heard_by_team: [HeardCounts; 2],
 }
 
 impl Default for PollStats {
@@ -73,6 +75,7 @@ impl Default for PollStats {
             exempt_rays: 0,
             starved_by_team: [0; 2],
             starved_by_place: [0; STARVED_PLACES],
+            heard_by_team: [HeardCounts::default(); 2],
         }
     }
 }
@@ -96,6 +99,9 @@ impl PollStats {
         }
         for (total, polled) in self.starved_by_place.iter_mut().zip(rays.starved_by_place) {
             *total += u64::from(polled);
+        }
+        for (total, polled) in self.heard_by_team.iter_mut().zip(&rays.heard_by_team) {
+            total.add(polled);
         }
     }
 
