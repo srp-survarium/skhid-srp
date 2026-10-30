@@ -36,7 +36,7 @@ below are content only: each is a project of its own next to the classic one, wh
   classic scene. Each scene's own spots are below; heights are of the surface under them, read
   from the meshes.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@4)
+## lobby_scene/hangar_046 (pack lobby-hangar-046@5)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
@@ -60,6 +60,9 @@ below are content only: each is a project of its own next to the classic one, wh
   probes' diffuse multiplier to 2 (1.3), set by eye against the 0.40/0.41 thumbnails (0.26's eye
   adaptation evens the level, so the stronger sun mainly gives the bright patches through the
   roof grid and the windows). The sun shafts themselves were particles 0.26 lacks.
+- @5 (the owner: @4 "too dark without direct light"): sun 3, probe diffuse 3.5. Mean luminance of
+  the view 0.051 (@3 0.042, @4 0.063); the back wall, vines and floor out of the sun at or above
+  @3 (compare script: `private/lobby-select/light/compare.py`).
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -77,7 +80,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@4)
+## lobby_scene/camp_069 (pack lobby-camp-069@5)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -114,6 +117,14 @@ below are content only: each is a project of its own next to the classic one, wh
   azimuth 25: through the left window onto the papers and the right wall), at intensity 5 and
   warm (1, 0.86, 0.68) by `environment_overrides` (@4: the key light of the references), no colour grading
   (0.69d white-balances at 6500 K and has no table; the classic's `l_03d` made it warmer).
+- @5 (the owner: @4 "too dark without direct light"): the probe boxes' `probe_side_width` is the
+  donor's 0.1 m. The template's integer 2 had been kept, and 2 m of fade at each side of a 4 m
+  room left its walls outside the room probe, which is why stronger probes changed nothing.
+  The room probe is x0.45 with its baked irradiance at saturation 0.4 and directionality 0.5 (the
+  SH bands above the constant one halved: the sides facing away from the window lit as bounce),
+  the fills neutral-warm (1, 0.93, 0.84) at 0.02, the sun 3; only the 127 m outdoor box is left
+  out (with it the room probe loses). Luminance against @3: left wall 0.031 (0.030), doorway 0.028
+  (0.017), far wall 0.051 (0.028), ceiling 0.137 (0.157), the sun patch on the floor 0.21 (0.12).
 - References: YouTube thumbnails of 0.65b (a bright room, daylight from the left window, cream
   walls) and of the 0.53 preview (darker, the sun patch on the floor before the desk); @3 sits
   between them; @4 is warm and sunlit like both, still darker on the left wall and ceiling than
