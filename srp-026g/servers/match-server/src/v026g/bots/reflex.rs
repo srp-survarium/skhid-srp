@@ -1822,6 +1822,14 @@ pub struct GrenadeStats {
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
     pub near: [u32; 3],
+    /// [A170] The held spots of a roll (`grenade_at_held`), thinks that reached the roll with: a held spot of the team, one
+    /// whose shooter the team sensed on it lately, one of those in the throw range, one the thrower's feet are not in the lanes
+    /// of, one with no mate in its blast and no other place at it, one no mate claimed, and, of those, thinks of a bot with a
+    /// frag in its kit. Each is counted once a think, for the furthest a spot got.
+    pub held_funnel: [u32; 7],
+    /// [A170] Thinks that did not reach the roll while the team had a sensed held spot, by what stopped them: a throw under
+    /// way, a target in sight, all the life's grenades thrown, the lockout of the last roll.
+    pub held_busy: [u32; 4],
 }
 
 impl GrenadeStats {
@@ -1853,6 +1861,8 @@ impl GrenadeStats {
             pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
             volley: sub(self.volley, before.volley),
             near: sub(self.near, before.near),
+            held_funnel: sub(self.held_funnel, before.held_funnel),
+            held_busy: sub(self.held_busy, before.held_busy),
         };
         (change, false)
     }
@@ -1886,6 +1896,8 @@ impl GrenadeStats {
         self.pushes_skipped += other.pushes_skipped;
         plus(&mut self.volley, &other.volley);
         plus(&mut self.near, &other.near);
+        plus(&mut self.held_funnel, &other.held_funnel);
+        plus(&mut self.held_busy, &other.held_busy);
     }
 }
 
@@ -4568,11 +4580,29 @@ impl Reflex {
                 return;
             }
         }
-        if self.throw.is_some()
-            || self.target.is_some()
-            || self.thrown >= c.grenades
-            || now < self.next_grenade_roll
-        {
+        let busy = if self.throw.is_some() {
+            Some(0)
+        } else if self.target.is_some() {
+            Some(1)
+        } else if self.thrown >= c.grenades {
+            Some(2)
+        } else if now < self.next_grenade_roll {
+            Some(3)
+        } else {
+            None
+        };
+        if let Some(reason) = busy {
+            // [measure] A sensed held spot that this think could not roll for.
+            if c.grenade_at_held.is_some()
+                && team.is_some_and(|team| {
+                    team.threat
+                        .held
+                        .iter()
+                        .any(|line| line.seen.is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS))
+                })
+            {
+                self.grenade_stats.held_busy[reason] += 1;
+            }
             return;
         }
         let held = self
@@ -4648,27 +4678,42 @@ impl Reflex {
         }
         // [A170] The held spots whose shooter the team sensed on them lately: the camper the team cannot see.
         self.spot_shooters.clear();
+        // [measure] How far a held spot of the team got in this think (0 none).
+        let mut furthest = 0;
         if c.grenade_at_held.is_some()
             && let Some(team) = team
         {
             for line in &team.threat.held {
+                furthest = furthest.max(1);
                 let on_it = line
                     .seen
                     .is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS);
-                if !on_it
-                    || !(c.grenade_m.0..=c.grenade_m.1).contains(&line.at.distance_xz(me.feet))
-                    || line.covers(me.feet)
-                    || places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m)
-                    || friend_near(line.at)
-                {
+                if !on_it {
                     continue;
                 }
+                furthest = furthest.max(2);
+                if !(c.grenade_m.0..=c.grenade_m.1).contains(&line.at.distance_xz(me.feet)) {
+                    continue;
+                }
+                furthest = furthest.max(3);
+                if line.covers(me.feet) {
+                    continue;
+                }
+                furthest = furthest.max(4);
+                if places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m) || friend_near(line.at) {
+                    continue;
+                }
+                furthest = furthest.max(5);
                 if claimed(line.at) {
                     self.grenade_stats.claimed += 1;
                     continue;
                 }
+                furthest = 6;
                 places.push((line.at, PlaceSource::Spot));
                 self.spot_shooters.push((line.at, line.shooter));
+            }
+            for stage in 0..furthest {
+                self.grenade_stats.held_funnel[stage] += 1;
             }
         }
         self.grenade_stats.claimed += dropped;
@@ -4682,6 +4727,7 @@ impl Reflex {
             self.next_grenade_roll = now + c.grenade_roll_ms;
             return;
         }
+        self.grenade_stats.held_funnel[6] += u32::from(furthest == 6);
         // A held spot first, then the nearest.
         places.sort_by(|a, b| {
             (a.1 != PlaceSource::Spot)
@@ -8629,6 +8675,10 @@ mod tests {
         // Sensed 1.5 s ago: thrown at, from the held spot's source.
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &times);
         assert!(claim.is_some() && stats.places[PlaceSource::Spot.index()] > 0, "{stats:?}");
+        // The funnel counts the furthest a spot got in each think that reached the roll: all the way and a frag (the kit's
+        // `frags_left` is unknown: a frag), then the roll's lockout stops the others.
+        assert!(stats.held_funnel.iter().all(|&n| n == 1), "{stats:?}");
+        assert!(stats.held_busy[3] > 0 || stats.held_busy[0] > 0, "{stats:?}");
         // The switch off: no place at all (the chance for the other sources is 0).
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(None), &times);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
@@ -8636,16 +8686,19 @@ mod tests {
         let late = [8_000, 8_500, 9_000];
         let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &late);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        assert_eq!(stats.held_funnel, [3, 0, 0, 0, 0, 0, 0], "{stats:?}");
         let (stats, _) = run(&team_with(None, &victims), &aim(Some(1.0)), &times);
         assert_eq!(stats.places, [0; GRENADE_SOURCES], "{stats:?}");
         // The thrower in one of his lanes: not thrown from there.
         let (stats, claim) = run(&team_with(Some(1_500), &[Vec3::ZERO]), &aim(Some(1.0)), &times);
         assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        assert_eq!(stats.held_funnel, [3, 3, 3, 0, 0, 0, 0], "{stats:?}");
         // A teammate's claim on the place within a few seconds: left to him.
         let mut claimed = team_with(Some(1_500), &victims);
         claimed.claim_throw(7, spot, 1_500);
         let (stats, claim) = run(&claimed, &aim(Some(1.0)), &times);
         assert!(claim.is_none() && stats.claimed > 0, "{stats:?}");
+        assert_eq!(stats.held_funnel[4..], [3, 0, 0], "{stats:?}");
     }
 
     /// The arc searched again at the press: only with `grenade_repick` (and
