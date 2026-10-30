@@ -22,8 +22,8 @@ pub struct Lock<T> {
 }
 
 // SAFETY: `with` gives the `&mut` to one thread at a time (the owner swap);
-// the value never leaves the lock.
-unsafe impl<T> Sync for Lock<T> {}
+// a mutable borrow can cross threads only when T is Send.
+unsafe impl<T: Send> Sync for Lock<T> {}
 
 impl<T> Lock<T> {
     pub const fn new(value: T) -> Lock<T> {
@@ -42,8 +42,11 @@ impl<T> Lock<T> {
         }
         // SAFETY: the owner swap above: this thread alone holds the lock
         // until the store below, and `f` cannot keep the borrow.
+        struct Unlock<'a>(&'a AtomicU32);
+        impl Drop for Unlock<'_> { fn drop(&mut self) { self.0.store(0, Ordering::Release); } }
+        let unlock = Unlock(&self.owner);
         let out = f(unsafe { &mut *self.value.get() });
-        self.owner.store(0, Ordering::Release);
+        drop(unlock);
         out
     }
 }
@@ -57,7 +60,9 @@ fn thread_id() -> u32 {
 
 #[cfg(test)]
 fn thread_id() -> u32 {
-    1
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    std::thread_local! { static ID: u32 = NEXT.fetch_add(1, Ordering::Relaxed); }
+    ID.with(|id| *id)
 }
 
 #[cfg(test)]
@@ -72,4 +77,26 @@ mod tests {
         VALUE.with(&thread, |v| v[2] = 7);
         assert_eq!(VALUE.with(&thread, |v| v[2]), 7);
     }
+    #[test]
+    fn workers_share_one_transition_and_unlock_after_an_unwind() {
+        use std::{panic::{AssertUnwindSafe, catch_unwind}, sync::Arc};
+        let value = Arc::new(Lock::new(0u32));
+        let workers: std::vec::Vec<_> = (0..8).map(|_| {
+            let value = value.clone();
+            std::thread::spawn(move || {
+                // SAFETY: the host test models one native hook on this thread.
+                let thread = unsafe { Thread::new() };
+                for _ in 0..1000 { value.with(&thread, |n| *n += 1); }
+            })
+        }).collect();
+        for worker in workers { worker.join().unwrap(); }
+        // SAFETY: this host thread models its own native hook.
+        let thread = unsafe { Thread::new() };
+        assert_eq!(value.with(&thread, |n| *n), 8000);
+        assert!(catch_unwind(AssertUnwindSafe(|| value.with(&thread, |_| {
+            value.with(&thread, |_| ());
+        }))).is_err());
+        assert_eq!(value.with(&thread, |n| *n), 8000);
+    }
+
 }

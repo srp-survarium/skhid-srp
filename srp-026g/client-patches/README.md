@@ -3686,6 +3686,21 @@ skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
 executes the original and redirected callbacks for every game language.
 
+## Breakable lamps (patch 81)
+
+Shooting a configured lamp replaces its model, removes linked lights and
+cones, and queues glass shards and sound once. State survives rollback,
+late joins and replay snapshots; a new match restores the lamps. The content
+covers 92 variants, including the v0.11/v0.21 imports. Legacy Vostok cones
+are bound to their fixtures and aligned to their emitters.
+
+The safe Rust `lamps` module uses typed config, geometry, history and project
+views. One project registry owns renderer membership and native bindings.
+`lamps.toml` declares generated hooks and runtime vtable copies; frame and
+bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
+code. Native Unicorn tests cover all authored maps. Details and test limits:
+`../docs/notes/breakable_lamps.md`.
+
 ## Artefact score (patch 80, unreleased)
 
 An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
