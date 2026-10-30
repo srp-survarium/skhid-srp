@@ -10,6 +10,22 @@ use crate::v026g::bots::view::Clock;
 
 /// The doorway's centre on the floor (x, z); the height is read from the grid.
 const DOOR_XZ: [f32; 2] = [24.0, 81.0];
+/// The doorway's jambs: the wall face at x 23.92 and the opening between z 80.32 and 81.59 (`a96_door717.txt`, 1.27 m clear).
+const WALL_X: f32 = 23.92;
+const JAMB_Z: [f32; 2] = [80.32, 81.59];
+/// The body's radius (half of the 0.76 m capsule) and the distance the client's controller keeps from a wall (A66 grid note).
+const BODY_RADIUS_M: f32 = 0.38;
+const CONTROLLER_HOLD_M: f32 = 0.41;
+
+/// The distance from the feet to the nearest jamb of the doorway: to the corner while east of the wall face, to the opening's
+/// side once in it.
+fn jamb_distance(feet: Vec3) -> f32 {
+    JAMB_Z
+        .iter()
+        .map(|&z| if feet.x > WALL_X { ((feet.x - WALL_X).powi(2) + (feet.z - z).powi(2)).sqrt() } else { (feet.z - z).abs() })
+        .fold(f32::MAX, f32::min)
+}
+
 /// How far the walls are looked for, m, and the lattice step of the search.
 const WALL_REACH_M: f32 = 0.9;
 const WALL_STEP_M: f32 = 0.125;
@@ -43,12 +59,18 @@ struct Pass {
     closest: (f32, Vec3),
     /// The ticks the ground speed was under 1 m/s within 4 m of the door.
     slow_ms: u32,
+    /// The least distance to a jamb within 3 m of the door, m, where, and the ms spent nearer than the controller's hold
+    /// ([`CONTROLLER_HOLD_M`]) and than the body's radius.
+    jamb: (f32, Vec3),
+    under_hold_ms: u32,
+    under_radius_ms: u32,
     /// "is stuck" notes within 6 m of the door.
     stuck: usize,
     /// The clock the body first came within 1.5 m of the goal.
     reached: Option<u32>,
     /// The feet every 250 ms from 6 m before the door to 3 m past it: (clock, feet, speed m/s, wall distance).
     trace: Vec<(u32, Vec3, f32, f32)>,
+    last_speed: f32,
 }
 
 /// A walk of the J0 runner's kind (`Go::To` the goal) from `start` to `goal`, for `until` ms.
@@ -70,7 +92,7 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> 
     game.bodies[0].feet = start;
     bots.entered(0, true, 0);
     let (mut clock, mut next_world) = (0, 1_000);
-    let mut pass = Pass { near_ms: 0, closest: (f32::MAX, Vec3::ZERO), slow_ms: 0, stuck: 0, reached: None, trace: Vec::new() };
+    let mut pass = Pass { near_ms: 0, closest: (f32::MAX, Vec3::ZERO), slow_ms: 0, jamb: (f32::MAX, Vec3::ZERO), under_hold_ms: 0, under_radius_ms: 0, stuck: 0, reached: None, trace: Vec::new(), last_speed: 0.0 };
     let mut last = start;
     let mut next_trace = 0;
     while clock < until {
@@ -114,13 +136,30 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> 
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
         }
         let feet = game.bodies[0].feet;
-        let speed = feet.distance_xz(last) / 0.025;
-        last = feet;
+        // The stand-in moves every TICK_MS: the speed is read over a tick, on the clock steps that end one.
+        let ticked = clock % TICK_MS == 0;
+        let speed = if ticked { feet.distance_xz(last) / (TICK_MS as f32 / 1000.0) } else { pass.last_speed };
+        pass.last_speed = speed;
+        if ticked {
+            last = feet;
+        }
         let to_door = feet.distance_xz(door);
         if to_door <= 4.0 && (feet.y - door.y).abs() <= 2.0 {
             pass.near_ms += 25;
-            if speed < 1.0 {
-                pass.slow_ms += 25;
+            if ticked && speed < 1.0 {
+                pass.slow_ms += TICK_MS as u32;
+            }
+            if to_door <= 3.0 {
+                let j = jamb_distance(feet);
+                if j < pass.jamb.0 {
+                    pass.jamb = (j, feet);
+                }
+                if ticked && j < CONTROLLER_HOLD_M {
+                    pass.under_hold_ms += TICK_MS as u32;
+                }
+                if ticked && j < BODY_RADIUS_M {
+                    pass.under_radius_ms += TICK_MS as u32;
+                }
             }
             let wall = wall_distance(&world.grid, feet);
             if wall < pass.closest.0 {
@@ -217,8 +256,8 @@ fn door_717_walk() {
         for (start, turn) in starts.iter().take(6) {
             let pass = walk(&world, *start, goal, door, 90_000);
             println!(
-                "  from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest wall {:.2} m at ({:.2}, {:.2}, {:.2}), stuck notes {}, reached the goal {:?}",
-                start.x, start.y, start.z, turn, pass.near_ms, pass.slow_ms, pass.closest.0, pass.closest.1.x, pass.closest.1.y, pass.closest.1.z, pass.stuck, pass.reached
+                "  from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest jamb {:.2} m at ({:.2}, {:.2}, {:.2}) ({} ms under the controller's {CONTROLLER_HOLD_M} m, {} ms under the body's radius {BODY_RADIUS_M} m), stuck notes {}, reached the goal {:?}",
+                start.x, start.y, start.z, turn, pass.near_ms, pass.slow_ms, pass.jamb.0, pass.jamb.1.x, pass.jamb.1.y, pass.jamb.1.z, pass.under_hold_ms, pass.under_radius_ms, pass.stuck, pass.reached
             );
             for (t, f, v, w) in &pass.trace {
                 println!("      {t:6} ms feet ({:.2}, {:.2}, {:.2}) {v:.1} m/s wall {w:.2} m", f.x, f.y, f.z);
