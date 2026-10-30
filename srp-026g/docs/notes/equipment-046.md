@@ -49,8 +49,9 @@ left out (below). Every number here is a proposal: balance is the owner's call.
 Levels map 0.31a2's onto 0.26g's by the shared models (0.31 level 3 -> 3,
 7 -> 9, 10 -> 15). Shop rank by srp's rule (`prices::seller_level`).
 
-- **Black Market "Heavy armored"** (0.31 level 10, `sturm_10`) -> **level 15**,
-  the Black Market's first level-15 set; Black Market rank 5; drop 10.
+- **Black Market "Heavy armored"** (0.31 level 10, `sturm_10`) -> **level 15**
+  (the owner, 2026-10-30), the Black Market's first level-15 set; Black Market
+  rank 5; drop 10.
   - Vest 88/20, 14 kg, 100,000, 1 ammo bag + 2 pockets (Zubr 90/50, 20 kg).
   - Pants 88/20, 4 kg, 50,000, ammo bag + pocket size.
   - Helmet 65/20, 2.5 kg, 50,000 (brain only; Nomad's 60/30).
@@ -117,8 +118,6 @@ Levels map 0.31a2's onto 0.26g's by the shared models (0.31 level 3 -> 3,
 
 ## Open questions for the owner
 
-- Heavy armored as the Black Market's level-15 set at 88/20, or lower (level
-  14 beside Mercenary)?
 - Veles and Sniper at level 9 (the 0.31 mapping), with Fringe already having
   Stalker and Warrior there; or level 10-11 to fill the gap below 12?
 - Prices, drop weights and built-in bonuses as proposed?
