@@ -2221,7 +2221,6 @@ va	status	ref_021d	name
 0x003219a0	inferred-medium	0x001fe299	survarium::bullet_manager::bullet_manager
 0x00321af0	inferred-medium	0x001fe3c7	survarium::bullet_manager::free_bullet
 0x00321d10	inferred-high	0x001fe601	survarium::bullet_manager::tick
-0x00321fa0	inferred-medium	0x001fe7c2	survarium::bullet_manager::add_decal
 0x00322100	inferred-medium	0x001fe889	survarium::bullet_manager::add_decal_impl
 0x00322140	inferred-high	0x001fe8c2	survarium::bullet_manager::add_decal_impl
 0x003223d0	inferred-medium	0x001fe9fe	survarium::bullet_manager::play_sound_impl

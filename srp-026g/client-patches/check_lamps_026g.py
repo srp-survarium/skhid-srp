@@ -28,6 +28,12 @@ PROJECT, CONFIG, SCENE, GAME, RENDERER = (HEAP + i * 0x1000 for i in range(5))
 VISUALS, OBJECTS, LIGHTS, MODELS = HEAP + 0x300000, HEAP + 0x400000, HEAP + 0x410000, HEAP + 0x500000
 CFG, MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(4, 11))
 PHYSICS = HEAP + 0xb0000
+# A hit about to queue its decal: process_front_face_piercing, back_face,
+# reflection and collision, each at its pair's decal slot (site, the label
+# past add_decal, the slot).
+DECAL_SITES = ((0x32e672, 0x32e6ba, 0x08), (0x32e8cc, 0x32e914, 0x0c),
+               (0x32eaf2, 0x32eb4e, 0x10), (0x32ed71, 0x32edb9, 0x14))
+HIT, DECAL = HEAP + 0xb8000, HEAP + 0xb9000
 CAMERA, CORE = HEAP + 0xd0000, HEAP + 0xe0000
 MATERIALS, BULLET_MAT, GLASS_MAT, PAIR, PARTICLES = (HEAP + i for i in (0x200000, 0x211000, 0x212000, 0x213000, 0x214000))
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
@@ -72,7 +78,7 @@ class Game:
             u.mem_write(addr, bytes(built[raw:raw + min(rsize, vsize or rsize)]))
         u.mem_map(HEAP, 0xa00000)
         self.active, self.events, self.output = set(), [], bytearray()
-        self.effects = []
+        self.effects, self.decals = [], []
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21cd0, end=0x21cd0)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21f40, end=0x21f40)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24750, end=0x24750)
@@ -80,6 +86,7 @@ class Game:
         u.hook_add(UC_HOOK_CODE, self.write, begin=0x1f48a0, end=0x1f48a0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3223e0, end=0x3223e0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
+        u.hook_add(UC_HOOK_CODE, self.decal, begin=0x321fa0, end=0x321fa0)
         self.w(PROJECT + 0x17c, CONFIG); self.w(CONFIG + 0x108, CFG)
         self.w(PROJECT + 0x180, SCENE); self.w(SCENE + 0x98, CAMERA)
         self.w(SCENE + 0x9c, GAME); self.w(GAME + 0x5360, RENDERER)
@@ -187,6 +194,34 @@ class Game:
         self.effects.append((kind, struct.unpack('<3f', u.mem_read(point, 12))))
         self.finish(cleanup)
 
+    def decal(self, u, *_):
+        # bullet_manager::add_decal: the manager in EAX, the pair's slot, the
+        # hit's point; it queues a world-space decal (stubbed, cleanup 32).
+        esp = u.reg_read(UC_X86_REG_ESP)
+        assert u.reg_read(UC_X86_REG_EAX) == MANAGER and self.r(self.r(esp + 4)) == DECAL
+        self.decals.append(struct.unpack('<3f', u.mem_read(self.r(esp + 16), 12)))
+        self.finish(32)
+
+    def mark(self, point, surface=GLASS_MAT):
+        """How many of the four hit kinds queue their decal at `point` on a
+        surface of `surface`'s material. Each runs from its site to the
+        native code after add_decal, with the function's registers intact."""
+        placed = 0
+        self.w(BULLET + 0x4c, surface)
+        for site, after, slot in DECAL_SITES:
+            self.w(PAIR + slot, DECAL)
+            self.f(HIT, point); self.f(HIT + 0x10, (-1., 0., 0.))
+            before = len(self.decals)
+            regs = {UC_X86_REG_EBP: BULLET, UC_X86_REG_EBX: HIT, UC_X86_REG_ESI: PAIR}
+            assert self.run(site, after, regs=regs) == STACK
+            assert all(self.u.reg_read(r) == v for r, v in regs.items())
+            assert self.decals[before:] in ([], [struct.unpack('<3f', struct.pack('<3f', *point))]), self.decals[before:]
+            placed += len(self.decals) - before
+            self.w(PAIR + slot, 0)
+        self.w(BULLET + 0x4c, 0)
+        assert placed in (0, len(DECAL_SITES)), placed
+        return placed != 0
+
     def run(self, site, stop=RET, args=(), regs=None, flags=2):
         u = self.u
         u.mem_write(STACK, struct.pack('<%dI' % (1 + len(args)), RET, *args))
@@ -279,9 +314,19 @@ def main():
         g.shoot(**kw); g.present(); assert g.active == intact
     assert not g.effects
     print('ok: misses, short segments and an intervening wall do not break lamps')
+    # The game's bullet decal is a world-space box no model owns: one on a
+    # fixture's glass would outlive the glass. No glass mark is queued inside
+    # a fixture's bounds (1 cm margin), entering, leaving, ricocheting or
+    # stopping, whatever the lamp's state; other materials and places are.
+    def marks(game):
+        return (not game.mark((-.1, 0., 0.)) and not game.mark((3., .1, -.05)) and not game.mark((-.105, 0., 0.))
+                and game.mark((-.12, 0., 0.)) and game.mark((1.5, 0., 0.)) and game.mark((-.1, 0., 0.), BULLET_MAT))
+    assert marks(g) and g.active == intact and not g.effects
+    print('ok: no glass decal on an intact fixture (four hit kinds); other surfaces and materials keep theirs')
     g.shoot(); g.present()
     broken = (intact - {('model', 0), ('model', 4), ('light', 0)}) | {('model', 1)}
     assert g.active == broken
+    assert marks(g) and g.active == broken
     assert g.effects == [('shards', (0., 0., 0.)), ('glass sound', (0., 0., 0.))]
     events = len(g.events)
     g.shoot(); g.present(); assert len(g.events) == events
@@ -294,6 +339,7 @@ def main():
     g.load(damaged); g.present(); assert g.active == broken
     print('ok: rollback restores the intact lamp; resimulation and snapshot load reproduce the break')
     late = Game(built); late.insert(); late.load(damaged); late.present(); assert late.active == broken
+    assert marks(late)
     assert not late.effects  # snapshot loading must not replay a historical break
     quiet = Game(built); quiet.insert(); quiet.u.mem_write(BULLET + 0x80, b'\x01')
     quiet.shoot(); quiet.present(); assert quiet.active == broken and not quiet.effects
@@ -310,6 +356,7 @@ def main():
     print('ok: truncated, unknown and mismatched histories rejected before lamp state changes')
     g.shoot(length=5.); g.present(); assert g.active == {('model', 1), ('model', 3)}
     print('ok: late join/replay snapshot; two lamps on one unobstructed segment')
+    print('ok: no glass decal on a broken fixture, after rollback, resimulation or a late join')
     g.remove(); assert not g.active
     assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
     assert all(g.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
@@ -323,8 +370,9 @@ def main():
     # A map without metadata retains the original bullet wire format.
     g.u.mem_write(CFG, bytes(relocated_config({})))
     g.insert(); assert len(g.save()) == 16
+    assert g.mark((-.1, 0., 0.)) and g.mark((3., 0., 0.))
     g.remove()
-    print('ok: new match resets lamps; maps without lamp metadata retain native history')
+    print('ok: new match resets lamps; maps without lamp metadata retain native history and decals')
     # Invalid metadata must fail before any native binding changes. Objects
     # the metadata names wrongly (a wrong index, a moved light) leave the
     # project without lamps, the game running; malformed metadata refuses.

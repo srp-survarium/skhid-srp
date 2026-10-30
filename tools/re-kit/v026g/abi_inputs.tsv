@@ -4606,6 +4606,15 @@ va	name	location	role	basis
 0x003222f0	survarium::bullet_manager::play_sound	entry ESP+4	the bullet manager (a bullet's +44h)	observed
 0x003222f0	survarium::bullet_manager::play_sound	entry ESP+8	the sound (the pair's +18h slot: a resource pointer)	observed
 0x003222f0	survarium::bullet_manager::play_sound	entry ESP+12	the position (float3*)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	EAX	the bullet manager (a bullet's +44h)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+4	the decal (a slot of the material pair, +8h/+0Ch/+10h/+14h by the hit's kind: a resource pointer, its count +0D0h taken)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+8	its size (float)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+12	its second size (float; the same but for a ricochet)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+16	the position (float3*, the hit's point)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+20	the bullet's direction (float3*)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+24	the surface normal (float3*, the hit's +10h)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+28	the caller's third argument (0: none)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+32	a flag (byte; the hit's +20h with that argument, else 0)	observed
 0x0032d4e0	survarium::bullet::check_collision	EAX	the bullet (+4 its id, +8 its shooter (+4 the place), +1Ch its velocity (LIKELY), +40h its ammo data (0x332440's: +0Ch k_power, +14h mass, +3Ch muzzle_speed, +50h combat_log_icon), +44h the bullet manager, +48h its material, +80h, +84h its segments)	observed
 0x00332440		entry ESP+4	the ammo data filled (the config's `data`: +0 distance, +4 dispersion, +8 k_damage, +0Ch k_power, +10h k_stamina_damage, +14h mass, +18h k_max_damage_distance, ... +28h air_resistance, +3Ch muzzle_speed, +50h combat_log_icon); EAX the config	observed
 0x002fc6e0	survarium::inventory::update_weight	ESI	the inventory (+10Ch its 23 slots' items, +180h m_carried_weight, +184h m_need_to_recalculate_weight)	observed

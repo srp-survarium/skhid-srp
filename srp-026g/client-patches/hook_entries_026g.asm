@@ -1440,6 +1440,174 @@ lamps_on_load_replay:
 ; 0xa0ae10 object_light remove slot 9: vtable -> lamps_on_light_remove (wraps engine_light_remove 0x2917d0)
     RUST_THISCALL lamps_on_light_remove, hook_lamps_on_light_remove, 0
 
+; 0x32e672 process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there: lohook -> lamps_on_decal_enter
+global lamps_on_decal_enter
+extern hook_lamps_on_decal_enter
+lamps_on_decal_enter:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_enter
+    mov edx, lamps_on_decal_enter_replay
+    cmp eax, 0
+    je lamps_on_decal_enter_go
+    mov edx, 0x32e679
+    cmp eax, 1
+    je lamps_on_decal_enter_go
+    mov edx, 0x32e6ba
+    cmp eax, 2
+    je lamps_on_decal_enter_go
+    ud2
+lamps_on_decal_enter_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_enter_replay:
+    db 0x83, 0x7e, 0x08, 0x00, 0x8d, 0x7e, 0x08
+    jmp 0x32e679
+
+; 0x32e8cc process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there: lohook -> lamps_on_decal_leave
+global lamps_on_decal_leave
+extern hook_lamps_on_decal_leave
+lamps_on_decal_leave:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_leave
+    mov edx, lamps_on_decal_leave_replay
+    cmp eax, 0
+    je lamps_on_decal_leave_go
+    mov edx, 0x32e8d3
+    cmp eax, 1
+    je lamps_on_decal_leave_go
+    mov edx, 0x32e914
+    cmp eax, 2
+    je lamps_on_decal_leave_go
+    ud2
+lamps_on_decal_leave_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_leave_replay:
+    db 0x83, 0x7e, 0x0c, 0x00, 0x8d, 0x7e, 0x0c
+    jmp 0x32e8d3
+
+; 0x32eaf2 process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there: lohook -> lamps_on_decal_ricochet
+global lamps_on_decal_ricochet
+extern hook_lamps_on_decal_ricochet
+lamps_on_decal_ricochet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_ricochet
+    mov edx, lamps_on_decal_ricochet_replay
+    cmp eax, 0
+    je lamps_on_decal_ricochet_go
+    mov edx, 0x32eaf9
+    cmp eax, 1
+    je lamps_on_decal_ricochet_go
+    mov edx, 0x32eb4e
+    cmp eax, 2
+    je lamps_on_decal_ricochet_go
+    ud2
+lamps_on_decal_ricochet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_ricochet_replay:
+    db 0x83, 0x7e, 0x10, 0x00, 0x8d, 0x7e, 0x10
+    jmp 0x32eaf9
+
+; 0x32ed71 process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there: lohook -> lamps_on_decal_stop
+global lamps_on_decal_stop
+extern hook_lamps_on_decal_stop
+lamps_on_decal_stop:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_stop
+    mov edx, lamps_on_decal_stop_replay
+    cmp eax, 0
+    je lamps_on_decal_stop_go
+    mov edx, 0x32ed78
+    cmp eax, 1
+    je lamps_on_decal_stop_go
+    mov edx, 0x32edb9
+    cmp eax, 2
+    je lamps_on_decal_stop_go
+    ud2
+lamps_on_decal_stop_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_stop_replay:
+    db 0x83, 0x7e, 0x14, 0x00, 0x8d, 0x7e, 0x14
+    jmp 0x32ed78
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start

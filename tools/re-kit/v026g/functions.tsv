@@ -1845,6 +1845,7 @@ va	status	ref_021d	name
 0x00306d50	verified		survarium::game_material_manager::material_pair
 0x003223e0	verified	0x001fea08	survarium::bullet_manager::play_particle
 0x003222f0	verified	0x001fe96f	survarium::bullet_manager::play_sound
+0x00321fa0	reviewed	0x001fe7c2	survarium::bullet_manager::add_decal
 0x002febc0	reviewed	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
 0x002df050	reviewed		survarium::portable_interactive_object_core::set_user_animation_resource
 0x002fb8a0	reviewed	0x001e0aca	survarium::weapon_user_animations_selector::~weapon_user_animations_selector

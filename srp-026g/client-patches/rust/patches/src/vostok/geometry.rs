@@ -69,6 +69,10 @@ impl Bounds {
         Some(Self { low, high, centre })
     }
     pub fn centre(self) -> WorldPoint { self.centre }
+    /// Whether `point` lies in these bounds, or within `tolerance` of them.
+    pub fn holds(self, point: WorldPoint, tolerance: Distance) -> bool {
+        (0..3).all(|k| point.0[k] >= self.low.0[k] - tolerance.0 && point.0[k] <= self.high.0[k] + tolerance.0)
+    }
     pub fn intersects(self, ray: BulletSegment) -> bool {
         let (mut near, mut far) = (0.0_f32, ray.length.0);
         for k in 0..3 {
