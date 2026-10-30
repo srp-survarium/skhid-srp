@@ -2549,7 +2549,7 @@ impl KeyboardActionFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x10 (u32): on_keyboard_action's third argument (ebp+10h): 1 down, 2 repeat, 3 up (0x23FE45, 0x23FEC5, 0x23FEF9)
+    /// +0x10 (u32): on_keyboard_action's third argument (ebp+10h), 0.10b input::enum_keyboard_action: 1 down, 2 up, 3 hold (pushed as 0 down 0x23FEA4, 1 up 0x23FF0C, 2 hold 0x23FED8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
