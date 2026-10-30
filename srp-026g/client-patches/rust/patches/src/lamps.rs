@@ -9,6 +9,7 @@ use crate::vostok::bullet::{BulletRay, MaterialId};
 use crate::vostok::collection::BoundedVec;
 use crate::vostok::config::{ConfigError, ConfigTable};
 use crate::vostok::history::{HistoryReader, HistoryWriter};
+use crate::vostok::log::Piece::Text;
 use crate::vostok::project::{BindingError, MethodTables, Presentation, ProjectPlan, ProjectRegistry, ProjectView, VisualIndex};
 use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, LampCount, LampEvent, LampId, MAX_LAMPS,
             RayDirection, Snapshot, Visibility, WorldPoint};
@@ -41,6 +42,19 @@ static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 #[derive(Debug)]
 enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition }
 impl MetadataError {
+    /// The objects the metadata names are not this map's (a wrong index, a
+    /// moved light): the project stays without lamps, on every client alike,
+    /// since every client loads the same content.
+    fn unbound(&self) -> Option<&'static str> {
+        match self {
+            Self::Binding(BindingError::InvalidVisual) => Some("a visual index past the map's visuals"),
+            Self::Binding(BindingError::UnknownVisualType) => Some("a visual index naming another kind of visual"),
+            Self::Binding(BindingError::UnknownLight) => Some("a light position no light of the map has"),
+            Self::Binding(BindingError::AmbiguousLight) => Some("a light position two lights of the map have"),
+            Self::Binding(BindingError::DuplicateObject) => Some("one object bound twice"),
+            _ => None,
+        }
+    }
     fn refuse(self) -> ! {
         match self {
             Self::Binding(error) => panic!("invalid lamp binding: {error:?}"),
@@ -89,7 +103,10 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
 }
 
 pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Err(error) = PROJECT.insert(ctx, prepare) { error.refuse(); }
+    if let Err(error) = PROJECT.insert(ctx, prepare) {
+        let Some(why) = error.unbound() else { error.refuse() };
+        vostok::log::line(&[Text("lamps: this map's lamps are not breakable, its metadata has "), Text(why)]);
+    }
     Flow::Continue
 }
 pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.removed(ctx); Flow::Continue }
@@ -104,9 +121,9 @@ pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
         })();
         if let Some(segment) = segment {
             PROJECT.with_physics(ctx.thread(), physics, |lamps| {
-                let effects = ray.surface_break_effects(lamps.material);
+                let material = lamps.material;
                 lamps.shoot(segment, |point, direction| {
-                    if let Some(effects) = &effects { effects.play(point, direction); }
+                    if let Some(effects) = ray.surface_break_effects(material) { effects.play(point, direction); }
                 });
             });
         }

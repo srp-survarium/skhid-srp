@@ -65,6 +65,36 @@ class Lamps(unittest.TestCase):
         self.assertFalse(lamp['lights'])
         self.assertFalse(any(k.startswith('cone') for k in lamp['visuals']))
 
+    def test_built_check_finds_a_wrong_index_and_a_moved_light(self):
+        fixture = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.],
+                       rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        cone = dict(visual_name='props/light/cone_light_volume', position=[0., 5.1, 0.],
+                    rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        other = dict(fixture, position=[10., 5., 0.])
+        light = dict(game_object_type='light', full_name='l', position=[0., 4.9, 0.])
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (fixture, cone, other):
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (fixture, cone, other)])),
+                                                 ('client_objects', (4, [record(light)]))])))
+        bounds = {'props/light/lamp_on': ([-.056, -.209, -.056], [.056, 0., .055])}
+        _, additions, spec = edits.author('p', original, bounds, 29)
+        def built(spec):
+            data = bytearray(original)
+            for add in additions:
+                edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+            edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+            return data
+        self.assertEqual(edits.check_built('p', built(spec)), [])
+        lamp, neighbour = spec['value']['lamps'].values()
+        # A shifted index naming the other lamp's (same) model, and a light
+        # the map editor moved.
+        lamp['visuals']['intact0']['index'] = neighbour['visuals']['intact0']['index']
+        lamp['lights']['light0']['y'] += .1
+        problems = edits.check_built('p', built(spec))
+        self.assertEqual(len(problems), 3, problems)  # the intact model, its broken one, the light
+
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
         for v in (fixture, cone, scenery):

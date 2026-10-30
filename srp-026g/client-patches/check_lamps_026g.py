@@ -324,38 +324,49 @@ def main():
     g.insert(); assert len(g.save()) == 16
     g.remove()
     print('ok: new match resets lamps; maps without lamp metadata retain native history')
-    # Invalid metadata must fail before any native binding changes. Repairing
-    # the input after the refused bind must work without a leaked owner/lock.
+    # Invalid metadata must fail before any native binding changes. Objects
+    # the metadata names wrongly (a wrong index, a moved light) leave the
+    # project without lamps, the game running; malformed metadata refuses.
+    # Repairing the input afterwards must work without a leaked owner/lock.
     cases = []
     duplicate = config_tree()
     rows = list(duplicate['srp_lamps']['lamps'].values())
     second_visual = next(iter(rows[1]['visuals'].values()))
     second_visual['index'] = 0
-    cases.append(duplicate)
+    cases.append((duplicate, False))
     missing_light = config_tree()
     light = next(iter(list(missing_light['srp_lamps']['lamps'].values())[-1]['lights'].values()))
     light['x'] = 999.0
-    cases.append(missing_light)
+    cases.append((missing_light, False))
     invalid_bounds = config_tree()
     last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
     last['max_x'] = last['min_x']
-    cases.append(invalid_bounds)
-    for tree in cases:
+    cases.append((invalid_bounds, True))
+    unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1)}
+    for tree, aborts in cases:
         refused = Game(built)
         refused.u.mem_write(CFG, bytes(relocated_config(tree)))
         try:
             refused.insert()
         except UcError:
-            pass
+            assert aborts, 'a wrong binding aborted the game'
+            assert not refused.events
         else:
-            raise AssertionError('invalid metadata accepted')
-        assert not refused.active and not refused.events
+            assert not aborts, 'invalid metadata accepted'
+            # Unbound: every object stays the game's, drawn and removed by
+            # it; shots break nothing and the history is the native one.
+            assert refused.active == unbound
+            refused.shoot(); refused.present()
+            assert refused.active == unbound and not refused.effects and len(refused.save()) == 16
+            refused.remove()
+        assert not refused.active
         assert all(refused.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
         assert all(refused.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
         refused.u.mem_write(CFG, bytes(relocated_config(config_tree())))
         refused.insert(); assert refused.active == intact
         refused.remove(); assert not refused.active
-    print('ok: binding is atomic on duplicate visuals, missing lights and late malformed bounds; retry has no leaked owner')
+    print('ok: duplicate visuals and missing lights leave the map without lamps, late malformed bounds refuse; '
+          'nothing bound either way, retry has no leaked owner')
     # A native scenery project without metadata does not require lamp-only
     # physics/scene inputs, and must not disturb another bound project.
     scenery_only = Game(built)

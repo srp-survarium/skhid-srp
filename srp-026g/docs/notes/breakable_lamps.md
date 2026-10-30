@@ -117,6 +117,11 @@ and replay snapshots without a new server packet or server-side map table.
 The reader's `{begin, cursor, byte_count}` is bounded before reading the suffix;
 wrong magic/count or truncated data is rejected before changing any lamp.
 Invalid project metadata is rejected before any native vtable changes.
+Metadata naming objects the map does not have (a visual index past the
+map's visuals or of another kind, a light position no light or two lights
+have, one object bound twice) leaves that project without lamps, with the
+game's own vtables, and logs the reason to `srp_patches.log`: every client
+loads the same content, so all agree. Malformed metadata still aborts.
 History errors are reported after releasing the registry lock.
 
 `simulation_changes.tsv` has a `next` row: older recordings must be refused by
@@ -130,7 +135,8 @@ iteration/vtable dispatch, visual/light methods, bullet history and installed
 hooks in Unicorn. It covers all 92 authored variants, hits, occlusion,
 repeated hits, quiet bullets, effects, history loading, malformed suffixes,
 rollback/resimulation, ordinary removal, destructor fallback and reset.
-Additional cases verify atomic binding failures and unconfigured scenery.
+Additional cases verify that a wrong binding leaves the map unbound and a
+malformed one refuses, both before any vtable changes, and unconfigured scenery.
 Renderer/effect queue endpoints, the writer's byte sink and OS services are
 stubbed; the native material-pair lookup runs normally.
 
@@ -150,7 +156,12 @@ vtable declarations. They are included in the full self-test.
 
 `python -m unittest discover -s scripts/breakable-lamps` checks transformed
 bounds, mesh cropping and every source binding's ownership/limits.
-`release/build-content` validates composition through the full manifest.
+`release/build-content` validates composition through the full manifest and
+checks every made `client_project` against its own bindings
+(`make_edits.py` `check_built`): each visual index names its role's model
+(intact inside its bounds, broken placed as its intact model, a cone) and
+each light position is exactly one light of the map, after every later edit
+list or map-editor save.
 
 The local game tests of the C reference confirmed model replacement, light removal and breaking
 on Chemical Plant and Vostok v0.11. The initial owner-identity regression

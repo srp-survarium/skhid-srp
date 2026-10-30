@@ -195,6 +195,46 @@ def author(path, data, bounds, break_material):
                        'value': {'version': 2, 'break_material': break_material, 'lamps': rows}}
 
 
+def check_built(path, data):
+    """Problems of a built client_project's srp_lamps against the file itself:
+    each visual index names its role's model (intact: a breakable lamp inside
+    its row's bounds; broken: that lamp's broken model, placed as it; cone: a
+    light shaft), each light position is exactly one light of the map (what
+    the client binds; a later edit list or a map-editor save can move them)."""
+    root = tree(data)
+    if 'srp_lamps' not in root:
+        return []
+    visuals = root.get('render_visuals', [])
+    lights = [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == 'light']
+    problems = []
+    for name, row in root['srp_lamps']['lamps'].items():
+        def visual(key):
+            index = row['visuals'][key]['index']
+            return visuals[index] if 0 <= index < len(visuals) else None
+        for key in row['visuals']:
+            v, role = visual(key), key.rstrip('0123456789')
+            model = v.get('visual_name', '') if v else None
+            if v is None:
+                ok = False
+            elif role == 'intact':
+                ok = model in REPLACEMENTS and all(
+                    row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
+            elif role == 'broken':
+                intact = visual('intact' + key[len(role):])
+                ok = intact is not None and intact.get('visual_name') in REPLACEMENTS and \
+                    model == REPLACEMENTS[intact['visual_name']] and \
+                    all(v[k] == intact[k] for k in ('position', 'rotation', 'scale'))
+            else:
+                ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
+            if not ok:
+                problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        for key, light in row['lights'].items():
+            found = sum(p == [light['x'], light['y'], light['z']] for p in lights)
+            if found != 1:
+                problems.append(f'{path}: {name} {key}: {found} lights of the map at its position')
+    return problems
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--projects', type=Path, required=True)
