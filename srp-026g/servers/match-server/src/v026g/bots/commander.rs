@@ -66,6 +66,13 @@ fn threat_tick(
     } else {
         threat.spots.tick(now, &watchers, &enemies, tactics, rules);
     }
+    // [smoke] The held lanes, for a smoke across one (`smoke.cross_lane`).
+    if tuning.smoke.cross_lane {
+        let lanes: Arc<[threat::HeldLane]> = threat.spots.lanes(now).into();
+        for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.lanes = lanes.clone();
+        }
+    }
     for event in threat.spots.take_events() {
         notes.push(Note {
             place: usize::MAX,

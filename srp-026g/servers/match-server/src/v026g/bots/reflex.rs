@@ -385,6 +385,14 @@ pub struct CombatTuning {
     /// the top because a bot has a place only part of the time. Swept:
     /// 0.04 and 0.15 arms.
     pub grenade_track_chance: f32,
+    /// [A170] A grenade at a held threat spot (`threat::HeldLine`): a bot with a frag, `grenade_m` from a held spot and
+    /// outside its lanes, throws at the spot while the team sensed its shooter on it in the last
+    /// `threat::SENSED_MS` (the 5 s rule: team knowledge only, never his live position), with this chance at a roll. The
+    /// throw is weighed as any other (the thrower's blast, the mate rule, the arc) and the team's claim keeps the whole
+    /// team from emptying its frags on one camper (`grenade_claim_m` / `grenade_claim_ms`). No push after the blast: it
+    /// would go into his lanes. On at 1.0 (A170: 114 frags in 56 camper matches, 32 % of the blasts within 10 m of the sensed shooter,
+    /// no own-side harm, no change in the match). `None`: no throw at a spot.
+    pub grenade_at_held: Option<f32>,
     /// [G2] A place whose flat arc is refused (the thrower's blast, a
     /// steep wall near him, off the place) is tried with other arcs: other
     /// pitches at the same yaw (a lob over what is in the way, 20-29 m
@@ -1137,6 +1145,7 @@ impl Default for CombatTuning {
             grenade_track_gap_ms: 500,
             grenade_track_error_m: 8.0,
             grenade_track_chance: 0.45,
+            grenade_at_held: Some(1.0),
             grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
@@ -1575,6 +1584,28 @@ struct Throw {
     near: Option<Vec3>,
 }
 
+/// [smoke] A smoke being thrown with its quick-use key (`smoke::SmokePlan`): from the decision, the view turned to the
+/// plan's, the key held, let go, and the look kept until the grenade has left the hand.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SmokeThrowing {
+    plan: super::smoke::SmokePlan,
+    /// The quick-use key of the kit's smoke pocket at the decision (`live_grenades::Pockets::smoke_key`).
+    key: u32,
+    started: u32,
+    phase: SmokePhase,
+}
+
+/// Where a smoke throw is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SmokePhase {
+    /// The view turning to the plan's.
+    Turning,
+    /// The key down since this time.
+    Held(u32),
+    /// Let go at this time: the look kept until the launch.
+    Released(u32),
+}
+
 /// What decided a throw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ThrowKind {
@@ -1677,6 +1708,8 @@ enum PlaceSource {
     Lost,
     /// [G1] Where it heard one, or a teammate called one.
     Heard,
+    /// A held threat spot (`grenade_at_held`): where the team sensed the shooter that killed its bots, lately.
+    Spot,
 }
 
 impl PlaceSource {
@@ -1686,6 +1719,7 @@ impl PlaceSource {
             Self::Camp => 1,
             Self::Lost => 2,
             Self::Heard => 3,
+            Self::Spot => 4,
         }
     }
 
@@ -1729,9 +1763,9 @@ impl ArcPick {
 /// [measure] The kinds of place, the reasons a throw is refused
 /// ([`Refuse`]) and the kinds of arc that passed, as the lengths of
 /// [`GrenadeStats`]'s tables. The sources: held, camp, lost, heard
-/// ([`PlaceSource`]); the arc kinds ([`ArcPick::kind`]): flat, another
+/// ([`PlaceSource`], the fifth a held threat spot); the arc kinds ([`ArcPick::kind`]): flat, another
 /// pitch, another yaw.
-pub const GRENADE_SOURCES: usize = 4;
+pub const GRENADE_SOURCES: usize = 5;
 pub const GRENADE_REASONS: usize = 6;
 pub const GRENADE_ARCS: usize = 3;
 
@@ -2495,6 +2529,15 @@ pub struct Reflex {
     smoke_lost: bool,
     spraying: bool,
     smoke_notes: Vec<String>,
+    /// [smoke] The quick-use key that throws a smoke from the kit now, where the pockets are known; the smoke throw
+    /// under way.
+    smoke_key: Option<u32>,
+    smoke_throw: Option<SmokeThrowing>,
+    /// [smoke] The lane smokes begun this life (`smoke.lanes_a_life`; the reflex is made anew each life).
+    lane_smokes: u32,
+    /// [smoke] The sniper that outranges its weapon now (play 11's matchup, whatever `outranged_cover`): who, where,
+    /// and the match clock it was seen at. Read by `smoke.anti_sniper`; no decision of the reflex reads it.
+    outranged_by: Option<(Place, Vec3, u32)>,
     /// The life it counts for (`PlaceView::spawned`).
     life: Option<u32>,
     /// Its health at the last think.
@@ -2542,6 +2585,8 @@ pub struct Reflex {
     /// A grenade decided on at this place, for the team's claim
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
+    /// [A170] The shooters of the held spots the last roll offered as places (the note of a throw at one names its shooter).
+    spot_shooters: Vec<(Vec3, Place)>,
     /// The enemy and the time it last fired at him: the team's hit marker on him
     /// ([`Reflex::fired_at`]).
     last_fired: Option<(Place, u32)>,
@@ -3350,6 +3395,116 @@ impl Reflex {
         self.smoke_notes.push(text);
     }
 
+    /// [smoke] The quick-use key that throws a smoke from the kit now ([`super::view::Tracker::smoke_key`]).
+    pub fn set_smoke_key(&mut self, key: Option<u32>) {
+        self.smoke_key = key;
+    }
+
+    /// [smoke] The sniper that outranges it now, seen: who, where, and when (the match clock).
+    pub fn outranged_by(&self) -> Option<(Place, Vec3, u32)> {
+        self.outranged_by
+    }
+
+    /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.
+    pub fn can_smoke(&self) -> bool {
+        self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none()
+    }
+
+    /// [smoke] A smoke thrown at `plan` from now, if the kit has one and the hands are free: no throw under way, no
+    /// target, no reload or weapon switch. Whether it was begun.
+    pub fn start_smoke(&mut self, plan: super::smoke::SmokePlan, now: u32) -> bool {
+        let Some(key) = self.smoke_key.filter(|_| self.can_smoke()) else {
+            return false;
+        };
+        // A smoke against the sniper it is outranged by is thrown with him the target; any other waits for none.
+        let fighting = self.target.is_some() && plan.for_use != super::smoke::SmokeUse::AntiSniper;
+        if fighting || now < self.busy_until {
+            return false;
+        }
+        self.smoke_throw = Some(SmokeThrowing {
+            plan,
+            key,
+            started: now,
+            phase: SmokePhase::Turning,
+        });
+        if plan.for_use == super::smoke::SmokeUse::CrossLane {
+            self.lane_smokes += 1;
+        }
+        true
+    }
+
+    /// [smoke] The lane smokes begun this life.
+    pub fn lane_smokes(&self) -> u32 {
+        self.lane_smokes
+    }
+
+    /// [smoke] A smoke throw's tick ([`SmokeThrowing`]): the bot stands, turns to the plan's view, holds the key the
+    /// frag's hold (`grenade_hold_ms`, its middle: no draw) once within `grenade_within_deg`, lets go, and keeps the
+    /// look `grenade_launch_ms` + `grenade_look_after_ms` from the press. Given up after `grenade_give_up_ms` without
+    /// a press. `None`: no smoke throw this tick.
+    fn smoke_throwing(&mut self, me: &PlaceView, now: u32, c: &CombatTuning, settle_s: f32) -> Option<Override> {
+        let mut t = self.smoke_throw?;
+        let look = me.eye() + arc::view_forward(t.plan.aim.yaw, t.plan.aim.pitch) * 10.0;
+        let hold_ms = (c.grenade_hold_ms.0 + c.grenade_hold_ms.1) / 2;
+        let mut keys = 0;
+        match t.phase {
+            SmokePhase::Turning if off_by(me, look, (0.0, 0.0)) <= c.grenade_within_deg.to_radians() => {
+                t.phase = SmokePhase::Held(now);
+                keys = t.key;
+            }
+            // Picked up a battery before the press: the client ignores the quick key in a carrier's hands.
+            SmokePhase::Turning if me.carrying.is_some() => {
+                self.smoke_throw = None;
+                self.smoke_notes.push(format!("gave up a smoke for {:?}: carrying", t.plan.for_use));
+                #[cfg(test)]
+                super::smoke::tally::thrown(me.team, t.plan.for_use, false);
+                return None;
+            }
+            SmokePhase::Turning if now >= t.started + c.grenade_give_up_ms => {
+                self.smoke_throw = None;
+                self.smoke_notes.push(format!("gave up a smoke for {:?}: the view did not come round", t.plan.for_use));
+                #[cfg(test)]
+                super::smoke::tally::thrown(me.team, t.plan.for_use, false);
+                return None;
+            }
+            SmokePhase::Turning => {}
+            SmokePhase::Held(pressed) if now < pressed + hold_ms => keys = t.key,
+            SmokePhase::Held(pressed) => {
+                t.phase = SmokePhase::Released(pressed);
+                let at = t.plan.at;
+                self.smoke_notes.push(format!(
+                    "throws a smoke for {:?} at ({:.1}, {:.1}, {:.1}), covering {:.1} m of its line",
+                    t.plan.for_use, at.x, at.y, at.z, t.plan.covers_m
+                ));
+                #[cfg(test)]
+                {
+                    super::smoke::tally::thrown(me.team, t.plan.for_use, true);
+                    super::smoke::tally::threw(me.place, now);
+                }
+            }
+            SmokePhase::Released(pressed) if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms => {
+                self.smoke_throw = None;
+                return None;
+            }
+            SmokePhase::Released(_) => {}
+        }
+        self.smoke_throw = Some(t);
+        Some(Override {
+            look_at: Some(look),
+            turn_time_s: Some(settle_s * 0.5),
+            keys,
+            legs: Some(Legs {
+                at: me.feet,
+                within_m: 1.0,
+                run: false,
+                crouch: me.crouched(),
+                why: LegsWhy::Throwing,
+            }),
+            band_m: self.band,
+            ..Override::default()
+        })
+    }
+
     /// The target's sight at this tick, told to the memory
     /// ([`Memory::looked`]). Range, view (at the yaw `me` has now) and life
     /// are checked at every tick; whether some part shows is the aim's
@@ -3382,7 +3537,11 @@ impl Reflex {
                 Err(miss) => LookOutcome::Failed(miss),
                 Ok(()) => match looked {
                     Some(look) if look.fresh => match look.look {
-                        PartsLook::Shows => LookOutcome::Seen,
+                        PartsLook::Shows => {
+                            #[cfg(test)]
+                            super::smoke::tally::record_seen(me, enemy, view.clock);
+                            LookOutcome::Seen
+                        }
                         PartsLook::Smoke => LookOutcome::Failed(Miss::Smoke),
                         PartsLook::Hidden => LookOutcome::Failed(Miss::Blocked),
                     },
@@ -3449,6 +3608,11 @@ impl Reflex {
     /// and the rounds its kit has left.
     fn new_life(&mut self, me: &PlaceView) {
         if self.life != Some(me.spawned) {
+            // [smoke] A smoke throw under way ends with the life: counted, so every throw begun has its exit.
+            #[cfg(test)]
+            if let Some(t) = self.smoke_throw {
+                super::smoke::tally::died(me.team, t.plan.for_use);
+            }
             if self.life.is_some() {
                 *self = Self::armed_carrying(self.arms, self.left());
             }
@@ -4316,6 +4480,7 @@ impl Reflex {
         self.band = None;
         self.range_step = None;
         self.outranged = false;
+        self.outranged_by = None;
         let Some(track) = self
             .target
             .and_then(|target| memory.seen(target, now, sit.view.clock))
@@ -4351,6 +4516,7 @@ impl Reflex {
                     <= c.outranged_aimed_deg.to_radians()
             });
             self.outranged = c.outranged_cover && facing;
+            self.outranged_by = Some((track.who(), track.at(), sit.view.clock));
             return;
         }
         // A carrier cannot shoot: no step back from him. What he carries is what the team saw of him (a human sees the
@@ -4480,6 +4646,31 @@ impl Reflex {
                 places.push((at, source));
             }
         }
+        // [A170] The held spots whose shooter the team sensed on them lately: the camper the team cannot see.
+        self.spot_shooters.clear();
+        if c.grenade_at_held.is_some()
+            && let Some(team) = team
+        {
+            for line in &team.threat.held {
+                let on_it = line
+                    .seen
+                    .is_some_and(|sensed| now.saturating_sub(sensed) <= super::threat::SENSED_MS);
+                if !on_it
+                    || !(c.grenade_m.0..=c.grenade_m.1).contains(&line.at.distance_xz(me.feet))
+                    || line.covers(me.feet)
+                    || places.iter().any(|(at, _)| at.distance_xz(line.at) < c.camp_m)
+                    || friend_near(line.at)
+                {
+                    continue;
+                }
+                if claimed(line.at) {
+                    self.grenade_stats.claimed += 1;
+                    continue;
+                }
+                places.push((line.at, PlaceSource::Spot));
+                self.spot_shooters.push((line.at, line.shooter));
+            }
+        }
         self.grenade_stats.claimed += dropped;
         if places.is_empty() {
             return;
@@ -4491,19 +4682,21 @@ impl Reflex {
             self.next_grenade_roll = now + c.grenade_roll_ms;
             return;
         }
+        // A held spot first, then the nearest.
         places.sort_by(|a, b| {
-            a.0.distance_xz(me.feet)
-                .total_cmp(&b.0.distance_xz(me.feet))
+            (a.1 != PlaceSource::Spot)
+                .cmp(&(b.1 != PlaceSource::Spot))
+                .then(a.0.distance_xz(me.feet).total_cmp(&b.0.distance_xz(me.feet)))
         });
         self.next_grenade_roll = now + c.grenade_roll_ms;
         self.grenade_stats.rolls += 1;
         for (_, source) in &places {
             self.grenade_stats.places[source.index()] += 1;
         }
-        let chance = if places[0].1.is_track() {
-            c.grenade_track_chance
-        } else {
-            c.grenade_chance
+        let chance = match (places[0].1, c.grenade_at_held) {
+            (PlaceSource::Spot, Some(chance)) => chance,
+            (source, _) if source.is_track() => c.grenade_track_chance,
+            _ => c.grenade_chance,
         };
         if rng.unit() >= chance {
             self.grenade_stats.chance_no += 1;
@@ -4808,7 +5001,7 @@ impl Reflex {
                     } else {
                         now + c.grenade_push_ms.0
                     };
-                    if throw.source.is_track() && !c.grenade_push_tracks {
+                    if (throw.source.is_track() && !c.grenade_push_tracks) || throw.source == PlaceSource::Spot {
                         self.grenade_stats.pushes_skipped += 1;
                     } else {
                         self.push = Some(Push {
@@ -4819,8 +5012,14 @@ impl Reflex {
                         });
                     }
                     self.throw_notes.push(format!(
-                        "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}",
-                        throw.at.x, throw.at.y, throw.at.z
+                        "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}{}",
+                        throw.at.x,
+                        throw.at.y,
+                        throw.at.z,
+                        match self.spot_shooters.iter().find(|(at, _)| *at == throw.at) {
+                            Some((_, shooter)) if throw.source == PlaceSource::Spot => format!(" (at a held spot of shooter {shooter})"),
+                            _ => String::new(),
+                        }
                     ));
                 }
                 if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms && throw.released
@@ -5264,6 +5463,10 @@ impl Reflex {
         if let Some(throw) = self.throw
             && let Some(over) = self.throwing(throw, me, view, now, c, settle_s)
         {
+            return over;
+        }
+        // [smoke] A smoke throw under way has them next.
+        if let Some(over) = self.smoke_throwing(me, now, c, settle_s) {
             return over;
         }
         // An enemy noticed since the last think (the noticing is its
@@ -8213,8 +8416,8 @@ mod tests {
         let s = run.stats;
         assert!(s.thinks > 0 && s.rolls > 0, "{s:?}");
         assert_eq!(s.chance_no, 0);
-        assert_eq!(s.places, [s.rolls, 0, 0, 0], "one held place a roll, no camp, no track");
-        assert_eq!(s.weighed, [s.rolls, 0, 0, 0]);
+        assert_eq!(s.places, [s.rolls, 0, 0, 0, 0], "one held place a roll, no camp, no track");
+        assert_eq!(s.weighed, [s.rolls, 0, 0, 0, 0]);
         let refused: u32 = s.refused[0].iter().sum();
         assert_eq!(s.passed[0][0] + refused, s.weighed[0], "{s:?}");
         assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
@@ -8375,6 +8578,72 @@ mod tests {
         let mut own = TeamKnowledge::default();
         own.claim_throw(0, Vec3::new(2.0, 0.0, 22.0), 1_500);
         assert!(run(&own).1.is_some(), "his own volley is not held against him");
+    }
+
+    /// [A170] A grenade at a held threat spot: a bot with a frag outside the shooter's lanes, within `grenade_m` of the spot,
+    /// whose shooter the team sensed on it in the last 5 s (`SENSED_MS`), and no teammate's claim on the place.
+    #[test]
+    fn a_held_spot_whose_shooter_was_sensed_lately_is_thrown_at_from_outside_its_lanes() {
+        use super::super::threat::{HeldLine, Picture};
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let spot = Vec3::new(0.0, 0.0, 22.0);
+        let aim = |at_held: Option<f32>| AimTuning {
+            combat: CombatTuning {
+                grenade_claim: true,
+                grenade_tracks: false,
+                grenade_chance: 0.0,
+                grenade_roll_ms: 500,
+                grenade_at_held: at_held,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        // His victims are down the +x side: the thrower at the origin, 22 m before him, is off his lanes.
+        let victims = [Vec3::new(40.0, 0.0, 22.0)];
+        let team_with = |seen: Option<u32>, victims: &[Vec3]| {
+            let mut team = TeamKnowledge::default();
+            team.threat = Arc::new(Picture {
+                held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
+                jobs: Vec::new(),
+            });
+            team
+        };
+        let run = |team: &TeamKnowledge, aim: &AimTuning, times: &[u32]| {
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let sit = Situation {
+                team: Some(team),
+                ..Situation::of(&view)
+            };
+            for &now in times {
+                sense(&mut memory, &[], now);
+                reflex.think_with(&me, &sit, &memory, now, aim, 0.5, &mut rng);
+            }
+            (reflex.grenade_stats(), reflex.take_throw_claim())
+        };
+        let times = [1_800, 2_300, 2_800];
+        // Sensed 1.5 s ago: thrown at, from the held spot's source.
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &times);
+        assert!(claim.is_some() && stats.places[PlaceSource::Spot.index()] > 0, "{stats:?}");
+        // The switch off: no place at all (the chance for the other sources is 0).
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(None), &times);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        // Sensed more than 5 s ago, or never since his death: not thrown at.
+        let late = [8_000, 8_500, 9_000];
+        let (stats, claim) = run(&team_with(Some(1_500), &victims), &aim(Some(1.0)), &late);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        let (stats, _) = run(&team_with(None, &victims), &aim(Some(1.0)), &times);
+        assert_eq!(stats.places, [0; GRENADE_SOURCES], "{stats:?}");
+        // The thrower in one of his lanes: not thrown from there.
+        let (stats, claim) = run(&team_with(Some(1_500), &[Vec3::ZERO]), &aim(Some(1.0)), &times);
+        assert!(claim.is_none() && stats.places == [0; GRENADE_SOURCES], "{stats:?}");
+        // A teammate's claim on the place within a few seconds: left to him.
+        let mut claimed = team_with(Some(1_500), &victims);
+        claimed.claim_throw(7, spot, 1_500);
+        let (stats, claim) = run(&claimed, &aim(Some(1.0)), &times);
+        assert!(claim.is_none() && stats.claimed > 0, "{stats:?}");
     }
 
     /// The arc searched again at the press: only with `grenade_repick` (and
@@ -8894,6 +9163,71 @@ mod tests {
                 assert!(o.look_at.is_some() && o.legs.is_some(), "{now}: {o:?}");
             }
         }
+    }
+
+    /// [smoke] A smoke throw: refused with no smoke in the kit, or with a target unless it is the sniper's; begun, the
+    /// bot stands and turns, holds the smoke's quick-use key the hold's middle, lets go (a note), keeps the look until
+    /// the launch and the look after, and is over; given up when the view never comes round.
+    #[test]
+    fn a_smoke_is_thrown_with_its_quick_use_key_held_then_let_go() {
+        use crate::v026g::bots::smoke::{SmokeAim, SmokePlan, SmokeUse};
+        let c = CombatTuning::default();
+        let pitch = 0.3;
+        let plan = |for_use| SmokePlan {
+            at: Vec3::new(0.0, 0.0, 20.0),
+            aim: SmokeAim {
+                yaw: 0.0,
+                pitch,
+                rest: Vec3::new(0.0, 0.0, 20.0),
+            },
+            for_use,
+            covers_m: 4.0,
+        };
+        let key = key::QUICK[3];
+        let mut reflex = Reflex::default();
+        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "no smoke in the kit");
+        reflex.set_smoke_key(Some(key));
+        reflex.target = Some(1);
+        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "fighting");
+        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "the sniper it is outranged by");
+        assert_eq!(reflex.lane_smokes(), 0, "a sniper's smoke is not a lane's");
+        reflex.target = None;
+        assert!(!reflex.can_smoke(), "one at a time");
+        // Facing the plan's view: pressed at once, held, let go, the look kept to the launch and after.
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        me.pitch = pitch;
+        let hold = (c.grenade_hold_ms.0 + c.grenade_hold_ms.1) / 2;
+        let end = c.grenade_launch_ms + c.grenade_look_after_ms;
+        let mut held = Vec::new();
+        for now in (0..end + 200).step_by(50) {
+            match reflex.smoke_throwing(&me, now, &c, 0.1) {
+                Some(o) => {
+                    assert!(o.legs.is_some() && o.look_at.is_some(), "{now}: {o:?}");
+                    held.push((now, o.keys == key));
+                }
+                None => assert!(now >= end, "{now}"),
+            }
+        }
+        assert!(held.iter().all(|&(now, down)| down == (now < hold)), "{held:?}");
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("throws a smoke for AntiSniper")));
+        assert!(reflex.can_smoke(), "over");
+        // Facing away: never pressed, given up.
+        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        assert_eq!(reflex.lane_smokes(), 1, "a lane's smoke counts for the life");
+        let away = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
+        for now in (0..=c.grenade_give_up_ms).step_by(50) {
+            let o = reflex.smoke_throwing(&away, now, &c, 0.1);
+            assert!(o.is_none_or(|o| o.keys == 0), "{now}");
+        }
+        assert!(reflex.can_smoke());
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane")));
+        // A battery picked up before the press: given up at once, the key never sent.
+        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        let mut carrier = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
+        carrier.carrying = Some(1);
+        assert!(reflex.smoke_throwing(&carrier, 50, &c, 0.1).is_none());
+        assert!(reflex.can_smoke());
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane: carrying")));
     }
 
     /// The view is held for the grenade from the key's press to the launch and

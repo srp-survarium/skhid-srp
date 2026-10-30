@@ -952,6 +952,11 @@ impl Spot {
                 && self.shooter_seen.is_some_and(|t| now.saturating_sub(t) <= SEEN_MS))
     }
 
+    /// When the team last sensed its shooter here (seen or heard), if since it was made.
+    pub fn sensed(&self) -> Option<u32> {
+        self.shooter_seen
+    }
+
     /// The regions of his line, once all cast (or the last cast's, kept
     /// while a new one goes on).
     pub fn covered(&self) -> Option<&[u32]> {
@@ -1426,6 +1431,23 @@ pub struct HeldLine {
 }
 
 impl HeldLine {
+    /// A line for the tests of those who read one: a shooter at `at` who killed `victims`, sensed on it at `seen`.
+    #[cfg(test)]
+    pub(super) fn for_test(id: u32, shooter: Place, at: Vec3, victims: &[Vec3], seen: Option<u32>) -> Self {
+        let lanes: Vec<(Vec3, f32)> = victims.iter().map(|&v| (at, bearing(at, v))).collect();
+        Self {
+            id,
+            at,
+            shooter,
+            facing: lanes.first().map_or(0.0, |l| l.1),
+            lanes,
+            reach_m: 50.0,
+            kills: victims.len(),
+            seen,
+            eye_m: eye_height(false, 0.0, 0.0),
+        }
+    }
+
     /// The ground direction he faces, as `kin::forward` gives one.
     pub fn facing_dir(&self) -> [f32; 2] {
         [self.facing.sin(), self.facing.cos()]
@@ -1961,6 +1983,30 @@ pub fn costed_corridor(
         }
     }
     Some(room)
+}
+
+/// [smoke] A held spot as the team's bots read it for a smoke across its lane (`smoke.cross_lane`): where its
+/// shooter killed from, how far his line reaches, and when the team last sensed him there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeldLane {
+    pub at: Vec3,
+    pub shooter: Place,
+    pub reach_m: f32,
+    pub sensed: Option<u32>,
+}
+
+impl ThreatSpots {
+    /// The spots held at `now`, as lanes.
+    pub fn lanes(&self, now: u32) -> Vec<HeldLane> {
+        self.held(now)
+            .map(|s| HeldLane {
+                at: s.at,
+                shooter: s.shooter,
+                reach_m: s.reach_m,
+                sensed: s.sensed(),
+            })
+            .collect()
+    }
 }
 
 /// A team's threat state, by feature ([`super::features`]).

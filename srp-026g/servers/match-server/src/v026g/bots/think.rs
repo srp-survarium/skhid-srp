@@ -579,6 +579,135 @@ fn smoke_react(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     }
 }
 
+/// [smoke] How far past a lane's crossing the open stretch is looked for, metres (`smoke.lane_open_m`'s test).
+const LANE_OPEN_LOOK_M: f32 = 20.0;
+
+/// [smoke use] A smoke from the kit for one of its uses, each its own switch (`SmokeTuning`): against the sniper that
+/// outranges it (`anti_sniper`), or across a held lane its route enters ahead (`cross_lane`). Only against an enemy
+/// the team sensed within [`super::smoke::FAIR_SENSED_MS`], with a smoke in the kit and the hands free; one note
+/// per throw decided.
+fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
+    use super::smoke::{self, FAIR_SENSED_MS, SmokeUse};
+    let Due {
+        now,
+        view,
+        me,
+        tactics,
+        tuning,
+    } = *due;
+    let t = &tuning.smoke;
+    // [diagnosis] Outranged by a sniper it saw within 15 s, whatever the kit and the hands.
+    #[cfg(test)]
+    if t.anti_sniper
+        && bot
+            .reflex
+            .outranged_by()
+            .is_some_and(|(_, _, seen)| view.clock.saturating_sub(seen) <= FAIR_SENSED_MS)
+    {
+        smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
+    }
+    // A carrier throws nothing: the battery is in its hands, and the client ignores the quick keys then
+    // (`process_quick_slots` 0x2D8BB0: the hands object's byte +0Eh, 0 for a battery, stops the quick pockets and the
+    // grenade key; observed, LIKELY for the battery, as for the heal habit).
+    if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() || me.carrying.is_some() {
+        return;
+    }
+    let reach = smoke::Reach {
+        mesh: &tactics.world.sight,
+        grenade: smoke::SmokeGrenade::RDG_M,
+        thrower_eye: me.eye(),
+    };
+    let thin = t.thin_m.get();
+    let fresh = |sensed: u32| view.clock.saturating_sub(sensed) <= FAIR_SENSED_MS;
+    let eye_over = Vec3::new(0.0, 1.6, 0.0);
+    // Against the sniper it sees outranging it: the line from him to it.
+    let outranged = t.anti_sniper.then(|| bot.reflex.outranged_by()).flatten().filter(|&(_, _, seen)| fresh(seen));
+    let sniper = outranged.and_then(|(who, at, _)| {
+        smoke::smoke_between(&reach, at + eye_over, me.feet, thin, SmokeUse::AntiSniper)
+            .map(|plan| (plan, format!("player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach", at.x, at.y, at.z)))
+    });
+    #[cfg(test)]
+    if outranged.is_some() {
+        smoke::tally::add(
+            bot.team,
+            if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
+        );
+    }
+    // Across the first held lane its route enters ahead, before it steps in.
+    let lane = || {
+        if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
+            return None;
+        }
+        let grid = &tactics.world.grid;
+        // Not in the lane already, and not running it already: a bot holding a sprint is across before the cloud
+        // forms (0.7 s), as a player sprinting a gap does not stop to smoke it.
+        let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
+        if sprinting || bot.threat.exposed_at(grid, me.feet) {
+            return None;
+        }
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        let end = (start + t.lane_ahead_m.get()).min(route.length());
+        let (crossing_s, crossing) = (1..)
+            .map(|k| start + k as f32 * 2.0)
+            .take_while(|&s| s <= end)
+            .map(|s| (s, route.at(s, heights)))
+            .find(|&(_, p)| bot.threat.exposed_at(grid, p))?;
+        // The shooter known to be there now, with a line onto the crossing.
+        let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+        let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
+        let held = bot
+            .lanes
+            .iter()
+            .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
+            .filter(|l| tactics.sees(l.at + eye_over, chest))
+            .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
+        // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.
+        if view.smoke.covers(view.clock, t, held.at + eye_over, chest) {
+            return None;
+        }
+        // A short gap is sprinted, not smoked: the route he sees from the crossing on, 1 m steps, must run at least
+        // `lane_open_m` (what a sprint covers in a shooter's answer).
+        let open_end = (route.length() - crossing_s).min(LANE_OPEN_LOOK_M);
+        let open_m = (1..)
+            .map(|k| k as f32)
+            .take_while(|&d| d <= open_end)
+            .take_while(|&d| tactics.sees(held.at + eye_over, route.at(crossing_s + d, heights) + Vec3::new(0.0, 1.3, 0.0)))
+            .last()
+            .unwrap_or(0.0);
+        if open_m < t.lane_open_m.get() {
+            return None;
+        }
+        smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
+            let why = format!(
+                "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
+                held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
+            );
+            (plan, why)
+        })
+    };
+    let Some((plan, why)) = sniper.or_else(lane) else {
+        return;
+    };
+    if bot.reflex.start_smoke(plan, now) {
+        #[cfg(test)]
+        {
+            smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
+            smoke::tally::begun(bot.team, plan.for_use);
+        }
+        let at = plan.at;
+        bot.note(
+            notes,
+            now,
+            format!(
+                "decides a smoke for {:?}: {why}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
+                plan.for_use, at.x, at.y, at.z, plan.covers_m
+            ),
+        );
+    }
+}
+
 /// The reflex thinks (`Reflex::think_with`) on what the bot remembers; its throw notes and the hit it felt from a direction alone.
 pub(super) fn react(
     due: &Due,
@@ -629,6 +758,7 @@ pub(super) fn react(
         Some((victim, until)) => state.knowledge.wounds.push_claim(victim, bot.place, until),
         None => state.knowledge.wounds.push_release(bot.place),
     }
+    smoke_uses(due, bot, notes);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);
