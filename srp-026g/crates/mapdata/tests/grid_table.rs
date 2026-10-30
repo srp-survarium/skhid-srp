@@ -1226,9 +1226,41 @@ fn the_reach_of_points() {
                 }
             }
         }
+        // And back: the floors from which the spawns are reached.
+        let mut rev: Vec<Vec<NodeId>> = vec![Vec::new(); grid.len()];
+        for a in 0..grid.len() as NodeId {
+            for (b, _) in grid.links(a) {
+                rev[b as usize].push(a);
+            }
+        }
+        let mut back = vec![false; grid.len()];
+        let mut queue = VecDeque::new();
+        for n in spawns.iter().filter_map(|&p| grid.locate(p, 1.5)) {
+            if !back[n as usize] {
+                back[n as usize] = true;
+                queue.push_back(n);
+            }
+        }
+        while let Some(b) = queue.pop_front() {
+            for &a in &rev[b as usize] {
+                if !back[a as usize] {
+                    back[a as usize] = true;
+                    queue.push_back(a);
+                }
+            }
+        }
         for p in points {
             let node = grid.locate(*p, 1.0);
-            eprintln!("REACH\t{project}\t{:.1}\t{:.1}\t{:.1}\t{}\t{}", p.x, p.y, p.z, u8::from(node.is_some()), u8::from(node.is_some_and(|n| seen[n as usize])));
+            eprintln!(
+                "REACH\t{project}\t{:.1}\t{:.1}\t{:.1}\t{}\t{}\t{}\tstand {}",
+                p.x,
+                p.y,
+                p.z,
+                u8::from(node.is_some()),
+                u8::from(node.is_some_and(|n| seen[n as usize])),
+                u8::from(node.is_some_and(|n| back[n as usize])),
+                u8::from(node.is_some_and(|n| grid.can_stand(n)))
+            );
         }
     }
 }
