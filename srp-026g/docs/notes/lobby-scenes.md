@@ -3,19 +3,34 @@
 What a lobby project must give and how the lobby is chosen: the selection's notes
 (feat/lobby-select, patch 81). Each lobby has its section.
 
-## STK2 lighting (the Bar, the bomb shelter; the blockpost alike)
+## STK2 lighting (the bomb shelter; the blockpost as at @2)
 
-- As STK2 authored it (the owner, 2026-10-29), not the classic lobby's: the project's own
-  lights (point, sphere and box lights as points; spots as spots with their cones and
-  directions; the sun with its colour, intensity, shadow and influences), and its
-  environment's post-process on the 0.26g environment object: fog colour and distances,
-  sun colour, bloom, adaptation speed, no colour grading, no grain, aberration, vignette,
-  god rays or lens flares (STK2's post-process has none). No environment probe.
-- Two changes, the same for every STK2 lobby: every STK2 light at twice its intensity,
-  and one dim warm fill in front of the character (`character_fill`, intensity 1, range
-  3.5). STK2 lit its rooms with light propagation volumes (its lamps' `use_with_lpv`) and
-  a tonemap median exposure; 0.26g has neither, and the lights alone left the rooms dark
-  and the character a silhouette (captures below, `cand-*` of the first survey runs).
+- Kept from STK2: the project's own lights (point, sphere and box lights as points; spots
+  and plane spots as spots with their cones and directions; the sun with its colour,
+  intensity, shadow and influences), and its environment's post-process on the 0.26g
+  environment object: fog colour and distances, sun colour, bloom, adaptation speed, no
+  colour grading, no grain, aberration, vignette, god rays or lens flares (STK2's
+  post-process has none). Every STK2 light at twice its intensity.
+- What 0.26g lacks: STK2 lit its rooms with a flat ambient colour, light propagation
+  volumes (its lamps' `use_with_lpv`) and a tonemap median exposure. With the lights alone
+  the rooms were dark or flat and the character a silhouette from behind. The bomb
+  shelter (@3, the owner's pick of a warm and a cold candidate, 2026-10-30) is balanced
+  by eye in the game:
+  - one box environment probe over the room, its cubemaps made from a warm-neutral
+    floor-to-sky gradient (resource-porter `probe_cubes`). Only box probes (geometry 1,
+    scale the half extents) light anything in 0.26g; a sphere one did nothing, even the
+    classic lobby's own at four times its strength;
+  - STK2's three wide fills (range 15, which lit the vaults flat and grey) shortened to
+    6.5 m and warmed short of orange (1, 0.86, 0.7): a stronger warmth turns the plaster
+    saturated orange;
+  - a warm light under each street lamp; the one behind the character casts shadows and
+    lights his back, so he reads from every side of the orbit;
+  - the lamps glow: STK2 placed its unlit `lamp_street`, given its emissive variant (its
+    mask lights only the shade's inside, which the lobby camera never sees, so the shade
+    emits its texture at 0.6 of STK2's multiplier).
+- 0.26g's ambient lights (resource-porter `objects` from `ambient_light(4)`, colour
+  packed red in the low byte) light the room but not the character: only real lights and
+  probes reach him.
 - No counterpart in 0.26g (each pack.json lists them): STK2's ambient and skylight
   colours, tonemap median and thresholds, levels (frame lights and shadows), shadow
   transparency, bloom's maximum colour, depth of field. 0.26g's day sky stays behind the
@@ -27,40 +42,20 @@ What a lobby project must give and how the lobby is chosen: the selection's note
   textures at most 512 px (props 256). Weapons on tables and STK2's static characters
   are left out.
 
-## STK2 Bar (`lobby_scene/stk2_bar`, pack lobby-stk2-bar@1)
+## STK2 Bar (dropped)
 
-The Bar of STK2's `bar_shooting_gallery` project (of its six variants the one with the
-most objects, 463 KB; `_mir`, `_mir2` and the three `_light_test` copies hold fewer): the
-gallery on its lower level, with the shooting lanes, paper and colour targets, the
-camouflage nets, the bottle shelf at the lanes' end and the lamps.
+The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bomb shelter
+the Bandits'). Its manifest stays in resource-porter
+(`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-- Spot: the character on the gallery's floor tiles (STK2 (97.0, -3.17, 0.6)), the
-  lanes and targets behind him. Chosen of four (the owner may pick another): the bar
-  counter upstairs, the trophy shelf, the gallery, the lounge; the gallery has the most
-  detail and light on screen.
-- Kept: the lower level's box, x 77..102.5, y -3.6..0.3, z -7..6 (STK2 world): 287 of
-  the project's 544 visuals, the 7 lights inside the box (its own and its lamps'), the sun (a weak blue,
-  unshadowed: STK2's fill for the whole room). 25 MB.
-- Spots (lobby world; data `srp-026g/scripts/lobby-scenes/stk2_bar.tsv`):
-
-      character          ( 0.000, 0.000,  0.000)
-      camera, default    ( 0.000, 1.200, -1.960)  yaw 0
-      weapon             ( 0.100, 1.320,  2.000)  weapon_view 0 (over the lane)
-      artefact           (-0.900, 1.250,  4.200)  on the bottle shelf
-
-- Not ported: 16 models the archives have no export of (barrels, kegs, buckets, cement
-  bags, broken bottles); the light cone effect (`fx/conus_grad`, a volumetric cone with
-  no 0.26g counterpart); the textures `forge/vents` and `inbox/diana/ventilation`
-  (missing: their surfaces are left out).
-
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@1)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@3)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
 the gas-mask pile (`bomb_shelter_gasmask_garbage`), shelves, ammunition and gas-mask
 crates, beds and lockers, and the vaults beside it.
 
-- Spot: where STK2's designers stood a novice (STK2 (37.49, -4.37, -24.41)), facing the
+- Spot: where STK2's designers stood a novice (STK2 (37.49, -4.37, -24.41); @2 0.25 m clear of the crates, -24.66), facing the
   room's west half. Chosen of four: the gas-mask room, the sleeping quarters, the store
   room, the crates by its door; the store room is the most dressed and the best lit.
 - Kept: x 28..48, y -5..0.5, z -31..-8 (the store room, the gas-mask room, the quarters
@@ -71,9 +66,12 @@ crates, beds and lockers, and the vaults beside it.
 
       character          ( 0.000, 0.000,  0.000)
       camera, default    ( 0.000, 1.200, -1.960)  yaw 0
-      weapon             (-1.990, 1.370, -1.510)  weapon_view 1.5708 (over a metal box)
-      artefact           ( 1.460, 0.610, -1.100)  on a gas-mask crate
+      weapon             (-1.800, 1.450, -1.000)  weapon_view 1.5708 (over the metal boxes)
+      artefact           ( 1.710, 0.610, -1.100)  on a gas-mask crate
 
+- The camera: boxes over the floor and around the props the eye got into (@2), and one
+  across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
+  into the dark).
 - Not ported: two decal materials without a diffuse (`decal_dirt_006`,
   `moss_012_alpha`): their surfaces are left out; the outdoor trees (speedtree) and the
   power line outside.

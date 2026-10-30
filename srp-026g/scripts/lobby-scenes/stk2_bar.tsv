@@ -1,9 +1,0 @@
-# The STK2 Bar (pack lobby-stk2-bar@1, projects/lobby_scene/stk2_bar): where things are, in the
-# lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's
-# build-stk2-lobby-026 (ports/stk2-bar-lobby-to-026g.json), which bakes the STK2 scene into this frame.
-# yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
-# One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
-character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z), on the gallery's floor tiles; STK2 (97.0, -3.17, 0.6)
-camera_default_eye	0.000	1.200	-1.960	0	the stock camera at its start, in the gallery's lane, looking down it at the targets
-weapon	0.100	1.320	2.000	0	srp_lobby.weapon: floating over the shooting lane 2 m behind the character, the targets and bottle shelf beyond; STK2 (99.0, -1.85, 0.5)
-artefact	-0.900	1.250	4.200	-	resting on the bottle shelf at the lane's end; STK2 (101.2, -1.92, 1.5)
