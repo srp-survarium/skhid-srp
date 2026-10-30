@@ -8,6 +8,7 @@
 
 use super::*;
 use crate::v026g::bots::why;
+use crate::v026g::bots::tests::{ZoneNote, ZoneSpell};
 
 /// The motives of `Bot::bench_why`, by bit, as the keys name them.
 const WHY: [(u16, &str); 11] = [
