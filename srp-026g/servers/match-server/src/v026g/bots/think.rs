@@ -667,17 +667,25 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         // His eye: where he was sensed, at the eye height of the posture the bot saw him in (`view::eye_height`), not a
         // standing guess. With a flat 1.6 m (over the game's 1.46 m standing, 1.04 m crouched) 13 of 40 smokes were thrown onto
         // crossings he had no line on (`h2h-sniper-vs-off-20261030T0220`, the throw classes).
-        let up = view.place(who).map_or(eye_over.y, |him| super::view::eye_height(him.crouched(), 0.0, 0.0));
+        let seen_crouched = view.place(who).is_some_and(|him| him.crouched());
+        let up = view.place(who).map_or(eye_over.y, |_| super::view::eye_height(seen_crouched, 0.0, 0.0));
         let eye = at + Vec3::new(0.0, up, 0.0);
         // Where he is is known to a few decimetres (the sensing's lag and the view's), and a crossing seen through a sliver
         // from one point is not his: it is his when he sees it from every eye of that spread (`sniper_eye_spread_m` to either
         // side across the line to the bot), and the bot is in his sight already when any of them sees it. From one eye, 11 of 56
         // smokes went onto crossings his eye in the game had no line on, all 11 lines open from the sensed eye and shut from
         // his, 0.1-1.0 m aside (`h2h-sniper-fresh-20261030T0339`).
+        // And what he can do within the sensing's window: step that far nearer or farther along the line, or crouch (the
+        // three cases left with the side spread alone, `h2h-sniper-fresh-20261030T0415`: 0.9 m along the line, a crouch since
+        // seen, and a 1.5 m move no spread covers).
         let (dx, dz) = (me.feet.x - at.x, me.feet.z - at.z);
         let length = dx.hypot(dz).max(1e-3);
-        let side = Vec3::new(-dz / length, 0.0, dx / length) * t.sniper_eye_spread_m.get();
-        let eyes = [eye, eye + side, eye - side];
+        let spread = t.sniper_eye_spread_m.get();
+        let side = Vec3::new(-dz / length, 0.0, dx / length) * spread;
+        let along = Vec3::new(dx / length, 0.0, dz / length) * spread;
+        let low = Vec3::new(0.0, super::view::eye_height(true, 0.0, 0.0) - up, 0.0);
+        let crouch = if seen_crouched { Vec3::ZERO } else { low };
+        let eyes = [eye, eye + side, eye - side, eye + along, eye - along, eye + crouch];
         if sprinting || eyes.iter().any(|&e| tactics.sees(e, me.feet + chest_over)) {
             return None;
         }
