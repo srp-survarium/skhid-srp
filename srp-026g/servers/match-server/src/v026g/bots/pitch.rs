@@ -30,6 +30,13 @@ pub enum PitchScale {
     Client,
 }
 
+impl PitchScale {
+    /// The lowest and the highest elevation a view can have, radians: the sweep's ends.
+    pub fn limits(self) -> (f32, f32) {
+        (Pitch::new(-1.0).elevation(self), Pitch::new(1.0).elevation(self))
+    }
+}
+
 /// The view's pitch as the game keeps it: units, `[-1, 1]`, positive up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd)]
 pub struct Pitch(f32);
@@ -68,6 +75,15 @@ impl Pitch {
                 let degrees = if radians >= 0.0 { UP_DEG_PER_UNIT } else { DOWN_DEG_PER_UNIT };
                 Self::new(radians.to_degrees() / degrees)
             }
+        }
+    }
+
+    /// How far the elevation rises when the view at this pitch is lifted by `lift` units (the weapon's kick), the sweep's end at most.
+    /// Under [`PitchScale::Radian`] the lift as it is.
+    pub fn rise(self, lift: f32, scale: PitchScale) -> f32 {
+        match scale {
+            PitchScale::Radian => lift,
+            PitchScale::Client => Self::new(self.0 + lift).elevation(scale) - self.elevation(scale),
         }
     }
 
@@ -131,6 +147,25 @@ mod tests {
         // Past the sweep's end it stops there.
         let top = Pitch::new(0.9).turn_for(PitchScale::Client, 1.0);
         assert!((top - 0.1).abs() < 1e-6, "{top}");
+    }
+
+    #[test]
+    fn the_sweeps_ends_are_the_limits_of_the_elevation() {
+        let (low, high) = PitchScale::Client.limits();
+        assert!((low.to_degrees() + 67.48).abs() < 1e-3 && (high.to_degrees() - 60.0).abs() < 1e-3);
+        // The radian scale kept the bots' +-1 radian.
+        assert_eq!(PitchScale::Radian.limits(), (-1.0, 1.0));
+    }
+
+    #[test]
+    fn a_kicks_lift_is_a_rise_on_the_side_of_the_view_it_is_on() {
+        // The kick of 0.1 unit: 6.0 degrees on the up side of the horizon, 6.748 across it from below -0.05 (3.374 + 3.0).
+        assert!((Pitch::new(0.2).rise(0.1, PitchScale::Client).to_degrees() - 6.0).abs() < 1e-3);
+        assert!((Pitch::new(-0.05).rise(0.1, PitchScale::Client).to_degrees() - 6.374).abs() < 1e-3);
+        // At the top it stops at the sweep's end.
+        assert!((Pitch::new(0.95).rise(0.2, PitchScale::Client).to_degrees() - 3.0).abs() < 1e-3);
+        // The radian scale: the lift as it is, as before.
+        assert_eq!(Pitch::new(0.95).rise(0.2, PitchScale::Radian), 0.2);
     }
 
     #[test]
