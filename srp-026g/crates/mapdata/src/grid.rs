@@ -135,11 +135,6 @@ pub struct Body {
     /// (a wall's top, a rail, a plank); a walking jump is pressed earlier for a short top ([`WalkGrid::press_lead`]). Off: the landing needs the body's width only ([`WalkGrid::lands`]). A build input: in
     /// the key when set; a grid read back is given it ([`WalkGrid::read`]).
     pub landing_carry: bool,
-    /// With [`Body::landing_carry`]: the extra cost of a Jump link kept though no press keeps the body on its top (the only way to a
-    /// floor, [`WalkGrid::drop_overshot_landings`]), metres of walk: the probe's presses of such links got up 3 of 81, a body tries
-    /// them again and again. A route takes one only where nothing else leads there within that. 0: the cost of any jump. A
-    /// build input: in the key when above 0.
-    pub last_resort_cost: f32,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -183,7 +178,6 @@ impl Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
-            last_resort_cost: 0.0,
         }
     }
 }
@@ -231,7 +225,6 @@ impl Default for Body {
             erosion: Erosion::Cells,
             walk_off_lips: false,
             landing_carry: false,
-            last_resort_cost: 0.0,
         }
     }
 }
@@ -959,17 +952,9 @@ impl WalkGrid {
         if rise > self.body.max_jump || across < 1e-3 {
             return None;
         }
-        walking_press_lead(rise, across, self.top_run(pa, b, WALK_CLIP_END_M))
-    }
-
-    /// The floors walked on past the landing `b` of a jump from `from`, along the jump, each a Walk link in its direction to a
-    /// floor a standing body fits, metres, up to `want`.
-    fn top_run(&self, from: Vec3, b: NodeId, want: f32) -> f32 {
-        let pb = self.position(b);
-        let across = from.distance_xz(pb);
-        let (ux, uz) = ((pb.x - from.x) / across, (pb.z - from.z) / across);
+        let (ux, uz) = ((pb.x - pa.x) / across, (pb.z - pa.z) / across);
         let (mut at, mut run) = (b, 0.0f32);
-        while run < want {
+        while run < WALK_CLIP_END_M {
             let here = self.position(at);
             let next = self.links(at).find(|&(n, kind)| {
                 let p = self.position(n);
@@ -980,26 +965,7 @@ impl WalkGrid {
             run += here.distance_xz(self.position(n));
             at = n;
         }
-        run
-    }
-
-    /// Whether the Jump link `a` to `b` is one a press keeps the body on the top of ([`Body::landing_carry`]; true for a grid
-    /// built without the rule): a link that is not was kept as the only way ([`WalkGrid::drop_overshot_landings`]).
-    pub fn jump_fits(&self, a: NodeId, b: NodeId) -> bool {
-        if !self.body.landing_carry {
-            return true;
-        }
-        let (pa, pb) = (self.position(a), self.position(b));
-        let (rise, across) = (pb.y - pa.y, pa.distance_xz(pb));
-        if across < 1e-3 {
-            return true;
-        }
-        if rise > self.body.max_jump {
-            let want = SPRINT_TOP_M - 0.5 * across;
-            self.top_run(pa, b, want) + 1e-3 >= want
-        } else {
-            walking_press_lead(rise, across, self.top_run(pa, b, WALK_CLIP_END_M)).is_some()
-        }
+        walking_press_lead(rise, across, run)
     }
 
     /// Takes away the Jump links that land on a top shorter than the jump carries the body ([`Body::landing_carry`]): the floors
@@ -2763,12 +2729,7 @@ impl WalkGrid {
             0.0
         };
         let sprint = if kind == LinkKind::Jump && q.y - p.y > self.body.max_jump { SPRINT_JUMP_PENALTY } else { 0.0 };
-        let last_resort = if kind == LinkKind::Jump && self.body.last_resort_cost > 0.0 && !self.jump_fits(from, to) {
-            self.body.last_resort_cost
-        } else {
-            0.0
-        };
-        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint + last_resort
+        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
@@ -4935,11 +4896,6 @@ pub(crate) mod tests {
     /// A yard (x 0..10, z 0..10) with a ledge 0.9 m high from x 10 on, `depth` m deep and with nothing beyond it, with steps up to
     /// it from z 8 on when `steps`, `span` m wide (z) about z 5: built with the carried landings when `carry`. A seed on the yard's ground.
     fn ledge_island(depth: f32, span: f32, steps: bool, carry: bool) -> (WalkGrid, BuildStats) {
-        ledge_island_priced(depth, span, steps, carry, 0.0)
-    }
-
-    /// [`ledge_island`] with a price for the jumps kept as the only way ([`Body::last_resort_cost`]).
-    fn ledge_island_priced(depth: f32, span: f32, steps: bool, carry: bool, last_resort_cost: f32) -> (WalkGrid, BuildStats) {
         let rise = 0.9;
         let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
         let (z0, z1) = (5.0 - 0.5 * span, 5.0 + 0.5 * span);
@@ -4951,7 +4907,7 @@ pub(crate) mod tests {
                 tris.extend(floor(x0, 8.0, x0 + 0.4, 10.0, rise / 5.0 * (s + 1) as f32));
             }
         }
-        let body = Body { landing_carry: carry, last_resort_cost, ..Body::default() };
+        let body = Body { landing_carry: carry, ..Body::default() };
         let seeds = [Vec3::new(2.0, 0.0, 5.0)];
         WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body, &seeds, &seeds)
     }
@@ -5010,24 +4966,6 @@ pub(crate) mod tests {
         assert!(top(&plain), "up the ledge without the carry: {stats:?}");
         let (grid, stats) = ledge_island(0.75, 0.5, false, true);
         assert!(top(&grid) && stats.overshot_kept > 0, "{stats:?}");
-    }
-
-    /// The jump that is the only way onto a ledge too short for it costs the last-resort price more; a jump that fits costs the same.
-    #[test]
-    fn a_last_resort_jump_costs_its_price() {
-        let cost_to_top = |grid: &WalkGrid| {
-            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.5).unwrap();
-            let b = grid.locate(Vec3::new(10.4, 0.9, 5.0), 0.3).unwrap();
-            grid.distances_from(&[a]).get(b)
-        };
-        let (free, _) = ledge_island_priced(0.75, 0.5, false, true, 0.0);
-        let (priced, stats) = ledge_island_priced(0.75, 0.5, false, true, 100.0);
-        assert!(stats.overshot_kept > 0, "{stats:?}");
-        assert!((cost_to_top(&priced) - cost_to_top(&free) - 100.0).abs() < 1e-3, "{} {}", cost_to_top(&priced), cost_to_top(&free));
-        // A deep top: the jump fits, no price.
-        let (deep_free, _) = ledge_island_priced(3.0, 4.0, false, true, 0.0);
-        let (deep_priced, _) = ledge_island_priced(3.0, 4.0, false, true, 100.0);
-        assert_eq!(cost_to_top(&deep_priced), cost_to_top(&deep_free));
     }
 
     /// A beam over a ledge's top, its underside 1.3 m over it (a crouched body goes under, a standing one does not), makes the floors

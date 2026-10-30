@@ -236,10 +236,6 @@ pub fn grid_key_with_links(
     // The carried landings are a switch too.
     if body.landing_carry {
         digest.u32(LANDING_CARRY_ALGO);
-        // The price of a last-resort jump is another grid's costs (a key part only above 0: the keys of the others are the ones there were).
-        if body.last_resort_cost > 0.0 {
-            digest.u32(body.last_resort_cost.to_bits());
-        }
     }
     // The default body's keys are the ones there were.
     if body.client_slope() {
