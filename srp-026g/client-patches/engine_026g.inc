@@ -56,10 +56,10 @@ extern engine_find_item_by_id
 ; void *engine_item_by_id(void *dictionary, unsigned int id)
 ; 0x1f0090 survarium::items_dictionary::item_by_id: dictionary EAX, id ESP+4; pops 4; EAX
 extern engine_item_by_id
-; void *engine_profile_assign(void *destination, const void *source)
+; struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source)
 ; 0x284d10 survarium::player_profile::operator=: destination ESI, source EDI; pops 0; EAX
 extern engine_profile_assign
-; void *engine_profile_construct(void *profile)
+; struct player_profile *engine_profile_construct(void *profile)
 ; 0x2f73f0 survarium::player_profile::player_profile: profile ECX; pops 0; EAX
 extern engine_profile_construct
 ; const void *engine_allocation_name(const void *where)
@@ -221,3 +221,20 @@ extern engine_release_model
 ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_player_insert
+; void engine_profile_destroy(struct player_profile *profile)
+; 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+extern engine_profile_destroy
+; void engine_release_inventory(struct inventory *object, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+extern engine_release_inventory
+; unsigned int engine_global_memory_status_ex(void *status)
+; the IAT slot 0x870164 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_memory_status_ex
+; unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+; the IAT slot 0x8701b4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_environment_variable_a
+; struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)
+; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+extern engine_allocate_recipe

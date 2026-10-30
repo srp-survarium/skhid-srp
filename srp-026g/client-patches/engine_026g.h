@@ -20,6 +20,7 @@ struct game_material_manager;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
+struct inventory_recipe;
 struct match_options;
 struct material_pair;
 struct network_client;
@@ -27,6 +28,7 @@ struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
+struct player_profile;
 struct ray_result;
 struct render_model_instance;
 struct scene_model;
@@ -92,10 +94,10 @@ void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id);
 void *engine_item_by_id(void *dictionary, unsigned int id);
 
 /* 0x284d10 survarium::player_profile::operator=: destination ESI, source EDI; pops 0; EAX */
-void *engine_profile_assign(void *destination, const void *source);
+struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source);
 
 /* 0x2f73f0 survarium::player_profile::player_profile: profile ECX; pops 0; EAX */
-void *engine_profile_construct(void *profile);
+struct player_profile *engine_profile_construct(void *profile);
 
 /* 0x420789 (unnamed): where ECX; pops 0; EAX */
 const void *engine_allocation_name(const void *where);
@@ -240,5 +242,20 @@ void engine_release_model(struct scene_model *object, unsigned int *count);
 
 /* 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly */
 void __attribute__((thiscall)) engine_player_insert(struct player *player, unsigned int link);
+
+/* 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0 */
+void engine_profile_destroy(struct player_profile *profile);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_inventory(struct inventory *object, unsigned int *count);
+
+/* the IAT slot 0x870164 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_global_memory_status_ex)(void * status);
+
+/* the IAT slot 0x8701b4 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_environment_variable_a)(const char * name, char * buffer, unsigned int size);
+
+/* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
+struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
 
 #endif

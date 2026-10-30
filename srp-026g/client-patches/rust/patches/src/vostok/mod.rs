@@ -40,6 +40,7 @@ pub mod language;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod spare;
 mod rt;
 mod sync;
 pub mod trace;

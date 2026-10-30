@@ -1,4 +1,78 @@
-# Dropped weapon pickup — implementation evidence
+# Dropped weapon pickup
+
+## Spike: a spare weapon inventory per kit (patch 83, built, not run in a game)
+
+Owner's pick (2026-10-30, option 2): a borrowed gun needs a second native
+weapon instance of the donor's type, and the only creator of one is the
+inventory cook. So every match kit player gets a spare, weapon-only inventory
+while the kits load. Nothing uses it yet: this spike measures what it costs.
+
+- **What it does.** `player_cook::on_config_loaded` (0x202500) queries the
+  player's subresources in one batch (0x202A38). The Rust hook at 0x202A18
+  (`spare_weapons.rs`, `vostok/spare.rs`) queries that batch itself with one
+  more request: an inventory (class 41h) whose recipe is the native one's
+  with a copy of the player's profile (constructor 0x2F73F0, operator=
+  0x284D10) in which that kit keeps only slots 7, 10 (the weapons) and 8, 9,
+  11, 12, 19..22 (their ammo); every other slot word is FFFFh.
+- **Ready and the late-join ack wait for it.** The player is made by the
+  batch's completion (0x202DD0), and the match load (Ready, 0xDA) and the
+  late join (its ack, which follows the player query) wait for the player.
+  The native completion reads results 0..13 (and 14 in the lobby) and never
+  ours, the last.
+- **A failed spare is skipped.** An empty result or a count that is not the
+  batch's: logged as FAILED, the recipe and the profile given back, the
+  player made as before. A spare can only hang where the player's own weapon
+  and ammo cooks (the same names, in the same batch) would.
+- **Kept and released.** The completion hook keeps one reference to the
+  spare's inventory. `player::~player` (0x1F2100) of that kit player (same
+  profile and kit) gives it back and destroys the profile copy.
+- **Not for the lobby's character** (stage +B1h is 1 there), and not
+  registered in the world: an inventory's items are bound to the core only by
+  the player's bind (0x2FC7D0, called only at 0x2D75BD). So nothing a match
+  computes changes: no `simulation_changes` row.
+- **The log** (`srp_patches.log` in the game's working folder, beside the exe):
+  `spares: on`, then a line per place and kit when the spare is asked for and
+  when it is made or FAILED, with the batch's time and the process's address
+  space before and after (GlobalMemoryStatusEx: total less available virtual;
+  the machine's memory load), and `spares: all cooks in: N spares made, F
+  failed, in T ms; address space A -> B MiB` after each burst.
+  `spares: released ...` at each kit player's destruction.
+- **A comparison.** `SRP_SPARE_WEAPONS=off` in the client's environment makes
+  no spare and logs the same timings and memory (`spares: off ...`, `no spare
+  for ...`). The address space is the whole process's, so a spare's own cost
+  is the difference between two runs, not one line's.
+- **Checked:** `check_spare_weapons_026g.py` (Unicorn) runs the three hooks of
+  the built exe with the game's own profile code; `check_engine_026g.py`; the
+  span scan (no branch or pointer into the three spans); cargo test and
+  clippy of `client-patches/rust`.
+
+### What a spare holds, and what it shares
+
+From the cooks' constructors in the exe (each cook: +8 its class, +0Ch its
+reuse policy; 1 is looked up by name in the resource registry,
+`query_result::consider_with_name_registry` 0x108A00; 0 is made anew for each
+query, `check_pickup_cooks.py` runs that gate):
+
+- **Made per spare:** the inventory (41h, inventory_cook 0x2C716A), each
+  weapon (46h, weapon_core_cook 0x30A7FA), its state objects (12Ch..141h),
+  each ammo stack (48h, items_cook 0x31F2DA), and the model *instances*: the
+  pose and bones (skeleton_model_instance 10h, skeleton_render_model_instance
+  15h, static 0Fh, 14h) and material_effects_instance (0Eh).
+- **Shared by name:** the meshes (render_model_cook, ctor 0x1231C0 writes
+  reuse 1), skeleton_combined_model (17h), materials (1Eh), skeletons and
+  animations (2Ch..32h, 200h, 202h), configs (binary_config 1Fh, 205h;
+  item_config 43h), sounds (27h, 28h), texture options (34h). A material is
+  shared, so its textures load once.
+- **Camouflage and decals:** the baker (camouflage_decal_baker_cook 6Ch) is
+  asked per instance, but patch 70's bake cache answers a second query of the
+  same baked texture with the texture already held (count +1, no bake, no
+  load; `baked-textures.md`). So a spare of a painted gun shares its baked
+  textures.
+- **Expected:** a spare costs the per-instance objects (weapon, states, pose,
+  ammo) and not the mesh or textures. The spike's log measures it.
+
+## Codex's research (parked code, evidence)
+
 
 Work in progress; no gameplay hook is installed yet. The client patch (patch 83)
 is parked unbuilt in `client-patches/parked/dropped_weapons/`: it predates main's

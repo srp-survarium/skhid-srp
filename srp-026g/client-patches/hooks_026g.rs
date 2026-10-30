@@ -681,6 +681,56 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spare_weapons (patch 83) ----
+
+/// The named exits of spare_weapons::on_query (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpareWeaponsOnQueryExit { Queried }
+/// The entry `spare_weapons_on_query` (0x202a18, player_cook::on_config_loaded before it pushes query_resources' arguments (mov edx,[ebp-2Ch] / mov eax,[ebp-5Ch]; both paths from 0x202A0F/0x202A11 join here); queried is after the call and its add esp, with EAX the callback's first word as 0x202A3D loads it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spare_weapons_on_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spare_weapons_on_query` calls this, from the game's jump at 0x202a18,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spare_weapons::on_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- spare_weapons (patch 83) ----
+
+/// The entry `spare_weapons_on_ready` (0x202dd0, player_cook on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): [esp+4] the queries_result, [esp+8] the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spare_weapons_on_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spare_weapons_on_ready` calls this, from the game's jump at 0x202dd0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spare_weapons::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- spare_weapons (patch 83) ----
+
+/// The entry `spare_weapons_on_destroy` (0x1f2100, player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spare_weapons_on_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spare_weapons_on_destroy` calls this, from the game's jump at 0x1f2100,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spare_weapons::on_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

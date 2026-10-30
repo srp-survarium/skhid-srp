@@ -4955,3 +4955,7 @@ va	name	location	role	basis
 0x002dbb50	survarium::base_player::movement_speed	stack+4	the player (+115h kit, +6B8h profile, +15Ch and +190h the two speed tables read by 0x2F0980)	observed
 0x002dbb50	survarium::base_player::movement_speed	stack+10h	byte flag: also apply modifiers 4 and 20 through apply_modifiers 0x2D5BC0 and take the lower speed	observed
 0x002e2a30	survarium::weapon_core::initialize	EDI	the weapon; at 0x2E2C26..0x2E2C9C its movement node (+610h, value +61Ch) is added to the kit container (0x2D5A90) unless modifier 62 (Bear Arms, additive, apply_modifier 0x2D5AE0 with B 0) is above 0 and the value is not	observed
+0x00202dd0	survarium::player_cook::on_subresources_loaded	entry ESP+4	the batch's queries_result (m_size +38h; results +12Ch, 2E0h apart)	observed
+0x00202dd0	survarium::player_cook::on_subresources_loaded	entry ESP+8	the stage (27Ch; creation data at +9Ch: profile, place +A0h, game world +A4h, kit +B0h, lobby flag +B1h)	observed
+0x00202dd0	survarium::player_cook::on_subresources_loaded	entry ESP+12	the inventory recipe, freed at 0x202E04	observed
+0x001f2100	survarium::player::~player	ECX	the player (its profile +6B8h, kit +115h still set at entry)	observed

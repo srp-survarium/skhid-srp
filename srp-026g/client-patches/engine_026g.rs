@@ -117,6 +117,12 @@ unsafe extern "C" {
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
+    /// 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+    pub fn engine_profile_destroy(profile: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_inventory(object: *mut c_void, count: *mut u32);
+    /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    pub fn engine_allocate_recipe(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -163,4 +169,8 @@ unsafe extern "C" {
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
+    pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x8701b4 (an import, stdcall): unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+    pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
 }

@@ -54,9 +54,9 @@ unsafe extern "C" {
     /// 0x1f0090 survarium::items_dictionary::item_by_id: dictionary EAX, id ESP+4; pops 4; EAX
     pub fn engine_item_by_id(dictionary: *mut c_void, id: u32) -> *mut c_void;
     /// 0x284d10 survarium::player_profile::operator=: destination ESI, source EDI; pops 0; EAX
-    pub fn engine_profile_assign(destination: *mut c_void, source: *const c_void) -> *mut c_void;
+    pub fn engine_profile_assign(destination: Option<PlayerProfile>, source: Option<PlayerProfile>) -> Option<PlayerProfile>;
     /// 0x2f73f0 survarium::player_profile::player_profile: profile ECX; pops 0; EAX
-    pub fn engine_profile_construct(profile: *mut c_void) -> *mut c_void;
+    pub fn engine_profile_construct(profile: *mut c_void) -> Option<PlayerProfile>;
     /// 0x420789 (unnamed): where ECX; pops 0; EAX
     pub fn engine_allocation_name(r#where: *const c_void) -> *const c_void;
     /// 0x111860 vostok::logging::has_passed_filters: channel ESP+4, level ESP+8; pops 0; AL
@@ -123,6 +123,12 @@ unsafe extern "C" {
     pub fn engine_release_item(object: Option<Artefact>, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: Option<SceneModel>, count: *mut u32);
+    /// 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+    pub fn engine_profile_destroy(profile: Option<PlayerProfile>);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_inventory(object: Option<Inventory>, count: *mut u32);
+    /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    pub fn engine_allocate_recipe(allocator: *mut c_void, size: u32, r#where: *const c_void) -> Option<InventoryRecipe>;
 }
 
 #[allow(dead_code)]
@@ -169,6 +175,10 @@ unsafe extern "C" {
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
+    pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x8701b4 (an import, stdcall): unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+    pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -553,6 +563,67 @@ impl PlayerProfile {
     pub unsafe fn kits(self) -> ProfileKit {
         ProfileKit(unsafe { self.0.byte_add(0xf4) })
     }
+
+    /// +0x57 (u8): the profile's kits (late join's lj_prepare reads it; 3 at most)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit_count(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x57).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x98 (obj<survarium::kit_slots>): the first kit's 23 slot words; kit n's at +98h + n x 704h (translate_query 0x2C72E3..0x2C7301: (kit x 1C1h + slot) x 4 + 98h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit_slots(self) -> KitSlots {
+        KitSlots(unsafe { self.0.byte_add(0x98) })
+    }
+
+    /// 0x4634 bytes: a profile: player_profile::player_profile (0x2F73F0) constructs 4634h bytes, operator= (0x284D10) copies them through +4632h
+    pub const SIZE: usize = 0x4634;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::player_profiles (0x4634 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PlayerProfileStorage([u8; 0x4634]);
+
+#[allow(dead_code)]
+impl PlayerProfileStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4634])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PlayerProfile {
+        PlayerProfile(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PlayerProfile> {
+        (!rooms.is_empty()).then(|| PlayerProfile(NonNull::from(rooms).cast()))
+    }
 }
 
 /// A survarium::render_name_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -877,6 +948,15 @@ impl Inventory {
     #[inline(always)]
     pub unsafe fn artefact_slot_count(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x16c).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xd0 (u32): its unmanaged resource count (as every resource's; released by 0x0E0210 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
     }
 }
 
@@ -3630,6 +3710,735 @@ impl StatisticsListener {
     }
 }
 
+/// A survarium::player_cook_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerCookFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerCookFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x14 (ptr<survarium::player_cook_stage>): player_cook::on_config_loaded (0x202500)'s stage, allocated 27Ch at 0x2025A8; its +9Ch the player's creation data (0x2058A0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stage(self) -> Option<PlayerCookStage> {
+        unsafe { self.0.byte_sub(0x14).cast::<Option<PlayerCookStage>>().read_volatile() }
+    }
+
+    /// -0x24 (ptr<survarium::resource_request>): the subresource requests' begin, filled by 0x5FCB0 (0x20271A..0x2029A0); query_resources takes it in EAX at 0x202A28
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests_begin(self) -> Option<ResourceRequest> {
+        unsafe { self.0.byte_sub(0x24).cast::<Option<ResourceRequest>>().read_volatile() }
+    }
+
+    /// -0x20 (u32): the requests' end: (end - begin) / 8 is query_resources' count (0x202A2C..0x202A35)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests_end(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x5c (ptr<survarium::request_user>): the requests' user data: one pointer a request, 0 none (0x2026A2; the inventory's at index 4, 0x2028EA); query_resources' third stack argument (0x202A27)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn users(self) -> Option<RequestUser> {
+        unsafe { self.0.byte_sub(0x5c).cast::<Option<RequestUser>>().read_volatile() }
+    }
+
+    /// -0x50 (u32): the completion's boost function (on_subresources_loaded 0x202DD0, bound at 0x2029A5..0x2029FB): its first word, 0x9FD780|1 or 0; &it is query_resources' first stack argument (0x202A2F), and the code after the call reads it into EAX (0x202A3D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn callback(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x50).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x2c (u32): the parent query, the config query's (0x20258F); query_resources' fourth stack argument (0x202A26)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parent(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x10 (ptr<survarium::inventory_recipe>): the native inventory recipe, 1Ch allocated at 0x202821, filled 0x20284C..0x2028A9; bound to the completion (0x2029B3), which frees it (0x202E04)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn recipe(self) -> Option<InventoryRecipe> {
+        unsafe { self.0.byte_sub(0x10).cast::<Option<InventoryRecipe>>().read_volatile() }
+    }
+
+    /// -0xc0 (obj<survarium::inventory_variant>): the inventory request's user data, on the stack (0x2028CE..0x2028EA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn variant(self) -> InventoryVariant {
+        InventoryVariant(unsafe { self.0.byte_sub(0xc0) })
+    }
+}
+
+/// A survarium::player_cook_stage (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerCookStage(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerCookStage {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x9c (ptr<survarium::player_profile>): the creation data's profile (0x2058A0 copies 18h bytes from the query's user data +8); the inventory recipe's profile (0x20284F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn profile(self) -> Option<PlayerProfile> {
+        unsafe { self.0.byte_add(0x9c).cast::<Option<PlayerProfile>>().read_volatile() }
+    }
+
+    /// +0xa0 (u8): the creation data's place (late join's query_players writes it at user data +0Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xa0).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xa4 (u32): the creation data's game world (recipe +10h, 0x202872; cached at +1E4h, 0x2025E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game_world(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xa4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xb0 (u8): the creation data's kit (recipe +4, 0x202856)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xb0).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xb1 (u8): the creation data's last byte: 1 for the lobby's character (setup_profile 0x284C34), 0 in a match (late join's query_players); it adds the 7Ch request (0x202974) and is the recipe's +18h (0x20287B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lobby(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xb1).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::inventory_recipe (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InventoryRecipe(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl InventoryRecipe {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn profile(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u8): the kit (0x2C72E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the items dictionary (0x202866)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dictionary(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): the physics world (0x20286F; armour items only, 0x2C7102)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics_world(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game_world(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the match seed, options+577B0h (0x2028A6)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn match_seed(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u8): the stage's +B1h (0x202882)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flag(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x18).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x1c bytes: 1Ch bytes (the allocation at 0x20281C)
+    pub const SIZE: usize = 0x1c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::inventory_recipes (0x1c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct InventoryRecipeStorage([u8; 0x1c]);
+
+#[allow(dead_code)]
+impl InventoryRecipeStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> InventoryRecipe {
+        InventoryRecipe(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<InventoryRecipe> {
+        (!rooms.is_empty()).then(|| InventoryRecipe(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::inventory_variant (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InventoryVariant(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl InventoryVariant {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn recipe(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (u32): the variant's own address (0x2028CE; the query copies the user data by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn this(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (u32): its vtable, 0x9FD808 (0x2028E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2c (u32): the recipe type's variant id, type_to_int<inventory_cooker_data *> 0x205C60 (0x2028BA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn type_id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x30 bytes: 30h bytes, vtable 0x9FD808 at +0 (destroy +4 a bare ret 4, 0x75AF0: it owns nothing)
+    pub const SIZE: usize = 0x30;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::inventory_variants (0x30 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct InventoryVariantStorage([u8; 0x30]);
+
+#[allow(dead_code)]
+impl InventoryVariantStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x30])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> InventoryVariant {
+        InventoryVariant(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<InventoryVariant> {
+        (!rooms.is_empty()).then(|| InventoryVariant(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::player_cook_ready_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerCookReadyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerCookReadyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::queries_result>): on_subresources_loaded (0x202DD0)'s first argument at its entry, the queries_result (0x202DDD; ret 0Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn result(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player_cook_stage>): its second, the stage (0x202E45)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stage(self) -> Option<PlayerCookStage> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<PlayerCookStage>>().read_volatile() }
+    }
+}
+
+/// A vostok::queries_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueriesResult(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueriesResult {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x38 (u32): queries_result m_size (as vostok::carry_queries)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x38).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x12c (obj<vostok::query_result>): the first result; the player cook reads results 0..4 at +12Ch, +40Ch, +6ECh, +9CCh, +0CACh, nine more from +0F8Ch (0x2030C8..0x20318F) and with +B1h one at +296Ch: never one past those
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> QueryResult {
+        QueryResult(unsafe { self.0.byte_add(0x12c) })
+    }
+}
+
+/// A vostok::query_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryResult(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryResult {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::inventory>): the result's resource, here an inventory (class 41h; late join's query_completed reads players the same way, 0x2E0 apart)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inventory(self) -> Option<Inventory> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Inventory>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::inventory>): the result's resource, here an inventory (class 41h; late join's query_completed reads players the same way, 0x2E0 apart)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_inventory(self, value: Option<Inventory>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Inventory>>().write_volatile(value) }
+    }
+
+    /// 0x2e0 bytes: 2E0h bytes a result
+    pub const SIZE: usize = 0x2e0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::query_results (0x2e0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct QueryResultStorage([u8; 0x2e0]);
+
+#[allow(dead_code)]
+impl QueryResultStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2e0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> QueryResult {
+        QueryResult(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<QueryResult> {
+        (!rooms.is_empty()).then(|| QueryResult(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::kit_slots (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitSlots(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KitSlots {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::kit_slot>): its 23 slots
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slots(self) -> KitSlot {
+        KitSlot(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// 0x704 bytes: a kit's stride in the profile
+    pub const SIZE: usize = 0x704;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::kit_slotss (0x704 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct KitSlotsStorage([u8; 0x704]);
+
+#[allow(dead_code)]
+impl KitSlotsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x704])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> KitSlots {
+        KitSlots(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<KitSlots> {
+        (!rooms.is_empty()).then(|| KitSlots(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::kit_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KitSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u16): the profile item's index (its record at profile +1568h + index x 0B4h), FFFFh empty (translate_query 0x2C7301..0x2C730C skips it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
+    }
+
+    /// 0x4 bytes: a slot word
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::kit_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct KitSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl KitSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> KitSlot {
+        KitSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<KitSlot> {
+        (!rooms.is_empty()).then(|| KitSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllocatorSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AllocatorSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): the allocator itself (engine_malloc's ESI, engine_free's ECX)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+}
+
+/// A survarium::request_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestUser(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RequestUser {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a request's user data pointer (0 none), as query_resources takes the array (0x202A27)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn variant(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x4 bytes: one pointer a request
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::request_users (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RequestUserStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl RequestUserStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RequestUser {
+        RequestUser(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RequestUser> {
+        (!rooms.is_empty()).then(|| RequestUser(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -3789,6 +4598,13 @@ pub mod image {
 
     /// 0xa06124 (u32, survarium::image): client artefact vtable, constructor write at 0x25FA32; callback layout verified
     pub const RATTLE_VTABLE: u32 = 0xa06124;
+
+    /// 0x1f1d9c4 (obj<vostok::allocator_slot>, vostok::resources::image): the resources' allocator, the global every query passes (0x202A1E) and the player cook allocates its stage and recipe from (0x202584, 0x20280B)
+    #[inline(always)]
+    pub fn allocator() -> AllocatorSlot {
+        // SAFETY: an image VA, not 0.
+        AllocatorSlot(unsafe { NonNull::new_unchecked(0x1f1d9c4 as *mut c_void) })
+    }
 }
 
 /// A general-purpose register at a hook's site.
@@ -4604,6 +5420,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// player_cook.query (0x202a18): player_cook::on_config_loaded before it pushes query_resources' arguments (mov edx,[ebp-2Ch] / mov eax,[ebp-5Ch]; both paths from 0x202A0F/0x202A11 join here); queried is after the call and its add esp, with EAX the callback's first word as 0x202A3D loads it
+    pub mod player_cook_query {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::player_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PlayerCookFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(PlayerCookFrame)
+        }
+    }
+
+    /// player_cook.ready (0x202dd0): player_cook on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): [esp+4] the queries_result, [esp+8] the stage
+    pub mod player_cook_ready {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::player_cook_ready_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PlayerCookReadyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PlayerCookReadyFrame)
+        }
+    }
+
+    /// player.destroy (0x1f2100): player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor
+    pub mod player_destroy {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
         }
     }
 }

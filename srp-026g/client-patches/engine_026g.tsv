@@ -17,8 +17,8 @@ engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
 engine_find_item_by_id	0x277aa0	ECX:begin EDI:end ESP+4:id	void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id)	thunk	
 engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	void *engine_item_by_id(void *dictionary, unsigned int id)	thunk	
-engine_profile_assign	0x284d10	ESI:destination EDI:source	void *engine_profile_assign(void *destination, const void *source)	thunk	
-engine_profile_construct	0x2f73f0	ECX:this	void *engine_profile_construct(void *profile)	thunk	
+engine_profile_assign	0x284d10	ESI:destination EDI:source	struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source)	thunk	
+engine_profile_construct	0x2f73f0	ECX:this	struct player_profile *engine_profile_construct(void *profile)	thunk	
 engine_allocation_name	0x420789	ECX:object	const void *engine_allocation_name(const void *where)	thunk	
 engine_log_passes	0x111860	ESP+4:channel ESP+8:level	unsigned int engine_log_passes(const char *channel, unsigned int level)	thunk	
 engine_string_assign	0x0127c0	EAX:destination ECX:text	void engine_string_assign(struct buffer_string *string, const char *text)	thunk	
@@ -67,3 +67,8 @@ engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
 engine_player_insert	0x1f2720	ECX:player ESP+4:link	void engine_player_insert(struct player *player, unsigned int link)	thiscall	
+engine_profile_destroy	0x26f3b0	ECX:this	void engine_profile_destroy(struct player_profile *profile)	thunk	
+engine_release_inventory	0x0e0210	ECX:instance EAX:count	void engine_release_inventory(struct inventory *object, unsigned int *count)	thunk	
+engine_global_memory_status_ex	0x870164	-	unsigned int engine_global_memory_status_ex(void *status)	import	
+engine_get_environment_variable_a	0x8701b4	-	unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)	import	
+engine_allocate_recipe	0x0e4f90	ESI:allocator EAX:size ESP+4:description	struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)	thunk	

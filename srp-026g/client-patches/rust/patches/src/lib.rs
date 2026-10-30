@@ -52,3 +52,5 @@ pub mod language;
 pub mod artefact_score;
 
 pub mod late_join_insert;
+
+pub mod spare_weapons;

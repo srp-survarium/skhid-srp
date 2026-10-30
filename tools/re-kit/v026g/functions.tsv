@@ -1917,3 +1917,5 @@ va	status	ref_021d	name
 0x00313490	verified		survarium::artefact_base::on_removed
 0x0025fa10	verified	0x00195e34	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>
 0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death
+0x00202dd0	observed		survarium::player_cook::on_subresources_loaded
+0x001f2100	reviewed	0x001565f2	survarium::player::~player

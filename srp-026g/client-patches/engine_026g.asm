@@ -72,6 +72,11 @@ global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
 global engine_player_insert
+global engine_profile_destroy
+global engine_release_inventory
+global engine_global_memory_status_ex
+global engine_get_environment_variable_a
+global engine_allocate_recipe
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -87,6 +92,8 @@ engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_con
 engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
 engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
 engine_player_insert equ 0x1f2720   ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
+engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
+engine_get_environment_variable_a equ 0x8701b4   ; the IAT slot 0x8701b4 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -999,6 +1006,54 @@ engine_release_model:
     mov ecx, [esp + 20]   ; object
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_profile_destroy:
+    ; 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; profile
+    call 0x26f3b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_inventory:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_allocate_recipe:
+    ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; where -> 4
+    mov esi, [esp + 24]   ; allocator
+    mov eax, [esp + 28]   ; size
+    call 0xe4f90
     pop edi
     pop esi
     pop ebx

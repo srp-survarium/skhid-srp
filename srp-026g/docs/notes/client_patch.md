@@ -2571,7 +2571,22 @@ site with the client's functions and insert stubbed: alive and outside,
 inserted once with 1; inserted, dead, empty places untouched; a second load
 inserts nobody; the references given back; registers and stack kept.
 
-## Dropped-weapon input ownership (patch 83, parked)
+## Spare weapon inventories (patch 83, spike)
+
+The first step of dropped-weapon pickup: each match kit player's cook also
+cooks a spare inventory of that kit's weapons and ammo, kept until that kit
+player is destroyed; nothing uses it yet. `rust/patches/src/spare_weapons.rs`
+(the policy, the log) over `vostok/spare.rs`: a lohook at 0x202A18 queries
+player_cook::on_config_loaded's subresource batch itself with one more
+inventory request, cooked from a weapon-only copy of the player's profile; a
+lohook at 0x202DD0 (the batch's completion) keeps that result; one at
+player::~player 0x1F2100 releases it. The lobby's character gets none.
+Every spare is logged to `srp_patches.log` (time, address space, failures);
+`SRP_SPARE_WEAPONS=off` makes none, for a comparison. Nothing a match
+computes. `check_spare_weapons_026g.py` runs the three hooks against the
+original exe's profile code. The RE and the cost: `docs/notes/weapon_pickup.md`.
+
+## Dropped-weapon input ownership (parked; patch 83 is now the spike above)
 
 **Parked, not built.** The Rust patch was written against the untyped `raw`
 layer that main has since replaced (typed handles, `rust_patches.md`). Its code,
