@@ -274,6 +274,8 @@ pub(crate) struct Body {
     /// ground distance moved at the last tick, m.
     pub(crate) flight: Option<Flight>,
     pub(crate) step_m: f32,
+    /// The ground displacement of the last tick, m (`SRP_BENCH_HIT_FLIGHT`: where a bullet in the air will find it).
+    pub(crate) step_vec: Vec3,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     pub(crate) legs: [f32; 2],
@@ -535,6 +537,9 @@ pub(crate) struct Game {
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
     /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
+    /// A bullet takes time to arrive (`SRP_BENCH_HIT_FLIGHT`, a diagnosis of A182): the shape test finds each body where its
+    /// last step carries it in the time the shooter's ammunition takes to fly to it, not where it stood at the shot.
+    pub(crate) flight: bool,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
     /// the sight's when the map has none, as the tests' fields); every
@@ -684,6 +689,7 @@ impl Game {
             air_until: 0,
             flight: None,
             step_m: 0.0,
+            step_vec: Vec3::ZERO,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -778,6 +784,7 @@ impl Game {
             shot_facts: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
+            flight: false,
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
@@ -835,6 +842,7 @@ impl Game {
         body.stagger.reset();
         body.flight = None;
         body.step_m = 0.0;
+        body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
         body.alive = true;
         body.spawned = tick;
@@ -1089,6 +1097,7 @@ impl Game {
                     }
                 }
                 body.step_m = body.feet.distance_xz(before);
+                body.step_vec = Vec3::new(body.feet.x - before.x, 0.0, body.feet.z - before.z);
                 body.moved += body.step_m;
                 if body.carrying.is_some() {
                     self.carry_m += body.step_m;
@@ -1403,13 +1412,19 @@ impl Game {
     /// by the position scatter, [`Game::shot_line`]).
     fn nearest_shape(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
         let mut best: Option<BoxStrike> = None;
+        let ammo = self.flight.then(|| standin_damage::ammo_of(&self.damage, self.bodies[shooter].gun));
         for (body, other) in self.bodies.iter().enumerate() {
             if !other.alive || body == shooter {
                 continue;
             }
             let reach = best.map_or(super::tallies::shot_offset::REACH_M, |b| b.along);
+            // Where the body is when the bullet gets to it: its last step carried on for the flight time.
+            let feet = match ammo {
+                Some(ammo) => other.feet + other.step_vec * (standin_hitbox::flight_s(ammo, (other.feet - eye).length()) / TICK_S),
+                None => other.feet,
+            };
             let hit = standin_hitbox::ray_at_body(
-                other.feet,
+                feet,
                 forward(other.yaw),
                 other.keys & key::CROUCH != 0,
                 other.keys & key::AIM != 0,

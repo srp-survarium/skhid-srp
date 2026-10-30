@@ -859,6 +859,7 @@ pub(crate) fn real_bot_cost() {
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             game.volume = HitVolume::bench();
+            game.flight = bench_settings().flag("SRP_BENCH_HIT_FLIGHT");
             // Bullets go through cover by the client's rule when either side's cover tests go by it (the stand-in's physics
             // is shared by both sides of a head-to-head); with `cover.pierce` off on both, the first surface stops them.
             game.pierce = [0u8, 1].iter().any(|&team| bots.tuning_of(team).cover.pierce.is_some());

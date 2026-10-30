@@ -64,6 +64,20 @@ pub(crate) enum HitVolume {
 /// shot's information is not tracked, so it is the one value for all.
 pub(crate) const POSITION_SIGMA_M: f32 = 0.17;
 
+/// Seconds a bullet of `ammo` takes to fly `d` metres: the speed is `v0 sqrt(1 - 2 k d / v0)` (`damage.rs`, from
+/// `compute_parabolic_velocity` 0x32C950: PROVEN), so the time is `(1 - sqrt(1 - 2 k d / v0)) / k`, capped at the
+/// flight's end.
+pub(crate) fn flight_s(ammo: &survarium::v026g::damage::AmmoParams, d: f32) -> f32 {
+    let (v0, k) = (ammo.muzzle_speed, ammo.air_resistance);
+    if v0 <= 0.0 {
+        return 0.0;
+    }
+    if k <= 0.0 {
+        return d / v0;
+    }
+    (1.0 - (1.0 - 2.0 * k * d.min(ammo.reach()) / v0).max(0.0).sqrt()) / k
+}
+
 /// The old rule's radius, metres (the same number the shot offsets count against).
 pub(crate) use super::tallies::shot_offset::DISC_M;
 
@@ -641,6 +655,17 @@ mod tests {
         let aim = Vec3::new(across, y, 0.0);
         let dir = aim - eye;
         ray_at_body(Vec3::ZERO, FACING_Z, crouched, true, eye, dir * (1.0 / dir.length()), 100.0)
+    }
+
+    /// A bullet's time of flight grows with the distance, is `d / v0` for a short one and ends at the flight's end.
+    #[test]
+    fn the_flight_time_grows_with_the_distance_and_is_distance_over_speed_when_short() {
+        let ammo = super::super::standin_damage::PLAIN_AMMO;
+        assert_eq!(flight_s(&ammo, 0.0), 0.0);
+        let (near, far) = (flight_s(&ammo, 1.0), flight_s(&ammo, 60.0));
+        assert!((near - 1.0 / ammo.muzzle_speed).abs() < 1e-4, "{near}");
+        assert!(far > 60.0 / ammo.muzzle_speed, "slower than at the muzzle: {far}");
+        assert!(flight_s(&ammo, 1e6) < 2.0 / ammo.air_resistance.max(1e-3));
     }
 
     /// The arm shapes taken away (`SRP_BENCH_HIT_ARMS=away`) leave 13 shapes in each pose and no arm hit: a line at the chest
