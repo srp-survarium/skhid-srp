@@ -680,6 +680,8 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if smoke_there(eye, chest) || !open_from(eye, crossing_s) {
             return None;
         }
+        #[cfg(test)]
+        smoke::tally::sniper_candidate(bot.place, who, eye, crossing);
         smoke::smoke_between(&reach, eye, crossing, thin, SmokeUse::AntiSniper).map(|plan| {
             let why = format!(
                 "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
@@ -750,6 +752,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             smoke::tally::begun(bot.team, plan.for_use);
             if plan.for_use == SmokeUse::AntiSniper {
                 smoke::tally::sniper_smoked(bot.place);
+                smoke::tally::sniper_begun(bot.place, bot.team, now);
             }
         }
         let at = plan.at;

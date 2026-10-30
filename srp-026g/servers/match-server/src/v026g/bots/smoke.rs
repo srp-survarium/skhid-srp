@@ -895,8 +895,44 @@ pub mod tally {
         })
     }
 
+    /// An anti-sniper smoke as planned: the thrower, its team, the sniper, his eye as sensed, the crossing, when begun.
+    #[derive(Clone, Copy, Debug)]
+    pub struct SniperPlan {
+        pub place: usize,
+        pub team: u8,
+        pub who: usize,
+        pub eye: super::Vec3,
+        pub crossing: super::Vec3,
+        pub time: u32,
+    }
+
+    thread_local! {
+        static SNIPER_CANDIDATE: std::cell::RefCell<std::collections::BTreeMap<usize, (usize, super::Vec3, super::Vec3)>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+        static SNIPER_PLANS: std::cell::RefCell<Vec<SniperPlan>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// The bot at `place` planned a smoke against `who` (his eye `eye`) for its crossing at `crossing`.
+    pub fn sniper_candidate(place: usize, who: usize, eye: super::Vec3, crossing: super::Vec3) {
+        SNIPER_CANDIDATE.with(|s| s.borrow_mut().insert(place, (who, eye, crossing)));
+    }
+
+    /// The bot at `place` began its anti-sniper smoke at `now`: its candidate is a plan.
+    pub fn sniper_begun(place: usize, team: u8, now: u32) {
+        if let Some((who, eye, crossing)) = SNIPER_CANDIDATE.with(|s| s.borrow().get(&place).copied()) {
+            SNIPER_PLANS.with(|s| s.borrow_mut().push(SniperPlan { place, team, who, eye, crossing, time: now }));
+        }
+    }
+
+    /// The anti-sniper plans begun so far this match.
+    pub fn sniper_plans() -> Vec<SniperPlan> {
+        SNIPER_PLANS.with(|s| s.borrow().clone())
+    }
+
     /// A match begins on this thread: the per-place records of the last one go (places are reused).
     pub fn begin_match() {
+        SNIPER_CANDIDATE.with(|s| s.borrow_mut().clear());
+        SNIPER_PLANS.with(|s| s.borrow_mut().clear());
         SNIPER_CROSSINGS.with(|s| s.borrow_mut().clear());
         UNDER_CLOUD.with(|s| s.borrow_mut().clear());
         THREW.with(|s| s.borrow_mut().clear());

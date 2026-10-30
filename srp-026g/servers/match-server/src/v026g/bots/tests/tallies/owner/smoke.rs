@@ -49,6 +49,15 @@ const FAIR_EYE_SIDE_M: f32 = 0.6;
 /// cloud of its team's (its feet within the cloud's radius and [`BY_CLOUD_M`]: a crossing it smoked or a mate did), else neither.
 const DEATH_CLASSES: [&str; 3] = ["own throw", "by a team cloud", "neither"];
 const AFTER_SMOKE_MS: u32 = 10_000;
+/// The anti-sniper throws' classes (the coordinator, 2026-10-30): a legit, b1 a second smoke onto a line a team cloud already
+/// covered, b2 a second against the same sniper onto another crossing, c wasted (died, or no crossing within its time), d wrong
+/// target (no sniper rifle, dead, or moved past `SNIPER_MOVED_M` from where sensed), e no line from him onto the crossing.
+const SNIPER_CLASSES: [&str; 7] = ["a legit", "b1 covered already", "b2 another crossing", "c died first", "c not crossed", "d wrong target", "e no line"];
+const SNIPER_REACH_MS: u32 = 15_000;
+const SNIPER_REACH_M: f32 = 2.5;
+const SNIPER_MOVED_M: f32 = 3.0;
+const SNIPER_SECOND_MS: u32 = 20_000;
+
 /// A sniper crossing is resolved this long after it began: died to him, died otherwise, or crossed, ms.
 const SNIPER_CROSSING_MS: u32 = 10_000;
 const BY_CLOUD_M: f32 = 3.0;
@@ -115,6 +124,11 @@ pub(super) struct SmokeCounts {
     /// By team, by [not smoked, smoked]: the sniper crossings (a route ahead entering ground a sniper who outranges the bot
     /// sees, `smoke_uses`) and how they ended: [crossings, crossed alive, died to that sniper, died to another].
     sniper_crossings: [[[u32; 4]; 2]; 2],
+    /// [diagnosis] The anti-sniper plans seen, classed at their begin (`Some(class)` when decided then) and resolved over
+    /// `SNIPER_REACH_MS`; and the counts by team and class.
+    sniper_open: Vec<(smoke::tally::SniperPlan, Option<usize>)>,
+    sniper_seen: usize,
+    sniper_classes: [[u32; 7]; 2],
     /// [diagnosis] The sensings whose line from the game's bodies is clearly behind smoke from every eye
     /// ([`Self::hides_body`]): the view's lag at a cloud's rim or flat top, not a bypass (the replay says which).
     seen_through_margin: [u32; 2],
@@ -144,6 +158,9 @@ impl SmokeCounts {
             by_team_cloud: Vec::new(),
             deaths: Vec::new(),
             sniper_crossings: [[[0; 4]; 2]; 2],
+            sniper_open: Vec::new(),
+            sniper_seen: 0,
+            sniper_classes: [[0; 7]; 2],
             seen_through_margin: [0; 2],
         }
     }
@@ -254,6 +271,68 @@ impl SmokeCounts {
             row[4] += u32::from(d.screened);
         }
         by
+    }
+
+    /// [diagnosis] The anti-sniper plans: new ones classed at their begin, open ones resolved for the body at `at.place`.
+    fn sniper_throws(&mut self, at: &BodyAt<'_>) {
+        let plans = smoke::tally::sniper_plans();
+        let game = at.game;
+        for plan in plans.iter().skip(self.sniper_seen) {
+            let him = &game.bodies[plan.who];
+            let rifle = crate::v026g::bots::reflex::WeaponKind::of_class(him.gun.class) == crate::v026g::bots::reflex::WeaponKind::Sniper;
+            let moved = him.feet.distance_xz(plan.eye) > SNIPER_MOVED_M;
+            let chest = plan.crossing + Vec3::new(0.0, 1.3, 0.0);
+            let line = crate::v026g::bots::aimpoint::sight_line(at.sight, Game::eye(him), chest);
+            let covered = Clouds::new(self.clouds.clone()).planning(plan.time, plan.team).covers(plan.time, &SmokeTuning::default(), plan.eye, chest);
+            let second = plans.iter().any(|p| {
+                p.team == plan.team && p.who == plan.who && p.time < plan.time && plan.time - p.time <= SNIPER_SECOND_MS
+            });
+            let decided = if !him.alive || !rifle || moved {
+                Some(5)
+            } else if !line {
+                Some(6)
+            } else if covered {
+                Some(1)
+            } else {
+                None
+            };
+            self.sniper_open.push((*plan, decided.or(second.then_some(usize::MAX))));
+        }
+        self.sniper_seen = plans.len();
+        // Resolve the open plans of the body this record is for.
+        let place = at.place;
+        let (tick, alive, feet) = (at.tick, at.rec.alive, at.rec.feet);
+        let mut kept = Vec::new();
+        for (plan, decided) in std::mem::take(&mut self.sniper_open) {
+            if plan.place != place {
+                kept.push((plan, decided));
+                continue;
+            }
+            let reached = alive && feet.distance_xz(plan.crossing) <= SNIPER_REACH_M;
+            let over = tick.saturating_sub(plan.time) >= SNIPER_REACH_MS;
+            let class = match decided {
+                Some(c) if c != usize::MAX => Some(c),
+                _ if !alive && tick > plan.time => Some(3),
+                _ if reached => Some(if decided == Some(usize::MAX) { 2 } else { 0 }),
+                _ if over => Some(4),
+                _ => None,
+            };
+            match class {
+                Some(c) => {
+                    self.sniper_classes[usize::from(plan.team & 1)][c] += 1;
+                    if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
+                        let him = &game.bodies[plan.who];
+                        eprintln!(
+                            "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms",
+                            plan.team, plan.place, plan.time, SNIPER_CLASSES[c], plan.who, him.alive, him.gun.class,
+                            him.feet.distance_xz(plan.eye), plan.crossing.x, plan.crossing.y, plan.crossing.z, tick.saturating_sub(plan.time)
+                        );
+                    }
+                }
+                None => kept.push((plan, decided)),
+            }
+        }
+        self.sniper_open = kept;
     }
 
     /// Whether `feet` stand inside a cloud at `tick`.
@@ -489,7 +568,7 @@ impl SmokeCounts {
             "smoke_rest_deaths_by_class": classes(1),
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; anti-sniper throws by class {:?}: {:?}; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -523,6 +602,8 @@ impl SmokeCounts {
             self.fire_through,
             self.seen_through_margin,
             self.fire_through_margin,
+            SNIPER_CLASSES,
+            self.sniper_classes,
             self.sniper_crossings,
             DEATH_CLASSES,
             by_who(0),
@@ -554,6 +635,7 @@ impl Topic for SmokeCounts {
     }
 
     fn body(&mut self, run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+        self.sniper_throws(at);
         let died = at.prev.alive && !at.rec.alive;
         if died {
             self.death(run, at.game, at.place, at.tick);
