@@ -127,6 +127,7 @@ impl Topic for ZoneDeaths {
         for note in game.zone_notes.iter().copied().chain(open) {
             sides[usize::from(note.team.min(1))].add(&note);
             total.add(&note);
+            eprintln!("  {}", note.line());
         }
         let mut json = total.keyed();
         json["zd_by_team"] = serde_json::json!({ "0": sides[0].keyed(), "1": sides[1].keyed() });
@@ -154,8 +155,11 @@ pub(crate) fn a_zone_spell_is_filed_under_its_team_with_its_flags_and_motives() 
         unmarked: false,
         came_on,
         fixed,
+        at: Vec3::ZERO,
+        drop_m: 0.0,
+        zone: Some(3),
     };
-    let note = |team: u8, s: ZoneSpell, died: Option<u8>| ZoneNote { team, spell: s, died, fight: false };
+    let note = |team: u8, s: ZoneSpell, died: Option<u8>| ZoneNote { team, spell: s, died, fight: false, to: Vec3::ZERO };
     game.zone_notes.push(note(0, spell(why::CROSS, true, false, true), Some(0)));
     game.zone_notes.push(note(0, spell(why::PLAIN, false, true, false), None));
     game.zone_notes.push(note(1, spell(why::PLAIN | why::ZONE_OK, false, true, false), Some(2)));

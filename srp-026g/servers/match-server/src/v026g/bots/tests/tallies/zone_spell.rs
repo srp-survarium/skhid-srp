@@ -19,6 +19,11 @@ pub(crate) struct ZoneSpell {
     pub(crate) came_on: bool,
     /// Every zone that hurt at the first hit never switches off (no schedule to read), else a switching zone's.
     pub(crate) fixed: bool,
+    /// Where the first hit was, and how far the body had come down in the second before it.
+    pub(crate) at: Vec3,
+    pub(crate) drop_m: f32,
+    /// The first zone that hurt at the first hit (`Hazard::zone`).
+    pub(crate) zone: Option<usize>,
 }
 
 /// What a floor is to the damage zones at a tick, for [`ZoneSpell`] ([`Game::zone_now`]).
@@ -31,6 +36,8 @@ pub(crate) struct ZoneNow {
     pub(crate) in_shape: bool,
     /// A zone that holds it is on.
     pub(crate) any_active: bool,
+    /// The first of them (`Hazard::zone`).
+    pub(crate) zone: Option<usize>,
 }
 
 /// A zone spell as the owner topic reads it (`tallies/owner/zone_deaths.rs`): who, how it began and what it took.
@@ -42,12 +49,40 @@ pub(crate) struct ZoneNote {
     pub(crate) died: Option<u8>,
     /// Hit by an enemy within [`SPELL_FIGHT_MS`] before the spell or in it.
     pub(crate) fight: bool,
+    /// Where the body was when the spell ended.
+    pub(crate) to: Vec3,
 }
 
 impl ZoneNote {
+    /// The spell as one line of the bench log (`ZSPELL`): who, where it began and ended, how long, how it ended and why the bot was there.
+    pub(crate) fn line(&self) -> String {
+        let (s, to) = (&self.spell, self.to);
+        format!(
+            "ZSPELL t={} team={} died={} secs={:.1} lost={:.2} from=({:.1},{:.1},{:.1}) to=({:.1},{:.1},{:.1}) drop={:.1} zone={} why={} restored={} came_on={} fixed={} fight={}",
+            s.start,
+            self.team,
+            self.died.map_or("-".to_owned(), |p| p.to_string()),
+            f64::from(s.last - s.start) / 1000.0,
+            s.lost,
+            s.at.x,
+            s.at.y,
+            s.at.z,
+            to.x,
+            to.y,
+            to.z,
+            s.drop_m,
+            s.zone.map_or("-".to_owned(), |z| z.to_string()),
+            s.why,
+            u8::from(s.restored),
+            u8::from(s.came_on),
+            u8::from(s.fixed),
+            u8::from(self.fight),
+        )
+    }
+
     pub(crate) fn of(spell: &ZoneSpell, body: &Body, died: Option<u8>) -> Self {
         let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= spell.start;
-        Self { team: u8::from(body.team != 0), spell: *spell, died, fight }
+        Self { team: u8::from(body.team != 0), spell: *spell, died, fight, to: body.feet }
     }
 }
 

@@ -297,6 +297,8 @@ pub(crate) struct Body {
     pub(crate) zone_spell: Option<ZoneSpell>,
     /// At its last tick it stood in a zone's shape with no zone there on ([`ZoneNow`]).
     pub(crate) zone_prev_off: bool,
+    /// Its feet height at each tick of the last second, by the tick mod 20 (how far it came down into a zone).
+    pub(crate) zone_ys: [f32; 20],
     /// Its bot's motives at its last tick (`Bot::bench_why`).
     pub(crate) why_now: u16,
     /// Its drugs, and the pools the fields above lack ([`standin_heal`]).
@@ -744,6 +746,7 @@ impl Game {
             spread: bench_spread::Spread::default(),
             zone_spell: None,
             zone_prev_off: false,
+            zone_ys: [f32::NEG_INFINITY; 20],
             why_now: 0,
             heal: standin_heal::Heal::new(),
             rest: standin_heal::Rest::FULL,
@@ -894,6 +897,7 @@ impl Game {
         body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
         body.zone_prev_off = false;
+        body.zone_ys = [f32::NEG_INFINITY; 20];
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -1820,6 +1824,13 @@ impl Game {
             let centre = self.body_centre(place);
             let now = self.zone_now(node, inside, on, tick);
             let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
+            let drop_m = {
+                let body = &mut self.bodies[place];
+                let slot = (tick / 50 % 20) as usize;
+                let hi = body.zone_ys.iter().copied().fold(body.feet.y, f32::max);
+                body.zone_ys[slot] = body.feet.y;
+                hi - body.feet.y
+            };
             let per_baked: f32 = if baked {
                 inside
                     .zones_at(node)
@@ -1861,6 +1872,9 @@ impl Game {
                 unmarked: false,
                 came_on: was_off,
                 fixed: now.fixed,
+                at: body.feet,
+                drop_m,
+                zone: now.zone,
             });
             spell.restored |= now.restored;
             spell.unmarked |= now.unmarked;
@@ -1915,16 +1929,17 @@ impl Game {
     /// What the floor `node` is to the damage zones at `tick` ([`ZoneNow`]): `inside` holds the zones' own shapes, `on` the bots' marks and timing.
     fn zone_now(&self, node: NodeId, inside: &Hazards, on: &Hazards, tick: u32) -> ZoneNow {
         let active = |zone: &Hazard| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick));
-        let (mut in_shape, mut any_active, mut fixed, mut unmarked) = (false, false, true, false);
+        let (mut in_shape, mut any_active, mut fixed, mut unmarked, mut first) = (false, false, true, false, None);
         for zone in inside.zones_at(node) {
             in_shape = true;
             if active(zone) {
                 any_active = true;
+                first.get_or_insert(zone.zone);
                 fixed &= !zone.switches();
                 unmarked |= !on.zones_at(node).any(|m| m.zone == zone.zone);
             }
         }
-        ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active }
+        ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active, zone: first }
     }
 
     /// What `zone` takes a second from a body whose centre is at `centre`, before armour: the client's rule under
@@ -1961,6 +1976,13 @@ impl Game {
             let centre = self.body_centre(place);
             let now = self.zone_now(node, inside, on, tick);
             let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
+            let drop_m = {
+                let body = &mut self.bodies[place];
+                let slot = (tick / 50 % 20) as usize;
+                let hi = body.zone_ys.iter().copied().fold(body.feet.y, f32::max);
+                body.zone_ys[slot] = body.feet.y;
+                hi - body.feet.y
+            };
             let baked_cost: Cost = if baked {
                 inside
                     .zones_at(node)
@@ -2023,6 +2045,9 @@ impl Game {
                 unmarked: false,
                 came_on: was_off,
                 fixed: now.fixed,
+                at: body.feet,
+                drop_m,
+                zone: now.zone,
             });
             spell.restored |= now.restored;
             spell.unmarked |= now.unmarked;
