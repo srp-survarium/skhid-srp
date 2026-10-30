@@ -15,6 +15,7 @@
 //! The policy goes by the expected error ([`error_rms_deg`], what a player knows of his own hand), not by the draw of the tick.
 
 use serde::{Deserialize, Serialize};
+use survarium::v026g::weapons::Optic;
 
 /// Whether the aim settles and the shots wait for it (a bench setting to size the effect; off in the game).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,6 +37,27 @@ impl Settle {
 
     pub fn holds_fire(self) -> bool {
         self == Self::WanderAndPolicy
+    }
+}
+
+/// The guns it applies to: the ones with a reference in the recordings (the bolt actions and the marksman rifles with a scope: the
+/// humans wait the longer the farther), or every gun (an automatic rifle's first shot waits for no body width the humans were
+/// measured to: A182 #29 bench, tier 9-10, delays them past the cap and lifts their hit rate over the tier bar).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SettleGuns {
+    #[default]
+    Scoped,
+    All,
+}
+
+impl SettleGuns {
+    /// `settle` for a gun with these sights.
+    pub fn settle(self, settle: Settle, optic: Optic) -> Settle {
+        match (self, optic) {
+            (Self::Scoped, Optic::Iron { .. }) => Settle::Off,
+            _ => settle,
+        }
     }
 }
 
@@ -89,6 +111,17 @@ mod tests {
         let rms = error_rms_deg(2.175, fade, 1.35, 1.0);
         assert!((rms - 1.507).abs() < 0.01, "{rms}");
         assert!((error_rms_deg(2.175, fade, 1.35, 0.25) - rms * 0.25).abs() < 1e-6);
+    }
+
+    /// Scoped: only a gun with a scope settles; All: every gun.
+    #[test]
+    fn the_settling_applies_to_the_guns_its_switch_names() {
+        let iron = Optic::Iron { zoom: 0.909 };
+        let scope = Optic::Scope { zoom: 0.25 };
+        assert_eq!(SettleGuns::Scoped.settle(Settle::WanderAndPolicy, iron), Settle::Off);
+        assert_eq!(SettleGuns::Scoped.settle(Settle::WanderAndPolicy, scope), Settle::WanderAndPolicy);
+        assert_eq!(SettleGuns::All.settle(Settle::Wander, iron), Settle::Wander);
+        assert_eq!(SettleGuns::Scoped.settle(Settle::Off, scope), Settle::Off);
     }
 
     /// The same rule at every range: an error to expect of 1.2 degrees fits the body at 10 m (its half width is 1.43 degrees

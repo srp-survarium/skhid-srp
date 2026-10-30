@@ -88,7 +88,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 use survarium::v026g::weapons::Optic;
 
-use super::aim_settle::{self, Settle};
+use super::aim_settle::{self, Settle, SettleGuns};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
@@ -822,6 +822,8 @@ pub struct CombatTuning {
     /// GUESS 1.0) and its cap `settle_max_wait_ms` after the target was taken (GUESS 5 s, the humans' aim-held q75 of a
     /// bolt action at 40-80 m).
     pub settle: Settle,
+    /// Which guns it applies to (the scoped ones).
+    pub settle_guns: SettleGuns,
     pub settle_k: f32,
     pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
@@ -1297,6 +1299,7 @@ impl Default for CombatTuning {
             turn_feed: true,
             zoom_error: ZoomError::Off,
             settle: Settle::Off,
+            settle_guns: SettleGuns::Scoped,
             settle_k: 1.0,
             settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
@@ -5908,8 +5911,9 @@ impl Reflex {
         // and wanders slowly about him as a player's tracking does.
         let t = now.saturating_sub(self.since) as f32 / 1000.0;
         let fade = (-t / settle_s).exp();
+        let settle = c.settle_guns.settle(c.settle, self.hands().held().gun.optic);
         let wander_deg = aim_settle::wander_deg(
-            c.settle,
+            settle,
             mix(aim.wander_deg, skill),
             mix(aim.settled_wander_deg, skill),
             mix(aim.settle_tau_s, skill),
@@ -6033,7 +6037,7 @@ impl Reflex {
             (
                 now >= self.burst_until
                     && aim_settle::waits(
-                        c.settle,
+                        settle,
                         expected_deg,
                         distance,
                         c.body_half_m,
