@@ -39,10 +39,21 @@ pub struct SpacingTuning {
     pub buddy: bool,
     /// What the callouts tell and how old a place steers a play.
     pub callouts: Callouts,
+    /// A175 (the owner 2026-10-30: they should NOT stack, "too close to each other or maybe even inside each other, as there is no collision for teammates"; 0.87 % of the
+    /// bench's living teammate pair-seconds are within 1 m against the live players' 0.09 %, two thirds of it two bodies walking the same way in file): a bot with a living teammate
+    /// inside `apart_m` steps aside, away from him, where the ground that side is clear for a stride (`bots/apart.rs`, the fight's own side-step test). Off: the bots go through each other.
+    pub apart: bool,
+    /// The distance inside which a teammate is in the way, metres on the ground (and less than 2 m apart in height). The live players are within 1 m of a teammate in 0.38 % of the world samples.
+    pub apart_m: Metres,
+    /// The follow plays (Escort, Buddy, PairUp, CoverHuman) hold a teammate at a short distance on purpose: with this off they do not step aside (the carrier's escort stays at its post).
+    pub apart_follow: bool,
+    /// Where the step aside is refused (no clear ground either side: a corridor, a lip) and a teammate inside `apart_m` is ahead and moving the same way, the bot behind lets go of
+    /// forward for the tick: the one ahead pulls away and the file opens (the live players' nearest mate is a median 21 m away). Off: it walks on his heels.
+    pub apart_ease: bool,
 }
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false }
     }
 }
