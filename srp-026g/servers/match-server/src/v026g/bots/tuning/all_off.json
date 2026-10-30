@@ -59,6 +59,7 @@
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "sprint_gaps": false,
+    "sprint_through": false,
     "unclear_aim": false,
     "zone_lines": false
   },
@@ -88,7 +89,8 @@
     "on": false
   },
   "kin": {
-    "jump_snap": "any"
+    "jump_snap": "any",
+    "pitch_scale": "radian"
   },
   "kit": {
     "frags": "off",
@@ -100,6 +102,9 @@
     "reserve": null,
     "ring_death_spots": false,
     "ring_radar": false
+  },
+  "spacing": {
+    "apart": false
   },
   "sense": {
     "bush_notice": 0.0,

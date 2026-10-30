@@ -93,6 +93,7 @@ use super::guns::{
     RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
+use super::pitch::{Pitch, PitchScale};
 use super::aimpoint::PartsLook;
 use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
@@ -755,6 +756,26 @@ pub struct CombatTuning {
     /// (`player_bots_behaviour.md` §2.12): with the pings, +1.1 points of hit
     /// rate alone.
     pub lead_target: bool,
+    /// The lead also covers the bullet's flight (`flight.rs`): the aim is at the place he reaches by the time the
+    /// ammunition gets there, along his velocity as the bot's picture has it, and the drop on the way is aimed over.
+    /// Before, the aim was where he is: the game's bullet flies (`bullet::tick` 0x32C180) and a target
+    /// strafing at 2.6 m/s is half a torso off at 23-28 m for the slow ammunition and at 65-78 m for the rifles'
+    /// (`player_bots_weapons.md`, "The bullet's flight"). Needs `lead_target`; no reaction, aim error or skill changes.
+    ///
+    /// Off, and why (bench 2026-10-31, TDM 10v10, flown bullets, head to head by side, 12 pairs a tier, `shot_bands`): the lead fires as
+    /// designed (a strafer's shot line at 40-65 m trails him by 0.07 m instead of 0.21) but the far hit rate does not rise: 20-65 m pooled
+    /// over tiers 4-5, 9-10 and 13-15, 10.05 % on against 10.59 % off (2650/26382 against 2768/26136 shots, z -2.1; 40-65 m alone 5.5/6.0,
+    /// 6.9/7.1 and 8.0/8.6 %, none significant). The lines miss by far more than the lead moves them: at 40-65 m only 8-9 % of the shots
+    /// pass within 0.25 m across and 0.45 m high of his chest and 36 % pass over 1 m across (the aim error: the skill dial). The pooled
+    /// dip itself shows no cause in the counters (GUESS: strafers that turn back inside a flight are led the wrong way).
+    pub lead_flight: bool,
+    /// The aim is also raised by the bullet's drop on the way to him (`flight.rs`), whether or not he is led ([`Self::lead_flight`]).
+    ///
+    /// Off, and why: it adds the drop to a line the bots' recoil handling already leaves 0.13-0.35 m above the chest at 20-80 m (the
+    /// kick the pull does not take back, by skill: `recoil_pull`), which the drop used to bring back onto the torso by accident. Where
+    /// the climb is large it costs hits (tier 9-10, 35-50 m: 6.2 % on against 9.1 % off, z -4.2); where it is small it is neutral (tier
+    /// 13-15, lateral lead and drop together, 40-65 m: 8.1 against 8.5 %, 20-40 m 13.9 against 14.3 %, kills +1.6 %, z +0.3).
+    pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
@@ -875,7 +896,11 @@ pub struct CombatTuning {
     /// the AK-74U, the pistol) does not step in at him; with
     /// `outranged_cover`, seen facing it (his view within
     /// `outranged_aimed_deg` of it), it breaks sight from him, at most once
-    /// every `outranged_again_ms`.
+    /// every `outranged_again_ms`. OFF-failed twice: #124 (2026-10-26, kills lost) and again on the tip with the weapons
+    /// known, v5 mapdata, the kits (2026-10-30, 96 pairs by side): wins 68 / 95, score -4.1 % (z -2.1), hits dealt -6.3 %
+    /// (z -3.8); with the cone at 25 degrees wins 65 / 87, score -3.1 %, delivered -8.4 %. It does what it says (ticks in
+    /// the open in a sniper's sight -47 to -70 %, deaths to snipers -8 to -12 %) but the bot out of the fight is out of
+    /// its shots: the 40-60 deaths saved cost more than that in hits and in carries.
     pub outranged_hide: bool,
     pub outranged_cover: bool,
     pub outranged_aimed_deg: f32,
@@ -1240,6 +1265,8 @@ impl Default for CombatTuning {
             switch_facing_margin_m: 10.0,
             switch_between_thinks: true,
             lead_target: true,
+            lead_flight: false,
+            lead_drop: false,
             aim_last_known: false,
             lead_most_ms: 300,
             lead_own: true,
@@ -2567,6 +2594,33 @@ impl ThroughStats {
     }
 }
 
+/// [measure] What the outranged rule did in one life of a reflex (the bench's owner counts add the lives up; nothing decides by
+/// them), in reflex ticks: the target seen was a sniper beyond the weapon's band (`sightings`), and he was facing it
+/// (`facing`: the cover rule's case); of them, ticks with the bot in the open (`exposed`); breaks of sight begun (`hides`);
+/// ticks it kept its way instead because it carried or was a thief (`task_kept`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OutrangedStats {
+    pub sightings: u32,
+    pub facing: u32,
+    pub exposed: u32,
+    pub hides: u32,
+    pub task_kept: u32,
+}
+
+impl OutrangedStats {
+    pub fn total(&self) -> u32 {
+        self.sightings + self.facing + self.exposed + self.hides + self.task_kept
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.sightings += other.sightings;
+        self.facing += other.facing;
+        self.exposed += other.exposed;
+        self.hides += other.hides;
+        self.task_kept += other.task_kept;
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -2684,6 +2738,8 @@ pub struct Reflex {
     through_at: Option<u32>,
     /// [measure] What fire through cover did this life.
     through_stats: ThroughStats,
+    /// [measure] What the outranged rule saw and did this life.
+    outranged_stats: OutrangedStats,
     /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
     /// worth of the others (`worth.hurter_keep_ms`).
     hurter: Option<(Place, u32)>,
@@ -2805,6 +2861,10 @@ pub struct Reflex {
     recoil: Recoil,
     cadence: Cadence,
     kick_step: f32,
+    /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
+    kick_before: f32,
+    /// The pitch unit's scale as the last tick's tuning has it (`kin.pitch_scale`): the kick is in the game's unit, the aim in elevations.
+    scale: PitchScale,
 }
 
 /// The bearing of `to` from `from`, radians.
@@ -3230,9 +3290,14 @@ impl Reflex {
             .map(|(_, at)| (at, self.held_gun().bullet_damage.clamp(0.0, 1.0)))
     }
 
-    /// [measure] What the worth, the push and the flank glance did this life.
+    /// [measure] What fire through cover did this life.
     pub fn through_stats(&self) -> ThroughStats {
         self.through_stats
+    }
+
+    /// [measure] What the outranged rule did this life.
+    pub fn outranged_stats(&self) -> OutrangedStats {
+        self.outranged_stats
     }
 
     pub fn worth_stats(&self) -> WorthStats {
@@ -3390,12 +3455,16 @@ impl Reflex {
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
         // keeps its way home.
+        if self.outranged && sit.view.objective().is_actor(me) {
+            self.outranged_stats.task_kept += 1;
+        }
         if self.outranged
             && now >= self.next_outranged
             && !sit.view.objective().is_actor(me)
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
+            self.outranged_stats.hides += 1;
             self.break_sight(me, sit, memory, now, false, false, c.hide_m, c, rng);
         }
         let look = RollView {
@@ -3649,13 +3718,21 @@ impl Reflex {
     /// the kick as the last tick left it, pitch units: the view the bot
     /// aims from is its base pitch and that; this tick's rise is taken
     /// back by [`Override::pull`].
-    pub fn weapon_tick(&mut self, me: &PlaceView, now: u32) -> f32 {
+    pub fn weapon_tick(&mut self, me: &PlaceView, now: u32, scale: PitchScale) -> f32 {
+        self.scale = scale;
         self.new_life(me);
         self.in_hand();
         let before = self.recoil.y();
         self.recoil.update(now);
         self.kick_step = self.recoil.y() - before;
+        self.kick_before = before;
         before
+    }
+
+    /// [recoil] The kick the view had when the tick's decision was made (pitch units): the one
+    /// [`Self::weapon_tick`] returned.
+    pub fn kick_before(&self) -> f32 {
+        self.kick_before
     }
 
     /// [recoil] The weapon's kick now, pitch units.
@@ -4602,6 +4679,9 @@ impl Reflex {
                     <= c.outranged_aimed_deg.to_radians()
             });
             self.outranged = c.outranged_cover && facing;
+            self.outranged_stats.sightings += 1;
+            self.outranged_stats.facing += u32::from(facing);
+            self.outranged_stats.exposed += u32::from(!matches!(self.cover, Cover::Hiding { .. }));
             self.outranged_by = Some((track.who(), track.at(), sit.view.clock));
             return;
         }
@@ -5824,8 +5904,19 @@ impl Reflex {
         }
         // Where he will be at the tick decided (`lead_target`): only a body seen.
         let led = body.filter(|_| aimed.sees_body() && c.lead_target);
+        // And where the bullet will find him (`lead_flight`): the held weapon's ammunition, from the eye.
+        let flight = self.hands().held().gun.flight.filter(|_| c.lead_flight || c.lead_drop);
         let point = led.map_or(aimed.point(), |body| {
-            aimed.point() + lead(body, now, c.lead_most_ms)
+            let at = aimed.point() + lead(body, now, c.lead_most_ms);
+            let ahead = flight
+                .and_then(|flight| flight.ahead(me.eye(), at, body.velocity))
+                .unwrap_or_default();
+            // The parts of it the switches ask for: along his velocity, and up by the drop.
+            at + Vec3::new(
+                if c.lead_flight { ahead.x } else { 0.0 },
+                if c.lead_drop { ahead.y } else { 0.0 },
+                if c.lead_flight { ahead.z } else { 0.0 },
+            )
         });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
@@ -5841,7 +5932,8 @@ impl Reflex {
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
         let pull = -mix((c.recoil_pull_low, c.recoil_pull), skill) * self.kick_step;
-        let lift = self.kick_step + pull;
+        // The kick is in the game's pitch unit; the aim below reckons in elevations (`pitch.rs`).
+        let lift = Pitch::of_elevation(me.pitch, self.scale).rise(self.kick_step + pull, self.scale);
         let off = off_by(me, point, error);
         // Play 19: spot him once he is in the crosshair, the cooldown kept.
         let mut keys = reload;
@@ -5896,7 +5988,7 @@ impl Reflex {
             c.fire_range_m(gun, ceiling_m)
         };
         // [friends] A teammate in the line of fire: no shot, a step aside.
-        let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
+        let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends, self.scale);
         let friend = super::friends::blocking(
             me,
             view,
@@ -6107,7 +6199,7 @@ impl Reflex {
             return None;
         }
         let keys = reload | if carry { key::AIM } else { 0 };
-        let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends);
+        let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends, self.scale);
         let friend = super::friends::blocking(
             me,
             view,
@@ -6175,8 +6267,9 @@ impl Reflex {
         if lift == 0.0 {
             return self.sight.blocked(me, aimed, error);
         }
+        let (lowest, highest) = self.scale.limits();
         let lifted = PlaceView {
-            pitch: (me.pitch + lift).clamp(-1.0, 1.0),
+            pitch: (me.pitch + lift).clamp(lowest, highest),
             ..me.clone()
         };
         self.sight
@@ -6263,11 +6356,13 @@ impl Reflex {
         (point, error, lift): (Vec3, (f32, f32), f32),
         now: u32,
         t: &super::friends::FriendlyFireTuning,
+        scale: PitchScale,
     ) -> ([Vec3; 2], f32) {
         use super::friends::along;
         let to = point - me.eye();
+        let (lowest, highest) = scale.limits();
         let dirs = [
-            along(me.yaw, (me.pitch + lift).clamp(-1.0, 1.0)),
+            along(me.yaw, (me.pitch + lift).clamp(lowest, highest)),
             along(
                 yaw_of([to.x, to.z]) + error.0,
                 to.y.atan2(to.x.hypot(to.z)) + error.1 + lift,
@@ -6728,6 +6823,56 @@ mod tests {
             out.push((fire, reflex.gates().bits));
         }
         out
+    }
+
+    /// Where the bot `item` in hand looks at an enemy `z` m ahead moving `speed` m/s along x, as the view has him this tick, with the
+    /// flight lead `on` or off: the last of a few ticks' aim point.
+    fn aim_at_strafer(item: &'static str, z: f32, speed: f32, on: bool) -> Vec3 {
+        let arms: &'static Arms = Box::leak(Box::new(Arms {
+            primary: (guns::gun(item).unwrap(), 300),
+            pistol: None,
+            reserve: 600,
+        }));
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let aim = AimTuning {
+            combat: CombatTuning { lead_flight: on, lead_drop: on, ..CombatTuning::default() },
+            range_m: 150.0,
+            ..AimTuning::default()
+        };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::armed(Some(arms));
+        let mut rng = Rng::new(9);
+        let mut at = Vec3::ZERO;
+        for k in 0..12 {
+            let now = 1_000 + k * 50;
+            let mut enemy = body(1, 1, Vec3::new(0.0, 0.0, z), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 1.0, &mut rng);
+            }
+            reflex.outer_gates(now, false, false);
+            at = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).look_at.unwrap_or(at);
+        }
+        at
+    }
+
+    /// `lead_flight`: the aim at a strafer goes along his velocity by the ammunition's flight time and up by its drop; the
+    /// switch off leaves the aim where it was. Fast and slow ammunition differ as the notes' table says.
+    #[test]
+    fn the_aim_leads_a_strafer_for_the_flight_of_the_ammunition() {
+        let (z, speed) = (40.0, 2.6);
+        let off = aim_at_strafer("ump45", z, speed, false);
+        let slow = aim_at_strafer("ump45", z, speed, true) - off;
+        // .45 ACP (260 m/s): 168 ms to 40 m, a bit more to the place he reaches: 2.6 m/s x ~0.17 s, and 0.35 m of drop at 60 m
+        // is 0.14 m here.
+        assert!((slow.x - 0.45).abs() < 0.05, "{slow:?}");
+        assert!((slow.y - 0.14).abs() < 0.03 && slow.z.abs() < 0.01, "{slow:?}");
+        // The rifle's bullet (5.45x39, 800 m/s) is in the air a third of that.
+        let fast = aim_at_strafer("ak_74u", z, speed, true) - aim_at_strafer("ak_74u", z, speed, false);
+        assert!(fast.x > 0.1 && fast.x < slow.x / 2.0 && fast.y < slow.y / 4.0, "{fast:?} against {slow:?}");
     }
 
     /// X1: each class fires out to its range and not past it: a target 3 m
@@ -7550,7 +7695,7 @@ mod tests {
                 );
             }
             // The bot's own reckoning: its base pitch and its kick.
-            let kick = reflex.weapon_tick(&me, now);
+            let kick = reflex.weapon_tick(&me, now, PitchScale::Radian);
             let seen = PlaceView {
                 pitch: base + kick,
                 ..me.clone()

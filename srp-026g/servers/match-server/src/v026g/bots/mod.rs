@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod apart;
 pub mod arc;
 pub mod artefact_know;
 pub mod body;
@@ -42,6 +43,7 @@ pub mod curve;
 pub mod encode;
 pub mod escape;
 pub mod field_source;
+pub mod flight;
 pub mod foliage;
 pub mod friends;
 pub mod grass;
@@ -52,6 +54,7 @@ pub mod hazards;
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod link_time;
 pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
@@ -59,6 +62,7 @@ pub mod motor;
 pub mod objective;
 pub mod objective_actor;
 pub mod path;
+pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod pools;
@@ -289,6 +293,9 @@ pub struct Bot {
     /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
     #[cfg(test)]
     pub(crate) bench_stepped: u8,
+    /// The step apart from a teammate of the last drive tick (`spacing.apart`): 0 no teammate inside, 1 taken, 2 refused (no clear ground that side), 3 held off (the reflex strafes or fires, a use is held, a side key is down).
+    #[cfg(test)]
+    pub(crate) bench_apart: u8,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -473,6 +480,8 @@ impl Bot {
             bench_go: None,
             #[cfg(test)]
             bench_stepped: 0,
+            #[cfg(test)]
+            bench_apart: 0,
             #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]

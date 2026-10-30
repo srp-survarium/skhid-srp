@@ -216,6 +216,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                     stance: if n.is_multiple_of(5) { Stance::Crouched } else { Stance::Standing },
                     line,
                 }),
+                rise: None,
                 // Pellets for the shotgun class, parts for the landed ones, from `n` alone.
                 landed: Landed {
                     fired: if ShotClass::ALL[n as usize % 7] == ShotClass::Shotgun { 10 } else { 1 },

@@ -809,7 +809,7 @@ mod tests {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
             view.clock = now;
-            let kick = reflex.weapon_tick(&me, now);
+            let kick = reflex.weapon_tick(&me, now, crate::v026g::bots::pitch::PitchScale::Radian);
             me.pitch = base + kick;
             reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, aim, 1.0, &mut rng);

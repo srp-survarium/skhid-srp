@@ -777,6 +777,7 @@ mod tests {
             aim_state: Default::default(),
             cone: 0.0,
             offset: None,
+            rise: None,
             landed: Default::default(),
         }];
         counts.through(&game);
