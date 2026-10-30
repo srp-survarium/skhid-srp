@@ -26,6 +26,8 @@ const ON_HIM_UNDER_M: f32 = 0.9;
 const ON_HIM_OVER_M: f32 = 0.45;
 /// The distance bands of the on-him counts, m (upper edges, the last takes the rest): 0-20, 20-40, 40 and more.
 const ON_HIM_BANDS_M: [f32; 2] = [20.0, 40.0];
+/// The target's crossing speeds binned, m/s (upper edges): 0.5, 1.5, 2.5, 3.5, more.
+const LATERAL_MPS: [f32; 4] = [0.5, 1.5, 2.5, 3.5];
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
@@ -49,6 +51,11 @@ struct Acc {
     off_sum: f64,
     /// Shots whose line is on him (see [`ON_HIM_SIDE_M`]) and hits among them, by [`ON_HIM_BANDS_M`].
     on_him: [[u32; 2]; 3],
+    /// The target's speed across the line from the shooter (the ground displacement of his last step, perpendicular to the line
+    /// between the two, m/s), summed over the shots by [`BANDS_M`] (the counts are `by_band`), and the shots and hits by
+    /// [`LATERAL_MPS`] (the live humans' strafe at range is about 2.6 m/s).
+    lateral_sum: [f64; 6],
+    by_lateral: [[u32; 2]; 5],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
@@ -126,7 +133,13 @@ impl Topic for GunShots {
             };
             a.shots += 1;
             a.hits += h as u32;
-            tally(&mut a.by_band[BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len())]);
+            let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
+            tally(&mut a.by_band[band]);
+            if let (Some(t), Some(s)) = (game.bodies.get(target), game.bodies.get(fact.shooter)) {
+                let across = across_speed(s.feet, t.feet, t.step_vec * (1.0 / TICK_S));
+                a.lateral_sum[band] += f64::from(across);
+                tally(&mut a.by_lateral[LATERAL_MPS.iter().position(|&edge| across < edge).unwrap_or(LATERAL_MPS.len())]);
+            }
             tally(&mut a.by_aim[fact.aim_state as usize]);
             tally(&mut a.by_shooter_moving[usize::from(fact.moving)]);
             tally(&mut a.by_crouch[usize::from(fact.crouched)]);
@@ -167,6 +180,8 @@ impl Topic for GunShots {
                     "cone_deg_sum": a.cone_sum,
                     "off_deg_sum": a.off_sum,
                     "on_him": a.on_him,
+                    "lateral_sum": a.lateral_sum,
+                    "by_lateral": a.by_lateral,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
@@ -183,6 +198,17 @@ impl Topic for GunShots {
         }
         vec![("gun_shots", Part::new(serde_json::json!({ "gun_shots": json }), format!("owner-test gun shots: {}", lines.join("; "))))]
     }
+}
+
+/// How fast a target at `target` moving at the horizontal velocity `v` crosses the line from `shooter` to him, m/s: the part of
+/// `v` perpendicular to that line, as a magnitude.
+fn across_speed(shooter: Vec3, target: Vec3, v: Vec3) -> f32 {
+    let line = Vec3::new(target.x - shooter.x, 0.0, target.z - shooter.z);
+    let length = line.length();
+    if length < 1e-3 {
+        return v.x.hypot(v.z);
+    }
+    ((v.x * line.z - v.z * line.x) / length).abs()
 }
 
 #[cfg(test)]
@@ -205,6 +231,16 @@ mod tests {
             offset: None,
             landed: Landed { fired: 1, on_enemy: u8::from(hit), parts: [0; 4] },
         }
+    }
+
+    /// A target walking straight at or away from the shooter crosses the line at 0; one walking across it at its own speed.
+    #[test]
+    fn a_target_crosses_the_line_at_the_part_of_his_speed_across_it() {
+        let (shooter, target) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 30.0));
+        assert!(across_speed(shooter, target, Vec3::new(0.0, 0.0, 4.0)) < 1e-4);
+        assert!((across_speed(shooter, target, Vec3::new(-2.6, 0.0, 0.0)) - 2.6).abs() < 1e-4);
+        let diagonal = across_speed(shooter, target, Vec3::new(3.0, 0.0, 3.0));
+        assert!((diagonal - 3.0).abs() < 1e-4, "{diagonal}");
     }
 
     /// Three shots of a 600 rpm rifle 100 ms apart (two hit), 2 s of quiet, then a single shot: a burst of 3 with 2 hits, a
