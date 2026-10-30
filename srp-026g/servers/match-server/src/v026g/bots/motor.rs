@@ -292,8 +292,28 @@ pub struct Pose {
     /// In a fight or a rush ([`Feel::fight_lift`]): the body runs and an enemy is known near it or it is bound for the enemy
     /// base. Set by the driver; a calm body's low tops are jumped.
     pub urgent: bool,
+    /// What the legs are asked to do, from the play's pace (`Pace`), for the sprint rules.
+    pub gait: Gait,
+}
+
+/// The gait the driver asks of the motor, one state for the legs' pace (not a pair of flags).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Gait {
+    /// Walking: the sprint only on a long straight stretch ([`Feel::sprint_from_m`]) the walk is not aimed at.
+    #[default]
+    Walk,
     /// The legs run (`Pace::Run`): the sprint is the body's pace where the way allows ([`Feel::sprint_through`]).
-    pub running: bool,
+    Run,
+    /// Out of a blast (`Pace::Escape`): [`Gait::Run`], and the sprint on any route: no long straight stretch to wait for, no
+    /// facing time, and not let go at a corner.
+    Escape,
+}
+
+impl Gait {
+    /// The legs run or escape: the sprint is the pace where the way allows.
+    pub fn runs(self) -> bool {
+        matches!(self, Self::Run | Self::Escape)
+    }
 }
 
 /// Why the client takes no sprint (so no sprint jump) now: the conditions of `base_player::can_sprint` and the
@@ -1259,12 +1279,19 @@ impl Motor {
         } else {
             self.facing_ticks = 0;
         }
-        let settled = self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s;
-        if !self.sprinting && settled && straight >= self.feel.sprint_from_m {
+        // Out of a blast the sprint needs neither the facing time nor a long straight (the walks are 2-10 m), only the way
+        // faced as for any sprint.
+        let escaping = pose.gait == Gait::Escape;
+        let settled = if escaping {
+            self.walking && still < self.feel.sprint_facing
+        } else {
+            self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
+        };
+        if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
             self.sprinting = true;
         } else if self.sprinting
             && (!self.walking
-                || straight < self.feel.sprint_until_m
+                || (straight < self.feel.sprint_until_m && !escaping)
                 || still > 2.0 * self.feel.sprint_facing)
         {
             self.sprinting = false;
@@ -1801,7 +1828,7 @@ impl Motor {
         // A running body keeps its sprint into a walking jump up a deep top: the sprint jump carries it up and on.
         let through = self.feel.sprint_through
             && !lifting
-            && pose.running
+            && pose.gait.runs()
             && !pose.no_jump
             && pose.sprint_block.is_none()
             && leap == Leap::Ledge
@@ -3339,7 +3366,7 @@ mod tests {
         for tick in 0..ticks {
             pose.no_jump = tick < hurt_ticks;
             pose.urgent = urgent;
-            pose.running = true;
+            pose.gait = Gait::Run;
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
             } else {
@@ -4733,9 +4760,34 @@ mod tests {
         assert_ne!(decision.keys & key::CROUCH, 0, "aiming too");
     }
 
+    /// Out of a blast (register #30) the sprint is taken on a 6 m route, facing the way, with no 10 m straight stretch and no
+    /// facing time to wait for; the same route at a walk, or a run (`Gait::Run`), is not sprinted before its end.
+    #[test]
+    fn an_escape_sprints_on_a_short_route_and_a_walk_does_not() {
+        let sprinted = |gait: Gait| {
+            let mut route = route(&[(0.0, 0.0), (6.0, 0.0)]);
+            let (decisions, _) = walk_as(&mut route, Vec3::new(0.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 80, gait);
+            decisions.iter().filter(|d| d.keys & key::SPRINT != 0).count()
+        };
+        assert!(sprinted(Gait::Escape) >= 5, "an escape sprints: {}", sprinted(Gait::Escape));
+        assert_eq!(sprinted(Gait::Walk), 0);
+        assert_eq!(sprinted(Gait::Run), 0, "a run needs the long straight too");
+    }
+
+    /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
+    #[test]
+    fn an_escape_and_a_run_both_run() {
+        assert!(Gait::Escape.runs() && Gait::Run.runs() && !Gait::Walk.runs());
+    }
+
     /// Walks a body that does what the keys and turns say, with the
     /// movement model, until it arrives; returns the decisions.
     fn walk(route: &mut Route, start: Vec3, yaw: f32, ticks: usize) -> (Vec<Decision>, Pose) {
+        walk_as(route, start, yaw, ticks, Gait::Walk)
+    }
+
+    /// [`walk`] with the legs asked to `gait`.
+    fn walk_as(route: &mut Route, start: Vec3, yaw: f32, ticks: usize, gait: Gait) -> (Vec<Decision>, Pose) {
         let kin = Kinematics::default();
         let mut rng = Rng::new(7);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -4744,6 +4796,7 @@ mod tests {
             yaw,
             pitch: 0.0,
             speed: 0.0,
+            gait,
             ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();

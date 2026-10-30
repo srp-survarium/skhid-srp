@@ -162,7 +162,7 @@ use plays::Ctx;
 use plays::Go;
 use plays::Intent;
 use plays::Look;
-use plays::Pace;
+use plays::{EscapeWhy, Pace};
 use plays::PlayKind;
 use plays::Running;
 use plays::Step;
