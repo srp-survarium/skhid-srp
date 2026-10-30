@@ -69,6 +69,7 @@
     "honest_drops": false,
     "jump_cap_m": 1.05,
     "landing_carry": false,
+    "last_resort_cost_m": 0.0,
     "walk_off_lips": false
   },
   "hazard": {

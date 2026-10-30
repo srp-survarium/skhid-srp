@@ -453,7 +453,7 @@ fn the_jump_cap_per_map() {
             .flat_map(|level| [2, 4].map(|mode| format!("level_{level:02}_day_{mode}")))
             .collect(),
     };
-    let header = "project\tcap\tfloors\tjump_standing\tjump_capped\tjump_sprint\tcapped_no_run_up\tsprint_cut\tjump_06_08\treached\tpockets\tobj_unreached\tlips\tlips_without_walk_off_lips\tovershot_cut\tovershot_kept";
+    let header = "project\tcap\tfloors\tjump_standing\tjump_capped\tjump_sprint\tcapped_no_run_up\tsprint_cut\tjump_06_08\treached\tpockets\tobj_unreached\tlips\tlips_without_walk_off_lips\tovershot_cut\tovershot_kept\tovershot_lost";
     eprintln!("{header}");
     let mut lines = vec![header.to_owned()];
     for project in &projects {
@@ -726,7 +726,7 @@ fn the_floors_around_a_spot() {
 /// Every Jump link of a rise of `SRP_GRID_RISE_MIN` (default 0.9) m or more, on the bots' body, with how far the top it lands
 /// on goes on straight ahead of the landing (`depth`, metres of floor within 0.35 m of the landing's height, up to 6) and how
 /// wide it is across the link's way (`width`, up to 6): a flight that goes on past the top comes down beyond it.
-/// `LINK` lines, tab-separated: project, kind, take-off x y z, landing x y z, rise, depth, width.
+/// `LINK` lines, tab-separated: project, kind, take-off x y z, landing x y z, rise, depth, width, press lead (`-` for none).
 #[test]
 #[ignore = "needs SRP_MAPDATA_DIR"]
 fn the_jump_links_top_depth() {
@@ -751,6 +751,8 @@ fn the_jump_links_top_depth() {
             erosion: mapdata::Erosion::Exact,
             drop_flight_mps: 3.5,
             walk_off_lips: true,
+            // `SRP_GRID_CARRY=1`: the grid with the carried landings (`Body::landing_carry`), a press lead a column.
+            landing_carry: std::env::var_os("SRP_GRID_CARRY").is_some(),
             ..Body::client()
         };
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -792,8 +794,9 @@ fn the_jump_links_top_depth() {
                 let depth = reach(pb, dx, dz);
                 let width = reach(pb, -dz, dx) + reach(pb, dz, -dx) + 0.25;
                 eprintln!(
-                    "LINK\t{project}\t{kind:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{rise:.2}\t{depth:.2}\t{width:.2}",
-                    pa.x, pa.y, pa.z, pb.x, pb.y, pb.z
+                    "LINK\t{project}\t{kind:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{rise:.2}\t{depth:.2}\t{width:.2}\t{}",
+                    pa.x, pa.y, pa.z, pb.x, pb.y, pb.z,
+                    grid.press_lead(a, b).map_or("-".to_owned(), |l| format!("{l:.2}"))
                 );
             }
         }

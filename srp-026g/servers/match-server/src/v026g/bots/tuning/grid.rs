@@ -45,6 +45,11 @@ pub struct GridTuning {
     /// the spawn exit's wall at (94.9, 67.1): 0 of 74 presses got up). Off: a landing needs the body's width. On by default. A
     /// grid is the map's (see `gap_links`).
     pub landing_carry: bool,
+    /// With `landing_carry`: the extra cost of a Jump link kept as the only way though no press keeps the body on its top
+    /// (`mapdata::Body::last_resort_cost`), metres of walk: 3 of 81 probe presses of such links got up, and the bots stuck at them
+    /// pressed again and again (A170: 72 of the 118 extra failed jumps). A route takes one only where nothing else leads there
+    /// within that. 0: the cost of any jump. A grid is the map's (see `gap_links`).
+    pub last_resort_cost_m: f32,
     /// The standing jump's cap on the clients' body, metres: a Jump link above it is a sprint jump (a run-up with sprint
     /// held, apex 1.28 m, `mapdata::grid::SPRINT_JUMP_LOW_M`), kept without a run-up as the marginal jump the base made.
     /// The clip's root tops at 0.998 (`mapdata::grid::STANDING_JUMP_M`, PROVEN); whether the body reaches a ledge above it
@@ -63,6 +68,7 @@ impl Default for GridTuning {
             honest_drops: true,
             walk_off_lips: true,
             landing_carry: true,
+            last_resort_cost_m: 100.0,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
         }
     }
@@ -85,6 +91,7 @@ impl GridTuning {
             max_jump: if self.client_numbers { self.jump_cap_m.get() } else { body.max_jump },
             walk_off_lips: self.walk_off_lips,
             landing_carry: self.landing_carry,
+            last_resort_cost: self.last_resort_cost_m,
             ..body
         }
     }
@@ -97,6 +104,9 @@ impl GridTuning {
         let (low, high) = (mapdata::Body::client().step, mapdata::Body::default().max_jump);
         if !(low..=high).contains(&cap) {
             return Err("grid.jump_cap_m".to_owned());
+        }
+        if !(self.last_resort_cost_m.is_finite() && self.last_resort_cost_m >= 0.0) {
+            return Err("grid.last_resort_cost_m".to_owned());
         }
         Ok(())
     }
