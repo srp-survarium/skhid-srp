@@ -32,6 +32,12 @@ pub struct TrapTuning {
     pub lateral_m: f32,
     /// How far ahead the route is kept clear of it, metres.
     pub route_ahead_m: f32,
+    /// Place on the pass (A169): the habit looks along the carrier's route ahead for the cell with the most enemy
+    /// lane presence and, when that is richer than the spot at its feet by `gain`, waits and places when the body
+    /// passes it, instead of putting the trap where it happens to stand. No goal, route or play changes. `None`: the
+    /// habit as it was (the best of the eight yaws round the feet at once). On by default (A169, with
+    /// `enemy_near_m` 20): see `enemy_near_m`.
+    pub on_the_pass: Option<PassTuning>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -51,6 +57,9 @@ pub struct TrapTuning {
     /// No enemy sensed this lately, seconds, and none known this near,
     /// metres.
     pub enemy_quiet_s: f32,
+    /// ... 20 m (was 40, A169): of 1.02 M thinks the gate refused 59 % for an enemy known within 40 m, so a trap was placed
+    /// only where no enemy was about, away from the enemy's lanes (60 % of the traps in the own third, the players' 29 %);
+    /// at 20 m the traps placed rose 40-53 % and the enemy catches 53-137 % (bench, v5, 56 pairs on each of two seed sets).
     pub enemy_near_m: f32,
     /// No hit taken this lately, seconds.
     pub hit_quiet_s: f32,
@@ -75,6 +84,26 @@ pub struct TrapTuning {
     pub cooldown_s: f32,
     /// The response to a trap that is not the team's (`bots/trap_react.rs`).
     pub react: ReactTuning,
+}
+
+/// The look along the route of the habit's place-on-the-pass rule (`TrapTuning::on_the_pass`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PassTuning {
+    /// How far ahead along the route the richer cell is looked for, metres (at most `route_ahead_m`).
+    pub route_ahead_m: f32,
+    /// A cell ahead is worth waiting for when its lane presence exceeds the spot at the feet by this (the units of
+    /// `traps::presence`: lane counts within 6 m).
+    pub gain: f32,
+}
+
+impl Default for PassTuning {
+    fn default() -> Self {
+        Self {
+            route_ahead_m: 12.0,
+            gain: 1.0,
+        }
+    }
 }
 
 /// How a bot notices a trap of the other team or a human's (C18), and what is
@@ -215,12 +244,13 @@ impl Default for TrapTuning {
             press_landing_m: Some(1.0),
             lateral_m: 0.9,
             route_ahead_m: 12.0,
+            on_the_pass: Some(PassTuning::default()),
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
             open_floors: 12,
             enemy_quiet_s: 2.0,
-            enemy_near_m: 40.0,
+            enemy_near_m: 20.0,
             hit_quiet_s: 6.0,
             min_health: 0.5,
             jump_ahead_m: 6.0,
@@ -247,6 +277,11 @@ impl Check for TrapTuning {
                 .is_none_or(|m| m >= super::super::traps::TRIGGER_M)
                 && super::super::traps::press_reachable(self),
             "traps.press_landing_m",
+        )?;
+        check(
+            self.on_the_pass
+                .is_none_or(|p| p.route_ahead_m >= 2.0 && p.route_ahead_m <= self.route_ahead_m && p.gain >= 0.0),
+            "traps.on_the_pass",
         )?;
         check(
             self.friend_m >= 0.0
