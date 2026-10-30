@@ -14,20 +14,24 @@ const SAME_FLOOR_M: f32 = 2.0;
 /// is stepped away from to the side the lower place number takes, so two bodies never step the same way into each other.
 pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
     let mut nearest: Option<(f32, &PlaceView)> = None;
+    let mut at = (0.0f32, 0.0f32);
     for mate in view.team(me.team) {
         if mate.place == me.place || (mate.feet.y - me.feet.y).abs() >= SAME_FLOOR_M {
             continue;
         }
-        let d = mate.feet.distance_xz(me.feet);
+        // His fix is for his own moment: led to the moment of mine, so a mate running by is where he will be, not where he was.
+        let [mx, mz] = led(mate, me.known_at);
+        let d = (mx - me.feet.x).hypot(mz - me.feet.z);
         if d < within_m && nearest.is_none_or(|(best, _)| d < best) {
             nearest = Some((d, mate));
+            at = (mx, mz);
         }
     }
     let Some((_, mate)) = nearest else {
         return 0;
     };
     let [lx, lz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
-    let left = (mate.feet.x - me.feet.x) * lx + (mate.feet.z - me.feet.z) * lz;
+    let left = (at.0 - me.feet.x) * lx + (at.1 - me.feet.z) * lz;
     if left > 0.15 {
         key::RIGHT
     } else if left < -0.15 {
@@ -38,6 +42,15 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
         key::RIGHT
     }
 }
+
+/// Where `mate` is at `moment` (ms), from his fix, his velocity and the time his fix is for; at most [`LEAD_MAX_S`] either way.
+fn led(mate: &PlaceView, moment: u32) -> [f32; 2] {
+    let dt = ((moment as f32 - mate.known_at as f32) / 1000.0).clamp(-LEAD_MAX_S, LEAD_MAX_S);
+    [mate.feet.x + mate.velocity[0] * dt, mate.feet.z + mate.velocity[1] * dt]
+}
+
+/// The most a fix is led, s (a bot's decided tick is up to a few ticks past the clock; a human's fix is the clock's).
+const LEAD_MAX_S: f32 = 0.3;
 
 #[cfg(test)]
 mod tests {

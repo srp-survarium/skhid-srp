@@ -68,6 +68,9 @@ struct TeamSpacing {
     overlap_05: u64,
     body_overlap_1: u64,
     cause: [u64; 6],
+    /// The 1 m pair-seconds by what the step apart did on the pair's two bodies that tick (the worse of the two): nothing asked (no mate inside in the bot's picture), taken, refused (no clear
+    /// ground that side), held off (the reflex strafes or fires, a use is held, a side key down).
+    apart_state: [u64; 4],
     /// The 1 m pair-seconds of two moving bodies by the distance of the nearer's route end from the other's feet (under 5 m, 5-20, 20 and more, no route): where the pair is bound.
     in_file_goals: [u64; 4],
     killed_by: [[u64; 2]; 2],
@@ -94,6 +97,8 @@ pub(super) struct SpacingCounts {
     last_killer: Vec<Option<(Place, u32)>>,
     /// Where each bot's route ends (its goal), as the bot reads it.
     goal: Vec<Option<Vec3>>,
+    /// The step apart each bot took (or not) on its last tick.
+    apart: Vec<u8>,
     /// What the commander gave each bot to do (its target).
     target: Vec<crate::v026g::bots::plays::TargetRef>,
     /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
@@ -117,6 +122,7 @@ impl SpacingCounts {
             still_s: vec![0; n],
             last_killer: vec![None; n],
             goal: vec![None; n],
+            apart: vec![0; n],
             target: vec![crate::v026g::bots::plays::TargetRef::None; n],
             overlap_plays: Default::default(),
             born: vec![None; n],
@@ -133,6 +139,9 @@ impl Topic for SpacingCounts {
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         if let Some(goal) = self.goal.get_mut(place) {
             *goal = bot.and_then(|b| b.route.as_ref().map(|(route, _)| route.end()));
+        }
+        if let Some(apart) = self.apart.get_mut(place) {
+            *apart = bot.map_or(0, |b| b.bench_apart);
         }
         if let Some(target) = self.target.get_mut(place) {
             *target = bot.and_then(|b| b.assignment.as_ref().map(|a| a.target)).unwrap_or(crate::v026g::bots::plays::TargetRef::None);
@@ -285,6 +294,13 @@ impl SpacingCounts {
                     5
                 };
                 ts.cause[cause] += 1;
+                let worst = |x: u8, y: u8| match (x, y) {
+                    (2, _) | (_, 2) => 2,
+                    (3, _) | (_, 3) => 3,
+                    (1, _) | (_, 1) => 1,
+                    _ => 0,
+                };
+                ts.apart_state[usize::from(worst(self.apart[i], self.apart[j]))] += 1;
                 if sa >= MOVING_MPS && sb >= MOVING_MPS {
                     let bound = [(self.goal[i], b.feet), (self.goal[j], a.feet)]
                         .into_iter()
@@ -317,6 +333,7 @@ impl SpacingCounts {
                 "overlap_05m_pair_s": c.overlap_05,
                 "overlap_1m_body_s": c.body_overlap_1,
                 "overlap_1m_cause_target_goal_follow_still_file_other": c.cause,
+                "overlap_1m_apart_none_taken_refused_heldoff": c.apart_state,
                 "overlap_1m_moving_pair_goal_under5_5_20_20up_none": c.in_file_goals,
                 "killed_by_bullet_or_other": c.killed_by,
                 "killed_by_shooters_1_2_3": c.shooters,
