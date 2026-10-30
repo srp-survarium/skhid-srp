@@ -17,6 +17,7 @@
 //! 321 melee.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
+use resources_db::server::ClipLengths;
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -69,6 +70,13 @@ pub struct WeaponParams {
     pub movement_speed_modifier: f32,
     /// The reload's `state_type` ([`STATE_RELOAD_MAGAZINE`], ...).
     pub reload_state: u16,
+    /// For a reload with two clips ([`STATE_RELOAD_BARRELS`]: one barrel, both; [`STATE_RELOAD_EMPTY`]: with a
+    /// round left, from empty): the second clip's length over the first's, which is how much longer the second
+    /// reload lasts than `reload_time`. The game scales the state's clips by `clips[0]` over `reload_time` and
+    /// plays the other at that scale (0.100b `computed_reload_animation_time_scale`; PROVEN there, LIKELY the
+    /// same in 0.26g, whose constants came out equal for the TT-33 and the TOZ-34). `None` when the game data has
+    /// no clip lengths or the state names fewer than two clips: the bots then go by their constants.
+    pub reload_share: Option<f32>,
     /// It has a [`STATE_CHAMBER`] state.
     pub has_chamber: bool,
     pub show_time: f32,
@@ -303,6 +311,7 @@ impl WeaponParams {
         name: &'static str,
         category: u8,
         config: &ConfigValue,
+        clips: Option<&ClipLengths>,
     ) -> Result<Self, ConfigError> {
         let p = config.req("parameters")?;
         let recoil = config.get("recoil");
@@ -329,6 +338,7 @@ impl WeaponParams {
             .and_then(|list| list.children().first().and_then(|v| v.as_i32()))
             .ok_or_else(|| ConfigError("no `fire_queue_types`".into()))?;
         let mut reload_state = 0;
+        let mut reload_share = None;
         let mut has_chamber = false;
         if let Some(states) = config.get("states") {
             for (_, state) in states.entries() {
@@ -340,7 +350,10 @@ impl WeaponParams {
                     k @ (STATE_RELOAD_MAGAZINE
                     | STATE_RELOAD_ROUNDS
                     | STATE_RELOAD_BARRELS
-                    | STATE_RELOAD_EMPTY) => reload_state = k,
+                    | STATE_RELOAD_EMPTY) => {
+                        reload_state = k;
+                        reload_share = clips.and_then(|clips| two_clip_share(k, state, clips));
+                    }
                     _ => {}
                 }
             }
@@ -363,6 +376,7 @@ impl WeaponParams {
             chamber_a_round_time: number(Some(p), "chamber_a_round_time")?,
             movement_speed_modifier: number(Some(p), "movement_speed_modifier")?,
             reload_state,
+            reload_share,
             has_chamber,
             show_time: number(Some(p), "show_time")?,
             hide_time: number(Some(p), "hide_time")?,
@@ -388,6 +402,19 @@ impl WeaponParams {
     }
 }
 
+/// The second clip of a two-clip reload `state` over its first, by the lengths `clips` has
+/// ([`WeaponParams::reload_share`]); the clips are the state's `animations` (the item's own: the
+/// first is the reload with a round left or one barrel, the second from empty or both barrels).
+fn two_clip_share(kind: u16, state: &ConfigValue, clips: &ClipLengths) -> Option<f32> {
+    if kind != STATE_RELOAD_BARRELS && kind != STATE_RELOAD_EMPTY {
+        return None;
+    }
+    let names = state.get("animations")?.children();
+    let length = |i: usize| clips.get(names.get(i)?.as_str()?);
+    let (first, second) = (length(0)?, length(1)?);
+    (first > 0.0 && second > 0.0).then(|| second / first)
+}
+
 /// Every weapon of `dictionary` (an item whose config's `parameters.type`
 /// starts with `wpn_`), by `dict_id`.
 pub fn derive(
@@ -408,8 +435,14 @@ pub fn derive(
         if !is_weapon {
             continue;
         }
-        let row = WeaponParams::from_config(item.dict_id, &item.name, item.category, &config)
-            .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
+        let row = WeaponParams::from_config(
+            item.dict_id,
+            &item.name,
+            item.category,
+            &config,
+            data.clip_lengths(),
+        )
+        .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
         rows.push(row);
     }
     rows.sort_by_key(|row| row.dict_id);
@@ -845,7 +878,7 @@ mod tests {
                 ("rounds_per_minute", ConfigValue::Float(600.0)),
             ]),
         )]);
-        let w = WeaponParams::from_config(1, "bare", 8, &config).unwrap();
+        let w = WeaponParams::from_config(1, "bare", 8, &config, None).unwrap();
         assert_eq!(
             (w.bullet_damage, w.bullet_pierce, w.min_damage_amount, w.max_damage_distance),
             (0.0, 0.0, 0.0, 0.0)
@@ -887,5 +920,65 @@ mod tests {
                 w.name
             );
         }
+    }
+
+    /// The names of the clips the reload state of the weapon `name` plays (the item's own).
+    fn reload_clip_names(name: &str) -> Vec<String> {
+        let item = Dictionary::shared().item_named(name).unwrap();
+        let config = super::super::game_data::config(
+            super::super::game_data::shared(),
+            item.cfg_name.as_str(),
+        )
+        .unwrap()
+        .unwrap();
+        config
+            .get("states")
+            .and_then(|states| states.get("reload"))
+            .and_then(|state| state.get("animations"))
+            .unwrap()
+            .children()
+            .iter()
+            .map(|clip| clip.as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    /// W9: a two-clip reload's share is its second clip's length over its first's, by the clip lengths the game
+    /// data has; without them, or for a reload of one clip, there is none.
+    #[test]
+    fn a_two_clip_reloads_share_is_the_second_clips_length_over_the_first() {
+        let data = super::super::game_data::shared();
+        let mut clips = ClipLengths::default();
+        for (name, frames) in [
+            ("tt_33", [65.0, 125.0]),
+            ("toz_34", [80.0, 110.0]),
+            ("toz_66", [97.0, 97.0]),
+            ("uzi", [95.0, 95.0]),
+        ] {
+            let names = reload_clip_names(name);
+            for (clip, frames) in names.iter().zip(frames) {
+                clips.insert(clip.clone(), frames);
+            }
+        }
+        let with = data.laid_over("clips", Vec::new()).with_clip_lengths(clips);
+        let table = derive(&with, Dictionary::shared()).unwrap();
+        let share = |name: &str| table.iter().find(|w| w.name == name).unwrap().reload_share;
+        assert_eq!(share("tt_33"), Some(125.0 / 65.0));
+        assert_eq!(share("toz_34"), Some(110.0 / 80.0));
+        assert_eq!(share("toz_66"), Some(1.0));
+        // One clip (a magazine reload, state 303): no share, whatever the lengths.
+        assert_eq!(share("uzi"), None);
+        // A weapon whose clips have no length: none.
+        assert_eq!(share("izh_27_lancaster"), None);
+        // Data made without the lengths: none for any weapon.
+        let bare = derive(data, Dictionary::shared()).unwrap();
+        assert!(bare.iter().all(|w| w.reload_share.is_none()));
+        // A zero-length clip gives no share (nothing to scale by).
+        let mut zero = ClipLengths::default();
+        for (clip, frames) in reload_clip_names("tt_33").iter().zip([0.0, 125.0]) {
+            zero.insert(clip.clone(), frames);
+        }
+        let with = data.laid_over("zero", Vec::new()).with_clip_lengths(zero);
+        let table = derive(&with, Dictionary::shared()).unwrap();
+        assert_eq!(table.iter().find(|w| w.name == "tt_33").unwrap().reload_share, None);
     }
 }

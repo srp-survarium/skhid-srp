@@ -46,6 +46,7 @@
 //! ([`write`](mod@write)) that names the archives it was made of. [`pack`] makes a
 //! patch, an archive of the files of a folder.
 
+pub mod clips;
 pub mod overlay;
 pub mod pack;
 pub mod server;
