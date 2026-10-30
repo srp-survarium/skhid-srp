@@ -313,12 +313,23 @@ impl Body {
     }
 }
 
-/// How the stand-in's pitch unit relates to the elevation (`SRP_BENCH_PITCH_SCALE`: `radian`, else `client`, the game's).
+/// A bench run has begun (the bench's setup calls it before any game is made): the pitch unit is then the game's unless
+/// `SRP_BENCH_PITCH_SCALE` says otherwise. The unit tests' bodies keep the unit as a radian, the geometry their numbers were made in.
+pub(crate) fn start_bench_run() {
+    BENCH_RUN.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+static BENCH_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// How the stand-in's pitch unit relates to the elevation (`SRP_BENCH_PITCH_SCALE`: `radian` or `client`; unset: `client` in a bench
+/// run, `radian` in a unit test).
 pub(crate) fn pitch_scale() -> PitchScale {
     static SCALE: std::sync::OnceLock<PitchScale> = std::sync::OnceLock::new();
     *SCALE.get_or_init(|| match bench_settings().var("SRP_BENCH_PITCH_SCALE").as_deref() {
         Ok("radian") => PitchScale::Radian,
-        _ => PitchScale::Client,
+        Ok("client") => PitchScale::Client,
+        _ if BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed) => PitchScale::Client,
+        _ => PitchScale::Radian,
     })
 }
 

@@ -629,6 +629,7 @@ pub(crate) fn real_bot_cost() {
             false
         }
     };
+    super::standin::start_bench_run();
     say_the_rusher_kit();
     say_the_switches();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
