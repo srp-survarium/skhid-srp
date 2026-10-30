@@ -524,7 +524,7 @@ va	name	source	ret_cleanup	result
 0x0015df00	vostok::render::scene_view::scene_view	manual	0	
 0x0015e220	vostok::render::scene_view::`scalar deleting destructor'	manual	4	
 0x0015e240	vostok::render::scene_view::~scene_view	manual		
-0x0015e350	vostok::render::scene_view::need_recalc_atmosphere	manual	0	
+0x0015e350	vostok::render::scene_view::need_recalc_atmosphere	manual	0	AL=1 when byte +0x3A9 is set or one of the scene view's atmosphere inputs (+0x158, +0x15C, +0x160, +0x1D0..+0x1DC, byte +0x1E0: post_process_parameters +0x40.. as stage_atmosphere::execute reads them) differs from its copy (+0x3A0, +0x3A4, +0x390, +0x38C..+0x39C, +0x3A8), which it then takes; prepare_scene_to_render stores AL in renderer+0x19, execute's parameters_changed (log line at 0x1A43D3).
 0x0015f800	vostok::render::grass_world::grass_world	manual	52	
 0x0015fd70	vostok::render::grass_world::on_being_set	manual	0	
 0x0015fe70	vostok::render::grass_world::~grass_world	manual		
@@ -2078,3 +2078,5 @@ va	name	source	ret_cleanup	result
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	manual	4	none; the node on top (its +4Ch the old top, cmpxchg8b with a tag)
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	manual	0	EAX: the top node, 0 when empty. bullet_manager::play_particle and play_sound pop the manager's +20h free list without testing it: 0 there writes [50h]. The list is 6 nodes a bullet slot (+0A0h, 192: 1152), every node back after each tick
 0x00321d10	survarium::bullet_manager::tick	manual	12	none; after the bullets, pops every functor of the manager's +30h stack (particles, sounds, decals, tracers: all, no cap a tick) and runs it, each node back to the +20h free list
+0x001b9390	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Sorts the visible probes by radius (+0x320) descending, from stage_visibility::execute_stage 0x1B6B54 (filter_and_sort_env_probes inlined); returns at once for 16 or fewer, leaving them to the final insertion sort.
+0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Stable for equal radii: probes of one radius keep the probe tree query order (frustum_culling), which changes from run to run (the probes reach the scene as their cubemaps load). render_environment_probes draws them in this order, each over the ones before.
