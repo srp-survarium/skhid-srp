@@ -43,6 +43,11 @@ package survarium.player
       // pixels: speed 7,9 26x20; weight 8,12 22x14; energy 8,10 23x20): a group
       // icon is fitted into this box, centred on it.
       private static const GLYPH:Rectangle = new Rectangle(7,9,26,21);
+      // A weapon row's icon box width: 1.5 glyph boxes, so a silhouette shows 1.5 times
+      // the size the glyph box alone gave it (the owner: bigger, "not too big"), never
+      // taller than the other icons; with a weapon row the card's icon column is this
+      // wide, the other icons centred in it, every text after it.
+      private static const KILL_WIDTH:Number = 39;
       private var _drawn:Dictionary = new Dictionary(true);
       private var _pitch:Number = NaN;
       // Laid out, the group icons not yet fitted: the card shows once they are.
@@ -88,16 +93,16 @@ package survarium.player
          row.textFieldLabel.wordWrap = false;
       }
 
-      // A weapon's kill feed icon (the hud's own image, KillFeedIcons): wide, so fitted by
-      // the glyph box's width (or height), centred on it.
+      // A weapon's kill feed icon (the hud's own image, KillFeedIcons): wide, so fitted into a
+      // box KILL_WIDTH wide at the glyph box's height (whichever binds), centred on it.
       private function killIcon(icon:int) : Sprite
       {
          var image:Bitmap = new Bitmap(KillFeedIcons.bitmap(icon),"auto",true);
          // White in the hud (which tints it per side): here the modifier icons' own colour.
          image.transform.colorTransform = iconTint();
-         var scale:Number = Math.min(GLYPH.width / image.width,GLYPH.height / image.height);
+         var scale:Number = Math.min(KILL_WIDTH / image.width,GLYPH.height / image.height);
          image.scaleX = image.scaleY = scale;
-         image.x = GLYPH.x + (GLYPH.width - image.width) / 2;
+         image.x = GLYPH.x + (KILL_WIDTH - image.width) / 2;
          image.y = GLYPH.y + (GLYPH.height - image.height) / 2;
          var holder:Sprite = new Sprite();
          holder.name = "kill" + icon;
@@ -272,6 +277,9 @@ package survarium.player
          var y:Number = placeHeading(_heading,2);
          var entries:Array = effects.rows();
          var nextSection:int = 0;
+         var wide:Boolean = false;
+         for each(var any:Object in entries) if(any.kill != undefined) wide = true;
+         var extra:Number = wide ? KILL_WIDTH - GLYPH.width : 0;
          for(var i:int = 0; i < _rows.length; i++)
          {
             var entry:Object = entries[i];
@@ -288,6 +296,12 @@ package survarium.player
             row.data = {icon:entry.kill != undefined ? killIcon(entry.kill) : entry.group != undefined ? groupIcon(i,entry.group) : icons.getIcon(entry.icon),label:entry.label};
             row.validateNow();
             oneLine(row);
+            // One icon column for the card: as wide as a weapon's box when one shows.
+            if(extra > 0)
+            {
+               row.textFieldLabel.x += extra * row.iconContainer.scaleX;
+               if(entry.kill == undefined) row.iconContainer.x += extra / 2 * row.iconContainer.scaleX;
+            }
             row.x = 8;
             row.y = y;
             w = Math.max(w,row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth + 12);

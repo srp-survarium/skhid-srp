@@ -114,3 +114,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **Checked:** `make_lobby_weapon_icons.py --check` (run by `scripts/weight-ui/check_ui.sh`, with
   the hud's original read from the published patches) fails when the lobby's files differ from what
   the hud's images make.
+- **Size (owner: "a bit bigger", "not too big"):** a weapon's icon box is 1.5 glyph boxes wide
+  (39 x 21 in the atlas cell's units): its silhouette shows 1.5 times the glyph-box fit, never
+  taller than the other icons. With a weapon row the card's icon column is that wide; the other
+  icons stay centred in it, every text after it. The generator trims a transparent margin (the
+  hud's images have none today: their alpha reaches every edge).

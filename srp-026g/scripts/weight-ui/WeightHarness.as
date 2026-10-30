@@ -355,7 +355,15 @@ package {
      // The weapon row: the hud's kill feed image, fitted by width in the glyph box.
      var kc:Object=card.getChildAt(6).iconContainer;var kh:Object=kc.getChildAt(kc.numChildren-1);var kb:Rectangle=kh.getBounds(kc);
      require(kh.name=="kill31" && kh.getChildAt(0) is Bitmap && kh.getChildAt(0).bitmapData!=null,"the AK-74M row shows its kill feed icon: "+kh.name);
-     require(fitsGlyph(kb),"its kill feed icon fitted in the glyph box: "+kb);
+     // Bigger: a box three glyph boxes wide at their height; the column widened for every row.
+     var others:Rectangle=null;var vest:Object=card.getChildAt(4).iconContainer;others=glyphOf(vest.getChildAt(vest.numChildren-1).getChildAt(0),vest);
+     // 1.5 times the glyph box's fit (a 39 x 21 box), never taller than the other icons.
+     var src:BitmapData=kh.getChildAt(0).bitmapData;var before:Number=Math.min(26/src.width,21/src.height)*src.height;
+     require(Math.abs(kb.height-Math.min(1.5*before,21))<0.6 && kb.width<=39.5 && kb.height<=others.height+0.5 && Math.abs(kb.y+kb.height/2-19.5)<1,"the weapon icon 1.5x, no taller than the others: "+kb+" vs "+others+" before "+before);
+     var cardRows:Array=[];for(var cr:int=3;cr<card.numChildren;cr++)if(card.getChildAt(cr).hasOwnProperty("textFieldLabel"))cardRows.push(card.getChildAt(cr));
+     for each(var crr:Object in cardRows)require(crr.textFieldLabel.x==cardRows[0].textFieldLabel.x && crr.textFieldLabel.x>=card.getChildAt(6).iconContainer.x+(7+39)*crr.iconContainer.scaleX-1,"one text column after the wide icon column");
+     var vestCard:Rectangle=glyphOf(vest.getChildAt(vest.numChildren-1).getChildAt(0),card),gunCard:Rectangle=kh.getChildAt(0).getBounds(card as DisplayObject);
+     require(Math.abs((vestCard.x+vestCard.width/2)-(gunCard.x+gunCard.width/2))<1.5,"the other icons centred in the wide column: "+vestCard+" vs "+gunCard);
      // Tinted to the modifier icons' colour: the average opaque pixel of the atlas's icon 11.
      var atlas:BitmapData=Icons.getIcon(11).bitmap.bitmapData;var sr:Number=0,sg:Number=0,sb:Number=0,sn:int=0;
      for(var py:int=0;py<atlas.height;py++)for(var px:int=0;px<atlas.width;px++){var c32:uint=atlas.getPixel32(px,py);if((c32>>>24)<0xF0)continue;sr+=(c32>>16)&255;sg+=(c32>>8)&255;sb+=c32&255;sn++;}
@@ -369,7 +377,7 @@ package {
      // One icon column and one text x for every row, one pitch.
      var rowsDrawn:Array=[];for(var rr:int=3;rr<card.numChildren;rr++)if(card.getChildAt(rr).hasOwnProperty("textFieldLabel"))rowsDrawn.push(card.getChildAt(rr));
      rowsDrawn.sortOn("y",Array.NUMERIC);
-     for each(var rd:Object in rowsDrawn)require(rd.x==rowsDrawn[0].x && rd.iconContainer.x==rowsDrawn[0].iconContainer.x && rd.iconContainer.scaleX==rowsDrawn[0].iconContainer.scaleX && rd.textFieldLabel.x==rowsDrawn[0].textFieldLabel.x,"one icon column and one text x");
+     for each(var rd:Object in rowsDrawn)require(rd.x==rowsDrawn[0].x && (rd.iconContainer.x==rowsDrawn[0].iconContainer.x || rd==card.getChildAt(6) || rowsDrawn[0]==card.getChildAt(6)) && rd.iconContainer.scaleX==rowsDrawn[0].iconContainer.scaleX && rd.textFieldLabel.x==rowsDrawn[0].textFieldLabel.x,"one icon column and one text x");
      require(rowsDrawn[1].y-rowsDrawn[0].y==rowsDrawn[2].y-rowsDrawn[1].y && rowsDrawn[5].y-rowsDrawn[4].y==rowsDrawn[1].y-rowsDrawn[0].y,"one row pitch in both sections");
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
      var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");

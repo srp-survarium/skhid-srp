@@ -28,7 +28,6 @@ import filecmp
 import hashlib
 import json
 from pathlib import Path
-import shutil
 import struct
 import subprocess
 import sys
@@ -169,6 +168,17 @@ def same(made, kept):
     return filecmp.cmp(made, kept, shallow=False)
 
 
+def save(image, path):
+    """The image trimmed to its pixels with any alpha (a transparent margin would make the gun
+    smaller than its box; the hud's images have none today), saved; its size."""
+    image = image.convert('RGBA')
+    box = image.getchannel('A').getbbox()
+    if box is not None:
+        image = image.crop(box)
+    image.save(path, optimize=True)
+    return image.size
+
+
 def write(args, data, lobby):
     """Writes the icons, their classes and the index into `lobby`; returns their paths under it."""
     if hashlib.sha256(data).hexdigest() != HUD_SHA256:
@@ -193,12 +203,9 @@ def write(args, data, lobby):
         bitmaps.mkdir(exist_ok=True)
         written = {}
         for icon, bitmap in icons.items():
-            Image.open(exported[bitmap]).convert('RGBA').save(bitmaps / f'KillFeedWeapon{icon}.png', optimize=True)
-            written[icon] = Image.open(bitmaps / f'KillFeedWeapon{icon}.png').size
+            written[icon] = save(Image.open(exported[bitmap]), bitmaps / f'KillFeedWeapon{icon}.png')
     for icon in MORE:
-        source = args.hud_bitmaps / f'CombatLogWeapon{icon}.png'
-        shutil.copyfile(source, bitmaps / f'KillFeedWeapon{icon}.png')
-        written[icon] = Image.open(source).size
+        written[icon] = save(Image.open(args.hud_bitmaps / f'CombatLogWeapon{icon}.png'), bitmaps / f'KillFeedWeapon{icon}.png')
     src = lobby / 'src'
     for icon, (w, h) in sorted(written.items()):
         (src / f'KillFeedWeapon{icon}.as').write_text(
