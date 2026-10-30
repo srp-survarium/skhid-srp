@@ -959,7 +959,7 @@ impl WalkGrid {
             let next = self.links(at).find(|&(n, kind)| {
                 let p = self.position(n);
                 let len = here.distance_xz(p);
-                kind == LinkKind::Walk && len > 1e-3 && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99
+                kind == LinkKind::Walk && len > 1e-3 && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99 && self.can_stand(n)
             });
             let Some((n, _)) = next else { break };
             run += here.distance_xz(self.position(n));
@@ -994,7 +994,8 @@ impl WalkGrid {
                 let (mut at, mut run) = (b as usize, 0.0f32);
                 while run + 1e-3 < want {
                     let next = wide.links[at][d];
-                    if next == NONE || wide.kinds[at][d] != LinkKind::Walk {
+                    // A top ends where a standing body cannot go on: a low ceiling is a wall to a jump's run.
+                    if next == NONE || wide.kinds[at][d] != LinkKind::Walk || !self.can_stand(next) {
                         break;
                     }
                     (at, run) = (next as usize, run + stride);
@@ -1419,9 +1420,20 @@ impl WalkGrid {
         }
         let exact = walls.map_or(0, |walls| {
             let (removed, crouch_only) = self.erode_exact(&mut alive, walls);
-            // Under a wall only a standing capsule meets: walked crouched.
+            // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
+            // stand, `ledge`): the links it made before the floor was found low go.
+            let mut low = vec![false; n];
             for a in crouch_only {
                 self.ceiling[a] = self.ceiling[a].min(self.height[a] + self.body.stand_height - CROUCH_ONLY_M);
+                low[a] = true;
+            }
+            for a in 0..n {
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE && wide.kinds[a][d] == LinkKind::Jump && (low[a] || low[b as usize]) {
+                        wide.links[a][d] = NONE;
+                    }
+                }
             }
             removed
         });
@@ -4954,6 +4966,41 @@ pub(crate) mod tests {
         assert!(top(&plain), "up the ledge without the carry: {stats:?}");
         let (grid, stats) = ledge_island(0.75, 0.5, false, true);
         assert!(top(&grid) && stats.overshot_kept > 0, "{stats:?}");
+    }
+
+    /// A beam over a ledge's top, its underside 1.3 m over it (a crouched body goes under, a standing one does not), makes the floors
+    /// under and by it crouch-only (the exact erosion keeps them): no jump lands on or starts from one, and no landing run goes on
+    /// over one.
+    #[test]
+    fn no_jump_starts_or_lands_under_a_low_beam() {
+        let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 16.0, 10.0, 0.9));
+        tris.extend(wall_x(10.0, 0.0, 10.0, 0.9));
+        // The beam: a box x 10.4..11.2, z 0..10, from 2.2 to 2.7 (1.3 m over the ledge's top), vertical faces.
+        for x in [10.4f32, 11.2] {
+            tris.extend(wall_x(x, 0.0, 10.0, 2.7).into_iter().map(|mut t| {
+                for v in &mut t.v {
+                    if v.y == 0.0 {
+                        v.y = 2.2;
+                    }
+                }
+                t
+            }));
+        }
+        let body = Body { erosion: Erosion::Exact, ..Body::default() };
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body);
+        let low = (0..grid.len() as NodeId).filter(|&n| !grid.can_stand(n)).count();
+        assert!(low > 0, "floors under the beam are crouch-only");
+        for a in 0..grid.len() as NodeId {
+            for (b, kind) in grid.links(a) {
+                assert!(
+                    kind != LinkKind::Jump || (grid.can_stand(a) && grid.can_stand(b)),
+                    "a jump {:?} -> {:?} at a low ceiling",
+                    grid.position(a),
+                    grid.position(b)
+                );
+            }
+        }
     }
 
     /// Ground steeper than 50° is not walked up past a step (the
