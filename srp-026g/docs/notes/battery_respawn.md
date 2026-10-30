@@ -7,10 +7,11 @@ The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.option
 - **Decision (the owner, 2026-10-21):** "in batteries mode respawns should take 10 seconds".
 - **Modes:** "Protective device" (mode 2, rule 88) and "Protective device: chargers" (mode 3,
   rule 89), every map. Team Deathmatch (mode 4) keeps 8 s.
-- **Values:** `respawn_time` 8 -> 10 (an int, kept) in the 56 configs of modes 2 and 3: 0.26g's
+- **Values:** `respawn_time` 8 -> 10 (an int, kept) in the 58 configs of modes 2 and 3: 0.26g's
   levels 1 to 8 in every weather (level_08's night too, never sent), London (`level_09`), the 0.21d
-  and v0.11e maps (their mode-2 configs; they have no mode 3). One byte a file. Not changed: the
-  test maps (`tt5` has 10, `artefact_testlevel` 1), `loopback_client`, mode 4.
+  and v0.11e maps (their mode-2 configs; they have no mode 3), Rudnya (v0.69) (`v069d_level_01`,
+  both modes). One byte a file. Not changed: the test maps (`tt5` has 10, `artefact_testlevel` 1),
+  `loopback_client`, mode 4.
 - **Where the time comes from** (the client's code, 0.26g, PROVEN): the map id the server sends
   names the config (`maps_dict`, modes_maps.md §3); the respawn rule's constructor
   (`player_respawn_rule_base`, 0x316700) reads `respawn_time` as an int and keeps it in ms
@@ -27,5 +28,5 @@ The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.option
   `crates/session/src/v026g/simulation_changes.tsv`. Every player must have the patch (one
   supported revision).
 - **Bots:** no respawn time in their code (the clients' respawn rule spawns them); nothing to change.
-- **Release:** the edit list's row in `release/content.tsv`; `release/build-content` packs the 56
+- **Release:** the edit list's row in `release/content.tsv`; `release/build-content` packs the 58
   configs and builds the server game data with them.
