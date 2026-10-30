@@ -2443,6 +2443,8 @@ st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
+st_srp_mountain_rucksack_desc	Bundeswehrin vuoristojääkärien kehyksetön 25 litran reppu.
+st_srp_mountain_rucksack_name	Vuoristojääkärin reppu
 st_srp_optics	Optiikka
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua

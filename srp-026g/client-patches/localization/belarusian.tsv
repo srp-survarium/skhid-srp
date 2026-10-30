@@ -2443,6 +2443,8 @@ st_srp_mode_chargers	Ахоўная прылада: зараднікі
 st_srp_mode_protective_device	Ахоўная прылада
 st_srp_mode_research	Даследаванне
 st_srp_mode_team_deathmatch	Камандны бой
+st_srp_mountain_rucksack_desc	Бескаркасны 25-літровы заплечнік горных егераў бундэсвера.
+st_srp_mountain_rucksack_name	Горна-егерскі заплечнік
 st_srp_optics	Оптыка
 st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
 st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну

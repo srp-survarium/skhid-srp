@@ -2443,6 +2443,8 @@ st_srp_mode_chargers	Захисний пристрій: зарядники
 st_srp_mode_protective_device	Захисний пристрій
 st_srp_mode_research	Дослідження
 st_srp_mode_team_deathmatch	Командний бій
+st_srp_mountain_rucksack_desc	Безкаркасний 25-літровий рюкзак гірських єгерів бундесверу.
+st_srp_mountain_rucksack_name	Гірсько-єгерський рюкзак
 st_srp_optics	Оптика
 st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
 st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину

@@ -2443,6 +2443,8 @@ st_srp_mode_chargers	Urządzenie ochronne: ładowarki
 st_srp_mode_protective_device	Urządzenie ochronne
 st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
+st_srp_mountain_rucksack_desc	Bezstelażowy 25-litrowy plecak strzelców górskich Bundeswehry.
+st_srp_mountain_rucksack_name	Plecak strzelca górskiego
 st_srp_optics	Optyka
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę

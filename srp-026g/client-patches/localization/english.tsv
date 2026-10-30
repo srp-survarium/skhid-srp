@@ -2443,6 +2443,8 @@ st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_mountain_rucksack_desc	The Bundeswehr mountain troops' frameless 25-litre rucksack.
+st_srp_mountain_rucksack_name	German mountain rucksack
 st_srp_optics	Optics
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute

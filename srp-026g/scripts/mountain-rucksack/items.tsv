@@ -1,0 +1,2 @@
+id	key	name	model	template_id	faction	level	drop_weight	price	icon_row	icon_col	weight	default_modifications
+1877	mountain_rucksack	German mountain rucksack	character/human/srp/mountain_rucksack/mountain_rucksack_back	115	3	14	20	55250	16	8	8	1031,1171
