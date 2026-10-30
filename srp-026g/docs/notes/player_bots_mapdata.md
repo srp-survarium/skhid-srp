@@ -606,6 +606,35 @@ to 1,486, the sprint 11,472 to 3,193); reached floors, pockets and objectives ou
 spawn-to-seed pair loses its way, and 182 of 19,000 pairs get longer (Chemical Plant 72 pairs by 9.7 m of 150, School 107 by 3.1 m
 of 133, Mamayev Kurgan 3). The client test that settles the press (owner, Chemical Plant): `traces-20261028/fx-grid-a166-landing-carry.md` §6.
 
+### Grid: the exact erosion at necks, the capsule's round top and crouch-only floors (A170, 2026-10-30)
+
+`grid.exact_erosion` (A84 item 13) removes a floor when a wall triangle (steep or `dont_walk`, not `walk`), clipped to the band from
+feet + step (0.8) to feet + stand (1.8), is nearer than radius - 0.25 x cell (0.3175 m). B12 (the route recheck on the grid the server
+builds, `GridTuning::body()`) found it cuts the Walk links at necks of the players' paths on Mamayev Kurgan: 10 team-0 routes with no way
+(rows 108-111, 116, 117, 122-125), 3 team-1 detours of 250 m (112, 118, 128).
+
+**Root cause.** PROVEN (`a_neck_of_the_exact_erosion`, the audit of N1-N7): at the necks the band's top is met by triangles at head height
+(a beam, a ledge's lip 1.1-1.8 m over the floor) that the capsule does not meet: the capsule is 0.76 m wide with its centre 0.9 m over
+the feet, and LIKELY a round top (default.player; the total height is the capsule's, so the top 0.38 m narrows). The band tested the full radius
+all the way up to the stand height, and a crouched body (1.1 m, `default.player`) fits where a standing one does not. Players pass N1 at
+least seven times (17 samples in the 1 m band, feet 22.7-23.4), so the radius was not the problem.
+
+**The fix** (`grid/exact.rs`, `erode_exact`): the standing capsule's reach narrows toward its top (`WalkGrid::capsule_reach`, 32 slabs);
+a floor is removed only where the standing and the crouched capsule both meet a wall; where only the standing one does it is kept as a
+crouch-only floor (its ceiling set under the stand height, `can_stand` false), no Jump link starts or lands on it and a landing run
+stops at it (`CROUCH_ONLY_M`). `EXACT_EROSION_ALGO` 3 in the grid key.
+
+**Route recheck, walked table (231 rows), grid as shipped:** hard 212 -> 222 (Mamayev Kurgan 13 -> 23 of 23; what is left are the 9 Cologne spot-B
+rows), every other table +10 hard; soft: Vostok rows 44 and 58, Vector 138/139, Kurgan 109-111, 116, 117, 122-124 (ratio / jumps).
+
+**Bench, tip 636a708e against fx-erosion, seeds 1-8 (v5 data), by side:** no way -47 %, failed searches -26 %, falls off -8 %, zone deaths -31 %;
+delivered -2.1 %. Not clean: jumps failed +32 % (4v4 +15 %, 10v10 +42 %). The presses are the same number (1,352 and 1,325), the failures a press
+0.27 -> 0.37. The arm with the erosion off is at 0.35 too. 104 of the 118 extra failures are on links onto tops under 3 m deep, e.g. Vector
+Laboratory (16.5-21.3, 20.94, -17.54) -> (.., 22.03, -17.04), a sprint jump of 1.08 m onto a top 0.00 m deep (a lintel at +1.24 m): 0 of 29
+up, press lead None. That link is in the tip's grid too (only-way keep of `drop_overshot_landings`); the bots reach its take-off now that the necks
+are open. The stand-in flies the clip, not a client: the block G client test (`traces-20261028/fx-grid-a166-landing-carry.md` §6) decides
+whether such tops hold a body.
+
 ### Route points with the players' height: benched, shelved (2026-10-25)
 
 Play 17's route points carry no height; on stacked floors the server puts a point on the lowest floor round it, often under the floor the players walked. The 3D table gave a point the players' feet height (an optional `heights` per row, no format change), and the server put it on the floor nearest that height (within 3 m; radius 2 m, then 5 m).
