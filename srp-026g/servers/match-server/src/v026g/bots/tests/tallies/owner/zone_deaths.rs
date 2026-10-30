@@ -144,7 +144,7 @@ impl Topic for ZoneDeaths {
 /// What the bot was doing before a spell began (from the run's per-tick record): its play, motives (`Bot::bench_why`), route and keys at the spell's start and
 /// 1 and 2 s before it, and when it left the upper floor (the last tick its feet were within 0.5 m of the height it dropped from) and in what state.
 fn before(run: &Run, note: &ZoneNote) -> String {
-    let Some(recs) = run.recs.get(note.place) else {
+    let Some(recs) = run.recs.get(note.place).filter(|recs| !recs.is_empty()) else {
         return String::new();
     };
     let at = (note.spell.start.saturating_sub(run.first_tick) / TICK_MS) as usize;
