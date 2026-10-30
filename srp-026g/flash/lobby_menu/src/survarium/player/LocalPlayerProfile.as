@@ -522,13 +522,22 @@ package survarium.player
                if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
                if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
             }
-            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0) kit.weapon = {name:item.name,value:propOf(item,105),category:item.category};
+            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
+               kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
          }
          return effects.withItems(kit);
       }
       
       // The sum of a property over the item's modifications (built-in, rolled, defects):
       // 105 movement speed, 106 carry limit (kg).
+      // A weapon's kill feed icon (ui_desc/combat_log_icon, property 161: weapon-kill-icon-ui-1), or -1.
+      private static function killIconOf(item:ItemData) : int
+      {
+         for each(var prop:Object in item.properties)
+            if(prop.prop_id == 161 && isFinite(ModificationRolls.value(prop))) return int(ModificationRolls.value(prop));
+         return -1;
+      }
+      
       private static function propOf(item:ItemData, propId:uint) : Number
       {
          var sum:Number = 0;

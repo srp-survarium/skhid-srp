@@ -141,6 +141,11 @@ package {
    var Filters:Object=domain.getDefinition("survarium.controls.FiltersWindow");
    for each(var gr:Array in [[1,3],[3,8]])require(rows[gr[0]].group==Filters.filterIcon(gr[1]) && rows[gr[0]].group>=0,"row "+gr[0]+" group icon "+rows[gr[0]].group);
    require(rows[0].group==undefined && rows[0].icon==11,"a pocket's booster: the effect's own icon");
+   // A weapon: its kill feed icon when the hud has one, else its class's filter icon.
+   var withKill:Array=Effects.parse(0,0,0,0,0).withItems(kit([],["AK-74M",-.05,8,31])).speedExplanation.rows();
+   require(withKill[0].kill==31 && withKill[0].group==undefined,"the AK-74M's kill feed icon 31");
+   var noKill:Array=Effects.parse(0,0,0,0,0).withItems(kit([],["Odd gun",-.05,8,17])).speedExplanation.rows();
+   require(noKill[0].kill==undefined && noKill[0].group==Filters.filterIcon(8),"no kill feed icon (17): the class's filter icon");
    require(rows[2].group==undefined && rows[4].group==undefined && rows[2].icon==11,"the skill and the weight keep the modifier icon");
    // Every equipment and weapon category the tooltips show has a shop filter icon.
    for each(var cat:int in [1,2,3,4,5,6,7,8,13,14,15,16,17])require(Filters.filterIcon(cat)>=0,"a filter icon for category "+cat);
@@ -151,7 +156,7 @@ package {
    require(Math.abs(bear.total-1)<1e-9 && bear.rows().length==0,"Bear Arms leaves a weapon's penalty out");
    require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit([],["Vepr",.03])).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
    require(Effects.parse(-.2,1.5,0,0,0).withItems(kit([["x",-1]],null)).speedExplanation.total==0,"never below zero");
-   var fast:Object=Effects.parse(0,0,0,.03,0,30,0,0,0,-.02).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,null]],["AK-74M",-.05,8],[],[["Freedom suit",-.08,3]]));
+   var fast:Object=Effects.parse(0,0,0,.03,0,30,0,0,0,-.02).withItems(kit([["Freedom suit",.04,3],["Tornado energy drink",.05,null]],["AK-74M",-.05,8,31],[],[["Freedom suit",-.08,3]]));
    indicators[0].update(20,30,fast);
    var speed:Object=speedWidget(0),weight:Object=widgets[0];
    var label:TextField=speed.textFieldLabel,value:TextField=speed.textFieldValue;
@@ -184,7 +189,7 @@ package {
   private function kit(speed:Array,weapon:Array,limit:Array=null,stamina:Array=null):Object {
    var k:Object=new (domain.getDefinition("survarium.player.KitItems") as Class)();
    for each(var a:Array in speed)k.speed.push({name:a[0],value:a[1],category:a[2]});
-   if(weapon!=null)k.weapon={name:weapon[0],value:weapon[1],category:weapon[2]};
+   if(weapon!=null)k.weapon={name:weapon[0],value:weapon[1],category:weapon[2],killIcon:weapon.length>3?weapon[3]:-1};
    for each(var b:Array in (limit||[]))k.limit.push({name:b[0],value:b[1],category:b[2]});
    for each(var c:Array in (stamina||[]))k.stamina.push({name:c[0],value:c[1],category:c[2]});
    return k;
@@ -347,7 +352,11 @@ package {
      for each(var wanted:String in ["Tornado energy drink +5%","Freedom suit +4%","Rapid"+" +3%","AK-74M -5%"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
      // The drawn icons: the shop filter's sprite at its category's frame in the item rows.
      var FW:Object=domain.getDefinition("survarium.controls.FiltersWindow");
-     for each(var gi:Array in [[4,3],[6,8]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
+     // The weapon row: the hud's kill feed image, fitted by width in the glyph box.
+     var kc:Object=card.getChildAt(6).iconContainer;var kh:Object=kc.getChildAt(kc.numChildren-1);var kb:Rectangle=kh.getBounds(kc);
+     require(kh.name=="kill31" && kh.getChildAt(0) is Bitmap && kh.getChildAt(0).bitmapData!=null,"the AK-74M row shows its kill feed icon: "+kh.name);
+     require(fitsGlyph(kb),"its kill feed icon fitted in the glyph box: "+kb);
+     for each(var gi:Array in [[4,3]]){var cont:Object=card.getChildAt(gi[0]).iconContainer;var holder:Object=cont.getChildAt(cont.numChildren-1);
       // The shop's own renderer, its data {icon}, its icon at that frame, fitted in the atlas icons' box.
       var shop:Object=holder.getChildAt(0);var ib:Rectangle=glyphOf(shop,holder);
       require(holder.name=="group"+FW.filterIcon(gi[1]) && getQualifiedClassName(shop)=="FilterItemCatRenderer" && shop.data.icon==FW.filterIcon(gi[1]) && shop.itemIcon.currentFrame==300+FW.filterIcon(gi[1]) && shop.itemIcon.visible,"row "+gi[0]+": "+holder.name+" frame "+shop.itemIcon.currentFrame);

@@ -1,5 +1,6 @@
 package survarium.player
 {
+   import flash.display.Bitmap;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -83,6 +84,21 @@ package survarium.player
       private function oneLine(row:ModificatorListRenderer) : void
       {
          row.textFieldLabel.wordWrap = false;
+      }
+
+      // A weapon's kill feed icon (the hud's own image, KillFeedIcons): wide, so fitted by
+      // the glyph box's width (or height), centred on it.
+      private function killIcon(icon:int) : Sprite
+      {
+         var image:Bitmap = new Bitmap(KillFeedIcons.bitmap(icon),"auto",true);
+         var scale:Number = Math.min(GLYPH.width / image.width,GLYPH.height / image.height);
+         image.scaleX = image.scaleY = scale;
+         image.x = GLYPH.x + (GLYPH.width - image.width) / 2;
+         image.y = GLYPH.y + (GLYPH.height - image.height) / 2;
+         var holder:Sprite = new Sprite();
+         holder.name = "kill" + icon;
+         holder.addChild(image);
+         return holder;
       }
 
       // Row `i`'s group icon, drawn the way the shop draws it: the filter's own
@@ -245,7 +261,7 @@ package survarium.player
             }
             var row:ModificatorListRenderer = _rows[i];
             row.validateNow();
-            row.data = {icon:entry.group != undefined ? groupIcon(i,entry.group) : icons.getIcon(entry.icon),label:entry.label};
+            row.data = {icon:entry.kill != undefined ? killIcon(entry.kill) : entry.group != undefined ? groupIcon(i,entry.group) : icons.getIcon(entry.icon),label:entry.label};
             row.validateNow();
             oneLine(row);
             row.x = 8;

@@ -92,3 +92,19 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   and where (after the killer, within the row, before the victim).
 - **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
   before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.
+
+## In the lobby (2026-10-30)
+
+- **The owner:** "for weapons we can use icons from the kill list": the speed tooltip's weapon row
+  shows the weapon's kill feed icon.
+- **The images:** `scripts/kill-feed-icons/make_lobby_weapon_icons.py` takes them from the hud: the
+  bitmap of each frame of the weapon icon clip (sprite 698, `object_icon` of `CombatLogItem`; each
+  frame one shape filled 1:1 with its icon's bitmap, read from the shape's fill styles, exported by
+  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon53..68` for 53 to 68; icon 17
+  has none (an empty frame). It writes `flash/lobby_menu/bitmaps/KillFeedWeapon<icon>.png`, their
+  classes, and `survarium/player/KillFeedIcons.as` (the index). Rerun it when the hud's icons change.
+- **The number:** `content-edit/weapon-kill-icon-ui-1.json` copies each weapon's
+  `ui_desc/combat_log_icon` (after `kill-feed-weapons-1`) into its lobby descriptor as property 161,
+  not comparable (no card shows it).
+- **The row:** the icon fitted by the glyph box's width (they are wide), centred; a weapon whose
+  icon the index lacks shows its class's shop filter icon.

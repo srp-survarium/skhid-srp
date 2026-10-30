@@ -21,8 +21,13 @@ package survarium.player
          for each(var row:Object in shown)
          {
             var entry:Object = {icon:icon,label:row.name + " " + Util.styledChar(text(row.value),(row.value > 0) != lowerIsBetter ? "green" : "red")};
-            var group:int = row.category != null ? FiltersWindow.filterIcon(row.category) : -1;
-            if(group >= 0) entry.group = group;
+            // A weapon's own kill feed icon (KillFeedIcons) when it has one, else its class's.
+            if(row.killIcon != undefined && KillFeedIcons.bitmap(row.killIcon) != null) entry.kill = row.killIcon;
+            else
+            {
+               var group:int = row.category != null ? FiltersWindow.filterIcon(row.category) : -1;
+               if(group >= 0) entry.group = group;
+            }
             result.push(entry);
          }
          return result;

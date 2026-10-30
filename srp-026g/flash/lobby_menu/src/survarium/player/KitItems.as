@@ -11,7 +11,8 @@ package survarium.player
    {
       // {name, value, category} of the armour and the pockets.
       public var speed:Array = [];
-      // {name, value, category} of the first weapon (the one in hand), or null.
+      // {name, value, category, killIcon} of the first weapon (the one in hand), or null;
+      // killIcon its ui_desc/combat_log_icon (-1 if none).
       public var weapon:Object = null;
       public var limit:Array = [];
       // {name, value, category}: the armour's and the pockets' energy costs (prop 116).
