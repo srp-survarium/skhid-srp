@@ -188,6 +188,16 @@ pub struct ThreatTuning {
     /// Crossfire on an enemy's last place that is a held spot's centre was
     /// taken for the job's pin; verify-703 should-fix 5).
     pub job_line_by_id: bool,
+    /// Breach slice 0 cause 1: a job's flank and pin spot rings also take the floors of the storeys under and over
+    /// his height, within [`crate::v026g::bots::threat::JOB_LEVELS_M`] (the flank ring took only his own height, the
+    /// pin's only upward): a camper on a roof, an upper storey or a slope left the ring with no floor (26 % of each
+    /// role's unplayed roles). It fires as designed (js-mech-41ee0edb, v5: its class 150 -> 31 flanker, 148 -> 33
+    /// pinner unplayed roles, the roles unplayed -19 % / -17 %; bots' CPU 57.8 vs 58.3 ms/s). Off by default: on the
+    /// tip e9d6ad90 its own arm loses (js3-h2h-058fd2c7, 96 pairs: score -2.5 %, z -2.7; deaths +2.5 %, z +2.5;
+    /// 812a85d9 had it flat, -0.1 %). Named cause (event files): the roles it gets played die, and not to the camper:
+    /// deaths in job Flank +19 and job Crossfire +17, holders down to another enemy +16 (to the shooter 29 vs 31), the
+    /// Trades after them +32. A spot on another storey is a longer way across the map to it (LIKELY).
+    pub job_spot_levels: bool,
     /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
     /// plays are handed out as before. On by default.
     pub gang_up: Option<GangUp>,
@@ -265,6 +275,7 @@ impl Default for ThreatTuning {
             job_open_staffed: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
+            job_spot_levels: false,
             gang_up: Some(GangUp::default()),
         }
     }

@@ -1418,6 +1418,10 @@ impl ThreatSpots {
     }
 }
 
+/// How far round a job's held spot its flank and pin rings look under and over his height for floors, m
+/// (`ThreatTuning::job_spot_levels`): a storey or two, as Crossfire's `up_m`.
+pub const JOB_LEVELS_M: f32 = 8.0;
+
 /// A held spot as the plays read it: its place, shooter, lanes and reach.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HeldLine {
