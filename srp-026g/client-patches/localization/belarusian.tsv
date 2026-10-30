@@ -2674,6 +2674,34 @@ st_stats_saved	Выратавана:
 st_stats_silent_kills	Непрыкметных забойстваў:
 st_stats_stolen_victory_items	Скрадзена батарэй:
 st_status_str	Статус:
+st_stk2_bandit_026_boots_desc	Паношаныя красоўкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Красоўкі
+st_stk2_bandit_026_legs_desc	Спартыўныя штаны з лампасамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Спартыўныя штаны
+st_stk2_bandit_026_torso_desc	Чорны скураны бомбер паверх футболкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Скураны бомбер
+st_stk2_loner_026_boots_desc	Скураныя боты адзіночкі на шнуроўцы са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Боты адзіночкі
+st_stk2_loner_026_hand_desc	Беспалыя пальчаткі адзіночкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Беспалыя пальчаткі адзіночкі
+st_stk2_loner_026_legs_desc	Камуфляжныя штаны з налакотнікамі, кабурой і падсумкамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Камуфляжныя штаны адзіночкі
+st_stk2_loner_026_torso_desc	Куртка з капюшонам пад разгрузачнай камізэлькай з падсумкамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Куртка адзіночкі з разгрузкай
+st_stk2_novice_026_back_desc	Брызентавы заплечнік сталкера-навічка на адной лямцы са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Заплечнік навічка
+st_stk2_novice_026_boots_desc	Скураныя боты сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Боты навічка
+st_stk2_novice_026_hand_desc	Беспалыя пальчаткі сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Беспалыя пальчаткі навічка
+st_stk2_novice_026_hood_desc	Брызентавы капюшон сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Капюшон навічка
+st_stk2_novice_026_legs_desc	Паношаныя джынсы сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Джынсы навічка
+st_stk2_novice_026_torso_desc	Палявая куртка сталкера-навічка з біклагай і нажом на рэмені са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Палявая куртка навічка
+st_stk2_novice_026_torso_v2_desc	Палявая куртка сталкера-навічка з двума падсумкамі на рэмені са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Палявая куртка навічка з падсумкамі
 st_storage	Склад
 st_string_pattern_error	Імя змяшчае некарэктныя сімвалы або мае некарэктную даўжыню
 st_support	Падтрымка

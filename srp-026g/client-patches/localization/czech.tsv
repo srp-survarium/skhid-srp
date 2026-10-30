@@ -2674,6 +2674,34 @@ st_stats_saved	Zachráněno:
 st_stats_silent_kills	Tichá zabití:
 st_stats_stolen_victory_items	Ukradené baterie:
 st_status_str	Stav:
+st_stk2_bandit_026_boots_desc	Obnošené tenisky ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Tenisky
+st_stk2_bandit_026_legs_desc	Pruhované tepláky ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Tepláky
+st_stk2_bandit_026_torso_desc	Černá kožená bunda bomber přes tričko ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Kožená bunda bomber
+st_stk2_loner_026_boots_desc	Šněrovací kožené boty samotáře ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Samotářovy boty
+st_stk2_loner_026_hand_desc	Rukavice bez prstů samotáře ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Samotářovy rukavice bez prstů
+st_stk2_loner_026_legs_desc	Maskáčové kalhoty s chrániči kolen, pouzdrem na pistoli a sumkami ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Samotářovy maskáčové kalhoty
+st_stk2_loner_026_torso_desc	Bunda s kapucí pod nosnou vestou s pouzdry ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Samotářova bunda s vestou
+st_stk2_novice_026_back_desc	Plátěný batoh začínajícího stalkera na jednom popruhu ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Nováčkův batoh
+st_stk2_novice_026_boots_desc	Kožené boty začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Nováčkovy boty
+st_stk2_novice_026_hand_desc	Rukavice bez prstů začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Nováčkovy rukavice bez prstů
+st_stk2_novice_026_hood_desc	Plátěná kapuce začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Nováčkova kapuce
+st_stk2_novice_026_legs_desc	Obnošené džíny začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Nováčkovy džíny
+st_stk2_novice_026_torso_desc	Polní bunda začínajícího stalkera s čutorou a nožem na opasku ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Nováčkova polní bunda
+st_stk2_novice_026_torso_v2_desc	Polní bunda začínajícího stalkera se dvěma pouzdry na opasku ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Nováčkova polní bunda s pouzdry
 st_storage	Sklad
 st_string_pattern_error	Jméno obsahuje neplatné znaky nebo je příliš dlouhé či krátké
 st_support	Podpora

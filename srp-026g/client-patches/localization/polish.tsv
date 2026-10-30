@@ -2674,6 +2674,34 @@ st_stats_saved	Uratowano:
 st_stats_silent_kills	Ciche zabójstwa:
 st_stats_stolen_victory_items	Skradzione baterie:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Znoszone buty sportowe, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Buty sportowe
+st_stk2_bandit_026_legs_desc	Spodnie dresowe w paski, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Spodnie dresowe
+st_stk2_bandit_026_torso_desc	Czarna skórzana kurtka bomberka na koszulce, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Skórzana kurtka bomberka
+st_stk2_loner_026_boots_desc	Sznurowane skórzane buty samotnika, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Buty samotnika
+st_stk2_loner_026_hand_desc	Rękawiczki bez palców samotnika, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Rękawiczki bez palców samotnika
+st_stk2_loner_026_legs_desc	Spodnie moro z nakolannikami, kaburą i ładownicami, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Spodnie moro samotnika
+st_stk2_loner_026_torso_desc	Kurtka z kapturem pod kamizelką taktyczną z ładownicami, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Kurtka samotnika z kamizelką
+st_stk2_novice_026_back_desc	Płócienny plecak stalkera nowicjusza na jednym pasku, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Plecak nowicjusza
+st_stk2_novice_026_boots_desc	Skórzane buty stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Buty nowicjusza
+st_stk2_novice_026_hand_desc	Rękawiczki bez palców stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Rękawiczki bez palców nowicjusza
+st_stk2_novice_026_hood_desc	Płócienny kaptur stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kaptur nowicjusza
+st_stk2_novice_026_legs_desc	Znoszone dżinsy stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Dżinsy nowicjusza
+st_stk2_novice_026_torso_desc	Kurtka polowa stalkera nowicjusza z manierką i nożem przy pasie, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Kurtka polowa nowicjusza
+st_stk2_novice_026_torso_v2_desc	Kurtka polowa stalkera nowicjusza z dwiema ładownicami przy pasie, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Kurtka polowa nowicjusza z ładownicami
 st_storage	Magazyn
 st_string_pattern_error	Imię jest za długie lub zawiera niedozwolone znaki
 st_support	Wsparcie:

@@ -2674,6 +2674,34 @@ st_stats_saved	Spaseno:
 st_stats_silent_kills	Tiha ubistva:
 st_stats_stolen_victory_items	Ukradene baterije:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Iznošene patike iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Patike
+st_stk2_bandit_026_legs_desc	Prugasta donja trenerka iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Trenerka
+st_stk2_bandit_026_torso_desc	Crna kožna bomber jakna preko majice iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Kožna bomber jakna
+st_stk2_loner_026_boots_desc	Kožne čizme samotnjaka na pertlanje iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Čizme samotnjaka
+st_stk2_loner_026_hand_desc	Rukavice bez prstiju samotnjaka iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Rukavice bez prstiju samotnjaka
+st_stk2_loner_026_legs_desc	Maskirne pantalone sa štitnicima za kolena, futrolom i torbicama iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Maskirne pantalone samotnjaka
+st_stk2_loner_026_torso_desc	Jakna sa kapuljačom ispod taktičkog prsluka sa torbicama iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Jakna samotnjaka sa prslukom
+st_stk2_novice_026_back_desc	Platneni ranac stalkera početnika sa jednim kaišem iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Ranac početnika
+st_stk2_novice_026_boots_desc	Kožne čizme stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Čizme početnika
+st_stk2_novice_026_hand_desc	Rukavice bez prstiju stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Rukavice bez prstiju početnika
+st_stk2_novice_026_hood_desc	Platnena kapuljača stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kapuljača početnika
+st_stk2_novice_026_legs_desc	Iznošene farmerke stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Farmerke početnika
+st_stk2_novice_026_torso_desc	Terenska jakna stalkera početnika sa čuturicom i nožem na opasaču iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Terenska jakna početnika
+st_stk2_novice_026_torso_v2_desc	Terenska jakna stalkera početnika sa dve torbice na opasaču iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Terenska jakna početnika sa torbicama
 st_storage	Skladište
 st_string_pattern_error	Ime sadrži nedozvoljene znakove ili je predugačko ili prekratko.
 st_support	Podrška
