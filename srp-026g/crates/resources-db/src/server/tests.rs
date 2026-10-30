@@ -211,8 +211,11 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
         bare_project().1,
     );
     expected.insert(PROVENANCE.into(), built.provenance.text().into_bytes());
+    // No clips in this game: the list is there, and empty.
+    expected.insert(CLIP_LENGTHS.into(), ClipLengths::default().text().into_bytes());
     assert_eq!(files, expected);
     assert_eq!((built.gameplay, built.projects), (5, 2));
+    assert_eq!((built.clips, built.clips_unread), (0, 0));
     assert_eq!(
         built.given,
         [
@@ -277,6 +280,69 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
             ),
         ]
     );
+}
+
+#[test]
+fn the_clip_lengths_are_those_of_the_clips_seen_with_the_patches_over_the_db() {
+    use crate::clips::tests::clip;
+    let folder = Folder::new("clips");
+    let long = clip(&[0.0, 0.0, 0.0, 0.0, 10.0, 40.0, 125.0, 125.0]);
+    let short = clip(&[0.0, 0.0, 0.0, 0.0, 10.0, 40.0, 65.0, 65.0]);
+    let db = folder.file(
+        RESOURCES_DB,
+        &archive_of_bytes(&[
+            ("gameplay/items/item.options", b"item 0"),
+            ("animations/single/weapons/pm/item/stand/3rd_view/reload.b-spline", &short),
+            ("animations/single/weapons/pm/item/stand/3rd_view/reload_empty.b-spline", &short),
+            ("animations/single/weapons/cut.b-spline", &long[..long.len() - 3]),
+            ("animations/single/weapons/not_a_clip.txt", b"not read"),
+        ]),
+    );
+    let two = folder.file(
+        "resources.db.patch_2",
+        &archive_of_bytes(&[(
+            "animations/single/weapons/pm/item/stand/3rd_view/reload_empty.b-spline",
+            &long,
+        )]),
+    );
+    let built = build(&db, &[patch(&two)]).unwrap();
+    // The patch's clip is the one the game plays; the cut one has no length.
+    assert_eq!((built.clips, built.clips_unread), (2, 1));
+    let files = all_files(&built.bytes);
+    let text = String::from_utf8(files[CLIP_LENGTHS].clone()).unwrap();
+    let clips = ClipLengths::parse(&text).unwrap();
+    let reload = "resources/animations/single/weapons/pm/item/stand/3rd_view/reload";
+    assert_eq!(clips.get(reload), Some(65.0));
+    assert_eq!(clips.get(&format!("{reload}_empty")), Some(125.0));
+    assert_eq!(clips.get("resources/animations/single/weapons/cut"), None);
+    assert_eq!(clips.text(), text);
+    // What `info` reads back still checks every file.
+    read(&mut Archive::new(Cursor::new(built.bytes.clone())).unwrap()).unwrap();
+}
+
+#[test]
+fn a_clip_length_list_reads_back_and_a_wrong_one_is_refused() {
+    let mut clips = ClipLengths::default();
+    clips.insert("resources/animations/a/reload".into(), 65.0);
+    clips.insert("resources/animations/a/reload_empty".into(), 125.5);
+    assert_eq!(ClipLengths::parse(&clips.text()).unwrap(), clips);
+    assert_eq!(
+        ClipLengths::name_of("animations/a/reload.b-spline").as_deref(),
+        Some("resources/animations/a/reload")
+    );
+    assert_eq!(ClipLengths::name_of("animations/a/reload.txt"), None);
+    for (bad, why) in [
+        ("", "starts with"),
+        ("clip lengths\n", "starts with"),
+        ("skhid clip lengths 1\nno tab\n", "name<TAB>frames"),
+        ("skhid clip lengths 1\na\tx\n", "not a length"),
+        ("skhid clip lengths 1\na\t-1\n", "not a length"),
+        ("skhid clip lengths 1\na\tinf\n", "not a length"),
+        ("skhid clip lengths 1\na\t1\na\t2\n", "twice"),
+    ] {
+        let message = ClipLengths::parse(bad).unwrap_err().to_string();
+        assert!(message.contains(why), "{bad:?}: {message}");
+    }
 }
 
 #[test]

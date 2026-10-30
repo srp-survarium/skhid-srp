@@ -23,8 +23,10 @@
 //!   magazine_capacity` a round and `reload_end_time` (the Mosin's clips,
 //!   50, 20 a round and 41 f, give 1.67 + 0.5 + 1.37 s against the
 //!   config's 1.5 + 0.5 + 1.5: within 0.2 s); an empty reload of state 314
-//!   and both barrels of state 311 take the TT-33's and the TOZ-34's share
-//!   of their clips ([`EMPTY_RELOAD_SHARE`], [`BARRELS_RELOAD_SHARE`]).
+//!   and both barrels of state 311 take the weapon's own share of its
+//!   clips (`WeaponParams::reload_share`, from the clip lengths in the game
+//!   data), the TT-33's and the TOZ-34's ([`EMPTY_RELOAD_SHARE`],
+//!   [`BARRELS_RELOAD_SHARE`]) when the data was made without them.
 //! - The bolt: `chamber_a_round_time`. LIKELY: the card's rate of fire is
 //!   `60 / (60 / rpm + chamber_a_round_time)` floored for all eleven
 //!   weapons that have one (the Mosin 27, the SV-98 21, the Remington 700
@@ -361,13 +363,15 @@ impl Gun {
 
 /// The empty reload's time over the other's, for a weapon whose reload
 /// has its own clip from empty (state 314): the TT-33's two clips, 125 f
-/// over 65 f (PROVEN for the TT-33; LIKELY of the same order for the
-/// others, whose clips the server's data does not hold; the longer time
-/// only makes a bot wait a little more).
+/// over 65 f (PROVEN for the TT-33; the same for the PM, the APS and the
+/// Fort-17 by their clips). Only the fallback: a weapon's own share is
+/// `WeaponParams::reload_share`, read from the clips' lengths in the game
+/// data; this is what a bot goes by when the data was made without them.
 pub const EMPTY_RELOAD_SHARE: f32 = 125.0 / 65.0;
 
 /// Both barrels' reload over one barrel's (state 311): the TOZ-34's clips,
-/// 110 f over 80 f (PROVEN for the TOZ-34; LIKELY for the others).
+/// 110 f over 80 f (PROVEN for the TOZ-34 and the Izh-27; the TOZ-66's
+/// two are 97 f each, share 1). The fallback, as [`EMPTY_RELOAD_SHARE`].
 pub const BARRELS_RELOAD_SHARE: f32 = 110.0 / 80.0;
 
 /// Seconds to ms.
@@ -390,11 +394,11 @@ impl Gun {
             },
             STATE_RELOAD_BARRELS => Reload::Barrels {
                 one_ms: reload_ms,
-                two_ms: ms(w.reload_time * BARRELS_RELOAD_SHARE),
+                two_ms: ms(w.reload_time * w.reload_share.unwrap_or(BARRELS_RELOAD_SHARE)),
             },
             STATE_RELOAD_EMPTY => Reload::Pistol {
                 ms: reload_ms,
-                empty_ms: ms(w.reload_time * EMPTY_RELOAD_SHARE),
+                empty_ms: ms(w.reload_time * w.reload_share.unwrap_or(EMPTY_RELOAD_SHARE)),
             },
             _ => Reload::Magazine { ms: reload_ms },
         };
