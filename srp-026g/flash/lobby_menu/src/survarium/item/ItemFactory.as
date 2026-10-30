@@ -16,6 +16,7 @@ package survarium.item
    import survarium.constants.ItemDefaults;
    import survarium.constants.ItemDictId;
    import survarium.constants.Equipment029;
+   import survarium.constants.Equipment046;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
@@ -161,10 +162,18 @@ package survarium.item
          return category == ItemCategory.SCOPES ? SuperCategory.UPGRADES : getCategory(category);
       }
       
+      // A premium armour piece a content pack declares (srp_premium): [dictId, plain, bonuses],
+      // from the packs' generated mirrors; null for any other item.
+      private static function contentPremium(dictId:int) : Array
+      {
+         var row:Array = Equipment029.premium(dictId);
+         return row != null ? row : Equipment046.premium(dictId);
+      }
+      
       // A golden item: a golden weapon or a premium armour piece (golden::is_golden).
       public static function isGolden(dictId:int) : Boolean
       {
-         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1 || Equipment029.premium(dictId) != null;
+         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1 || contentPremium(dictId) != null;
       }
       
       // A golden item's plain item; anything else itself.
@@ -177,7 +186,7 @@ package survarium.item
          }
          index = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
          if(index != -1) return int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
-         var extra:Array = Equipment029.premium(dictId);
+         var extra:Array = contentPremium(dictId);
          return extra == null ? dictId : int(extra[1]);
       }
       
@@ -233,7 +242,7 @@ package survarium.item
             var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
             if(index == -1)
             {
-               var extra:Array = Equipment029.premium(dictId);
+               var extra:Array = contentPremium(dictId);
                if(extra == null) return [];
                ids = extra[2];
             }

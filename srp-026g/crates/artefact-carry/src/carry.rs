@@ -62,10 +62,11 @@ pub enum KeyPress {
     Released,
 }
 
-/// The carry key (H, action 23h). The input handler reports a key bound to
-/// an action on the tick it goes down and the tick it comes up, not on the
-/// ticks between, so whether it is held is kept from one press to the next:
-/// H held, then a quick key, is the chord as much as the other order.
+/// The carry key (H, action 23h), kept from its down event to its up event
+/// as player_input_handler::on_keyboard_action gets them (patches: site
+/// carry.key), since the input builder's action query sees the down and not
+/// always the up: H held, then a quick key, is the chord as much as the other
+/// order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CarryKey {
     #[default]

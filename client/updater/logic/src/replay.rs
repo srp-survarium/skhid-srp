@@ -34,11 +34,24 @@ pub const GAME_ARGUMENTS: &str = "-mt_allocator=768 -minimum_resources_memory_si
 /// buffer) and reads its command line as ANSI text.
 pub const MAX_GAME_PATH: usize = 259;
 
-/// The launcher's languages, by the number it keeps
-/// (`HKCU\Software\Vostok Games\Survarium`, `language`): the order of the
-/// messages' languages. The game keeps its own (user.cfg, game patch 79): a
-/// replay is started with none.
+/// The languages the messages are written in, by their number. The language
+/// is the game's: user.cfg's `localization <name>` line, which the game's
+/// Settings and the launcher's menu write ([`language_of_user_cfg`]); a
+/// replay is started with none, so it plays in it too.
 pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "polish"];
+
+/// The number in [`LANGUAGES`] of the language of a user.cfg: its first
+/// `localization <name>` line, as the launcher reads it. None without one, or
+/// for a language the messages are not written in (they are then English).
+pub fn language_of_user_cfg(text: &[u8]) -> Option<u32> {
+    let line = text.split(|&byte| byte == b'\n').find_map(|line| {
+        let rest = line.strip_prefix(b"localization")?;
+        rest.first().filter(|&&byte| byte == b' ' || byte == b'\t')?;
+        Some(rest)
+    })?;
+    let name = line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())?;
+    LANGUAGES.iter().position(|language| language.as_bytes() == name).map(|at| at as u32)
+}
 
 /// A replay link that passed every check.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,8 +241,8 @@ pub enum Problem {
     NotReady,
 }
 
-/// The message for a player in the launcher's language (`LANGUAGES` order);
-/// English for an unknown one.
+/// The message for a player in the game's language (`LANGUAGES` order);
+/// English for another one.
 pub fn message(language: Option<u32>, problem: &Problem) -> String {
     use Problem::*;
     let language = language.filter(|&n| n < 5).unwrap_or(0);
@@ -503,5 +516,19 @@ mod tests {
             }
             assert!(!text.contains("\\\\"), "{text}");
         }
+    }
+
+    #[test]
+    fn the_language_is_user_cfg_s_localization_line() {
+        let of = |text: &str| language_of_user_cfg(text.as_bytes());
+        assert_eq!(of("account_name x\r\nlocalization russian\r\nr_fullscreen on\r\n"), Some(1));
+        assert_eq!(of("localization\tpolish"), Some(4));
+        assert_eq!(of("localization   german  \n"), Some(3));
+        // The game's other languages: the messages are English.
+        assert_eq!(of("localization czech\r\n"), None);
+        assert_eq!(of("localizations russian\r\n# localization russian\r\n"), None);
+        assert_eq!(of("localization Russian\r\n"), None);
+        assert_eq!(of("localization\r\n"), None);
+        assert_eq!(of(""), None);
     }
 }

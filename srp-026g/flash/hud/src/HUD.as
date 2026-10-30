@@ -51,6 +51,7 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
+   import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
    import survarium.controls.ResearchCountdownLayout;
    import survarium.core.Icon;
@@ -533,7 +534,8 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         for(i = 28; i < 30; i++)
+         // the exoskeletons' backs and srp's oxygen tanks (QuickSlots.SRP_HUD_ICONS) gray when used up
+         for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;
             icon = _iconContainer.getIcon(index);

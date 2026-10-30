@@ -16,8 +16,9 @@ package {
   private function loaded(e:Event):void {
    try {
     var factory:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.item.ItemFactory");
-    // Each faction, a new plain parent, an existing parent, and the special set.
-    for each(var row:Array in [[905,824,128],[907,347,129],[911,754,130],[977,196,131],[939,938,128]]) {
+    // Each faction, a new plain parent, an existing parent, and the special set;
+    // equipment-046's premium copy (Equipment046.as) of the stock Bandit's jacket.
+    for each(var row:Array in [[905,824,128],[907,347,129],[911,754,130],[977,196,131],[939,938,128],[1863,351,129]]) {
      var id:int = row[0], plain:int = row[1];
      require(factory.isGolden(id), "premium " + id);
      require(factory.plainOf(id) == plain, "plain " + id);

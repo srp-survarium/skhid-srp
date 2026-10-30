@@ -2156,6 +2156,8 @@ va	name	location	role	basis
 0x001f17c0	survarium::player::collision_transform	ECX	the player's collision_user subobject (player+118h)	observed
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
+0x001f2720	survarium::player::insert	ECX	the player	observed
+0x001f2720	survarium::player::insert	entry ESP+4	bool link (byte pushed as a dword): 1 links the tick lists and the models, as the rule spawn passes (0x316EA5)	observed
 0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
 0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
 0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
@@ -2719,6 +2721,8 @@ va	name	location	role	basis
 0x002da540	survarium::base_player::get_bone_transform	entry ESP+8	the bone's name (char*)	observed
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	ECX	the player	observed
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4	an object or 0; when set, its [+8]+4 byte is compared with the player's place +114h	observed
+0x002da850	survarium::base_player::insert	ECX	the base player	observed
+0x002da850	survarium::base_player::insert	entry ESP+4	bool link (byte): 1 links the world's tick lists	observed
 0x002daf60	survarium::base_player::serialize	ECX	player	inferred
 0x002daf60	survarium::base_player::serialize	stack+4	writer	inferred
 0x002db490	survarium::base_player::deserialize	ECX	player	inferred
@@ -4446,6 +4450,7 @@ va	name	location	role	basis
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
+0x002d2770	survarium::game_world_core::deserialize	loop 0x2D2CB3..0x2D2D55 (the tail)	inserts every active place's current player: for each bit of the active places [core+18FD8h] (0x2D2CB3), the place record [core+18458h] + 30h x index, its current player [place + 4 x byte [place+0Ch]] gets vtable+20h (player::insert 0x1F2720 -> base_player::insert 0x2DA850, +33Fh := 1 at 0x2DA869 unconditionally) at 0x2D2D51 with link = newly active (the bit set in [ESP+7Ch], 0x2D2D21) || current player changed (byte [place+2Dh], 0x2D2D25); so after a world load (0xE8, 0x27C116) no alive player is out of the world	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed
 0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed
@@ -4779,3 +4784,11 @@ va	name	location	role	basis
 0x0031c780	survarium::artefact_container_core::use_execute	at 0x31C810: EBX, EDI	EBX the user (a player), EDI the container; [EDI+54h] the world core, [core+18FA8h] the statistics handler (0 none: nothing counted); after the transfer (0x31C817) event 5 is counted for place [EBX+114h], kit [EBX+115h] (0x31C845). Patch 80's site artefact_container.transfer	observed
 0x002f4cf0	survarium::shared_statistics::finish_match	EAX, entry ESP+4	what it stores at +31C0h, the shared statistics: per place below +31E0h counts event 11 (+42h), 12 (+48h, the winner's team) and 27 (+A2h, protection 0) and tells the listener; event 16 is counted nowhere in 0.26g (no inc of a +60h..+64h cell in .text)	observed
 0x0031c6b0	survarium::artefact_container_core::can_use	ECX, entry ESP+4	the container, the user (a pointer to the player): usable only while the container's artefact [ECX+4Ch] is in state 2 ([+280h]) and the user's inventory [player+10Ch] has an artefact slot ([+16Ch] > 0) and [+178h] = 0 (0x31C6EC..0x31C70B); a free slot is not asked: a full inventory may take one	observed
+0x002dbb50	survarium::base_player::movement_speed	stack+4	the player (+115h kit, +6B8h profile, +15Ch and +190h the two speed tables read by 0x2F0980)	observed
+0x002dbb50	survarium::base_player::movement_speed	stack+10h	byte flag: also apply modifiers 4 and 20 through apply_modifiers 0x2D5BC0 and take the lower speed	observed
+0x002e2a30	survarium::weapon_core::initialize	EDI	the weapon; at 0x2E2C26..0x2E2C9C its movement node (+610h, value +61Ch) is added to the kit container (0x2D5A90) unless modifier 62 (Bear Arms, additive, apply_modifier 0x2D5AE0 with B 0) is above 0 and the value is not	observed
+0x00239420	survarium::game_world_ui::update_minimap_players	entry ESP+4	the game_world_ui; a place (0..13h, get_active_player vtable+50h) is listed when its player is in the world +33Fh (0x2394D1), alive +33Ch (0x2394DE) and on the local player's team ([+6B8h]+45ECh, 0x2394FD) or spotted (+348h > 0, 0x239505); the local player [client+4] need only exist (0x239450), not be in the world	observed
+0x00239a30	survarium::game_world_ui::update_minimap_local_player	entry ESP+4	the game_world_ui; sends only while the local player [client+4] is in the world (+33Fh, 0x239A72): a game that joined late gets its allies (update_minimap_players, called after it in update_ui: 0x23B499, 0x23B49F) before its own team until it spawns	observed
+0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
+0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
+0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
