@@ -15,8 +15,9 @@ release makes them again from its own patches. Writes <out>/ anew:
   (character 3279, IconContainer("modifiers", 38, 38, vertical): column-major)
   that holds an icon; each icon a modification shows must be one;
 - groups/<item_category>.webp: the shop filter button of each of those
-  categories (FilterItem: itemIcon.gotoAndStop(300 + icon), FiltersWindow
-  names each filter's icon and category; FFDec exports the frames);
+  categories (FilterItem: itemIcon.gotoAndStop(300 + icon), FiltersWindow's
+  equipmentFilters() and weaponFilters() name each filter's icon and category;
+  FFDec exports the frames);
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -59,10 +60,10 @@ def filters(flash):
         r"public static const (\w+):int = (\d+);", (flash / "survarium/constants/ItemCategory.as").read_text()))
     source = (flash / "survarium/controls/FiltersWindow.as").read_text()
     found = {}
-    for which in ("EQUIPMENT_FILTERS", "WEAPON_FILTERS"):
-        block = re.search(rf"registerDataProvider\({which},new DataProvider\(\[(.*?)\]\)\);", source, re.S)
+    for which in ("equipmentFilters", "weaponFilters"):
+        block = re.search(rf"function {which}\(\) : Array\s*\{{\s*return \[(.*?)\];", source, re.S)
         if not block:
-            raise SystemExit(f"FiltersWindow.as: no {which} list")
+            raise SystemExit(f"FiltersWindow.as: no {which}() list")
         for icon, category in re.findall(r'"icon":(\d+),.*?"sucat":ItemCategory\.(\w+)', block.group(1), re.S):
             found.setdefault(constants[category], int(icon))
     return found
