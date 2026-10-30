@@ -2536,6 +2536,7 @@ st_srp_rooms_leave_room	Выйти из комнаты
 st_srp_rooms_left_room	%1$s покинул комнату
 st_srp_rooms_level	Уровень
 st_srp_rooms_map	Карта
+st_srp_rooms_map_by_vote	Карта выбирается голосованием
 st_srp_rooms_max	Макс. уровень
 st_srp_rooms_modes	Режимы
 st_srp_rooms_my_room	Моя комната
@@ -2582,13 +2583,16 @@ st_srp_rooms_teams_owner	Перемещайте игроков между ком
 st_srp_rooms_unfit_gear	Ваше снаряжение выше макс. уровня: снизьте, иначе на старте вы выйдете из комнаты.
 st_srp_rooms_unfit_kit	Ваш комплект не может играть (нет оружия или мало патронов): исправьте, иначе на старте вы выйдете из комнаты.
 st_srp_rooms_vote	Голосуйте за следующую карту
-st_srp_rooms_vote_hint	3 карточки из пула. Побеждает большинство; ничья — случайно. Нажмите, чтобы сменить голос.
 st_srp_rooms_vote_now	Голосуйте за следующую карту: нажмите карточку. Матч начнётся на победившей.
 st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_skills	Навыки
+st_srp_speed_label	Скорость
+st_srp_speed_title	Скорость движения: %1$s
+st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
@@ -2622,8 +2626,10 @@ st_srp_weather_day	день
 st_srp_weather_evening	вечер
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
+st_srp_weight_base	Базовый предел: %1$s
 st_srp_weight_no_sprint_heavyweight	Спринт недоступен: навык «Тяжеловес».
 st_srp_weight_no_sprint_limit	Спринт недоступен: перегруз.
+st_srp_weight_penalty	%1$s% штраф за вес
 st_srp_weight_speed	Скорость передвижения: %1$s
 st_srp_weight_sprint_stamina	Затраты энергии на спринт: %1$s
 st_srp_weight_title	Влияние веса

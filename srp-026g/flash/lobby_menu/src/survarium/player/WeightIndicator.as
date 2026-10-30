@@ -13,9 +13,12 @@ package survarium.player
       private var _current:Number;
       private var _maximum:Number;
       private var _effects:WeightEffects;
+      // The kit's movement speed: its own indicator left of the weight.
+      private var _speed:SpeedIndicator;
       public function WeightIndicator(widget:MovieClip)
       {
          _widget = widget;
+         _speed = new SpeedIndicator(widget);
          var holder:Sprite = new Sprite();
          _tip = new WeightTip();
          _tip.graphics.beginFill(0,0.01);
@@ -41,6 +44,7 @@ package survarium.player
          _widget.progress_indicator.maximum = _maximum;
          _widget.progress_indicator.value = _current;
          _tip.updateEffects(_effects);
+         _speed.update(_effects != null ? _effects.speedExplanation : null);
       }
    }
 }

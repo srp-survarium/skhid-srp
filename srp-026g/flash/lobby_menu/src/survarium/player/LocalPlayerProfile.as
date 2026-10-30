@@ -13,6 +13,7 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
+   import flash.text.TextFieldAutoSize;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
@@ -34,6 +35,8 @@ package survarium.player
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.constants.AmmoView;
+   import survarium.constants.ProfileSlot;
+   import survarium.item.ModificationRolls;
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
@@ -73,6 +76,9 @@ package survarium.player
       private static const AUTOBUY_AMMO:uint = 1;
       
       private var _weightM:Number = 0;
+      
+      // The exe's weight effects, before the kit's items are added to the speed.
+      private var _weightEffects:WeightEffects;
       
       private var _relocateFunctionRef:Function;
       
@@ -379,8 +385,9 @@ package survarium.player
       {
          _weightC = cur;
          _weightM = max;
+         _weightEffects = effects;
          if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
-         _weightIndicator.update(cur,max,effects);
+         _weightIndicator.update(cur,max,withKitItems(effects));
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -487,6 +494,57 @@ package survarium.player
             trace("invalidateOnEquipped");
             equippedItems.invalidate();
          }
+         // A bonus rerolled or repaired changes the speed without a weight callback.
+         if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
+      }
+      
+      // What each of the kit's items adds (KitItems): the armour's and the pockets'
+      // movement (prop 105) and carry limit (prop 106) from their modifications
+      // (built-in, rolled, defects), one entry an item by its displayed name, and the
+      // first weapon's own movement parameter (the weapon in hand).
+      private function withKitItems(effects:WeightEffects) : WeightEffects
+      {
+         if(effects == null) return effects;
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var kit:KitItems = new KitItems();
+         for(var i:uint = 0; items != null && i < items.length; i++)
+         {
+            var item:ItemData = items[i] as ItemData;
+            if(item == null) continue;
+            var armour:Boolean = item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT;
+            var pocket:Boolean = item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6;
+            if(armour || pocket)
+            {
+               // A pocket's booster has the effect's own icon (the shop's consumables
+               // filter icon is a thin stroke that suits none of them); armour its group's.
+               var group:Object = armour ? item.category : null;
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
+            }
+            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
+               kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
+         }
+         return effects.withItems(kit);
+      }
+      
+      // The sum of a property over the item's modifications (built-in, rolled, defects):
+      // 105 movement speed, 106 carry limit (kg).
+      // A weapon's kill feed icon (ui_desc/combat_log_icon, property 161: weapon-kill-icon-ui-1), or -1.
+      private static function killIconOf(item:ItemData) : int
+      {
+         for each(var prop:Object in item.properties)
+            if(prop.prop_id == 161 && isFinite(ModificationRolls.value(prop))) return int(ModificationRolls.value(prop));
+         return -1;
+      }
+      
+      private static function propOf(item:ItemData, propId:uint) : Number
+      {
+         var sum:Number = 0;
+         for each(var modifier:Object in item.modifiers)
+            for each(var prop:Object in modifier.props)
+               if(prop.prop_id == propId && isFinite(ModificationRolls.value(prop))) sum += ModificationRolls.value(prop);
+         return sum;
       }
       
       public function refillItem(value:uint) : void
@@ -618,6 +676,10 @@ package survarium.player
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
          this.checkbox_autobuy.x = this.checkbox_autorepair.x;
+         // Its label as long as its text: the symbol's fixed width cut longer ones
+         // ("Automatikus vásá…"); the row has room up to the speed and weight.
+         this.checkbox_autobuy.textField.wordWrap = false;
+         this.checkbox_autobuy.textField.autoSize = TextFieldAutoSize.LEFT;
          this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
