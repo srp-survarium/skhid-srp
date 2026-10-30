@@ -3132,3 +3132,4 @@ va	status	ref_021d	name
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
+0x001e8b50	inferred-medium		survarium::initialize_allocators

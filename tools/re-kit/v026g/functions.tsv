@@ -1919,3 +1919,4 @@ va	status	ref_021d	name
 0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death
 0x00202dd0	observed		survarium::player_cook::on_subresources_loaded
 0x001f2100	reviewed	0x001565f2	survarium::player::~player
+0x0030a800	inferred-high		survarium::weapon_core_cook::weapon_core_cook
