@@ -294,13 +294,15 @@ impl SpacingCounts {
                     5
                 };
                 ts.cause[cause] += 1;
-                let worst = |x: u8, y: u8| match (x, y) {
-                    (2, _) | (_, 2) => 2,
-                    (3, _) | (_, 3) => 3,
-                    (1, _) | (_, 1) => 1,
-                    _ => 0,
+                let worst = |x: u8, y: u8| -> usize {
+                    match (x, y) {
+                        (2, _) | (_, 2) => 2,
+                        (3, _) | (_, 3) => 3,
+                        (1, _) | (_, 1) => 1,
+                        _ => 0,
+                    }
                 };
-                ts.apart_state[usize::from(worst(self.apart[i], self.apart[j]))] += 1;
+                ts.apart_state[worst(self.apart[i], self.apart[j])] += 1;
                 if sa >= MOVING_MPS && sb >= MOVING_MPS {
                     let bound = [(self.goal[i], b.feet), (self.goal[j], a.feet)]
                         .into_iter()
