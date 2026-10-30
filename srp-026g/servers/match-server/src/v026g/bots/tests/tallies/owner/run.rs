@@ -191,7 +191,7 @@ impl Run {
             keys: body.keys,
             feet: body.feet,
             yaw: body.yaw,
-            pitch: body.pitch,
+            pitch: body.view_elevation(),
             speed: body.step_m / TICK_S,
             calm: body.keys & (key::AIM | key::FIRE) == 0 && !enemy_near,
             carrying: body.carrying.is_some(),

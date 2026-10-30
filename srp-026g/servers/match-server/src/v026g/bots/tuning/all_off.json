@@ -1,6 +1,7 @@
 {
   "aim": {
     "combat": {
+      "aim_last_known": false,
       "band_carrier_seen_ms": 0,
       "fire": {
         "weapon_class_by_data": false
