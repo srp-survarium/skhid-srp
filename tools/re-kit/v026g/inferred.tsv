@@ -1923,12 +1923,13 @@ va	status	ref_021d	name
 0x002dd110	inferred-medium	0x001d6d38	boost::detail::function::functor_manager<boost::_bi::bind_t<unsigned short,unsigned short (__cdecl*)(survarium::animations_registry &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &),boost::_bi::list3<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1>,boost::arg<2> > > >::manager
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
+0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_clips
 0x002dee00	inferred-medium	0x001e11da	vostok::animation::mixing::binary_tree_binary_operation_node::binary_tree_binary_operation_node
 0x002df780	inferred-high		survarium::weapon_core_cook::add_weapon_state_transitions
 0x002e25c0	inferred-high	0x001e395c	survarium::weapon_core::on_sprint_animation_ended
 0x002e2650	inferred-medium	0x001e3b06	survarium::weapon_core::set_next_ammo_type
 0x002e30f0	inferred-high	0x001e4284	survarium::weapon_core::register_in_game_world
-0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_vertical_recoil_time
+0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_recoil_shake
 0x002e3b00	inferred-high		survarium::weapon_core::state_ended_pred
 0x002e3b10	inferred-high		survarium::weapon_core::switch_pending
 0x002e3b40	inferred-high		survarium::weapon_core::hide_to_show_pred
@@ -1972,6 +1973,8 @@ va	status	ref_021d	name
 0x002efe80	inferred-medium	0x00159fa2	survarium::hud_game_effect_emitter::`scalar deleting destructor'
 0x002f02a0	inferred-medium		survarium::composite_game_effect_emitter::serialize
 0x002f0370	inferred-medium		survarium::composite_game_effect_emitter::get_child_by_name
+0x002f0980	inferred-medium		survarium::player_params::movement_speed_multiplier
+0x002f0b00	inferred-medium		survarium::player_params::load_movement_speed
 0x002f1430	inferred-high		survarium::item_config_cook::find_modifier_target
 0x002f14c0	inferred-high		survarium::make_item_config_request
 0x002f4b00	inferred-medium	0x001dd83f	survarium::timelimit_rule_core_cook::create_resource
@@ -2242,6 +2245,8 @@ va	status	ref_021d	name
 0x0031d140	inferred-medium	0x001f7e5c	survarium::breath_state_holding::initialize
 0x0031d3b0	inferred-medium	0x001f7fdb	survarium::breath_vibration_calculator::can_hold_breath
 0x0031d450	inferred-medium	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
+0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
+0x0031d970	inferred-medium		survarium::breath_vibration_calculator::restart_on_aim
 0x0031dc00	inferred-medium		vostok::network_core::buffer_writer::w<class vostok::math::float2>
 0x0031e740	inferred-medium	0x001f85ac	boost::detail::function::functor_manager<boost::_bi::bind_t<bool,boost::_mfi::cmf0<bool,survarium::breath_vibration_calculator>,boost::_bi::list1<boost::_bi::value<survarium::breath_vibration_calculator *> > > >::manager
 0x0031eab0	inferred-high	0x001f8b55	survarium::weapon_core_base_state::weapon_core_base_state

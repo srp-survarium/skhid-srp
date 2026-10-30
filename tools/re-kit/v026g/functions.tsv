@@ -1109,8 +1109,8 @@ va	status	ref_021d	name
 0x002e3390	reviewed	0x001e44ef	survarium::weapon_core::on_player_death
 0x002e3490	reviewed	0x001e4573	survarium::weapon_core::deserialize
 0x002e3800	reviewed	0x001e4825	survarium::weapon_core::could_be_used
-0x002e3840	reviewed	0x001e484f	survarium::weapon_core::computed_backward_recoil_time
-0x002e3900	reviewed	0x001e48b1	survarium::weapon_core::computed_horizontal_recoil_time
+0x002e3840	reviewed	0x001e484f	survarium::weapon_core::computed_horizontal_recoil_time
+0x002e3900	reviewed	0x001e48b1	survarium::weapon_core::computed_vertical_recoil_time
 0x002e3a10	reviewed	0x001e4911	survarium::weapon_core::can_sprint
 0x002e3a70	reviewed	0x001e4944	survarium::weapon_core::can_jump
 0x002e3aa0	reviewed	0x001e4964	survarium::weapon_core::can_aim
