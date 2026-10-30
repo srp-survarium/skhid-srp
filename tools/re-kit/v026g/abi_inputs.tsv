@@ -4827,3 +4827,16 @@ va	name	location	role	basis
 0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
+0x0025b9b0	survarium::game_world::play_particle	ECX	the game world's bullet_manager_engine (game_world+0ECh; its +(-50h) the world whose +5360h renderer's +200064h is the scene)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+4	the particle (a resource pointer*, taken by value)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+8	the position (float3*)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+12	the direction (float3*, unit)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+16	the surface normal (float3*, unit)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+20	the material pair's particle_orientation (+74h, loaded at 0x307095): 0 the effect's y along the normal, else its z along the direction	observed
+0x0025cb10	vostok::math::create_rotation	EAX	the direction (float3*)	observed
+0x0025cb10	vostok::math::create_rotation	EDI	the normal (float3*, unit: copied as the j row)	observed
+0x0025cb10	vostok::math::create_rotation	ESI	the matrix out (float4x4)	observed
+0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	ESI	the stack (the manager's +20h free list or +30h pending stack)	observed
+0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	entry ESP+4	the node	observed
+0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	EDI	the stack	observed
+0x00321d10	survarium::bullet_manager::tick	ECX	the bullet manager	observed

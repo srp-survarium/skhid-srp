@@ -31,6 +31,18 @@ impl RayDirection {
             .then_some(Self(value))
     }
     pub fn coordinates(self) -> [f32; 3] { self.0 }
+    pub fn reversed(self) -> Self { Self(self.0.map(|v| -v)) }
+    /// A direction at right angles to this one: its cross product with the
+    /// world axis it is least along. That moves and negates its two other
+    /// components, the larger of which is not zero, so it is finite, never
+    /// zero and at least sqrt(2/3) of this direction's length.
+    pub fn perpendicular(self) -> Self {
+        let [x, y, z] = self.0;
+        let (ax, ay, az) = (x.abs(), y.abs(), z.abs());
+        Self(if ax <= ay && ax <= az { [0.0, z, -y] }   // x (1, 0, 0)
+             else if ay <= az { [-z, 0.0, x] }           // x (0, 1, 0)
+             else { [y, -x, 0.0] })                       // x (0, 0, 1)
+    }
     /// From `from` towards `to`; None when they are the same point.
     pub fn between(from: WorldPoint, to: WorldPoint) -> Option<Self> {
         Self::parse(core::array::from_fn(|k| to.0[k] - from.0[k]))

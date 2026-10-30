@@ -169,6 +169,20 @@ mod tests {
         assert!(RayDirection::between(point([0.0; 3]), point([0.0, 1.0, 0.0])).is_some());
     }
     #[test]
+    fn a_break_frame_never_lies_along_its_ray() {
+        // The game's effect basis is normalize(normal x direction): a shard
+        // burst's two axes may never be parallel, whichever way it flies.
+        for ray in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [0.6, 0.8, 0.0],
+                    [-0.3, 0.9, 0.3], [1e-3, 1.0, -1e-3], [0.577, 0.577, 0.577]] {
+            let d = RayDirection::parse(ray).unwrap();
+            let p = d.perpendicular().coordinates();
+            let dot: f32 = (0..3).map(|k| p[k] * ray[k]).sum();
+            let (square, ray_square) = (p.iter().map(|v| v * v).sum::<f32>(), ray.iter().map(|v| v * v).sum::<f32>());
+            assert!(dot.abs() <= 1e-6 && square >= ray_square * 2.0 / 3.0 - 1e-6, "{ray:?} -> {p:?}");
+            assert_eq!(d.reversed().coordinates(), ray.map(|v| -v));
+        }
+    }
+    #[test]
     fn break_effects_only_follow_first_hit_and_never_history() {
         for initial in [Condition::Intact, Condition::Broken] {
             for restored in [Condition::Intact, Condition::Broken] {

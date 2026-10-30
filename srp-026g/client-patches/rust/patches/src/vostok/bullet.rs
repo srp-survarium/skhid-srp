@@ -228,7 +228,25 @@ impl<'t> BulletDecal<'t> {
         WorldPoint::parse(unsafe { floats(self.hit.point()) })
     }
 }
-struct ParticleEffect { slot: raw::ParticleSlot, parameter: u32 }
+/// A material pair's `particle_orientation` (+74h, its loader 0x307095), as
+/// game_world::play_particle (0x25B9B0) reads it: zero turns the effect's y
+/// axis to the normal (create_rotation 0x25CB10), anything else its z axis to
+/// the direction. Either basis starts from normalize(normal x direction): a
+/// normal along the direction makes it NaN, and the effect is drawn nowhere.
+#[derive(Clone, Copy)]
+enum ParticleOrientation { Normal, Direction }
+impl ParticleOrientation {
+    fn parse(raw: u32) -> Self { if raw == 0 { Self::Normal } else { Self::Direction } }
+    fn raw(self) -> u32 { match self { Self::Normal => 0, Self::Direction => 1 } }
+    /// play_particle's direction and normal for an effect thrown along `ray`,
+    /// as off a surface facing it: the axis the orientation follows is the
+    /// ray's (the normal back along it), the other at right angles to it.
+    fn facing(self, ray: RayDirection) -> (RayDirection, RayDirection) {
+        let side = ray.perpendicular();
+        match self { Self::Normal => (side, ray.reversed()), Self::Direction => (ray, side) }
+    }
+}
+struct ParticleEffect { slot: raw::ParticleSlot, orientation: ParticleOrientation }
 struct SoundEffect { slot: *mut u32 }
 
 /// A parsed native material pair's worker-safe feedback queues. Optional
@@ -253,23 +271,24 @@ impl<'t> SurfaceBreakEffects<'t> {
             if read(manager.renderer()) == 0 { return None; }
             let pair = raw::engine_material_pair(Some(manager.materials()?), source.0, target.0)?;
             let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
-                .map(|slot| ParticleEffect { slot, parameter: read(pair.parameter()) });
+                .map(|slot| ParticleEffect { slot, orientation: ParticleOrientation::parse(read(pair.parameter())) });
             let sound = (read(pair.sound()) != 0).then(|| SoundEffect { slot: pair.sound() });
             Some(Self { manager, particle, sound, _thread: thread })
         }
     }
-    /// The pair's particles at each of `shards`, its sound once at `sound_at`.
+    /// The pair's particles at each of `shards`, thrown along `direction`,
+    /// its sound once at `sound_at`.
     pub fn play(&self, shards: impl IntoIterator<Item = WorldPoint>, sound_at: WorldPoint, direction: RayDirection) {
-        let direction = direction.coordinates();
-        let normal = direction.map(|v| -v);
         // SAFETY: the constructor parsed the resources from this worker's
         // live manager. Native queues synchronize writes and copy the local
         // float3s; the thread borrow prevents retaining this capability.
         unsafe {
             if let Some(particle) = &self.particle {
+                let (along, normal) = particle.orientation.facing(direction);
+                let (along, normal) = (along.coordinates(), normal.coordinates());
                 for point in shards {
                     raw::engine_play_particle(point.coordinates().as_ptr(), Some(self.manager), Some(particle.slot),
-                                              direction.as_ptr(), normal.as_ptr(), particle.parameter);
+                                              along.as_ptr(), normal.as_ptr(), particle.orientation.raw());
                 }
             }
             if let Some(sound) = &self.sound {
