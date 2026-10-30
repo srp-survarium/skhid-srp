@@ -131,10 +131,12 @@ analysis, 2026-10-30).
   materials; Watchman boots and helmet; Biker pants; the boots and gloves).
 - The 35 icons in the lobby (0.46c2's are scaled from 128x128 pictures).
 
+- Names (the owner, 2026-10-30): as proposed. Watchman for 0.46c2's "Sentry"
+  boots and helmet, "Backpack for ammo" (0.31's), and the masks keep "NVD"
+  and "Spectrum-M Thermal vision" although they are cosmetic (no night or
+  thermal vision).
+
 ## Open questions for the owner
 
 - Drop weights and built-in bonuses as proposed?
-- English names: Watchman for 0.46c2's "Sentry" boots and helmet (Russian is
-  the same word), "Backpack for ammo" (0.31's; 0.69d calls it "Backpack for
-  explosive")?
 - Port the three 0.69d-only pieces later (a resource-porter builder)?
