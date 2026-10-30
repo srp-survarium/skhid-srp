@@ -2303,6 +2303,80 @@ st_srp_equipment029_scav_torso_8_name	Borbeni pancir
 st_srp_equipment029_scav_torso_8_premium_name	Veteranski pancir
 st_srp_equipment029_scav_torso_9_desc	Opis još nije dostupan.
 st_srp_equipment029_scav_torso_9_name	Vatrogasni pancir
+st_srp_equipment046_blackmarket_boots_10_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_boots_10_name	Oklopne čizme
+st_srp_equipment046_blackmarket_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_boots_7_name	Stražarske čizme
+st_srp_equipment046_blackmarket_gloves_10_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_gloves_10_name	Oklopne rukavice
+st_srp_equipment046_blackmarket_gloves_5_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_gloves_5_name	Rukavice Pljačkaš
+st_srp_equipment046_blackmarket_helmet_10_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_helmet_10_name	Teški oklopni šlem
+st_srp_equipment046_blackmarket_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_helmet_7_name	Stražarski šlem
+st_srp_equipment046_blackmarket_legs_10_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_legs_10_name	Teške oklopne pantalone
+st_srp_equipment046_blackmarket_legs_4_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_legs_4_name	Bajkerske pantalone
+st_srp_equipment046_blackmarket_torso_10_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_torso_10_name	Teški pancir
+st_srp_equipment046_blackmarket_torso_2_premium_desc	Opis još nije dostupan.
+st_srp_equipment046_blackmarket_torso_2_premium_name	Banditska jakna MK II
+st_srp_equipment046_bm_back_10_desc	Opis još nije dostupan.
+st_srp_equipment046_bm_back_10_name	Ranac za municiju
+st_srp_equipment046_bm_mask_10_desc	Opis još nije dostupan.
+st_srp_equipment046_bm_mask_10_name	Oklopna maska
+st_srp_equipment046_edge_back_6_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_back_6_name	Stalkerski ranac
+st_srp_equipment046_edge_back_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_back_7_name	Amajlija
+st_srp_equipment046_edge_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_boots_7_name	Vračeve čizme
+st_srp_equipment046_edge_gloves_5_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_gloves_5_name	Ratničke rukavice
+st_srp_equipment046_edge_gloves_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_gloves_7_name	Vračeve rukavice
+st_srp_equipment046_edge_helmet_6_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_helmet_6_name	Stalkerski šlem
+st_srp_equipment046_edge_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_helmet_7_name	Šlem Veles
+st_srp_equipment046_edge_legs_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_legs_7_name	Pantalone Veles
+st_srp_equipment046_edge_mask_6_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_mask_6_name	Uređaj za noćno osmatranje
+st_srp_equipment046_edge_torso_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_torso_7_name	Pancir Veles
+st_srp_equipment046_renesanse_boots_3_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_boots_3_name	Čizme OZK-UV
+st_srp_equipment046_renesanse_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_boots_7_name	Snajperske čizme
+st_srp_equipment046_renesanse_gloves_3_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_gloves_3_name	Rukavice OZK-UV
+st_srp_equipment046_renesanse_gloves_5_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_gloves_5_name	Izviđačke rukavice
+st_srp_equipment046_renesanse_gloves_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_gloves_7_name	Snajperske rukavice
+st_srp_equipment046_renesanse_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_helmet_7_name	Snajperski šlem
+st_srp_equipment046_renesanse_legs_3_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_legs_3_name	Pantalone OZK-UV
+st_srp_equipment046_renesanse_legs_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_legs_7_name	Snajperske pantalone
+st_srp_equipment046_renesanse_mask_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_mask_7_name	Termovizir Spektar-M
+st_srp_equipment046_renesanse_torso_3_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_torso_3_name	Pancir OZK-UV
+st_srp_equipment046_renesanse_torso_7_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_torso_7_name	Snajperski pancir
+st_srp_equipment046_scavenger_boots_5_desc	Opis još nije dostupan.
+st_srp_equipment046_scavenger_boots_5_name	Diverzantske čizme
+st_srp_equipment046_scavenger_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment046_scavenger_boots_7_name	Tragačke čizme
+st_srp_equipment069_leagues_back_2_desc	Opis još nije dostupan.
+st_srp_equipment069_leagues_back_2_name	Torba bolničara
+st_srp_equipment069_leagues_back_5_desc	Opis još nije dostupan.
+st_srp_equipment069_leagues_back_5_name	Ranac vojnika
 st_srp_exchange_balance	Stanje
 st_srp_exchange_button	Razmeni
 st_srp_exchange_gold	Zlato
@@ -2462,6 +2536,7 @@ st_srp_rooms_leave_room	Napusti sobu
 st_srp_rooms_left_room	%1$s je napustio sobu
 st_srp_rooms_level	Nivo
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa se bira glasanjem
 st_srp_rooms_max	Najviši nivo
 st_srp_rooms_modes	Režimi
 st_srp_rooms_my_room	Moja soba
@@ -2508,7 +2583,6 @@ st_srp_rooms_teams_owner	Premesti igrače između timova pomoću « i ».
 st_srp_rooms_unfit_gear	Tvoja oprema prelazi najviši nivo: smanji ga ili ćeš napustiti sobu na početku meča.
 st_srp_rooms_unfit_kit	Komplet nije spreman (nema oružja ili dovoljno municije): popravi ga ili ćeš napustiti sobu na početku meča.
 st_srp_rooms_vote	Glasaj za sledeću mapu
-st_srp_rooms_vote_hint	3 mape iz izbora. Pobeđuje mapa sa najviše glasova; nerešen ishod se bira nasumično. Klikni da promeniš glas.
 st_srp_rooms_vote_now	Glasaj za sledeću mapu klikom na karticu. Po isteku vremena meč počinje na pobedničkoj mapi.
 st_srp_rooms_voting	Glasanje
 st_srp_rooms_waiting	Čekanje igrača

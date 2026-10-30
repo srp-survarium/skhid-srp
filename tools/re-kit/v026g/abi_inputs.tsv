@@ -2156,6 +2156,8 @@ va	name	location	role	basis
 0x001f17c0	survarium::player::collision_transform	ECX	the player's collision_user subobject (player+118h)	observed
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
+0x001f2720	survarium::player::insert	ECX	the player	observed
+0x001f2720	survarium::player::insert	entry ESP+4	bool link (byte pushed as a dword): 1 links the tick lists and the models, as the rule spawn passes (0x316EA5)	observed
 0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
 0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
 0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
@@ -2719,6 +2721,8 @@ va	name	location	role	basis
 0x002da540	survarium::base_player::get_bone_transform	entry ESP+8	the bone's name (char*)	observed
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	ECX	the player	observed
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4	an object or 0; when set, its [+8]+4 byte is compared with the player's place +114h	observed
+0x002da850	survarium::base_player::insert	ECX	the base player	observed
+0x002da850	survarium::base_player::insert	entry ESP+4	bool link (byte): 1 links the world's tick lists	observed
 0x002daf60	survarium::base_player::serialize	ECX	player	inferred
 0x002daf60	survarium::base_player::serialize	stack+4	writer	inferred
 0x002db490	survarium::base_player::deserialize	ECX	player	inferred

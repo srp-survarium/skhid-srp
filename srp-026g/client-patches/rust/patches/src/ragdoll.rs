@@ -367,6 +367,7 @@ fn load_of(player: &Player<'_>) -> [f32; PARTS] {
 /// skeleton, is `Alive` here: nothing of ours is drawn.
 fn seen(
     player: &Player<'_>,
+    thread: &Thread,
     mappings: &mut [Mapping; 4],
     recent: &Recent,
     moving: &Moving,
@@ -379,9 +380,11 @@ fn seen(
     let Some(skeleton) = player.skeleton() else { return (Seen::Alive, None) };
     let Some(index) = mapping(mappings, &skeleton) else { return (Seen::Alive, None) };
     let stood_on = pose_of(&player.transform()).map(|p| (p.position, UP));
-    // a held item drops as a gun; a battery does not (the simulation drops
-    // the battery itself, 0x300E50)
-    let gun = (player.held() == Held::Item).then_some(GunShape::RIFLE);
+    // a gun drops only from the hands that held it: not a battery (the
+    // simulation drops the battery itself, 0x300E50), nor a carrier's
+    // lowered gun (the artefact in hand drops instead)
+    let gun = (player.held() == Held::Item && crate::artefact_carry::gun_in_hands_at_death(player, thread))
+        .then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
     if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
         death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
@@ -472,7 +475,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
                 m.at = at;
                 m.known = at.is_finite();
             }
-            let (s, index) = seen(&player, &mut state.mappings, &state.recent[place], &state.moving[place],
+            let (s, index) = seen(&player, thread, &mut state.mappings, &state.recent[place], &state.moving[place],
                                   state.deaths[place], state.time);
             seen_places[place] = s;
             players[place] = Some((player, index));

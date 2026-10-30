@@ -2303,6 +2303,80 @@ st_srp_equipment029_scav_torso_8_name	Bojowa kamizelka kuloodporna
 st_srp_equipment029_scav_torso_8_premium_name	Kamizelka kuloodporna weterana
 st_srp_equipment029_scav_torso_9_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment029_scav_torso_9_name	Kamizelka kuloodporna strażaka
+st_srp_equipment046_blackmarket_boots_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_boots_10_name	Opancerzone buty
+st_srp_equipment046_blackmarket_boots_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_boots_7_name	Buty wartownika
+st_srp_equipment046_blackmarket_gloves_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_gloves_10_name	Opancerzone rękawice
+st_srp_equipment046_blackmarket_gloves_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_gloves_5_name	Rękawice "Maruder"
+st_srp_equipment046_blackmarket_helmet_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_helmet_10_name	Ciężki hełm kuloodporny
+st_srp_equipment046_blackmarket_helmet_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_helmet_7_name	Hełm wartownika
+st_srp_equipment046_blackmarket_legs_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_legs_10_name	Ciężkie spodnie kuloodporne
+st_srp_equipment046_blackmarket_legs_4_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_legs_4_name	Spodnie motocyklisty
+st_srp_equipment046_blackmarket_torso_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_torso_10_name	Ciężka kamizelka kuloodporna
+st_srp_equipment046_blackmarket_torso_2_premium_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_blackmarket_torso_2_premium_name	Kurtka bandyty "MK II"
+st_srp_equipment046_bm_back_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_bm_back_10_name	Plecak na naboje
+st_srp_equipment046_bm_mask_10_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_bm_mask_10_name	Opancerzona maska
+st_srp_equipment046_edge_back_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_back_6_name	Plecak stalkera
+st_srp_equipment046_edge_back_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_back_7_name	Talizman
+st_srp_equipment046_edge_boots_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_boots_7_name	Buty wróżbity
+st_srp_equipment046_edge_gloves_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_gloves_5_name	Rękawice wojownika
+st_srp_equipment046_edge_gloves_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_gloves_7_name	Rękawice wróżbity
+st_srp_equipment046_edge_helmet_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_helmet_6_name	Hełm stalkera
+st_srp_equipment046_edge_helmet_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_helmet_7_name	Hełm "Weles"
+st_srp_equipment046_edge_legs_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_legs_7_name	Spodnie "Weles"
+st_srp_equipment046_edge_mask_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_mask_6_name	Noktowizor
+st_srp_equipment046_edge_torso_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_torso_7_name	Kamizelka kuloodporna "Weles"
+st_srp_equipment046_renesanse_boots_3_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_boots_3_name	Buty OZK-UW
+st_srp_equipment046_renesanse_boots_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_boots_7_name	Buty snajpera
+st_srp_equipment046_renesanse_gloves_3_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_gloves_3_name	Rękawice OZK-UW
+st_srp_equipment046_renesanse_gloves_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_gloves_5_name	Rękawice zwiadowcy
+st_srp_equipment046_renesanse_gloves_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_gloves_7_name	Rękawice snajpera
+st_srp_equipment046_renesanse_helmet_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_helmet_7_name	Hełm snajpera
+st_srp_equipment046_renesanse_legs_3_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_legs_3_name	Spodnie OZK-UW
+st_srp_equipment046_renesanse_legs_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_legs_7_name	Spodnie snajpera
+st_srp_equipment046_renesanse_mask_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_mask_7_name	Termowizor "Spektr-M"
+st_srp_equipment046_renesanse_torso_3_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_torso_3_name	Kamizelka kuloodporna OZK-UW
+st_srp_equipment046_renesanse_torso_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_torso_7_name	Kamizelka kuloodporna snajpera
+st_srp_equipment046_scavenger_boots_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_scavenger_boots_5_name	Buty dywersanta
+st_srp_equipment046_scavenger_boots_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_scavenger_boots_7_name	Buty tropiciela
+st_srp_equipment069_leagues_back_2_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_leagues_back_2_name	Torba medyka
+st_srp_equipment069_leagues_back_5_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_leagues_back_5_name	Plecak żołnierza
 st_srp_exchange_balance	Saldo
 st_srp_exchange_button	Wymień
 st_srp_exchange_gold	Złoto
@@ -2462,6 +2536,7 @@ st_srp_rooms_leave_room	Opuść pokój
 st_srp_rooms_left_room	%1$s opuścił pokój
 st_srp_rooms_level	Poziom
 st_srp_rooms_map	Mapa
+st_srp_rooms_map_by_vote	Mapa wybierana w głosowaniu
 st_srp_rooms_max	Maks. poziom
 st_srp_rooms_modes	Tryby
 st_srp_rooms_my_room	Mój pokój
@@ -2508,7 +2583,6 @@ st_srp_rooms_teams_owner	Przenoś graczy między drużynami przyciskami « i ».
 st_srp_rooms_unfit_gear	Twój ekwipunek przekracza maks. poziom: obniż go, inaczej na starcie opuścisz pokój.
 st_srp_rooms_unfit_kit	Twój zestaw nie może grać (brak broni lub za mało amunicji): popraw, inaczej na starcie opuścisz pokój.
 st_srp_rooms_vote	Głosuj na następną mapę
-st_srp_rooms_vote_hint	3 karty z puli. Wygrywa większość; remis losowo. Kliknij, aby zmienić głos.
 st_srp_rooms_vote_now	Zagłosuj na następną mapę: kliknij kartę. Gdy czas minie, mecz zacznie się na zwycięskiej.
 st_srp_rooms_voting	Głosowanie
 st_srp_rooms_waiting	Czekamy na graczy

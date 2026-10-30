@@ -54,8 +54,8 @@ SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
 
-# launcher_values_026g.bin: the code, then three zero-filled ASCII slots.
-BIN_SIZE = 603
+# launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
+# language code (LANGUAGE_ENTRIES_AT on) with the generated language table.
 SLOTS = {"exe_name": (304, 32), "arguments": (336, 160), "server": (496, 64)}
 INSTALL_STATUS_AT = 560
 INSTALL_STATUS = 0x16D06
@@ -74,6 +74,23 @@ ENTER_KEY = (0x14EF0, bytes.fromhex("817de413010000"))
 ENTER_KEY_AT = 224                              # its offset in the .bin
 ENTER_KEY_BACK = 0x14EF7
 ENTER_KEY_DONE = 0x14F26
+
+# The language is the game's own `localization` line of user.cfg, every
+# language of the game in the launcher's menu (launcher_values_026g.asm,
+# "The language"). Each site becomes a call or a jump to its entry of
+# `language_entries`, 8 bytes each from LANGUAGE_ENTRIES_AT, in this order;
+# the relocations of the replaced instructions are disabled.
+# (VA, original bytes, "call" or "jmp", what)
+LANGUAGE_ENTRIES_AT = 0x260
+LANGUAGE_HOOKS = [
+    (0x19663, "8b04c580820400", "call", "language_menu: the button's label of every language"),
+    (0x150B3, "0fb7344598e00300", "call", "on_language_changed: the LANGID of every language"),
+    (0x1A84B, "a19c810400", "jmp", "get_language_code: a page's code for every language"),
+    (0x1D852, "558bec5151", "jmp", "settings::reload_language: from user.cfg"),
+    (0x1D8DA, "558bec56e8", "jmp", "settings::save_language: to user.cfg"),
+    (0x19A08, "568b742408", "jmp", "language_menu: the button opens a menu of every language"),
+]
+LANGUAGE_RELOCATIONS = [0x19666, 0x150B7, 0x1A84C]
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -349,10 +366,25 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
     for va, left, top, new_left, what in RECTS:
         image.patch(va, struct.pack("<ii", left, top), struct.pack("<i", new_left), what)
 
+    # The language's sites call or jump to their entries.
+    if len(code) < LANGUAGE_ENTRIES_AT + 8 * len(LANGUAGE_HOOKS):
+        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no language entries")
+    for number, (va, expected, kind, what) in enumerate(LANGUAGE_HOOKS):
+        entry = LANGUAGE_ENTRIES_AT + 8 * number
+        if code[entry] != 0xE9:
+            sys.exit(f"launcher_values_026g.bin: language entry {number} at {entry:#x} is not a jump")
+        expected = bytes.fromhex(expected)
+        opcode = b"\xE8" if kind == "call" else b"\xE9"
+        new = opcode + struct.pack("<i", SECTION_VA + entry - va - 5) + b"\x90" * (len(expected) - 5)
+        image.patch(va, expected, new, what)
+    disabled = P.neutralize_relocs(image.data, [(va, va + len(bytes.fromhex(expected)))
+                                                for va, expected, _, _ in LANGUAGE_HOOKS])
+    if sorted(disabled) != sorted(LANGUAGE_RELOCATIONS):
+        sys.exit(f"language sites: relocations {[hex(at) for at in disabled]}, "
+                 f"not {[hex(at) for at in LANGUAGE_RELOCATIONS]}")
+
     # The new section: the code with its three slots filled, then the
     # addresses the launcher opens.
-    if len(code) != BIN_SIZE:
-        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes, not {BIN_SIZE}")
     section = bytearray(code)
     host = re.fullmatch("https?://([^/]+).*", site).group(1)
     for name, text in (("exe_name", game_exe), ("arguments", arguments), ("server", host)):
@@ -403,6 +435,7 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
     return data, (f"runs in place, no hardware warnings, no service, {len(PATCHES)} code sites, "
                   f"the installer's values from {len(code)} bytes of new code in .skhid at {SECTION_VA:#x}, "
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
+                  f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 

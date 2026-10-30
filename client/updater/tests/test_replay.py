@@ -33,7 +33,6 @@ import sys
 import tempfile
 import time
 import unittest
-import winreg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -70,16 +69,26 @@ WORDS = {
 }
 
 
-def launcher_language():
+def game_language():
+    """The messages' language: user.cfg's `localization` line (the game's and
+    the launcher's), its number in the updater's five, else English (0)."""
+    documents = ctypes.create_unicode_buffer(260)
+    if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, documents):
+        return 0
     try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Vostok Games\Survarium") as key:
-            value, kind = winreg.QueryValueEx(key, "language")
-            return value if kind == winreg.REG_DWORD and 0 <= value < 5 else 0
+        with open(os.path.join(documents.value, "survarium", "user.cfg"), "rb") as file:
+            lines = file.read().split(b"\n")
     except OSError:
         return 0
+    for line in lines:
+        words = line.split()
+        if words and words[0] == b"localization" and len(words) > 1 and line[12:13] in (b" ", b"\t"):
+            names = [b"english", b"russian", b"ukrainian", b"german", b"polish"]
+            return names.index(words[1]) if words[1] in names else 0
+    return 0
 
 
-LANGUAGE = launcher_language()
+LANGUAGE = game_language()
 
 
 def has_window(pid):
