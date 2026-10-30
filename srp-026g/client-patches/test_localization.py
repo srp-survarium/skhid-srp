@@ -229,6 +229,16 @@ class LocalizationTests(unittest.TestCase):
         issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
         self.assertTrue(any('the hud movie is not given' in issue for issue in issues))
 
+    def test_flash_check_reads_the_keys_of_a_movie_s_tables(self):
+        self.flash_fixture('lobby_menu', '')
+        table = self.root / 'flash/lobby_menu/tables/pkg/Rows.tsv'
+        table.parent.mkdir(parents=True)
+        table.write_text('# st_srp_comment\nlist\ttip:String\nA\tst_srp_rooms_room\nA\tfilter_st_srp_x\n')
+        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_rooms_room'}),
+                         {'checked': 1, 'issues': []})
+        issues = audit_flash(self.root / 'flash', set())['issues']
+        self.assertEqual(issues, ['lobby_menu/tables/pkg/Rows.tsv:3: st_srp_rooms_room is not in the dictionaries'])
+
     def test_srp_texts_take_no_braces(self):
         # The game's localizer drops {...} (but an action's {NAME}) from every text it hands a movie.
         self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}'})
