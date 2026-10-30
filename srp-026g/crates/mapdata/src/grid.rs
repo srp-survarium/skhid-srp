@@ -136,7 +136,8 @@ pub struct Body {
     /// the key when set; a grid read back is given it ([`WalkGrid::read`]).
     pub landing_carry: bool,
     /// With [`Body::landing_carry`]: whether a Jump link no press keeps the body on the top of is kept where it is the only way to a
-    /// floor or back from it. Off: every such link is taken away, and the floors only they led to are out of reach (A170: the live
+    /// floor or back from it. Off: every such link is taken away but those that are the only way back out of a floor a body can walk
+    /// to (a pit), and the floors only they led to are out of reach (A170: the live
     /// players stood on those floors in 0-7 lives of 1,000-3,000 a map, and never within 2 m of the 4 objectives they alone led to; on
     /// the bench the bots pressed them, 3 of 81 up). A build input: in the key when off.
     pub keep_last_resorts: bool,
@@ -1022,12 +1023,6 @@ impl WalkGrid {
         if failing.is_empty() {
             return (0, 0);
         }
-        if !self.body.keep_last_resorts {
-            for &(a, d, _) in &failing {
-                wide.links[a as usize][d] = NONE;
-            }
-            return (failing.len(), 0);
-        }
         // What each spawn gets to, and what gets back to it, and what the seeds together get to and get back to, before and after
         // the cut: a start's own ways are kept (a team's spawn is not served by the other's).
         let n = self.height.len();
@@ -1092,8 +1087,11 @@ impl WalkGrid {
                     continue;
                 }
                 let (au, bu) = (a as usize, b as usize);
+                // Without the last resorts kept, only the way back out of a floor a body can walk to counts (a pit it fell into);
+                // the floors only those links led to are out of reach.
                 let needed = (0..groups.len()).any(|g| {
-                    (after[g].0[au] && !after[g].0[bu] && before[g].0[bu]) || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
+                    (self.body.keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
+                        || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
                 });
                 if !needed {
                     continue;

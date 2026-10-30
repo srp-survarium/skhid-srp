@@ -1031,6 +1031,48 @@ fn the_last_resort_links() {
                 cut_any[n] |= cut[n];
             }
         }
+        // The floors a body can walk to but not back from once the unfit links are away: the way back out of a pit.
+        let mut rev: Vec<Vec<(NodeId, bool)>> = vec![Vec::new(); grid.len()];
+        for a in 0..grid.len() as NodeId {
+            for (b, _) in grid.links(a) {
+                rev[b as usize].push((a, unfit.contains(&(a, b))));
+            }
+        }
+        let back = |skip: bool| {
+            let mut seen = vec![false; grid.len()];
+            let mut queue = VecDeque::new();
+            for &s in &starts {
+                seen[s as usize] = true;
+                queue.push_back(s);
+            }
+            while let Some(b) = queue.pop_front() {
+                for &(a, is_unfit) in &rev[b as usize] {
+                    if (skip && is_unfit) || seen[a as usize] {
+                        continue;
+                    }
+                    seen[a as usize] = true;
+                    queue.push_back(a);
+                }
+            }
+            seen
+        };
+        let (back_full, back_cut) = (back(false), back(true));
+        let stranded: Vec<NodeId> = (0..grid.len() as NodeId)
+            .filter(|&n| cut_any[n as usize] && back_full[n as usize] && !back_cut[n as usize])
+            .collect();
+        eprintln!("STRANDED	{project}	floors walked to but not back from with the unfit links away {}", stranded.len());
+        let stranded_set: HashSet<NodeId> = stranded.iter().copied().collect();
+        for (i, &p) in seeds.iter().enumerate() {
+            if let Some(n) = grid.locate(p, 1.5)
+                && stranded_set.contains(&n)
+            {
+                eprintln!("STRANDEDOBJECTIVE	{project}	seed {i}	{:.2}	{:.2}	{:.2}", p.x, p.y, p.z);
+            }
+        }
+        for &n in stranded.iter().step_by((stranded.len() / 6).max(1)).take(6) {
+            let p = grid.position(n);
+            eprintln!("STRANDEDAT	{project}	{:.2}	{:.2}	{:.2}", p.x, p.y, p.z);
+        }
         let lost_n = lost.iter().filter(|&&l| l).count();
         let objectives: Vec<NodeId> = seeds.iter().filter_map(|&p| grid.locate(p, 1.5)).collect();
         let objectives_lost = objectives.iter().filter(|&&n| lost[n as usize]).count();

@@ -835,6 +835,17 @@ fn drive_tick_inner(
                         time < until && old.distance_xz(goal) > REPLAN_MOVED_M
                     });
                     bot.no_way_to.push((goal, time + NO_WAY_KEEP_MS));
+                    // Test only: where a search with no way began and where it was going, the first 600 of a process, for the bench log.
+                    #[cfg(test)]
+                    {
+                        static SHOWN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                        if SHOWN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 600 {
+                            eprintln!(
+                                "NOWAY t={time} place={} from=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                bot.place, me.feet.x, me.feet.y, me.feet.z, goal.x, goal.y, goal.z
+                            );
+                        }
+                    }
                 }
                 #[cfg(test)]
                 {
