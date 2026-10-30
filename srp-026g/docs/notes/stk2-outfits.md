@@ -36,7 +36,7 @@ item's faction, level, slots and drop weight from its config in the server game 
 | 1864 | Leather bomber jacket | torso | 2 Black Market | 3 | Thug's jacket (32) | `bandit_01_torso_s1` + the native forearms | [1, 9] |
 | 1865 | Track pants | legs | 2 Black Market | 3 | Reinforced jeans (44) | `bandit_01_legs_s1` | [2, 9] |
 | 1866 | Sneakers | boots (`data_full`) | 2 Black Market | 1 | Cossacks (24) | `bandit_01_boot` | [3, 9] |
-| 1867 | Novice's hood | helmet, covers the mask | 1 Scavengers | 3 | Scavenger hood (892) | `neutral_01_helmet` + the Scavenger hood's cowl | [4, 9] |
+| 1867 | Novice's hood | helmet, covers the mask | 1 Scavengers | 3 | Scavenger hood (892) | `neutral_01_helmet`, grown down round the neck | [4, 9] |
 | 1822 | Novice's field jacket | torso | 1 Scavengers | 1 | Quilted jacket (31) | `neutral_01_torso_s1` (canteen, knife, pouch) | [19, 6] |
 | 1868 | Novice's field jacket with pouches | torso | 1 Scavengers | 1 | Quilted jacket (31) | `neutral_01_torso_v2_s1` (two belt pouches) | [5, 9] |
 | 1869 | Novice's backpack | back | 1 Scavengers | 1 | Backpack with container (49) | `neutral_01_back` | [6, 9] |
@@ -111,6 +111,28 @@ item's faction, level, slots and drop weight from its config in the server game 
   icon, the sneakers 15 % smaller.
 - Packs `@2` (all three; the loner's changed only where it is fitted to the other
   outfits).
+
+## Version 3 (the owner, on version 2)
+
+- The jeans' new waist band was a smear (the top texel row repeated) and tapered to the
+  native ring ("too tight", wasp-waisted). It now rises straight up at the jeans' own
+  width, its denim reflected up from below the old top. Girth (width x depth, cm; the
+  perimeter): at 0.95 m v1 37.6 x 22.6 (open), v3 37.6 x 28.9, 104, the stock Jeans
+  37.8 x 29.8, 106; at the hip (0.88) 112 against the stock Jeans' 106 and Linen pants'
+  107, at mid-thigh 63 against 55 and 62. One leg's section at 1.00-1.03 m went from 74-69
+  (tapering) to 81 (straight). Looser than stock below the band; not tighter anywhere.
+- "The hood has unrelated parts": the grafted Scavenger cowl is gone. The hood's own
+  shell hem grows down round the neck to the collar line (1.47 m, 1.44 in front, 6 mm off
+  the native neck) and its flap tips are joined across the throat with a seam down the
+  middle, the canvas reflected across the edge it grows from, the skin blending from the
+  hood's into the Scavenger hood's hem's (its reference for the neck and shoulders). The
+  hood's own hem is dark in the STK2 map, so the grown part continues dark; under
+  jackets only the collar line shows.
+- Glove icons at the stock angle (the stock glove icons' long axis 25-41 degrees above
+  the horizontal, median 32; ours 15 before, 32 now), the back of the hand to the camera,
+  the wrist capped and the cuff's black band in the glove's leather colour; the boot caps
+  in the rim's shadowed colour; the sneakers 28 % under the boots' stock fill.
+- Packs `@3`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -132,8 +154,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@2`, `stk2-novice@2`,
-  `stk2-loner@2` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-<outfit>-2`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@3`, `stk2-novice@3`,
+  `stk2-loner@3` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-<outfit>-3`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
