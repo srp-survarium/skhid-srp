@@ -4,53 +4,101 @@ shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % 10-20 12
     "team0": {
       "0-10": {
         "hits": 8,
-        "shots": 22
+        "shots": 22,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "10-20": {
         "hits": 12,
-        "shots": 37
+        "shots": 37,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "20-35": {
         "hits": 17,
-        "shots": 53
+        "shots": 53,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "35-50": {
         "hits": 19,
-        "shots": 55
+        "shots": 55,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "50-80": {
         "hits": 35,
-        "shots": 108
+        "shots": 108,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "80+": {
         "hits": 24,
-        "shots": 68
+        "shots": 68,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       }
     },
     "team1": {
       "0-10": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "10-20": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "20-35": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "35-50": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "50-80": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       },
       "80+": {
         "hits": 0,
-        "shots": 0
+        "shots": 0,
+        "strafer_cross_sum": 0.0,
+        "strafer_hits": 0.0,
+        "strafer_lead_sum": 0.0,
+        "strafer_shots": 0.0
       }
     }
   }
