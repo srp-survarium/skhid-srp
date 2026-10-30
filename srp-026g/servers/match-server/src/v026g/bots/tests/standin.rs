@@ -279,6 +279,9 @@ pub(crate) struct Body {
     pub(crate) step_m: f32,
     /// The ground displacement of the last tick, m (`SRP_BENCH_HIT_FLIGHT`: where a bullet in the air will find it).
     pub(crate) step_vec: Vec3,
+    /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
+    /// [`LIFT_HOLD_MS`] of it.
+    pub(crate) lift_since: Option<(u32, Option<f32>)>,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     pub(crate) legs: [f32; 2],
@@ -574,7 +577,7 @@ pub(crate) struct Game {
     pub(crate) volume: HitVolume,
     /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
     /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
-    pub(crate) flight: bool,
+    pub(crate) flight: standin_hitbox::BulletPath,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
     /// the sight's when the map has none, as the tests' fields); every
@@ -726,6 +729,7 @@ impl Game {
             flight: None,
             step_m: 0.0,
             step_vec: Vec3::ZERO,
+            lift_since: None,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -820,7 +824,7 @@ impl Game {
             shot_facts: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
-            flight: false,
+            flight: standin_hitbox::BulletPath::Instant,
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
@@ -1112,7 +1116,36 @@ impl Game {
                         self.landings.push(landing);
                     }
                 } else {
-                    let (node, feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    let (mut node, mut feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
+                    let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
+                    if !pushing {
+                        if let Some((_, rise)) = body.lift_since.take() {
+                            lift_count(rise, LiftOutcome::Released);
+                        }
+                    } else if body.lift_since.is_none() && stand_in_lift() {
+                        let rise = lift_probe(grid, node, feet, to);
+                        if body.step_m / TICK_S >= LIFT_MIN_SPEED_MS {
+                            body.lift_since = Some((tick, rise));
+                        } else if rise.is_some() {
+                            lift_count(rise, LiftOutcome::SlowContact);
+                        }
+                    }
+                    if let Some((since, rise)) = body.lift_since
+                        && tick >= since + LIFT_HOLD_MS
+                    {
+                        match lift_check(grid, node, feet, to) {
+                            Ok(up) => {
+                                lift_count(rise, LiftOutcome::Made);
+                                node = up;
+                                feet = grid.position(up);
+                            }
+                            Err(NoLift::NoLink) => lift_count(rise, LiftOutcome::NoLink),
+                            Err(NoLift::TooHigh) => lift_count(rise, LiftOutcome::TooHigh),
+                            Err(NoLift::TopShort) => lift_count(rise, LiftOutcome::TopShort),
+                        }
+                        body.lift_since = None;
+                    }
                     // An enemy body in the way: the move that closes on it within the two radii is not made.
                     let blocked = self.body_block_m.is_some_and(|m| {
                         standing.iter().enumerate().any(|(other, &(at, team, alive))| {
@@ -1449,7 +1482,7 @@ impl Game {
     /// by the position scatter, [`Game::shot_line`]). With [`Game::flight`] the bullet flies instead
     /// ([`Self::nearest_shape_flown`]).
     fn nearest_shape(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
-        if self.flight {
+        if self.flight != standin_hitbox::BulletPath::Instant {
             return self.nearest_shape_flown(shooter, eye, origin, dir);
         }
         let mut best: Option<BoxStrike> = None;
@@ -1504,7 +1537,10 @@ impl Game {
                     if !other.alive || body == shooter {
                         continue;
                     }
-                    let feet = other.feet + other.step_vec * (mid / TICK_S);
+                    let feet = match self.flight {
+                        standin_hitbox::BulletPath::FlownBodiesStill => other.feet,
+                        _ => other.feet + other.step_vec * (mid / TICK_S),
+                    };
                     let reach = hit.map_or(length, |h| h.1);
                     if let Some((along, param)) = standin_hitbox::ray_at_body(
                         feet,
