@@ -102,8 +102,10 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ThroughCounts::default()),
         Box::new(OutrangedCounts::default()),
         Box::new(AnswerCounts::default()),
+        Box::new(PaceCounts::new(n)),
         Box::new(SenseCounts::default()),
         Box::new(SniperCounts::new(n)),
+        Box::new(GunShots::new(n)),
     ]
 }
 
@@ -142,6 +144,8 @@ pub(super) struct BotNow {
     pub(super) gates: crate::v026g::bots::reflex::Gates,
     /// It has a live sight of an enemy.
     pub(super) sighted: bool,
+    /// Its sprint gate's last answer, the cause of a sprint's end, and its bar (`PaceCounts`).
+    pub(super) pace: Option<PaceNow>,
     /// Its assignment, and its tracks (who, source, time).
     pub(super) aim: Option<(crate::v026g::bots::plays::PlayKind, crate::v026g::bots::plays::TargetRef)>,
     pub(super) tracks: Vec<(Place, crate::v026g::bots::know::Source, u32)>,

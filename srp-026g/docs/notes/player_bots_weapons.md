@@ -869,3 +869,109 @@ The machine guns (12) and the pistols (24) are too few.
 
 **No change:** at the defaults, this PR's decision digests match 939b2cca's,
 48 of 48 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-8).
+
+## The bullet's flight, who resolves a shot, and what the bots do not lead (2026-10-30)
+
+Read in the 0.26g client (image base 0x10000; names in `tools/re-kit/v026g/`) and in the match server; the
+numbers are the live game data (`server-game-data-rev34.db`) for the bots' kit weapons. Tags: PROVEN (code or
+data read), LIKELY, GUESS.
+
+**1. The cone (the rule is §9 above; here the numbers for the kit guns).**
+
+- Aimed in (the aim held `aim_time`, 0.2-0.35 s): the cone is `base_dispersion` only, **strafing or not, bloom or
+  not** (`update_dispersion` 0x2E1730 gives the aim progress `(total - left) / total` while AIM is held, and
+  `get_dispersed_bullet_direction` 0x2E1D50 drops the character part and the bloom at progress 1). PROVEN.
+  A step costs nothing in the cone of an aimed-in shot. The bases: AK-12 0.2, AKMN 0.2, FN P90 0.2, AK-74U 0.3,
+  Vityaz 0.3, UMP45 0.3, Kriss 0.3, SR-2M 0.3, SR-3M 0.3, VSK-94 0.15, snipers 0.05, shotguns 1.0 degrees (full
+  angle). The lateral miss of an aimed-in shot is the cone's half angle times `frac(N(0, 0.5))` (median 0.31,
+  80th percentile 0.58 of it): at 80 m a base of 0.3 gives 0.06 m (median) and 0.12 m (80th percentile). It is not
+  what separates a bot from a top player.
+- Before the sights are in (the first `aim_time`, or AIM not held): base + the stance's character value (idle 5,
+  walk 10, run 20, jump 20, crouch 4, crouch walk 8, hip and aimed alike, times the weapon's hip multiplier: x1 SMGs
+  and rifles, x2 VSK-94, x4 snipers) + the bloom. A step doubles it (5.3 to 10.3 degrees): the median miss at
+  60 m is 0.86 m standing, 1.67 m strafing (80th percentile 1.6 and 3.1 m). PROVEN.
+- The bloom of a burst (`dispersion_calculator::fire` 0x331150): each shot adds `one_shoot_dispersion_amount`
+  (SMGs 1.5, rifles 2, VSK-94 2, bolt and marksman rifles 5-10; the skill modifier applies), capped at
+  `max_dispersion` 20, and falls at `speed_of_aiming` (10-15 degrees a second, snipers 5); it counts only before the
+  aim progress is 1. So a burst fired aimed in has **no growth in the cone**; its growth is the recoil (below).
+  PROVEN.
+- The recoil of a burst moves the view and the bullet with it (§ of `bots/recoil.rs`, PROVEN): per shot `top`
+  degrees (AK-74U 2.0-2.2, AKMN 2.0-2.5, AK-12 1.5, Vityaz and UMP45 1.0-1.2, FN P90 1.2-1.6, Kriss 1.8, VSK-94
+  0.3-0.4, bolt rifles 3.0), a power curve (0.4-1) and a PID that pulls it back (Kp 5, Ki 10-15). A degree is
+  1.4 m at 80 m.
+
+**2. Who resolves a bot's shot (PROVEN).** No server. 0.26g is deterministic lockstep with rollback
+(`match.md` §0, §2.1): the server relays the bot's input (`player_bots.md` §1) and every client that simulates
+makes the bullet from it (`weapon_core::instant_fire` 0x2E23A0 calls `get_dispersed_bullet_direction` and
+`bullet_manager::emit_bullet` 0x322830) and tests it against its own world. In a Player-vs-Bots match the player's
+game is the only one that simulates (`player_bots.md` §8): the bullet meets the player's body where **his own
+game** has it at that tick. There is no step in which the server ray-tests a bot's shot against its picture of the
+human, and no lag compensation (no code rewinds a target for a shooter; the only history is the rollback's world
+history, 11 items). What the server's picture of the human decides is **where the bot aims**: his inputs as they
+arrive (one way ping old) reckoned on the grid, and the uploaded worlds (about 0.5 s old, every 3-5 s).
+
+**3. The bullet flies (PROVEN).** `bullet::tick` 0x32C180 steps a bullet through a 50 ms world tick in up to 30
+sub-steps (`pick_next_permissible_time` 0x32CDD0), each tested by `check_collision` 0x32D4E0 (LIKELY a ray along the sub-step's segment, then
+`update_bullet_position` 0x32EE90 moves the bullet); the bullet ends when its speed falls under 1 m/s (PROVEN). Its path is
+`p(t) = p0 + v0 (t - k t^2 / 2) + g t^2 / 2` (`compute_parabolic_position` 0x32CB10, `compute_trajectory_position`
+0x32CCC0), `v0` the ammunition's `muzzle_speed`, `k` its `air_resistance` (1 for every kit ammunition), `g` the
+bullet manager's (0, -9.81, 0) (`bullet_manager` constructor 0x3219A0, +0x14). No hit is instant. The shot's
+direction is multiplied by the muzzle speed in `instant_fire`.
+
+| ammunition (bot weapon) | muzzle m/s | flight at 40 / 60 / 80 m | drop at 60 / 80 m | lateral miss of a target moving 2.6 m/s at 40 / 60 / 80 m | distance where he moves 0.25 m (half a torso) meanwhile |
+|---|---|---|---|---|---|
+| 5.45x39 7N6M (AK-74U) | 800 | 51 / 78 / 106 ms | 0.03 / 0.05 m | 0.13 / 0.20 / 0.27 m | 74 m |
+| 6.5x39 (AK-12) | 700 | 59 / 90 / 122 ms | 0.04 / 0.07 m | 0.15 / 0.23 / 0.32 m | 65 m |
+| 7.62x39 (AKMN) | 725 | 57 / 86 / 117 ms | 0.04 / 0.07 m | 0.15 / 0.22 / 0.30 m | 67 m |
+| 7.62x51 AP, 7.62x54 7N1 (Rem 700, SV-98) | 850, 800 | 48-51 / 73-78 / 99-106 ms | 0.03 / 0.05 m | 0.13 / 0.19-0.20 / 0.26-0.27 m | 74-78 m |
+| 9x19 (Vityaz, PP-2000), 5.7x28 (FN P90) | 450 | 93 / 144 / 197 ms | 0.10 / 0.19 m | 0.24 / 0.37 / 0.51 m | 42 m |
+| 9x21 (SR-2M) | 410 | 103 / 159 / 219 ms | 0.12 / 0.24 m | 0.27 / 0.41 / 0.57 m | 38 m |
+| SP6 (SR-3M) | 300 | 144 / 225 / 317 ms | 0.25 / 0.49 m | 0.37 / 0.59 / 0.82 m | 28 m |
+| SP5 (VSK-94) | 280 | 155 / 244 / 345 ms | 0.29 / 0.58 m | 0.40 / 0.63 / 0.90 m | 26 m |
+| .45 ACP (UMP45, Kriss Vector) | 260 | 168 / 266 / 380 ms | 0.35 / 0.71 m | 0.44 / 0.69 / 0.99 m | 24 m |
+| 12mm buck, pellets (MP-153, SPAS-12) | 250 | 175 / 279 / 400 ms | 0.38 / 0.78 m | 0.46 / 0.73 / 1.04 m | 23 m |
+
+(2.6 m/s is a strafe: 0.75 of the 3.5 m/s walk, `player_bots.md` §4. Lateral miss = speed x flight time, for a target
+that keeps his velocity; a target that turns off the line is missed or hit by chance whatever the lead.)
+
+**4. What the bots lead (PROVEN, code read).** `reflex.rs` `lead()` moves the aim point along the target's
+velocity by the age of the bot's picture of him, `now - known_at`, clamped (at most `lead_most_ms` forward, two
+ticks back for the inputs' delivery, `encode::LEAD_TICKS`). Nothing in the bots reads the ammunition's
+`muzzle_speed`, `air_resistance` or the flight time (the only readers are the bench stand-in's damage code, for the
+fall-off with distance): **no lead for the bullet's flight and no rise for its drop.** For a human who strafes,
+the miss grows with distance and with the ammunition's slowness as the table says: it passes half a torso at 24-28 m
+for the .45, SP5, SP6 and buckshot kits, at 38-42 m for the 9 mm kits and at 65-78 m for the 5.45 / 6.5 / 7.62
+rifles; the drop (0.2-0.8 m at 60-80 m) is the other half for the slow ammunitions. Humans lead by feel.
+
+**5. The bench cannot see it (PROVEN, code read).** The stand-in resolves a shot at once: the stand-in's `shot`
+(`tests/standin.rs`) casts the ray from the eye along the view at the tick of the shot against the bodies where they
+are at that tick: no flight time, no drop. The lead and the pings are modelled (`SRP_BENCH_PING`), the bullet's
+travel is not.
+
+**6. Open (UNKNOWN).** The unit of the view's pitch: the bots take 1 as a radian, the client's is LIKELY
+63.735 degrees (the only reader of that console variable, 0xA707C8, converts the config's kick degrees to
+pitch units: 0x33190F, 0x331938), an 11 % scale on the elevation of a target above or below the eye. Not traced to
+the matrix that builds the view.
+
+## The view's pitch unit (2026-10-30)
+
+The bots send and keep the view's pitch as if 1 were a radian (57.30 degrees) and aim at an elevation by sending that angle in radians as the
+pitch (`bots/encode.rs`, `bots/drive.rs`, `bots/recoil.rs`'s open item). The client's unit is not a radian.
+
+- **The eye and the bullet follow the animated `Item` bone (PROVEN).** `base_player::update_head_matrix` 0x2DA4B0 makes the matrix at
+  `base_player+0x44C` from the player's transform (+0x40C) and the matrix of the bone named in the string at 0x9DE38C, **"Item"**, taken from the
+  animation player (+0x750, 0x391A20). That matrix is the eye (`player::update_camera` 0x1F3480 copies it) and the bullet's
+  (`weapon_core::instant_fire` 0x2E23A0 copies the same 64 bytes before `get_dispersed_bullet_direction`). So where a shot goes in
+  elevation is where the `Item` bone of the stance clip plus the look clip points.
+- **The look clip is sampled by the view pitch (LIKELY: the notes' `(pitch + 1) / 2`, `weapon_core::selected_animations` 0x2E10B0; not re-read).**
+  Posing the stock clips with fx-bench's port (`hbpose.py`; `on_site_idle` + `on_site_idle_look`, the rifles'), the `Item` bone's forward
+  elevation at pitch -1, -0.5, 0, +0.5, +1 is **-67.24, -33.52, +0.24, +30.25, +60.24 degrees** (standing, hip and aimed alike); crouched
+  -66.78, -33.11, +0.60, +30.67, +60.70. The total sweep is **127.48 degrees in every stance, which is 2 x 63.74**: the console variable
+  `vertical_recoil_animation_half_range` 63.735 (0xA707C8) that the recoil code divides the config's kick degrees by to get pitch units
+  (`bots/recoil.rs`) is the half of it.
+- **So a pitch unit is 63.7 degrees on average, and not equally either way:** about **60.0 degrees a unit up and 67.4 down** (linear
+  in each half, a kink at 0). A bot that sends an elevation `e` in radians gets in the game: `1.047 e` above the eye (e > 0), `1.176 e` below it.
+  Example: a target 15 degrees below the eye is shot at 17.6 degrees, 2.6 degrees low, 0.9 m low at 20 m; 3 degrees below is 0.5 degree
+  (0.19 m at 20 m) low; level fights are nearly right. The view's pitch the bots read from a world is read the same wrong way (its eye height
+  `1.460 + 0.160 sin(pitch)`, the rays from its view).
+- Scripts: `wsl-out/pierce-20261028/a104-hb/a105_look.py`, `a105_look2.py` (a copy of the pose port with the extra clip folder).

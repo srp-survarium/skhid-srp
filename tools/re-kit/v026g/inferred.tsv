@@ -3098,6 +3098,11 @@ va	status	ref_021d	name
 0x00331220	inferred-medium		survarium::dispersion_calculator::get_base_dispersion
 0x00331560	inferred-medium		survarium::dispersion_calculator::get_character_state_dispersion
 0x003317c0	inferred-medium		survarium::dispersion_calculator::get_injury_penalty
+0x00331840	inferred-medium		survarium::recoil_calculator::load_params
+0x00331a50	inferred-medium		survarium::recoil_calculator::tick
+0x00331c50	inferred-medium		survarium::recoil_calculator::fire
+0x00332140	inferred-medium		survarium::recoil_calculator::reset
+0x003321e0	inferred-medium		survarium::recoil_calculator::pid_step
 0x002fbc20	inferred-medium		survarium::weapon_user_animations_selector::move_predicate
 0x002fbc50	inferred-medium		survarium::weapon_user_animations_selector::not_move_predicate
 0x00207450	inferred-medium		survarium::key_binder::bind_command_save

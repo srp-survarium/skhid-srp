@@ -100,6 +100,7 @@ mod features;
 #[cfg(test)]
 pub mod hold_trace;
 mod layers;
+pub mod pace;
 #[cfg(test)]
 pub mod pair_counts;
 mod polls;
@@ -227,6 +228,8 @@ pub struct Bot {
     stuck: Stuck,
     /// Its stamina bar as the bot reckons it from the keys it sent ([`stamina`]), and those keys.
     stamina: stamina::Reckoning,
+    /// The sprint gate (`pace.rs`): its walk from the ring, and its last answer for the counts.
+    pace: pace::PaceState,
     sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
@@ -438,6 +441,7 @@ impl Bot {
             tested: Vec::new(),
             stuck: Stuck::default(),
             stamina: stamina::Reckoning::default(),
+            pace: pace::PaceState::default(),
             sent_keys: 0,
             rest: rest::RestWatch::default(),
             contact: contact::ContactWatch::default(),
@@ -1349,6 +1353,11 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            // The sprint's gate and this life's bar reserve (`pace.rs`).
+            bot.pace.new_life();
+            // Drawn from a stream of its own (the spawn's time and the place), so the bot's own random numbers, which every decision shares, are the same with or without the reserve.
+            let mut draw = Rng::new(u64::from(time).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ place as u64);
+            bot.motor.reserve_for_life(self.tunings.of(bot.team).pace.reserve.as_ref(), &mut draw);
             // A life begins: the frags its kit in use holds (the tracker refilled it with the world that began the life).
             bot.frag_lives.spawn(self.tracker.frags_left(place));
             bot.note(

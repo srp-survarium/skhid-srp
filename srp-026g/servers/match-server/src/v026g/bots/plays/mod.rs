@@ -258,6 +258,12 @@ pub enum Pace {
     Walk,
     /// Sprint where the way allows.
     Run,
+    /// Sprint where the way allows and no known danger lies ahead on the path: the bot's own gate (`pace.rs`, `pace.calm_sprint`)
+    /// walks it for one, as `Ctx::pace_toward` did for the play. The plays that run on purpose (a chase, a retreat) hand `Run`.
+    Cruise,
+    /// `Cruise`, to a destination: with `pace.goal_clause` the gate also walks the last `pace.goal_walk_m` metres to it when a known danger is within the ring of
+    /// the destination, as the plays' own rule did (a battery's stand, a cut point, a hold spot). A play that goes by a waypoint hands `Cruise`.
+    Arrive,
     /// Crouched.
     Sneak,
 }

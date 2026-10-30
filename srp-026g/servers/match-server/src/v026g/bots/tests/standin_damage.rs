@@ -564,7 +564,7 @@ pub(crate) fn hit_boxes(
 }
 
 /// An ammunition that is not in the data: no multiplier, one bullet.
-const PLAIN_AMMO: AmmoParams = AmmoParams {
+pub(crate) const PLAIN_AMMO: AmmoParams = AmmoParams {
     dict_id: 0,
     name: "",
     k_damage: 1.0,
