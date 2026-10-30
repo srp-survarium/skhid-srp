@@ -963,7 +963,7 @@ pitch (`bots/encode.rs`, `bots/drive.rs`, `bots/recoil.rs`'s open item). The cli
   animation player (+0x750, 0x391A20). That matrix is the eye (`player::update_camera` 0x1F3480 copies it) and the bullet's
   (`weapon_core::instant_fire` 0x2E23A0 copies the same 64 bytes before `get_dispersed_bullet_direction`). So where a shot goes in
   elevation is where the `Item` bone of the stance clip plus the look clip points.
-- **The look clip is sampled by the view pitch (LIKELY: the notes' `(pitch + 1) / 2`, `weapon_core::selected_animations` 0x2E10B0; not re-read).**
+- **The look clip is sampled by the view pitch (PROVEN, read 2026-10-30).** `base_player::look_time_factor_calculator` 0x2FBF90 is `min((look_pitch + 1.0) * 0.5, 0.99999) x the clip's length`, `look_pitch` the virtual call `[obj+8]` of the object at `base_player+0x128`, whose vtable (0xA0417C: 0x301CA0, 0x2E3800, **0x2E0F60**, 0x2E0FB0) has `weapon_core::look_pitch` 0x2E0F60 in the slot +8: `clamp(player.m_look_pitch (+0x48C) + recoil.y (+0x478), -1, 1)`. (`weapon_core::selected_animations` 0x2E10B0 / 0x2E1210 weigh the weapon's own recoil clips by the kick, `0.5 - clamp(0.5 x kick + ...)`: not the player's look clip.) The pose port gives time 0 = the head and spine bent down (the face shape under the brain shape, the rotation of the face about the head matching a pitch down), time 1 = up, so pitch +1 is up.
   Posing the stock clips with fx-bench's port (`hbpose.py`; `on_site_idle` + `on_site_idle_look`, the rifles'), the `Item` bone's forward
   elevation at pitch -1, -0.5, 0, +0.5, +1 is **-67.24, -33.52, +0.24, +30.25, +60.24 degrees** (standing, hip and aimed alike); crouched
   -66.78, -33.11, +0.60, +30.67, +60.70. The total sweep is **127.48 degrees in every stance, which is 2 x 63.74**: the console variable
@@ -975,3 +975,19 @@ pitch (`bots/encode.rs`, `bots/drive.rs`, `bots/recoil.rs`'s open item). The cli
   (0.19 m at 20 m) low; level fights are nearly right. The view's pitch the bots read from a world is read the same wrong way (its eye height
   `1.460 + 0.160 sin(pitch)`, the rays from its view).
 - Scripts: `wsl-out/pierce-20261028/a104-hb/a105_look.py`, `a105_look2.py` (a copy of the pose port with the extra clip folder).
+
+**The bench (2026-10-30, `kin.pitch_scale` radian against client, the stand-in modelling the client's map in both; TDM and batteries, 10v10,
+tier 9-10, seeds 1-2, ~120 000 shots at a target).** By the target's height over the eye, how far the view pointed off the line to his chest
+(before the cone; the count `pitch_bands`) and the hit rate:
+
+| target over the eye | shots OLD / NEW | view off the chest line OLD / NEW | hit rate OLD / NEW |
+|---|---|---|---|
+| -90..-30 deg | 665 / 398 | -4.22 / +2.32 deg | 12.0 / 28.9 % |
+| -30..-15 | 3731 / 2195 | -3.54 / +0.77 | 16.3 / 28.6 % |
+| -15..-5 | 14287 / 13055 | -1.38 / +0.28 | 19.4 / 20.6 % |
+| -5..5 | 76616 / 75524 | +0.08 / +0.27 | 19.6 / 19.1 % |
+| 5..15 | 13004 / 11248 | +0.61 / +0.17 | 15.1 / 19.4 % |
+| 15..30 | 3397 / 1685 | +1.14 / +0.09 | 13.9 / 23.6 % |
+
+The level fights are unchanged; the bots aimed low at everything below the eye and (a unit being 60.0 degrees up, not 57.3) a little high above it.
+What is left at +0.2 to +0.3 degrees is the Item bone's 0.24 degrees at level (left out of the map).

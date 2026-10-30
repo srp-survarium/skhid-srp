@@ -1,3 +1,4 @@
+use super::pitch::Pitch;
 use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
 use super::*;
@@ -236,7 +237,9 @@ pub(super) fn drive_tick(
 ) -> Decision {
     bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some());
     bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
-    let decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
+    decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     bot.sent_keys = decision.keys;
     decision
 }
@@ -253,11 +256,12 @@ fn drive_tick_inner(
     // [recoil] The weapon's update first, as the client's; the view is the
     // base pitch and the kick the last tick left (the reflex takes back
     // this tick's rise itself, `Override::pull`).
-    let kick = bot.reflex.weapon_tick(me, time);
+    let kick = bot.reflex.weapon_tick(me, time, tuning.kin.pitch_scale);
     // Only this tick's walk to the play's own exact spot sets it (below).
     bot.motor.exact_end = None;
+    // The view's pitch is the game's unit; the geometry below reckons in elevations (`pitch.rs`).
     let me = &PlaceView {
-        pitch: (me.pitch + kick).clamp(-1.0, 1.0),
+        pitch: Pitch::view(me.pitch, kick).elevation(tuning.kin.pitch_scale),
         ..me.clone()
     };
     let intent = bot.intent;

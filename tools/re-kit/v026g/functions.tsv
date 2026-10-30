@@ -1146,6 +1146,7 @@ va	status	ref_021d	name
 0x002f8510	reviewed	0x001e8c2c	survarium::usable_object::post_deserialize_resolve
 0x002f8c30	reviewed	0x001deff5	survarium::collision_geometry::load
 0x002fa050	reviewed	0x001dffde	survarium::victory_item_core_cook::process_loading_victory_item_core
+0x002fbf90	verified	0x001e0de8	survarium::base_player::look_time_factor_calculator
 0x002fc4b0	reviewed	0x001faa61	survarium::inventory::inventory
 0x002fc560	reviewed	0x001faacf	survarium::inventory::`scalar deleting destructor'
 0x002fc620	reviewed	0x001fab02	survarium::inventory::set_item
