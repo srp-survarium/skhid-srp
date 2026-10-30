@@ -95,7 +95,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
-  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
+  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), seven
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
   - `static_info.options_read` (0x27B92D) and `replay.options_read` (0x1F0971), after the two
     calls of `match_options::deserialize` (the 0xE4's and a replay's chunk 1): srp's block is read
@@ -112,6 +112,25 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
     names as with Alt. Keep the native enemy/spectator decisions and earlier visibility checks;
     releasing Tab restores the native Alt/crosshair decision.
   - `input_builder.end` (0x2421B0): acts out while Tab is held; moves out after a 200 ms grace, reset by release or a new match.
+  - `skin_visual.parts_done` (0x2056F0, profile_skin_visual_cook::on_configs_loaded after its
+    parts and the head; `blackout/tape.rs`, `vostok::skin`): **the teams' tape**. The band is the
+    visual's own profile's protection field (11 blue, 12 red; anything else, the lobby's and
+    other matches' 10, nothing), so every way a character is built (a match's start, a late
+    joiner, a respawn, a replay) reads one field; none on the game's own player (in first person
+    it would be at the camera). Each record in use of a torso, gloves or legs whose model and
+    surface are a `tape` row of `scripts/blackout-tape/tape.tsv` gets one more record, while the
+    visual has room (20 records): model `ported/blackout_tape/<its base_model, '/' as
+    '_'>__<its surface>`, surface `tape`, the same part, material
+    `ported/blackout_tape/tape_blue` or `tape_red` (the item-material override); it is never
+    baked. The item's own records stay as they are. The visual's name (its cache key) then gets
+    `srpbo0_` or `srpbo1_`, so the two teams never share a cached visual. The exe's key list is
+    generated from the table: `python client-patches/blackout_tape_026g.py --write`
+    (`blackout_tape_026g.rs`; `--check` says whether it is current).
+- **The band in the profile (srp):** in a Blackout match the match server gives every player's
+  profile its team's `Band` (`static_info::Band`: team 0 blue, 1 red) in the protection field
+  (`MatchProfile::wearing_band`: 11, 12; 10 none), at the match's start and for each late joiner
+  (the static info and the place the others are sent), so replays carry it too. Every value from
+  10 up protects nothing: the match computes the same (no `simulation_changes.tsv` row).
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
