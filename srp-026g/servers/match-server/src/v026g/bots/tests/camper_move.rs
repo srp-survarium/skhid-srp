@@ -27,7 +27,7 @@
 use super::*;
 use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::know::Track;
-use crate::v026g::bots::plays::{Go, Intent, Pace};
+use crate::v026g::bots::plays::{Go, Intent, Look, Pace};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::think::Due;
 use crate::v026g::bots::view::PlaceView;
@@ -352,6 +352,11 @@ impl CamperMotion {
         }
     }
 
+    /// Whether he is in the cover hold of a stay (not on a peek, a step to another point, nor on his way).
+    pub(crate) fn holds_cover(&self) -> bool {
+        matches!(&self.mode, Mode::Stay { hold: Hold::Cover { .. }, .. })
+    }
+
     /// The area point, other than `here`, whose distance from it is nearest a draw in `range`.
     fn shift_to(rng: &mut Rng, area: &[Vec3], here: usize, range: (f32, f32)) -> Option<usize> {
         let want = rng.range(range.0, range.1);
@@ -639,11 +644,13 @@ pub(crate) struct BenchCamper {
     /// The tuning his reflex and decisions play by: fixed, not his team's, so that a head-to-head run's two runs face one opponent.
     tuning: Arc<Tuning>,
     state: CamperState,
+    /// The spot the lane was last worked out for and the point to look at along it (`Watch::Lane`).
+    lane: Option<(Vec3, Option<Vec3>)>,
 }
 
 impl BenchCamper {
     pub(crate) fn new(place: Place, options: CamperOptions, seed: u32, tuning: Arc<Tuning>) -> Self {
-        Self { place, options, seed, tuning, state: CamperState::Seeking }
+        Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None }
     }
 
     pub(crate) fn place(&self) -> Place {
@@ -708,8 +715,9 @@ impl BenchCamper {
                 },
             };
         }
-        match &mut self.state {
-            CamperState::Seeking | CamperState::NoSpot => false,
+        // The spot he watches the lane from, if he is where a watch is held.
+        let watched = match &mut self.state {
+            CamperState::Seeking | CamperState::NoSpot => return false,
             CamperState::Still { at, .. } => {
                 bot.control = Driver::BenchCamper;
                 bot.intent = Intent {
@@ -719,7 +727,7 @@ impl BenchCamper {
                     crouch: self.options.crouch && me.feet.distance_xz(*at) <= CAMPER_WITHIN_M,
                     ..Intent::stay()
                 };
-                true
+                (me.feet.distance_xz(*at) <= CAMPER_WITHIN_M).then_some(*at)
             }
             CamperState::Moving { motion, .. } => {
                 let Some(side) = bot.side else {
@@ -728,7 +736,28 @@ impl BenchCamper {
                 bot.control = Driver::BenchCamper;
                 let enemy = nearest_known(bot.memory.tracks(), me.feet, now);
                 bot.intent = motion.step(&Think { now, me, enemy, tactics, side });
-                true
+                motion.holds_cover().then(|| motion.spot())
+            }
+        };
+        if self.options.watch == Watch::Lane
+            && let (Some(spot), Some(side)) = (watched, bot.side)
+            && me.speed() < AT_REST_MPS
+            && let Some(look) = self.lane_look_from(tactics, side, spot)
+        {
+            bot.intent.look = Look::At(look);
+            bot.intent.hold |= key::AIM;
+        }
+        true
+    }
+
+    /// The point to look at from `spot` along its lane ([`lane_look`]), worked out once a spot.
+    fn lane_look_from(&mut self, tactics: &Tactics, side: i32, spot: Vec3) -> Option<Vec3> {
+        match self.lane {
+            Some((at, look)) if at == spot => look,
+            _ => {
+                let look = lane_look(tactics, side, spot, self.options.crouch);
+                self.lane = Some((spot, look));
+                look
             }
         }
     }
