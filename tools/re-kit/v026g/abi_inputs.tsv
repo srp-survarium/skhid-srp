@@ -4812,3 +4812,12 @@ va	name	location	role	basis
 0x002dbb50	survarium::base_player::movement_speed	stack+4	the player (+115h kit, +6B8h profile, +15Ch and +190h the two speed tables read by 0x2F0980)	observed
 0x002dbb50	survarium::base_player::movement_speed	stack+10h	byte flag: also apply modifiers 4 and 20 through apply_modifiers 0x2D5BC0 and take the lower speed	observed
 0x002e2a30	survarium::weapon_core::initialize	EDI	the weapon; at 0x2E2C26..0x2E2C9C its movement node (+610h, value +61Ch) is added to the kit container (0x2D5A90) unless modifier 62 (Bear Arms, additive, apply_modifier 0x2D5AE0 with B 0) is above 0 and the value is not	observed
+0x00339630	survarium::bullet_manager::explode	ESI	the splash: grenade_set_core +278h (0x30A350) or a booby trap's (0x3055F0) 40h bytes: +28h splash_radius, +2Ch splash_min_damage, +30h splash_max_damage, +34h splash_pierce	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+4	the bullet manager (game_world_core +18F58h; +98h its physics world)	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+8	the blast's centre (float3*: a grenade's transform +30h, a trap's +1D0h)	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+12	the hit initiator (the thrower's +324h)	observed
+0x003393f0		EAX	the ray (float3*): from the blast to the point it reaches for, its length the trace's	observed
+0x003393f0		entry ESP+4	the bullet manager (+98h the physics world it traces, +94h the materials)	observed
+0x003393f0		entry ESP+8	the blast's centre (float3*), where the trace starts	observed
+0x003393f0		entry ESP+12	the strength the trace starts with (float: splash_pierce, ESI+34h at 0x3397CB)	observed
+0x003393f0		entry ESP+16	the target object: a hit of it ends the scan (a hit's object +0Ch; the player's hittable +118h at 0x3397DE); 0 none	observed

@@ -822,6 +822,21 @@ pub extern "C" fn hook_lamps_on_decal_stop(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_explode` (0x339630, bullet_manager::explode entry (sub esp,0BCh): ESI the splash, ESP+4 the bullet manager, ESP+8 the centre; every blast, a grenade's (0x30A4ED) and a booby trap's (0x305728)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_explode(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_explode` calls this, from the game's jump at 0x339630,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_explode(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.

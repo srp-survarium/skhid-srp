@@ -64,3 +64,8 @@ handler = "on_decal_ricochet"
 [[hook]]
 site = "bullet.decal_collide"
 handler = "on_decal_stop"
+
+# Blasts: a grenade's or a trap's splash breaks the fixtures it reaches.
+[[hook]]
+site = "bullet_manager.explode"
+handler = "on_explode"

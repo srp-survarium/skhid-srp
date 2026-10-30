@@ -106080,8 +106080,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -106648,8 +106649,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -107216,8 +107218,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -107724,8 +107727,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -108232,8 +108236,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -108800,8 +108805,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -109368,8 +109374,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -109876,8 +109883,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -110384,8 +110392,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -110952,8 +110961,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 15.829999677836895,
@@ -111520,8 +111530,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -112028,8 +112039,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 29.235000364482403,
@@ -112536,8 +112548,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -113240,8 +113253,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -113944,8 +113958,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -114570,8 +114585,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -115166,8 +115182,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -115881,8 +115898,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -116596,8 +116614,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -117233,8 +117252,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -117840,8 +117860,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -118574,8 +118595,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -22.72212888034767,
@@ -119308,8 +119330,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -119964,8 +119987,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -40.42447140201615,
@@ -120590,8 +120614,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -121173,8 +121198,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -121756,8 +121782,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -122339,8 +122366,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -122922,8 +122950,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -123505,8 +123534,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -124088,8 +124118,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -124671,8 +124702,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -125254,8 +125286,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -31.604999788105488,
@@ -125897,8 +125930,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -31.604999788105488,
@@ -126540,8 +126574,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -127123,8 +127158,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.98400091379881,
@@ -127706,8 +127742,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -128161,8 +128198,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -128668,8 +128706,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -129123,8 +129162,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -129578,8 +129618,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -130033,8 +130074,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -130540,8 +130582,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -130995,8 +131038,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -131450,8 +131494,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -131905,8 +131950,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -132412,8 +132458,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -132867,8 +132914,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 4.028044885258615,
@@ -133322,8 +133370,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133373,8 +133422,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133424,8 +133474,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133475,8 +133526,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133526,8 +133578,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133577,8 +133630,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133628,8 +133682,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133679,8 +133734,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133730,8 +133786,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133781,8 +133838,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133832,8 +133890,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133883,8 +133942,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -133934,8 +133994,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -135996,8 +136057,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -138058,8 +138120,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -140120,8 +140183,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -142182,8 +142246,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -144244,8 +144309,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -146306,8 +146372,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -148368,8 +148435,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -150430,8 +150498,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -152492,8 +152561,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -154554,8 +154624,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -156616,8 +156687,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 5.842289835214615,
@@ -158678,8 +158750,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -158748,8 +158821,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -158818,8 +158892,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -158888,8 +158963,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -158958,8 +159034,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159028,8 +159105,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159098,8 +159176,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159168,8 +159247,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159238,8 +159318,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159308,8 +159389,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159378,8 +159460,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159448,8 +159531,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -52.89670028479561,
@@ -159518,8 +159602,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 36.29594925592385,
@@ -159741,8 +159826,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 36.29594925592385,
@@ -159964,8 +160050,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 36.29594925592385,
@@ -160157,8 +160244,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 36.29594925592385,
@@ -160350,8 +160438,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -50.12999963760376,
@@ -161382,8 +161471,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -50.12999963760376,
@@ -162414,8 +162504,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -75.04400110244751,
@@ -162635,8 +162726,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -75.04400110244751,
@@ -162856,8 +162948,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -49.961998231709,
@@ -163433,8 +163526,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": -49.961998231709,
@@ -164010,8 +164104,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,
@@ -164061,8 +164156,9 @@
       "table": "",
       "key": "srp_lamps",
       "value": {
-        "version": 2,
+        "version": 3,
         "break_material": 29,
+        "effect_material": 7,
         "lamps": {
           "lamp000": {
             "min_x": 103.91399963200092,

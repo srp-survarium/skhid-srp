@@ -89,7 +89,7 @@ def selector(v):
     return {key: v[key] for key in ('visual_name', 'position', 'rotation', 'scale')}
 
 
-def author(path, data, bounds, break_material):
+def author(path, data, bounds, break_material, effect_material):
     root = tree(data)
     visuals = root.get('render_visuals', [])
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
@@ -216,7 +216,8 @@ def author(path, data, bounds, break_material):
         row = dict(zip(('min_x', 'min_y', 'min_z', 'max_x', 'max_y', 'max_z'), lo + hi))
         rows[f'lamp{i:03d}'] = dict(row, visuals=vs, lights=ls)
     return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps',
-                       'value': {'version': 2, 'break_material': break_material, 'lamps': rows}}
+                       'value': {'version': 3, 'break_material': break_material,
+                                 'effect_material': effect_material, 'lamps': rows}}
 
 
 def check_built(path, data):
@@ -276,9 +277,13 @@ def main():
         b = (args.stock / f'models/{name}.model/render/export_properties').read_bytes()
         bounds[name] = [c.value_of(b, c.find(b, 'bounding_box/' + key)) for key in ('min', 'max')]
     materials = tree((args.stock / 'game_materials/game.materials').read_bytes())['materials']
-    glass = [m['id'] for m in materials if m['name'] == 'glass' and not m.get('deleted')]
-    if len(glass) != 1:
-        raise ValueError('expected one live glass material in the authoring game data')
+    # The glass every fixture's collision is, and the material whose pair
+    # with it plays a break's shards and sound (bullet x glass: the game's
+    # own fx/material_hits/glass), whatever broke the lamp: a bullet or a blast.
+    live = {name: [m['id'] for m in materials if m['name'] == name and not m.get('deleted')]
+            for name in ('glass', 'bullet')}
+    if any(len(ids) != 1 for ids in live.values()):
+        raise ValueError('expected one live glass and one live bullet material in the authoring game data')
     edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones, '
              'and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py '
              'from manifest-base projects and Research. Explicit indices refer to the final render_visuals '
@@ -287,7 +292,8 @@ def main():
              'hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.',
              'set_entry': [], 'add_entry': [], 'add_value': []}
     for p in projects:
-        placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds, glass[0])
+        placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
+                                        live['glass'][0], live['bullet'][0])
         if spec:
             edits['set_entry'].extend(placements)
             edits['add_entry'].extend(adds); edits['add_value'].append(spec)

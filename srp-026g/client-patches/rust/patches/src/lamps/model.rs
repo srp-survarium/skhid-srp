@@ -135,6 +135,32 @@ mod tests {
         assert!(!b.holds(point([-0.009, 0.5, 0.5]), Distance::parse(0.0).unwrap()));
     }
     #[test]
+    fn shards_spread_one_per_spacing_along_the_longest_extent() {
+        let most = core::num::NonZeroUsize::new(4).unwrap();
+        let spacing = Distance::parse(0.4).unwrap();
+        let along = |high: [f32; 3]| {
+            let b = Bounds::parse(point([0.0; 3]), point(high)).unwrap();
+            b.along(spacing, most).map(WorldPoint::coordinates).collect::<std::vec::Vec<_>>()
+        };
+        assert_eq!(along([0.11, 0.34, 0.13]), [[0.055, 0.17, 0.065]]);   // a bulb: its centre
+        assert_eq!(along([0.34, 0.1, 0.8]), [[0.17, 0.05, 0.2], [0.17, 0.05, 0.6]]);
+        assert_eq!(along([0.81, 0.1, 0.34]).len(), 3);
+        assert_eq!(along([0.34, 1.5, 0.1]).iter().map(|p| p[1]).collect::<std::vec::Vec<_>>(),
+                   [0.1875, 0.5625, 0.9375, 1.3125]);   // a tube: four along y
+        assert_eq!(along([3.0, 0.1, 0.1]).len(), 4);   // capped
+    }
+    #[test]
+    fn blasts_measure_to_the_bounds_nearest_point() {
+        let b = Bounds::parse(point([0.0; 3]), point([1.0; 3])).unwrap();
+        assert_eq!(b.nearest(point([0.5, 0.2, 0.9])), point([0.5, 0.2, 0.9]));
+        assert_eq!(b.nearest(point([3.0, 0.5, -2.0])), point([1.0, 0.5, 0.0]));
+        let radius = Distance::parse(2.0).unwrap();
+        assert!(point([3.0, 0.5, 0.5]).within(b.nearest(point([3.0, 0.5, 0.5])), radius));
+        assert!(!point([3.1, 0.5, 0.5]).within(b.nearest(point([3.1, 0.5, 0.5])), radius));
+        assert_eq!(RayDirection::between(point([0.0; 3]), point([0.0; 3])), None);
+        assert!(RayDirection::between(point([0.0; 3]), point([0.0, 1.0, 0.0])).is_some());
+    }
+    #[test]
     fn break_effects_only_follow_first_hit_and_never_history() {
         for initial in [Condition::Intact, Condition::Broken] {
             for restored in [Condition::Intact, Condition::Broken] {

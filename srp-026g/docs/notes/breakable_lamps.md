@@ -2,8 +2,9 @@
 
 Shooting a configured lamp breaks it for the rest of the match: its intact
 model and glow cone disappear, its lights are removed, and its broken model
-appears, with glass shards and a glass-breaking sound. One bullet is enough.
-A new match restores every lamp. The lamp does
+appears, with glass shards and a glass-breaking sound. One bullet is enough,
+and so is a blast: a grenade or a booby trap breaks every lamp its splash
+reaches (below). A new match restores every lamp. The lamp does
 not change the bullet's trajectory or the map's collision mesh.
 
 The content list covers levels 02–08, all their day/evening/rain variants
@@ -26,8 +27,12 @@ from the manifest's base projects plus Research, using model bounds from
 those same layers (including the ported models).
 The list adds the broken visuals and a project-root `srp_lamps` table:
 
-- `version = 2`, `break_material`: the glass material id read from
-  `game_materials/game.materials` during authoring, never a runtime constant.
+- `version = 3`, `break_material`: the glass material id read from
+  `game_materials/game.materials` during authoring, never a runtime constant;
+  `effect_material`: the `bullet` material's id, read the same way. Every
+  break plays the pair `effect_material` x `break_material` (bullet x glass:
+  `fx/material_hits/glass`, 50+-15 shards and a crack sprite, and
+  `glass_hits`), whatever part of the fixture was hit and whatever broke it.
 - `lamps`: a named table of fixtures; its binary-config order
   defines the snapshot order identically on every client.
 - Each fixture has world-space `min_x/y/z`, `max_x/y/z`, a `visuals` table
@@ -106,6 +111,45 @@ One generated entry saves/restores the machine and replays the native span.
 The ray is clipped at the nearest native hit before testing fixtures; the
 original bullet and collision result remain unchanged.
 
+## Break effects
+
+Version 2 played the pair of the bullet's own material and the glass once, at
+the centre of the fixture's bounds: one bullet-hit puff of shards, as small as
+an ordinary glass hit and inside the housing's box, which on a 1.2 to 1.6 m
+fluorescent tube or the plafon's cage reads as no shards at all (the owner's
+test of release 39). A break now plays that pair's particles once per 40 cm
+of the bounds' longest extent (at least one, at most four), spread along that
+extent through the centre, each in the middle of its share: a bulb's one,
+Mamayev Kurgan's 0.52 m plafon two (down its height), London's 0.84 m tubes
+three, School's and Vector's 1.5 to 1.7 m fixtures four. The sound plays once,
+at the centre. A bullet's shards fly along the bullet; a blast's away from it.
+
+## Blasts
+
+Every blast of the simulation goes through `bullet_manager::explode`
+(0x339630; 0.21d's name, 0x2085C5): a grenade's (`grenade_set_core` 0x30A4A0,
+from `grenade_core`'s and `grenade`'s explode) and a booby trap's (0x3056D0).
+ESI is the splash, a copy of the set's config with the thrower's modifiers in:
+`splash_radius` +28h, `splash_min_damage` +2Ch, `splash_max_damage` +30h,
+`splash_pierce` +34h. Its stack: the core world's bullet manager (+18F58h)
+and the centre. It damages each object within `splash_radius` of the centre,
+scaled by (R - d) / R and by what the game's trace 0x3393F0 leaves of
+`splash_pierce` along the ray from the centre (every front-facing hit of a
+material with `physic/armor` v > 0 multiplies it by 1 - (1 - c)^2, c =
+clamp((s - v) / v, 0, 1); armor 0, glass, passes), when that is above 0.
+
+The lohook `bullet_manager.explode` at its entry (`sub esp,0BCh`, replayed)
+breaks every intact fixture whose bounds' nearest point to the centre is
+within `splash_radius` and that the same trace reaches with something left,
+through `engine_explosion_reach` (the game's own function, not a copy of its
+rule): a wall stops it as it stops the damage, a window does not. A blast
+inside a fixture's bounds needs no trace. Each break goes through the same
+transition as a bullet's, under the same lock, into the same bullet history:
+rollback, resimulation and late joins agree, and only the first break of a
+fixture plays its shards and sound (none on a manager without a renderer).
+
+## Locking
+
 `Lock` serializes worker transitions: a fixture breaks once, and only that
 transition emits feedback. The parsed material-pair capability queues native
 particles and sound, with neither available to a quiet bullet. The game joins
@@ -176,7 +220,13 @@ the release workflow's responsibility; this feature does not change `REVISION`.
 
 `check_lamps_026g.py <original exe>` runs native config lookup, project
 iteration/vtable dispatch, visual/light methods, bullet history and installed
-hooks in Unicorn. It covers all 96 authored variants, hits, occlusion,
+hooks in Unicorn. It covers all 96 authored variants, hits, occlusion, the shard bursts of
+Mamayev Kurgan's plafon (2), London's tubes (3) and School's and Vector's
+fluorescent fixtures (4) with one sound each, blasts (two lamps within the
+radius both break with one burst and sound each and the history a bullet
+leaves; one outside it or with the trace stopped breaks none; rollback,
+resimulation, a late join, a manager without a renderer, a blast inside a
+fixture),
 repeated hits, quiet bullets, effects, history loading, malformed suffixes,
 rollback/resimulation, ordinary removal, destructor fallback and reset.
 Additional cases verify that a wrong binding leaves the map unbound and a
@@ -184,7 +234,7 @@ malformed one refuses, both before any vtable changes, and unconfigured scenery.
 The four decal sites run natively up to add_decal: no glass mark inside a
 fixture (or its margin) for an intact lamp, a broken one, after rollback and
 in a late joiner; marks of another material, outside the bounds and on maps
-without metadata are queued. Renderer/effect queue endpoints, add_decal, the
+without metadata are queued. Renderer/effect queue endpoints, add_decal, the splash trace 0x3393F0, the
 writer's byte sink and OS services are stubbed; the native material-pair lookup runs normally.
 
 The Rust port was checked once against the C reference (commit `a4f05203`,

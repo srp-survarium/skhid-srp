@@ -53,7 +53,7 @@ class Lamps(unittest.TestCase):
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(fixture), record(cone)])),
                                                  ('client_objects', (4, [record(light)]))])))
         moves, _, spec = edits.author('test', original,
-                                      {fixture['visual_name']: ([-.296, -.254, -.296], [.296, 0., .296])}, 29)
+                                      {fixture['visual_name']: ([-.296, -.254, -.296], [.296, 0., .296])}, 29, 7)
         self.assertEqual(len(moves), 1)
         move = moves[0]
         edits.c.set_entry(original, move['list'], move['where'], move['from'], move['to'])
@@ -79,7 +79,7 @@ class Lamps(unittest.TestCase):
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (fixture, cone, other)])),
                                                  ('client_objects', (4, [record(light)]))])))
         bounds = {'props/light/lamp_on': ([-.056, -.209, -.056], [.056, 0., .055])}
-        _, additions, spec = edits.author('p', original, bounds, 29)
+        _, additions, spec = edits.author('p', original, bounds, 29, 7)
         def built(spec):
             data = bytearray(original)
             for add in additions:
@@ -103,7 +103,7 @@ class Lamps(unittest.TestCase):
                    for visual in (fixture, cone, scenery)]
         original = bytearray(pack.serialize((3, [('render_visuals', (4, objects))])))
         bounds = {fixture['visual_name']: box}
-        moves, additions, spec = edits.author('test', original, bounds, 29)
+        moves, additions, spec = edits.author('test', original, bounds, 29, 7)
         self.assertEqual(len(moves), moves_expected)
         edited = bytearray(original)
         for move in moves:
@@ -177,7 +177,7 @@ class Lamps(unittest.TestCase):
                                                  ('client_objects', (4, [record(light)]))])))
         bounds = {'props/light/lamp_midle_04': ([-.351, -.107, -.265], [.35, .007, .265]),
                   'fx/lamp2': ([-.347, -.044, -.024], [.347, 0., .026])}
-        _, additions, spec = edits.author('p', original, bounds, 29)
+        _, additions, spec = edits.author('p', original, bounds, 29, 7)
         self.assertEqual(additions, [])
         lamp, = spec['value']['lamps'].values()
         self.assertEqual(lamp['visuals'], {'intact0': {'index': 1, 'state': 0}})
@@ -193,8 +193,9 @@ class Lamps(unittest.TestCase):
         maps = set()
         for project in source['add_value']:
             maps.add(project['files'][0].split('/')[1])
-            self.assertEqual(project['value']['version'], 2)
+            self.assertEqual(project['value']['version'], 3)
             self.assertEqual(project['value']['break_material'], 29)
+            self.assertEqual(project['value']['effect_material'], 7)
             rows = project['value']['lamps']
             self.assertLessEqual(len(rows), 256)
             visual_ids, light_positions = [], []

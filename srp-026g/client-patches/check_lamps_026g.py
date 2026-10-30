@@ -3,7 +3,7 @@
 
 python check_lamps_026g.py <original survarium.exe>
 python check_lamps_026g.py <original survarium.exe> --patched <local test exe>
-Renderer/effect queue endpoints, the writer's byte sink and GetCurrentThreadId are stubbed. Config
+Renderer/effect queue endpoints, the splash trace (0x3393F0), the writer's byte sink and GetCurrentThreadId are stubbed. Config
 lookup, project iteration, vtable dispatch, visual/light methods, empty-bullet
 serialization/deserialization and all installed lamp hooks execute x86 code.
 """
@@ -35,6 +35,8 @@ DECAL_SITES = ((0x32e672, 0x32e6ba, 0x08), (0x32e8cc, 0x32e914, 0x0c),
                (0x32eaf2, 0x32eb4e, 0x10), (0x32ed71, 0x32edb9, 0x14))
 HIT, DECAL = HEAP + 0xb8000, HEAP + 0xb9000
 CAMERA, CORE = HEAP + 0xd0000, HEAP + 0xe0000
+# A blast: its splash (bullet_manager::explode's ESI) and its centre.
+SPLASH, CENTRE = HEAP + 0xba000, HEAP + 0xbb000
 MATERIALS, BULLET_MAT, GLASS_MAT, PAIR, PARTICLES = (HEAP + i for i in (0x200000, 0x211000, 0x212000, 0x213000, 0x214000))
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)
@@ -48,7 +50,7 @@ def config_tree():
             views['cone'] = {'index': 4, 'state': 0}
         rows[str(i)] = dict(min_x=x - .1, max_x=x + .1, min_y=-.1, max_y=.1, min_z=-.1, max_z=.1,
                            visuals=views, lights={'light': dict(x=x, y=0.0, z=0.0)})
-    return {'srp_lamps': {'version': 2, 'break_material': 29, 'lamps': rows}}
+    return {'srp_lamps': {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': rows}}
 
 
 def relocated_config(value):
@@ -78,7 +80,8 @@ class Game:
             u.mem_write(addr, bytes(built[raw:raw + min(rsize, vsize or rsize)]))
         u.mem_map(HEAP, 0xa00000)
         self.active, self.events, self.output = set(), [], bytearray()
-        self.effects, self.decals = [], []
+        self.effects, self.decals, self.traces = [], [], []
+        self.passes = 1.0
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21cd0, end=0x21cd0)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21f40, end=0x21f40)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24750, end=0x24750)
@@ -87,6 +90,7 @@ class Game:
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3223e0, end=0x3223e0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
         u.hook_add(UC_HOOK_CODE, self.decal, begin=0x321fa0, end=0x321fa0)
+        u.hook_add(UC_HOOK_CODE, self.reach, begin=0x3393f0, end=0x3393f0)
         self.w(PROJECT + 0x17c, CONFIG); self.w(CONFIG + 0x108, CFG)
         self.w(PROJECT + 0x180, SCENE); self.w(SCENE + 0x98, CAMERA)
         self.w(SCENE + 0x9c, GAME); self.w(GAME + 0x5360, RENDERER)
@@ -201,6 +205,25 @@ class Game:
         assert u.reg_read(UC_X86_REG_EAX) == MANAGER and self.r(self.r(esp + 4)) == DECAL
         self.decals.append(struct.unpack('<3f', u.mem_read(self.r(esp + 16), 12)))
         self.finish(32)
+
+    def reach(self, u, *_):
+        # The game's splash trace from the centre along the ray (stubbed):
+        # what it leaves of the strength, `passes` of it (0: a wall between).
+        esp = u.reg_read(UC_X86_REG_ESP)
+        assert self.r(esp + 4) == MANAGER and self.r(esp + 16) == 0
+        centre = struct.unpack('<3f', u.mem_read(self.r(esp + 8), 12))
+        ray = struct.unpack('<3f', u.mem_read(u.reg_read(UC_X86_REG_EAX), 12))
+        strength = struct.unpack('<f', u.mem_read(esp + 12, 4))[0]
+        self.traces.append((centre, ray, strength))
+        u.reg_write(UC_X86_REG_XMM0, struct.unpack('<I', struct.pack('<f', strength * self.passes))[0])
+        self.finish(16)
+
+    def explode(self, centre, radius, pierce=40.):
+        """bullet_manager::explode from its entry to the native code after the
+        hook's replayed `sub esp,0BCh`, the game's own splash not run."""
+        self.f(SPLASH + 0x28, (radius,)); self.f(SPLASH + 0x34, (pierce,)); self.f(CENTRE, centre)
+        self.run(0x339630, 0x339636, args=(MANAGER, CENTRE, 0), regs={UC_X86_REG_ESI: SPLASH})
+        assert self.u.reg_read(UC_X86_REG_ESI) == SPLASH
 
     def mark(self, point, surface=GLASS_MAT):
         """How many of the four hit kinds queue their decal at `point` on a
@@ -436,6 +459,72 @@ def main():
         g.insert(); assert g.active == expected, entry['files']
         g.remove(); assert not g.active, entry['files']
     print(f"ok: all {len(source['add_value'])} map variants bind, insert and remove their authored fixtures through native code")
+
+    # A break plays the glass pair's shards along the fixture's glass, one
+    # burst per 40 cm of its longest extent (at most four), and its sound
+    # once at the centre, wherever the bullet struck it.
+    def shards(project, lamp, bursts):
+        entry = next(e for e in source['add_value'] if e['files'] == [f'projects/{project}/client_project'])
+        row = entry['value']['lamps'][lamp]
+        low, high = [row['min_' + a] for a in 'xyz'], [row['max_' + a] for a in 'xyz']
+        centre = [(a + b) / 2 for a, b in zip(low, high)]
+        game = Game(built)
+        game.map_metadata(entry['value']); game.insert()
+        # Up into the fixture's bottom, stopping at its centre.
+        game.shoot(start=(centre[0], low[1] - .05, centre[2]), length=centre[1] - low[1] + .05, direction=(0., 1., 0.))
+        points = [p for kind, p in game.effects if kind == 'shards']
+        assert len(points) == bursts, (project, lamp, game.effects)
+        assert len(set(points)) == bursts and all(
+            low[k] - 1e-4 <= p[k] <= high[k] + 1e-4 for p in points for k in range(3)), points
+        sounds = [p for kind, p in game.effects if kind == 'glass sound']
+        assert len(sounds) == 1 and all(abs(a - b) < 1e-4 for a, b in zip(sounds[0], centre)), sounds
+        game.remove()
+    shards('level_06/day_2', 'lamp000', 2)    # Mamayev Kurgan's plafon, 0.52 m high
+    shards('level_02/day_2', 'lamp009', 4)    # School's fluorescent fixture, 1.66 m: capped
+    shards('level_09/day_2', 'lamp002', 3)    # London's lit tubes, 0.84 m
+    shards('level_07/day_2', 'lamp034', 4)    # Vector's tube fixture, 1.52 m
+    print('ok: a plafon break bursts twice along its height, fluorescent ones up to four times along their tubes, '
+          'one sound each')
+
+    # A blast breaks every intact fixture whose bounds come within its splash
+    # radius, where the game's own splash trace reaches the bounds' nearest
+    # point; through the lamps' one transition, in their bullet history.
+    blast = Game(built); blast.insert()
+    blast.explode((1.5, 0., 0.), 1.35); blast.present()
+    assert blast.active == intact and not blast.effects and not blast.traces
+    print('ok: a blast outside its splash radius of the bounds breaks nothing and traces nothing')
+    blast.passes = 0.
+    blast.explode((1.5, 0., 0.), 1.45); blast.present()
+    assert blast.active == intact and not blast.effects
+    # One trace a fixture, from the centre to its bounds' nearest point,
+    # with the splash's strength.
+    assert sorted((c, round(r[0], 4), r[1:], s) for c, r, s in blast.traces) == [
+        ((1.5, 0., 0.), -1.4, (0., 0.), 40.), ((1.5, 0., 0.), 1.4, (0., 0.), 40.)], blast.traces
+    print('ok: the splash trace stopped (a wall between) breaks nothing')
+    blast.passes, blast.traces = 1., []
+    blast.explode((1.5, 0., 0.), 1.45); blast.present()
+    assert blast.active == {('model', 1), ('model', 3)}
+    assert sorted(blast.effects) == [('glass sound', (0., 0., 0.)), ('glass sound', (3., 0., 0.)),
+                                     ('shards', (0., 0., 0.)), ('shards', (3., 0., 0.))], blast.effects
+    assert len(blast.traces) == 2
+    blasted = blast.save()
+    both = Game(built); both.insert(); both.shoot(length=5.); assert both.save() == blasted
+    blast.effects, blast.traces = [], []
+    blast.explode((1.5, 0., 0.), 3.); blast.present()
+    assert not blast.effects and not blast.traces and blast.save() == blasted
+    print('ok: a grenade between two lamps breaks both, one shards and sound each, the history a bullet leaves; '
+          'a second blast breaks nothing again')
+    blast.load(fresh); blast.present(); assert blast.active == intact
+    blast.explode((1.5, 0., 0.), 1.45); assert blast.save() == blasted
+    late = Game(built); late.insert(); late.load(blasted); late.present()
+    assert late.active == {('model', 1), ('model', 3)} and not late.effects
+    silent = Game(built); silent.insert(); silent.w(MANAGER + 0x90, 0)
+    silent.explode((1.5, 0., 0.), 1.45); silent.present()
+    assert silent.active == {('model', 1), ('model', 3)} and not silent.effects and silent.save() == blasted
+    inside = Game(built); inside.insert(); inside.explode((0., 0., 0.), 0.)
+    assert inside.save() != fresh and not inside.traces and inside.effects[0] == ('shards', (0., 0., 0.))
+    print('ok: rollback and resimulation repeat a blast\'s breaks, a late join loads them silently, a world without '
+          'a renderer breaks quietly; a blast inside a fixture needs no trace')
 
 
 if __name__ == '__main__':

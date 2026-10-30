@@ -52,22 +52,15 @@ impl<'t> BulletRay<'t> {
         unsafe { Some(PhysicsId::of(self.bullet.manager()?.physics()?)) }
     }
 
-    /// Parse feedback once for this bullet/material pair. A quiet bullet
-    /// has no feedback capability; simulation can still change lamp state.
-    pub fn surface_break_effects(&self, material: MaterialId) -> Option<SurfaceBreakEffects<'t>> {
-        // SAFETY: the manager and the material table own these resources
-        // until the worker joins. The result borrows this hook's thread.
+    /// The break feedback of the material pair source x target, on this
+    /// bullet's manager. A quiet bullet has none; simulation can still change
+    /// lamp state.
+    pub fn surface_break_effects(&self, source: MaterialId, target: MaterialId) -> Option<SurfaceBreakEffects<'t>> {
+        // SAFETY: the bullet and its manager are alive for the bullet job;
+        // the result borrows this hook's thread.
         unsafe {
             if read(self.bullet.quiet()) != 0 { return None; }
-            let manager = self.bullet.manager()?;
-            if read(manager.renderer()) == 0 { return None; }
-            let materials = manager.materials()?;
-            let source = MaterialId::parse(u32::from(read(self.bullet.material()?.id())))?;
-            let pair = raw::engine_material_pair(Some(materials), source.0, material.0)?;
-            let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
-                .map(|slot| ParticleEffect { slot, parameter: read(pair.parameter()) });
-            let sound = (read(pair.sound()) != 0).then(|| SoundEffect { slot: pair.sound() });
-            Some(SurfaceBreakEffects { manager, particle, sound, _thread: self._thread })
+            SurfaceBreakEffects::on(self.bullet.manager()?, source, target, self._thread)
         }
     }
 
@@ -246,9 +239,27 @@ pub struct SurfaceBreakEffects<'t> {
     sound: Option<SoundEffect>,
     _thread: &'t super::Thread,
 }
-impl SurfaceBreakEffects<'_> {
-    pub fn play(&self, point: WorldPoint, direction: RayDirection) {
-        let point = point.coordinates();
+impl<'t> SurfaceBreakEffects<'t> {
+    /// Parse the pair's feedback once from the manager's material table:
+    /// none without a renderer (the game's own queues play nothing then).
+    ///
+    /// # Safety
+    /// `manager` is alive for the job of `thread`'s hook.
+    pub(in crate::vostok) unsafe fn on(manager: raw::BulletManager, source: MaterialId, target: MaterialId,
+                                       thread: &'t super::Thread) -> Option<Self> {
+        // SAFETY: the manager and its material table own these resources
+        // until the worker joins (the caller's word for the manager).
+        unsafe {
+            if read(manager.renderer()) == 0 { return None; }
+            let pair = raw::engine_material_pair(Some(manager.materials()?), source.0, target.0)?;
+            let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
+                .map(|slot| ParticleEffect { slot, parameter: read(pair.parameter()) });
+            let sound = (read(pair.sound()) != 0).then(|| SoundEffect { slot: pair.sound() });
+            Some(Self { manager, particle, sound, _thread: thread })
+        }
+    }
+    /// The pair's particles at each of `shards`, its sound once at `sound_at`.
+    pub fn play(&self, shards: impl IntoIterator<Item = WorldPoint>, sound_at: WorldPoint, direction: RayDirection) {
         let direction = direction.coordinates();
         let normal = direction.map(|v| -v);
         // SAFETY: the constructor parsed the resources from this worker's
@@ -256,10 +267,14 @@ impl SurfaceBreakEffects<'_> {
         // float3s; the thread borrow prevents retaining this capability.
         unsafe {
             if let Some(particle) = &self.particle {
-                raw::engine_play_particle(point.as_ptr(), Some(self.manager), Some(particle.slot),
-                                          direction.as_ptr(), normal.as_ptr(), particle.parameter);
+                for point in shards {
+                    raw::engine_play_particle(point.coordinates().as_ptr(), Some(self.manager), Some(particle.slot),
+                                              direction.as_ptr(), normal.as_ptr(), particle.parameter);
+                }
             }
-            if let Some(sound) = &self.sound { raw::engine_play_sound(Some(self.manager), sound.slot, point.as_ptr()); }
+            if let Some(sound) = &self.sound {
+                raw::engine_play_sound(Some(self.manager), sound.slot, sound_at.coordinates().as_ptr());
+            }
         }
     }
 }

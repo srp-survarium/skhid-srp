@@ -1608,6 +1608,45 @@ lamps_on_decal_stop_replay:
     db 0x83, 0x7e, 0x14, 0x00, 0x8d, 0x7e, 0x14
     jmp 0x32ed78
 
+; 0x339630 bullet_manager::explode entry (sub esp,0BCh): ESI the splash, ESP+4 the bullet manager, ESP+8 the centre; every blast, a grenade's (0x30A4ED) and a booby trap's (0x305728): lohook -> lamps_on_explode
+global lamps_on_explode
+extern hook_lamps_on_explode
+lamps_on_explode:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_explode
+    mov edx, lamps_on_explode_replay
+    cmp eax, 0
+    je lamps_on_explode_go
+    mov edx, 0x339636
+    cmp eax, 1
+    je lamps_on_explode_go
+    ud2
+lamps_on_explode_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_explode_replay:
+    db 0x81, 0xec, 0xbc, 0x00, 0x00, 0x00
+    jmp 0x339636
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start

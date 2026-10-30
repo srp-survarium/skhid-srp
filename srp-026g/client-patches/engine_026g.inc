@@ -237,3 +237,6 @@ extern engine_release_model
 ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_player_insert
+; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
+; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+extern engine_explosion_reach

@@ -76,6 +76,7 @@ global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
 global engine_player_insert
+global engine_explosion_reach
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1007,6 +1008,29 @@ engine_release_model:
     mov ecx, [esp + 20]   ; object
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_explosion_reach:
+    ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; target -> 16
+    push dword [esp + 36]   ; strength -> 12
+    push dword [esp + 36]   ; centre -> 8
+    push dword [esp + 36]   ; manager -> 4
+    mov eax, [esp + 36]   ; ray
+    call 0x3393f0
+    sub esp, 4
+    movss [esp], xmm0
+    fld dword [esp]
+    add esp, 4
     pop edi
     pop esi
     pop ebx

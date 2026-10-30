@@ -117,6 +117,8 @@ unsafe extern "C" {
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
+    /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
 }
 
 #[allow(dead_code)]

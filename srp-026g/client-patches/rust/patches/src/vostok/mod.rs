@@ -23,6 +23,7 @@
 //! It grows with what the patches need, and no further.
 
 pub mod bullet;
+pub mod explosion;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
