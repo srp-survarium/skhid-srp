@@ -31,6 +31,12 @@
   ground below, and stays there for the rest of the match: no return to its
   anomaly. Either team takes it with Use. With no ground below the palm it
   is not dropped: the game's own death handling keeps it.
+- **No gun falls from a carrier** (the owner, 2026-10-29): a gun drops at
+  death only from hands that held it. A carrier's hands held the artefact
+  (its gun lowered, out of the scene), so only the artefact falls; the gun
+  stays out of the scene on the corpse, its native draw skipped as while
+  alive, until native on_hide or the next life takes it back. A battery
+  carrier drops no gun either (as before).
 - Stowed artefacts behave as in the game.
 
 ## Ownership and synchronization

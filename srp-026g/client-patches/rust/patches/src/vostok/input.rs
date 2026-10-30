@@ -23,12 +23,14 @@ impl Action {
     pub const ARTEFACT: Action = Action(0x23);
 }
 
-/// What the input handler holds of an action: its last key event.
+/// What the input handler holds of an action: its last key event, as
+/// on_keyboard_action pushes it (0.10b `player_input_handler::action_state_enum`:
+/// down 0, up 1, hold 2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionState {
     Down,
-    Repeat,
     Up,
+    Hold,
 }
 
 /// A state the game gave that is none of [`ActionState`]'s.
@@ -39,9 +41,31 @@ impl ActionState {
     pub fn parse(raw: u32) -> Result<ActionState, UnknownActionState> {
         match raw {
             0 => Ok(ActionState::Down),
-            1 => Ok(ActionState::Repeat),
-            2 => Ok(ActionState::Up),
+            1 => Ok(ActionState::Up),
+            2 => Ok(ActionState::Hold),
             other => Err(UnknownActionState(other)),
+        }
+    }
+}
+
+/// A key's event as player_input_handler::on_keyboard_action is given it
+/// (its third argument; 0.10b `input::enum_keyboard_action`: down 1, up 2,
+/// hold 3, the game pushing them as [`ActionState`]'s 0, 1, 2 at 0x23FEA4,
+/// 0x23FF14, 0x23FED8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyboardAction {
+    Down,
+    Up,
+    Hold,
+}
+
+impl KeyboardAction {
+    pub fn parse(raw: u32) -> Option<KeyboardAction> {
+        match raw {
+            1 => Some(KeyboardAction::Down),
+            2 => Some(KeyboardAction::Up),
+            3 => Some(KeyboardAction::Hold),
+            _ => None,
         }
     }
 }
@@ -165,7 +189,16 @@ mod tests {
     #[test]
     fn states_parsed_and_refused() {
         assert_eq!(ActionState::parse(0), Ok(ActionState::Down));
-        assert_eq!(ActionState::parse(2), Ok(ActionState::Up));
+        assert_eq!(ActionState::parse(1), Ok(ActionState::Up));
+        assert_eq!(ActionState::parse(2), Ok(ActionState::Hold));
         assert_eq!(ActionState::parse(7), Err(UnknownActionState(7)));
+    }
+
+    #[test]
+    fn keyboard_actions_are_the_engines() {
+        assert_eq!(KeyboardAction::parse(1), Some(KeyboardAction::Down));
+        assert_eq!(KeyboardAction::parse(2), Some(KeyboardAction::Up));
+        assert_eq!(KeyboardAction::parse(3), Some(KeyboardAction::Hold));
+        assert_eq!(KeyboardAction::parse(0), None);
     }
 }

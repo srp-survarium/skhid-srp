@@ -241,7 +241,7 @@ def main():
     ours.flag("english")
     saved("english")
     answer = ["Language", "Applies after restart."]
-    listing = [text for name, native, _ in LANGUAGES for text in (name, native)]
+    listing = [text for name, native, *_ in LANGUAGES for text in (name, native)]
     for label, argument, managed, saved_after, saves in [
         ("a registered name", "czech", False, "czech", 1),
         ("a managed string", "finnish", True, "finnish", 1),
