@@ -872,7 +872,11 @@ pub struct CombatTuning {
     /// the AK-74U, the pistol) does not step in at him; with
     /// `outranged_cover`, seen facing it (his view within
     /// `outranged_aimed_deg` of it), it breaks sight from him, at most once
-    /// every `outranged_again_ms`.
+    /// every `outranged_again_ms`. OFF-failed twice: #124 (2026-10-26, kills lost) and again on the tip with the weapons
+    /// known, v5 mapdata, the kits (2026-10-30, 96 pairs by side): wins 68 / 95, score -4.1 % (z -2.1), hits dealt -6.3 %
+    /// (z -3.8); with the cone at 25 degrees wins 65 / 87, score -3.1 %, delivered -8.4 %. It does what it says (ticks in
+    /// the open in a sniper's sight -47 to -70 %, deaths to snipers -8 to -12 %) but the bot out of the fight is out of
+    /// its shots: the 40-60 deaths saved cost more than that in hits and in carries.
     pub outranged_hide: bool,
     pub outranged_cover: bool,
     pub outranged_aimed_deg: f32,
@@ -2536,6 +2540,33 @@ impl ThroughStats {
     }
 }
 
+/// [measure] What the outranged rule did in one life of a reflex (the bench's owner counts add the lives up; nothing decides by
+/// them), in reflex ticks: the target seen was a sniper beyond the weapon's band (`sightings`), and he was facing it
+/// (`facing`: the cover rule's case); of them, ticks with the bot in the open (`exposed`); breaks of sight begun (`hides`);
+/// ticks it kept its way instead because it carried or was a thief (`task_kept`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OutrangedStats {
+    pub sightings: u32,
+    pub facing: u32,
+    pub exposed: u32,
+    pub hides: u32,
+    pub task_kept: u32,
+}
+
+impl OutrangedStats {
+    pub fn total(&self) -> u32 {
+        self.sightings + self.facing + self.exposed + self.hides + self.task_kept
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.sightings += other.sightings;
+        self.facing += other.facing;
+        self.exposed += other.exposed;
+        self.hides += other.hides;
+        self.task_kept += other.task_kept;
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -2653,6 +2684,8 @@ pub struct Reflex {
     through_at: Option<u32>,
     /// [measure] What fire through cover did this life.
     through_stats: ThroughStats,
+    /// [measure] What the outranged rule saw and did this life.
+    outranged_stats: OutrangedStats,
     /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
     /// worth of the others (`worth.hurter_keep_ms`).
     hurter: Option<(Place, u32)>,
@@ -3203,9 +3236,14 @@ impl Reflex {
             .map(|(_, at)| (at, self.held_gun().bullet_damage.clamp(0.0, 1.0)))
     }
 
-    /// [measure] What the worth, the push and the flank glance did this life.
+    /// [measure] What fire through cover did this life.
     pub fn through_stats(&self) -> ThroughStats {
         self.through_stats
+    }
+
+    /// [measure] What the outranged rule did this life.
+    pub fn outranged_stats(&self) -> OutrangedStats {
+        self.outranged_stats
     }
 
     pub fn worth_stats(&self) -> WorthStats {
@@ -3363,12 +3401,16 @@ impl Reflex {
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
         // keeps its way home.
+        if self.outranged && sit.view.objective().is_actor(me) {
+            self.outranged_stats.task_kept += 1;
+        }
         if self.outranged
             && now >= self.next_outranged
             && !sit.view.objective().is_actor(me)
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
+            self.outranged_stats.hides += 1;
             self.break_sight(me, sit, memory, now, false, false, c.hide_m, c, rng);
         }
         let look = RollView {
@@ -4583,6 +4625,9 @@ impl Reflex {
                     <= c.outranged_aimed_deg.to_radians()
             });
             self.outranged = c.outranged_cover && facing;
+            self.outranged_stats.sightings += 1;
+            self.outranged_stats.facing += u32::from(facing);
+            self.outranged_stats.exposed += u32::from(!matches!(self.cover, Cover::Hiding { .. }));
             self.outranged_by = Some((track.who(), track.at(), sit.view.clock));
             return;
         }

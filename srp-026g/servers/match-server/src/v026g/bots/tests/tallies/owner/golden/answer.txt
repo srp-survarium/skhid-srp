@@ -1,0 +1,26 @@
+owner-test answer: the play held 0 bot-ticks in 0 starts (team 0 0 / team 1 0); snipers killed 0 (team 0's 0 / team 1's 0), by an answerer 0 (team 0's 0 / team 1's 0); answerers who died 0 (0 to a sniper)
+{
+  "answer": {
+    "by_team": {
+      "0": {
+        "answerers_died": 0,
+        "answerers_died_to_sniper": 0,
+        "sniper_kills_by_answerers": 0,
+        "snipers_killed": 0,
+        "starts": 0,
+        "ticks": 0
+      },
+      "1": {
+        "answerers_died": 0,
+        "answerers_died_to_sniper": 0,
+        "sniper_kills_by_answerers": 0,
+        "snipers_killed": 0,
+        "starts": 0,
+        "ticks": 0
+      }
+    }
+  },
+  "answer_ends": {},
+  "answer_starts": 0,
+  "answer_ticks": 0
+}
