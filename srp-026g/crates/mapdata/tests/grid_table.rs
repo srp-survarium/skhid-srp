@@ -1121,3 +1121,72 @@ fn the_last_resort_links() {
         }
     }
 }
+
+/// Whether the grid the server builds reaches given points from the spawns: `SRP_POINTS_FILE` lines `project<TAB>x<TAB>y<TAB>z`, one
+/// `REACH` line each (project, x, y, z, 1 when a floor is within 1 m, 1 when the spawns reach it). To tell two builds of the code apart.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_reach_of_points() {
+    use std::collections::{BTreeMap, VecDeque};
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let Some(file) = std::env::var_os("SRP_POINTS_FILE") else {
+        eprintln!("skipping: SRP_POINTS_FILE is not set");
+        return;
+    };
+    let mut by_project: BTreeMap<String, Vec<Vec3>> = BTreeMap::new();
+    for line in std::fs::read_to_string(file).unwrap().lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f.len() == 4
+            && let (Ok(x), Ok(y), Ok(z)) = (f[1].parse::<f32>(), f[2].parse::<f32>(), f[3].parse::<f32>())
+        {
+            by_project.entry(f[0].to_owned()).or_default().push(Vec3::new(x, y, z));
+        }
+    }
+    for (project, points) in &by_project {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let body = Body {
+            max_jump: mapdata::grid::STANDING_JUMP_M,
+            erosion: mapdata::Erosion::Exact,
+            drop_flight_mps: 3.5,
+            walk_off_lips: true,
+            landing_carry: true,
+            ..Body::client()
+        };
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &map.walker_triangles(),
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &map.grid_seeds(),
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        let mut seen = vec![false; grid.len()];
+        let mut queue = VecDeque::new();
+        for n in spawns.iter().filter_map(|&p| grid.locate(p, 1.5)) {
+            if !seen[n as usize] {
+                seen[n as usize] = true;
+                queue.push_back(n);
+            }
+        }
+        while let Some(a) = queue.pop_front() {
+            for (b, _) in grid.links(a) {
+                if !seen[b as usize] {
+                    seen[b as usize] = true;
+                    queue.push_back(b);
+                }
+            }
+        }
+        for p in points {
+            let node = grid.locate(*p, 1.0);
+            eprintln!("REACH\t{project}\t{:.1}\t{:.1}\t{:.1}\t{}\t{}", p.x, p.y, p.z, u8::from(node.is_some()), u8::from(node.is_some_and(|n| seen[n as usize])));
+        }
+    }
+}

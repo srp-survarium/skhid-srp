@@ -46,8 +46,9 @@ pub struct GridTuning {
     /// grid is the map's (see `gap_links`).
     pub landing_carry: bool,
     /// With `landing_carry`: whether a Jump link no press keeps the body on the top of is kept where it is the only way to a floor
-    /// or back from it (`mapdata::Body::keep_last_resorts`). Off: they are all taken away and the floors only they led to are out of
-    /// reach: the live players stood on those floors in 0-7 lives of 1,000-3,000 a map (A170). A grid is the map's (see `gap_links`).
+    /// or back from it (`mapdata::Body::keep_last_resorts`). Off (the default): they are all taken away and the floors only they led to
+    /// are out of reach: the live players stood on those floors in 0-7 lives of 1,000-3,000 a map and never within 2 m of the 4
+    /// objectives that only they reached (A170); on the bench 3 of 81 probe presses of them got up. A grid is the map's (see `gap_links`).
     pub keep_last_resorts: bool,
     /// With `exact_erosion`: whether a floor only a crouched body fits by the walls (a beam or lip between 1.1 and 1.8 m over it) is
     /// kept, walked crouched (`mapdata::Body::crouch_only_floors`). Off: it is taken away as the exact erosion did before A170. A grid
@@ -71,7 +72,7 @@ impl Default for GridTuning {
             honest_drops: true,
             walk_off_lips: true,
             landing_carry: true,
-            keep_last_resorts: true,
+            keep_last_resorts: false,
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
         }
