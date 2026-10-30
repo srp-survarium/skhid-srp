@@ -113,6 +113,12 @@ impl Bots {
         bot.kit_chosen = 0;
         bot.life_carried = arms.reserve.min(arms.primary.1);
         bot.reflex = Reflex::armed_carrying(Some(arms), bot.life_carried);
+        // His weapon as the match knows it: live gives a human the weapon of his kit (`game/driven.rs` `weapon_of`), so
+        // the long gun, not his place's role's (a flanker's SMG at place 0), or no one is ever outranged by him.
+        let by_data = self.match_wide_tuning().aim.combat.fire.weapon_class_by_data;
+        if let Some(known) = self.features.weapons.get_mut(place) {
+            *known = Some(super::reflex::WeaponKind::of_class(arms.primary.0.class_for(by_data)));
+        }
     }
 }
 
@@ -322,6 +328,30 @@ pub(crate) fn the_long_kit_is_a_bolt_or_marksman_rifle() {
         }
     }
     assert!(survarium::v026g::loadouts::BotTier::ALL.into_iter().any(|t| long_kit(t).is_some()));
+}
+
+/// The stand-in armed with a bolt is known to the match as a sniper, as live knows a human by his kit: the place's role
+/// (place 0, a flanker: an SMG) would leave every enemy unaware that he outranges them (h2h-camper-20261030T1200: no
+/// anti-sniper smoke, outranged check never on him).
+#[test]
+pub(crate) fn the_long_gunned_stand_in_is_known_as_a_sniper() {
+    use crate::v026g::bots::reflex::WeaponKind;
+    use survarium::v026g::loadouts::BotTier;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x5A1F,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, true],
+        &[None, None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    bots.set_weapons(vec![Some(WeaponKind::Smg), Some(WeaponKind::Rifle)]);
+    let tier = BotTier::ALL.into_iter().find(|&t| long_kit(t).is_some_and(|a| a.primary.0.class() == "bolt")).expect("a tier with a bolt");
+    bots.arm_camper_long(0, tier);
+    assert_eq!(bots.features.weapons, vec![Some(WeaponKind::Sniper), Some(WeaponKind::Rifle)]);
 }
 
 /// 300 s of a Team Deathmatch on the soak field with the game's seed `seed` and the bots' `tuning`: for the
