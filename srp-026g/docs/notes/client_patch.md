@@ -2363,3 +2363,25 @@ removed when the native effect ends. Waiting maps to the existing gray icon and
 filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
+
+
+## Dropped-weapon input ownership (patch 78, in progress)
+
+The Rust `dropped_weapons` hooks create and destroy a separate input-journal
+owner for each native world, and observe local input merging, tick snapping,
+ordinary relay completion, pool eviction and server moves/discards. Moves retain
+their extracted target until placement completes, including source-node reuse.
+The match transport accepts F7 pickup
+relays into that journal and defines D7 request framing, retaining existing
+message behavior. The native history sender emits D7 for attached targets.
+Draw hooks copy each dead weapon's authored model box and final ragdoll transform,
+publishing only completed draw frames under the match owner. The tested selector
+uses oriented boxes and rejects unavailable drop lives. Local camera/input
+attachment and weapon transfer remain unfinished;
+weapon pickup is not playable yet. Native object sizes and the released patch revision are unchanged.
+
+Implementation and remaining integration: `docs/notes/weapon_pickup.md`.
+`tools/re-kit/v026g/check_pickup_hooks.py` executes the linked Rust lifecycle
+and timing hooks against original input code. `check_pickup_transport.py`
+checks native framing and F7 dispatch. `check_pickup_bounds.py` verifies the
+original renderer's bounds layout and coordinate conversion. None is a gameplay test.

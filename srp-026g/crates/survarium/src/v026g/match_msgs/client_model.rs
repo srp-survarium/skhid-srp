@@ -25,6 +25,7 @@ pub const COMPRESSED_SNAPSHOT_BUFFER: usize = 0x8000;
 /// What a real client would choke on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModelError {
+    Pickup(super::ParseError),
     /// No such server message: the client drops the datagram (0xE2: jumps
     /// to address 0).
     UnknownId(u8),
@@ -54,6 +55,7 @@ pub enum ModelError {
 impl std::fmt::Display for ModelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Pickup(error) => write!(f, "pickup input: {error}"),
             Self::UnknownId(id) => write!(f, "{id:#04x} is no server message"),
             Self::Length { id, got } => write!(f, "message {id:#04x} with {got} bytes"),
             Self::Milliseconds(ms) => write!(f, "{ms} ms is not within a tick"),
@@ -173,6 +175,13 @@ pub fn decode_server(id: u8, payload: &[u8], roster: u8) -> Result<ServerMessage
             tick: payload[0],
             player: in_roster(payload[1])?,
         },
+        id::PICKUP_INPUT_RELAY => {
+            let player = in_roster(payload[0])?;
+            let input =
+                super::pickup::PickupInput::parse(&payload[1..]).map_err(ModelError::Pickup)?;
+            in_roster(input.target.0.place.get())?;
+            ServerMessage::PickupInputRelay { player, input }
+        }
         id::INPUT_RELAY => ServerMessage::InputRelay {
             player: in_roster(payload[1])?,
             input: PlayerInput {
@@ -563,6 +572,7 @@ impl ClientModel {
                     | ServerMessage::DiscardProfileInput { tick } => on_grid(*tick),
                     ServerMessage::MoveProfileInput { from_tick, .. } => on_grid(*from_tick),
                     ServerMessage::InputRelay { input, .. } => input.time,
+                    ServerMessage::PickupInputRelay { input, .. } => input.input.time,
                     ServerMessage::InputsRelay { time, .. }
                     | ServerMessage::DiscardInput { time } => *time,
                     ServerMessage::MoveInput { from, .. } => *from,
@@ -744,6 +754,16 @@ mod tests {
             },
             ServerMessage::DiscardProfileInput { tick: 3 },
             ServerMessage::UploadRequest,
+            ServerMessage::PickupInputRelay {
+                player: 5,
+                input: super::super::pickup::PickupInput {
+                    input: input(fine),
+                    target: super::super::pickup::DropId(super::super::pickup::Life {
+                        place: super::super::pickup::Place::parse(19).unwrap(),
+                        spawned: 12345,
+                    }),
+                },
+            },
         ];
         let mut ids = Vec::new();
         for message in messages {
@@ -753,7 +773,7 @@ mod tests {
         }
         // Every server id was covered.
         ids.sort_unstable();
-        assert_eq!(ids, (0xE3..=0xF6).collect::<Vec<u8>>());
+        assert_eq!(ids, (0xE3..=0xF7).collect::<Vec<u8>>());
     }
 
     #[test]

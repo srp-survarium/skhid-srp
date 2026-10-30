@@ -34,10 +34,13 @@ mod keyboard;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod pickup_input;
+pub mod resources;
 mod rt;
 mod sync;
 pub mod trace;
 pub mod types;
+pub mod weapon;
 pub mod world;
 mod ui;
 

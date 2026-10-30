@@ -166,4 +166,76 @@ void engine_update_skeleton(void *scene_renderer, void *instance, const float *b
 /* 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL */
 unsigned int engine_point_to_screen(void *game, const float *point, float *out);
 
+/* 0xe5c20 vostok::resources::query_resources_and_wait: parameters EAX; pops 0 */
+void engine_query_resources_wait(const void *parameters);
+
+/* 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX */
+unsigned int engine_inventory_recipe_type(void);
+
+/* 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0 */
+void engine_profile_destroy(void *profile);
+
+/* 0x102cd0 vostok::resources::find_cook_by_class: class_id EDI; pops 0; EAX */
+void *engine_resource_cook(unsigned int class_id);
+
+/* 0x284dc0 survarium::player_profile::copy_body: destination ESP+4, source ESP+8; pops 8; EAX */
+void *engine_profile_copy_body(void *destination, const void *source);
+
+/* 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4 */
+void engine_weapon_set_user(void *weapon, void *player);
+
+/* 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0 */
+void engine_weapon_initialize(void *weapon);
+
+/* 0x244610 survarium::weapon::activate: weapon ECX, switch_flag ESP+4; pops 4 */
+void engine_weapon_activate(void *weapon, unsigned int switch_flag);
+
+/* 0x244860 survarium::weapon::deactivate: weapon ECX, clear_user ESP+4; pops 4 */
+void engine_weapon_deactivate(void *weapon, unsigned int clear_user);
+
+/* 0x2e2990 survarium::weapon_core::set_user: weapon ECX, player ESP+4; pops 4 */
+void engine_weapon_core_set_user(void *weapon, void *player);
+
+/* 0x2e2a30 survarium::weapon_core::initialize: weapon ECX; pops 0 */
+void engine_weapon_core_initialize(void *weapon);
+
+/* 0x2e2cc0 survarium::weapon_core::activate: weapon ECX, switch_flag ESP+4; pops 4 */
+void engine_weapon_core_activate(void *weapon, unsigned int switch_flag);
+
+/* 0x2e2db0 survarium::weapon_core::deactivate: weapon ECX, clear_user ESP+4; pops 4 */
+void engine_weapon_core_deactivate(void *weapon, unsigned int clear_user);
+
+/* 0x243590 survarium::inventory_item::set_owner: item ECX, inventory ESP+4, slot ESP+8; pops 8 */
+void engine_item_set_owner(void *item, void *inventory, unsigned int slot);
+
+/* 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4 */
+void engine_inventory_set(void *inventory, unsigned int slot, const unsigned int *item);
+
+/* 0x3919e0 animation::player::forget_active_object: animation EAX, weapon EDX; pops 0 */
+void engine_animation_forget_weapon(void *animation, void *weapon);
+
+/* 0x2fdc10 survarium::inventory::resupply_from_profile: inventory ESP+4, profile ESP+8, kit ESP+12; pops 12 */
+void engine_inventory_resupply(void *inventory, void *profile, unsigned int kit);
+
+/* 0x2fdf50 survarium::inventory::check_resupply: kit EAX, inventory ESP+4, profile ESP+8; pops 8; EAX */
+unsigned int engine_inventory_check_resupply(unsigned int kit, void *inventory, void *profile);
+
+/* 0x2e3490 survarium::weapon_core::deserialize: weapon ECX, reader ESP+4, client_reader ESP+8, context ESP+12; pops 12 */
+void engine_weapon_core_deserialize(void *weapon, void *reader, void *client_reader, unsigned int context);
+
+/* 0x1fab50 survarium::game_world_core::change_player_input: core ESP+4, rotation ESP+8, actions ESP+12, time ESP+16, place_flags ESP+20, network ESP+24, corrected ESP+28, precise ESP+32, effective_time ESP+36; pops 36; EAX */
+unsigned int engine_change_player_input(void *core, unsigned int rotation, unsigned int actions, unsigned int time, unsigned int place_flags, unsigned int network, unsigned int corrected, unsigned int precise, unsigned int *effective_time);
+
+/* 0x27d820 survarium::game_world_core::discard_player_input: time EAX, core ESP+4, place ESP+8; pops 8; EAX */
+unsigned int engine_discard_player_input(unsigned int time, void *core, unsigned int place);
+
+/* 0x279fe0 survarium::match_client::new_packet: client ECX, message ESP+4; pops 4; EAX */
+void *engine_match_new_packet(void *client, unsigned int message);
+
+/* 0x27a2a0 survarium::match_client::enqueue: client ECX, packet ESP+4; pops 4 */
+void engine_match_enqueue(void *client, void *packet);
+
+/* 0x7ac10 vostok::network_core::buffer_writer::w: writer ESP+4, bytes ESP+8, count EDI; pops 8 */
+void engine_buffer_write(void *writer, const void *bytes, unsigned int count);
+
 #endif

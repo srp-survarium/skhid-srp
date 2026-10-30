@@ -36,8 +36,13 @@ address, for the `vostok` layer (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
 itself: its rows are VAs of the game's data (a vtable), generated as
-constants `raw::image::<FIELD>`, the address only (vostok compares it, never
-reads through it).
+constants `raw::image::<FIELD>`, the address only. Vostok compares vtable
+addresses or reads a named global under the engine lifetime contract.
+
+callbacks_026g.tsv declares Vostok-owned native callbacks. This generator
+adds their aligned entry declarations to Rust's raw layer; hooks_026g.py
+generates the entries and forwarding shims. A callback is not a callable
+engine address and is not included in the engine thunk library.
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -73,6 +78,7 @@ HERE = Path(__file__).resolve().parent
 REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
 FIELDS = HERE / "fields_026g.tsv"
+CALLBACKS = HERE / "callbacks_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
 CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
@@ -291,7 +297,9 @@ def functions(spec=None, abi=None, inputs=None):
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
+# Original 2777 preferred base + SizeOfImage, including zero-filled .data
+# (the allocator pointer is beyond the file-backed portion of that section).
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xa425000
 
 
 def fields(path=None):
@@ -435,7 +443,31 @@ def rust_type(kind):
     return out
 
 
-def rust_text(fs, fields_=()):
+def callbacks(path=None):
+    """Callbacks owned by Vostok, rather than replacements of game functions.
+
+    The generated NASM entry aligns the native stack before entering Rust.
+    Only pointer/u32 arguments and a void result are needed at this boundary;
+    reject other layouts rather than silently count them as one stack word.
+    """
+    out, seen = [], set()
+    for row in read_tsv(CALLBACKS if path is None else path):
+        ret, symbol, params = parse_prototype(row["prototype"])
+        handler = row["handler"]
+        if ret != "void" or not re.fullmatch(r"callback_[a-z][a-z0-9_]*", symbol) \
+                or not re.fullmatch(r"[a-z][a-z0-9_]*::[a-z][a-z0-9_]*", handler) \
+                or symbol in seen or not params:
+            raise Refused(f"callbacks_026g.tsv: invalid or duplicate boundary: {row}")
+        types = [rust_type(kind) for kind, _ in params]
+        if any(t != "u32" and not t.startswith(("*const ", "*mut ")) for t in types):
+            raise Refused(f"{symbol}: a callback argument must occupy one native dword")
+        seen.add(symbol)
+        out.append({"symbol": symbol, "handler": handler, "params": params,
+                    "shim": "hook_" + symbol, "about": row["about"]})
+    return out
+
+
+def rust_text(fs, fields_=(), callbacks_=()):
     """The `raw` layer: every function (a thunk's cdecl, or the function's
     own convention), the imports, the fields' addresses."""
     lines = [f"// The Rust patches' `raw` layer ({GENERATED}, and fields_026g.tsv).",
@@ -469,6 +501,13 @@ def rust_text(fs, fields_=()):
             types = ", ".join(rust_type(kind) for kind, _ in f["params"])
             lines += [f"    /// {describe(f)}: {f['prototype']}",
                       f'    pub static {f["symbol"]}: unsafe extern "stdcall" fn({types}){ret};']
+        lines.append("}")
+    if callbacks_:
+        lines += ["", "// Native callbacks: addresses of the generated aligned NASM entries.",
+                  'unsafe extern "C" {']
+        for cb in callbacks_:
+            params = ", ".join(f"{name}: {rust_type(kind)}" for kind, name in cb["params"])
+            lines += [f"    /// {cb['about']}", f"    pub fn {cb['symbol']}({params});"]
         lines.append("}")
     for module in dict.fromkeys(x["module"] for x in fields_):
         group = [x for x in fields_ if x["module"] == module]
@@ -509,7 +548,7 @@ def outputs(spec=None, abi=None, inputs=None):
     """{path: bytes} of the four files."""
     fs = every_function(spec, abi, inputs)
     return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
-            RUST: rust_text(fs, fields()).encode()}
+            RUST: rust_text(fs, fields(), callbacks()).encode()}
 
 
 def stale():

@@ -7,6 +7,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+weapon-pickup = { path = "../weapon-pickup" }
 binary-config-parser = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }

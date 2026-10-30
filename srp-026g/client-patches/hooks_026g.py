@@ -419,7 +419,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     return out
 
 
-def rs_text(hs):
+def rs_text(hs, callbacks=()):
     originals = {}
     lines = [f"// The Rust hooks' glue ({GENERATED}).",
              "//",
@@ -526,10 +526,22 @@ def rs_text(hs):
             "    " + result["to_u32"].format(v=call),
             "}",
         ]
+    for cb in callbacks:
+        params = ", ".join(f"{name}: {engine_026g.rust_type(kind).replace('c_void', 'core::ffi::c_void')}"
+                           for kind, name in cb["params"])
+        args = ", ".join(name for _, name in cb["params"])
+        lines += ["", f"/// {cb['about']}", "///", "/// # Safety",
+                  "/// Only the generated aligned entry may call this, with live arguments",
+                  "/// supplied by the Vostok owner under the callback table's contract.",
+                  "#[unsafe(no_mangle)]",
+                  f'pub unsafe extern "C" fn {cb["shim"]}({params}) {{',
+                  "    // SAFETY: the generated entry aligns the native callback stack; its",
+                  "    // owner keeps these arguments alive under the callback table's contract.",
+                  f"    unsafe {{ super::{cb['handler']}({args}) }}", "}"]
     return "\n".join(lines) + "\n"
 
 
-def asm_text(hs):
+def asm_text(hs, callbacks=()):
     lines = [f"; The Rust hooks' NASM entries ({GENERATED}).",
              "; Each entry (RUST_CALL, rust_hook_026g.inc) presents a site's arguments to",
              "; its shim and cleans up as the game's function did. The arena's block",
@@ -554,12 +566,16 @@ def asm_text(hs):
             prologue, past = h["trampoline"]
             lines += [f"global {h['entry']}_tramp", f"{h['entry']}_tramp:",
                       "    db " + ", ".join(f"0x{b:02x}" for b in prologue), f"    jmp {past:#x}"]
+    for cb in callbacks:
+        lines += ["", f"; {cb['about']}",
+                  f"RUST_CDECL {cb['symbol']}, {cb['shim']}, {len(cb['params'])}"]
     return "\n".join(lines) + "\n"
 
 
 def outputs(tomls=None, functions=None, sites=None, exe=None):
     hs = hooks(tomls, functions, sites, exe)
-    return {RS: rs_text(hs).encode(), ASM: asm_text(hs).encode()}
+    callbacks = engine_026g.callbacks()
+    return {RS: rs_text(hs, callbacks).encode(), ASM: asm_text(hs, callbacks).encode()}
 
 
 def installs(exe=None, tomls=None, functions=None, sites=None):

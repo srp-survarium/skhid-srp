@@ -158,6 +158,17 @@ bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
 static that is not all zeros goes to `patches.data`, a zero one to
 `patches.state` (ARENA).
 
+Vostok-owned callbacks with no original game function to wrap are declared
+in `callbacks_026g.tsv`: their C prototype, Vostok handler and lifetime/ABI
+contract. `engine_026g.py` declares the entry in `raw`; `hooks_026g.py`
+generates its `RUST_CDECL` stack-alignment entry and the unsafe forwarding
+shim inside Vostok. The owner passes the **generated entry**, never a Rust
+function pointer directly, to the game. These callbacks do not replace any
+exe bytes and have no `Original`. Currently only void callbacks with pointer
+or u32 arguments are supported; other layouts are rejected. The inventory
+query check exercises the generated entry through the original dispatcher
+with every native stack alignment.
+
 The declaration is names only; the facts are in the tables:
 
 ```toml

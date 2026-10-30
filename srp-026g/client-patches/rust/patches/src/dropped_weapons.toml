@@ -1,0 +1,82 @@
+name = "dropped_weapons"
+patch = 78
+
+[[hook]]
+site = "pickup_player.death"
+handler = "on_player_death"
+
+[[hook]]
+site = "pickup_base_player.death"
+handler = "on_base_player_death"
+
+[[hook]]
+site = "pickup_core.constructed"
+handler = "on_constructed"
+
+[[hook]]
+site = "pickup_core.destroying"
+handler = "on_destroying"
+
+[[hook]]
+site = "pickup_input.local_merged"
+handler = "on_local_merge"
+
+[[hook]]
+site = "pickup_input.tick_snap"
+handler = "on_tick_snap"
+
+[[hook]]
+site = "pickup_input.moved"
+handler = "on_moved"
+
+[[hook]]
+site = "pickup_input.discarded"
+handler = "on_discarded"
+
+[[hook]]
+site = "pickup_transport.ranges"
+handler = "on_transport_ranges"
+
+[[hook]]
+site = "pickup_transport.length"
+handler = "on_transport_length"
+
+[[hook]]
+site = "pickup_transport.sending"
+handler = "on_transport_sending"
+
+[[hook]]
+site = "pickup_transport.received"
+handler = "on_transport_received"
+
+[[hook]]
+site = "pickup_transport.dispatch"
+handler = "on_packet"
+
+[[hook]]
+site = "pickup_input.relay_end"
+handler = "on_relay_end"
+
+[[hook]]
+site = "pickup_input.evicting"
+handler = "on_evicting"
+
+[[hook]]
+site = "pickup_input.moving"
+handler = "on_moving"
+
+[[hook]]
+site = "pickup_input.sending"
+handler = "on_send"
+
+[[hook]]
+site = "pickup_draw.begin"
+handler = "on_draw_begin"
+
+[[hook]]
+site = "pickup_draw.complete"
+handler = "on_draw_complete"
+
+[[hook]]
+site = "pickup_draw.weapon"
+handler = "on_weapon_draw"

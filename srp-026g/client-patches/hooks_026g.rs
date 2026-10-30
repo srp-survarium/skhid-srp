@@ -111,6 +111,331 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_player_death` (0x1f28e0, client player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push edi/mov edi,ecx/push1) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_player_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_player_death` calls this, from the game's jump at 0x1f28e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_player_death(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_base_player_death` (0x2d77c0, base player death entry: ECX player, before remove_alive2D99C0 and inventory on_death2FCA50; replay push esi/mov esi,ecx/push1) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_base_player_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_base_player_death` calls this, from the game's jump at 0x2d77c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_base_player_death(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_constructed` (0x2d020a, core constructor epilogue: EBX core, before pop edi/pop esi/mov eax,ebx/pop ebx) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_constructed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_constructed` calls this, from the game's jump at 0x2d020a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_constructed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_destroying` (0x2d02a6, core destructor before first cleanup: EBP core, mov eax,[ebp+18F58h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_destroying(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_destroying` calls this, from the game's jump at 0x2d02a6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_destroying(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_local_merge` (0x1fb349, local coalescing completed: EBX core, ESI node, EBP change_input frame) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_local_merge(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_local_merge` calls this, from the game's jump at 0x1fb349,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_local_merge(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_tick_snap` (0x2d4f3b, before native tick-snap store: EBX core, EDI input node, ESI new time; mov [edi+20h],esi/test eax,eax) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_tick_snap(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_tick_snap` calls this, from the game's jump at 0x2d4f3b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_tick_snap(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_moved` (0x27d802, move after inner placement: EAX status, EBX source identity, EBP arguments, site ESP+1Ch effective time) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_moved(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_moved` calls this, from the game's jump at 0x27d802,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_moved(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_discarded` (0x27dcb7, successful discard after unlink/pool return/dirty notification: EBX removed node identity, EBP core/place arguments; pop edi/pop esi/xor eax,eax/pop ebx) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_discarded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_discarded` calls this, from the game's jump at 0x27dcb7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_discarded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_transport_ranges` (0x2792dc, match info getter constructed bounds at ESI; before vtable store) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_transport_ranges(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_transport_ranges` calls this, from the game's jump at 0x2792dc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_transport_ranges(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The named exits of dropped_weapons::on_transport_length (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DroppedWeaponsOnTransportLengthExit { Return }
+/// The entry `dropped_weapons_on_transport_length` (0x279694, length switch before subtract D8: ESI unsigned id, EBP frame, EAX ok pointer already set true; return epilogue preserves chosen EAX length) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_transport_length(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_transport_length` calls this, from the game's jump at 0x279694,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_transport_length(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The named exits of dropped_weapons::on_transport_sending (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DroppedWeaponsOnTransportSendingExit { Input }
+/// The entry `dropped_weapons_on_transport_sending` (0x279a60, sending info switch: ECX unsigned id, EAX info output; input exit uses native 500ms lifetime/50ms retry/plain fixed flags) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_transport_sending(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_transport_sending` calls this, from the game's jump at 0x279a60,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_transport_sending(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The named exits of dropped_weapons::on_transport_received (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DroppedWeaponsOnTransportReceivedExit { Input }
+/// The entry `dropped_weapons_on_transport_received` (0x279b10, received info switch: ECX unsigned id, EAX info output; input exit uses native 250ms lifetime/50ms retry/plain fixed flags) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_transport_received(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_transport_received` calls this, from the game's jump at 0x279b10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_transport_received(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The named exits of dropped_weapons::on_packet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DroppedWeaponsOnPacketExit { Processed }
+/// The entry `dropped_weapons_on_packet` (0x27a322, before message switch: EAX ID, ESI network client, EBX reader; common completion preserves native packet recording) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_packet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_packet` calls this, from the game's jump at 0x27a322,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_packet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_relay_end` (0x27c1f0, statistics entry before prologue: EAX placement status, EDX client, ESI input; return27C32D single or27C5CD batch) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_relay_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_relay_end` calls this, from the game's jump at 0x27c1f0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_relay_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_evicting` (0x2d48c7, generic nonempty list eviction before unlink: EAX list, head at list+4; filter to registered world input lists; mov ecx,[eax+4]/dec dword[eax]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_evicting(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_evicting` calls this, from the game's jump at 0x2d48c7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_evicting(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_moving` (0x27d7f5, after source extraction before inner placement: EAX core, EBX source identity; replay effective-time sentinel initialization; every return continues to moved27D802) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_moving(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_moving` calls this, from the game's jump at 0x27d7f5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_moving(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The named exits of dropped_weapons::on_send (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DroppedWeaponsOnSendExit { Queued }
+/// The entry `dropped_weapons_on_send` (0x27eaff, input history sender before node ESI becomes transport slot: ECX selected rotation, EBP context, ESP+24 actions/+2C place; sent flag already set, queued continues native loop) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_send(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_send` calls this, from the game's jump at 0x27eaff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_send(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_draw_begin` (0x1f7c6c, game_world EBX, before mt_player_draw flag chooses parallel tasks or synchronous player draws; previous simulation movement joined) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_draw_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_draw_begin` calls this, from the game's jump at 0x1f7c6c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_draw_begin(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_draw_complete` (0x1f7e0b, game_world EBX, both draw paths joined; parallel tasks waited by10D4E0 at1F7D7F, serial loop ends1F7E09) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_draw_complete(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_draw_complete` calls this, from the game's jump at 0x1f7e0b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_draw_complete(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- dropped_weapons (patch 78) ----
+
+/// The entry `dropped_weapons_on_weapon_draw` (0x2477c8, player EBX, exact chosen held-item world transform EAX, before mov ecx,[ebx+128] and virtual draw; after ragdoll Weapon bone pose) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_dropped_weapons_on_weapon_draw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `dropped_weapons_on_weapon_draw` calls this, from the game's jump at 0x2477c8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::dropped_weapons::on_weapon_draw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
@@ -255,4 +580,16 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+/// Trivial boost function invoker: buffer holds the completion pointer; result is queries_result. Native copying/dispatch proven by check_pickup_resource_query.py.
+///
+/// # Safety
+/// Only the generated aligned entry may call this, with live arguments
+/// supplied by the Vostok owner under the callback table's contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_callback_inventory_ready(buffer: *const u32, result: *mut core::ffi::c_void) {
+    // SAFETY: the generated entry aligns the native callback stack; its
+    // owner keeps these arguments alive under the callback table's contract.
+    unsafe { super::resources::inventory_done(buffer, result) }
 }

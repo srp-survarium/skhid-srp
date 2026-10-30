@@ -38,3 +38,4 @@ pub mod suicide_key;
 pub mod text_input;
 
 pub mod consumable_activity;
+pub mod dropped_weapons;
