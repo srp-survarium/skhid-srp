@@ -96,6 +96,7 @@ impl Bot {
     /// Drops its route, if it has one, because of `why`.
     pub(super) fn end_route(&mut self, why: RouteEnd, now: u32) {
         if self.route.take().is_some() {
+            self.motor.link_route_ended(why as usize);
             self.route_ended(why, now);
         }
     }
@@ -104,6 +105,7 @@ impl Bot {
     /// [`RouteEnd::Replanned`]).
     pub(super) fn set_route(&mut self, route: Option<(Route, Vec3)>, now: u32) {
         if self.route.is_some() {
+            self.motor.link_route_ended(RouteEnd::Replanned as usize);
             self.route_ended(RouteEnd::Replanned, now);
         }
         // The bench's: a new route is no search's way so far (the drive marks one that is).

@@ -279,6 +279,9 @@ pub(crate) struct Body {
     pub(crate) step_m: f32,
     /// The ground displacement of the last tick, m (`SRP_BENCH_HIT_FLIGHT`: where a bullet in the air will find it).
     pub(crate) step_vec: Vec3,
+    /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
+    /// [`LIFT_HOLD_MS`] of it.
+    pub(crate) lift_since: Option<(u32, Option<f32>)>,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     pub(crate) legs: [f32; 2],
@@ -728,6 +731,7 @@ impl Game {
             flight: None,
             step_m: 0.0,
             step_vec: Vec3::ZERO,
+            lift_since: None,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -1115,7 +1119,36 @@ impl Game {
                         self.landings.push(landing);
                     }
                 } else {
-                    let (node, feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    let (mut node, mut feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
+                    let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
+                    if !pushing {
+                        if let Some((_, rise)) = body.lift_since.take() {
+                            lift_count(rise, LiftOutcome::Released);
+                        }
+                    } else if body.lift_since.is_none() && stand_in_lift() {
+                        let rise = lift_probe(grid, node, feet, to);
+                        if body.step_m / TICK_S >= LIFT_MIN_SPEED_MS {
+                            body.lift_since = Some((tick, rise));
+                        } else if rise.is_some() {
+                            lift_count(rise, LiftOutcome::SlowContact);
+                        }
+                    }
+                    if let Some((since, rise)) = body.lift_since
+                        && tick >= since + LIFT_HOLD_MS
+                    {
+                        match lift_check(grid, node, feet, to) {
+                            Ok(up) => {
+                                lift_count(rise, LiftOutcome::Made);
+                                node = up;
+                                feet = grid.position(up);
+                            }
+                            Err(NoLift::NoLink) => lift_count(rise, LiftOutcome::NoLink),
+                            Err(NoLift::TooHigh) => lift_count(rise, LiftOutcome::TooHigh),
+                            Err(NoLift::TopShort) => lift_count(rise, LiftOutcome::TopShort),
+                        }
+                        body.lift_since = None;
+                    }
                     // An enemy body in the way: the move that closes on it within the two radii is not made.
                     let blocked = self.body_block_m.is_some_and(|m| {
                         standing.iter().enumerate().any(|(other, &(at, team, alive))| {

@@ -30,10 +30,11 @@ fn threat_tick(
     objective: objective::ObjectiveMap,
     camper: Option<Place>,
     notes: &mut Vec<Note>,
+    weapons: &[Option<reflex::WeaponKind>],
 ) {
     let rules = threat::SpotRules::of(&tuning.threat);
     let threat = &mut state.features.threat;
-    if threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() {
+    if !tuning.threat.sniper_lanes && threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() {
         if !state.knowledge.threat.held.is_empty() || !state.knowledge.threat.jobs.is_empty() {
             state.knowledge.threat = Arc::default();
         }
@@ -49,6 +50,11 @@ fn threat_tick(
             {
                 enemies.push(at);
                 threat.spots.shooter_sensed(track.who, at, time, rules);
+                if tuning.threat.sniper_lanes && weapons.get(track.who).copied().flatten() == Some(reflex::WeaponKind::Sniper) {
+                    let combat = &tuning.aim.combat;
+                    let reach = combat.band(reflex::WeaponKind::Sniper).1 + combat.band_slack_m;
+                    threat.spots.sniper_sensed(track.who, at, time, reach, rules);
+                }
             }
         }
     }
@@ -400,7 +406,7 @@ impl Bots {
             let camper = self.bench_camper.as_ref().map(|c| c.place());
             #[cfg(not(test))]
             let camper = None;
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes);
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes, &self.features.weapons);
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
@@ -427,6 +433,7 @@ impl Bots {
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
                     weapon: bot.weapon(&self.features.weapons, &tuning),
+                    weapons: &self.features.weapons,
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
@@ -536,6 +543,15 @@ impl Bots {
                 escape::counts::handed();
             }
             #[cfg(test)]
+            if let Some(old) = bot.assignment.as_ref()
+                && old.kind == plays::PlayKind::Answer
+            {
+                let offered = asked
+                    .iter()
+                    .any(|(p, c, _)| *p == place && c.iter().any(|c| c.kind == old.kind && c.target == old.target));
+                plays::answer::replaced(offered, assignment.kind);
+            }
+            #[cfg(test)]
             if let Some(old) = bot.assignment.as_ref() {
                 let incumbent = asked
                     .iter()
@@ -576,6 +592,7 @@ impl Bots {
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
                     weapon: bot.weapon(&self.features.weapons, &tuning),
+                    weapons: &self.features.weapons,
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,
