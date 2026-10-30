@@ -631,6 +631,8 @@ fn the_leaping_links_near_a_spot() {
         erosion: mapdata::Erosion::Exact,
         drop_flight_mps: 3.5,
         walk_off_lips: true,
+        // `SRP_GRID_CARRY=1`: the grid with the carried landings (`Body::landing_carry`).
+        landing_carry: std::env::var_os("SRP_GRID_CARRY").is_some(),
         ..Body::client()
     };
     let (grid, _) = WalkGrid::build_kept_with_links(
