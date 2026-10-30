@@ -742,6 +742,86 @@ pub unsafe extern "C" fn hook_lamps_on_light_remove(a0: Option<raw::ObjectLight>
     { crate::lamps::on_light_remove(&orig, &mut light); 0 }
 }
 
+// ---- lamps (patch 81) ----
+
+/// The named exits of lamps::on_decal_enter (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LampsOnDecalEnterExit { Skip }
+/// The entry `lamps_on_decal_enter` (0x32e672, process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_decal_enter(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_decal_enter` calls this, from the game's jump at 0x32e672,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_decal_enter(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The named exits of lamps::on_decal_leave (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LampsOnDecalLeaveExit { Skip }
+/// The entry `lamps_on_decal_leave` (0x32e8cc, process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_decal_leave(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_decal_leave` calls this, from the game's jump at 0x32e8cc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_decal_leave(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The named exits of lamps::on_decal_ricochet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LampsOnDecalRicochetExit { Skip }
+/// The entry `lamps_on_decal_ricochet` (0x32eaf2, process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_decal_ricochet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_decal_ricochet` calls this, from the game's jump at 0x32eaf2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_decal_ricochet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The named exits of lamps::on_decal_stop (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LampsOnDecalStopExit { Skip }
+/// The entry `lamps_on_decal_stop` (0x32ed71, process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_decal_stop(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_decal_stop` calls this, from the game's jump at 0x32ed71,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_decal_stop(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.

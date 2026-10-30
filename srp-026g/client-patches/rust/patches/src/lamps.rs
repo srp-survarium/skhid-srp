@@ -5,7 +5,7 @@
 pub mod model;
 
 use crate::vostok::{self, Context, Flow, NoExit};
-use crate::vostok::bullet::{BulletRay, MaterialId};
+use crate::vostok::bullet::{BulletDecal, BulletRay, DecalSite, MaterialId};
 use crate::vostok::collection::BoundedVec;
 use crate::vostok::config::{ConfigError, ConfigTable};
 use crate::vostok::history::{HistoryReader, HistoryWriter};
@@ -36,7 +36,19 @@ impl Lamps {
             }
         }
     }
+    /// Whether a hit's mark would be on a fixture's glass. The game's decal
+    /// is a world-space box no model owns: one on the glass would stay in the
+    /// air, or on the broken model behind it, once the glass is gone. A shot
+    /// at a fixture's glass breaks it, so none is drawn there, intact or
+    /// broken: the rule needs no lamp state, and rollback, resimulation and
+    /// late joins (which carry no decals) agree with it.
+    fn marks_glass(&self, surface: MaterialId, point: WorldPoint) -> bool {
+        surface == self.material && self.bounds.iter().any(|bounds| bounds.holds(point, mark_tolerance()))
+    }
 }
+/// The game moves a hit's point onto the struck plane to 1 mm; the authored
+/// bounds hold the fixture's collision. A margin for both and for rounding.
+fn mark_tolerance() -> Distance { Distance::parse(0.01).expect("a finite, non-negative distance") }
 static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 
 #[derive(Debug)]
@@ -130,6 +142,24 @@ pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     Flow::Continue
 }
+fn glass_mark(ctx: &Context<'_>, site: DecalSite) -> bool {
+    let Some(decal) = BulletDecal::at(ctx, site) else { return false };
+    let (Some(physics), Some(surface), Some(point)) = (decal.physics(), decal.surface(), decal.point()) else {
+        return false;
+    };
+    PROJECT.with_physics(ctx.thread(), physics, |lamps| lamps.marks_glass(surface, point)).unwrap_or(false)
+}
+macro_rules! decal_hook {
+    ($fn:ident, $site:ident, $exit:ident) => {
+        pub fn $fn(ctx: &mut Context<'_>) -> Flow<vostok::$exit> {
+            if glass_mark(ctx, DecalSite::$site) { Flow::Exit(vostok::$exit::Skip) } else { Flow::Continue }
+        }
+    };
+}
+decal_hook!(on_decal_enter, Enter, LampsOnDecalEnterExit);
+decal_hook!(on_decal_leave, Leave, LampsOnDecalLeaveExit);
+decal_hook!(on_decal_ricochet, Ricochet, LampsOnDecalRicochetExit);
+decal_hook!(on_decal_stop, Stop, LampsOnDecalStopExit);
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut writer) = HistoryWriter::at_saved(ctx) {
         PROJECT.with_physics(ctx.thread(), writer.physics(), |lamps| writer.append(lamps.state.words()));

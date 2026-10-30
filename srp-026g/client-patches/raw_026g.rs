@@ -1092,6 +1092,15 @@ impl Bullet {
         unsafe { self.0.byte_add(0x48).cast::<Option<GameMaterial>>().read_volatile() }
     }
 
+    /// +0x4c (ptr<survarium::game_material>): the material it last struck: the triangle's, or the manager's default for an unassigned 0FFFFh (check_collision 0x32D87B; the material pair's second index, process_front_face_piercing 0x32E585)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn surface(self) -> Option<GameMaterial> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<GameMaterial>>().read_volatile() }
+    }
+
     /// +0x80 (u8): set: no hit sound (process_front_face_piercing 0x32E6CC)
     ///
     /// # Safety
@@ -5322,6 +5331,102 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
+        }
+    }
+
+    /// bullet.decal_front (0x32e672): process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there
+    pub mod bullet_decal_front {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_back (0x32e8cc): process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there
+    pub mod bullet_decal_back {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_reflect (0x32eaf2): process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there
+    pub mod bullet_decal_reflect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
+        }
+    }
+
+    /// bullet.decal_collide (0x32ed71): process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there
+    pub mod bullet_decal_collide {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EBX: a vostok::physics::ray_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
         }
     }
 }

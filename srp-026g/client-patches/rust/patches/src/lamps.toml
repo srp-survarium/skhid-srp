@@ -50,3 +50,17 @@ proof = "light insert through project loop"
 site = "light.remove"
 handler = "on_light_remove"
 proof = "light remove through project loop"
+
+# Bullet decals: a glass mark inside a fixture's bounds is never queued.
+[[hook]]
+site = "bullet.decal_front"
+handler = "on_decal_enter"
+[[hook]]
+site = "bullet.decal_back"
+handler = "on_decal_leave"
+[[hook]]
+site = "bullet.decal_reflect"
+handler = "on_decal_ricochet"
+[[hook]]
+site = "bullet.decal_collide"
+handler = "on_decal_stop"

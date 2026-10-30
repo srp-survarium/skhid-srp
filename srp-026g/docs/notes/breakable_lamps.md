@@ -101,6 +101,29 @@ The framework's lock requires `Send` data and releases ownership through a
 guard, including host-test unwinding. The registry's private native handles
 are transferred only as stored identities; scene callbacks alone use them.
 
+## Bullet marks
+
+A bullet's mark is not the hit model's: the hit's processing queues
+`bullet_manager::add_decal` (0x321FA0), and the game world places a
+world-space decal box, the next id of a ring of 64, at the hit's point. Hiding
+the intact model leaves it there, in the air or on the broken model behind
+the glass. The collision of every stock fixture (and the ported alarm, white
+and plafon ones) is all `glass`, and the collision stays after a break, so
+later shots at a broken lamp hit the same glass.
+
+Four lohooks sit at the material pair's decal slot of each hit kind
+(`bullet.decal_front`/`back`/`reflect`/`collide`: entering, leaving,
+ricocheting off and stopping in a surface). A hit of the metadata's
+`break_material` inside any fixture's bounds (1 cm margin) skips the
+`add_decal` call; its sound and particles stay. The shot that breaks a lamp
+is such a hit, so no glass mark is ever placed on a fixture, intact or
+broken, and none has to be removed at the swap. The rule reads no lamp state,
+so rollback, resimulation and late joins (which carry no decals) agree.
+Other materials (the ported green lamps' `metall_thin` shades, which stay in
+their broken models) and other places keep their marks. The ported v0.21
+`lamp_on`, `plafon_lamp` and `plafon_lamp_on` have no game material
+(0FFFFh: the manager's default), so their marks are not glass and stay.
+
 ## History and compatibility
 
 The epilogues of `bullet_manager::serialize` (0x321C3B) and `deserialize`
@@ -137,8 +160,11 @@ repeated hits, quiet bullets, effects, history loading, malformed suffixes,
 rollback/resimulation, ordinary removal, destructor fallback and reset.
 Additional cases verify that a wrong binding leaves the map unbound and a
 malformed one refuses, both before any vtable changes, and unconfigured scenery.
-Renderer/effect queue endpoints, the writer's byte sink and OS services are
-stubbed; the native material-pair lookup runs normally.
+The four decal sites run natively up to add_decal: no glass mark inside a
+fixture (or its margin) for an intact lamp, a broken one, after rollback and
+in a late joiner; marks of another material, outside the bounds and on maps
+without metadata are queued. Renderer/effect queue endpoints, add_decal, the
+writer's byte sink and OS services are stubbed; the native material-pair lookup runs normally.
 
 The Rust port was checked once against the C reference (commit `a4f05203`,
 never shipped; its exe SHA-256

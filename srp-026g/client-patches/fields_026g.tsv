@@ -40,6 +40,7 @@ survarium::bullet	velocity	0x1C	f32	its segment's velocity, a float3 (the ctor 0
 survarium::bullet	ammo	0x40	ptr<survarium::ammo_data>	its ammo's data (ammo_data::load 0x332440; the weapon's +53Ch, the ctor 0x32BB53)
 survarium::bullet	manager	0x44	ptr<survarium::bullet_manager>	the bullet manager
 survarium::bullet	material	0x48	ptr<survarium::game_material>	its game material
+survarium::bullet	surface	0x4C	ptr<survarium::game_material>	the material it last struck: the triangle's, or the manager's default for an unassigned 0FFFFh (check_collision 0x32D87B; the material pair's second index, process_front_face_piercing 0x32E585)
 survarium::bullet	quiet	0x80	u8	set: no hit sound (process_front_face_piercing 0x32E6CC)
 survarium::bullet	segment	0x84	u32	its segments past the first (pierces and ricochets; change_trajectory 0x32EE20)
 survarium::bullet_owner	place	0x4	u8	the shooter's place (add_shootmark's table index, 0x32E562)

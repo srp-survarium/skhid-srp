@@ -123,6 +123,18 @@ mod tests {
         assert!(Bounds::parse(point([1.0; 3]), point([0.0; 3])).is_none());
     }
     #[test]
+    fn marks_on_the_bounds_and_their_margin_only() {
+        let b = Bounds::parse(point([0.0; 3]), point([1.0; 3])).unwrap();
+        let margin = Distance::parse(0.01).unwrap();
+        for inside in [[0.5; 3], [0.0, 0.5, 1.0], [-0.009, 0.5, 0.5], [0.5, 1.009, 0.5]] {
+            assert!(b.holds(point(inside), margin), "{inside:?}");
+        }
+        for outside in [[-0.02, 0.5, 0.5], [0.5, 0.5, 1.02], [2.0, 2.0, 2.0]] {
+            assert!(!b.holds(point(outside), margin), "{outside:?}");
+        }
+        assert!(!b.holds(point([-0.009, 0.5, 0.5]), Distance::parse(0.0).unwrap()));
+    }
+    #[test]
     fn break_effects_only_follow_first_hit_and_never_history() {
         for initial in [Condition::Intact, Condition::Broken] {
             for restored in [Condition::Intact, Condition::Broken] {

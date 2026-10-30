@@ -5,6 +5,9 @@
 //!
 //! Read only: the bullet goes on exactly as before (the hook replays the
 //! two moves of the result it sits on).
+//!
+//! At the `bullet.decal_*` sites, a hit about to queue its decal: whether to
+//! queue it is the patch's (the hook exits past add_decal or replays).
 
 use super::context::Context;
 use super::world::{BodyId, floats, read};
@@ -180,6 +183,58 @@ impl<'t> BulletRay<'t> {
     }
 }
 
+
+/// The four places a bullet's hit queues its decal (bullet_manager::add_decal
+/// 0x321FA0), each at its material pair's decal slot (sites_026g.tsv
+/// `bullet.decal_*`): entering, leaving, ricocheting off and stopping in a
+/// surface.
+#[derive(Clone, Copy, Debug)]
+pub enum DecalSite { Enter, Leave, Ricochet, Stop }
+
+/// A bullet's hit, its decal not yet queued. The decal is the game world's,
+/// at the hit's point, a world-space box of a ring of ids: no model owns it,
+/// so a model removed later leaves it where it was.
+pub struct BulletDecal<'t> {
+    bullet: raw::Bullet,
+    hit: raw::RayResult,
+    _thread: &'t super::Thread,
+}
+
+impl<'t> BulletDecal<'t> {
+    pub fn at(ctx: &'t Context<'_>, site: DecalSite) -> Option<BulletDecal<'t>> {
+        use raw::site::{bullet_decal_back as leave, bullet_decal_collide as stop, bullet_decal_front as enter,
+                        bullet_decal_reflect as ricochet};
+        // SAFETY: the context is this site's: the bullet and its hit, alive
+        // while the process_* function runs, on its thread.
+        let (bullet, hit) = unsafe {
+            match site {
+                DecalSite::Enter => (enter::bullet(ctx)?, enter::hit(ctx)?),
+                DecalSite::Leave => (leave::bullet(ctx)?, leave::hit(ctx)?),
+                DecalSite::Ricochet => (ricochet::bullet(ctx)?, ricochet::hit(ctx)?),
+                DecalSite::Stop => (stop::bullet(ctx)?, stop::hit(ctx)?),
+            }
+        };
+        Some(BulletDecal { bullet, hit, _thread: ctx.thread() })
+    }
+
+    pub fn physics(&self) -> Option<PhysicsId> {
+        // SAFETY: the manager and its physics world live for the bullet job.
+        unsafe { Some(PhysicsId::of(self.bullet.manager()?.physics()?)) }
+    }
+
+    /// The material struck (None outside the material pairs' table).
+    pub fn surface(&self) -> Option<MaterialId> {
+        // SAFETY: the bullet's struck material, set by check_collision before
+        // this hit's processing; the material table's, alive for the job.
+        unsafe { MaterialId::parse(u32::from(read(self.bullet.surface()?.id()))) }
+    }
+
+    /// Where the decal goes: the hit's point.
+    pub fn point(&self) -> Option<WorldPoint> {
+        // SAFETY: the hit, check_collision's local, alive while it runs.
+        WorldPoint::parse(unsafe { floats(self.hit.point()) })
+    }
+}
 struct ParticleEffect { slot: raw::ParticleSlot, parameter: u32 }
 struct SoundEffect { slot: *mut u32 }
 
