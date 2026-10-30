@@ -2763,6 +2763,8 @@ pub struct Reflex {
     recoil: Recoil,
     cadence: Cadence,
     kick_step: f32,
+    /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
+    kick_before: f32,
 }
 
 /// The bearing of `to` from `from`, radians.
@@ -3613,7 +3615,14 @@ impl Reflex {
         let before = self.recoil.y();
         self.recoil.update(now);
         self.kick_step = self.recoil.y() - before;
+        self.kick_before = before;
         before
+    }
+
+    /// [recoil] The kick the view had when the tick's decision was made (pitch units): the one
+    /// [`Self::weapon_tick`] returned.
+    pub fn kick_before(&self) -> f32 {
+        self.kick_before
     }
 
     /// [recoil] The weapon's kick now, pitch units.

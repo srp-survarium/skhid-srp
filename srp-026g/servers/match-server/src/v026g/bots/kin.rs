@@ -35,6 +35,7 @@ use std::f32::consts::{PI, TAU};
 
 use serde::{Deserialize, Serialize};
 
+use super::pitch::PitchScale;
 use crate::v026g::drive::key;
 
 /// The game's ticks, seconds.
@@ -55,6 +56,10 @@ pub struct Kinematics {
     pub blend_ticks: u32,
     /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
     pub jump_snap: JumpSnap,
+    /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
+    /// (`pitch.rs`), not a radian. The world's pitch, the pitch turns the bots send and the geometry from the
+    /// view's pitch (the eye, the throws, the rays) all follow it, so it is one setting for the whole match, not a team's.
+    pub pitch_scale: PitchScale,
 }
 
 /// Which jump links the reckoned body takes up after a jump press, until a world shows where the body is.
@@ -84,6 +89,7 @@ impl Default for Kinematics {
             sprint: 5.0,
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
+            pitch_scale: PitchScale::Radian,
         }
     }
 }

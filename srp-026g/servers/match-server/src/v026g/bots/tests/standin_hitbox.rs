@@ -1001,7 +1001,7 @@ mod game_tests {
         let body = &game.bodies[shooter];
         let eye = Game::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let pitch = body.recoil.view(body.pitch);
+        let pitch = body.view_elevation();
         let (c, s) = (pitch.cos(), pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
         let kick = body.recoil.kick();
