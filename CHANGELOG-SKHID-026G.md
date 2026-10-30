@@ -754,3 +754,27 @@ update changes what a match computes.
 - TODO: #775 Equipment 0.29: no shader 0.26g lacks (Watchman gloves crash)
 - TODO: #777 Artefact carry: H held, then a quick key, raises the artefact
 - TODO: #779 Artefact carry: H's up comes from the key handler (stuck carry key)
+
+## 30 Oct, 17:44 — TODO: the owner's words (update required)
+
+<!-- Revision 39 (026g-rev39), released 2026-10-30 17:44 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #804 caddy26: plain TCP only (net.mptcp.enabled=0)
+- TODO: #787 Launcher: the language is the game's, every language, kept in user.cfg
+- TODO: #783 Artefact carry: H's key states as the engine defines them
+- TODO: #790 Artefact carry: no gun falls from a carrier's death
+- TODO: #792 Late join: a loaded world puts its alive players into it (patch 82)
+- TODO: #806 Equipment from 0.31a2 and 0.46c2: 35 of the owner's 38 picks (pack equipment-046@4)
+- TODO: #825 Backpacks from 0.69: the Medic's bag and the Soldier's backpack (pack equipment-069@1), into main
+- TODO: #793 Rooms: the chosen room's card keeps one layout through the vote
+- TODO: #786 Release: build and stage before the go, then the maintenance and a quick swap
+- TODO: #789 Lobby: the kit's movement speed beside the weight
+- TODO: #828 Release: close four gaps found in releases 36-38
+- TODO: #831 Minimap: a late joiner's allies get the ally's icon
+- TODO: #832 Revert #792: the world load already inserts its players (patch 82 never acts)
+- TODO: #829 Hud: the Double cylinder's quick-slot icon
+- TODO: #834 Wear the exoskeleton boots under full-length trousers
+- TODO: #781 Artefact carry: the held hand breathes and flexes its fingers
+- TODO: #835 Ragdoll: no headshot launch (exp_neg is 0 from 20)
+- TODO: #764 Add breakable map lamps with the Rust patch framework
+- TODO: #838 Wiki icons: read the shop filters from FiltersWindow's list functions
