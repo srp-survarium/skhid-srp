@@ -4,10 +4,11 @@ The owner (2026-10-24): "make a game with all ui disabled and players having col
 distinguish teams… this is the new battery mode". The owner's changes of 2026-10-25 and
 2026-10-26 are in. Since 2026-10-28 it is a normal mode, with no server feature toggle.
 
-- **No bands for now** (the owner, 2026-10-26: "bands are fine, but we will do release without
-  them, instead player markers should still be visible"): the painted team bands are parked on
-  branch `feat/blackout-bands` (the per-torso table `scripts/blackout-bands/bands.tsv`, its
-  tools, the exe's part and srp's band in the profile), ready for later.
+- **Duct tape team marks** (the owner, 2026-10-30: "apply [duct tape] as a decal on all armor on
+  hands and legs ... those bands were fine, but we can do better with real ducktape ... blue and
+  red"; it must look like real duct tape wrapped over and over): every other player's arms and legs
+  wear duct tape in his team's colour, as real-war tape ID bands (below, **The tape**). Replaces
+  the cloth armbands of the parked `feat/blackout-bands`. A draft until the owner's in-game check.
 
 ## The mode
 
@@ -81,8 +82,48 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
   statistics, quests and rating are as played; the team's points and the win are the match's.
 - **The end:** the lobby and its results screen as always.
-- **Replays and late joiners** see the match as it was (no interface but the players' markers).
+- **Replays and late joiners** see the match as it was (no interface but the players' markers; the tape, which each player's own profile carries).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
+
+## The tape
+
+- **Where:** one wrap round each upper arm, centred 0.65 of the way from the shoulder joint to the
+  elbow, and one round each thigh, centred 0.45 of the way from the hip joint to the knee
+  (the owner's band window, 0.55-0.75 of the upper arm, had its centre at 0.65).
+- **On which items:** every torso, gloves and legs item surface whose own cloth goes round the arm
+  or thigh there (`scripts/blackout-tape/tape.tsv`, one row per item model and surface, its
+  measures and the review's status). A torso item that is a whole suit (the Duty and Freedom
+  exoskeletons, whose legs come with the torso) carries the thigh tape too. Gloves stop below the
+  elbow: they carry none (the wrap is on the torso's sleeve). A surface whose cloth carries less
+  than 60 % of the tape on either side (fur, feathers, ghillie strands, the exoskeleton's frame
+  bars over the legs' cloth) gets none; the review may turn one off (status `off`, with why).
+- **Look:** real duct tape, photo-scanned: ambientCG Tape006 (CC0 1.0, https://ambientcg.com/a/Tape006;
+  the scan's cloth weave, wrinkles, folds and torn ends), its grey multiplied by the team colour
+  (sRGB 34,78,170 blue, team 0; 182,34,30 red, team 1) with a little dust. Wound 2.7 times: each
+  turn 8.5 mm higher or lower than the last and tilted its own way (5.5 mm), so the turns'
+  edges show layered, each with a thin shadow on the turn under it; small creases where the tape
+  bunched, most near its edges; the free end a torn flap, lifted a little and veering off, with
+  its shadow; the first end the scan's other torn end. Normal and roughness maps from the scan's
+  relief and the layers (a little sheen). Not self-lit; the same for every viewer.
+- **Fit:** a shell of the item surface's own cloth at the wrap (the faces the bands' per-texel
+  pass chose: the limb's weight, the outermost cloth, no pad or plate lying on top), cut 45 mm
+  either side of the wrap's centre, lifted 2.5 mm along the cloth's smooth normal and skinned
+  exactly as the cloth vertex it comes from, so in every pose it lies where the cloth lies (it
+  follows the cloth as painted tape would; the ring meshes of the bands floated because they were
+  skinned otherwise). Its UVs are the angle round the limb's bone and the distance along it, into
+  one atlas all items share; the tape's ragged edges are the atlas's alpha (alpha-tested, as the
+  stock edge_hunter_01_torso_alpha material).
+- **Content:** pack `blackout-tape@1` (`python scripts/blackout-tape/tape.py build`): a shell model
+  per `tape` row (`models/ported/blackout_tape/<base_model, '/' as '_'>__<surface>`, surface
+  `tape`, the item model's own bind pose and skeleton), the atlas maps (2048x512: per colour a DXT5
+  diffuse with the tape's alpha, one normal map, one roughness map) and the two materials
+  `ported/blackout_tape/tape_blue` and `tape_red`. About 19 MB: painting the tape into every arm
+  and leg texture instead would be about 470 MB (each texture twice, with its camouflage mask).
+- **Not on oneself:** a player's own game adds no tape to his own character (the hook leaves the
+  local player alone: in first person it would show at the camera); the others see it.
+- **Review:** `tape.py review` draws every `tape` row in blue and red, at rest from the front, side
+  and back, in the rifle, pistol and shotgun holds, running, crouching and dead, with close-ups of
+  the wrap (CPU renders of the game's models and maps; contact sheets per slot).
 
 ## How
 
@@ -166,7 +207,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 
 ## Open for the owner
 
-- The name; the bands (parked, `feat/blackout-bands`).
+- The name; the tape: its look, colours and places, in the game (a draft: rendered offline only).
 - Saved room settings: a mode is in unless its maker left it out, so settings kept before Blackout
   have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface: refuse it by revision before a

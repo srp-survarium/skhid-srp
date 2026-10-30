@@ -8,6 +8,7 @@ usage:
   tape.py build <packs dir> <version>   the pack blackout-tape-<version>: a shell per `tape` row,
                                         the atlas maps, the two materials, pack.json; prints the
                                         manifest row
+  tape.py flags [--jobs N]              flag draft rows whose cloth is close to a tape colour
   tape.py review [--slot S] [--jobs N]  contact sheets per slot under $BANDS_WORK/review (or
                                         --out): every `tape` row in blue and red, poses and views
 
@@ -34,6 +35,8 @@ import tapelib as T
 HERE = os.path.dirname(os.path.abspath(__file__))
 TABLE = os.path.join(HERE, 'tape.tsv')
 SLOTS = ['torso', 'gloves', 'legs']
+DEFAULT_PARTS = 'gameplay/bodyparts/default'
+DEFAULT_SLOTS = {'torso': 'torso', 'gloves': 'gloves', 'pants': 'legs'}
 DIR = 'ported/blackout_tape'
 SURFACE = 'tape'
 COVER_MIN = 60          # % of the tape's footprint the shell must carry on each side
@@ -67,6 +70,15 @@ def inventory():
                 pre = k[:-len('.base_model')]
                 key = (slot, gv.string(v), gv.string(c.get(pre + '.part_name', '')))
                 found.setdefault(key, set()).add(it.split('/')[-1][:-len('.options')])
+    # What a player wears without an item of the slot: the default body parts.
+    parts = gv.config(DEFAULT_PARTS)
+    for k, v in parts.items():
+        bits = k.split('.')
+        if len(bits) == 4 and bits[0] == 'body_parts' and bits[3] == 'base_model' and bits[2].startswith('data'):
+            slot = DEFAULT_SLOTS.get(bits[1])
+            if slot:
+                key = (slot, gv.string(v), gv.string(parts.get('.'.join(bits[:3] + ['part_name']), '')))
+                found.setdefault(key, set()).add('(no %s item)' % slot)
     return [(s, b, p, sorted(i)) for (s, b, p), i in sorted(found.items())]
 
 
@@ -351,6 +363,63 @@ def cmd_build(a):
     print('row:\tpack\tblackout-tape@%s\t%s' % (a.version, sha))
 
 
+# ---- flags ---------------------------------------------------------------------------------------
+
+CLOSE_DE = 25.0         # a cloth texel this near a tape colour (CIELAB) hides it
+CLOSE_MAX = 0.35        # flag a row when more of its cloth under the tape is that near
+
+
+def _lab(rgb):
+    c = np.asarray(rgb, float) / 255.0
+    c = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    xyz = c @ np.array([[0.4124, 0.2126, 0.0193], [0.3576, 0.7152, 0.1192], [0.1805, 0.0722, 0.9505]])
+    xyz = xyz / np.array([0.9505, 1.0, 1.089])
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def contrast(row):
+    """{colour: the share of the cloth under the tape (the item's own diffuse at the shell's
+    faces) within CLOSE_DE of that tape colour}."""
+    import bandlib as BL
+    names, bp = BL.bind_pose(row['base_model'])
+    parts = {n: (x, m) for n, x, m, _ in model.model(row['base_model'])}
+    s, maps = parts[row['surface']]
+    dif = BL.texture(maps['diffuse'])[..., :3]
+    h, w = dif.shape[:2]
+    px = []
+    for limb in tape_limbs(row):
+        for side in T.SIDES:
+            el, _, _ = SH.limb_faces(s, names, bp, limb, side)
+            uv = s['uv'][s['tri'][el]]
+            for b in ([1 / 3, 1 / 3, 1 / 3], [0.6, 0.2, 0.2], [0.2, 0.6, 0.2], [0.2, 0.2, 0.6]):
+                p = (np.asarray(b) @ uv) % 1.0
+                px.append(dif[(p[:, 1] * h).astype(int).clip(0, h - 1), (p[:, 0] * w).astype(int).clip(0, w - 1)])
+    lab = _lab(np.concatenate(px))
+    return {c: float((np.linalg.norm(lab - _lab(np.asarray(rgb, float)), axis=1) < CLOSE_DE).mean())
+            for c, rgb in T.TEAM.items()}
+
+
+def cmd_flags(a):
+    """Flag `draft` rows whose cloth is near a tape colour (and say so in notes)."""
+    rows = read_table()
+    todo = [r for r in rows if r['method'] == 'tape' and r['status'] == 'draft']
+    with Pool(a.jobs) as p:
+        res = p.map(contrast, todo)
+    for r, c in zip(todo, res):
+        low = [k for k, v in c.items() if v > CLOSE_MAX]
+        if low:
+            r['status'] = 'flagged'
+            r['notes'] = '; '.join(filter(None, [r['notes'], 'little contrast: %s of the cloth under the tape is near the %s tape'
+                                                 % (' / '.join('%d%%' % round(100 * c[k]) for k in low), ' and '.join(low))]))
+    with open(TABLE, 'w') as f:
+        f.write(COMMENT)
+        f.write('\t'.join(HEAD) + '\n')
+        for r in rows:
+            f.write('\t'.join(r[h] for h in HEAD) + '\n')
+    print('flagged', sum(r['status'] == 'flagged' for r in rows))
+
+
 # ---- review sheets -----------------------------------------------------------------------------
 
 def main():
@@ -361,6 +430,8 @@ def main():
     b = sub.add_parser('build')
     b.add_argument('packs')
     b.add_argument('version')
+    f = sub.add_parser('flags')
+    f.add_argument('--jobs', type=int, default=6)
     r = sub.add_parser('review')
     r.add_argument('--slot', action='append')
     r.add_argument('--jobs', type=int, default=6)
@@ -371,6 +442,8 @@ def main():
         cmd_table(a)
     elif a.cmd == 'build':
         cmd_build(a)
+    elif a.cmd == 'flags':
+        cmd_flags(a)
     else:
         import tape_review
         tape_review.review(a)

@@ -6,7 +6,7 @@ import subprocess
 import bandsenv as E
 
 PREFIXES = ['models/character/human/', 'models/ported/', 'material_instances/', 'textures/character/',
-            'textures/ported/', 'gameplay/items/armour/', 'gameplay/items/upgrades/camouflages/']
+            'textures/ported/', 'gameplay/items/armour/', 'gameplay/bodyparts/', 'gameplay/items/upgrades/camouflages/']
 CACHE = os.path.join(E.WORK, 'gamefiles')
 
 

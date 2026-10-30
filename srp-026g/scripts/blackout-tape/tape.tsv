@@ -1,11 +1,15 @@
 # Blackout duct tape per item surface (docs/notes/blackout.md, scripts/blackout-tape): one row per
 # (base_model, surface) an arm or leg item shows; `method` tape = a tape shell is shipped and the exe
 # adds it (patch 65), none = no tape (notes say why). Measured by tape.py table: the shell's faces per
-# side and how much of the tape's footprint they carry (cover); status by the review sheets: good |
-# flagged (with why) | none. The wrap: one on each upper arm (torso sleeves; a gloves item only where it
+# side and how much of the tape's footprint they carry (cover, % left/right); status by the review
+# sheets: draft (not yet reviewed) | good | flagged (with why) | off (reviewed: no tape, kept by later
+# measures) | none (nothing to tape). The wrap: one on each upper arm (torso sleeves; a gloves item only where it
 # reaches the upper arm) and one on each thigh (legs), centred 0.65 of the way from shoulder to elbow and
 # 0.45 from hip to knee.
 slot	base_model	surface	items	method	limbs	arm_faces	arm_cover_pct	thigh_faces	thigh_cover_pct	status	notes
+torso	character/human/base/base_character_torso_s1	base_character_torso_s	(no torso item)	tape	arm	47/82	100/100	0/0	0/0	draft	
+torso	character/human/base/base_character_torso_s2	base_character_torso_s	(no torso item)	tape	arm	47/82	100/100	0/0	0/0	draft	
+torso	character/human/base/base_character_torso_s3	base_character_torso_s	(no torso item)	tape	arm	47/82	100/100	0/0	0/0	draft	
 torso	character/human/black_market/black_market_01_torso_s1	black_market_01_torso_s	blackmarket_torso_1	tape	arm	115/116	97/97	0/0	0/0	draft	
 torso	character/human/black_market/black_market_01_torso_s2	black_market_01_torso_s	blackmarket_torso_1	tape	arm	115/116	97/97	0/0	0/0	draft	
 torso	character/human/black_market/black_market_01_torso_s3	black_market_01_torso_s	blackmarket_torso_1	tape	arm	115/116	97/97	0/0	0/0	draft	
@@ -15,18 +19,18 @@ torso	character/human/black_market/black_market_02_torso_s3	black_market_02_tors
 torso	character/human/black_market/black_market_03_torso_s1	black_market_03_torso_s	blackmarket_torso_3	tape	arm	96/90	96/94	0/0	0/0	draft	
 torso	character/human/black_market/black_market_03_torso_s2	black_market_03_torso_s	blackmarket_torso_3	tape	arm	96/90	96/94	0/0	0/0	draft	
 torso	character/human/black_market/black_market_03_torso_s3	black_market_03_torso_s	blackmarket_torso_3	tape	arm	96/90	96/94	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s1	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s1_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s2	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s2_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s3	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_04_torso_s3_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s1	black_market_05_torso_s	blackmarket_torso_5	tape	arm	167/101	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s1_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	167/101	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s2	black_market_05_torso_s	blackmarket_torso_5	tape	arm	167/101	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s2_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	167/101	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s3	black_market_05_torso_s	blackmarket_torso_5	tape	arm	162/101	100/100	0/0	0/0	draft	
-torso	character/human/black_market/black_market_05_torso_s3_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	162/101	100/100	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s1	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s1_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s2	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s2_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s3	black_market_04_torso_s	blackmarket_torso_4,blackmarket_torso_4_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_04_torso_s3_prem	black_market_04_torso_s	eq046_blackmarket_torso_2_premium	tape	arm	142/129	100/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s1	black_market_05_torso_s	blackmarket_torso_5	tape	arm	167/101	99/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s1_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	167/101	99/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s2	black_market_05_torso_s	blackmarket_torso_5	tape	arm	167/101	99/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s2_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	167/101	99/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s3	black_market_05_torso_s	blackmarket_torso_5	tape	arm	162/101	99/99	0/0	0/0	draft	
+torso	character/human/black_market/black_market_05_torso_s3_prem	black_market_05_torso_s	blackmarket_torso_5_premium	tape	arm	162/101	99/99	0/0	0/0	draft	
 torso	character/human/black_market/black_market_anom_07_torso_s1	black_market_anom_07_torso_s	blackmarket_torso_8	tape	arm	103/101	98/96	0/0	0/0	draft	
 torso	character/human/black_market/black_market_anom_07_torso_s1_prem	black_market_anom_07_torso_s	blackmarket_torso_8_premium	tape	arm	103/99	98/96	0/0	0/0	draft	
 torso	character/human/black_market/black_market_anom_07_torso_s2	black_market_anom_07_torso_s	blackmarket_torso_8	tape	arm	103/101	98/96	0/0	0/0	draft	
@@ -99,41 +103,41 @@ torso	character/human/edge/edge_sniper_06_torso_s3_prem	edge_sniper_06_torso_s	e
 torso	character/human/edge/edge_stalker_02_torso_s1	edge_stalker_02_torso_s	edge_torso_2	tape	arm	91/103	100/100	0/0	0/0	draft	
 torso	character/human/edge/edge_stalker_02_torso_s2	edge_stalker_02_torso_s	edge_torso_2	tape	arm	91/103	100/100	0/0	0/0	draft	
 torso	character/human/edge/edge_stalker_02_torso_s3	edge_stalker_02_torso_s	edge_torso_2	tape	arm	93/105	100/100	0/0	0/0	draft	
-torso	character/human/renesanse/renesance_combat_torso_s1	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/94	0/0	0/0	draft	
-torso	character/human/renesanse/renesance_combat_torso_s2	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/94	0/0	0/0	draft	
-torso	character/human/renesanse/renesance_combat_torso_s3	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/94	0/0	0/0	draft	
+torso	character/human/renesanse/renesance_combat_torso_s1	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/93	0/0	0/0	draft	
+torso	character/human/renesanse/renesance_combat_torso_s2	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/93	0/0	0/0	draft	
+torso	character/human/renesanse/renesance_combat_torso_s3	renesance_combat_torso_s	renesanse_torso_2	tape	arm	82/85	94/93	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_anom_03_torso_s1	renesanse_anom_03_torso_s	eq046_renesanse_torso_3	tape	arm	184/81	100/100	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_anom_03_torso_s2	renesanse_anom_03_torso_s	eq046_renesanse_torso_3	tape	arm	184/81	100/100	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_anom_03_torso_s3	renesanse_anom_03_torso_s	eq046_renesanse_torso_3	tape	arm	184/81	100/100	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_anom_specnaz_torso_s1	renesanse_anom_specnaz_renesanse_anom_specnaz_torso_s	renesanse_torso_5	tape	arm	134/120	99/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_anom_specnaz_torso_s2	renesanse_anom_specnaz_renesanse_anom_specnaz_torso_s	renesanse_torso_5	tape	arm	134/126	99/99	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_anom_specnaz_torso_s3	renesanse_anom_specnaz_renesanse_anom_specnaz_torso_s	renesanse_torso_5	tape	arm	134/126	99/99	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_anom_specnaz_torso_s2	renesanse_anom_specnaz_renesanse_anom_specnaz_torso_s	renesanse_torso_5	tape	arm	134/126	99/98	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_anom_specnaz_torso_s3	renesanse_anom_specnaz_renesanse_anom_specnaz_torso_s	renesanse_torso_5	tape	arm	134/126	99/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s1	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4	tape	arm	170/170	98/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s1_prem	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4_premium	tape	arm	170/170	98/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s2	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4	tape	arm	170/170	98/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s2_prem	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4_premium	tape	arm	170/170	98/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s3	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4	tape	arm	170/166	98/98	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_heavy_com_tank_01_torso_s3_prem	renesanse_heavy_com_tank_01_torso_s	renesanse_torso_4_premium	tape	arm	170/166	98/98	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_novice_combat_torso	renesanse_novice_combat_torso_s	renesanse_torso_1	tape	arm	84/82	100/100	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_novice_combat_torso_s3	renesanse_novice_combat_torso_s	renesanse_torso_1	tape	arm	84/82	100/100	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_novice_combat_torso	renesanse_novice_combat_torso_s	renesanse_torso_1	tape	arm	84/82	100/99	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_novice_combat_torso_s3	renesanse_novice_combat_torso_s	renesanse_torso_1	tape	arm	84/82	100/99	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_rookie_01_torso_s1	renesanse_rookie_01_torso_s	renesanse_torso_0	tape	arm	96/86	100/100	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_rookie_01_torso_s2	renesanse_rookie_01_torso_s	renesanse_torso_0	tape	arm	96/86	100/100	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_rookie_01_torso_s3	renesanse_rookie_01_torso_s	renesanse_torso_0	tape	arm	96/86	100/100	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s1	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s1_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s2	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s2_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s3	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_scout_1a_torso_s3_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_sniper_07_torso_s1	renesanse_sniper_07_ghillie_s8	eq046_renesanse_torso_7	none	-	59/61	35/40	0/0	0/0	none	its cloth carries 35% / 40% of the tape round the upper arm (< 60%)
-torso	character/human/renesanse/renesanse_sniper_07_torso_s1	renesanse_sniper_07_torso_s	eq046_renesanse_torso_7	tape	arm	135/134	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_sniper_07_torso_s2	renesanse_sniper_07_ghillie_s9	eq046_renesanse_torso_7	none	-	59/61	35/40	0/0	0/0	none	its cloth carries 35% / 40% of the tape round the upper arm (< 60%)
-torso	character/human/renesanse/renesanse_sniper_07_torso_s2	renesanse_sniper_07_torso_s6	eq046_renesanse_torso_7	tape	arm	135/134	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_sniper_07_torso_s3	renesanse_sniper_07_ghillie_s10	eq046_renesanse_torso_7	none	-	59/61	35/40	0/0	0/0	none	its cloth carries 35% / 40% of the tape round the upper arm (< 60%)
-torso	character/human/renesanse/renesanse_sniper_07_torso_s3	renesanse_sniper_07_torso_s7	eq046_renesanse_torso_7	tape	arm	135/134	97/97	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_tank_torso_s1	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	109/111	96/95	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_tank_torso_s2	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	111/111	96/95	0/0	0/0	draft	
-torso	character/human/renesanse/renesanse_tank_torso_s3	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	111/111	96/95	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s1	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s1_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s2	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s2_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s3	renesanse_scout_1a_torso_s	renesanse_torso_3	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_scout_1a_torso_s3_prem	renesanse_scout_1a_torso_s	renesanse_torso_3_premium	tape	arm	69/129	96/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_sniper_07_torso_s1	renesanse_sniper_07_ghillie_s8	eq046_renesanse_torso_7	none	-	59/61	34/40	0/0	0/0	none	its cloth carries 34% / 40% of the tape round the upper arm (< 60%)
+torso	character/human/renesanse/renesanse_sniper_07_torso_s1	renesanse_sniper_07_torso_s	eq046_renesanse_torso_7	tape	arm	135/134	97/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_sniper_07_torso_s2	renesanse_sniper_07_ghillie_s9	eq046_renesanse_torso_7	none	-	59/61	34/40	0/0	0/0	none	its cloth carries 34% / 40% of the tape round the upper arm (< 60%)
+torso	character/human/renesanse/renesanse_sniper_07_torso_s2	renesanse_sniper_07_torso_s6	eq046_renesanse_torso_7	tape	arm	135/134	97/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_sniper_07_torso_s3	renesanse_sniper_07_ghillie_s10	eq046_renesanse_torso_7	none	-	59/61	34/40	0/0	0/0	none	its cloth carries 34% / 40% of the tape round the upper arm (< 60%)
+torso	character/human/renesanse/renesanse_sniper_07_torso_s3	renesanse_sniper_07_torso_s7	eq046_renesanse_torso_7	tape	arm	135/134	97/96	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_tank_torso_s1	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	109/111	95/94	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_tank_torso_s2	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	111/111	95/94	0/0	0/0	draft	
+torso	character/human/renesanse/renesanse_tank_torso_s3	_renesanse_heavy_com_tank_01_torso_s	renesanse_torso_6	tape	arm	111/111	95/94	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_vdv_torso_s1	renesanse_vdv_torso_s	renesanse_torso_8	tape	arm	194/218	95/94	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_vdv_torso_s1_prem	renesanse_vdv_torso_s	renesanse_torso_8_premium	tape	arm	194/218	95/94	0/0	0/0	draft	
 torso	character/human/renesanse/renesanse_vdv_torso_s2	renesanse_vdv_torso_s	renesanse_torso_8	tape	arm	194/218	95/94	0/0	0/0	draft	
@@ -143,17 +147,17 @@ torso	character/human/renesanse/renesanse_vdv_torso_s3_prem	renesanse_vdv_torso_
 torso	character/human/scavengers/scavenger_04_torso_s1	kolya_scavenger_04_torso_s1	scavenger_torso_4,scavenger_torso_4_premium	tape	arm	224/125	97/96	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_04_torso_s2	kolya_scavenger_04_torso_s1	scavenger_torso_4,scavenger_torso_4_premium	tape	arm	224/125	97/96	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_04_torso_s3	kolya_scavenger_04_torso_s1	scavenger_torso_4,scavenger_torso_4_premium	tape	arm	224/125	97/96	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s1	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s1	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s1	scavenger_05_sniper_torso_s	scavenger_torso_6	tape	arm	100/97	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s1_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s1_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s1_prem	scavenger_05_sniper_torso_s	scavenger_torso_6_premium	tape	arm	100/97	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s2	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s2	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s2	scavenger_05_sniper_torso_s	scavenger_torso_6	tape	arm	100/97	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s2_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s2_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s2_prem	scavenger_05_sniper_torso_s	scavenger_torso_6_premium	tape	arm	100/97	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s3	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s3	scavenger_05_sniper_ghillie_s	scavenger_torso_6	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s3	scavenger_05_sniper_torso_s	scavenger_torso_6	tape	arm	100/97	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_05_sniper_torso_s3_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/87	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_05_sniper_torso_s3_prem	scavenger_05_sniper_ghillie_s	scavenger_torso_6_premium	tape	arm	100/72	98/86	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_05_sniper_torso_s3_prem	scavenger_05_sniper_torso_s	scavenger_torso_6_premium	tape	arm	100/97	100/98	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_anomaly_06_torso_s1	scavenger_anomaly_06_torso_s	scavenger_torso_9	tape	arm	200/206	95/97	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_anomaly_06_torso_s2	scavenger_anomaly_06_torso_s	scavenger_torso_9	tape	arm	200/206	95/97	0/0	0/0	draft	
@@ -164,33 +168,33 @@ torso	character/human/scavengers/scavenger_master_08_torso_s2	scavenger_master_0
 torso	character/human/scavengers/scavenger_master_08_torso_s2_prem	scavenger_master_08_torso_s	scavenger_torso_8_premium	tape	arm	118/126	100/98	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_master_08_torso_s3	scavenger_master_08_torso_s	scavenger_torso_8	tape	arm	118/126	100/98	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_master_08_torso_s3_prem	scavenger_master_08_torso_s	scavenger_torso_8_premium	tape	arm	118/126	100/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_scout_07_torso_s1	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/96	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_scout_07_torso_s2	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/96	0/0	0/0	draft	
-torso	character/human/scavengers/scavenger_scout_07_torso_s3	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/96	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_scout_07_torso_s1	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/95	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_scout_07_torso_s2	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/95	0/0	0/0	draft	
+torso	character/human/scavengers/scavenger_scout_07_torso_s3	scavenger_scout_07_torso_s	scavenger_torso_7	tape	arm	74/98	95/95	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_sniper_10_torso_s1	scavenger_sniper_10_torso_s	scavenger_torso_10	tape	arm	135/77	94/92	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_sniper_10_torso_s2	scavenger_sniper_10_torso_s	scavenger_torso_10	tape	arm	135/77	94/92	0/0	0/0	draft	
 torso	character/human/scavengers/scavenger_sniper_10_torso_s3	scavenger_sniper_10_torso_s	scavenger_torso_10	tape	arm	135/77	94/92	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_01_torso_s1	scavengers_01_torso_s	scavenger_torso_1	tape	arm	73/70	99/99	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_01_torso_s2	scavengers_01_torso_s	scavenger_torso_1	tape	arm	73/70	99/99	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_01_torso_s3	scavengers_01_torso_s	scavenger_torso_1	tape	arm	74/70	99/99	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_01_torso_s1	scavengers_01_torso_s	scavenger_torso_1	tape	arm	73/70	99/98	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_01_torso_s2	scavengers_01_torso_s	scavenger_torso_1	tape	arm	73/70	99/98	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_01_torso_s3	scavengers_01_torso_s	scavenger_torso_1	tape	arm	74/70	99/98	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_02_torso_s1	scavengers_02_torso_s	scavenger_torso_2	tape	arm	51/75	94/94	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_02_torso_s2	scavengers_02_torso_s	scavenger_torso_2	tape	arm	51/75	94/94	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_02_torso_s3	scavengers_02_torso_s	scavenger_torso_2	tape	arm	51/75	94/94	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_03_torso_s1	scavengers_03_torso_s	scavenger_torso_3	tape	arm	77/77	100/100	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_03_torso_s2	scavengers_03_torso_s	scavenger_torso_3	tape	arm	77/77	100/100	0/0	0/0	draft	
 torso	character/human/scavengers/scavengers_03_torso_s3	scavengers_03_torso_s	scavenger_torso_3	tape	arm	77/77	100/100	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_05_torso_s1	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_05_torso_s2	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/98	0/0	0/0	draft	
-torso	character/human/scavengers/scavengers_05_torso_s3	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/98	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_05_torso_s1	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/97	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_05_torso_s2	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/97	0/0	0/0	draft	
+torso	character/human/scavengers/scavengers_05_torso_s3	blinn1sg	scavenger_torso_5	tape	arm	114/113	99/97	0/0	0/0	draft	
 torso	ported/duty_026/duty_03_legs_s1	legs_s	duty_exo_026	tape	thigh	0/0	0/0	52/52	100/100	draft	
-torso	ported/duty_026/duty_03_torso_s1	back_s	duty_exo_026	none	-	24/24	2/2	93/80	8/8	none	its cloth carries 8% / 8% of the tape round the thigh (< 60%)
-torso	ported/duty_026/duty_03_torso_s1	exoskeleton_s	duty_exo_026	none	-	118/118	55/58	145/143	60/62	off	the exoskeleton frame bars over the thigh: the legs_s surface under them carries the thigh tape
+torso	ported/duty_026/duty_03_torso_s1	back_s	duty_exo_026	none	-	24/24	2/2	93/80	7/8	none	its cloth carries 7% / 8% of the tape round the thigh (< 60%)
+torso	ported/duty_026/duty_03_torso_s1	exoskeleton_s	duty_exo_026	none	-	118/118	53/57	145/143	60/62	off	the exoskeleton frame bars over the thigh: the legs_s surface under them carries the thigh tape
 torso	ported/duty_026/duty_03_torso_s1	sign_s	duty_exo_026	none	-	0/0	0/0	0/0	0/0	none	no cloth of its own round the upper arm or thigh
-torso	ported/duty_026/duty_03_torso_s1	torso_s	duty_exo_026	tape	arm	65/65	100/100	0/0	0/0	draft	
+torso	ported/duty_026/duty_03_torso_s1	torso_s	duty_exo_026	tape	arm	65/65	100/100	0/0	0/0	flagged	the arm tape lies under the exoskeleton frame bars: it shows between them (as the bands did, which the owner accepted)
 torso	ported/freedom_026/duty_03_legs_s1	legs_s	freedom_exo_026	tape	thigh	0/0	0/0	52/52	100/100	draft	
-torso	ported/freedom_026/duty_03_torso_s1	back_s	freedom_exo_026	none	-	24/24	2/2	93/80	8/8	none	its cloth carries 8% / 8% of the tape round the thigh (< 60%)
-torso	ported/freedom_026/duty_03_torso_s1	exoskeleton_s	freedom_exo_026	none	-	118/118	55/58	145/143	60/62	off	the exoskeleton frame bars over the thigh: the legs_s surface under them carries the thigh tape
-torso	ported/freedom_026/duty_03_torso_s1	torso_s	freedom_exo_026	tape	arm	65/65	100/100	0/0	0/0	draft	
+torso	ported/freedom_026/duty_03_torso_s1	back_s	freedom_exo_026	none	-	24/24	2/2	93/80	7/8	none	its cloth carries 7% / 8% of the tape round the thigh (< 60%)
+torso	ported/freedom_026/duty_03_torso_s1	exoskeleton_s	freedom_exo_026	none	-	118/118	53/57	145/143	60/62	off	the exoskeleton frame bars over the thigh: the legs_s surface under them carries the thigh tape
+torso	ported/freedom_026/duty_03_torso_s1	torso_s	freedom_exo_026	tape	arm	65/65	100/100	0/0	0/0	flagged	the arm tape lies under the exoskeleton frame bars: it shows between them (as the bands did, which the owner accepted)
 gloves	character/human/black_market/black_market_01_hand	black_market_01_hand_s	blackmarket_gloves_1	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/black_market/black_market_02_hand	black_market_02_hand_s	blackmarket_gloves_2	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/black_market/black_market_05_hand	black_market_05_hand_s	eq046_blackmarket_gloves_5	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
@@ -200,6 +204,7 @@ gloves	character/human/black_market/black_market_sniper_06_hand	black_market_sni
 gloves	character/human/black_market/black_market_sturm_10_hand_hud	black_market_sturm_10_hand_s	eq046_blackmarket_gloves_10	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/edge/edge_assault_05_hand	edge_assault_05_hand_s	edge_gloves_5	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/edge/edge_defender_04_hand	edge_defender_04_hand_s	eq046_edge_gloves_5	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
+gloves	character/human/edge/edge_hunter_01_hand	edge_hunter_01_hand_s	(no gloves item)	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/edge/edge_keeper_07_hand	edge_keeper_07_hand_s	eq046_edge_gloves_7	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/edge/edge_piligrim_10_hand_hud	edge_piligrim_10_hand_s	edge_gloves_6	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	character/human/edge/edge_researcher_03_hand	edge_researcher_03_hand_s	edge_gloves_3	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
@@ -222,6 +227,9 @@ gloves	character/human/scavengers/scavengers_02_hand	scavengers_02_hand_s	scaven
 gloves	character/human/scavengers/scavengers_03_hand	scavengers_03_hand_s	scavenger_gloves_1	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	ported/duty_026/duty_03_hand	torso_s	duty_exo_026	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
 gloves	ported/freedom_026/duty_03_hand	torso_s	freedom_exo_026	none	-	0/0	0/0	-	-	none	does not reach the upper arm (the wrap is on the torso sleeve)
+legs	character/human/base/base_character_legs_s1	base_character_legs_s	(no legs item)	tape	thigh	-	-	74/61	100/100	draft	
+legs	character/human/base/base_character_legs_s2	base_character_legs_s	(no legs item)	tape	thigh	-	-	72/61	100/100	draft	
+legs	character/human/base/base_character_legs_s3	base_character_legs_s	(no legs item)	tape	thigh	-	-	72/61	100/100	draft	
 legs	character/human/black_market/black_market_01_legs_s1	black_market_01_legs_s	blackmarket_legs_1	tape	thigh	-	-	89/86	100/100	draft	
 legs	character/human/black_market/black_market_01_legs_s2	black_market_01_legs_s	blackmarket_legs_1	tape	thigh	-	-	89/86	100/100	draft	
 legs	character/human/black_market/black_market_01_legs_s3	black_market_01_legs_s	blackmarket_legs_1	tape	thigh	-	-	89/86	100/100	draft	
@@ -273,82 +281,82 @@ legs	character/human/edge/edge_defender_04_legs_s3_prem	edge_defende_04_legs_s	e
 legs	character/human/edge/edge_fighter_02_legs_s1	edge_fighter_02_legs_s	edge_legs_8	tape	thigh	-	-	220/150	100/100	draft	
 legs	character/human/edge/edge_fighter_02_legs_s2	edge_fighter_02_legs_s	edge_legs_8	tape	thigh	-	-	220/150	100/100	draft	
 legs	character/human/edge/edge_fighter_02_legs_s3	edge_fighter_02_legs_s	edge_legs_8	tape	thigh	-	-	220/150	100/100	draft	
-legs	character/human/edge/edge_hunter_01_legs_s1	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_hunter_01_legs_s1_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_hunter_01_legs_s2	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_hunter_01_legs_s2_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_hunter_01_legs_s3	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_hunter_01_legs_s3_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/90	draft	
-legs	character/human/edge/edge_keeper_07_legs_s1	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/99	draft	
-legs	character/human/edge/edge_keeper_07_legs_s2	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/99	draft	
-legs	character/human/edge/edge_keeper_07_legs_s3	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/99	draft	
+legs	character/human/edge/edge_hunter_01_legs_s1	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_hunter_01_legs_s1_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_hunter_01_legs_s2	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_hunter_01_legs_s2_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_hunter_01_legs_s3	edge_hunter_01_legs_s	edge_legs_1	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_hunter_01_legs_s3_prem	edge_hunter_01_legs_s	edge_legs_1_premium	tape	thigh	-	-	87/74	91/89	draft	
+legs	character/human/edge/edge_keeper_07_legs_s1	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/98	draft	
+legs	character/human/edge/edge_keeper_07_legs_s2	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/98	draft	
+legs	character/human/edge/edge_keeper_07_legs_s3	edge_keeper_07_legs_s	eq046_edge_legs_7	tape	thigh	-	-	176/117	100/98	draft	
 legs	character/human/edge/edge_novice_01_legs_s1	edge_novice_01_legs_alpha_s	edge_legs_0	none	-	-	-	0/0	0/0	none	no cloth of its own round the thigh
-legs	character/human/edge/edge_novice_01_legs_s1	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	99/99	draft	
-legs	character/human/edge/edge_novice_01_legs_s2	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	99/99	draft	
-legs	character/human/edge/edge_novice_01_legs_s3	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	99/99	draft	
+legs	character/human/edge/edge_novice_01_legs_s1	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	98/99	draft	
+legs	character/human/edge/edge_novice_01_legs_s2	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	98/99	draft	
+legs	character/human/edge/edge_novice_01_legs_s3	edge_novice_01_legs_s	edge_legs_0	tape	thigh	-	-	104/104	98/99	draft	
 legs	character/human/edge/edge_piligrim_10_legs_s1	edge_piligrim_10_legs_s	edge_legs_6	tape	thigh	-	-	275/85	100/100	draft	
 legs	character/human/edge/edge_piligrim_10_legs_s2	edge_piligrim_10_legs_s	edge_legs_6	tape	thigh	-	-	275/85	100/100	draft	
 legs	character/human/edge/edge_piligrim_10_legs_s3	edge_piligrim_10_legs_s	edge_legs_6	tape	thigh	-	-	275/85	100/100	draft	
-legs	character/human/edge/edge_researcher_03_legs_s1	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/89	draft	
-legs	character/human/edge/edge_researcher_03_legs_s2	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/89	draft	
-legs	character/human/edge/edge_researcher_03_legs_s3	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/89	draft	
-legs	character/human/edge/edge_sniper_06_legs_s1	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s1	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_sniper_06_legs_s1_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s1_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_sniper_06_legs_s2	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s2	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_sniper_06_legs_s2_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s2_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_sniper_06_legs_s3	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s3	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_sniper_06_legs_s3_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	6/0	none	its cloth carries 6% / 0% of the tape round the thigh (< 60%)
-legs	character/human/edge/edge_sniper_06_legs_s3_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	draft	
-legs	character/human/edge/edge_stalker_02_legs_s1	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	100/95	draft	
-legs	character/human/edge/edge_stalker_02_legs_s2	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	100/95	draft	
-legs	character/human/edge/edge_stalker_02_legs_s3	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	100/95	draft	
+legs	character/human/edge/edge_researcher_03_legs_s1	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/88	draft	
+legs	character/human/edge/edge_researcher_03_legs_s2	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/88	draft	
+legs	character/human/edge/edge_researcher_03_legs_s3	edge_researcher_03_legs_s	edge_legs_3	tape	thigh	-	-	253/78	90/88	draft	
+legs	character/human/edge/edge_sniper_06_legs_s1	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s1	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_sniper_06_legs_s1_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s1_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_sniper_06_legs_s2	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s2	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_sniper_06_legs_s2_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s2_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_sniper_06_legs_s3	edge_sniper_06_alpha_s	edge_legs_4	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s3	edge_sniper_06_legs_s	edge_legs_4	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_sniper_06_legs_s3_prem	edge_sniper_06_alpha_s	edge_legs_4_premium	none	-	-	-	7/0	5/0	none	its cloth carries 5% / 0% of the tape round the thigh (< 60%)
+legs	character/human/edge/edge_sniper_06_legs_s3_prem	edge_sniper_06_legs_s	edge_legs_4_premium	tape	thigh	-	-	257/132	100/100	flagged	the right thigh pouch lies over part of the tape
+legs	character/human/edge/edge_stalker_02_legs_s1	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	99/94	draft	
+legs	character/human/edge/edge_stalker_02_legs_s2	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	99/94	draft	
+legs	character/human/edge/edge_stalker_02_legs_s3	edge_stalker_02_legs_s	edge_legs_2	tape	thigh	-	-	155/175	99/94	draft	
 legs	character/human/renesanse/renesance_combat_legs_s1	renesance_combat_legs_s	renesanse_legs_2	tape	thigh	-	-	118/92	100/100	draft	
 legs	character/human/renesanse/renesance_combat_legs_s2	renesance_combat_legs_s	renesanse_legs_2	tape	thigh	-	-	118/92	100/100	draft	
 legs	character/human/renesanse/renesance_combat_legs_s3	renesance_combat_legs_s	renesanse_legs_2	tape	thigh	-	-	118/92	100/100	draft	
 legs	character/human/renesanse/renesanse_anom_03_legs_s1	renesanse_anom_03_legs_s	eq046_renesanse_legs_3	tape	thigh	-	-	103/96	100/100	draft	
 legs	character/human/renesanse/renesanse_anom_03_legs_s2	renesanse_anom_03_legs_s	eq046_renesanse_legs_3	tape	thigh	-	-	103/96	100/100	draft	
 legs	character/human/renesanse/renesanse_anom_03_legs_s3	renesanse_anom_03_legs_s	eq046_renesanse_legs_3	tape	thigh	-	-	103/96	100/100	draft	
-legs	character/human/renesanse/renesanse_anom_specnaz_legs_s1	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	87/106	95/95	draft	
-legs	character/human/renesanse/renesanse_anom_specnaz_legs_s2	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	85/106	92/95	draft	
-legs	character/human/renesanse/renesanse_anom_specnaz_legs_s3	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	87/106	95/95	draft	
+legs	character/human/renesanse/renesanse_anom_specnaz_legs_s1	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	87/106	94/94	draft	
+legs	character/human/renesanse/renesanse_anom_specnaz_legs_s2	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	85/106	92/94	draft	
+legs	character/human/renesanse/renesanse_anom_specnaz_legs_s3	renesanse_anom_specnaz_renesanse_anom_specnaz_legs_s	renesanse_legs_5	tape	thigh	-	-	87/106	94/94	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s1	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4	tape	thigh	-	-	136/124	100/99	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s1_prem	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4_premium	tape	thigh	-	-	136/124	100/99	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s2	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4	tape	thigh	-	-	136/124	100/99	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s2_prem	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4_premium	tape	thigh	-	-	136/124	100/99	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s3	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4	tape	thigh	-	-	136/124	100/99	draft	
 legs	character/human/renesanse/renesanse_heavy_com_tank_01_legs_s3_prem	renesanse_heavy_com_tank_01_legs_s	renesanse_legs_4_premium	tape	thigh	-	-	136/124	100/99	draft	
-legs	character/human/renesanse/renesanse_novice_combat_legs_s1	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	100/100	draft	
-legs	character/human/renesanse/renesanse_novice_combat_legs_s2	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	100/100	draft	
-legs	character/human/renesanse/renesanse_novice_combat_legs_s3	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	100/100	draft	
+legs	character/human/renesanse/renesanse_novice_combat_legs_s1	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	99/100	draft	
+legs	character/human/renesanse/renesanse_novice_combat_legs_s2	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	99/100	draft	
+legs	character/human/renesanse/renesanse_novice_combat_legs_s3	renesanse_novice_combat_legs_s	renesanse_legs_1	tape	thigh	-	-	122/96	99/100	draft	
 legs	character/human/renesanse/renesanse_rookie_01_legs_s1	renesanse_rookie_01_legs_s	renesanse_legs_0	tape	thigh	-	-	118/122	90/100	draft	
 legs	character/human/renesanse/renesanse_rookie_01_legs_s2	renesanse_rookie_01_legs_s	renesanse_legs_0	tape	thigh	-	-	118/122	90/100	draft	
 legs	character/human/renesanse/renesanse_rookie_01_legs_s3	renesanse_rookie_01_legs_s	renesanse_legs_0	tape	thigh	-	-	118/122	90/100	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s1	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s1_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s2	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s2_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s3	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_scout_1a_legs_s3_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	97/95	draft	
-legs	character/human/renesanse/renesanse_sniper_07_legs_s1	renesanse_sniper_07_ghillie_s	eq046_renesanse_legs_7	none	-	-	-	8/19	2/14	none	its cloth carries 2% / 14% of the tape round the thigh (< 60%)
-legs	character/human/renesanse/renesanse_sniper_07_legs_s1	renesanse_sniper_07_legs_s	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/100	draft	
-legs	character/human/renesanse/renesanse_sniper_07_legs_s2	renesanse_sniper_07_ghillie_s6	eq046_renesanse_legs_7	none	-	-	-	8/19	2/14	none	its cloth carries 2% / 14% of the tape round the thigh (< 60%)
-legs	character/human/renesanse/renesanse_sniper_07_legs_s2	renesanse_sniper_07_legs_s6	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/100	draft	
-legs	character/human/renesanse/renesanse_sniper_07_legs_s3	renesanse_sniper_07_ghillie_s7	eq046_renesanse_legs_7	none	-	-	-	8/19	2/14	none	its cloth carries 2% / 14% of the tape round the thigh (< 60%)
-legs	character/human/renesanse/renesanse_sniper_07_legs_s3	renesanse_sniper_07_legs_s7	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/100	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s1	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s1_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s2	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s2_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s3	renesanse_scout_1a_legs_s	renesanse_legs_3	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_scout_1a_legs_s3_prem	renesanse_scout_1a_legs_s	renesanse_legs_3_premium	tape	thigh	-	-	79/78	96/94	draft	
+legs	character/human/renesanse/renesanse_sniper_07_legs_s1	renesanse_sniper_07_ghillie_s	eq046_renesanse_legs_7	none	-	-	-	8/19	2/13	none	its cloth carries 2% / 13% of the tape round the thigh (< 60%)
+legs	character/human/renesanse/renesanse_sniper_07_legs_s1	renesanse_sniper_07_legs_s	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/99	draft	
+legs	character/human/renesanse/renesanse_sniper_07_legs_s2	renesanse_sniper_07_ghillie_s6	eq046_renesanse_legs_7	none	-	-	-	8/19	2/13	none	its cloth carries 2% / 13% of the tape round the thigh (< 60%)
+legs	character/human/renesanse/renesanse_sniper_07_legs_s2	renesanse_sniper_07_legs_s6	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/99	draft	
+legs	character/human/renesanse/renesanse_sniper_07_legs_s3	renesanse_sniper_07_ghillie_s7	eq046_renesanse_legs_7	none	-	-	-	8/19	2/13	none	its cloth carries 2% / 13% of the tape round the thigh (< 60%)
+legs	character/human/renesanse/renesanse_sniper_07_legs_s3	renesanse_sniper_07_legs_s7	eq046_renesanse_legs_7	tape	thigh	-	-	223/150	100/99	draft	
 legs	character/human/renesanse/renesanse_tank_legs_s1	_renesanse_heavy_com_tank_01_legs_s	renesanse_legs_6	tape	thigh	-	-	85/166	100/99	draft	
 legs	character/human/renesanse/renesanse_tank_legs_s2	_renesanse_heavy_com_tank_01_legs_s	renesanse_legs_6	tape	thigh	-	-	85/166	100/99	draft	
 legs	character/human/renesanse/renesanse_tank_legs_s3	_renesanse_heavy_com_tank_01_legs_s	renesanse_legs_6	tape	thigh	-	-	85/166	100/99	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s1	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/94	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s1_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/94	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s2	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/94	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s2_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/94	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s3	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/94	draft	
-legs	character/human/renesanse/renesanse_vdv_legs_s3_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/94	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s1	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/93	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s1_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/93	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s2	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/93	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s2_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/93	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s3	renesanse_vdv_legs_s	renesanse_legs_8	tape	thigh	-	-	258/152	97/93	draft	
+legs	character/human/renesanse/renesanse_vdv_legs_s3_prem	renesanse_vdv_legs_s	renesanse_legs_8_premium	tape	thigh	-	-	258/152	97/93	draft	
 legs	character/human/scavengers/scavenger_04_legs_s1	kolya_scavenger_04_legs_s1	scavenger_legs_4,scavenger_legs_4_premium	tape	thigh	-	-	166/159	100/100	draft	
 legs	character/human/scavengers/scavenger_04_legs_s2	kolya_scavenger_04_legs_s1	scavenger_legs_4,scavenger_legs_4_premium	tape	thigh	-	-	166/159	100/100	draft	
 legs	character/human/scavengers/scavenger_04_legs_s3	kolya_scavenger_04_legs_s1	scavenger_legs_4,scavenger_legs_4_premium	tape	thigh	-	-	166/159	100/100	draft	
@@ -361,27 +369,27 @@ legs	character/human/scavengers/scavenger_05_sniper_legs_s3_prem	scavenger_05_sn
 legs	character/human/scavengers/scavenger_anomaly_06_legs_s1	scavenger_anomaly_06_legs_s	scavenger_legs_9	tape	thigh	-	-	200/157	100/100	draft	
 legs	character/human/scavengers/scavenger_anomaly_06_legs_s2	scavenger_anomaly_06_legs_s	scavenger_legs_9	tape	thigh	-	-	200/157	100/100	draft	
 legs	character/human/scavengers/scavenger_anomaly_06_legs_s3	scavenger_anomaly_06_legs_s	scavenger_legs_9	tape	thigh	-	-	200/157	100/100	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s1	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s1_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s2	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s2_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s3	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_master_08_legs_s3_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/93	draft	
-legs	character/human/scavengers/scavenger_scout_07_legs_s1	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/76	draft	
-legs	character/human/scavengers/scavenger_scout_07_legs_s2	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/76	draft	
-legs	character/human/scavengers/scavenger_scout_07_legs_s3	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/76	draft	
-legs	character/human/scavengers/scavenger_sniper_10_legs_s1	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/99	draft	
-legs	character/human/scavengers/scavenger_sniper_10_legs_s2	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/99	draft	
-legs	character/human/scavengers/scavenger_sniper_10_legs_s3	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/99	draft	
-legs	character/human/scavengers/scavengers_01_legs_s1	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/94	draft	
-legs	character/human/scavengers/scavengers_01_legs_s2	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/94	draft	
-legs	character/human/scavengers/scavengers_01_legs_s3	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/94	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s1	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s1_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s2	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s2_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s3	scavenger_master_08_legs_s	scavenger_legs_8	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_master_08_legs_s3_prem	scavenger_master_08_legs_s	scavenger_legs_8_premium	tape	thigh	-	-	169/156	96/92	draft	
+legs	character/human/scavengers/scavenger_scout_07_legs_s1	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/75	draft	
+legs	character/human/scavengers/scavenger_scout_07_legs_s2	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/75	draft	
+legs	character/human/scavengers/scavenger_scout_07_legs_s3	scavenger_scout_07_legs_s	scavenger_legs_7	tape	thigh	-	-	111/128	78/75	draft	
+legs	character/human/scavengers/scavenger_sniper_10_legs_s1	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/98	draft	
+legs	character/human/scavengers/scavenger_sniper_10_legs_s2	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/98	draft	
+legs	character/human/scavengers/scavenger_sniper_10_legs_s3	scavenger_sniper_10_legs_s	scavenger_legs_10	tape	thigh	-	-	290/144	95/98	draft	
+legs	character/human/scavengers/scavengers_01_legs_s1	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/93	draft	
+legs	character/human/scavengers/scavengers_01_legs_s2	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/93	draft	
+legs	character/human/scavengers/scavengers_01_legs_s3	scavengers_01_legs_s	scavenger_legs_1	tape	thigh	-	-	82/67	95/93	draft	
 legs	character/human/scavengers/scavengers_02_legs_s1	scavengers_02_legs_s	scavenger_legs_2	tape	thigh	-	-	87/100	100/100	draft	
 legs	character/human/scavengers/scavengers_02_legs_s2	scavengers_02_legs_s	scavenger_legs_2	tape	thigh	-	-	87/100	100/100	draft	
 legs	character/human/scavengers/scavengers_02_legs_s3	scavengers_02_legs_s	scavenger_legs_2	tape	thigh	-	-	87/100	100/100	draft	
-legs	character/human/scavengers/scavengers_03_legs_s1	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/100	draft	
-legs	character/human/scavengers/scavengers_03_legs_s2	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/100	draft	
-legs	character/human/scavengers/scavengers_03_legs_s3	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/100	draft	
-legs	character/human/scavengers/scavengers_05_legs_s1	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/99	draft	
-legs	character/human/scavengers/scavengers_05_legs_s2	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/99	draft	
-legs	character/human/scavengers/scavengers_05_legs_s3	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/99	draft	
+legs	character/human/scavengers/scavengers_03_legs_s1	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/99	draft	
+legs	character/human/scavengers/scavengers_03_legs_s2	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/99	draft	
+legs	character/human/scavengers/scavengers_03_legs_s3	scavengers_03_legs_s	scavenger_legs_3	tape	thigh	-	-	142/106	93/99	draft	
+legs	character/human/scavengers/scavengers_05_legs_s1	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/98	draft	
+legs	character/human/scavengers/scavengers_05_legs_s2	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/98	draft	
+legs	character/human/scavengers/scavengers_05_legs_s3	blinn2sg	scavenger_legs_5	tape	thigh	-	-	188/133	99/98	draft	
