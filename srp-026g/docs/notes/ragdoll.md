@@ -1055,8 +1055,12 @@ finite fallback and settling. It shares the corpse's ownership and death
 key: rollback/respawn discards it, the same death keeps it, slot eviction
 falls back to the worn pose. It is cosmetic: no inventory removal, armour
 change, pickup, simulation-world body or replay compatibility change.
-Like the dropped gun, it has no collision response against the corpse and
-does not receive subsequent bullet hits. Shape and release motion need
+It collides with the corpse's eleven parts (2026-10-29): pushed out of
+each as from the ground, its slide held by the same static friction, so it
+rolls off the body or comes to rest on it. The body is not moved by it.
+A part it overlaps at the death (the head it sat on) collides only once the
+two have come apart, so the release does not throw it. It does not receive
+subsequent bullet hits. Shape and release motion need
 in-game visual tuning; the initial capsule is 0.04 m half-length and 0.10 m
 radius with a 0.10 m offset above the captured Head bone.
 

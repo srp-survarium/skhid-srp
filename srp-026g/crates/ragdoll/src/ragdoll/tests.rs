@@ -158,6 +158,83 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
 }
 
+/// How deep the headwear is in the deepest body part, m (0: in none).
+fn headwear_depth(r: &Ragdoll) -> f32 {
+    let hat = r.headwear.unwrap().body;
+    r.bodies
+        .iter()
+        .filter_map(|b| separation(b, &hat).map(|(_, _, d)| b.shape.radius + hat.shape.radius - d))
+        .fold(0.0, max)
+}
+
+#[test]
+fn headwear_leaves_the_head_it_sat_on_without_a_kick() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [looks5()[2].1];
+    let mut input = start(&now, &before, Cause::Unknown, Some(GUN));
+    input.hits = &hits;
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    assert!(matches!(body.cause, Cause::Head { .. }));
+    let hat = body.headwear.unwrap();
+    assert_eq!(
+        hat.touches & 1 << Part::Head.index(),
+        0,
+        "it starts on the head"
+    );
+    let speed = hat.body.velocity.length();
+    let mut fastest = 0.0f32;
+    let mut ground = Ground::flat();
+    // the fall: the helmet off the head and on the ground by 1.5 s
+    for _ in 0..90 {
+        body.step(1.0 / 60.0, None, &mut ground);
+        fastest = max(fastest, body.headwear.unwrap().body.velocity.length());
+    }
+    // the fall from head height at most, no push out of the head
+    assert!(fastest < speed + 6.0, "{fastest} m/s from {speed}");
+    assert_ne!(
+        body.headwear.unwrap().touches & 1 << Part::Head.index(),
+        0,
+        "apart since"
+    );
+}
+
+#[test]
+fn headwear_dropped_on_a_lying_body_rests_on_it_and_settles() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, SHOT, None);
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    run(&mut body, &mut ground, None, |_| {});
+    // the body lies; the helmet let go 40 cm above the chest's top
+    let chest = body.bodies[Part::Torso.index()];
+    let top = chest.pose.position + Vec3::Y * chest.shape.radius;
+    let hat = &mut body.headwear.as_mut().unwrap().body;
+    hat.pose.position = top + Vec3::Y * (0.4 + hat.shape.radius);
+    hat.previous = hat.pose;
+    hat.velocity = Vec3::ZERO;
+    hat.spin = Vec3::ZERO;
+    hat.contacts = [Contact::Free; 2];
+    body.rest = Rest::Moving;
+    body.moving_for = 0.0;
+    let mut deepest = 0.0f32;
+    let took = run(&mut body, &mut ground, None, |r| {
+        deepest = max(deepest, headwear_depth(r));
+    });
+    let hat = body.headwear.unwrap().body;
+    assert!(deepest < 0.02, "the helmet went {deepest} m into the body");
+    assert!(
+        hat.pose.position.y > top.y + hat.shape.radius - 0.03,
+        "it rests on the chest ({} m), not on the floor under it ({} m)",
+        hat.pose.position.y,
+        top.y
+    );
+    assert!(took < MAX_AGE, "settled by rest, not the age cap: {took} s");
+}
+
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(
     ragdoll: &mut Ragdoll,

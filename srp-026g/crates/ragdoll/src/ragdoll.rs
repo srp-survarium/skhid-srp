@@ -271,6 +271,10 @@ struct Headwear {
     body: Body,
     /// The Head-equivalent render bone relative to the body's centre.
     bone: Pose,
+    /// The parts it collides with, a bit each ([`Part::index`]): those it
+    /// did not overlap at the death, and each it overlapped (the head it sat
+    /// on) once they have come apart.
+    touches: u16,
 }
 
 /// The unit axis of `frame` (one of its six) nearest `toward`.
@@ -691,16 +695,22 @@ impl Ragdoll {
             headwear: start.headwear.map(|_| {
                 let head = now[HEAD.index()];
                 let pose = Pose::new(head.rotation, head.position + up * 0.10);
+                let body = Body::new(
+                    pose,
+                    Capsule {
+                        half: 0.04,
+                        radius: 0.10,
+                    },
+                    1.0,
+                );
+                let touches = Part::ALL
+                    .into_iter()
+                    .filter(|p| separation(&bodies[p.index()], &body).is_none())
+                    .fold(0, |bits, p| bits | 1 << p.index());
                 Headwear {
-                    body: Body::new(
-                        pose,
-                        Capsule {
-                            half: 0.04,
-                            radius: 0.10,
-                        },
-                        1.0,
-                    ),
+                    body,
                     bone: pose.inverse().then(head),
+                    touches,
                 }
             }),
             joints,
@@ -929,6 +939,7 @@ impl Ragdoll {
                 joint.limit.solve(parent, child, alpha_h);
             }
             self.solve_self_collision();
+            self.solve_headwear();
             self.solve_travel();
             for (i, body) in self
                 .bodies
@@ -1326,6 +1337,62 @@ impl Ragdoll {
                     carry_previous(a, was_a);
                     carry_previous(b, was_b);
                 }
+            }
+        }
+    }
+
+    /// The headwear against the body's parts it collides with: pushed out
+    /// of each as from the ground, its slide on the part's surface held by
+    /// static friction. The body is not moved by it (a helmet against a
+    /// corpse's weight).
+    fn solve_headwear(&mut self) {
+        let Ragdoll {
+            bodies,
+            headwear: Some(hat),
+            up,
+            ..
+        } = self
+        else {
+            return;
+        };
+        for part in Part::ALL {
+            let bit = 1 << part.index();
+            let body = &bodies[part.index()];
+            let Some((pb, ph, distance)) = separation(body, &hat.body) else {
+                hat.touches |= bit;
+                continue;
+            };
+            if hat.touches & bit == 0 {
+                continue;
+            }
+            let n = (ph - pb).direction_or(*up);
+            let reach = body.shape.radius + hat.body.shape.radius;
+            let depth = reach - distance;
+            // as between two parts: the substep's depth out at once, an old
+            // one a little a substep and without a speed
+            let (b0, b1) = body.shape.ends(body.previous);
+            let (h0, h1) = hat.body.shape.ends(hat.body.previous);
+            let (qb, qh) = closest_points(b0, b1, h0, h1);
+            let before = max(0.0, reach - (qh - qb).length());
+            let push = max(0.0, depth - before);
+            let recovery = min(min(before, depth), RECOVERY);
+            let touch = ph - n * hat.body.shape.radius;
+            let r = touch - hat.body.pose.position;
+            if push > 0.0 {
+                close_gap(Pair::One(&mut hat.body), r, r, n * push, 0.0);
+            }
+            if recovery > 0.0 {
+                let was = hat.body.pose;
+                close_gap(Pair::One(&mut hat.body), r, r, n * recovery, 0.0);
+                carry_previous(&mut hat.body, was);
+            }
+            // static friction: the touching point's slide over the part's
+            // surface (the part's own motion there taken off) in this substep
+            let moved = |b: &Body| touch - b.previous.apply(b.pose.inverse().apply(touch));
+            let slide = (moved(&hat.body) - moved(body)).reject(n);
+            if slide.length() < STATIC_FRICTION * depth {
+                let r = touch - hat.body.pose.position;
+                close_gap(Pair::One(&mut hat.body), r, r, -slide, 0.0);
             }
         }
     }
