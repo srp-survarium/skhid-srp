@@ -9,6 +9,8 @@ use std::any::Any;
 use std::collections::BTreeMap;
 
 use super::*;
+use crate::v026g::bots::plays::PlayKind;
+use crate::v026g::bots::reflex::LegsWhy;
 use crate::v026g::bots::tests::tallies::fight_tally::stance;
 
 /// The live humans' distance bands, metres (upper edges; the last takes the rest): 0-20, 20-40, 40-65, 65-80, 80-105, 105+.
@@ -95,6 +97,10 @@ struct Acc {
     /// 2.5 m/s in the first four bands, 190 recordings).
     speed_sum: [f64; 6],
     by_lateral: [[u32; 2]; 5],
+    /// A bot target's shots, hits and crossing speed summed, by what it was doing and what drove it: the state and the
+    /// reflex's legs or the play it ran (`Moving/Range`, `Moving/play:Roam`, `AimedIn/strafe`, ...): why a bot is aimed in or
+    /// moves along the line (register #24).
+    by_driver: BTreeMap<String, (u32, u32, f64)>,
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
@@ -118,11 +124,32 @@ pub(super) struct GunShots {
     open: Vec<Option<Burst>>,
     /// Ticks each body has been below [`STILL_MPS`] in a row.
     still: Vec<u32>,
+    /// What drives each bot this tick ([`Driver`]), read in [`Topic::read`].
+    driver: Vec<Option<Driver>>,
+}
+
+/// What moves a bot: the reflex's legs, else the play it runs (and whether the play is going somewhere), read from the bot.
+#[derive(Clone, Copy, Debug)]
+struct Driver {
+    legs: Option<LegsWhy>,
+    play: Option<PlayKind>,
+    going: bool,
+}
+
+impl Driver {
+    fn name(self) -> String {
+        match (self.legs, self.play) {
+            (Some(why), _) => format!("legs:{why:?}"),
+            (None, Some(play)) if self.going => format!("play:{play:?}"),
+            (None, Some(play)) => format!("hold:{play:?}"),
+            (None, None) => "none".to_owned(),
+        }
+    }
 }
 
 impl GunShots {
     pub(super) fn new(n: usize) -> Self {
-        Self { groups: BTreeMap::new(), open: vec![None; n], still: vec![0; n] }
+        Self { groups: BTreeMap::new(), open: vec![None; n], still: vec![0; n], driver: vec![None; n] }
     }
 
     fn close(&mut self, place: Place) {
@@ -138,6 +165,14 @@ impl GunShots {
 impl Topic for GunShots {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        self.driver[place] = bot.map(|bot| Driver {
+            legs: bot.bench_legs_why,
+            play: bot.assignment.as_ref().map(|a| a.kind),
+            going: matches!(bot.intent.go, Go::To { .. }),
+        });
     }
 
     fn begin(&mut self, run: &Run, game: &mut Game) {
@@ -192,6 +227,14 @@ impl Topic for GunShots {
                 let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
                 tally(&mut a.by_state[state]);
                 a.state_across[state] += f64::from(across);
+                if run.camper != Some(target)
+                    && let Some(driver) = self.driver.get(target).copied().flatten()
+                {
+                    let cell = a.by_driver.entry(format!("{:?}/{}", TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS), driver.name())).or_default();
+                    cell.0 += 1;
+                    cell.1 += h as u32;
+                    cell.2 += f64::from(across);
+                }
             }
             tally(&mut a.by_aim[fact.aim_state as usize]);
             tally(&mut a.by_shooter_moving[usize::from(fact.moving)]);
@@ -238,6 +281,7 @@ impl Topic for GunShots {
                     "by_state": a.by_state,
                     "state_across": a.state_across,
                     "by_lateral": a.by_lateral,
+                    "by_driver": a.by_driver,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
