@@ -2,7 +2,7 @@
 //! bots' aim by side, `lead_flight`): shots and the hits among them, by the shooter's team and the horizontal distance band.
 //! Counts only: nothing decides by them.
 //!
-//! Key of the `owner` object `shot_bands`: `"team<t>"` -> `"<band>"` (`0-10`, `10-20`, `20-35`, `35-50`, `50-80`, `80+` m) ->
+//! Key of the `owner` object `shot_bands`: `"team<t>"` -> `"<band>"` (`0-10`, `10-20`, `20-40`, `40-65`, `65+` m) ->
 //! `shots` (at the shooter's target) and `hits` (the shot hit that target), and for a target crossing the line at 1.5 m/s or more
 //! `strafer_shots`, `strafer_hits`, `strafer_lead_sum` (how far ahead of him, in his direction of crossing, the shot line passed his chest
 //! at the shot, metres, summed) and `strafer_cross_sum` (his crossing speed, m/s, summed).
@@ -10,18 +10,29 @@
 use super::*;
 
 /// The bands' upper bounds, metres.
-const EDGES: [f32; 5] = [10.0, 20.0, 35.0, 50.0, 80.0];
-const LABELS: [&str; 6] = ["0-10", "10-20", "20-35", "35-50", "50-80", "80+"];
+const EDGES: [f32; 4] = [10.0, 20.0, 40.0, 65.0];
+const LABELS: [&str; 5] = ["0-10", "10-20", "20-40", "40-65", "65+"];
 
 #[derive(Default)]
 pub(super) struct ShotBands {
     /// By team, by band: shots, hits.
-    bands: [[[u32; 2]; 6]; 2],
+    bands: [[[u32; 2]; 5]; 2],
     /// By team, by band, for a target crossing at [`STRAFER_MPS`] or more: shots, hits, the lead's sum, the crossing speed's sum.
-    strafers: [[[f64; 4]; 6]; 2],
+    strafers: [[[f64; 4]; 5]; 2],
     /// By team, by band, for every shot at its target with a line: shots, the vertical offset's sum (m, up positive), the lateral
     /// offset's absolute sum (m).
-    offsets: [[[f64; 3]; 6]; 2],
+    offsets: [[[f64; 3]; 5]; 2],
+    /// By team, by band, for every shot at its target with a line: how far across the line passed (|lateral| up to 0.25, 0.5, 1, over 1 m),
+    /// how high against the chest (under -0.45, -0.45 to 0, 0 to 0.45, over 0.45 m), and the shots whose line passed within 0.25 m across and
+    /// -0.45..0.45 m high of the chest ("on him") with the hits among them.
+    spread: [[Spread; 5]; 2],
+}
+
+#[derive(Clone, Copy, Default)]
+struct Spread {
+    lateral: [u32; 4],
+    vertical: [u32; 4],
+    on_him: [u32; 2],
 }
 
 /// A target crossing the line of fire at this speed or more is a strafer, m/s.
@@ -44,6 +55,14 @@ impl Topic for ShotBands {
                     cell[0] += 1.0;
                     cell[1] += f64::from(line.vertical);
                     cell[2] += f64::from(line.lateral.abs());
+                    let spread = &mut self.spread[team][at];
+                    let across = line.lateral.abs();
+                    spread.lateral[[0.25, 0.5, 1.0].iter().position(|&edge| across <= edge).unwrap_or(3)] += 1;
+                    spread.vertical[[-0.45, 0.0, 0.45].iter().position(|&edge| line.vertical < edge).unwrap_or(3)] += 1;
+                    if across <= 0.25 && (-0.45..=0.45).contains(&line.vertical) {
+                        spread.on_him[0] += 1;
+                        spread.on_him[1] += u32::from(fact.hit == Some(target));
+                    }
                 }
                 // How the target crossed the line (to the shooter's right positive) and how far ahead of him the shot passed.
                 if let (Some(t), Some(s), Some(line)) =
@@ -79,6 +98,8 @@ impl Topic for ShotBands {
                     (*label).to_string(),
                     serde_json::json!({
                         "shots": cell[0], "hits": cell[1],
+                        "lateral_bins": self.spread[team][at].lateral, "vertical_bins": self.spread[team][at].vertical,
+                        "on_him_shots": self.spread[team][at].on_him[0], "on_him_hits": self.spread[team][at].on_him[1],
                         "line_shots": offset[0], "line_vertical_sum": offset[1], "line_lateral_abs_sum": offset[2],
                         "strafer_shots": strafer[0], "strafer_hits": strafer[1],
                         "strafer_lead_sum": strafer[2], "strafer_cross_sum": strafer[3],
@@ -86,6 +107,15 @@ impl Topic for ShotBands {
                 );
                 if cell[0] > 0 {
                     line += &format!(" {label} {}/{} {:.1} %", cell[1], cell[0], 100.0 * f64::from(cell[1]) / f64::from(cell[0]));
+                }
+                let sp = self.spread[team][at];
+                if sp.on_him[0] > 0 {
+                    line += &format!(
+                        " [across <=.25/.5/1/>1: {}/{}/{}/{}; high <-.45/<0/<.45/>=.45: {}/{}/{}/{}; on him {} hit {:.1} %]",
+                        sp.lateral[0], sp.lateral[1], sp.lateral[2], sp.lateral[3],
+                        sp.vertical[0], sp.vertical[1], sp.vertical[2], sp.vertical[3],
+                        sp.on_him[0], 100.0 * f64::from(sp.on_him[1]) / f64::from(sp.on_him[0])
+                    );
                 }
                 if offset[0] > 0.0 {
                     line += &format!(" [line {:+.2} m up, {:.2} m across]", offset[1] / offset[0], offset[2] / offset[0]);
@@ -142,6 +172,6 @@ mod tests {
         assert_eq!(bands.bands[0][0], [1, 1]);
         assert_eq!(bands.bands[0][3], [1, 0]);
         assert_eq!(bands.bands[1][3], [1, 1]);
-        assert_eq!(bands.bands[1][5], [1, 0]);
+        assert_eq!(bands.bands[1][4], [1, 0]);
     }
 }
