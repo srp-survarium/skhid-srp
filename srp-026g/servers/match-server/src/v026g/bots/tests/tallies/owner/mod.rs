@@ -85,6 +85,7 @@ mod threat_answer;
 mod through;
 mod topic;
 mod worth;
+mod zone_deaths;
 
 use campers::*;
 use damage_zones::*;
@@ -125,6 +126,7 @@ use threat_answer::*;
 use through::*;
 use topic::*;
 use worth::*;
+use zone_deaths::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
