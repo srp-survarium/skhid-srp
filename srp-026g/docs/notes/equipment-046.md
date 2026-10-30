@@ -136,7 +136,10 @@ analysis, 2026-10-30).
   and "Spectrum-M Thermal vision" although they are cosmetic (no night or
   thermal vision).
 
+- The three 0.69d-only pieces (Summer helmet, Medic's Bag, Soldier's Backpack)
+  are ported later, in their own pack with a new resource-porter builder (the
+  owner, 2026-10-30).
+
 ## Open questions for the owner
 
 - Drop weights and built-in bonuses as proposed?
-- Port the three 0.69d-only pieces later (a resource-porter builder)?
