@@ -66,16 +66,37 @@ package survarium.controls
       
       protected var otherRows:uint = 22;
       
-      protected const hudIcons:Array = [17,18,19,20,21,22,13,42,67,74,14,15,9,23,12,49,50,16,10,11,51,52,53,-1,-1,-1,-1,-1,110,113];
-      
+      // An item's quick-slot icon is the cell of hudItems whose index its icon id (ui_desc/icon:
+      // (column - 1) x 22 + row - 1) has in hudIcons; an id not there shows none. 0.26g's items fill
+      // cells 0 to 29 (6 to 9 its oxygen tanks, 28 and 29 the exoskeletons' backs).
+      protected static const NATIVE_HUD_ICONS:Array = [17,18,19,20,21,22,13,42,67,74,14,15,9,23,12,49,50,16,10,11,51,52,53,-1,-1,-1,-1,-1,110,113];
+
+      // srp's items with a quick slot (the oxygen tanks of its packs): their icon id and their bitmap
+      // of bitmaps/, drawn in hudItems' free cells from SRP_FIRST_CELL, in this order.
+      public static const SRP_HUD_ICONS:Array = [
+         {icon:302, bitmap:HudItemDoubleCylinder}   // 931 Double cylinder (equipment-029), icon 17, 14
+      ];
+
+      public static const SRP_FIRST_CELL:uint = NATIVE_HUD_ICONS.length;
+
+      protected const hudIcons:Array = NATIVE_HUD_ICONS.concat(SRP_HUD_ICONS.map(function(entry:Object, index:int, all:Array):int
+      {
+         return entry.icon;
+      }));
+
       public function QuickSlots()
       {
          super();
       }
-      
+
       public function registerIconContainer(link:IconContainer) : void
       {
          _iconContainer = link;
+         for(var i:uint = 0; i < SRP_HUD_ICONS.length; i++)
+         {
+            var bitmap:Class = SRP_HUD_ICONS[i].bitmap;
+            link.setIcon(SRP_FIRST_CELL + i,new bitmap());
+         }
       }
       
       public function setGrayIcons(value:Dictionary) : void
