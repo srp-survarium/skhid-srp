@@ -627,13 +627,21 @@ stops at it (`CROUCH_ONLY_M`). `EXACT_EROSION_ALGO` 3 in the grid key.
 **Route recheck, walked table (231 rows), grid as shipped:** hard 212 -> 222 (Mamayev Kurgan 13 -> 23 of 23; what is left are the 9 Cologne spot-B
 rows), every other table +10 hard; soft: Vostok rows 44 and 58, Vector 138/139, Kurgan 109-111, 116, 117, 122-124 (ratio / jumps).
 
-**Bench, tip 636a708e against fx-erosion, seeds 1-8 (v5 data), by side:** no way -47 %, failed searches -26 %, falls off -8 %, zone deaths -31 %;
-delivered -2.1 %. Not clean: jumps failed +32 % (4v4 +15 %, 10v10 +42 %). The presses are the same number (1,352 and 1,325), the failures a press
-0.27 -> 0.37. The arm with the erosion off is at 0.35 too. 104 of the 118 extra failures are on links onto tops under 3 m deep, e.g. Vector
-Laboratory (16.5-21.3, 20.94, -17.54) -> (.., 22.03, -17.04), a sprint jump of 1.08 m onto a top 0.00 m deep (a lintel at +1.24 m): 0 of 29
-up, press lead None. That link is in the tip's grid too (only-way keep of `drop_overshot_landings`); the bots reach its take-off now that the necks
-are open. The stand-in flies the clip, not a client: the block G client test (`traces-20261028/fx-grid-a166-landing-carry.md` §6) decides
-whether such tops hold a body.
+**Bench, tip e58851c5c against this change (v5 data, seeds 1-8, 192 pairs, stand-in game; the arm with the erosion off is the same binary):**
+no way -33 % (4v4 -40 %, 10v10 -32 %), falls off -24 %, failed searches -10 %, kills -1.8 %, delivered -0.8 %, jumps failed -1.2 % (4v4 +8.6 %,
+10v10 -5.9 %), deaths in a row 3+ -18 %, stuck s +2.1 % (4v4 -7 %, 10v10 +8.5 %). Against the same tip with the cells erosion in place of the
+exact one: jumps failed -19 %, stuck s -20 %, deaths in a row -30 %, delivered -4.2 % (warn). Guards that fail:
+- jump no sprint 39 -> 95 (z +2.7). **Not the erosion**: the arm with the erosion off has 98. It follows the grid's reach: Vector Laboratory 10v10
+  3 -> 41, Mamayev Kurgan 5 -> 18. The probe's presses are from a standstill (0.00 m/s, keys 0x11) at links of a wall's top (Vector Laboratory
+  (16.5-22.3, 20.94, -17.54) -> (.., 22.03, -17.04), a strip 0.5-1 m wide between two floors at 20.7-20.9): a sprint link pressed with no run-up.
+  Open: the motor's press of a sprint link from rest.
+- carriers killed +19 % and lost +19 % (190 -> 226, z +1.7/+1.8; the arm with the erosion off: 184): Tarakanovsky Fort 10v10 23 -> 43,
+  Mamayev Kurgan 10v10 23 -> 36, School 16 -> 25. LIKELY the carriers' routes through the opened necks and the crouched floors; not traced to one place.
+
+An earlier bench against the tip 636a708e read jumps failed +32 % (371 -> 489, z +2.5; 104 of the 118 extra on links onto tops under 3 m deep, 72
+on sprint links no press holds the body on, 3 of 81 presses up). On e58851c5c the baseline reads 427 and the arm 422: both moved with the tip's changes
+(#810, #813, #814 and the rest), which of them is not traced. A price of 100 m on the kept links that no press holds the body on (tried, not kept:
+jumps failed -3 %, carriers killed +7.5 % against the same code without it) showed no gain.
 
 ### Route points with the players' height: benched, shelved (2026-10-25)
 
