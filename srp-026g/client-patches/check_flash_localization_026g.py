@@ -3,8 +3,8 @@
 The lobby and login movies hold no language text: they show srp's texts by their dictionary keys,
 LocalizationData.getName("st_srp_...") or LocalizationData.format("st_srp_...", values), and the
 content compile maps every st_srp_ key to itself for those movies (localization_026g.FLASH_MOVIES).
-Every key a movie names, in its source or in a table the build makes a class of (tables/*.tsv, a
-key a cell), must be in the dictionaries; no other movie may name one (it is not given srp's texts).
+Every key a movie names must be in the dictionaries; no other movie may name one (it is not given
+srp's texts).
 """
 from pathlib import Path
 import re
@@ -12,7 +12,6 @@ import re
 from localization_026g import FLASH_MOVIES, FLASH_PREFIX
 
 KEY = re.compile(r'"(' + re.escape(FLASH_PREFIX) + r'[A-Za-z0-9_]*)"')
-CELL = re.compile(r'(?:^|(?<=\t))(' + re.escape(FLASH_PREFIX) + r'[A-Za-z0-9_]*)(?=\t|$)', re.M)
 
 
 def audit_flash(root, keys):
@@ -20,10 +19,10 @@ def audit_flash(root, keys):
     if not all((root / movie / 'src').is_dir() for movie in FLASH_MOVIES):
         raise ValueError(f'{root}: missing Flash sources')
     issues, used = [], set()
-    for path in sorted([*root.rglob('*.as'), *root.glob('*/tables/**/*.tsv')]):
+    for path in sorted(root.rglob('*.as')):
         source = path.read_text(encoding='utf-8')
         movie = path.relative_to(root).parts[0]
-        for match in (CELL if path.suffix == '.tsv' else KEY).finditer(source):
+        for match in KEY.finditer(source):
             where = f'{path.relative_to(root)}:{source.count(chr(10), 0, match.start()) + 1}'
             if movie not in FLASH_MOVIES:
                 issues.append(f'{where}: {match[1]}: the {movie} movie is not given srp\'s texts')

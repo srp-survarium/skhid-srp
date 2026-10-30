@@ -4,8 +4,9 @@
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a resources.db
 patch carrying it replaces the players' movie whole. It is built from source
-only: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript, and
-every lobby change is an edit of it (docs/notes/lobby-source.md). The whole
+only: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript, with
+the classes the build makes of its tables/ (the shop filters), and every lobby
+change is an edit of them (docs/notes/lobby-source.md). The whole
 tree is compiled in one Flex run, and the code goes into revision 24's movie in
 place of its code (tools/actionscript/flash_tree.py build): the graphics,
 fonts and symbol bindings are revision 24's. About 5 seconds.
