@@ -28,6 +28,42 @@ const ON_HIM_OVER_M: f32 = 0.45;
 const ON_HIM_BANDS_M: [f32; 2] = [20.0, 40.0];
 /// The target's crossing speeds binned, m/s (upper edges): 0.5, 1.5, 2.5, 3.5, more.
 const LATERAL_MPS: [f32; 4] = [0.5, 1.5, 2.5, 3.5];
+/// A target counts as still below this ground speed, m/s (the humans' "stood still while shot at").
+const STILL_MPS: f32 = 0.5;
+/// What a target is doing when it is shot at: crouched, aimed in, or on foot (moving, or still for how long). The cause of a
+/// slow crossing is read from these (A182).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TargetState {
+    Crouched,
+    AimedIn,
+    Moving,
+    /// Still for less than 150 ms (a step just ended), 150-450 ms (the rest after a step), longer.
+    StillBrief,
+    StillRest,
+    StillLong,
+}
+
+impl TargetState {
+    const COUNT: usize = 6;
+
+    /// From his keys, his ground speed and how long he has been below [`STILL_MPS`], ms.
+    fn of(keys: u32, speed: f32, still_ms: u32) -> Self {
+        if keys & key::CROUCH != 0 {
+            Self::Crouched
+        } else if keys & key::AIM != 0 {
+            Self::AimedIn
+        } else if speed >= STILL_MPS {
+            Self::Moving
+        } else if still_ms < 150 {
+            Self::StillBrief
+        } else if still_ms < 450 {
+            Self::StillRest
+        } else {
+            Self::StillLong
+        }
+    }
+}
+
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
@@ -59,6 +95,9 @@ struct Acc {
     /// 2.5 m/s in the first four bands, 190 recordings).
     speed_sum: [f64; 6],
     by_lateral: [[u32; 2]; 5],
+    /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
+    by_state: [[u32; 2]; TargetState::COUNT],
+    state_across: [f64; TargetState::COUNT],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
@@ -77,11 +116,13 @@ struct Burst {
 pub(super) struct GunShots {
     groups: BTreeMap<String, Acc>,
     open: Vec<Option<Burst>>,
+    /// Ticks each body has been below [`STILL_MPS`] in a row.
+    still: Vec<u32>,
 }
 
 impl GunShots {
     pub(super) fn new(n: usize) -> Self {
-        Self { groups: BTreeMap::new(), open: vec![None; n] }
+        Self { groups: BTreeMap::new(), open: vec![None; n], still: vec![0; n] }
     }
 
     fn close(&mut self, place: Place) {
@@ -100,6 +141,10 @@ impl Topic for GunShots {
     }
 
     fn begin(&mut self, run: &Run, game: &mut Game) {
+        for (still, body) in self.still.iter_mut().zip(&game.bodies) {
+            let speed = body.step_vec.length() / TICK_S;
+            *still = if speed < STILL_MPS { *still + 1 } else { 0 };
+        }
         let facts: Vec<_> = game.shot_facts.clone();
         for fact in facts {
             let Some(body) = game.bodies.get(fact.shooter) else { continue };
@@ -144,6 +189,9 @@ impl Topic for GunShots {
                 a.speed_sum[band] += f64::from(velocity.x.hypot(velocity.z));
                 a.lateral_sum[band] += f64::from(across);
                 tally(&mut a.by_lateral[LATERAL_MPS.iter().position(|&edge| across < edge).unwrap_or(LATERAL_MPS.len())]);
+                let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
+                tally(&mut a.by_state[state]);
+                a.state_across[state] += f64::from(across);
             }
             tally(&mut a.by_aim[fact.aim_state as usize]);
             tally(&mut a.by_shooter_moving[usize::from(fact.moving)]);
@@ -187,6 +235,8 @@ impl Topic for GunShots {
                     "on_him": a.on_him,
                     "lateral_sum": a.lateral_sum,
                     "speed_sum": a.speed_sum,
+                    "by_state": a.by_state,
+                    "state_across": a.state_across,
                     "by_lateral": a.by_lateral,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
@@ -247,6 +297,17 @@ mod tests {
         assert!((across_speed(shooter, target, Vec3::new(-2.6, 0.0, 0.0)) - 2.6).abs() < 1e-4);
         let diagonal = across_speed(shooter, target, Vec3::new(3.0, 0.0, 3.0));
         assert!((diagonal - 3.0).abs() < 1e-4, "{diagonal}");
+    }
+
+    /// A target is crouched or aimed in whatever its speed, else moving, else still for how long.
+    #[test]
+    fn a_target_is_read_as_crouched_aimed_moving_or_still_for_how_long() {
+        assert_eq!(TargetState::of(key::CROUCH | key::AIM, 3.0, 0), TargetState::Crouched);
+        assert_eq!(TargetState::of(key::AIM, 0.0, 900), TargetState::AimedIn);
+        assert_eq!(TargetState::of(key::LEFT, 2.6, 0), TargetState::Moving);
+        assert_eq!(TargetState::of(0, 0.1, 100), TargetState::StillBrief);
+        assert_eq!(TargetState::of(0, 0.1, 300), TargetState::StillRest);
+        assert_eq!(TargetState::of(0, 0.1, 450), TargetState::StillLong);
     }
 
     /// Three shots of a 600 rpm rifle 100 ms apart (two hit), 2 s of quiet, then a single shot: a burst of 3 with 2 hits, a
