@@ -100,6 +100,92 @@ pub(crate) fn stand_in_jump(
         .map(|(n, _, _)| n)
 }
 
+/// The client's sprint lift (A55, J0 8e rows, PROVEN): a body that runs into the face of a top at a sprint (it came to it at
+/// [`LIFT_MIN_SPEED_MS`] or more, never from a stand) and is held there with sprint and forward is carried up it after the
+/// client's own hold at the face, 0.15-0.3 s.
+pub(crate) const LIFT_HOLD_MS: u32 = 300;
+/// The speed a body comes to the face at for the lift, m/s: a sprint is 5 m/s; the walk cap is 3.5.
+pub(crate) const LIFT_MIN_SPEED_MS: f32 = 3.5;
+
+/// Whether the stand-in lifts (`SRP_BENCH_STAND_IN_LIFT`, on unless `off`).
+pub(crate) fn stand_in_lift() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LIFT").map_or(true, |v| v != "off"))
+}
+
+/// The floor a body held at a face (on `node`, at `feet`, walking toward `to`) is lifted up: the jump link ahead
+/// ([`jumped_to`]) when its rise is the lift's at most ([`LIFT_MAX_RISE_M`]) and its top deep enough ([`LIFT_TOP_M`]).
+pub(crate) fn lift_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
+    lift_check(grid, node, feet, to).ok()
+}
+
+/// What [`lift_check`] found against a lift.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoLift {
+    /// No jump link ahead of the body toward the point it pushes at.
+    NoLink,
+    /// The link's rise is over the lift's ([`LIFT_MAX_RISE_M`]).
+    TooHigh,
+    /// The top is shallower than [`LIFT_TOP_M`].
+    TopShort,
+}
+
+/// [`lift_to`] with what was against it.
+pub(crate) fn lift_check(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Result<NodeId, NoLift> {
+    use crate::v026g::bots::motor::{LIFT_MAX_RISE_M, LIFT_TOP_M};
+    let up = jumped_to(grid, node, feet, to).ok_or(NoLift::NoLink)?;
+    let rise = grid.position(up).y - grid.position(node).y;
+    if rise > LIFT_MAX_RISE_M {
+        Err(NoLift::TooHigh)
+    } else if crate::v026g::bots::path::top_depth(grid, node, up) < LIFT_TOP_M {
+        Err(NoLift::TopShort)
+    } else {
+        Ok(up)
+    }
+}
+
+/// The rise of the jump link ahead of a body at a face, if there is one.
+pub(crate) fn lift_probe(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<f32> {
+    jumped_to(grid, node, feet, to).map(|up| grid.position(up).y - grid.position(node).y)
+}
+
+/// How the stand-in's lifts came out, by the band of the link's rise (up to 0.80, 0.80-0.95, 0.95-1.05, 1.05-1.11, over 1.11,
+/// none known) and the outcome ([`LiftOutcome`]).
+static LIFT_STATS: [[std::sync::atomic::AtomicU64; 6]; 6] = [const { [const { std::sync::atomic::AtomicU64::new(0) }; 6] }; 6];
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum LiftOutcome {
+    /// Held at the face the client's hold and carried up.
+    Made,
+    /// The sprint or forward key was let go before the hold was up.
+    Released,
+    /// Held the hold, and the link's rise is over the lift's.
+    TooHigh,
+    /// Held the hold, and the top is too shallow.
+    TopShort,
+    /// Held the hold, and no jump link lay ahead of the point it pushed at.
+    NoLink,
+    /// Came to the face of a jump link under the sprint speed the client asks.
+    SlowContact,
+}
+
+pub(crate) fn lift_count(rise: Option<f32>, outcome: LiftOutcome) {
+    let band = match rise {
+        None => 5,
+        Some(r) if r <= 0.8 => 0,
+        Some(r) if r <= 0.95 => 1,
+        Some(r) if r <= 1.05 => 2,
+        Some(r) if r <= 1.11 => 3,
+        Some(_) => 4,
+    };
+    LIFT_STATS[band][outcome as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The stand-in lift outcomes: `[band][outcome]`, flattened.
+pub(crate) fn lift_stats() -> Vec<u64> {
+    LIFT_STATS.iter().flatten().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
 /// A stand-in world: a floor at 0 and a ledge `rise` m high from x 10 on,
 /// its grid built for `body`.
 pub(crate) fn ledge_grid(rise: f32, body: mapdata::Body) -> mapdata::WalkGrid {
@@ -144,6 +230,24 @@ pub(crate) fn a_stand_in_body_in_the_air_gets_up_a_ledge() {
     assert!(stopped.x < 10.0 && stopped.y.abs() < 0.1, "{stopped:?}");
     let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
     assert!(up.x > 12.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+}
+
+/// A body held at the face of a 0.9 m top with a deep floor on it is lifted up it by the client's sprint lift; a top
+/// above the lift's ceiling (1.2 m) is not lifted.
+#[test]
+pub(crate) fn a_stand_in_lift_takes_a_held_body_up_a_low_top_only() {
+    let at_face = |grid: &mapdata::WalkGrid| {
+        let node = grid.locate(Vec3::new(9.75, 0.0, 5.0), 0.3).unwrap();
+        let feet = grid.position(node);
+        (node, feet, feet + Vec3::new(0.25, 0.0, 0.0))
+    };
+    let low = ledge_grid(0.9, mapdata::Body::default());
+    let (node, feet, to) = at_face(&low);
+    let up = lift_to(&low, node, feet, to).expect("a 0.9 m top is lifted");
+    assert!((low.position(up).y - 0.9).abs() < 0.05, "{:?}", low.position(up));
+    let high = ledge_grid(1.2, mapdata::Body::client());
+    let (node, feet, to) = at_face(&high);
+    assert!(lift_to(&high, node, feet, to).is_none(), "a 1.2 m top is not");
 }
 
 /// A grid jump link higher than the client's jump (1.03 m, linked under
