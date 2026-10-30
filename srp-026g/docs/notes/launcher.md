@@ -663,6 +663,8 @@ cwd     = <"working folder">
 No `ShellExecute`, no elevation retry (a game exe that needs elevation would fail here).
 Success -> handles closed, `PostQuitMessage(0)`: **the launcher exits**, it does not hide or wait.
 Failure -> assertion "Can't start the game" (launcher.cpp line 0x7FF), `PostQuitMessage(9)`.
+(Skhid: error 4551, Smart App Control, gets a box of its own and the launcher stays open; patch 14 in
+`../../client-patches/launcher/README.md`.)
 Missing registry values -> assertion "Can't get game launch parameters", `PostQuitMessage(8)`.
 (The assertion UI is the engine's "Fatal Error" box, LIKELY; flags at 0x4857B / 0x4857C suppress repeats.)
 

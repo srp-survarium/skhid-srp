@@ -12,7 +12,9 @@ Checks:
     last section;
  3. the jump in registry_key::get_string lands on the new code, and the new
     code comes back to the byte after the replaced instructions; the same
-    for the Enter key's jump in the message loop;
+    for the Enter key's jump in the message loop and PLAY's after
+    CreateProcessW (which also goes on to the assertion), and the box for
+    Smart App Control has its five texts;
  4. the two addresses the launcher opens are the site's, where their
     operands point, and the operands are still relocated;
  5. no relocation touches a changed instruction (but the two disabled ones);
@@ -47,6 +49,7 @@ def ranges_of_the_patch(original, patched, section_size):
     allowed.append((image.offset(L.NO_VERSION[0], 1), len(bytes.fromhex(L.NO_VERSION[2])), "no version"))
     allowed.append((image.offset(L.GET_STRING[0], 1), len(L.GET_STRING[1]), "get_string hook"))
     allowed.append((image.offset(L.ENTER_KEY[0], 1), len(L.ENTER_KEY[1]), "Enter key hook"))
+    allowed.append((image.offset(L.PLAY_STARTED[0], 1), len(L.PLAY_STARTED[1]), "PLAY hook"))
     for va, old, new, what in L.STRINGS:
         allowed.append((image.offset(va, 1), len(L.utf16(old)), what))
     for va, old in L.EMPTIED:
@@ -138,6 +141,22 @@ def main():
           and done == L.ENTER_KEY_DONE,
           f"the message loop jumps to {target:#x}, the new code comes back to {back:#x} "
           f"and, after Enter, to {done:#x}")
+    at = image.offset(L.PLAY_STARTED[0], 7)
+    jump = patched[at:at + 7]
+    target = L.PLAY_STARTED[0] + 5 + struct.unpack_from("<i", jump, 1)[0]
+    back, failed = L.play_started_targets(section)
+    check("3c", jump[0] == 0xE9 and jump[5:] == b"\x90\x90" and target == L.SECTION_VA + L.PLAY_STARTED_AT
+          and back == L.PLAY_STARTED_BACK == L.PLAY_STARTED[0] + len(L.PLAY_STARTED[1])
+          and failed == L.PLAY_ASSERT,
+          f"PLAY's failure jumps to {target:#x}, the new code comes back to {back:#x} "
+          f"and, for any error but 4551, to the assertion at {failed:#x}")
+    texts = [section[L.BLOCKED_TEXTS_AT + n * L.BLOCKED_TEXT_SIZE:][:L.BLOCKED_TEXT_SIZE]
+             .decode("utf-16-le").split("\0")[0] for n in range(5)]
+    check("3d", texts == L.blocked_texts(L.DEFAULT_GAME_EXE)
+          and all(L.DEFAULT_GAME_EXE in text and "4551" in text for text in texts)
+          and section[L.BLOCKED_TEXTS_AT - 12:L.BLOCKED_TEXTS_AT] == "Skhid\0".encode("utf-16-le"),
+          f"the box for error 4551: title Skhid, {len(texts)} languages, "
+          f"{max(map(len, texts))} of {L.BLOCKED_TEXT_SIZE // 2 - 1} characters at most")
     slots = {}
     for slot, (start, size) in L.SLOTS.items():
         slots[slot] = section[start:start + size].split(b"\0")[0].decode("ascii")
@@ -158,7 +177,8 @@ def main():
 
     # 5. Relocations and changed code.
     code_ranges = [(va, len(bytes.fromhex(new))) for va, _, new, _ in L.PATCHES] + [(L.GET_STRING[0], 7),
-                                                                                      (L.ENTER_KEY[0], 7)]
+                                                                                      (L.ENTER_KEY[0], 7),
+                                                                                      (L.PLAY_STARTED[0], 7)]
     overlapping = [hex(at) for at in relocations for va, length in code_ranges if va <= at + 3 and at < va + length]
     no_version = L.NO_VERSION[0]
     still = [hex(at) for at in relocations if no_version <= at + 3 and at < no_version + 12]

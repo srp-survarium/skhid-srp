@@ -214,3 +214,64 @@ install_status:
         push    dword 0xA9
         call    0x137A8
         jmp     0x16D4B
+
+; PLAY when Windows refuses the game exe. on_play_button_clicked (0x17160)
+; starts the game with CreateProcessW at 0x17216 and, when that fails,
+; raises the assertion "Can't start the game" and ends the launcher. With
+; error 4551 (ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION) the cause is Smart
+; App Control: it blocks an unsigned exe that Windows has not seen often
+; enough, which a new revision's exe is. patch_launcher_026g.py makes
+; `test eax,eax / je 17235h / push dword [ebp-20h]` after the call a jump
+; here and two nops. A started game goes back as before. For 4551 a box
+; says what to do, in the launcher's language, and the launcher stays open
+; with PLAY on (freeing the command line as the end of the function does,
+; without its PostQuitMessage). Any other error goes to the assertion as
+; before. esi is the launcher, ebx 0 (the function's own registers).
+
+PLAY_STARTED            equ 0x17223     ; CreateProcessW worked: close the handles, quit
+PLAY_ASSERT             equ 0x17235     ; the assertion "Can't start the game"
+PLAY_RETURN             equ 0x172DC     ; free the command line, return
+LAUNCHER_LANGUAGE       equ 0x1A64      ; launcher: 0 English .. 4 Polish
+IAT_GetLastError        equ 0x3B218
+IAT_MessageBoxW         equ 0x3B388
+ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION equ 4551
+MB_BOX                  equ 0x12030     ; MB_ICONWARNING | MB_TASKMODAL | MB_SETFOREGROUND
+LANGUAGES               equ 5
+BLOCKED_TEXT_SIZE       equ 512         ; bytes per language: 255 UTF-16 characters and a zero
+
+        align   16, db 0xCC
+play_started:
+        test    eax, eax
+        jz      .failed
+        push    dword [ebp-20h]                 ; the replaced instructions
+        jmp     PLAY_STARTED
+.failed:
+        call    .here
+.here:  pop     edx
+        sub     edx, .here                      ; edx = where it is loaded - CAVE's image
+        push    edx
+        call    [edx + IAT_GetLastError]
+        pop     edx
+        cmp     eax, ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION
+        jne     PLAY_ASSERT
+        mov     eax, [esi + LAUNCHER_LANGUAGE]
+        cmp     eax, LANGUAGES
+        jb      .language
+        xor     eax, eax                        ; another one: English
+.language:
+        imul    eax, eax, BLOCKED_TEXT_SIZE
+        push    MB_BOX
+        lea     ecx, [edx + blocked_title]
+        push    ecx
+        lea     ecx, [edx + blocked_texts + eax]
+        push    ecx
+        push    0
+        call    [edx + IAT_MessageBoxW]
+        jmp     PLAY_RETURN
+
+        align   2, db 0
+blocked_title:
+        dw      __utf16__('Skhid'), 0
+; One zero-filled UTF-16 slot per language, filled in by patch_launcher_026g.py.
+blocked_texts:
+        times LANGUAGES * BLOCKED_TEXT_SIZE db 0

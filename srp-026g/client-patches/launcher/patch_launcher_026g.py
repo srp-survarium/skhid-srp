@@ -54,11 +54,13 @@ SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
 
-# launcher_values_026g.bin: the code, then three zero-filled ASCII slots.
-BIN_SIZE = 603
+# launcher_values_026g.bin: the code, three zero-filled ASCII slots, more
+# code, then one zero-filled UTF-16 slot per launcher language.
+BIN_SIZE = 3276
 SLOTS = {"exe_name": (304, 32), "arguments": (336, 160), "server": (496, 64)}
 INSTALL_STATUS_AT = 560
 INSTALL_STATUS = 0x16D06
+BLOCKED_TEXTS_AT, BLOCKED_TEXT_SIZE = 716, 512
 
 # registry_key::get_string: push ebp / mov ebp,esp / push ecx / lea eax,[esi+esi]
 # become a jump to the code of the new section and two nops; the code comes
@@ -74,6 +76,16 @@ ENTER_KEY = (0x14EF0, bytes.fromhex("817de413010000"))
 ENTER_KEY_AT = 224                              # its offset in the .bin
 ENTER_KEY_BACK = 0x14EF7
 ENTER_KEY_DONE = 0x14F26
+
+# launcher::on_play_button_clicked, after CreateProcessW: test eax,eax /
+# je 17235h / push dword [ebp-20h] become a jump to `play_started` of the
+# .bin and two nops. A started game comes back to 0x17223; error 4551 (Smart
+# App Control) shows the box below and leaves the launcher open; any other
+# error goes on to the assertion at 0x17235, as before.
+PLAY_STARTED = (0x1721C, bytes.fromhex("85c07415ff75e0"))
+PLAY_STARTED_AT = 608                           # its offset in the .bin
+PLAY_STARTED_BACK = 0x17223
+PLAY_ASSERT = 0x17235
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -190,6 +202,31 @@ RECTS = [
 ]
 
 
+def blocked_texts(game_exe):
+    """The box for error 4551, in the launcher's languages (its setting:
+    English, Russian, Ukrainian, German, Polish)."""
+    return [
+        f"Windows Smart App Control blocked {game_exe} (error 4551).\n"
+        "Turn it off: Windows Security > App & browser control > Smart App Control > Off.\n"
+        "Then press PLAY again.",
+        f"Интеллектуальное управление приложениями Windows заблокировало {game_exe} (ошибка 4551).\n"
+        "Отключите его: Безопасность Windows > Управление приложениями/браузером > "
+        "Интеллектуальное управление приложениями > Выкл.\n"
+        "Затем запустите игру снова.",
+        f"Інтелектуальне керування програмами Windows заблокувало {game_exe} (помилка 4551).\n"
+        "Вимкніть його: Безпека Windows > Керування програмами та браузером > "
+        "Інтелектуальне керування програмами > Вимк.\n"
+        "Потім запустіть гру знову.",
+        f"Die intelligente App-Steuerung von Windows hat {game_exe} blockiert (Fehler 4551).\n"
+        "Schalte sie aus: Windows-Sicherheit > App- & Browsersteuerung > Intelligente App-Steuerung > Aus.\n"
+        "Starte das Spiel dann erneut.",
+        f"Inteligentna kontrola aplikacji systemu Windows zablokowała {game_exe} (błąd 4551).\n"
+        "Wyłącz ją: Zabezpieczenia Windows > Kontrola aplikacji i przeglądarki > "
+        "Inteligentna kontrola aplikacji > Wyłączone.\n"
+        "Następnie uruchom grę ponownie.",
+    ]
+
+
 def parse_site(text):
     """`https://host[:port][/path]`, of characters that mean nothing to
     cmd.exe (the launcher opens a button's address with `cmd /c start`).
@@ -271,6 +308,18 @@ def enter_key_targets(code):
     if code[done] != 0xE9:
         sys.exit("launcher_values_026g.bin: no jump before enter_key's replaced instruction")
     return tuple(SECTION_VA + at + 5 + struct.unpack_from("<i", code, at + 1)[0] for at in (done, back))
+
+
+def play_started_targets(code):
+    """Where `play_started` of the .bin goes on to: (a started game, the
+    assertion for any error but 4551). The first is the jump after its
+    replaced instructions, the second the first `jne rel32` after it."""
+    back = PLAY_STARTED_AT + 7
+    other = code.index(b"\x0F\x85", back)
+    if code[back] != 0xE9:
+        sys.exit("launcher_values_026g.bin: no jump after play_started's replaced instructions")
+    return (SECTION_VA + back + 5 + struct.unpack_from("<i", code, back + 1)[0],
+            SECTION_VA + other + 6 + struct.unpack_from("<i", code, other + 2)[0])
 
 
 def add_section(data, content):
@@ -362,6 +411,13 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         if len(text) >= size:
             sys.exit(f"{name} is {len(text)} characters; {size - 1} fit")
         section[at:at + len(text)] = text.encode("ascii")
+    for number, text in enumerate(blocked_texts(game_exe)):
+        at = BLOCKED_TEXTS_AT + number * BLOCKED_TEXT_SIZE
+        if any(section[at:at + BLOCKED_TEXT_SIZE]):
+            sys.exit(f"launcher_values_026g.bin: the slot of blocked text {number} is not empty")
+        if len(utf16(text)) >= BLOCKED_TEXT_SIZE:
+            sys.exit(f"blocked text {number} is {len(text)} characters; {BLOCKED_TEXT_SIZE // 2 - 1} fit")
+        section[at:at + len(utf16(text))] = utf16(text)
     for operand, old_va, old, suffix, what in URLS:
         image.expect(old_va, utf16(old) + b"\0\0", what)
         if operand not in relocations:
@@ -397,12 +453,26 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         sys.exit("launcher_values_026g.bin does not come back to the message loop "
                  f"(was it assembled with -DCAVE={SECTION_VA:#x}?)")
 
+    # PLAY's failure goes through `play_started`.
+    va, expected = PLAY_STARTED
+    if any(va <= at + 3 and at < va + len(expected) for at in relocations):
+        sys.exit(f"{va:#x}: a relocation overlaps PLAY's hook")
+    # test eax,eax / je .failed / push dword [ebp-20h]
+    if code[PLAY_STARTED_AT:PLAY_STARTED_AT + 7] != bytes.fromhex("85c07408ff75e0"):
+        sys.exit(f"launcher_values_026g.bin: play_started is not at {PLAY_STARTED_AT}")
+    hook = b"\xE9" + struct.pack("<i", SECTION_VA + PLAY_STARTED_AT - va - 5) + b"\x90" * (len(expected) - 5)
+    image.patch(va, expected, hook, "launcher::on_play_button_clicked, after CreateProcessW")
+    if play_started_targets(code) != (PLAY_STARTED_BACK, PLAY_ASSERT):
+        sys.exit("launcher_values_026g.bin does not come back to on_play_button_clicked "
+                 f"(was it assembled with -DCAVE={SECTION_VA:#x}?)")
+
     data = add_section(image.data, bytes(section))
     headers = P.Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, P.pe_checksum(data, headers.checksum_at))
     return data, (f"runs in place, no hardware warnings, no service, {len(PATCHES)} code sites, "
                   f"the installer's values from {len(code)} bytes of new code in .skhid at {SECTION_VA:#x}, "
-                  f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
+                  f"site {site}, PLAY (or Enter) starts {game_exe} {arguments} (a box for Smart App Control), "
+                  f"updater {UPDATER_NAME}, "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 
