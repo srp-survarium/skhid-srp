@@ -24,8 +24,11 @@ package survarium.player
       private var _speed:SpeedParts;
       // The carry limit by source; null when the exe gives none (an older one).
       private var _limit:LimitParts;
-      public function WeightEffects(movement:Number, spending:Number, sprint:int, speed:SpeedParts, limit:LimitParts)
+      // Sprint stamina use by source; null when the exe gives none.
+      private var _stamina:StaminaParts;
+      public function WeightEffects(movement:Number, spending:Number, sprint:int, speed:SpeedParts, limit:LimitParts, stamina:StaminaParts = null)
       {
+         _stamina = stamina;
          _movement = movement;
          _spending = spending;
          _sprint = sprint;
@@ -33,19 +36,21 @@ package survarium.player
          _limit = limit;
       }
       public static function parse(movement:Number, spending:Number, sprint:Number, skills:Number = NaN, bearArms:Number = NaN,
-         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN) : WeightEffects
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN, spending19:Number = NaN, spending67:Number = NaN) : WeightEffects
       {
          if(!isFinite(movement) || !isFinite(spending) ||
             (sprint != SPRINT_ALLOWED && sprint != SPRINT_WEIGHT && sprint != SPRINT_HEAVYWEIGHT)) return null;
          var speed:SpeedParts = isFinite(skills) && (bearArms == 0 || bearArms == 1) ? new SpeedParts(skills,bearArms == 1,[]) : null;
-         return new WeightEffects(movement,spending,int(sprint),speed,LimitParts.parse(base,limitSkills,packrat));
+         return new WeightEffects(movement,spending,int(sprint),speed,LimitParts.parse(base,limitSkills,packrat),
+            StaminaParts.parse(spending,spending19,spending67));
       }
       // The same effects with the kit's items (KitItems: the profile's sums).
       public function withItems(items:KitItems) : WeightEffects
       {
          return new WeightEffects(_movement,_spending,_sprint,
             _speed == null ? null : _speed.withItems(items),
-            _limit == null ? null : _limit.withItems(items));
+            _limit == null ? null : _limit.withItems(items),
+            _stamina == null ? null : _stamina.withItems(items));
       }
       public function get knowsSpeed() : Boolean { return _speed != null; }
       // The kit's movement speed as a fraction of the base speed.
@@ -53,7 +58,7 @@ package survarium.player
       // The speed's own indicator and tooltip; null for an exe that gives no speed.
       public function get speedExplanation() : SpeedExplanation
       {
-         return _speed == null ? null : new SpeedExplanation(_movement,_speed);
+         return _speed == null ? null : new SpeedExplanation(_movement,_speed,_stamina);
       }
       public function get slowsMovement() : Boolean { return _movement < 0; }
       public function get title() : String { return LocalizationData.getName("st_srp_weight_title"); }

@@ -71,12 +71,17 @@ u32 weight_ui_invoke(const void *menu, void *movie, const struct gfx_value *orig
      * floats of modifiers 5 (skills: Athlete, +2 kg a rank) and 26 (Packrat, the
      * weight penalty's scale, -5 % a rank); the items' are the movie's. */
     const float base = *(const float *)((const u8 *)menu + 0x3118);
-    struct gfx_value args[10] = {
+    /* Sprint stamina use (player_stamina::sprint 0x329A70): the drain through
+     * apply_modifier 19 (stamina_spending_speed: items, the weight's node) then
+     * 67 (stamina_spending_speed_skill), both multiplicative; the kit's own floats
+     * of the two, the items' are the movie's. */
+    struct gfx_value args[12] = {
         value(current), value(maximum),
         value(heavy > 0 ? 0 : (double)(movement * q)),
         value(p.spending * q), value(sprint),
         value(kit_float(modifiers, 4)), value(bear_arms > 0),
-        value(base), value(kit_float(modifiers, 5)), value(kit_float(modifiers, 26))
+        value(base), value(kit_float(modifiers, 5)), value(kit_float(modifiers, 26)),
+        value(kit_float(modifiers, 19)), value(kit_float(modifiers, 67))
     };
-    return engine_movie_invoke(movie, method, 0, args, 10);
+    return engine_movie_invoke(movie, method, 0, args, 12);
 }

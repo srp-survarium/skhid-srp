@@ -101,10 +101,10 @@ class WeightGame(Game):
         assert self.emu.reg_read(UC_X86_REG_EFLAGS)==0x246
         assert all(self.emu.reg_read(r)==v for r,v in regs.items())
 
-    def kit(self, index, bonus=0, porter=0, heavy=0, runner=0, skills=0, bear=0):
+    def kit(self, index, bonus=0, porter=0, heavy=0, runner=0, skills=0, bear=0, spending=0, spending_skill=0):
         self.emu.mem_write(self.profile+0x4632,bytes([index]))
         container=self.profile+0xf4+index*0x704
-        for param,value in [(5,bonus),(26,porter),(32,heavy),(31,runner),(4,skills),(62,bear)]:
+        for param,value in [(5,bonus),(26,porter),(32,heavy),(31,runner),(4,skills),(62,bear),(19,spending),(67,spending_skill)]:
             self.word(container+4*param,fbits(value))
 
     def show(self):
@@ -132,15 +132,15 @@ def main():
     count=0
     for minimum,movement,spending,maximum in [(20,-0.2,1.5,30),(15.0,-0.3,2,35.0)]:
         g.load_config(minimum,movement,spending,maximum)
-        for kit,bonus,porter,heavy,runner,skills,bear in [(0,0,0,0,0,0,0),(1,10,0,0,0,0.03,0),(2,0,-0.25,0,0,0,1),(0,0,0,1,0,0.05,1),(1,0,0,0,1,0.01,0)]:
-            g.kit(kit,bonus,porter,heavy,runner,skills,bear)
+        for kit,bonus,porter,heavy,runner,skills,bear,sp,sps in [(0,0,0,0,0,0,0,0,0),(1,10,0,0,0,0.03,0,-0.05,0),(2,0,-0.25,0,0,0,1,0,-0.1),(0,0,0,1,0,0.05,1,0.02,-0.04),(1,0,0,0,1,0.01,0,0,0)]:
+            g.kit(kit,bonus,porter,heavy,runner,skills,bear,sp,sps)
             for weight in [0,minimum-0.01,minimum,minimum+0.01,25,29.99,30,maximum+bonus-0.01,maximum+bonus,50]:
                 g.weight=weight
                 actual=g.show()
                 q=min(1,max(0,(weight-minimum)/(maximum+bonus-minimum)))
-                expected=[weight,maximum+bonus,0 if heavy else movement*(1+porter)*q,spending*q,2 if heavy else int(weight>=maximum+bonus and not runner),skills,int(bear>0),maximum,bonus,porter]
+                expected=[weight,maximum+bonus,0 if heavy else movement*(1+porter)*q,spending*q,2 if heavy else int(weight>=maximum+bonus and not runner),skills,int(bear>0),maximum,bonus,porter,sp,sps]
                 assert all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
-                assert len(actual)==10
+                assert len(actual)==12
                 count+=1
     # Equipped inventory must execute the real item's parameter path for
     # capacity, but never for the weight-specific player modifiers.
@@ -152,8 +152,8 @@ def main():
         g.kit(kit,porter=-0.25)
         g.weight=27.5
         actual=g.show()
-        expected=[27.5,35,-0.075,0.75,0,0,0,30,0,-0.25]
-        assert len(actual)==10 and all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
+        expected=[27.5,35,-0.075,0.75,0,0,0,30,0,-0.25,0,0]
+        assert len(actual)==12 and all(math.isclose(a,e,abs_tol=1e-5) for a,e in zip(actual,expected)),(actual,expected)
         g.word(g.profile+0x58+kit*0x704+0x40+slot*4,0xffff)
     g.load_config(minimum=30,maximum=30)
     g.kit(0)
@@ -162,6 +162,6 @@ def main():
     # A different lobby must not borrow a previous lobby's config.
     replacement=g.block(0x3200);g.emu.mem_write(replacement,bytes(g.emu.mem_read(g.menu,0x3200)));g.menu=replacement
     assert len(g.show())==2
-    print(f'PASS: {count} native callback cases (with the kit\'s movement skills, Bear Arms and the carry limit\'s base, skills and Packrat), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
+    print(f'PASS: {count} native callback cases (with the kit\'s movement skills, Bear Arms, the carry limit\'s base, skills and Packrat, and stamina use\'s 19 and 67), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
 
 if __name__=='__main__': main()

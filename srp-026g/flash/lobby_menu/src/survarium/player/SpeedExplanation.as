@@ -13,10 +13,13 @@ package survarium.player
    {
       private var _weight:Number;
       private var _parts:SpeedParts;
-      public function SpeedExplanation(weight:Number, parts:SpeedParts)
+      // The second section, sprint stamina use; null when the exe gives none.
+      private var _stamina:StaminaParts;
+      public function SpeedExplanation(weight:Number, parts:SpeedParts, stamina:StaminaParts = null)
       {
          _weight = weight;
          _parts = parts;
+         _stamina = stamina;
       }
       public function get total() : Number { return _parts.total(_weight); }
       private function get percent() : Number { return Math.round(total * 100); }
@@ -35,7 +38,8 @@ package survarium.player
       {
          var sources:Array = _parts.sources();
          if(_weight != 0) sources.push({name:LocalizationData.getName("equipment_weight"),value:_weight});
-         return SourceRows.rows(sources,11,percentText);
+         var result:Array = SourceRows.rows(sources,11,percentText);
+         return _stamina == null ? result : result.concat(_stamina.rows());
       }
       private static function percentText(value:Number) : String
       {

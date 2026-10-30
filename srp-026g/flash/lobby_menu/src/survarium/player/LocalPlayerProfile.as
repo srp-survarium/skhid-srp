@@ -515,10 +515,11 @@ package survarium.player
             var pocket:Boolean = item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6;
             if(armour || pocket)
             {
-               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105)});
-               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106)});
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:item.category});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:item.category});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:item.category});
             }
-            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0) kit.weapon = {name:item.name,value:propOf(item,105)};
+            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0) kit.weapon = {name:item.name,value:propOf(item,105),category:item.category};
          }
          return effects.withItems(kit);
       }

@@ -2,12 +2,12 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 467040,
-  "sha256": "82449cf3ab2d15ef6b0f9468b090d9ed67ad932791e245fa9bb713272d45bb26",
+  "sha256": "8142da8167206235e9846a2f2b4b0ed43821feb1602a5fc9e98fe9e91b72991d",
   "blocks": {
     "weight_ui.code": {
       "kind": "code",
       "va": "0xa42d000",
-      "size": 1324
+      "size": 1420
     },
     "weight_ui.state": {
       "kind": "state",
@@ -93,7 +93,7 @@
     "__rodata_match_keys_code": "0xa436154",
     "__rodata_patches_code": "0xa471c82",
     "__rodata_research_code": "0xa431f45",
-    "__rodata_weight_ui_code": "0xa42d481",
+    "__rodata_weight_ui_code": "0xa42d4de",
     "artefact_carry_on_client_death": "0xa4713f2",
     "artefact_carry_on_construct": "0xa470e4f",
     "artefact_carry_on_damage_bones": "0xa471160",

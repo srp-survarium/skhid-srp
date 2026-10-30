@@ -1,8 +1,11 @@
 package survarium.player
 {
    import flash.display.MovieClip;
+   import flash.display.Sprite;
    import flash.events.Event;
+   import flash.utils.Dictionary;
    import flash.text.StyleSheet;
+   import flash.text.TextField;
    import flash.text.TextFormat;
    import scaleform.clik.controls.TipRenderer;
    import survarium.controls.ItemInfoRenderer;
@@ -23,6 +26,16 @@ package survarium.player
       // card's skin (waiting for its timeline, as the first), one a {heading} entry.
       private var _sectionSkins:Array = [];
       private var _sections:Array = [];
+      // An item row's group icon: the shop filter's own renderer (FilterItemCatRenderer,
+      // its itemIcon, sprite 1125), one an item row, null for the others; waiting for
+      // its timeline as the skin.
+      private var _groups:Array = [];
+      // The modifier atlas icons' size, which a group icon is fitted to.
+      private static const ICON:Number = 38;
+      // A row's height and its icon's scale against the native row's: the text's line.
+      private static const ROW:Number = 24;
+      private static const ICON_SCALE:Number = 0.7;
+      private var _compacted:Object = new Dictionary(true);
 
       public function WeightTipRenderer()
       {
@@ -41,20 +54,56 @@ package survarium.player
 
       private function onRemoved(e:Event) : void { removeEventListener(Event.ENTER_FRAME,prepare); }
 
-      // The heading's value in its style's colour, by TextFormat over its characters:
-      // the rows' own style sheet (ModificatorListRenderer's), so heading and rows agree.
-      private function colourTitle(effects:IEffectRows) : void
+      // A heading's value in its style's colour, by TextFormat over its characters:
+      // the rows' own style sheet (ModificatorListRenderer's), so headings and rows agree.
+      private function colourHeading(field:TextField, part:String, styleName:String) : void
       {
-         var part:String = effects.titleValue;
-         if(part == null || _heading.textField.styleSheet != null || _rows.length == 0) return;
-         var rows:StyleSheet = (_rows[0] as ModificatorListRenderer).textFieldLabel.styleSheet;
+         if(part == null || field.styleSheet != null) return;
+         var rows:StyleSheet = null;
+         for each(var row:ModificatorListRenderer in _rows) if(row != null) { rows = row.textFieldLabel.styleSheet; break; }
          if(rows == null) return;
-         var at:int = _heading.textField.text.lastIndexOf(part);
-         var style:Object = rows.getStyle(effects.titleStyle);
+         var at:int = field.text.lastIndexOf(part);
+         var style:Object = rows.getStyle(styleName);
          if(at < 0 || style == null || style.color == null) return;
          var format:TextFormat = new TextFormat();
          format.color = uint("0x" + String(style.color).replace("#",""));
-         _heading.textField.setTextFormat(format,at,at + part.length);
+         field.setTextFormat(format,at,at + part.length);
+      }
+
+      // The row's icon scaled to its text, the text moved up to it; once a row.
+      private function compact(row:ModificatorListRenderer) : void
+      {
+         if(_compacted[row]) return;
+         _compacted[row] = true;
+         var icon:Number = row.iconContainer.width;
+         row.iconContainer.scaleX *= ICON_SCALE;
+         row.iconContainer.scaleY *= ICON_SCALE;
+         row.textFieldLabel.x -= icon * (1 - ICON_SCALE);
+         // One line as long as its text: the card fits its widest row.
+         row.textFieldLabel.wordWrap = false;
+      }
+
+      // Row `i`'s group icon: its filter renderer's itemIcon at frame 300 + `group`
+      // (FilterItem's own), fitted to the atlas icons' size; the renderer then goes.
+      private function groupIcon(i:int, group:int) : Sprite
+      {
+         var source:MovieClip = _groups[i];
+         var clip:MovieClip = source.itemIcon;
+         // The renderer no longer owns it (its draw would send it back to frame 1).
+         source.itemIcon = null;
+         source.removeChild(clip);
+         removeChild(source);
+         _groups[i] = null;
+         clip.gotoAndStop(300 + group);
+         var holder:Sprite = new Sprite();
+         holder.name = "group" + group;
+         holder.addChild(clip);
+         var size:Number = Math.max(clip.width,clip.height);
+         if(size > 0) clip.scaleX = clip.scaleY = clip.scaleX * ICON / size;
+         var box:Object = clip.getBounds(holder);
+         clip.x += (ICON - box.width) / 2 - box.x;
+         clip.y += (ICON - box.height) / 2 - box.y;
+         return holder;
       }
 
       override protected function invalidateData() : void
@@ -88,11 +137,20 @@ package survarium.player
                   addChild(section);
                   _sectionSkins.push(section);
                   _rows.push(null);
+                  _groups.push(null);
                   continue;
                }
                var nativeRow:ModificatorListRenderer = new SrvModifierLabeledRenderer();
                addChild(nativeRow);
                _rows.push(nativeRow);
+               var filter:MovieClip = null;
+               if(item.group != undefined)
+               {
+                  filter = new FilterItemCatRenderer();
+                  filter.visible = false;
+                  addChild(filter);
+               }
+               _groups.push(filter);
             }
             return; // Let the row timelines initialize too.
          }
@@ -100,6 +158,8 @@ package survarium.player
             if(pending != null && (pending.textFieldLabel == null || pending.iconContainer == null)) return;
          for each(var skin:ItemInfoRenderer in _sectionSkins)
             if(skin.criticalSeparator == null || skin.criticalSeparator.textField == null) return;
+         for each(var source:MovieClip in _groups)
+            if(source != null && source.itemIcon == null) return;
          for each(skin in _sectionSkins)
          {
             var divider:MovieClip = skin.criticalSeparator;
@@ -109,12 +169,14 @@ package survarium.player
          }
          _sectionSkins = [];
          _heading.textField.text = effects.title;
-         colourTitle(effects);
+         colourHeading(_heading.textField,effects.titleValue,effects.titleStyle);
          var icons:IconContainer = IconContainer.getInstance("modifiers");
          if(icons == null) throw new Error("WeightTipRenderer: missing modifier atlas");
-         var w:Number = 250;
-         _heading.y = 8 - _heading.textField.y;
-         var y:Number = 12 + _heading.textField.height;
+         // Compact: the card as wide as its widest row or heading, rows and margins tight,
+         // the icons scaled to the text (the native row's font and skin as they are).
+         var w:Number = _heading.width + 12;
+         _heading.y = 4 - _heading.textField.y;
+         var y:Number = 6 + _heading.textField.height;
          var entries:Array = effects.rows();
          var nextSection:int = 0;
          for(var i:int = 0; i < _rows.length; i++)
@@ -124,23 +186,24 @@ package survarium.player
             {
                var heading:MovieClip = _sections[nextSection++];
                heading.textField.text = entry.heading;
-               heading.y = y + 6 - heading.textField.y;
-               y += heading.textField.height + 10;
+               colourHeading(heading.textField,entry.headingValue,entry.headingStyle);
+               heading.y = y + 2 - heading.textField.y;
+               y += heading.textField.height + 4;
                continue;
             }
             var row:ModificatorListRenderer = _rows[i];
             row.validateNow();
-            row.data = {icon:icons.getIcon(entry.icon),label:entry.label};
+            row.data = {icon:entry.group != undefined ? groupIcon(i,entry.group) : icons.getIcon(entry.icon),label:entry.label};
             row.validateNow();
-            row.x = 10;
+            compact(row);
+            row.x = 8;
             row.y = y;
-            // These are the native row's icon scale, font and text margins.
-            w = Math.max(w,row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth + 14);
-            y += Math.max(32,row.textFieldLabel.textHeight + 8);
+            w = Math.max(w,row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth + 12);
+            y += Math.max(ROW,row.textFieldLabel.textHeight + 4);
          }
          _background.x = _background.y = 0;
          _background.width = Math.ceil(w);
-         _background.height = Math.ceil(y + 10);
+         _background.height = Math.ceil(y + 6);
          _body.x = 2;
          _body.y = 2;
          _body.width = _background.width - 4;

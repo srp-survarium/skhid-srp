@@ -818,3 +818,24 @@ limit beside the weight ("/ 30"):
   the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
 - Green raises the limit (or lowers the penalty), red lowers it, as the rows;
   the weight-limit modifications' icon (12), Packrat's the speed icon (11).
+
+### The tooltips' icons, the stamina section, compactness (2026-10-30)
+
+- **Group icons.** An item's row has its group's icon, the shop filter's own:
+  `FilterItemCatRenderer`'s `itemIcon` (sprite 1125) at frame 300 + the icon
+  `FiltersWindow` gives the item's category (`FiltersWindow.filterIcon`, from
+  the same lists the shop registers; the wiki's `groups/` icons). The weight
+  and skill rows keep the modifier atlas icons.
+- **Sprint stamina use** is the speed tooltip's second section, headed by its
+  total like the speed ("Sprint stamina use: 90%", `st_srp_weight_sprint_stamina`).
+  `player_stamina::sprint` 0x329A70: the base drain through `apply_modifier`
+  0x2D5AE0 index 19 (`stamina_spending_speed`: the weight's node, +1.5 x q;
+  each item's energy-cost modifications, prop 116; the kit's float) then index
+  67 (`stamina_spending_speed_skill`, skill 201), both multiplicative:
+  `(1 + S19) x (1 + S67)`. One row each source by name (the item, the skill by
+  the skill tree's name, the weight), less use green, more red, smallest
+  first. The exe's callback gives the kit's floats of 19 and 67: twelve
+  arguments.
+- **Compact.** Rows 24 px (the text's line), the icons at 0.7 of the native
+  row's beside their text, tight margins, each row one line, and the card as
+  wide as its widest row or heading. The native card skin and fonts as they are.
