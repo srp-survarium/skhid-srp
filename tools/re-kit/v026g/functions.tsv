@@ -1879,3 +1879,5 @@ va	status	ref_021d	name
 0x0025cb10	reviewed	0x0019400b	vostok::math::create_rotation
 0x00322ab0	reviewed	0x001fee95	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push
 0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
+0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>

@@ -80,7 +80,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@8)
+## lobby_scene/camp_069 (pack lobby-camp-069@9)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -152,9 +152,8 @@ below are content only: each is a project of its own next to the classic one, wh
   and textures are the donor's, whole; they drew as flat grey-blue slabs:
   - the faces out of the sun had no light (the outdoor box left out since @4) and the classic's
     interior fog (rayleigh from 1 m to 185 m) made them flat. The outdoor box is back, drawn before
-    the room's probes (`probe_overrides` `order: first`: 0.26 draws a point's probes in the
-    project's order, each over the ones before, so the room's still win in the room; inside, against
-    @7, within 1/255 in a crisp capture), in a box over all the blocks, diffuse 2.0 at saturation
+    the room's probes (so the room's still win in the room; inside, against @7, within 1/255 in a
+    crisp capture), in a box over all the blocks (`probe_overrides`), diffuse 2.0 at saturation
     0.15; the fog level 02 day's (rayleigh 15..300 m, mie 40..1200 m);
   - the far blocks (one at 88 m through the back window stayed a slab) are lit in 0.69d by its
     outdoor ambient light boxes, which the room's photometric scale had left at 0.15: 1.5
@@ -167,9 +166,18 @@ below are content only: each is a project of its own next to the classic one, wh
     (`native_scenery`). The pack grows by 0.5 MB (the outdoor probe's cubemap, the project).
   - Captures: `lobby-audit/rotation/camp_069-8-*` (the full orbit at 1.96 and 4.6, pitch +-30 at the
     window yaws; before is @7).
-- The lobby's light flips between two states from run to run (same build: the left wall 50 or
-  70 of 255, the dull one a bluish lift of the shadows). Not cloud shadows (`use_sky_shadows`
-  false keeps it); not fixed.
+- @9, the same light every run. @8's light flipped between two states (same build: the yaw 0 left
+  wall 50 or 70 of 255, the dull one a bluish lift of the shadows), about half the runs each.
+  0.26g draws the visible probes largest `radius` first, each over the ones before
+  (stage_visibility's sort, `tools/re-kit/v026g` 0x1B9390), and probes of equal radius in its probe
+  tree's order, which changes from run to run. All six had the template's 15.3, so the outdoor box
+  (outdoor sky irradiance) drew over the room's probes in about half the runs. A box probe's
+  radius is only that sort key in 0.26g (its volume is its scale; 0.10b's engine set it to 0.75 x
+  the largest half-extent itself, 0.26g takes the project's): the porter now gives each box that
+  radius, so the 220 m outdoor box draws first and the room's, smaller, over it. The same race
+  is what turned the window side blue in @3. Not the atmosphere: its two recalculations at load
+  (scene_changed, then parameters_changed) take the scene view's final parameters, and their
+  timing did not follow the state.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
