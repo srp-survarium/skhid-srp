@@ -42,6 +42,25 @@ fn sprint_block(bot: &Bot, me: &PlaceView, time: u32, stamina_on: bool) -> Optio
     }
 }
 
+/// An enemy the bot's or its team's own senses gave (a cheat's place does not count) this near the body, metres, within
+/// [`FIGHT_KNOWN_MS`]: it is in a fight ([`Feel::fight_lift`]). A GUESS to tune on the bench.
+const FIGHT_M: f32 = 30.0;
+/// ... and this long since, ms.
+const FIGHT_KNOWN_MS: u32 = 8_000;
+
+/// Whether the body is in a fight or a rush, for the motor's sprint lift ([`Feel::fight_lift`]): it runs (the play's pace)
+/// and an enemy is known near it (fair: the bot's own senses and its team's calls, [`Track::own`]) or it is bound for the
+/// enemy base (`Intent::objective`). The intent has no other sign of a rush.
+fn urgent(bot: &Bot, intent: &Intent, me: &PlaceView, time: u32) -> bool {
+    intent.pace == Pace::Run
+        && (intent.objective
+            || bot.memory.tracks().iter().any(|track| {
+                track
+                    .own
+                    .is_some_and(|(at, when)| time.wrapping_sub(when) <= FIGHT_KNOWN_MS && at.distance_xz(me.feet) <= FIGHT_M)
+            }))
+}
+
 /// A jump pressed while the weapon fired lately is held this long, ms,
 /// with the trigger let go: the weapon takes a jump only idle, reloading or
 /// chambering a round (`weapon_core::can_jump` 0x2E3A70: states 3, 4 and
@@ -273,7 +292,7 @@ fn drive_tick_inner(
         }
         bot.bench_est.push_back((me.known_at, me.feet));
     }
-    let pose = Pose {
+    let mut pose = Pose {
         feet: me.feet,
         yaw: me.yaw,
         pitch: me.pitch,
@@ -281,6 +300,8 @@ fn drive_tick_inner(
         velocity: me.velocity,
         no_jump: !bot.hurt.may_jump(time) || (tuning.think.stamina && !bot.stamina.may_jump()),
         sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
+        urgent: false,
+        running: false,
     };
     if bot
         .jump_watch
@@ -1345,6 +1366,9 @@ fn drive_tick_inner(
                     why::NONE
                 };
             }
+            // The legs are final: a fight or a rush for the sprint lift (`Feel::fight_lift`).
+            pose.urgent = urgent(bot, &intent, me, time);
+            pose.running = intent.pace == Pace::Run;
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where
@@ -1470,6 +1494,10 @@ fn drive_tick_inner(
             }
         }
     };
+    // A lift at its face asks sprint and forward held: where those keys go (`lifts::keys`).
+    let lift_face = bot.motor.lift_at_face();
+    let lift_wants = key::SPRINT | key::FORWARD;
+    let lift_asked = decision.keys & lift_wants == lift_wants;
     // The side step, where the ground that side is clear for a stride:
     // standing, or weaving a walk to or from the target.
     #[cfg(test)]
@@ -1529,7 +1557,9 @@ fn drive_tick_inner(
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
+    let lift_stepped = decision.keys & lift_wants == lift_wants;
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
+    let lift_guarded = decision.keys & lift_wants == lift_wants;
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
         decision.keys |= key::CROUCH;
@@ -1553,6 +1583,7 @@ fn drive_tick_inner(
             bot.pace.unasked();
         }
     }
+    let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
     decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);
     if over.fire && !using {
@@ -1563,11 +1594,13 @@ fn drive_tick_inner(
         bot.reflex.hold_fire(time);
         bot.reflex.gate_using(time);
     }
+    let lift_fired = decision.keys & lift_wants == lift_wants;
     decision.keys |= over.keys;
     if over.keys & (key::GRENADE | key::RELOAD | key::AIM | key::CROUCH) != 0 {
         decision.keys &= !key::SPRINT;
     }
     decision.keys |= intent.hold | std::mem::take(&mut bot.press);
+    let lift_overridden = decision.keys & lift_wants == lift_wants;
     // Lining up for a jump of its route, and in it: standing (a crouched
     // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
     // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
@@ -1593,6 +1626,28 @@ fn drive_tick_inner(
     });
     // [trap_react] A noticed trap on the route, a little ahead: the same jump.
     let by = by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"));
+    if lift_face {
+        let stage = if walking_aimed {
+            motor::lifts::Keys::AimedWalk
+        } else if !lift_asked {
+            motor::lifts::Keys::MotorOff
+        } else if !lift_stepped {
+            motor::lifts::Keys::SideStep
+        } else if !lift_guarded {
+            motor::lifts::Keys::LipGuard
+        } else if !lift_paced {
+            motor::lifts::Keys::PaceOrStance
+        } else if !lift_fired {
+            motor::lifts::Keys::Fire
+        } else if !lift_overridden {
+            motor::lifts::Keys::OverrideKeys
+        } else if decision.keys & lift_wants != lift_wants {
+            motor::lifts::Keys::Lining
+        } else {
+            motor::lifts::Keys::Held
+        };
+        motor::lifts::keys(stage);
+    }
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }
