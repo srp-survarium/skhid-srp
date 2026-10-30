@@ -3,7 +3,7 @@ switches ON avoid: bot_pockets grenade_avoid kit_in_use
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
 switches ON cover: spot_cost=0.5
-switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps unclear_aim zone_lines
+switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps sprint_through unclear_aim zone_lines
 switches ON grid: client_numbers exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out zone_intensity
 switches ON heal: bandages interrupt on
@@ -20,7 +20,7 @@ switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump 
 switches ON unstick: blind_stop_ms=4500 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
 switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_push_tracks combat.grenade_volley combat.hit_bearing combat.hit_bearing_with_target combat.outranged_cover combat.reacquire_keep combat.worth.objective_in_band combat.worth.switch_gap_m
 switches OFF cheats: batteries
-switches OFF feel: floor_height_clear
+switches OFF feel: fight_lift floor_height_clear
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels replan sniper_lanes
