@@ -1250,6 +1250,7 @@ package
          this.profileSelector.y = 42;
          modifierWindow = new SrvModifiersControlReskin();
          notificationList = new SrvNotificationListSC();
+         this.notificationList.lobby = this;
          notificationListTemp = new SrvNotificationList();
          this.notificationList.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
          this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);

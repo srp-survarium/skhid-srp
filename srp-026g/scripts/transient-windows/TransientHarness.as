@@ -29,6 +29,7 @@ package
    //   on the transient layer where they were, the top bar under the rooms window, none of it
    //   over it; closed, back in the top bar;
    // - the character panel's presets list: on the layer; a press on a row is its own (a choice),
+   //   one Scaleform gives the layer's holder chooses the row under it too,
    //   Esc, a press outside, a window opening and the panel hidden close it;
    // - a resize closes them.
    // Prints "TRANSIENT ..." lines (trace) and ends with "TRANSIENT RESULT pass" or
@@ -127,6 +128,7 @@ package
             step = "History";
             history = make("SrvNotificationListSC");
             history.visible = false;
+            history.lobby = lobby;
             lobby.notificationList = history;
             lobby.notificationListTemp = make("SrvNotificationList");
             lobby.addChild(history);
@@ -500,6 +502,20 @@ package
          // closes the list by its own path.
          press(list);
          expect("a press on a presets row is the list's own (it chooses, the list closes)",!Transient.isOpen(list) && list.stage == null);
+         // Scaleform's routing: a press on a row given to the layer's holder (the list's
+         // container there), not to the row. It comes to the list and chooses that row.
+         list = openList();
+         var holder:DisplayObjectContainer = list != null ? list.parent : null;
+         var third:DisplayObject = list is DisplayObjectContainer ? DisplayObjectContainer(list).getChildByName("2") : null;
+         var before:String = String(profile.labelText.text);
+         if(holder != null && third != null)
+         {
+            var on:Rectangle = third.getBounds(stage);
+            var local:Point = holder.globalToLocal(new Point(on.x + on.width / 2,on.y + on.height / 2));
+            holder.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true,false,local.x,local.y));
+         }
+         trace("TRANSIENT presets title before " + before + ", after a press on the holder " + profile.labelText.text);
+         expect("a press given to the holder over the third row chooses it (the list closes, the title names it)",third != null && list.stage == null && !Transient.isOpen(list) && String(profile.labelText.text) != before);
          list = openList();
          trace("TRANSIENT presets list again " + list);
          lobby.has_active_window();

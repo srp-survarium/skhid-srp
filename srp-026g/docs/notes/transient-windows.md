@@ -53,8 +53,11 @@ stay until closed, and Esc closes them one at a time (`esc.md`).
   place among its parent's children as it closes. Only the transient moves: the top bar stays
   under the rooms window while the match settings are over it. CLIK's popup canvas (a dropdown's
   list) is on the same layer, so a dropdown opened from the match settings is over them.
-- A transient's code does not look at its parent while open (the match settings are told the
-  top bar's Play box).
+- A press Scaleform gives the holder itself (a control straight in a sprite gives the sprite the
+  press: `scaleform-movie-pitfalls`) goes on to the transient as a press at the same point, so its
+  own press handling finds what is there (the presets list, its row).
+- A transient's code does not look at its parent while open: the match settings are told the top
+  bar's Play box, History the lobby.
 - Gone with it: History's own raise on open, the top bar's stage click that closed the match
   settings, their bot-match dropdowns' press guard (`pvbPopupDown`), the CLIK dropdown's own stage
   press and Esc handlers, `has_active_window`'s dropdown case, and the presets list's stage press,

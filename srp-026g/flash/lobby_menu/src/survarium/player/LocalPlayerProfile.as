@@ -1204,8 +1204,7 @@ package survarium.player
          this.drawPresetTitle();
       }
       
-      // A press on the title opens or closes the list. A press on a row the
-      // list missed (given to the panel) chooses that row.
+      // A press on the title opens or closes the list.
       private function onPanelPress(e:MouseEvent) : void
       {
          if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
@@ -1222,17 +1221,12 @@ package survarium.player
             {
                this.openPresetList();
             }
-            return;
          }
-         if(e.target != this || this._presetList == null)
-         {
-            return;
-         }
-         this.choosePresetAt(e.stageX,e.stageY);
       }
       
-      // The row under a stage point chosen (a press given to the panel or
-      // the list itself: scaleform-movie-pitfalls).
+      // The row under a stage point chosen (a press given to the list itself:
+      // scaleform-movie-pitfalls; one given to the transient layer's holder comes
+      // to the list too, Transient.onHolderPress).
       private function choosePresetAt(stageX:Number, stageY:Number) : void
       {
          var i:int = 0;

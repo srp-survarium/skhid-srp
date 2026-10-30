@@ -7,6 +7,7 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.geom.Matrix;
+   import flash.geom.Point;
 
    // The lobby's transient windows (docs/notes/transient-windows.md): History, the match
    // settings under Play, the character panel's presets list, a dropdown's list. They behave as
@@ -130,7 +131,8 @@ package survarium.controls
          }
       }
 
-      // A press Scaleform gives the holder itself (scaleform-movie-pitfalls) is the transient's too.
+      // A press Scaleform gives the holder itself (scaleform-movie-pitfalls) is the transient's too
+      // (onHolderPress hands it on).
       private static function holds(entry:Object, target:DisplayObject) : Boolean
       {
          if(within(entry.view,target) || entry.opener != null && within(entry.opener,target))
@@ -204,6 +206,7 @@ package survarium.controls
          into.invert();
          drawn.concat(into);
          place.holder.transform.matrix = drawn;
+         place.holder.addEventListener(MouseEvent.MOUSE_DOWN,onHolderPress,false,0,false);
          layer.addChild(place.holder);
          place.holder.addChild(view);
          return place;
@@ -224,10 +227,27 @@ package survarium.controls
          {
             parent.addChildAt(view,Math.min(int(place.at),parent.numChildren));
          }
+         place.holder.removeEventListener(MouseEvent.MOUSE_DOWN,onHolderPress,false);
          if(place.holder.parent != null)
          {
             place.holder.parent.removeChild(place.holder);
          }
+      }
+
+      // A press Scaleform gives the holder itself, not what is under it (scaleform-movie-pitfalls:
+      // a control straight in a sprite gives the sprite the press), goes on to the transient as a
+      // press at the same point: its own press handling finds what is there (the presets list its
+      // row). One on the transient or in it is its own already.
+      private static function onHolderPress(e:MouseEvent) : void
+      {
+         var holder:DisplayObjectContainer = e.currentTarget as DisplayObjectContainer;
+         if(e.target !== holder || holder.numChildren == 0)
+         {
+            return;
+         }
+         var view:DisplayObject = holder.getChildAt(0);
+         var at:Point = view.globalToLocal(new Point(e.stageX,e.stageY));
+         view.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true,false,at.x,at.y,null,e.ctrlKey,e.altKey,e.shiftKey,e.buttonDown));
       }
 
       // The stage's presses (capture: before what is pressed acts) and resizes while any is open.
