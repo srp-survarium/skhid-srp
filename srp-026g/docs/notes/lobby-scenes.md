@@ -80,7 +80,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@5)
+## lobby_scene/camp_069 (pack lobby-camp-069@6)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -125,6 +125,21 @@ below are content only: each is a project of its own next to the classic one, wh
   the fills neutral-warm (1, 0.93, 0.84) at 0.02, the sun 3; only the 127 m outdoor box is left
   out (with it the room probe loses). Luminance against @3: left wall 0.031 (0.030), doorway 0.028
   (0.017), far wall 0.051 (0.028), ceiling 0.137 (0.157), the sun patch on the floor 0.21 (0.12).
+- @6, the chandelier (the owner: dark where the 0.53 preview's glows). The donor's lamp
+  (`props/electric/lustra_patina`, 1.3x at (-0.42, 2.79, 2.10)) has one opaque dielectric material
+  for its frame and its shades, no emission; the two bulbs inside are 0.26's own
+  `props/light/lamp_on` (emissive, hidden by the shades). 0.69d lit the glass from the bulbs; 0.26
+  does not, so the shades drew dark (opaque, as the donor's: no alpha test or blend on either
+  side). Its lights were all there but weak or wrong: two point lights (10 lm: 0.15 at 2 m), two
+  adding ambient lights (20 lux: 0.12) and three multiplying ones at 0.01 over the ceiling (its
+  painted shadow), which 0.26 subtracts. Now (`glowing_surfaces`, `light_overrides`): the shades
+  (`lustra_patina_plafon_s`) take a copy of the material that emits its albedo, warm, x2.2; the
+  bulbs 0.5 at 2 m; the ambient lights 0.4; the painted ceiling shadow left out. The ceiling around
+  the lamp: luminance 0.27 (@5 0.14), the rest as @5.
+- @6, emission: 0.69d's `use_emission` with a `t_emission` texture (in its g_stage or forward
+  stage) is 0.26's g_stage emissive now. In this lobby only the laptop screen
+  (`props/electric/notebook_modern_on`) had one; it had drawn dark. The hangar's donor materials
+  have no emission (it stays @5).
 - References: YouTube thumbnails of 0.65b (a bright room, daylight from the left window, cream
   walls) and of the 0.53 preview (darker, the sun patch on the floor before the desk); @3 sits
   between them; @4 is warm and sunlit like both, still darker on the left wall and ceiling than
