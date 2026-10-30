@@ -88,6 +88,11 @@ pub struct WeaponParams {
     /// `stamina_damage`: what a bullet (a pellet) that hits takes off the
     /// victim's stamina bar, before its skill 211 (the bots have none).
     pub stamina_damage: f32,
+    /// `stopping_power`: what each bullet (pellet) that hits adds, times the ammunition's `k_power`, to the victim's
+    /// stagger for `stagger_duration` (0.5 s), the sum capped at `max_stagger` (0.5): the victim's movement speed is
+    /// cut by that share and he cannot sprint (PROVEN, `base_player::hit_impl` 0x2D9B90 and the stagger update
+    /// 0x2DBCD0, sprint-jump RE `FINDINGS.md` §1.1).
+    pub stopping_power: f32,
     /// `recoil`: `min/max_top_recoil`, `min/max_left_recoil`,
     /// `min/max_right_recoil` (the config's degrees), `recoil_power`, and
     /// the controller's gains (proportional, integral, derivational).
@@ -368,6 +373,7 @@ impl WeaponParams {
             bullet_pierce: number(Some(p), "bullet_pierce")?,
             min_damage_amount: number(Some(p), "min_damage_amount")?,
             stamina_damage: number(Some(p), "stamina_damage")?,
+            stopping_power: number(Some(p), "stopping_power")?,
             top_recoil: range("top")?,
             left_recoil: range("left")?,
             right_recoil: range("right")?,

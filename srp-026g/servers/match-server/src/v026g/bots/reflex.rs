@@ -5822,7 +5822,7 @@ impl Reflex {
             view,
             &lines.0,
             distance,
-            aim.friends.spread(gun),
+            aim.friends.spread(gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
             lines.1,
             &aim.friends,
         );
@@ -5923,7 +5923,7 @@ impl Reflex {
                 view,
                 &lines,
                 (track.who(), distance),
-                gun,
+                (gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
                 fire,
                 now,
                 &aim.friends,
@@ -6028,7 +6028,15 @@ impl Reflex {
         }
         let keys = reload | if carry { key::AIM } else { 0 };
         let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends);
-        let friend = super::friends::blocking(me, view, &lines.0, distance, aim.friends.spread(gun), lines.1, &aim.friends);
+        let friend = super::friends::blocking(
+            me,
+            view,
+            &lines.0,
+            distance,
+            aim.friends.spread(gun, super::friends::Sights::of(aimed_in, me.keys, self.strafe_fire)),
+            lines.1,
+            &aim.friends,
+        );
         let share = self.sight.damage_share(me.eye(), at, rule, c.fire_through_share)?;
         if share < c.fire_through_share {
             self.through_stats.refused_share += 1;
@@ -6207,13 +6215,13 @@ impl Reflex {
         view: &MatchView,
         (dirs, ahead_s): &([Vec3; 2], f32),
         (target, distance): (Place, f32),
-        gun: &Gun,
+        (gun, sights): (&Gun, super::friends::Sights),
         fired: bool,
         now: u32,
         t: &super::friends::FriendlyFireTuning,
     ) {
         let Some(near) =
-            super::friends::closest(me, view, dirs, distance, t.spread(gun), *ahead_s, t)
+            super::friends::closest(me, view, dirs, distance, t.spread(gun, sights), *ahead_s, t)
                 .filter(|near| near.room() <= FRIEND_NOTE_ROOM_M)
         else {
             return;

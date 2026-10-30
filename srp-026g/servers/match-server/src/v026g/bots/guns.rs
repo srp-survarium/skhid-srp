@@ -130,6 +130,9 @@ pub struct Gun {
     pub aim_ms: u32,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
+    /// `stopping_power`: what each bullet (pellet) that hits adds to the victim's stagger (the weapon's number;
+    /// the ammunition's `k_power` times it, 1 for every stock ammunition; PROVEN, `survarium::v026g::weapons`).
+    pub stopping_power: f32,
     /// `bullet_damage`: the share of a body's pool a bullet takes at its muzzle, before armour and the part hit (the
     /// weapon's nominal damage; what a hit seen to land counts for, `bots/worth.rs`).
     pub bullet_damage: f32,
@@ -423,6 +426,7 @@ impl Gun {
             category: w.category,
             aim_ms: ms(w.aim_time),
             dispersion: w.dispersion,
+            stopping_power: w.stopping_power,
             bullet_damage: w.bullet_damage,
             class: WeaponClass::of(w),
             by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),

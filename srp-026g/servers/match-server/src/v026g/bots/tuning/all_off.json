@@ -25,6 +25,9 @@
       "worth": {
         "hurt_from": "body"
       }
+    },
+    "friends": {
+      "spread_source": "constants"
     }
   },
   "avoid": {
@@ -103,7 +106,8 @@
   "smoke": {
     "cross_lane": false,
     "react_watch": false,
-    "sight": false
+    "sight": false,
+    "spot_rules": false
   },
   "threat": {
     "area": false,
