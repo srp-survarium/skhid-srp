@@ -36,15 +36,26 @@ below are content only: each is a project of its own next to the classic one, wh
   classic scene. Each scene's own spots are below; heights are of the surface under them, read
   from the meshes.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@2)
+## lobby_scene/hangar_046 (pack lobby-hangar-046@3)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
 - Scene: an overgrown hangar (`level/lobby/hangar_lobby`, `hangar_wall`), flora of level/01 and
   level/03, props. 24 models imported (`ported/v046c2_lobby`), 10 are 0.26's own.
 - Lights as 0.46c2 has them (0.26's units): 49 ambient lights, 11 lights, the donor's 4 probes
-  with their own cubemaps, 3 wire sets. Environment: the classic lobby's sky and post-process,
-  the donor's sun (elevation 55, azimuth 150).
+  with their own cubemaps, 3 wire sets. Environment: the donor's, every field 0.26g's executable
+  reads (107 names, the same in both builds: sun elevation 55, azimuth 150, intensity 1.5; sky,
+  clouds, mie and rayleigh fog, height-based ambient, probe multipliers, bloom, aberration,
+  vignette, grain), with its colour grading table `color_grading/lobby_v2` (a 16x16x16 RGBA8
+  volume laid out as 0.26's `l_03d`) imported as `ported/v046c2_lobby/color_grading/lobby_v2`.
+  Only `blueshift` keeps the classic's: a test without it was alike, so it is left out as a field
+  whose scale is not known to match.
+- @3 (the owner: "the lighting in camp and hangar was different"): @2 drew the hangar teal-blue
+  where the original is warm brown. Two causes: the classic lobby's environment, and the ambient
+  light colours packed the wrong way round (0.26's `color` has red in the low byte: the donor's
+  45 warm fills (1, 0.78, 0.67) drew blue). References: YouTube thumbnails of the 0.40/0.41
+  lobby (warm brown hall, cool daylight from the windows and skylights, deep shadow under the
+  trusses).
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -60,9 +71,9 @@ below are content only: each is a project of its own next to the classic one, wh
 - Squad: donor (-0.705, 0, 0.562) rotation 200 and (0.814, 0, 0.595) rotation 162 (0.26: (1, 0, 0.5)
   and (-1, 0, 0.5)); shop player (-1.0, 0.04, 7.5) rotation 145.
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
-  sparks and leaflets use 0.26's own), the portal system, the donor's colour grading.
+  sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@2)
+## lobby_scene/camp_069 (pack lobby-camp-069@3)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -71,11 +82,32 @@ below are content only: each is a project of its own next to the classic one, wh
   (`level/lobby/raincoat_tent`), the fridge (`props/kitchen/refrigerator_lobby`), the background
   (`level/02/bg_shop`, `level/04/bg_pipe_05`, houses, trees). 101 models imported
   (`ported/v069d_lobby`), 9 are 0.26's own.
-- Lights: the 18 adding ambient lights (lux x 0.5, at most 3), 13 lights (lumen / 30, 0.2..3); the
-  61 multiplying ones (0.69d type 1, painted contact shadows) are dropped. Its 6 probe volumes
-  use the classic lobby's cubemap: 0.69d probes are encoded for its exposure and carry their
-  irradiance as SH coefficients, with no `_diffuse` cubemap. Window panes (`water/glass_water`)
-  use 0.26's `tiled/window/glass`.
+- Lights (@3), by the manifest's `photometric_lights`, set by eye against the references (0.69d
+  draws through a fixed exposure, EV 9.5, and a filmic curve that 0.26 lacks):
+  - the 18 adding ambient lights: 0.006 per lux (illuminance x multiplier x intensity), at most 2;
+  - the 65 multiplying ones (0.69d `type` 1, they multiply the light under them): the 4 fills
+    (multiplier above 1: `floor_light_1/2`, `light/ambient_light` x50 at the camera, x3) as
+    adding ones, 0.02 per unit above 1; the 61 painted contact shadows (multiplier below 1: under
+    the boxes, the carpet, the fridge, the nightstand, the lamp) as negative ambient lights,
+    -0.25 per unit below 1 (0.26 subtracts them: shown in a game, the corners and the floor
+    under the props darken);
+  - 13 lights: 0.015 per lumen (the 200-lumen key on the character 3, the lamp bulbs 0.15).
+- Probes (@3): the donor's 6 volumes (boxes) with their own cubemaps, re-baked for 0.26 by the
+  porter (`probe_bake.rs`): 0.69d stores RGBM (colour over its largest channel, radiance rgb x
+  a^2) and its irradiance as 9 SH coefficients; 0.26 stores texels at or below 1 as they are and
+  brighter ones over their largest channel (alpha its reciprocal), with a 16x16 `_diffuse` cubemap
+  of irradiance over pi (0.26's and 0.46c2's own check out so, to 3 %). The `_diffuse` is made
+  from the SH (real basis with the Condon-Shortley phase over the world axes: on 4 of the 6
+  probes the L1 band points where the cubemap is brightest), the cubemap scaled to the SH's mean;
+  diffuse multiplier = the probe's 0.69d multiplier x 0.5. @2 drew every volume with the classic
+  lobby's warm cubemap x2.6 (the flat warm orange).
+- Environment: the classic lobby's sky, fog and post-process, the donor's sun (elevation 50,
+  azimuth 25: through the left window onto the papers and the right wall), no colour grading
+  (0.69d white-balances at 6500 K and has no table; the classic's `l_03d` made it warmer).
+- References: YouTube thumbnails of 0.65b (a bright room, daylight from the left window, cream
+  walls) and of the 0.53 preview (darker, the sun patch on the floor before the desk); @3 sits
+  between them.
+- Window panes (`water/glass_water`) use 0.26's `tiled/window/glass`.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -97,4 +129,4 @@ below are content only: each is a project of its own next to the classic one, wh
   (-1.69, 0.05, 1.602) rotation 190.
 - Not ported: particles crows, light rays, dust, the stove fire (0.26 has none; the fly uses
   0.26's), the shadow proxies (`shadow_proxy_geom`: 0.26 has none), the fridge's sound, 0.69d
-  metalness and detail maps, exposure and colour grading.
+  metalness and detail maps, exposure, white balance and tone curve.
