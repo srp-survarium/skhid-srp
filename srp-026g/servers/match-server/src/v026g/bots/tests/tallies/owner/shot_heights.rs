@@ -10,6 +10,7 @@
 //! `line_vertical_sum` and `line_shots` (the sum of the shot line's own height over the chest at the target, metres, with the cone).
 
 use super::*;
+use crate::v026g::bots::tests::tallies::shot_offset::Stance;
 
 /// A shot this many ticks after the shooter's last is the first of a run (500 ms: the kick has returned).
 const RUN_GAP_TICKS: u32 = 10;
