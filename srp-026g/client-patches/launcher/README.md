@@ -23,7 +23,7 @@ your own copy, and the patched exe is made from it.
 | | |
 |---|---|
 | Original | `game/binaries/x86/survarium_launcher.exe`, 4 740 728 bytes, sha256 `710956d2347864effb353064dd7beaee1dd2773c74756d3f6677df71431c5266` (the tools check it and refuse anything else) |
-| Result for `https://skhid.link` | `launcher_skhid.exe`, 4 735 488 bytes; the hash depends on the site, the game exe's name and its arguments |
+| Result for `https://skhid.link` | `launcher_skhid.exe`, 4 738 048 bytes; the hash depends on the site, the game exe's name and its arguments |
 | Status, 2026-10-13 | Built and run on Windows 11 against a local srp server, in a test game folder (see "What was run"). **Not yet** run under Wine or on another Windows version. In the players' download since 2026-10-13 09:50 UTC, and run against the test server and the public one that day (`../README.md`, the rows of the downloads) |
 
 ## The files
@@ -31,8 +31,9 @@ your own copy, and the patched exe is made from it.
 | File | What |
 |---|---|
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
-| `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
+| `launcher_values_026g.asm`, `.bin` | The new code and its text slots: the values the launcher used to read from the installer's registry key, worked out from where the launcher is; Enter pressing PLAY; the install-status guard; the box when Smart App Control blocks the game exe. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
+| `check_install_status_026g.py`, `check_play_blocked_026g.py` | Run the new code of patches 13 and 14 under Unicorn (`unicorn` for Python), at the image base and rebased |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -407,6 +408,7 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | The restore of `resources.db` fails (the game is running, a blob is missing on the server) | Nothing: no box, PLAY as usual. The reason is in the log after `resources:`; it is tried again at the next start |
 | The server goes away while the window is open (a release, a restart) | "Server maintenance...", PLAY off; once it answers, the window starts anew by itself and updates |
 | `updater_skhid.exe` is missing | The launcher's own box: "Cannot start updater_skhid.exe. Copy the files again." |
+| Smart App Control blocks the game exe at PLAY (error 4551, usually a new revision's exe that Windows has not seen often enough) | The launcher's own box, in its language: "Windows Smart App Control blocked survarium_skhid.exe (error 4551).", the way to turn it off (Windows Security > App & browser control > Smart App Control > Off), "Then press PLAY again."; the launcher stays open with PLAY on (patch 14). Any other error at PLAY: the original "Can't start the game" |
 | The launcher is closed during an update | The updater stops; nothing was changed, or everything was |
 | The updater is started from another folder than `game\binaries\x86` | "The updater must be in the game's folder game\binaries\x86 ..." |
 
@@ -417,8 +419,9 @@ outdated version of the game." Start the launcher: it updates.
 
 The texts are English only (the launcher shows them in an ANSI message box,
 so only ASCII is safe), but the box of a file Windows Security blocks or a
-program holds, which is the updater's own. The launcher's own lines are in
-its five languages.
+program holds, which is the updater's own, and the box of Smart App Control
+at PLAY (patch 14, `MessageBoxW`). The launcher's own lines are in its five
+languages.
 
 ## What each patch does
 
@@ -598,6 +601,38 @@ path. Resource strings come from the original executable. The test stubs
 resource loading and the single `%s` label formatter; it does not run the
 launcher UI or perform an update. `selftest_launcher_026g.py` also checks
 the assembly, patch boundaries, PE layout, checksum and relocations.
+
+### 14. Smart App Control at PLAY
+
+A player's crash report of 2026-10-29, on Windows 11 25H2 (10.0.26200)
+right after the update to revision 38: PLAY ended the launcher with the
+assertion "Can't start the game" (`launcher.cpp` line 2047, `int3` at
+0x1727B), and Windows' text was error 4551,
+`ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION` ("Application Control policy has
+blocked this file"). Smart App Control blocks an unsigned exe Windows has
+not seen often enough, and every revision's game exe is a new one. It has
+no exception for a file: it can only be turned off.
+
+- **Where:** `on_play_button_clicked` (0x17160) after `CreateProcessW`
+  (0x17216): `test eax,eax / je 17235h / push dword [ebp-20h]` at 0x1721C
+  becomes a jump to `play_started` in the new section and two `nop`s
+  (`85 C0 74 15 FF 75 E0` -> `E9 <rel32> 90 90`; no relocation under them).
+- **How:** a started game runs the replaced `push` and goes back to
+  0x17223 (handles closed, the launcher quits). When `GetLastError()` is
+  4551, a `MessageBoxW` (warning icon, task-modal, title "Skhid") says what
+  to do, in the launcher's language (`launcher+1A64h`, as the language word
+  of PLAY's command line; any other value: English); then 0x172DC frees the
+  command line and returns without `PostQuitMessage`, so the window stays
+  with PLAY on. The single-instance mutex was closed before
+  `CreateProcessW` and stays closed until the launcher is started again.
+  Any other error goes to the original assertion at 0x17235.
+- **Texts:** `blocked_texts` in `patch_launcher_026g.py` fills one 512-byte
+  UTF-16 slot per language (the game exe's name in each).
+- **Checked:** `selftest_launcher_026g.py` (3c, 3d) and
+  `check_play_blocked_026g.py`, which runs the hook under Unicorn at both
+  bases: a started game closes both handles, 4551 gives the box in each
+  language and returns with the stack as it was, errors 2, 5, 193, 225,
+  740 and 1260 reach the assertion. Not run on Windows yet.
 
 ## The pipe, in short
 
