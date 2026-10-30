@@ -248,6 +248,12 @@ pub struct CombatTuning {
     /// (only with `band_legs`).
     pub band_slack_m: f32,
     pub band_step_m: f32,
+    /// The range step is taken across the line to him by this angle, degrees (0: along it, as it was): a step in or back
+    /// out of the band that goes to one side of the line, longer by 1 / cos so that the way in or out is the same, and
+    /// the side the other way at every new step (the bench's bots crossed the shooter's line at 1.07 m/s while a range
+    /// step ran, the live humans' aimed-in 1.95: `gun_shots` by_driver, register #24). The step the side's floor refuses
+    /// goes to the other side, else along the line.
+    pub band_cross_deg: f32,
     pub band_legs: bool,
     /// Play 19: the bots' own spacing of spots, ms (the stock game's 3 s
     /// cooldown; client patch 38 has none); the same enemy is spotted
@@ -1125,6 +1131,7 @@ impl Default for CombatTuning {
             close_on_sniper_m: 30.0,
             band_slack_m: 3.0,
             band_step_m: 6.0,
+            band_cross_deg: 0.0,
             band_legs: true,
             spot_cooldown_ms: 3_000,
             spot_again_ms: 15_000,
@@ -2593,6 +2600,8 @@ pub struct Reflex {
     band: Option<(f32, f32)>,
     /// A step into the band.
     range_step: Option<Vec3>,
+    /// Which side of the line the last range step went to (`band_cross_deg`): the next new step takes the other.
+    range_right: bool,
     spot_pending: Option<Place>,
     last_spot: Option<u32>,
     spotted: Vec<(Place, u32)>,
@@ -2790,6 +2799,19 @@ fn another_angle(enemy: Vec3, last: Vec3, spot: Vec3, c: &CombatTuning) -> bool 
 }
 
 /// `from` moved `m` metres on the ground toward `to` (away if negative).
+/// [`step_toward`] turned `angle` radians off the line to one side (`right`: the bot's right when facing `to`), `m` still the
+/// way along the line (so the step is `m / cos(angle)` long).
+fn step_across(from: Vec3, to: Vec3, m: f32, angle: f32, right: bool) -> Vec3 {
+    let (dx, dz) = (to.x - from.x, to.z - from.z);
+    let d = dx.hypot(dz).max(1e-3);
+    let (ux, uz) = (dx / d, dz / d);
+    // The left normal of the line is (-uz, ux) in x/z with z forward; the right one is its opposite.
+    let side = if right { -1.0 } else { 1.0 };
+    let (nx, nz) = (-uz * side, ux * side);
+    let (along, across) = (m, m * angle.tan());
+    Vec3::new(from.x + ux * along + nx * across, from.y, from.z + uz * along + nz * across)
+}
+
 fn step_toward(from: Vec3, to: Vec3, m: f32) -> Vec3 {
     let (dx, dz) = (to.x - from.x, to.z - from.z);
     let d = dx.hypot(dz).max(1e-3);
@@ -4522,6 +4544,7 @@ impl Reflex {
         c: &CombatTuning,
     ) {
         self.band = None;
+        let stepping = self.range_step.is_some();
         self.range_step = None;
         self.outranged = false;
         self.outranged_by = None;
@@ -4572,17 +4595,29 @@ impl Reflex {
             } else {
                 sit.team.is_some_and(|team| team.seen_carrying(track.who(), now, c.band_carrier_seen_ms))
             };
-        let step = if d < band.0 - c.band_slack_m {
-            (!carrier).then(|| step_toward(me.feet, track.at(), -c.band_step_m))
+        let along = if d < band.0 - c.band_slack_m {
+            (!carrier).then_some(-c.band_step_m)
         } else if d > band.1 + c.band_slack_m {
-            Some(step_toward(me.feet, track.at(), c.band_step_m))
+            Some(c.band_step_m)
         } else {
             None
         };
-        self.range_step = step.filter(|at| {
-            sit.tactics
-                .is_some_and(|tactics| tactics.fine_goal(*at, now, sit.side))
+        let fine = |at: &Vec3| sit.tactics.is_some_and(|tactics| tactics.fine_goal(*at, now, sit.side));
+        // A step goes across the line when `band_cross_deg` says so, to the side after the last one's, else the other, else along it.
+        let right_first = if stepping { self.range_right } else { !self.range_right };
+        let step = along.and_then(|m| {
+            if c.band_cross_deg > 0.0 {
+                for right in [right_first, !right_first] {
+                    let at = step_across(me.feet, track.at(), m, c.band_cross_deg.to_radians(), right);
+                    if fine(&at) {
+                        self.range_right = right;
+                        return Some(at);
+                    }
+                }
+            }
+            Some(step_toward(me.feet, track.at(), m))
         });
+        self.range_step = step.filter(fine);
     }
 
     /// Play 20: now and then, with nothing seen, a grenade at the nearest
@@ -6318,6 +6353,25 @@ fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// A range step across the line goes the same way along it as the straight one and sideways by `m tan(angle)`, to the
+    /// side asked, in or back out (`band_cross_deg`).
+    #[test]
+    fn a_range_step_across_the_line_keeps_its_way_along_it() {
+        let (from, to) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 30.0));
+        let angle = 45f32.to_radians();
+        for (m, along) in [(6.0, 6.0), (-6.0, -6.0)] {
+            let straight = step_toward(from, to, m);
+            let left = step_across(from, to, m, angle, false);
+            let right = step_across(from, to, m, angle, true);
+            assert!((left.z - straight.z).abs() < 1e-4 && (right.z - straight.z).abs() < 1e-4, "the way along the line is kept");
+            assert!((left.z - along).abs() < 1e-4);
+            assert!((left.x.abs() - 6.0).abs() < 1e-3 && (right.x.abs() - 6.0).abs() < 1e-3, "tan 45 = 1: sideways m");
+            assert!(left.x * right.x < 0.0, "the two sides are opposite");
+        }
+        // Angle 0 is the straight step.
+        assert_eq!(step_across(from, to, 6.0, 0.0, true), step_toward(from, to, 6.0));
+    }
 
     use crate::v026g::bots::guns;
     use crate::v026g::bots::know::{DangerSpot, Percept};
