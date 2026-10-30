@@ -73,12 +73,15 @@ mod run;
 mod scoreboard;
 mod search_queue;
 mod sense_counts;
+mod shot_bands;
+mod shot_heights;
 mod shot_offsets;
 mod sight;
 mod smoke;
 mod snipers;
 mod spacing;
 mod stamina;
+mod steals;
 mod stock;
 mod team_kills;
 mod threat_answer;
@@ -115,11 +118,14 @@ use scoreboard::*;
 use search_queue::*;
 use sense_counts::*;
 use snipers::SniperCounts;
+use shot_bands::*;
+use shot_heights::*;
 use shot_offsets::*;
 use sight::*;
 use smoke::*;
 use spacing::*;
 use stamina::*;
+use steals::StealCounts;
 use stock::*;
 use team_kills::*;
 use threat_answer::*;
@@ -139,6 +145,8 @@ struct Rec {
     keys: u32,
     feet: Vec3,
     yaw: f32,
+    /// The elevation the view looks along, radians (the base pitch and the weapon's kick through the pitch unit's scale, as
+    /// the bots and the client reckon it): a grenade leaves along it.
     pitch: f32,
     /// m/s over the tick.
     speed: f32,

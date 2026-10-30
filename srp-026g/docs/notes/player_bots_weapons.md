@@ -991,3 +991,36 @@ tier 9-10, seeds 1-2, ~120 000 shots at a target).** By the target's height over
 
 The level fights are unchanged; the bots aimed low at everything below the eye and (a unit being 60.0 degrees up, not 57.3) a little high above it.
 What is left at +0.2 to +0.3 degrees is the Item bone's 0.24 degrees at level (left out of the map).
+
+## Where the bullet leaves, tick by tick, and the skill-1 residual (2026-10-30)
+
+**The bullet leaves along a cached matrix (PROVEN, exe).** `weapon_core::instant_fire` 0x2E23A0 copies the 64 bytes at `base_player+0x44C`
+(`add esi,0x44c ... rep movsd` at 0x2E2440) the moment it fires: no pose is read then. `base_player+0x44C` is written only by
+`update_head_matrix` 0x2DA4B0, and the exe calls it from four places only (a scan of every direct call; no pointer to it exists anywhere in the
+exe): `assign_physics_transform` 0x2D93A0 (twice, 0x2D941C and 0x2D9485), `set_transform` 0x2DAB70 (0x2DABC9) and the function at 0x2DB860
+(0x2DB8CC). **Not** `apply_new_input` 0x2D86E0 (its one caller is the world's input entry 0x1F36D0, vtable slot at 0x9FB3A0), not
+`apply_rotation` 0x2D8AD0, not `apply_look_pitch` 0x2E0FB0, not `base_player::tick` 0x2DAA60 or `tick_animations` 0x2D8EE0. So a rotation an input
+applies reaches the bullet only at the next of those four calls, which is the physics step's transform assignment (0x2D93A0 is registered as a
+callback at 0x2D6E13), and the look clip's pose of a pitch turn only when the animation has posed the skeleton and one of them runs after it.
+`base_player::tick` runs the weapon (`[player+0x128]` slot +0x28, 0x2DAAD1: this is where `weapon_core::tick` and the shot are) **before**
+`tick_animations` (0x2DAADB). The order of the input entry, the physics step and `base_player::tick` inside the world's tick (`atomic_tick`
+0x2D1E20's seven delegates) is not read, so whether a shot leaves along the view of the tick's input, or of the tick before, is **not settled** by
+the exe read so far: the client round (single shots while turning steadily, the bullet against the view's yaw of that tick and the tick before)
+settles it.
+
+**The skill-1 residual is not the kick (PROVEN, test).** `reflex.rs` test `kicked_height` (ignored, prints): one bot on a standing target at 20, 30 and 52 m,
+no aim error, a burst, the bot's mirror of the kick and the game's kick (the same `Recoil`, the middle of every range, or drawn from them) kept
+apart, the view built as `drive.rs` builds it, the turn converted with `turn_for`, the pull a `rise`. The view's height over the chest at the shots,
+degrees (client's map; the radian map differs by under 0.02):
+
+| skill (pull) | mirror = truth | truth drawn |
+|---|---|---|
+| 0 (0.5) | +0.39 | +0.40 |
+| 0.75 (0.875) | +0.10 | +0.11 .. +0.12 |
+| 1 (1.0) | 0.000 | +0.02 |
+
+At skill 1 the pull takes back the whole kick; the +0.02 degrees is the drawn shots' spread against the bot's middle. In the bench (tier 9-10, skill
+0.75) the line is +0.22 over the chest at 20-40 m and +0.12 at skill 1: of the 0.22, 0.10 is the unpulled eighth of the kick (the table) and **0.12 is
+there at every skill, so it is not the kick**; it is something between the bot's picture of the target and the stand-in's line (the aim point's
+height against the target's stance or slope, the picture's lateness on a target that moves up or down). The counter to split it: the line height
+of the first shot of a burst (no kick yet) against the later shots, and by the target's stance.
