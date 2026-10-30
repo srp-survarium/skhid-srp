@@ -158,7 +158,39 @@ fn threat_tick(
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }
-    let mut regions = threat.spots.covered_regions(now);
+    // [smoke.spot_rules] A region a cloud hides from the spot's shooter is not his while it stands: routes cross under it
+    // (the detour weighs the lanes) and no lane smoke is planned for it.
+    let planning = view.smoke.planning(now, team);
+    let mut regions = if tuning.smoke.spot_rules && !planning.is_empty() {
+        let (grid, map) = (&tactics.world.grid, tactics.regions());
+        let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+        let (covered, opened) = threat.spots.covered_regions_smoked(now, |at, r| {
+            planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+        });
+        // The regions opened are counted by the bench only (crossings under a cloud).
+        #[cfg(test)]
+        if !opened.is_empty() {
+            under_cloud(bots, team, grid, map, &opened, tuning, now);
+        }
+        #[cfg(not(test))]
+        let _ = opened;
+        covered
+    } else {
+        // [bench] With the rules off the crossings under a cloud are counted all the same (count, don't act), so the
+        // two arms of a head-to-head read alike; the covered regions are #801's.
+        #[cfg(test)]
+        if !planning.is_empty() {
+            let (grid, map) = (&tactics.world.grid, tactics.regions());
+            let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+            let (_, opened) = threat.spots.covered_regions_smoked(now, |at, r| {
+                planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+            });
+            if !opened.is_empty() {
+                under_cloud(bots, team, grid, map, &opened, tuning, now);
+            }
+        }
+        threat.spots.covered_regions(now)
+    };
     regions.sort_unstable();
     regions.dedup();
     let same = match &threat.covered {
@@ -182,6 +214,36 @@ fn threat_tick(
     let shared = threat.covered.clone().unwrap_or_default();
     for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
         bot.threat = shared.clone();
+    }
+}
+
+/// [smoke.spot_rules, bench] The team's bots whose route ahead (`smoke.lane_ahead_m`, 2 m steps) enters a region a cloud
+/// opened: crossings under an existing cloud, counted once a bot 10 s apart.
+#[cfg(test)]
+fn under_cloud(
+    bots: &mut [Option<Bot>],
+    team: u8,
+    grid: &mapdata::WalkGrid,
+    map: &mapdata::regions::Regions,
+    opened: &[u32],
+    tuning: &Tuning,
+    now: u32,
+) {
+    for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+        let Some((route, _)) = bot.route.as_ref() else {
+            continue;
+        };
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        let end = (start + tuning.smoke.lane_ahead_m.get()).min(route.length());
+        let enters = (1..)
+            .map(|k| start + k as f32 * 2.0)
+            .take_while(|&s| s <= end)
+            .filter_map(|s| grid.locate(route.at(s, heights), 1.5))
+            .any(|n| opened.binary_search(&map.of(n)).is_ok());
+        if enters {
+            super::smoke::tally::under_cloud(bot.place, bot.team, now);
+        }
     }
 }
 
