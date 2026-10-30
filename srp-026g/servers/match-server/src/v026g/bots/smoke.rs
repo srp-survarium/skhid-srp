@@ -591,6 +591,13 @@ fn told(cloud: &Cloud, who: Watcher, at: MatchMs, t: &super::tuning::SmokeTuning
 /// of BENCH-DECISIONS (no decision on an enemy not seen or heard within 15 s).
 pub const FAIR_SENSED_MS: u32 = 15_000;
 
+/// Whether the kill feed (`deaths`, `MatchView::deaths`) showed `who` dead since he was sensed at `sensed`, or within
+/// `window_ms` before it (the sensing's lag): a human reads the feed and smokes no dead man's line. A death longer before
+/// is an earlier life of his.
+pub fn died_since(deaths: &[super::view::Death], who: Place, sensed: u32, window_ms: u32) -> bool {
+    deaths.iter().any(|d| d.place == who && d.time >= sensed.saturating_sub(window_ms))
+}
+
 /// What a smoke throw is for: the uses of part 2, each its own switch (`SmokeTuning`), and the plays that call the
 /// API (fx-threat-obj's Breach and spawn-exit breakout: `Breach`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -863,8 +870,95 @@ pub mod tally {
             const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
     }
 
+    thread_local! {
+        /// By place: a sniper crossing under way (the sniper, when it began, whether a smoke was begun for it).
+        static SNIPER_CROSSINGS: std::cell::RefCell<std::collections::BTreeMap<usize, (usize, u32, bool)>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` is about to cross ground the sniper `who` sees (`smoke_uses`, either arm): kept until it is
+    /// resolved (the smoke topic: died to him, died otherwise or crossed within its time). One at a time a bot.
+    pub fn sniper_crossing(place: usize, who: usize, now: u32) {
+        SNIPER_CROSSINGS.with(|s| {
+            s.borrow_mut().entry(place).or_insert((who, now, false));
+        });
+    }
+
+    /// A smoke was begun for the bot at `place`'s sniper crossing.
+    pub fn sniper_smoked(place: usize) {
+        SNIPER_CROSSINGS.with(|s| {
+            if let Some(c) = s.borrow_mut().get_mut(&place) {
+                c.2 = true;
+            }
+        });
+    }
+
+    /// The sniper crossing under way of the bot at `place`, taken if `done` says it is resolved.
+    pub fn take_sniper_crossing(place: usize, done: impl FnOnce((usize, u32, bool)) -> bool) -> Option<(usize, u32, bool)> {
+        SNIPER_CROSSINGS.with(|s| {
+            let mut s = s.borrow_mut();
+            let c = *s.get(&place)?;
+            done(c).then(|| s.remove(&place)).flatten()
+        })
+    }
+
+    /// An anti-sniper smoke as planned: the thrower, its team, the sniper, his eye as sensed, the crossing, when begun, and
+    /// when the thrower's route first no longer ran by the crossing (a new route: the plan changed after the throw), and what
+    /// ended the route it had (`RouteEnd`'s name), if anything did.
+    #[derive(Clone, Copy, Debug)]
+    pub struct SniperPlan {
+        pub place: usize,
+        pub team: u8,
+        pub who: usize,
+        pub eye: super::Vec3,
+        pub crossing: super::Vec3,
+        pub time: u32,
+        pub route_left: Option<(u32, &'static str)>,
+    }
+
+    /// How long after its begin a plan's route is watched, ms (the throw classes' reach time).
+    const SNIPER_ROUTE_WATCH_MS: u32 = 15_000;
+
+    /// The bot at `place` at `now`: each of its plans begun within [`SNIPER_ROUTE_WATCH_MS`] whose crossing `on_route` no
+    /// longer holds for is marked as left, with `why` (what last ended a route of the bot's).
+    pub fn sniper_routes(place: usize, now: u32, why: &'static str, on_route: impl Fn(super::Vec3) -> bool) {
+        SNIPER_PLANS.with(|s| {
+            for p in s.borrow_mut().iter_mut() {
+                if p.place == place && p.route_left.is_none() && now.saturating_sub(p.time) <= SNIPER_ROUTE_WATCH_MS && !on_route(p.crossing) {
+                    p.route_left = Some((now, why));
+                }
+            }
+        });
+    }
+
+    thread_local! {
+        static SNIPER_CANDIDATE: std::cell::RefCell<std::collections::BTreeMap<usize, (usize, super::Vec3, super::Vec3)>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+        static SNIPER_PLANS: std::cell::RefCell<Vec<SniperPlan>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// The bot at `place` planned a smoke against `who` (his eye `eye`) for its crossing at `crossing`.
+    pub fn sniper_candidate(place: usize, who: usize, eye: super::Vec3, crossing: super::Vec3) {
+        SNIPER_CANDIDATE.with(|s| s.borrow_mut().insert(place, (who, eye, crossing)));
+    }
+
+    /// The bot at `place` began its anti-sniper smoke at `now`: its candidate is a plan.
+    pub fn sniper_begun(place: usize, team: u8, now: u32) {
+        if let Some((who, eye, crossing)) = SNIPER_CANDIDATE.with(|s| s.borrow().get(&place).copied()) {
+            SNIPER_PLANS.with(|s| s.borrow_mut().push(SniperPlan { place, team, who, eye, crossing, time: now, route_left: None }));
+        }
+    }
+
+    /// The anti-sniper plans begun so far this match.
+    pub fn sniper_plans() -> Vec<SniperPlan> {
+        SNIPER_PLANS.with(|s| s.borrow().clone())
+    }
+
     /// A match begins on this thread: the per-place records of the last one go (places are reused).
     pub fn begin_match() {
+        SNIPER_CANDIDATE.with(|s| s.borrow_mut().clear());
+        SNIPER_PLANS.with(|s| s.borrow_mut().clear());
+        SNIPER_CROSSINGS.with(|s| s.borrow_mut().clear());
         UNDER_CLOUD.with(|s| s.borrow_mut().clear());
         THREW.with(|s| s.borrow_mut().clear());
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
@@ -945,6 +1039,18 @@ pub mod tally {
 mod tests {
     use super::*;
     use crate::v026g::bots::tuning::SmokeTuning;
+
+    #[test]
+    fn a_sniper_the_kill_feed_showed_dead_is_smoked_against_no_more() {
+        use crate::v026g::bots::view::Death;
+        let death = |place, time| Death { place, at: Vec3::ZERO, time };
+        // Sensed at 20 s, the window 5 s.
+        assert!(died_since(&[death(7, 21_000)], 7, 20_000, 5_000), "dead since the sensing");
+        assert!(died_since(&[death(7, 18_000)], 7, 20_000, 5_000), "dead within the sensing's lag");
+        assert!(!died_since(&[death(7, 9_000)], 7, 20_000, 5_000), "an earlier life of his: sensed again since");
+        assert!(!died_since(&[death(8, 21_000)], 7, 20_000, 5_000), "another player's death");
+        assert!(!died_since(&[], 7, 20_000, 5_000));
+    }
 
     fn cloud(at: Vec3) -> Cloud {
         SmokeThrow {

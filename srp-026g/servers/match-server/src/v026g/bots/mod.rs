@@ -306,6 +306,9 @@ pub struct Bot {
     /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
     #[cfg(test)]
     pub(crate) bench_shut_in: bool,
+    /// Why the drive last asked for a new route while it had a goal (the smoke topic's throw classes).
+    #[cfg(test)]
+    pub(crate) bench_replan: &'static str,
     /// The polls in a row it wanted a search and got none (`search::queue`).
     #[cfg(test)]
     pub(crate) bench_starved_polls: u32,
@@ -480,6 +483,8 @@ impl Bot {
             bench_asked: Default::default(),
             #[cfg(test)]
             bench_shut_in: false,
+            #[cfg(test)]
+            bench_replan: "none",
             #[cfg(test)]
             bench_starved_polls: 0,
             #[cfg(test)]
