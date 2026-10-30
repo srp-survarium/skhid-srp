@@ -25,6 +25,7 @@
 //! through the considerations and the commander.
 
 pub mod ambush;
+pub mod answer;
 pub mod buddy;
 pub mod collect;
 pub mod cover_human;
@@ -129,10 +130,12 @@ pub enum PlayKind {
     Cut,
     /// Play 27: hold USE on the team's resupply box when short of rounds.
     Resupply,
+    /// Play 28: a teammate whose weapon reaches him answers a sniper the team sensed.
+    Answer,
 }
 
 impl PlayKind {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Roam,
         Self::Collect,
         Self::Ambush,
@@ -155,13 +158,14 @@ impl PlayKind {
         Self::Buddy,
         Self::Cut,
         Self::Resupply,
+        Self::Answer,
     ];
 
     /// The personality family whose weight the play's `Personality`
     /// consideration reads.
     pub fn family(self) -> Family {
         match self {
-            Self::Ambush | Self::HoldExit | Self::GuardLead | Self::Crossfire | Self::Cut => {
+            Self::Ambush | Self::HoldExit | Self::GuardLead | Self::Crossfire | Self::Cut | Self::Answer => {
                 Family::Hold
             }
             Self::Intercept | Self::Trade | Self::LateDenial | Self::Hunt => Family::Push,
@@ -196,6 +200,7 @@ impl PlayKind {
                 | Self::Trade
                 | Self::Hunt
                 | Self::Cut
+                | Self::Answer
         )
     }
 }
@@ -448,6 +453,9 @@ pub struct BotFacts<'a> {
     pub personality: &'a Personality,
     /// The kind of its weapon 1 (`Bot::weapon`), where known.
     pub weapon: Option<WeaponKind>,
+    /// The kind of every place's weapon 1 as the match knows it (`Bots::set_weapons`): the sniper the team sensed is
+    /// known for one by his weapon (play 28).
+    pub weapons: &'a [Option<WeaponKind>],
     /// Its map side (spawn team), if known.
     pub side: Option<i32>,
     /// Its present play, target and when it started.
@@ -1138,6 +1146,7 @@ pub enum Running {
     Buddy(buddy::State),
     Cut(cut::State),
     Resupply(resupply::State),
+    Answer(answer::State),
 }
 
 impl Running {
@@ -1184,6 +1193,7 @@ impl Running {
             Self::Buddy(_) => PlayKind::Buddy,
             Self::Cut(_) => PlayKind::Cut,
             Self::Resupply(_) => PlayKind::Resupply,
+            Self::Answer(_) => PlayKind::Answer,
         }
     }
 
@@ -1224,6 +1234,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     buddy::candidates(cx, out);
     cut::candidates(cx, out);
     resupply::candidates(cx, out);
+    answer::candidates(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
@@ -1261,6 +1272,7 @@ pub fn start(
         PlayKind::Buddy => Running::Buddy(buddy::start(target, cx, rng)),
         PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
         PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
+        PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
     }
 }
 
@@ -1289,6 +1301,7 @@ pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -
         Running::Buddy(s) => buddy::step(s, target, cx, rng),
         Running::Cut(s) => cut::step(s, target, cx, rng),
         Running::Resupply(s) => resupply::step(s, target, cx, rng),
+        Running::Answer(s) => answer::step(s, target, cx, rng),
     }
 }
 
@@ -1328,6 +1341,7 @@ pub fn default_tuning(kind: PlayKind) -> PlayTuning {
         PlayKind::Buddy => buddy::tuning(),
         PlayKind::Cut => cut::tuning(),
         PlayKind::Resupply => resupply::tuning(),
+        PlayKind::Answer => answer::tuning(),
     }
 }
 
@@ -1356,6 +1370,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
         PlayKind::Buddy => buddy::NUMBERS,
         PlayKind::Cut => cut::NUMBERS,
         PlayKind::Resupply => resupply::NUMBERS,
+        PlayKind::Answer => answer::NUMBERS,
     }
 }
 

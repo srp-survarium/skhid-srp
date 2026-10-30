@@ -802,6 +802,11 @@ pub const AREA_M: f32 = 10.0;
 pub const RECAST_MOVED_M: f32 = 3.0;
 /// Spot events kept between two commander ticks, at most (the notes).
 const EVENTS_KEPT: usize = 64;
+/// A sensed sniper's spot follows him once he moved this far from where its lanes were cast, m (the lanes of a
+/// shooter who sees as far as he does turn little with a few metres; at 10 m the first bench cast them 1,350 times a match).
+pub const SNIPER_MOVED_M: f32 = 25.0;
+/// The bearings of a sniper's spot: this many lanes round, each [`LANE_DEG`] either side: all he sees.
+const SNIPER_LANES: usize = 9;
 
 /// What a spot is: the two models (`ThreatTuning::area`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -934,6 +939,9 @@ pub struct Spot {
     cast: Cast,
     /// Held at the last commander tick (the Held note is a change of it).
     held_then: bool,
+    /// A sensed sniper's (`ThreatSpots::sniper_sensed`): lanes all round him, no kill behind it; the jobs and the plays
+    /// that read the held lines do not see it.
+    sniper: bool,
 }
 
 impl Spot {
@@ -1119,6 +1127,19 @@ pub struct ThreatSpots {
     gone: Vec<(u32, JobEnd)>,
     /// What happened since the commander last took them ([`Self::take_events`]).
     events: Vec<SpotEvent>,
+    /// [measure] What the sensed snipers' spots did.
+    sniper_lanes: SniperLaneStats,
+}
+
+/// [measure] What a team's sniper spots did (the bench's owner counts; nothing decides by them): spots made, lanes cast again
+/// because he moved, casts done and the regions they cover in all, and the commander ticks a sniper spot was held.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SniperLaneStats {
+    pub made: u32,
+    pub moved: u32,
+    pub casts: u32,
+    pub regions: u32,
+    pub held_ticks: u32,
 }
 
 impl ThreatSpots {
@@ -1152,7 +1173,7 @@ impl ThreatSpots {
         let mut matching = self
             .spots
             .iter_mut()
-            .filter(|s| s.shooter == shooter && s.at.distance_xz(shooter_at) <= merge_m);
+            .filter(|s| !s.sniper && s.shooter == shooter && s.at.distance_xz(shooter_at) <= merge_m);
         // The area: the nearest; as it was, the first in the list.
         let spot = if rules.recentres() {
             matching.min_by(|a, b| a.at.distance_xz(shooter_at).total_cmp(&b.at.distance_xz(shooter_at)))
@@ -1174,6 +1195,7 @@ impl ThreatSpots {
                 empty_since: None,
                 cast: Cast::Due { kept: None },
                 held_then: false,
+                sniper: false,
             });
             self.event(now, id, shooter, shooter_at, SpotNote::Made);
             return;
@@ -1221,8 +1243,74 @@ impl ThreatSpots {
         }
     }
 
-    /// The shooter died: his spots keep half.
+    /// The team sensed the sniper `shooter` at `at` at `time`, his weapon reaching `reach_m`: a spot with lanes all round him,
+    /// held while he is sensed ([`SEEN_MS`]), kept out by the routes like any held spot's ([`Covered`]): he sees the ground
+    /// before he has killed from it. It follows him when he has moved [`SNIPER_MOVED_M`].
+    pub fn sniper_sensed(&mut self, shooter: Place, at: Vec3, time: u32, reach_m: f32, rules: SpotRules) {
+        let kills = |at: Vec3| -> Vec<Kill> {
+            (0..SNIPER_LANES)
+                .map(|k| {
+                    let b = k as f32 / SNIPER_LANES as f32 * std::f32::consts::TAU;
+                    Kill { from: at, victim: at + Vec3::new(b.sin() * reach_m, 0.0, b.cos() * reach_m) }
+                })
+                .collect()
+        };
+        let Some(s) = self.spots.iter_mut().find(|s| s.sniper && s.shooter == shooter) else {
+            let id = self.next_id;
+            self.next_id = self.next_id.wrapping_add(1);
+            self.spots.push(Spot {
+                id,
+                at,
+                strength: HELD_STRENGTH,
+                stamp: time,
+                shooter,
+                kills: kills(at),
+                reach_m,
+                shooter_seen: Some(time),
+                empty_since: None,
+                cast: Cast::Due { kept: None },
+                held_then: false,
+                sniper: true,
+            });
+            self.sniper_lanes.made += 1;
+            self.event(time, id, shooter, at, SpotNote::Made);
+            return;
+        };
+        if s.shooter_seen.is_none_or(|t| time > t) {
+            s.shooter_seen = Some(time);
+            s.strength = HELD_STRENGTH;
+            s.stamp = time;
+            s.empty_since = None;
+        }
+        // Lanes to be cast (not yet) follow him for nothing; those cast or going out are cast again when he has moved.
+        match s.cast.lanes().map(|lanes| lanes.from.distance_xz(at) > SNIPER_MOVED_M) {
+            None => {
+                s.at = at;
+                s.kills = kills(at);
+            }
+            Some(moved) if moved || reach_m > s.reach_m => {
+                s.at = at;
+                s.reach_m = reach_m;
+                s.kills = kills(at);
+                s.cast.again(rules.recast);
+                self.sniper_lanes.moved += 1;
+            }
+            Some(_) => {}
+        }
+    }
+
+    /// What the sniper spots did, summed.
+    pub fn sniper_stats(&self) -> SniperLaneStats {
+        self.sniper_lanes
+    }
+
+    /// The shooter died: his spots keep half; a sniper's own is let go.
     pub fn shooter_died(&mut self, shooter: Place, now: u32) {
+        let before = self.spots.len();
+        self.spots.retain(|s| !(s.sniper && s.shooter == shooter));
+        if self.spots.len() != before {
+            self.version = self.version.wrapping_add(1);
+        }
         let mut noted = Vec::new();
         for s in self.spots.iter_mut().filter(|s| s.shooter == shooter) {
             s.strength = s.strength_at(now) * SHOOTER_DIED_KEEPS;
@@ -1323,6 +1411,8 @@ impl ThreatSpots {
         let mut changed = self.spots.len() != before;
         let mut points = None;
         for s in self.spots.iter_mut().filter(|s| s.held(now)) {
+            let sniper = s.sniper;
+            self.sniper_lanes.held_ticks += u32::from(sniper);
             if let Cast::Due { kept } = &mut s.cast {
                 let kept = kept.take();
                 let lanes = s.lanes(rules);
@@ -1346,17 +1436,23 @@ impl ThreatSpots {
             let Cast::Casting { todo, seen, lanes, .. } = &mut s.cast else {
                 continue;
             };
-            // The rays go from the spot's point at a standing eye.
+            // The rays go from the spot's point at a standing eye. A sniper's are by sight, one ray a region: the bullet
+            // follow through cover of `shot_reaches` cast about 15 rays a region and put the lanes' rays at +9 % of the match's.
             let eye = lanes.from + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
             let take = todo.len().min(RAYS_PER_TICK);
             for (region, p) in todo.drain(..take) {
-                if eyes.shot_reaches(eye, p + Vec3::new(0.0, TARGET_HEIGHT_M, 0.0)) {
+                let to = p + Vec3::new(0.0, TARGET_HEIGHT_M, 0.0);
+                if if sniper { eyes.sees(eye, to) } else { eyes.shot_reaches(eye, to) } {
                     seen.push(region);
                 }
             }
             if todo.is_empty() {
                 let (cover, lanes) = (std::mem::take(seen), lanes.clone());
                 notes.push((s.id, s.shooter, s.at, SpotNote::Cast { regions: cover.len() }));
+                if s.sniper {
+                    self.sniper_lanes.casts += 1;
+                    self.sniper_lanes.regions += cover.len() as u32;
+                }
                 s.cast = Cast::Done { cover, lanes };
                 changed = true;
             }
@@ -1404,6 +1500,7 @@ impl ThreatSpots {
     /// The held spots as the plays read them ([`Picture`]).
     pub fn held_lines(&self, now: u32, rules: SpotRules) -> Vec<HeldLine> {
         self.held(now)
+            .filter(|s| !s.sniper)
             .map(|s| HeldLine {
                 id: s.id,
                 at: s.at,
@@ -2341,6 +2438,45 @@ mod tests {
                 assert_eq!(spots.covered_regions(2_000), vec![0]);
             }
         }
+    }
+
+    #[test]
+    fn a_sensed_sniper_is_a_spot_with_lanes_all_round_him_that_the_jobs_do_not_see() {
+        struct Ring;
+        impl Eyes for Ring {
+            fn sees(&self, _: Vec3, _: Vec3) -> bool {
+                true
+            }
+            fn region_points(&self) -> Vec<(u32, Vec3)> {
+                // Four regions in the four directions, 40 m out.
+                vec![
+                    (0, Vec3::new(40.0, 0.0, 0.0)),
+                    (1, Vec3::new(-40.0, 0.0, 0.0)),
+                    (2, Vec3::new(0.0, 0.0, 40.0)),
+                    (3, Vec3::new(0.0, 0.0, -40.0)),
+                ]
+            }
+        }
+        let mut spots = ThreatSpots::default();
+        // No kill: sensed, held for as long as he is sensed, then not.
+        spots.sniper_sensed(5, at(0.0), 1_000, 100.0, NEW);
+        assert_eq!(spots.held(1_500).count(), 1);
+        spots.tick(1_500, &[], &[at(0.0)], &Ring, NEW);
+        let mut seen = spots.covered_regions(1_500);
+        seen.sort_unstable();
+        assert_eq!(seen, vec![0, 1, 2, 3], "all round him");
+        assert!(spots.held_lines(1_500, NEW).is_empty(), "the jobs and the plays read no sniper spot");
+        assert_eq!(spots.held(1_000 + SEEN_MS + 1_000).count(), 0, "not sensed for a while: not held");
+        // He moves a little: the same spot; far: cast again.
+        spots.sniper_sensed(5, at(4.0), 2_000, 100.0, NEW);
+        assert_eq!((spots.spots.len(), spots.sniper_stats().moved), (1, 0));
+        spots.sniper_sensed(5, at(30.0), 3_000, 100.0, NEW);
+        assert_eq!((spots.spots.len(), spots.sniper_stats().moved), (1, 1));
+        // A kill by him is another spot, and his death lets his own go.
+        spots.died(at(40.0), 5, at(30.0), 3_000, 3_100, NEW);
+        assert_eq!(spots.spots.len(), 2);
+        spots.shooter_died(5, 4_000);
+        assert!(spots.spots.iter().all(|s| !s.sniper));
     }
 
     #[test]
