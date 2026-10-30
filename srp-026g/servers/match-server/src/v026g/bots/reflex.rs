@@ -750,6 +750,8 @@ pub struct CombatTuning {
     /// strafing at 2.6 m/s is half a torso off at 23-28 m for the slow ammunition and at 65-78 m for the rifles'
     /// (`player_bots_weapons.md`, "The bullet's flight"). Needs `lead_target`; no reaction, aim error or skill changes.
     pub lead_flight: bool,
+    /// The aim is also raised by the bullet's drop on the way to him (`flight.rs`), whether or not he is led ([`Self::lead_flight`]).
+    pub lead_drop: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
@@ -1233,6 +1235,7 @@ impl Default for CombatTuning {
             switch_between_thinks: true,
             lead_target: true,
             lead_flight: false,
+            lead_drop: false,
             aim_last_known: false,
             lead_most_ms: 300,
             lead_own: true,
@@ -5786,12 +5789,18 @@ impl Reflex {
         // Where he will be at the tick decided (`lead_target`): only a body seen.
         let led = body.filter(|_| aimed.sees_body() && c.lead_target);
         // And where the bullet will find him (`lead_flight`): the held weapon's ammunition, from the eye.
-        let flight = self.hands().held().gun.flight.filter(|_| c.lead_flight);
+        let flight = self.hands().held().gun.flight.filter(|_| c.lead_flight || c.lead_drop);
         let point = led.map_or(aimed.point(), |body| {
             let at = aimed.point() + lead(body, now, c.lead_most_ms);
-            at + flight
+            let ahead = flight
                 .and_then(|flight| flight.ahead(me.eye(), at, body.velocity))
-                .unwrap_or_default()
+                .unwrap_or_default();
+            // The parts of it the switches ask for: along his velocity, and up by the drop.
+            at + Vec3::new(
+                if c.lead_flight { ahead.x } else { 0.0 },
+                if c.lead_drop { ahead.y } else { 0.0 },
+                if c.lead_flight { ahead.z } else { 0.0 },
+            )
         });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
@@ -6710,7 +6719,7 @@ mod tests {
         }));
         let me = body(0, 0, Vec3::ZERO, 0.0);
         let aim = AimTuning {
-            combat: CombatTuning { lead_flight: on, ..CombatTuning::default() },
+            combat: CombatTuning { lead_flight: on, lead_drop: on, ..CombatTuning::default() },
             range_m: 150.0,
             ..AimTuning::default()
         };
