@@ -12,10 +12,11 @@ Checks:
     last section;
  3. the jump in registry_key::get_string lands on the new code, and the new
     code comes back to the byte after the replaced instructions; the same
-    for the Enter key's jump in the message loop;
+    for the Enter key's jump in the message loop; each language site calls
+    or jumps to its entry, and each entry jumps into the new code;
  4. the two addresses the launcher opens are the site's, where their
     operands point, and the operands are still relocated;
- 5. no relocation touches a changed instruction (but the two disabled ones);
+ 5. no relocation touches a changed instruction (but the five disabled ones);
  6. no address of the game's old sites is left in the file;
  7. with --nasm (or NASM in the environment): launcher_values_026g.asm
     assembles to the checked-in .bin byte for byte;
@@ -47,6 +48,8 @@ def ranges_of_the_patch(original, patched, section_size):
     allowed.append((image.offset(L.NO_VERSION[0], 1), len(bytes.fromhex(L.NO_VERSION[2])), "no version"))
     allowed.append((image.offset(L.GET_STRING[0], 1), len(L.GET_STRING[1]), "get_string hook"))
     allowed.append((image.offset(L.ENTER_KEY[0], 1), len(L.ENTER_KEY[1]), "Enter key hook"))
+    for va, expected, _, what in L.LANGUAGE_HOOKS:
+        allowed.append((image.offset(va, 1), len(bytes.fromhex(expected)), what))
     for va, old, new, what in L.STRINGS:
         allowed.append((image.offset(va, 1), len(L.utf16(old)), what))
     for va, old in L.EMPTIED:
@@ -138,6 +141,18 @@ def main():
           and done == L.ENTER_KEY_DONE,
           f"the message loop jumps to {target:#x}, the new code comes back to {back:#x} "
           f"and, after Enter, to {done:#x}")
+    landed = []
+    for number, (va, expected, kind, what) in enumerate(L.LANGUAGE_HOOKS):
+        at = image.offset(va, len(bytes.fromhex(expected)))
+        site = patched[at:at + len(bytes.fromhex(expected))]
+        entry = L.LANGUAGE_ENTRIES_AT + 8 * number
+        jump_to = L.SECTION_VA + entry + 5 + struct.unpack_from("<i", section, entry + 1)[0]
+        landed.append(site[0] == (0xE8 if kind == "call" else 0xE9)
+                      and va + 5 + struct.unpack_from("<i", site, 1)[0] == L.SECTION_VA + entry
+                      and set(site[5:]) <= {0x90} and section[entry] == 0xE9
+                      and L.SECTION_VA + L.LANGUAGE_ENTRIES_AT + 48 <= jump_to < L.SECTION_VA + len(section))
+    check("3c", all(landed), f"{sum(landed)} of {len(L.LANGUAGE_HOOKS)} language sites reach their code "
+          "through their entries")
     slots = {}
     for slot, (start, size) in L.SLOTS.items():
         slots[slot] = section[start:start + size].split(b"\0")[0].decode("ascii")
@@ -159,11 +174,15 @@ def main():
     # 5. Relocations and changed code.
     code_ranges = [(va, len(bytes.fromhex(new))) for va, _, new, _ in L.PATCHES] + [(L.GET_STRING[0], 7),
                                                                                       (L.ENTER_KEY[0], 7)]
+    code_ranges += [(va, len(bytes.fromhex(expected))) for va, expected, _, _ in L.LANGUAGE_HOOKS]
     overlapping = [hex(at) for at in relocations for va, length in code_ranges if va <= at + 3 and at < va + length]
     no_version = L.NO_VERSION[0]
     still = [hex(at) for at in relocations if no_version <= at + 3 and at < no_version + 12]
-    check(5, not overlapping and not still and len(disabled) == 2 and len(relocations) == len(L.relocated(original)) - 2,
-          f"no relocation in changed code; {len(disabled)} relocation bytes changed (the two disabled entries)")
+    disabled_count = 2 + len(L.LANGUAGE_RELOCATIONS)
+    check(5, not overlapping and not still and len(disabled) == disabled_count
+          and len(relocations) == len(L.relocated(original)) - disabled_count,
+          f"no relocation in changed code; {len(disabled)} relocation bytes changed "
+          f"(the {disabled_count} disabled entries)")
 
     # 6. No old address left.
     left = []

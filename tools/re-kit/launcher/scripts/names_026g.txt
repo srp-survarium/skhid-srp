@@ -77,6 +77,8 @@
 175DC function1::operator()
 18DE1 io_service::poll
 1942F language_menu::language_menu
+19880 language_menu::~language_menu      # frees the five rows (+0DCh, 0Ch apart)
+19945 language_menu::show_rows          # ShowWindow of the five rows and the list (+0B8h)
 1998D language_menu::set_state
 19A08 language_menu::expand_button_click
 19A20 language_menu::language_selected
