@@ -2,6 +2,7 @@ package survarium.player
 {
    import flash.display.MovieClip;
    import flash.events.Event;
+   import flash.text.StyleSheet;
    import flash.text.TextFormat;
    import scaleform.clik.controls.TipRenderer;
    import survarium.controls.ItemInfoRenderer;
@@ -35,13 +36,16 @@ package survarium.player
 
       private function onRemoved(e:Event) : void { removeEventListener(Event.ENTER_FRAME,prepare); }
 
-      // The heading's value in its style's colour, by TextFormat over its characters.
+      // The heading's value in its style's colour, by TextFormat over its characters:
+      // the rows' own style sheet (ModificatorListRenderer's), so heading and rows agree.
       private function colourTitle(effects:IEffectRows) : void
       {
          var part:String = effects.titleValue;
-         if(part == null || _heading.textField.styleSheet != null) return;
+         if(part == null || _heading.textField.styleSheet != null || _rows.length == 0) return;
+         var rows:StyleSheet = (_rows[0] as ModificatorListRenderer).textFieldLabel.styleSheet;
+         if(rows == null) return;
          var at:int = _heading.textField.text.lastIndexOf(part);
-         var style:Object = MainScene.textStyleSheet.getStyle(effects.titleStyle);
+         var style:Object = rows.getStyle(effects.titleStyle);
          if(at < 0 || style == null || style.color == null) return;
          var format:TextFormat = new TextFormat();
          format.color = uint("0x" + String(style.color).replace("#",""));

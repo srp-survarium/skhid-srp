@@ -33,7 +33,9 @@ package survarium.player
          return LocalizationData.format("st_srp_speed_title",titleValue);
       }
       public function get titleValue() : String { return LocalizationData.format("st_srp_unit_percent",percent.toString()); }
-      public function get titleStyle() : String { return style; }
+      // The heading's total in the rows' colours (their names in the row renderer's
+      // style sheet): green faster, red slower, white at the base speed.
+      public function get titleStyle() : String { return percent > 100 ? "green" : percent < 100 ? "red" : "white"; }
       // A part: "+4%" green, "-5%" red, "0%" white.
       private static function part(key:String, value:Number) : Object
       {

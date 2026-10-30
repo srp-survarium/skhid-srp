@@ -731,8 +731,9 @@ of the weight's own symbol (`SpeedIndicator`; its fonts, sizes, colours and
 baseline; no bar; coral below 100 %, green above). A TextField made in code
 lost the value's size to the style sheet in the game (the owner's 2026-10-29
 screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
-tooltip, on the whole box, has the total in the heading (in the box value's
-colour, a TextFormat: the heading takes no style sheet) and its five parts:
+tooltip, on the whole box, has the total in the heading (in the rows' colours: green
+faster, red slower, white at 100 %; a TextFormat from the rows' style sheet,
+as the heading takes none) and its five parts:
 weight, bonuses, boosters, skills, equipment, each green when it speeds the
 player up and red when it slows them down (the item card rows' own colours,
 `ModificatorListRenderer`'s style sheet), white at 0. The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the

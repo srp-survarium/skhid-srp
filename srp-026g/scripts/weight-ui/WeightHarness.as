@@ -130,13 +130,14 @@ package {
    var e:Object=Effects.parse(-.1,.75,0,.03,0).withItems(.04,.05,-.05);
    var x:Object=e.speedExplanation;
    require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% (Tornado) - 5%: "+x.total);
-   require(x.value.indexOf("97%")>=0 && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="weight_warning","value and heading: "+x.value+" "+x.title);
+   require(x.value.indexOf("97%")>=0 && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
    var rows:Array=x.rows();
    require(rows.length==5,"the speed's five parts");
    // Each part coloured by its effect, as the item cards: green faster, red slower, white at 0.
    for each(var want:Array in [[0,"Weight","<red>-10%</red>"],[1,"Bonuses","<green>+4%</green>"],[2,"Boosters","<green>+5%</green>"],[3,"Skills","<green>+3%</green>"],[4,"Equipment","<red>-5%</red>"]])
     require(rows[want[0]].label.indexOf(want[1])>=0 && rows[want[0]].label.indexOf(want[2])>=0,want[1]+" part: "+rows[want[0]].label);
    require(Effects.parse(0,0,0,0,0).withItems(0,0,0).speedExplanation.rows()[0].label.indexOf("<white>0%</white>")>=0,"no effect: white");
+   require(Effects.parse(0,0,0,0,0).withItems(0,0,0).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(0,0,0).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
    require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Skills")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
    require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,0,-.05).speedExplanation.total-1)<1e-9,"Bear Arms leaves a weapon's penalty out");
    require(Math.abs(Effects.parse(0,0,0,0,1).withItems(0,0,.03).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
@@ -272,7 +273,7 @@ package {
      // The speed's own native card: its total in the heading, then weight, bonuses, skills, equipment.
      var card:Object=rendered();require(card.alpha==1 && card.numChildren==8,"native card with the speed's five rows: "+card.numChildren);
      var head:TextField=card.getChildAt(2).textField;var h:int=head.text.indexOf("107%");
-     require(h>=0 && head.getTextFormat(h,h+1).color==0x7FC24B,"heading with the total in green: "+head.text);
+     require(h>=0 && head.getTextFormat(h,h+1).color==0x87A816,"heading total in the rows' green: "+head.text+" "+head.getTextFormat(h,h+1).color.toString(16));
      var text:String=rowText(card);
      for each(var wanted:String in ["Weight","Bonuses: +4%","Boosters","Skills: +3%","Equipment"])require(text.indexOf(wanted)>=0,"tooltip row "+wanted+" in "+text);
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
