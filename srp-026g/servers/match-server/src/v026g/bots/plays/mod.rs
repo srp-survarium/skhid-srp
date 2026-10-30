@@ -1168,7 +1168,7 @@ impl Running {
     pub fn travelling(&self) -> bool {
         matches!(
             self,
-            Self::Crossfire(crossfire::State::Going { .. })
+            Self::Crossfire(crossfire::State::Going { .. } | crossfire::State::PeekGoing { .. })
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
         )
