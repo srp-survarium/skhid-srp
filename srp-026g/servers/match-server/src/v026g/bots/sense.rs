@@ -78,6 +78,28 @@ fn sound_range(ranges: HearingRanges, kind: SoundKind, base: f32, hearing: f32) 
 /// Places whose starved rays are counted one by one; later ones in the last.
 pub const STARVED_PLACES: usize = 32;
 
+/// What a bot's hearing did, by the hearer's team (A122: the game's ranges, `sense.ranges`, change who hears what but leave
+/// no mark in a score, so these say whether they ran).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HeardCounts {
+    /// Steps heard: an enemy upright and moving, and a crouched one (heard only under the game's ranges).
+    pub steps: u64,
+    pub steps_crouched: u64,
+    /// Sounds (not a shot heard by its weapon's reach) and steps the flat ranges would have carried to the bot and the
+    /// game's did not: past the 3D distance, or past the sound's cull. Always 0 with the flat ranges.
+    pub sounds_refused: u64,
+    pub steps_refused: u64,
+}
+
+impl HeardCounts {
+    pub fn add(&mut self, other: &HeardCounts) {
+        self.steps += other.steps;
+        self.steps_crouched += other.steps_crouched;
+        self.sounds_refused += other.sounds_refused;
+        self.steps_refused += other.steps_refused;
+    }
+}
+
 /// The rays a poll may still cast at the batteries, and those refused it.
 /// (An enemy in view is tested outside it, [`sense_looks`].)
 #[derive(Clone, Copy, Debug)]
@@ -98,6 +120,8 @@ pub struct RayBudget {
     /// counted, not recorded as "unseen").
     pub starved_by_team: [u32; 2],
     pub starved_by_place: [u32; STARVED_PLACES],
+    /// What the poll's hearing did, by the hearer's team.
+    pub heard_by_team: [HeardCounts; 2],
 }
 
 impl RayBudget {
@@ -109,6 +133,7 @@ impl RayBudget {
             allowance: None,
             starved_by_team: [0; 2],
             starved_by_place: [0; STARVED_PLACES],
+            heard_by_team: [HeardCounts::default(); 2],
         }
     }
 
@@ -394,6 +419,14 @@ pub fn sense_looks_through(
             _ => sound_range(tuning.ranges, sound.kind, base, hearing),
         };
         let distance = hearing_distance(tuning.ranges, me.feet, sound.at);
+        let by_reach = matches!((sound.kind, tuning.shots), (SoundKind::Shot, ShotRanges::ByWeapon { .. }));
+        if distance > range
+            && !by_reach
+            && matches!(tuning.ranges, HearingRanges::Game { .. })
+            && me.feet.distance_xz(sound.at) <= hearing * base
+        {
+            rays.heard_by_team[usize::from(me.team & 1)].sounds_refused += 1;
+        }
         if distance > range
             || out
                 .iter()
@@ -440,12 +473,19 @@ pub fn sense_looks_through(
             if !enemy.alive
                 || !enemy.present
                 || enemy.team == me.team
-                || distance > sound_range(tuning.ranges, SoundKind::Sprint, step_m, hearing)
                 || enemy.speed() <= tuning.step_speed
                 || out.iter().any(|p| p.who == enemy.place)
             {
                 continue;
             }
+            let heard = &mut rays.heard_by_team[usize::from(me.team & 1)];
+            if distance > sound_range(tuning.ranges, SoundKind::Sprint, step_m, hearing) {
+                let flat_m = me.feet.distance_xz(enemy.feet);
+                heard.steps_refused += u64::from(matches!(tuning.ranges, HearingRanges::Game { .. }) && flat_m <= hearing * step_m);
+                continue;
+            }
+            heard.steps += u64::from(!crouched);
+            heard.steps_crouched += u64::from(crouched);
             let error = distance * tuning.heard_error;
             let (dx, dz) = (rng.range(-error, error), rng.range(-error, error));
             out.push(Percept {
@@ -985,6 +1025,49 @@ mod tests {
         assert_eq!(heard_by(game, 1.0, &view, &all), vec![1, 4]);
         // Flat: the crouched are never heard, the upright within 8 m by the ground distance.
         assert_eq!(heard_by(HearingRanges::Flat, 1.0, &view, &all), vec![4]);
+    }
+
+    /// A122: the budget's hearing counts say what the game's ranges did: the steps heard (upright, crouched), and the sounds and
+    /// steps the flat ranges would have carried that they refused; flat, the crouched and the refused are 0.
+    #[test]
+    fn the_hearing_counts_say_what_the_game_ranges_did() {
+        let crouch = crate::v026g::drive::key::CROUCH;
+        let mover = |p: Place, at: Vec3, keys: u32| PlaceView {
+            velocity: [2.5, 0.0],
+            keys,
+            ..place(p, 1, at, 0.0)
+        };
+        let sprint = Sound { from: 6, kind: SoundKind::Sprint, at: Vec3::new(0.0, 0.0, -17.5), time: 600, reach_m: None };
+        let view = view(
+            vec![
+                place(0, 0, Vec3::ZERO, 0.0),
+                mover(1, Vec3::new(0.5, 0.0, -4.0), crouch),
+                mover(2, Vec3::new(0.5, 0.0, -6.0), crouch),
+                // 4.2 m across and 4.4 m under: 6.1 m in 3D, past the crouched range 4.5 x 1.25 only off the ground.
+                mover(3, Vec3::new(0.0, -4.4, -4.2), crouch),
+                mover(4, Vec3::new(0.5, 0.0, -7.0), 0),
+                mover(5, Vec3::new(0.5, 0.0, -12.0), 0),
+                place(6, 1, Vec3::new(0.0, 0.0, -17.5), 0.0),
+            ],
+            vec![sprint],
+        );
+        let counts = |ranges: HearingRanges| {
+            let tuning = SenseTuning { ranges, ..SenseTuning::default() };
+            let cheats = CheatTuning { hearing: 1.25, ..CheatTuning::default() };
+            let mut rays = RayBudget::new(10);
+            let me = place(0, 0, Vec3::ZERO, 0.0);
+            sense(&me, &view, &RayTree::build(&[]), &tuning, &cheats, 500, &[1, 2, 3, 4, 5, 6], &mut rays, &mut Rng::new(1));
+            rays.heard_by_team
+        };
+        let game = counts(HearingRanges::Game { crouch_step_m: 4.5 });
+        assert_eq!(
+            game[0],
+            HeardCounts { steps: 1, steps_crouched: 1, sounds_refused: 1, steps_refused: 1 },
+            "the upright mover at 7 m, the crouched at 4 m; the sprint at 17.5 m past its 17 m cull, the crouched below the floor"
+        );
+        assert_eq!(game[1], HeardCounts::default(), "counted for the hearer's team");
+        let flat = counts(HearingRanges::Flat);
+        assert_eq!(flat[0], HeardCounts { steps: 1, ..HeardCounts::default() });
     }
 
     /// H1b: the cheat's 1.25 never takes a sound past its cull under the

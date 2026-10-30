@@ -336,7 +336,7 @@ pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
     let logic = &json["grenade_logic"];
     assert_eq!(logic["bot_lives"], 2, "{json}");
     assert_eq!(logic["rolls"], 3, "{json}");
-    assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0]), "{json}");
+    assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0, 0]), "{json}");
     assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
     assert_eq!(logic["volley"], serde_json::json!([0, 0, 0, 0]), "{json}");
     assert_eq!(logic["near"], serde_json::json!([0, 0, 0]), "{json}");
@@ -998,7 +998,7 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, alive minutes by the nearest enemy [<8 m, 8-30 m, farther, none] {:.1?}, thrown by the same {:?}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard, held spot] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, alive minutes by the nearest enemy [<8 m, 8-30 m, farther, none] {:.1?}, thrown by the same {:?}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
                 logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, self.alive_by_enemy_ms.map(|ms| ms as f64 / 60_000.0), self.thrown_by_enemy, s.volley, s.near, hidden_throw,
             ));
         }
