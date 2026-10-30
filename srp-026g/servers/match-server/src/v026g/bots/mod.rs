@@ -43,6 +43,7 @@ pub mod curve;
 pub mod encode;
 pub mod escape;
 pub mod field_source;
+pub mod flight;
 pub mod foliage;
 pub mod friends;
 pub mod grass;
