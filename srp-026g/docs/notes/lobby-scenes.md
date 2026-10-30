@@ -36,7 +36,7 @@ below are content only: each is a project of its own next to the classic one, wh
   classic scene. Each scene's own spots are below; heights are of the surface under them, read
   from the meshes.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@5)
+## lobby_scene/hangar_046 (pack lobby-hangar-046@7)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
@@ -63,6 +63,9 @@ below are content only: each is a project of its own next to the classic one, wh
 - @5 (the owner: @4 "too dark without direct light"): sun 3, probe diffuse 3.5. Mean luminance of
   the view 0.051 (@3 0.042, @4 0.063); the back wall, vines and floor out of the sun at or above
   @3 (compare script: `private/lobby-select/light/compare.py`).
+- @7, the same light every run: its four box probes all had radius 9.0, the race of the camp's @8
+  (below, @9); now 0.75 x their largest half-extent, and `environment_probe(2)`, which ties
+  `environment_probe` (both 8.038), just below it. They meet only in a thin seam.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
