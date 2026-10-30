@@ -89,7 +89,8 @@
     "on": false
   },
   "kin": {
-    "jump_snap": "any"
+    "jump_snap": "any",
+    "pitch_scale": "radian"
   },
   "kit": {
     "frags": "off",

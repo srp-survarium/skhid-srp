@@ -362,7 +362,7 @@ impl Game {
             }
             let eye = Self::eye(body);
             let [fx, fz] = forward(body.yaw);
-            let pitch = body.recoil.view(body.pitch);
+            let pitch = body.view_elevation();
             let dir = Vec3::new(fx * pitch.cos(), pitch.sin(), fz * pitch.cos());
             let Some(at) = self.trap_land(eye, dir) else {
                 continue;
@@ -486,7 +486,7 @@ impl Game {
             }
             let eye = Self::eye(body);
             let [fx, fz] = forward(body.yaw);
-            let pitch = body.recoil.view(body.pitch);
+            let pitch = body.view_elevation();
             let dir = Vec3::new(fx * pitch.cos(), pitch.sin(), fz * pitch.cos());
             let to = trap.middle() - eye;
             let along = to.dot(dir);
