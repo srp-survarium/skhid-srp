@@ -123,11 +123,9 @@ The held hand is never still (`Life` in `pose.rs`): the wrist target breathes
 5 mm up and down every 4.2 s and drifts a few millimetres on slower,
 unrelated periods; the palm tips about 2 degrees a quarter breath behind;
 the fingers flex up to 0.07 rad, index first, the pinky half a second
-later. Walking adds a stride sway (8 mm sideways, a 6 mm dip, a little
-roll) from the native feet's separation along the look, so it is in step
-with the legs and vanishes when they stop. The clock is the simulation's,
-shifted by the place, so players do not breathe in step; the render and
-damage passes read the same inputs and draw the same arm.
+later. Walking adds nothing (the owner, 2026-10-30). The clock is the
+simulation's, shifted by the place, so players do not breathe in step; the
+render and damage passes read the same inputs and draw the same arm.
 
 The same solver runs in the render and damage-bone passes. It respects each
 bone's computed-layer mask, so uncomputed collision matrices cannot invalidate

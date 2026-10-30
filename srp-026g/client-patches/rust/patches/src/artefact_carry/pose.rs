@@ -44,9 +44,9 @@ impl Clock {
 }
 
 /// What keeps a held hand from looking frozen: a slow breath and drift of
-/// the wrist and palm, the stride's sway (with `Clock::flex`, a staggered
-/// finger flex). Only the simulation clock, the place and the drawn feet
-/// feed it, so the render and damage passes and every client draw the same arm.
+/// the wrist and palm (with `Clock::flex`, a staggered finger flex). Only the
+/// simulation clock and the place feed it, so the render and damage passes
+/// and every client draw the same arm.
 struct Life {
     /// The wrist target's offset in the eye's frame (x right, y up, z ahead), m.
     offset: Vec3,
@@ -58,28 +58,17 @@ struct Life {
 const FINGERS: [(&str, u32); 5] = [("RightThumb", 900), ("RightIndex", 0), ("RightMiddle", 160), ("RightRing", 320), ("RightPinky", 480)];
 
 impl Life {
-    /// `stride`: the feet's separation along the look, -1..1 over a walking
-    /// step; a standing body keeps it near zero.
-    fn new(clock: Clock, stride: f32) -> Life {
+    fn new(clock: Clock) -> Life {
         let offset = Vec3::new(
-            0.004 * clock.wave(7300, 0) + 0.0015 * clock.wave(2300, 0) + 0.008 * stride,
-            0.005 * clock.wave(4200, 0) + 0.002 * clock.wave(6900, 0) - 0.006 * stride * stride,
+            0.004 * clock.wave(7300, 0) + 0.0015 * clock.wave(2300, 0),
+            0.005 * clock.wave(4200, 0) + 0.002 * clock.wave(6900, 0),
             0.003 * clock.wave(5100, 0));
         // The palm tips back a quarter breath after the wrist rises.
         let tilt = Quat::from_axis_angle(Vec3::X, 0.035 * clock.wave(4200, 1050) + 0.012 * clock.wave(3300, 0))
             * Quat::from_axis_angle(Vec3::Y, 0.02 * clock.wave(8300, 0))
-            * Quat::from_axis_angle(Vec3::Z, 0.03 * clock.wave(6100, 0) + 0.04 * stride);
+            * Quat::from_axis_angle(Vec3::Z, 0.03 * clock.wave(6100, 0));
         Life { offset, tilt }
     }
-}
-
-/// The feet's separation along the look, from the native locomotion.
-fn stride(bones: &DrawnBones<'_>, original: &[Pose], feet: (Option<usize>, Option<usize>), eye: Pose) -> f32 {
-    let (Some(left), Some(right)) = feet else { return 0.0 };
-    if !bones.computed(left as u32) || !bones.computed(right as u32) { return 0.0; }
-    let Some(ahead) = eye.rotation.rotate(Vec3::Z).reject(Vec3::Y).direction() else { return 0.0 };
-    let along = (original[left].position - original[right].position).dot(ahead) / 0.35;
-    if along.is_finite() { clamp(along, -1.0, 1.0) } else { 0.0 }
 }
 
 /// Two-bone aim in model space. The eye is simulation-owned, so first-
@@ -116,7 +105,6 @@ pub fn apply(bones: &DrawnBones<'_>, presentation: Presentation) -> Option<[f32;
     let mut parents = [None; MAX_BONES];
     let mut targets = [None; MAX_BONES];
     let (mut right_arm, mut right_forearm, mut right_hand, mut weapon) = (None, None, None, None);
-    let (mut left_foot, mut right_foot) = (None, None);
     let world = pose_of(&player.transform())?;
     let eye = world.inverse().then(pose_of(&player.eye_transform())?);
     let clock = Clock::of(player.carry_time(), player.place());
@@ -138,10 +126,8 @@ pub fn apply(bones: &DrawnBones<'_>, presentation: Presentation) -> Option<[f32;
         if skeleton.bone_named(bone, "RightForeArm") { right_forearm = Some(i); }
         if skeleton.bone_named(bone, "RightHand") { right_hand = Some(i); }
         if skeleton.bone_named(bone, "Weapon") { weapon = Some(i); }
-        if skeleton.bone_named(bone, "LeftFoot") { left_foot = Some(i); }
-        if skeleton.bone_named(bone, "RightFoot") { right_foot = Some(i); }
     }
-    let life = Life::new(clock, stride(bones, &original, (left_foot, right_foot), eye));
+    let life = Life::new(clock);
     let right_hand = right_hand?;
     for i in 0..count {
         if !bones.computed(i as u32) { continue; }
