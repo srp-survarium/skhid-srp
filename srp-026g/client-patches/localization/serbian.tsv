@@ -2589,6 +2589,10 @@ st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+st_srp_skills	Veštine
+st_srp_speed_label	Brzina
+st_srp_speed_title	Brzina kretanja: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2622,8 +2626,10 @@ st_srp_weather_day	dan
 st_srp_weather_evening	veče
 st_srp_weather_night	noć
 st_srp_weather_rain	kiša
+st_srp_weight_base	Osnovna granica: %1$s
 st_srp_weight_no_sprint_heavyweight	Sprint nije moguć zbog veštine Teškaš.
 st_srp_weight_no_sprint_limit	Sprint nije moguć: dostignuta je nosivost.
+st_srp_weight_penalty	%1$s% kazne za težinu
 st_srp_weight_speed	Brzina kretanja: %1$s
 st_srp_weight_sprint_stamina	Potrošnja izdržljivosti pri sprintu: %1$s
 st_srp_weight_title	Uticaj težine

@@ -2589,6 +2589,10 @@ st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_skills	Fähigkeiten
+st_srp_speed_label	Tempo
+st_srp_speed_title	Bewegungstempo: %1$s
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2622,8 +2626,10 @@ st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
 st_srp_weather_night	Nacht
 st_srp_weather_rain	Regen
+st_srp_weight_base	Grundlimit: %1$s
 st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
 st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.
+st_srp_weight_penalty	%1$s% Gewichtsmalus
 st_srp_weight_speed	Bewegungsgeschwindigkeit: %1$s
 st_srp_weight_sprint_stamina	Energiekosten beim Sprinten: %1$s
 st_srp_weight_title	Gewichtseffekte

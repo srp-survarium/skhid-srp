@@ -2589,6 +2589,10 @@ st_srp_rooms_waiting	Чекаємо гравців
 st_srp_rooms_waiting_owner	Чекаємо, поки творець почне.
 st_srp_rooms_waiting_short	Очікування
 st_srp_scope_screen_hint	Перетягніть приціл з вашого інвентарю у слот модифікації зброї
+st_srp_skills	Навички
+st_srp_speed_label	Швидкість
+st_srp_speed_title	Швидкість руху: %1$s
+st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
@@ -2622,8 +2626,10 @@ st_srp_weather_day	день
 st_srp_weather_evening	вечір
 st_srp_weather_night	ніч
 st_srp_weather_rain	дощ
+st_srp_weight_base	Базова межа: %1$s
 st_srp_weight_no_sprint_heavyweight	Спринт недоступний: навичка «Важковаговик».
 st_srp_weight_no_sprint_limit	Спринт недоступний: перевантаження.
+st_srp_weight_penalty	%1$s% штраф за вагу
 st_srp_weight_speed	Швидкість пересування: %1$s
 st_srp_weight_sprint_stamina	Витрати енергії на спринт: %1$s
 st_srp_weight_title	Вплив ваги

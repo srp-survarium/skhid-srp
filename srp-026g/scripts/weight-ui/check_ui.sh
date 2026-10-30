@@ -14,6 +14,14 @@ java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
+# The lobby's kill feed weapon icons are the hud's own images (make_lobby_weapon_icons.py --check).
+ffdec=$(sed -n 's/.*"ffdec": *"\([^"]*\)".*/\1/p' "$tools")
+nix shell --impure --expr 'with import <nixpkgs> {}; python3.withPackages (p: [p.pillow])' -c python3 -I \
+    "$here/../kill-feed-icons/make_lobby_weapon_icons.py" --check \
+    --patches "${SKHID_PATCHES:-$HOME/.cache/skhid-release/patches}" --ffdec "$ffdec" --java "$java" \
+    --hud-bitmaps "$here/../../flash/hud/bitmaps" --lobby "$here/../../flash/lobby_menu" >"$work/kill-icons.log" 2>&1 \
+    || { cat "$work/kill-icons.log"; exit 1; }
+grep -h '^ok:' "$work/kill-icons.log"
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
     -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$(dirname "$harness")" -source-path+="$work" \

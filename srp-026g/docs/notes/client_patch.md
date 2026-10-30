@@ -2380,6 +2380,12 @@ equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
 switch crashes with equipped gear, now covered by the native regression check.
 The callback gains movement/spending fractions and sprint state
 (0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It also gives the kit's own movement-speed modifier (the raw float of index
+4: the skills) and whether Bear Arms (modifier 62, additive) is on, for the
+speed shown beside the weight (`data.md`, "The kit's movement speed").
+And the carry limit's parts: the menu's base limit (+3118h), the kit's floats
+of modifiers 5 (skills) and 26 (Packrat) (`data.md`, "The carry limit by
+source"): ten arguments in all.
 It retains the original two arguments if the config is unavailable or invalid.
 The shim preserves registers, flags and floating-point state and returns with
 the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
