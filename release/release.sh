@@ -22,9 +22,10 @@
 # reconnect). With --now there is no countdown either, and no wait: at the
 # go, swapped at once, matches running or not (they end without results):
 #   1. preflight, nothing players see: ssh to the jump host and through it to
-#      the live host, the patches server, nix, $SKHID_GAME, $SKHID_STOCK_DB
-#      (its sha256), free disk here and there, srp-game-data, the
-#      release's revision <n> (the target exe's + 1, or --revision <n> above
+#      the live host, the patches server, nix, $SKHID_GAME (its original
+#      launcher, by sha256), $SKHID_STOCK_DB (its sha256), free disk here
+#      and there, srp-game-data, the release's revision <n> (the target
+#      exe's + 1, or --revision <n> above
 #      it), not below main's REVISION; live: main's REVISION (the last
 #      release's) not below the live exe's and below <n>, the tag
 #      026g-rev<n> and the branch release/record-rev<n> not on origin, a git
@@ -110,7 +111,8 @@
 #      --now: nothing is planned;
 #   5. at the planned time, once the launcher page says the server is
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
-#      --match-wait more): shows what changes, y/N (no answer in
+#      --match-wait more): shows what changes, y/N (or touch the swap file
+#      it names beside the go file; no answer in
 #      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
 #      to --match-wait from the go), y/N, and "matches":0 once
@@ -201,12 +203,14 @@
 here=$(cd "$(dirname "$0")" && pwd)
 
 # For release/test.sh only: another checkout, stand-ins for build-zip and
-# build-site, a shorter minute, another stock db.
+# build-site, a shorter minute, another stock db and launcher.
 REPO=${SKHID_TEST_REPO:-$ROOT}
 BUILD_ZIP=${SKHID_TEST_BUILD_ZIP:-$here/build-zip}
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 MINUTE=${SKHID_TEST_SECONDS_PER_MINUTE:-60}
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+# The original 0.26g launcher, which the players' one is built from.
+LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
 no_maint=0 match_wait='' now=0 no_bot_data=0
@@ -514,6 +518,35 @@ wait_for_go() {
     if ((tty)); then exec 3<&-; fi
 }
 
+# The y/N before the swap: y or yes at the terminal (else on stdin, as
+# `yes |` gives; anything else is no), or the swap file, touched as the go
+# file is. The file is removed as the wait starts: an earlier one is no
+# answer. No answer in <seconds> is a no.
+swap_answer() {
+    local swap="$GO_DIR/swap-$REL" answer deadline input=1
+    deadline=$(($(date +%s) + $1))
+    mkdir -p "$GO_DIR" && rm -f "$swap"
+    say "Swap: answer y here, or run: touch $swap"
+    if ! { exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
+    printf "Go ahead? [y/N] " >&2
+    while (($(date +%s) < deadline)); do
+        if [[ -e $swap ]]; then rm -f "$swap"; printf '\n' >&2; say "swap: $swap"; exec 3<&-; return 0; fi
+        if ((input)); then
+            if read -r -t 2 answer <&3; then
+                exec 3<&-
+                if [[ $answer == y || $answer == yes ]]; then return 0; fi
+                return 1
+            elif (($? <= 128)); then
+                input=0 # stdin ended: the file only
+            fi
+        else
+            sleep 2 & wait $!
+        fi
+    done
+    exec 3<&-
+    return 1
+}
+
 # At once after the go (everything is staged before it): the maintenance
 # planned on the admin page, seen on the launcher page; the planned time
 # into end.
@@ -627,15 +660,25 @@ shipped_prs() {
         SHIPPED_SINCE=$(git -C "$REPO" log --first-parent --diff-merges=first-parent -s -1 --format=%H \
             -G '^REVISION = ' "$commit" -- srp-026g/client-patches/patch_026g.py 2>/dev/null || true)
     fi
-    git -C "$REPO" log --first-parent --merges --format='%s%x1f%b%x1e' "${SHIPPED_SINCE:+$SHIPPED_SINCE..}$commit" |
+    # A merge commit "Merge pull request #<n> from <branch>", its title the
+    # body's first line; a squash merge is one commit "<title> (#<n>)".
+    git -C "$REPO" log --first-parent --format='%P%x1f%s%x1f%b%x1e' "${SHIPPED_SINCE:+$SHIPPED_SINCE..}$commit" |
         awk 'BEGIN { RS = "\036"; FS = "\037" }
             {
-                subject = $1; sub(/^\n+/, "", subject)
+                parents = $1; sub(/^\n+/, "", parents)
+                subject = $2
+                if (parents !~ / /) {
+                    if (subject !~ / \(#[0-9]+\)$/ || subject ~ /^Release revision [0-9]+ \(#/) next
+                    n = subject; sub(/.* \(#/, "", n); sub(/\)$/, "", n)
+                    sub(/ \(#[0-9]+\)$/, "", subject)
+                    print "#" n " " subject
+                    next
+                }
                 if (subject !~ /^Merge pull request #[0-9]+ from [^ ]+/) next
                 n = subject; sub(/^Merge pull request #/, "", n); sub(/ .*/, "", n)
                 from = subject; sub(/^Merge pull request #[0-9]+ from /, "", from); sub(/ .*/, "", from)
                 if (from ~ /\/release\/record-rev[0-9]+$/) next
-                title = $2; sub(/^\n+/, "", title); sub(/\n.*/, "", title)
+                title = $3; sub(/^\n+/, "", title); sub(/\n.*/, "", title)
                 if (title == "") title = from
                 print "#" n " " title
             }' | tac
@@ -874,8 +917,8 @@ on_exit() {
         fi
         if ((maint_planned)); then cancel_maintenance; fi
         if [[ -n $resources && -n ${published:-} ]] && ((!go_given)); then
-            # Before the go no server offered it: its row goes, the file
-            # stays, and a run with the same --resources takes it as it is.
+            # Before the go no server offered it: its row goes, and the file
+            # with it when this run uploaded it (unlist_patch).
             unlist_patch "${resources##*/}"
         elif [[ -n $resources && -n ${published:-} ]]; then
             say "${resources##*/} stays published on $PATCHES_LABEL, with its row in $PATCH_LIST (patches are never deleted); the server does not offer it yet. Next time: no --resources."
@@ -930,7 +973,17 @@ if ((jump_ok)); then
 fi
 if command -v nix >/dev/null; then okay "nix"; else problem "nix is not installed here (the ZIP and srp-game-data are built with it)"; fi
 command -v python3 >/dev/null || command -v nix >/dev/null || problem "python3 (or nix to get it)"
-if [[ -d $SKHID_GAME ]]; then okay "SKHID_GAME: $SKHID_GAME"; else problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"; fi
+launcher=$SKHID_GAME/binaries/x86/survarium_launcher.exe
+[[ -f $launcher ]] || launcher=$SKHID_GAME/game/binaries/x86/survarium_launcher.exe
+if [[ ! -d $SKHID_GAME ]]; then
+    problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"
+elif [[ ! -f $launcher ]]; then
+    problem "SKHID_GAME: no binaries/x86/survarium_launcher.exe in $SKHID_GAME or its game folder (make_client_026g.py builds the players' launcher from it)"
+elif launcher_sha=$(sha256_of "$launcher"); [[ $launcher_sha != "$LAUNCHER_SHA" ]]; then
+    problem "SKHID_GAME: $launcher has sha256 $launcher_sha, not the original 0.26g launcher's ($LAUNCHER_SHA)"
+else
+    okay "SKHID_GAME: $SKHID_GAME, with the original launcher"
+fi
 if [[ -f $SKHID_STOCK_DB ]]; then
     stock=$(stock_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
@@ -1226,7 +1279,7 @@ fi
 built_note=''
 if ((target_ok)) && [[ -n $main_commit && -n ${RUN_VOLUME_DIR:-} ]]; then
     algo_main=$(git -C "$REPO" show "$main_commit:srp-026g/crates/mapdata/src/lib.rs" 2>/dev/null | grep -E '^pub const (SIGHT|GRID)_ALGO' | tr -s ' ' || true)
-    algo_live=$(on_target "cd $D && grep -E '^pub const (SIGHT|GRID)_ALGO' srp-026g/crates/mapdata/src/lib.rs 2>/dev/null | tr -s ' '; true" || true)
+    algo_live=$(on_target "cd $D && grep -E '^pub const (SIGHT|GRID)_ALGO' crates/mapdata/src/lib.rs 2>/dev/null | tr -s ' '; true" || true)
     built_n=$(on_target "ls $(q "$RUN_VOLUME_DIR")/mapdata/built 2>/dev/null | wc -l" || echo '?')
     maps_new=$(for i in "${BD_TODO[@]}"; do [[ ${BD_PATH[i]} == *.mapdata ]] && printf '%s\n' "${BD_PATH[i]}"; done | grep -c . || true)
     if [[ -z $algo_main || -z $algo_live ]]; then
@@ -1638,7 +1691,7 @@ if ((!DRY_RUN)); then
         say "(--yes --i-know: going ahead)"
     else
         say "(no answer in $answer_wait min is a no)"
-        ask_yes "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
+        swap_answer "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
     fi
     if ((now)); then
         SWAP_BEFORE_STOP=count_ended_matches
