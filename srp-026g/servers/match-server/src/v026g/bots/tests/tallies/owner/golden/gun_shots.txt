@@ -79,6 +79,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ]
       ],
+      "by_driver": {},
       "by_lateral": [
         [
           343,
