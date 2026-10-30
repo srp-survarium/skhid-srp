@@ -133,6 +133,11 @@ item's faction, level, slots and drop weight from its config in the server game 
   the wrist capped and the cuff's black band in the glove's leather colour; the boot caps
   in the rim's shadowed colour; the sneakers 28 % under the boots' stock fill.
 - Packs `@3`.
+- Glove icons, again (the owner: "the hand is looking inward"; the black should go): the
+  camera looks at the back of the hand square on (along the hand's own plane normal), the
+  outline's long axis on the stock 32 degrees, the fingers down to the left; the cuff's
+  black band and inside are left out of the icon render, not recoloured (the in-game mesh
+  keeps them). Packs `stk2-novice@4`, `stk2-loner@4` (their icons only); `stk2-bandit@3`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -154,8 +159,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@3`, `stk2-novice@3`,
-  `stk2-loner@3` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-<outfit>-3`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@3`, `stk2-novice@4`,
+  `stk2-loner@4` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-3`, `stk2-novice-4`, `stk2-loner-4`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
