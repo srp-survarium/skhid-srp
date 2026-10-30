@@ -372,7 +372,7 @@ fn drive_tick_inner(
     // carries (`Override::glance`), and with `glance_run_yields` to one
     // that runs somewhere (a turned view slows the legs).
     let running = tuning.aim.combat.glance_run_yields
-        && intent.pace == Pace::Run
+        && matches!(intent.pace, Pace::Run | Pace::Cruise | Pace::Arrive)
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let glance_yields =
         over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
@@ -1512,8 +1512,23 @@ fn drive_tick_inner(
         decision.keys |= key::CROUCH;
         decision.keys &= !key::SPRINT;
     }
-    if intent.pace != Pace::Run {
-        decision.keys &= !key::SPRINT;
+    bot.pace.saw(intent.pace);
+    match intent.pace {
+        Pace::Run => bot.pace.unasked(),
+        Pace::Cruise | Pace::Arrive if tuning.pace.calm_sprint => {
+            let gate = pace_gate(bot, me.feet, &intent, tuning, time);
+            let stripped = matches!(gate, pace::Gate::Walk(_)) && decision.keys & key::SPRINT != 0;
+            if matches!(gate, pace::Gate::Walk(_)) {
+                decision.keys &= !key::SPRINT;
+            }
+            bot.pace.caused(stripped, bot.motor.released_by_bar());
+        }
+        // A play that hands `Cruise` with the gate off is a play that may run.
+        Pace::Cruise | Pace::Arrive => bot.pace.unasked(),
+        Pace::Walk | Pace::Sneak => {
+            decision.keys &= !key::SPRINT;
+            bot.pace.unasked();
+        }
     }
     decision.turn.1 += over.pull;
     if over.fire && !using {
@@ -1611,6 +1626,22 @@ impl Bot {
 /// within [`JUMP_HOLD_MS`] it is held that long with the trigger let go, the
 /// shot of this tick given back ([`Reflex::hold_fire`]), as the weapon takes
 /// no jump while it fires.
+/// The sprint gate for a play that may run (`pace.rs`): the ring is looked at along the route the bot walks, or along the
+/// line to the intent's goal without one.
+pub(super) fn pace_gate(bot: &mut Bot, feet: Vec3, intent: &Intent, tuning: &Tuning, time: u32) -> pace::Gate {
+    let look_m = tuning.pace.look_s.get() * tuning.kin.sprint;
+    let (points, n) = match (bot.route.as_mut(), intent.go) {
+        (Some((route, _)), _) => pace::ahead_points(route, feet, look_m),
+        (None, Go::To { at, .. }) => pace::line_points(feet, at, look_m),
+        (None, Go::Stay) => ([feet; pace::MAX_AHEAD], 0),
+    };
+    let goal = match (intent.pace, intent.go) {
+        (Pace::Arrive, Go::To { at, .. }) => Some(at),
+        _ => None,
+    };
+    bot.pace.decide(&tuning.pace, time, feet, &points[..n], goal, &bot.memory)
+}
+
 pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time: u32) -> u32 {
     let firing = keys & key::FIRE != 0;
     if let Some(by) = by.filter(|_| bot.jump_hold == 0) {

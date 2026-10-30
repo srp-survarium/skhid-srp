@@ -595,6 +595,11 @@ pub struct Motor {
     /// Tired: the sprint was let go of at the empty bar and is not taken up again before the bar is back over
     /// [`stamina::CLEAR_ABOVE`](super::stamina::CLEAR_ABOVE).
     tired: bool,
+    /// The bar this life's sprint is let go of at and taken up again over (`pace.reserve`, drawn at each spawn, [`Motor::reserve_for_life`]);
+    /// none: [`STAMINA_TIRED_AT`] and [`stamina::CLEAR_ABOVE`](super::stamina::CLEAR_ABOVE).
+    reserve: Option<(f32, f32)>,
+    /// The sprint was let go of at the reserve this tick (the pace counts' cause of a burst's end).
+    released_by_bar: bool,
     /// The take-off of the sprint segment that was short of the bar when first seen ([`stamina::counts`]).
     short_for: Option<Vec3>,
     /// The ticks decided so far (each decision is a tick).
@@ -792,6 +797,8 @@ impl Motor {
             ahead_cap: None,
             gauge: None,
             tired: false,
+            reserve: None,
+            released_by_bar: false,
             short_for: None,
             clock: 0,
             trail: VecDeque::new(),
@@ -1240,19 +1247,36 @@ impl Motor {
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
+    /// This life's bar reserve, drawn once at the spawn from the tuning's spans (none without them).
+    pub fn reserve_for_life(&mut self, reserve: Option<&super::tuning::Reserve>, rng: &mut Rng) {
+        self.reserve = reserve.map(|r| {
+            let (stop_lo, stop_hi) = r.stop.get();
+            let (gap_lo, gap_hi) = r.gap.get();
+            let stop = rng.range(stop_lo, stop_hi);
+            (stop, stop + rng.range(gap_lo, gap_hi))
+        });
+    }
+
+    /// Whether the sprint was let go of this tick at the life's reserve (the bar), not at the map.
+    pub fn released_by_bar(&self) -> bool {
+        self.released_by_bar
+    }
+
     /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (a lockout lasts as long as the
     /// sprint keys are held) and not taken up again before the bar is back over [`stamina::CLEAR_ABOVE`]; and let go of
     /// when a jump of the route within [`STAMINA_LOOKAHEAD_M`] would find the bar short of what the sprint there, its
     /// run-up and the jump cost ([`stamina::Reckoning::covers`]): walking, the bar comes back.
     fn sprint_by_the_bar(&mut self, route: &Route, s: f32) {
+        self.released_by_bar = false;
         let Some(gauge) = self.gauge else {
             self.tired = false;
             self.short_for = None;
             return;
         };
-        if gauge.low || gauge.value <= STAMINA_TIRED_AT {
+        let (stop, start) = self.reserve.unwrap_or((STAMINA_TIRED_AT, super::stamina::CLEAR_ABOVE));
+        if gauge.low || gauge.value <= stop {
             self.tired = true;
-        } else if gauge.value >= super::stamina::CLEAR_ABOVE {
+        } else if gauge.value >= start {
             self.tired = false;
         }
         if !self.sprinting {
@@ -1260,6 +1284,7 @@ impl Motor {
         }
         if self.tired {
             self.sprinting = false;
+            self.released_by_bar = true;
             super::stamina::counts::released_low();
             return;
         }
@@ -3616,6 +3641,51 @@ mod tests {
         motor.gauge = bar(40.0, false);
         motor.sprint_by_the_bar(&walk, 0.0);
         assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
+    }
+
+    /// The life's reserve (`pace.reserve`) moves the lockout's 3 and 20: the sprint is let go of at the drawn stop, not taken up
+    /// again before the bar is over stop + gap, and the draw is a life's own (two lives, two numbers; the same seed, the same).
+    #[test]
+    fn the_sprint_is_let_go_of_at_the_lifes_reserve_and_taken_up_over_its_gap() {
+        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::tuning::Reserve;
+        use crate::v026g::bots::tuning::Span;
+        let route = Route::new(vec![
+            Waypoint { at: Vec3::new(0.0, 0.0, 0.0), node: 0, jump: None, low: false },
+            Waypoint { at: Vec3::new(60.0, 0.0, 0.0), node: 0, jump: None, low: false },
+        ]);
+        let bar = |value: f32| Some(Gauge { value, low: false });
+        let after = |reserve: Option<(f32, f32)>, value: f32, tired: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.sprinting = true;
+            motor.tired = tired;
+            motor.reserve = reserve;
+            motor.gauge = bar(value);
+            motor.sprint_by_the_bar(&route, 0.0);
+            (motor.sprinting, motor.released_by_bar())
+        };
+        let reserve = Some((20.0, 45.0));
+        assert_eq!(after(None, 15.0, false), (true, false), "the old lockout: 15 is over the 3");
+        assert_eq!(after(reserve, 15.0, false), (false, true), "under the stop of 20");
+        assert_eq!(after(reserve, 30.0, true), (false, true), "tired until the bar is over 45");
+        assert_eq!(after(reserve, 50.0, true), (true, false), "back over the start");
+        assert_eq!(after(reserve, 30.0, false), (true, false), "between: sprinting goes on");
+        // The draw: inside the spans, repeatable, and a life's own.
+        let tuning = Reserve { stop: Span::of(10.0, 25.0), gap: Span::of(15.0, 30.0) };
+        let draw = |seed: u64| {
+            let mut rng = Rng::new(seed);
+            let mut motor = Motor::new(Feel::default(), &mut Rng::new(1));
+            motor.reserve_for_life(Some(&tuning), &mut rng);
+            motor.reserve.expect("drawn")
+        };
+        let (stop, start) = draw(5);
+        assert!((10.0..25.0).contains(&stop) && (stop + 15.0..stop + 30.0).contains(&start), "{stop} {start}");
+        assert_eq!(draw(5), (stop, start));
+        assert_ne!(draw(6), (stop, start));
+        let mut none = Motor::new(Feel::default(), &mut Rng::new(1));
+        none.reserve_for_life(None, &mut Rng::new(5));
+        assert_eq!(none.reserve, None);
     }
 
     /// A sprint-band press is aligned when the body's speed along the jump's way is the press speed or more, within 30

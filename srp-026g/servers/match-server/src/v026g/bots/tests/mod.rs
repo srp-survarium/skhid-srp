@@ -74,6 +74,7 @@ mod kits;
 mod live_zones;
 mod no_way;
 mod opening;
+mod pace_gate;
 mod pocket_runs;
 mod settings;
 mod sight;

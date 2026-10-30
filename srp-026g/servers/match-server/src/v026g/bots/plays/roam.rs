@@ -206,8 +206,29 @@ impl Headway {
 
 impl Ctx<'_> {
     /// Run (sprint where the way allows) unless a known danger is within
-    /// 30 m of the bot or of `at`; walk then (play 17's sprint rule).
+    /// 30 m of the bot or of `at`; walk then (play 17's sprint rule). With
+    /// `pace.calm_sprint` the play only says that it may run: `Cruise`, and the
+    /// bot's gate looks at the path (`bots/pace.rs`).
     pub fn pace_toward(&self, at: Vec3) -> Pace {
+        if self.gated() {
+            return if self.tuning.pace.goal_clause { Pace::Arrive } else { Pace::Cruise };
+        }
+        self.old_pace(at)
+    }
+
+    /// The same for a waypoint on the way, not the destination (a route's next point): `Cruise` with the calm sprint, whatever the goal clause says.
+    pub fn pace_en_route(&self, at: Vec3) -> Pace {
+        if self.gated() { Pace::Cruise } else { self.old_pace(at) }
+    }
+
+    /// Whether the bot's gate decides the pace of the play it runs (`pace.calm_sprint`, the play not among `pace.old_rule_plays`).
+    fn gated(&self) -> bool {
+        let kind = self.bot.current.map(|(kind, ..)| kind);
+        self.tuning.pace.calm_sprint && !kind.is_some_and(|kind| self.tuning.pace.old_rule_plays.contains(&kind))
+    }
+
+    /// The plays' own rule.
+    fn old_pace(&self, at: Vec3) -> Pace {
         let near = |p: Vec3| {
             self.memory
                 .tracks()
@@ -620,7 +641,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             if headway.none(cx) {
                 return Step::Done("made no headway");
             }
-            Step::Continue(Intent::to(at, cx.pace_toward(at)).within(reach * 0.6))
+            Step::Continue(Intent::to(at, cx.pace_en_route(at)).within(reach * 0.6))
         }
         State::Via { via, goal, headway } => {
             let (via, goal) = (*via, *goal);
@@ -633,7 +654,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
                     headway: *headway,
                 };
             }
-            Step::Continue(Intent::to(via, cx.pace_toward(via)).within(3.0))
+            Step::Continue(Intent::to(via, cx.pace_en_route(via)).within(3.0))
         }
         State::Going { goal, headway } => {
             let goal = *goal;
@@ -666,6 +687,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::DangerSpot;
+    use crate::v026g::bots::know::Source;
     use crate::v026g::bots::routes::HumanRoute;
     use crate::v026g::bots::view::Mode;
 
@@ -993,6 +1015,32 @@ mod tests {
         let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
         let Step::Continue(Intent { pace, .. }) = st else { panic!("{st:?}") };
         assert_eq!(pace, Pace::Run, "{st:?}");
+    }
+
+    /// With `pace.calm_sprint` the play only says it may run (`Cruise`) and the bot's gate looks at the path; with it off the
+    /// play's own ring (a track within 30 m of the bot or of the point it was handed) walks as before.
+    #[test]
+    fn the_play_hands_cruise_with_the_calm_sprint_and_its_own_ring_without() {
+        let (mut s, _) = leader_on_route(40.0);
+        // A known enemy 25 m from the point handed (20, 30) and 45 m from the bot.
+        s.view.clock = 1_000;
+        let at = Vec3::new(20.0, 0.0, 30.0);
+        s.enemy(4, 1, Vec3::new(45.0, 0.0, 30.0), Some(Source::Seen));
+        // The scenario's tuning is the options-off one (the plays' own ring); the calm sprint is switched on.
+        assert_eq!(s.cx(0).pace_toward(at), Pace::Walk, "the old rule: the point is within 30 m of a track");
+        s.tuning.pace.calm_sprint = true;
+        assert_eq!(s.cx(0).pace_toward(at), Pace::Cruise);
+        assert_eq!(s.cx(0).pace_en_route(at), Pace::Cruise);
+        // With the goal clause a destination is `Arrive`; a waypoint on the way stays `Cruise`.
+        s.tuning.pace.goal_clause = true;
+        assert_eq!(s.cx(0).pace_toward(at), Pace::Arrive);
+        assert_eq!(s.cx(0).pace_en_route(at), Pace::Cruise);
+        s.tuning.pace.goal_clause = false;
+        s.tuning.pace.calm_sprint = false;
+        assert_eq!(s.cx(0).pace_en_route(at), Pace::Walk, "off: the plays' own rule");
+        s.tuning.pace.calm_sprint = true;
+        s.tuning.pace.calm_sprint = false;
+        assert_eq!(s.cx(0).pace_toward(Vec3::new(-60.0, 0.0, 30.0)), Pace::Run);
     }
 
     #[test]

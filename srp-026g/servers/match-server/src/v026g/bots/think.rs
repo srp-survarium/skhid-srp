@@ -162,7 +162,10 @@ impl Bots {
                         known_at: at.time,
                         ..me.clone()
                     };
-                    drive_tick(bot, &me, view, tactics, &tuning, time, searching)
+                    {
+                        bot.pace.learn_spots(&self.teams[usize::from(team)].knowledge, time, tuning.pace.ring_death_spots);
+                        drive_tick(bot, &me, view, tactics, &tuning, time, searching)
+                    }
                 }
                 _ => bot.motor.rest(),
             };

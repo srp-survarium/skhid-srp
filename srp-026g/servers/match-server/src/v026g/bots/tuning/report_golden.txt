@@ -9,6 +9,7 @@ switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape liv
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
+switches ON pace: calm_sprint ring_death_spots ring_radar
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
 switches ON smoke: cross_lane react_watch sight
@@ -21,6 +22,7 @@ switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_
 switches OFF cheats: batteries
 switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
+switches OFF pace: goal_clause
 switches OFF smoke: anti_sniper
 switches OFF threat: job_out_of_all_lines replan
 switches OFF unstick: fix_gap_ms
@@ -30,6 +32,7 @@ switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: jump_snap=by_keys
 switch values kit: frags=support_and_camper smoke=radio_place
+switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
