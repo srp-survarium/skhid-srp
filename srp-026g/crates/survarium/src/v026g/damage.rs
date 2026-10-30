@@ -94,6 +94,9 @@ pub struct AmmoParams {
     pub k_min_damage_amount: f32,
     pub k_max_damage_distance: f32,
     pub k_min_damage_distance: f32,
+    /// `k_power`: the multiplier of the weapon's `stopping_power` for each bullet that hits (1 for all 29 stock
+    /// ammunitions, PROVEN, sprint-jump RE `FINDINGS.md` §1.1).
+    pub k_power: f32,
     pub muzzle_speed: f32,
     pub air_resistance: f32,
     /// The flight's length at most, metres.
@@ -136,6 +139,7 @@ impl AmmoParams {
             k_min_damage_amount: number("k_min_damage_amount", 1.0)?,
             k_max_damage_distance: number("k_max_damage_distance", 1.0)?,
             k_min_damage_distance: number("k_min_damage_distance", 1.0)?,
+            k_power: number("k_power", 1.0)?,
             muzzle_speed: number("muzzle_speed", 0.0)?,
             air_resistance: number("air_resistance", 0.0)?,
             distance: number("distance", 0.0)?,

@@ -436,6 +436,25 @@ impl UsePress {
         let along = (point - self.eye).dot(self.dir).clamp(0.0, use_ray_m());
         (self.eye + self.dir * along - point).length()
     }
+
+    /// Whether `point` lies past the end of the use's ray: its length ([`use_ray_m`]) decides the miss.
+    fn ends_short_of(&self, point: Vec3) -> bool {
+        (point - self.eye).dot(self.dir) > use_ray_m()
+    }
+}
+
+/// What two features of the senses did in the match, by the team of the body concerned (A122: `sense.sprint_body_mps` and
+/// `sense.use_ray_m` have no effect to see in a score, so these say whether they ran at all).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SenseActivity {
+    /// Sprint sounds made, and the polls in which SPRINT and FORWARD were held and the body's speed or the key rule kept the
+    /// sound from being made (`sense.sprint_body_mps`; always 0 with it off, where the keys alone make the sound).
+    pub sprint_sounds: u64,
+    pub sprint_quiet: u64,
+    /// The carrier guesses of a battery that read one of this team's use presses, and those whose ray ended short of the
+    /// battery (`sense.use_ray_m` decided the miss).
+    pub use_judged: u64,
+    pub use_short: u64,
 }
 
 /// What the view believes of a carried battery's carrier.
@@ -528,6 +547,8 @@ pub struct Tracker {
     shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
+    /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
+    activity: std::cell::Cell<[SenseActivity; 2]>,
     /// The bench only: by place, a bot seen as a human is, its body known
     /// this many ms before the clock (his ping and the input's way) and
     /// reckoned on from there to the clock ([`BodyTrack::seen_late`]). The
@@ -593,6 +614,7 @@ impl Tracker {
             shot_reach: Vec::new(),
             deaths: VecDeque::new(),
             world_time: 0,
+            activity: Default::default(),
             #[cfg(test)]
             seen_late: None,
             #[cfg(test)]
@@ -740,6 +762,17 @@ impl Tracker {
     /// What the throw keys came to so far.
     pub fn throw_counts(&self) -> ThrowCounts {
         self.throws
+    }
+
+    /// What the sprint-sound rule and the use ray did so far, by team.
+    pub fn sense_activity(&self) -> [SenseActivity; 2] {
+        self.activity.get()
+    }
+
+    fn count_activity(&self, team: u8, count: impl FnOnce(&mut SenseActivity)) {
+        let mut all = self.activity.get();
+        count(&mut all[usize::from(team & 1)]);
+        self.activity.set(all);
     }
 
     /// Notes the listing decisions from now on, or stops.
@@ -1185,8 +1218,9 @@ impl Tracker {
                     reach_m: self.shot_reach.get(place).copied().flatten(),
                 });
             }
+            let held = state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0;
             let sprinting = match sprint_body_mps {
-                None => state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0,
+                None => held,
                 Some(least) => {
                     let [vx, vz] = state.body.estimate().map_or([0.0; 2], |e| e.velocity);
                     Kinematics::sprints(state.keys) && vx.hypot(vz) >= least
@@ -1198,6 +1232,7 @@ impl Tracker {
                 .rev()
                 .take_while(|sound| sound.time + 500 > clock)
                 .any(|sound| sound.from == place && sound.kind == SoundKind::Sprint);
+            let team = usize::from(state.team & 1);
             if sprinting && !heard_lately {
                 self.sounds.push_back(Sound {
                     from: place,
@@ -1206,6 +1241,9 @@ impl Tracker {
                     time: clock,
                     reach_m: None,
                 });
+                self.activity.get_mut()[team].sprint_sounds += 1;
+            } else if held && !sprinting {
+                self.activity.get_mut()[team].sprint_quiet += 1;
             }
         }
         while self
@@ -1514,6 +1552,10 @@ impl Tracker {
                     })
                     .map(|u| {
                         let miss = u.miss(point);
+                        self.count_activity(state.team, |a| {
+                            a.use_judged += 1;
+                            a.use_short += u64::from(u.ends_short_of(point));
+                        });
                         let distance = u.feet.distance_xz(point);
                         let stale = if u.time + CARRIER_STALE_MS < lying_seen {
                             CARRIER_STALE_COST
@@ -1673,6 +1715,15 @@ mod tests {
     /// on, then `held_sounds` at its end with `by_body`: the sprint sounds
     /// made in all.
     fn sprint_sounds(keys: u32, ms: u32, by_body: Option<f32>) -> usize {
+        sprint_tracker(keys, ms, by_body)
+            .sounds
+            .iter()
+            .filter(|s| s.from == 1 && s.kind == SoundKind::Sprint)
+            .count()
+    }
+
+    /// The tracker [`sprint_sounds`] counts in.
+    fn sprint_tracker(keys: u32, ms: u32, by_body: Option<f32>) -> Tracker {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
@@ -1684,10 +1735,45 @@ mod tests {
         }
         tracker.held_sounds(now, by_body);
         tracker
-            .sounds
-            .iter()
-            .filter(|s| s.from == 1 && s.kind == SoundKind::Sprint)
-            .count()
+    }
+
+    /// A122: the sprint sounds made and the held sprint keys kept quiet by the body are counted for the body's team; with
+    /// `sprint_body_mps` off the keys alone make the sound and none is quiet.
+    #[test]
+    fn the_sprint_rule_counts_the_sounds_made_and_the_keys_it_kept_quiet() {
+        let sprint = key::SPRINT | key::FORWARD;
+        let by = |keys, ms, least| {
+            let activity = sprint_tracker(keys, ms, least).sense_activity();
+            assert_eq!(activity[0], SenseActivity::default(), "place 1 is on team 1");
+            (activity[1].sprint_sounds, activity[1].sprint_quiet)
+        };
+        assert_eq!(by(sprint, 0, None), (1, 0));
+        assert_eq!(by(sprint, 0, Some(4.6)), (0, 1), "keys held, the body not moving yet");
+        assert_eq!(by(sprint, 800, Some(4.6)), (1, 0));
+        assert_eq!(by(key::FORWARD, 800, Some(4.6)), (0, 0), "no sprint key held: nothing to keep quiet");
+    }
+
+    /// A122: a carrier guess that reads a use press is counted for the press's team, and again when the press's ray ended
+    /// short of the battery (the use ray's length decided the miss).
+    #[test]
+    fn a_carrier_guess_counts_the_use_presses_it_read_and_those_ended_short() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        assert!(tracker.fixed(1, fix(1_000, Vec3::new(0.0, 0.0, 0.0)), Some(0.8), &kin, None));
+        set_use_ray_m(1.8);
+        tracker.used(
+            1,
+            UsePress { time: 1_000, feet: Vec3::ZERO, eye: Vec3::new(0.0, 1.5, 0.0), dir: Vec3::new(0.0, 0.0, 1.0) },
+        );
+        // A battery 1 m ahead is within the ray, one 2.5 m ahead past its 1.8 m.
+        for z in [1.0, 2.5] {
+            tracker.candidates(Vec3::new(0.0, 1.5, z), None, 1_100);
+        }
+        let activity = tracker.sense_activity();
+        assert_eq!((activity[1].use_judged, activity[1].use_short), (2, 1));
+        assert_eq!(activity[0], SenseActivity::default());
+        set_use_ray_m(mapdata::stands::USE_RAY_M);
     }
 
     #[test]

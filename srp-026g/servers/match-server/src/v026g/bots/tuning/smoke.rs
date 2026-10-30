@@ -68,9 +68,43 @@ pub struct SmokeTuning {
     /// gap is sprinted (5 m/s) before his answer (the bench's median first sight to first shot, about 1.0 s,
     /// `h2h-on-vs-off-20261029T2103`). Players sprint short gaps and smoke the wide ones.
     pub lane_open_m: Metres,
-    /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
-    /// between them, as near him as the throw reaches. Off: none.
+    /// [smoke use] A bot outranged by a sniper (play 11's matchup: its weapon short of him), the team sensing him where he
+    /// is within `lane_sensed_ms`, smokes the line from him to the first point of its route within `lane_ahead_m` that he
+    /// sees, before it steps out: not from where he already sees it, not at a sprint, not a gap shorter than
+    /// `lane_open_m`, not a line a cloud already covers, `snipers_a_life` at most. Off: none. Uncut (the line from him to
+    /// the bot whenever outranged) it threw 18.3 per 100 lives (`h2h-radio-vs-off-20261029T1852`, live 2.97 for all uses).
+    /// On by default: the owner, "in general isnt it the most impacting behaviour against snipers?", and on its rate
+    /// "i think its ok" ("Unless its caused by bug": every throw classed, none onto a line he had not, after the eye spread).
     pub anti_sniper: bool,
+    /// A life smokes this many snipers' lines at most; its own count beside `lanes_a_life` (a crossing a lane smoke
+    /// already covers is not smoked again, the cloud test).
+    pub snipers_a_life: u32,
+    /// A sniper's crossing is one he sees from his sensed eye and from this far to either side of it, nearer and farther along
+    /// the line to the bot, and crouched if he was seen standing, metres: where he is is known to a few decimetres and he can
+    /// crouch, and a sliver open from one point is not his line. The sensed eye was 0.1-1.0 m from his eye in the game in the
+    /// bench's 11 throws onto crossings he could not see.
+    pub sniper_eye_spread_m: Metres,
+    /// The owner's rules for every smoke use (2026-10-30): "they shouldnt throw smoke if smoke is already there (they should
+    /// plan near smoke if its nearby) and several bots at a time should not plan to smoke near same spot".
+    /// - A plan counts every cloud live or forming, of either team, and the team's own still in the air, at full size
+    ///   (`Clouds::planning`), where it only counted live clouds.
+    /// - A region a cloud hides from a held lane's shooter is not covered while it stands: routes cross under it (the
+    ///   detour weighs the lanes) and no smoke is planned for it.
+    /// - A plan is the team's for `claim_ms`: no mate plans one within `claim_m` of its landing or against the same
+    ///   shooter (`TeamKnowledge::smoke_claimed`).
+    ///
+    /// Off: #801's rules.
+    pub spot_rules: bool,
+    /// A mate's planned smoke keeps others off within this of its landing, metres: RDG-M's cloud radius.
+    pub claim_m: Metres,
+    /// For this long after it was planned, ms: the throw's turn, hold and launch (`grenade_give_up_ms` 1.5 s +
+    /// `grenade_launch_ms` 1.1 s + the look after 0.3 s); thrown, the cloud in the air counts.
+    pub claim_ms: u32,
+    /// A bot standing to throw a smoke keeps its route (`LegsWhy::ThrowingSmoke`) and walks on along it once the smoke is
+    /// away: the smoke was planned for that route's crossing. Off: standing left it no goal and dropped its route
+    /// (`RouteEnd::NoGoal`, about 0.24 s into the throw), and the route drawn after the throw could miss the crossing
+    /// (`notes-route-20261030T0911`: both "route changed" throws of `h2h-sniper-d-20261030T0850`).
+    pub throw_keeps_route: bool,
 }
 
 impl SmokeTuning {
@@ -98,7 +132,13 @@ impl Default for SmokeTuning {
             lane_sensed_ms: 5_000,
             lanes_a_life: 1,
             lane_open_m: Metres::of(5.0),
-            anti_sniper: false,
+            anti_sniper: true,
+            snipers_a_life: 1,
+            sniper_eye_spread_m: Metres::of(0.5),
+            spot_rules: true,
+            claim_m: Metres::of(8.0),
+            claim_ms: 3_000,
+            throw_keeps_route: true,
         }
     }
 }

@@ -1,0 +1,34 @@
+owner-test sense: steps heard 0 upright, 0 crouched (the game's ranges); refused by the game's ranges where the flat ones carry: 0 sounds, 0 steps; sprint sounds made 0, held keys kept quiet by the body 0; carrier guesses from a use press 0, ray ended short of the battery 0
+{
+  "sense": {
+    "by_team": {
+      "0": {
+        "sounds_refused_by_game": 0,
+        "sprint_quiet": 0,
+        "sprint_sounds": 0,
+        "steps": 0,
+        "steps_crouched": 0,
+        "steps_refused_by_game": 0,
+        "use_judged": 0,
+        "use_short": 0
+      },
+      "1": {
+        "sounds_refused_by_game": 0,
+        "sprint_quiet": 0,
+        "sprint_sounds": 0,
+        "steps": 0,
+        "steps_crouched": 0,
+        "steps_refused_by_game": 0,
+        "use_judged": 0,
+        "use_short": 0
+      }
+    }
+  },
+  "sense_refused_by_game": 0,
+  "sense_sprint_quiet": 0,
+  "sense_sprint_sounds": 0,
+  "sense_steps_crouched_heard": 0,
+  "sense_steps_heard": 0,
+  "sense_use_judged": 0,
+  "sense_use_short": 0
+}

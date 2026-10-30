@@ -23,8 +23,10 @@
 //!   magazine_capacity` a round and `reload_end_time` (the Mosin's clips,
 //!   50, 20 a round and 41 f, give 1.67 + 0.5 + 1.37 s against the
 //!   config's 1.5 + 0.5 + 1.5: within 0.2 s); an empty reload of state 314
-//!   and both barrels of state 311 take the TT-33's and the TOZ-34's share
-//!   of their clips ([`EMPTY_RELOAD_SHARE`], [`BARRELS_RELOAD_SHARE`]).
+//!   and both barrels of state 311 take the weapon's own share of its
+//!   clips (`WeaponParams::reload_share`, from the clip lengths in the game
+//!   data), the TT-33's and the TOZ-34's ([`EMPTY_RELOAD_SHARE`],
+//!   [`BARRELS_RELOAD_SHARE`]) when the data was made without them.
 //! - The bolt: `chamber_a_round_time`. LIKELY: the card's rate of fire is
 //!   `60 / (60 / rpm + chamber_a_round_time)` floored for all eleven
 //!   weapons that have one (the Mosin 27, the SV-98 21, the Remington 700
@@ -73,7 +75,7 @@
 use survarium::v026g::bot_skills::{bot_modifiers, item_added, wire_mods};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
-    BOT_AMMO_SLOTS, BotEquipment, BotMask, BotRole, BotTier, Loadout, RusherKit, RusherKits, bot_kits,
+    BOT_AMMO_SLOTS, BotEquipment, BotMask, BotRole, BotTier, KitSwitches, Loadout, RusherKit, RusherKits, bot_kits,
     upgrades_on,
 };
 use survarium::v026g::skills::{MODIFIERS, modifier_index};
@@ -130,6 +132,9 @@ pub struct Gun {
     pub aim_ms: u32,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
+    /// `stopping_power`: what each bullet (pellet) that hits adds to the victim's stagger (the weapon's number;
+    /// the ammunition's `k_power` times it, 1 for every stock ammunition; PROVEN, `survarium::v026g::weapons`).
+    pub stopping_power: f32,
     /// `bullet_damage`: the share of a body's pool a bullet takes at its muzzle, before armour and the part hit (the
     /// weapon's nominal damage; what a hit seen to land counts for, `bots/worth.rs`).
     pub bullet_damage: f32,
@@ -358,13 +363,15 @@ impl Gun {
 
 /// The empty reload's time over the other's, for a weapon whose reload
 /// has its own clip from empty (state 314): the TT-33's two clips, 125 f
-/// over 65 f (PROVEN for the TT-33; LIKELY of the same order for the
-/// others, whose clips the server's data does not hold; the longer time
-/// only makes a bot wait a little more).
+/// over 65 f (PROVEN for the TT-33; the same for the PM, the APS and the
+/// Fort-17 by their clips). Only the fallback: a weapon's own share is
+/// `WeaponParams::reload_share`, read from the clips' lengths in the game
+/// data; this is what a bot goes by when the data was made without them.
 pub const EMPTY_RELOAD_SHARE: f32 = 125.0 / 65.0;
 
 /// Both barrels' reload over one barrel's (state 311): the TOZ-34's clips,
-/// 110 f over 80 f (PROVEN for the TOZ-34; LIKELY for the others).
+/// 110 f over 80 f (PROVEN for the TOZ-34 and the Izh-27; the TOZ-66's
+/// two are 97 f each, share 1). The fallback, as [`EMPTY_RELOAD_SHARE`].
 pub const BARRELS_RELOAD_SHARE: f32 = 110.0 / 80.0;
 
 /// Seconds to ms.
@@ -387,11 +394,11 @@ impl Gun {
             },
             STATE_RELOAD_BARRELS => Reload::Barrels {
                 one_ms: reload_ms,
-                two_ms: ms(w.reload_time * BARRELS_RELOAD_SHARE),
+                two_ms: ms(w.reload_time * w.reload_share.unwrap_or(BARRELS_RELOAD_SHARE)),
             },
             STATE_RELOAD_EMPTY => Reload::Pistol {
                 ms: reload_ms,
-                empty_ms: ms(w.reload_time * EMPTY_RELOAD_SHARE),
+                empty_ms: ms(w.reload_time * w.reload_share.unwrap_or(EMPTY_RELOAD_SHARE)),
             },
             _ => Reload::Magazine { ms: reload_ms },
         };
@@ -423,6 +430,7 @@ impl Gun {
             category: w.category,
             aim_ms: ms(w.aim_time),
             dispersion: w.dispersion,
+            stopping_power: w.stopping_power,
             bullet_damage: w.bullet_damage,
             class: WeaponClass::of(w),
             by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),
@@ -953,9 +961,10 @@ impl Arms {
     /// (`loadouts::bot_kits`). No pistol: the bots carry none. `None` for
     /// a kit that is not there or a weapon not in the game data ([`guns`]).
     pub fn of_kit(equipment: BotEquipment, role: BotRole, k: usize) -> Option<&'static Arms> {
-        static ALL: std::sync::OnceLock<ArmsTable> = std::sync::OnceLock::new();
+        // One table for each setting of the kit and upgrade switches (the kit's pieces and skills decide the arms).
+        static ALL: [std::sync::OnceLock<ArmsTable>; KitSwitches::SLOTS] = [const { std::sync::OnceLock::new() }; KitSwitches::SLOTS];
         let rusher = equipment.rusher.worn_in(equipment.tier);
-        ALL.get_or_init(|| {
+        ALL[KitSwitches::current().slot()].get_or_init(|| {
             let mut table = Vec::new();
             for tier in BotTier::ALL {
                 // The rusher kits the game data can make: the others are
@@ -1321,6 +1330,8 @@ mod tests {
     /// reload speed and the bots' aim skill; off, they are the table's.
     #[test]
     fn the_upgrades_switch_decides_whether_a_kit_has_modded_guns() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         use survarium::v026g::bot_skills::bot_modifiers;
         use survarium::v026g::loadouts::bot_kits_in;
         for tier in [BotTier::Mid, BotTier::High] {

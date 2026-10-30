@@ -67,6 +67,8 @@ fn support_kit() -> &'static Loadout {
 
 #[test]
 fn a_patched_weapon_reaches_the_gun_the_load_the_arms_the_kick_and_the_draw() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let stock_guns = guns::guns();
     let stock = ak(stock_guns);
     let stock_kick = kick_in(recoil::kicks(), "ak_74u");
@@ -290,4 +292,30 @@ fn on_the_live_data_every_weapon_has_its_gun_kick_and_kind_from_its_config() {
         all.len(),
         if odd.is_empty() { "none".to_owned() } else { odd.join(", ") }
     );
+}
+
+/// The second reload of a two-clip weapon is its own clips' share of the first when the game data has the clips'
+/// lengths (`WeaponParams::reload_share`, W9), the TT-33's and the TOZ-34's constants when it does not.
+#[test]
+fn a_reload_share_of_the_data_reaches_the_guns_second_reload() {
+    use crate::v026g::bots::guns::{BARRELS_RELOAD_SHARE, EMPTY_RELOAD_SHARE};
+    let toz = *weapons::weapon_named("toz_66").unwrap();
+    let barrels = |share| match Gun::of(&WeaponParams { reload_share: share, ..toz }).reload {
+        Reload::Barrels { one_ms, two_ms } => (one_ms, two_ms),
+        other => panic!("{other:?}"),
+    };
+    let one = (toz.reload_time * 1000.0).round() as u32;
+    // The TOZ-66's two reloads are the same length (97 f each): no extra wait.
+    assert_eq!(barrels(Some(1.0)), (one, one));
+    assert_eq!(barrels(Some(110.0 / 80.0)), (one, (toz.reload_time * 1000.0 * 110.0 / 80.0).round() as u32));
+    assert_eq!(barrels(None), (one, (toz.reload_time * BARRELS_RELOAD_SHARE * 1000.0).round() as u32));
+
+    let tt = *weapons::weapon_named("tt_33").unwrap();
+    let pistol = |share| match Gun::of(&WeaponParams { reload_share: share, ..tt }).reload {
+        Reload::Pistol { ms, empty_ms } => (ms, empty_ms),
+        other => panic!("{other:?}"),
+    };
+    let ms = (tt.reload_time * 1000.0).round() as u32;
+    assert_eq!(pistol(Some(2.0)), (ms, (tt.reload_time * 2000.0).round() as u32));
+    assert_eq!(pistol(None), (ms, (tt.reload_time * EMPTY_RELOAD_SHARE * 1000.0).round() as u32));
 }

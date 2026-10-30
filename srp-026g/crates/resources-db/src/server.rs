@@ -21,6 +21,12 @@
 //! them: the patches server, and mirrors). The server tells the players'
 //! updater which patches to fetch from it ([`Provenance::offered`]): it can
 //! only offer the patches it runs on. The same inputs give the same bytes.
+//!
+//! [`CLIP_LENGTHS`] holds the length in frames of every animation clip the
+//! archives seen together have ([`ClipLengths`], [`crate::clips`]): the clips
+//! are the client's, but a few lengths say how long the game's actions last
+//! (a reload from empty against a reload with a round left), which the
+//! server cannot know without them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -48,6 +54,9 @@ pub const LOCALIZATIONS: [&str; 2] = [
 ];
 /// What the data was made of ([`Provenance`]).
 pub const PROVENANCE: &str = "srp/provenance";
+/// The length of every animation clip ([`ClipLengths`]). A file added to
+/// data 3: data made without it is still data 3, and has no lengths.
+pub const CLIP_LENGTHS: &str = "srp/clip_lengths";
 /// The first line of [`PROVENANCE`]. Data 3 keeps each project's
 /// `server_objects` and the [`LOCALIZATIONS`]; data 2 had the projects
 /// empty, and is refused by name.
@@ -412,6 +421,82 @@ pub struct PatchFile {
     pub urls: Vec<String>,
 }
 
+/// The first line of [`CLIP_LENGTHS`].
+const CLIP_LENGTHS_HEADER: &str = "skhid clip lengths 1";
+/// A clip is a file of this extension in the archive; the configs name it
+/// without, under [`CLIP_ROOT`].
+const CLIP_EXTENSION: &str = ".b-spline";
+/// The configs name a clip by its path in the archive, under this.
+const CLIP_ROOT: &str = "resources/";
+
+/// The length in frames (30 a second) of the animation clips, by the name
+/// the game's configs give them (`resources/animations/.../reload`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ClipLengths(BTreeMap<String, f32>);
+
+impl ClipLengths {
+    /// The name the configs give the clip in the archive file `path`, if it
+    /// is one.
+    pub fn name_of(path: &str) -> Option<String> {
+        let name = path.strip_suffix(CLIP_EXTENSION)?;
+        Some(format!("{CLIP_ROOT}{name}"))
+    }
+
+    pub fn insert(&mut self, name: String, frames: f32) {
+        self.0.insert(name, frames);
+    }
+
+    /// The length of the clip `name` in frames.
+    pub fn get(&self, name: &str) -> Option<f32> {
+        self.0.get(name).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The file's text: the header, then a line `<name>TAB<frames>` per
+    /// clip, by name.
+    pub fn text(&self) -> String {
+        let mut text = format!("{CLIP_LENGTHS_HEADER}\n");
+        for (name, frames) in &self.0 {
+            text.push_str(&format!("{name}\t{frames}\n"));
+        }
+        text
+    }
+
+    /// The lengths [`text`](Self::text) wrote; anything else is refused.
+    pub fn parse(text: &str) -> Result<Self, Error> {
+        let mut lines = text.lines();
+        if lines.next() != Some(CLIP_LENGTHS_HEADER) {
+            return Err(content(format!(
+                "{CLIP_LENGTHS}: not a clip length list (it starts with `{CLIP_LENGTHS_HEADER}`)"
+            )));
+        }
+        let mut clips = Self::default();
+        for line in lines {
+            let (name, frames) = line.split_once('\t').ok_or_else(|| {
+                content(format!("{CLIP_LENGTHS}: `{line}` is not `name<TAB>frames`"))
+            })?;
+            let frames: f32 = frames
+                .parse()
+                .ok()
+                .filter(|frames: &f32| frames.is_finite() && *frames >= 0.0)
+                .ok_or_else(|| {
+                    content(format!("{CLIP_LENGTHS}: `{line}`: frames are not a length"))
+                })?;
+            if clips.0.insert(name.to_owned(), frames).is_some() {
+                return Err(content(format!("{CLIP_LENGTHS}: `{name}` is twice in it")));
+            }
+        }
+        Ok(clips)
+    }
+}
+
 /// What one archive gave the server's data.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Given {
@@ -431,6 +516,10 @@ pub struct Built {
     pub gameplay: usize,
     /// The projects.
     pub projects: usize,
+    /// The clips [`CLIP_LENGTHS`] has a length of, and the ones that could
+    /// not be read (they have none).
+    pub clips: usize,
+    pub clips_unread: usize,
     /// What each archive gave: `resources.db`, then the patches in order.
     pub given: Vec<Given>,
 }
@@ -557,14 +646,53 @@ pub fn build(db: &Path, patches: &[PatchFile]) -> Result<Built, Error> {
     if gameplay == 0 {
         return Err(content(format!("{} has no {GAMEPLAY}", names.join(" + "))));
     }
+    let (lengths, clips_unread) = clip_lengths(&mut overlay, &names)?;
+    let clips = lengths.len();
+    files.insert(CLIP_LENGTHS.to_owned(), lengths.text().into_bytes());
     files.insert(PROVENANCE.to_owned(), provenance.text().into_bytes());
     Ok(Built {
         bytes: crate::write::write(&files)?,
         provenance,
         gameplay,
         projects,
+        clips,
+        clips_unread,
         given,
     })
+}
+
+/// The length of every clip the archives seen together have, and how many
+/// could not be read (a clip of a shape this reader does not know has no
+/// length, and the server goes on without it).
+fn clip_lengths<R: Read + Seek>(
+    overlay: &mut Overlay<R>,
+    names: &[String],
+) -> Result<(ClipLengths, usize), Error> {
+    let clips: Vec<(String, String, usize, crate::Entry)> = overlay
+        .files_under("")
+        .filter_map(|(path, index, entry)| {
+            Some((path.to_owned(), ClipLengths::name_of(path)?, index, *entry))
+        })
+        .collect();
+    let mut lengths = ClipLengths::default();
+    let mut unread = 0;
+    for (path, name, index, entry) in clips {
+        let bytes = overlay
+            .read(&path)
+            .map_err(|cause| content(format!("{}: {cause}", names[index])))?
+            .expect("a listed file");
+        if bytes.len() != entry.size as usize || crc32(&bytes) != entry.hash {
+            return Err(content(format!(
+                "{}: {path}: its bytes are not those its table says (size {}, CRC-32 {:08x})",
+                names[index], entry.size, entry.hash
+            )));
+        }
+        match crate::clips::length_in_frames(&bytes) {
+            Ok(frames) => lengths.insert(name, frames),
+            Err(_) => unread += 1,
+        }
+    }
+    Ok((lengths, unread))
 }
 
 /// What [`read`] found in server game data.

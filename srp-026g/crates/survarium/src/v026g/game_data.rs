@@ -40,7 +40,9 @@ use std::sync::OnceLock;
 use binary_config_parser::tree::ConfigValue;
 use resources_db::Archive;
 pub use resources_db::server::Provenance;
-use resources_db::server::{GAMEPLAY, LOCALIZATIONS, PROJECT_MARKER, PROJECTS};
+use resources_db::server::{
+    CLIP_LENGTHS, ClipLengths, GAMEPLAY, LOCALIZATIONS, PROJECT_MARKER, PROJECTS,
+};
 
 /// The server's game data (`srp-game-data build`).
 pub const GAME_DATA_ENV: &str = "SRP_GAME_DATA";
@@ -87,6 +89,11 @@ pub struct GameData {
     /// each its `client_project` cut to its `server_objects`
     /// ([`resources_db::server::server_objects_of`]).
     projects: BTreeMap<String, Vec<u8>>,
+    /// The length of every animation clip, if the data was made with them
+    /// (`srp-game-data build` since the reload shares were read from the
+    /// clips); older data has none, and what needs a length goes by its
+    /// constant.
+    clip_lengths: Option<ClipLengths>,
 }
 
 impl GameData {
@@ -120,11 +127,19 @@ impl GameData {
         for (project, path) in project_paths {
             projects.insert(project, read(archive, &path)?);
         }
+        let clip_lengths = if archive.files_under("").any(|(path, _)| path == CLIP_LENGTHS) {
+            let text = String::from_utf8(read(archive, CLIP_LENGTHS)?)
+                .map_err(|_| error(format!("{CLIP_LENGTHS}: not UTF-8 text")))?;
+            Some(ClipLengths::parse(&text).map_err(|cause| error(cause.to_string()))?)
+        } else {
+            None
+        };
         Ok(Self {
             origin,
             provenance: data.provenance,
             files,
             projects,
+            clip_lengths,
         })
     }
 
@@ -154,6 +169,11 @@ impl GameData {
         self.files.get(path).map(Vec::as_slice)
     }
 
+    /// The length of every animation clip, if the data has them.
+    pub fn clip_lengths(&self) -> Option<&ClipLengths> {
+        self.clip_lengths.as_ref()
+    }
+
     /// Whether the archive has the project `project` (a game mode's
     /// `match_making_params.map_name`, e.g. `level_01/day_2`).
     pub fn has_project(&self, project: &str) -> bool {
@@ -177,6 +197,7 @@ impl GameData {
             provenance: self.provenance.clone(),
             files: self.files.clone(),
             projects: self.projects.clone(),
+            clip_lengths: self.clip_lengths.clone(),
         };
         for (path, bytes) in files {
             let project = path
@@ -188,6 +209,13 @@ impl GameData {
             };
         }
         data
+    }
+
+    /// This data with the clip lengths `clips` (a test's).
+    #[cfg(any(test, feature = "fixtures"))]
+    pub fn with_clip_lengths(mut self, clips: ClipLengths) -> Self {
+        self.clip_lengths = Some(clips);
+        self
     }
 
     /// How many files there are: of `gameplay/`, and the localizations.

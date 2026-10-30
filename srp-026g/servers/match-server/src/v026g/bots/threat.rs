@@ -1128,6 +1128,16 @@ impl ThreatSpots {
         }
     }
 
+    /// The places of `shooter`'s spots that are held at `now` (before his death takes their sense) and that killed at least
+    /// `min_kills` of the team's bots: a holder, not a shooter who killed once in passing.
+    pub fn held_of(&self, shooter: Place, now: u32, min_kills: usize) -> Vec<Vec3> {
+        self.spots
+            .iter()
+            .filter(|s| s.shooter == shooter && s.held(now) && s.kills.len() >= min_kills)
+            .map(|s| s.at)
+            .collect()
+    }
+
     /// The events since the last call, oldest first.
     pub fn take_events(&mut self) -> Vec<SpotEvent> {
         std::mem::take(&mut self.events)
@@ -1370,6 +1380,27 @@ impl ThreatSpots {
             .collect()
     }
 
+    /// [`Self::covered_regions`], less the regions `hidden` says smoke hides from the spot's shooter (given his feet and the
+    /// region), and the regions so opened (covered by no held spot's clear line). `smoke.spot_rules`.
+    pub fn covered_regions_smoked(&self, now: u32, hidden: impl Fn(Vec3, u32) -> bool) -> (Vec<u32>, Vec<u32>) {
+        let (mut covered, mut opened) = (Vec::new(), Vec::new());
+        for spot in self.held(now) {
+            for &r in spot.covered().into_iter().flatten() {
+                if hidden(spot.at, r) {
+                    opened.push(r);
+                } else {
+                    covered.push(r);
+                }
+            }
+        }
+        covered.sort_unstable();
+        covered.dedup();
+        opened.sort_unstable();
+        opened.dedup();
+        opened.retain(|r| covered.binary_search(r).is_err());
+        (covered, opened)
+    }
+
     /// The held spots as the plays read them ([`Picture`]).
     pub fn held_lines(&self, now: u32, rules: SpotRules) -> Vec<HeldLine> {
         self.held(now)
@@ -1386,6 +1417,10 @@ impl ThreatSpots {
             .collect()
     }
 }
+
+/// How far round a job's held spot its flank and pin rings look under and over his height for floors, m
+/// (`ThreatTuning::job_spot_levels`): a storey or two, as Crossfire's `up_m`.
+pub const JOB_LEVELS_M: f32 = 8.0;
 
 /// A held spot as the plays read it: its place, shooter, lanes and reach.
 #[derive(Clone, Debug, PartialEq)]
@@ -1405,6 +1440,22 @@ pub struct HeldLine {
 }
 
 impl HeldLine {
+    /// A line for the tests of those who read one: a shooter at `at` who killed `victims`, sensed on it at `seen`.
+    #[cfg(test)]
+    pub(super) fn for_test(id: u32, shooter: Place, at: Vec3, victims: &[Vec3], seen: Option<u32>) -> Self {
+        let lanes: Vec<(Vec3, f32)> = victims.iter().map(|&v| (at, bearing(at, v))).collect();
+        Self {
+            id,
+            at,
+            shooter,
+            facing: lanes.first().map_or(0.0, |l| l.1),
+            lanes,
+            reach_m: 50.0,
+            kills: victims.len(),
+            seen,
+        }
+    }
+
     /// The ground direction he faces, as `kin::forward` gives one.
     pub fn facing_dir(&self) -> [f32; 2] {
         [self.facing.sin(), self.facing.cos()]
@@ -2087,6 +2138,19 @@ mod tests {
         spots.shooter_died(7, 2_000);
         // 2.0 becomes 1.0, and he is not sensed on it any more.
         assert_eq!(spots.held(2_000).count(), 0);
+    }
+
+    /// [A145] A killed shooter's spot is a holder's only when he killed from it again (the camper class), whatever else is held.
+    #[test]
+    fn a_holder_is_a_shooter_who_killed_again_from_one_place() {
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 500, OLD);
+        assert_eq!(spots.held(1_000).count(), 1, "one kill, the shooter sensed on it: held");
+        assert!(spots.held_of(7, 1_000, 2).is_empty(), "but no holder");
+        assert_eq!(spots.held_of(7, 1_000, 1).len(), 1);
+        spots.died(at(31.0), 7, at(0.0), 700, 900, OLD);
+        assert_eq!(spots.held_of(7, 1_000, 2).len(), 1, "killed again from it");
+        assert!(spots.held_of(8, 1_000, 1).is_empty(), "another shooter's");
     }
 
     #[test]

@@ -785,6 +785,27 @@ pub struct Loss {
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
 
+/// Where an enemy the team killed had held a place: a held threat spot of his (K1) or a place the killer's own sense had him staying
+/// at (a camp). The next one to hold it is likely to come to the same cover, so a trap there is worth more than the lanes alone say
+/// (`TrapTuning::at_defeated`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Defeated {
+    pub at: Vec3,
+    pub time: u32,
+    /// The enemy that held it.
+    pub shooter: Place,
+    pub kind: DefeatedKind,
+}
+
+/// How the killed enemy was known to have held the place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DefeatedKind {
+    /// A held threat spot of the team's picture ([`super::threat::ThreatSpots::held_of`]).
+    Spot,
+    /// An enemy the killer's own senses had staying at one place.
+    Camp,
+}
+
 /// An enemy a bot of the team saw carrying a battery (a carrier holds it in
 /// his hands, in sight).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -904,6 +925,17 @@ pub struct ThrowClaim {
     pub time: u32,
 }
 
+/// [smoke.spot_rules] A bot's claim on a smoke it planned: where it is to land and the shooter's eye it is against, stamped
+/// when planned. A mate plans no smoke within `smoke.claim_m` of it or against the same shooter for `smoke.claim_ms` (the
+/// owner: "several bots at a time should not plan to smoke near same spot"); once thrown, the cloud in the air counts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SmokeClaim {
+    pub who: Place,
+    pub at: Vec3,
+    pub against: Vec3,
+    pub time: u32,
+}
+
 /// A throw claim is dropped after this, ms, whatever the roll's own window
 /// asks (the fuse is 4 s; `grenade_claim_ms` is 6 s).
 pub const THROW_CLAIM_KEEP_MS: u32 = 30_000;
@@ -938,6 +970,8 @@ pub struct TeamKnowledge {
     pub searching: Vec<(Place, usize)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
+    /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
+    pub defeated: Vec<Defeated>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
@@ -963,9 +997,22 @@ pub struct TeamKnowledge {
     /// The places the team's bots decided to throw at, each throw a claim
     /// ([`Self::claim_throw`]).
     throws: Vec<ThrowClaim>,
+    /// [smoke.spot_rules] The smokes the team's bots planned ([`SmokeClaim`]).
+    smoke_claims: Vec<SmokeClaim>,
 }
 
 impl TeamKnowledge {
+    /// A holder was killed at `at`: kept for `keep_ms`; one within 4 m of an earlier record renews it (its time, its latest holder).
+    /// Returns whether the record is new.
+    pub fn defeat(&mut self, defeated: Defeated, keep_ms: u32) -> bool {
+        self.defeated.retain(|d| defeated.time.saturating_sub(d.time) <= keep_ms);
+        if let Some(old) = self.defeated.iter_mut().find(|d| d.at.distance_xz(defeated.at) < 4.0) {
+            *old = defeated;
+            return false;
+        }
+        self.defeated.push(defeated);
+        true
+    }
     /// A bot of the team sensed something: its teammates know it after
     /// `delay_ms`. Only first-hand senses are called out.
     pub fn call_out(&mut self, by: Place, percept: &Percept, delay_ms: u32, callouts: Callouts) {
@@ -1056,6 +1103,22 @@ impl TeamKnowledge {
         self.claims
             .iter()
             .filter(move |c| c.who != except && c.time + CLAIM_KEEP_MS >= now)
+    }
+
+    /// `who` planned a smoke to land at `at` against the shooter whose eye is `against`.
+    pub fn claim_smoke(&mut self, claim: SmokeClaim) {
+        self.smoke_claims.retain(|c| claim.time.saturating_sub(c.time) <= THROW_CLAIM_KEEP_MS);
+        self.smoke_claims.push(claim);
+    }
+
+    /// Whether a smoke landing at `at` against `against` is a mate's (not `except`'s) within `m` of his landing or
+    /// against his shooter (within 2 m), planned within `ms` of `now`.
+    pub fn smoke_claimed(&self, except: Place, at: Vec3, against: Vec3, now: u32, m: f32, ms: u32) -> bool {
+        self.smoke_claims.iter().any(|c| {
+            c.who != except
+                && now.saturating_sub(c.time) <= ms
+                && (c.at.distance_xz(at) <= m || (c.against.distance_xz(against) <= 2.0 && (c.against.y - against.y).abs() <= 2.0))
+        })
     }
 
     /// `who` decided to throw a grenade at `at` (one claim a throw: a bot's
@@ -1477,6 +1540,29 @@ impl TeamKnowledge {
 
 #[cfg(test)]
 mod tests {
+    /// [A145] A killed holder's spot is kept, one within 4 m renews it, the old ones go.
+    #[test]
+    fn a_killed_holders_spot_is_kept_renewed_and_forgotten() {
+        use super::{Defeated, DefeatedKind, TeamKnowledge};
+        use mapdata::Vec3;
+        let mut team = TeamKnowledge::default();
+        let spot = |x: f32, time: u32| Defeated {
+            at: Vec3::new(x, 0.0, 0.0),
+            time,
+            shooter: 3,
+            kind: DefeatedKind::Spot,
+        };
+        assert!(team.defeat(spot(10.0, 1_000), 60_000));
+        assert!(!team.defeat(spot(12.0, 20_000), 60_000), "within 4 m: the same place");
+        assert_eq!(team.defeated.len(), 1);
+        assert_eq!(team.defeated[0].time, 20_000);
+        assert!(team.defeat(spot(30.0, 30_000), 60_000));
+        assert_eq!(team.defeated.len(), 2);
+        // At 100 s both are over a minute old: gone.
+        assert!(team.defeat(spot(50.0, 100_000), 60_000));
+        assert_eq!(team.defeated.len(), 1);
+    }
+
     use super::*;
 
     /// A throw claim holds against the teammates' rolls, not the thrower's
@@ -2276,5 +2362,19 @@ mod tests {
         assert_eq!(memory.live_sights().collect::<Vec<_>>(), vec![(3, 1_000)]);
         memory.fail_sight(3, Miss::Dead, 1_010);
         assert_eq!(memory.live_sights().count(), 0);
+    }
+
+    /// A mate's planned smoke keeps others off within `claim_m` of its landing or against the same shooter, for its
+    /// window; a bot's own plan does not.
+    #[test]
+    fn a_planned_smoke_is_the_teams_near_its_landing_and_against_its_shooter() {
+        let mut team = TeamKnowledge::default();
+        let (at, against) = (Vec3::new(10.0, 0.0, 0.0), Vec3::new(40.0, 1.6, 0.0));
+        team.claim_smoke(SmokeClaim { who: 1, at, against, time: 1_000 });
+        assert!(team.smoke_claimed(2, Vec3::new(15.0, 0.0, 0.0), Vec3::new(0.0, 1.6, 50.0), 2_000, 8.0, 3_000), "near");
+        assert!(team.smoke_claimed(2, Vec3::new(60.0, 0.0, 0.0), against, 2_000, 8.0, 3_000), "same shooter");
+        assert!(!team.smoke_claimed(2, Vec3::new(30.0, 0.0, 0.0), Vec3::new(0.0, 1.6, 50.0), 2_000, 8.0, 3_000), "apart");
+        assert!(!team.smoke_claimed(1, at, against, 2_000, 8.0, 3_000), "its own");
+        assert!(!team.smoke_claimed(2, at, against, 4_500, 8.0, 3_000), "after its window");
     }
 }

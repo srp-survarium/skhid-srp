@@ -141,6 +141,7 @@ pub use team::SearchQueue;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
+pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;
@@ -506,7 +507,7 @@ mod tests {
         assert!(on.heal.on && on.heal.bandages);
         assert!(on.traps.react.on && on.traps.react.shot && on.traps.react.pass);
         assert!(on.traps.react.jump && on.traps.react.hear && on.traps.react.defuse);
-        assert_eq!((on.traps.per_life, on.traps.cap_team), (2, 6));
+        assert_eq!((on.traps.per_life, on.traps.cap_team), (1, 4));
         assert!(on.grid.gap_links && on.grid.floor_paths && on.grid.client_numbers);
         assert!(on.grid.exact_erosion && on.grid.honest_drops);
         assert_eq!(on.kin.jump_snap, crate::v026g::bots::kin::JumpSnap::ByKeys);

@@ -331,7 +331,7 @@ pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, RusherKit, bot_kits, bot_kits_in};
+    use crate::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, KitSwitches, RusherKit, bot_kits, bot_kits_in};
     use crate::v026g::skills::SkillError;
 
     /// The rusher kits of `tier` the game data in use can make.
@@ -367,6 +367,8 @@ mod tests {
     /// when asked for.
     #[test]
     fn the_held_weapons_own_speed_modifier_moves_the_level() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = KitSwitches::OFF.scope();
         use crate::v026g::loadouts::RusherKits;
         use crate::v026g::match_msgs::static_info::MatchProfile;
         let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
@@ -609,6 +611,8 @@ mod tests {
 
     #[test]
     fn a_bots_profile_gives_its_speed_level() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = KitSwitches::OFF.scope();
         use crate::v026g::match_msgs::static_info::MatchProfile;
         for (equipment, role, new, upgrades) in every_bot() {
             let tier = equipment.tier;
