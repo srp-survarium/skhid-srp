@@ -1070,7 +1070,6 @@ va	status	ref_021d	name
 0x001f24c0	inferred-high	0x001568f6	survarium::player::remove_models_from_scene
 0x001f2540	inferred-high	0x0015694b	survarium::player::initialize
 0x001f2640	inferred-high	0x00156a6b	survarium::player::first_third_person_animations_resolver
-0x001f2720	inferred-high	0x00156ad2	survarium::player::insert
 0x001f2870	inferred-high	0x00156be1	survarium::player::remove
 0x001f29d0	inferred-high	0x00156cbf	survarium::player::initialize_player_icon
 0x001f2ad0	inferred-high	0x00156d37	survarium::player::render_name
@@ -1925,8 +1924,6 @@ va	status	ref_021d	name
 0x002da480	inferred-high	0x001d57be	survarium::base_player::on_affect
 0x002da4b0	inferred-medium	0x001d57e4	survarium::base_player::computed_head_transform
 0x002da540	inferred-medium		survarium::base_player::get_bone_transform
-0x002da790	inferred-high	0x001d59c8	survarium::base_player::remove
-0x002da850	inferred-high	0x001d5a25	survarium::base_player::insert
 0x002dab70	inferred-medium	0x001d5c78	survarium::base_player::set_transform
 0x002dac00	inferred-high	0x001d5cfb	survarium::base_player::initialize
 0x002dbb50	inferred-medium		survarium::base_player::movement_speed

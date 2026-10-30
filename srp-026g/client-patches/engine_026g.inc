@@ -233,3 +233,7 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; void engine_player_insert(struct player *player, unsigned int link)
+; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_player_insert

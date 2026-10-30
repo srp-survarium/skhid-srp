@@ -872,6 +872,21 @@ pub extern "C" fn hook_language_on_options_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- late_join_insert (patch 82) ----
+
+/// The entry `late_join_insert_on_world_loaded` (0x27c116, network_client::process_dynamic_match_info (0xE8) after game_world_core::deserialize 0x2D0B70, where its two branches (compressed 0x27C0D9, raw 0x27C111) join: mov eax,[edi+4] / test eax,eax; EDI the client (mov edi,ecx at 0x27BFFB)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_insert_on_world_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_insert_on_world_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join_insert::on_world_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.

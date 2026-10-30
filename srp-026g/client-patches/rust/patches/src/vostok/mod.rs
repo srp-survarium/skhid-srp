@@ -71,7 +71,7 @@ pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
+pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::TabTest;
 pub use options::OptionsRead;
 pub use rt::c_u32;
