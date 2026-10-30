@@ -126,7 +126,7 @@ pub(super) struct SmokeCounts {
     sniper_crossings: [[[u32; 4]; 2]; 2],
     /// [diagnosis] The anti-sniper plans seen, classed at their begin (`Some(class)` when decided then) and resolved over
     /// `SNIPER_REACH_MS`; and the counts by team and class.
-    sniper_open: Vec<(smoke::tally::SniperPlan, Option<usize>)>,
+    sniper_open: Vec<(smoke::tally::SniperPlan, Option<usize>, String)>,
     sniper_seen: usize,
     sniper_classes: [[u32; 7]; 2],
     /// [diagnosis] The sensings whose line from the game's bodies is clearly behind smoke from every eye
@@ -287,6 +287,14 @@ impl SmokeCounts {
             let second = plans.iter().any(|p| {
                 p.team == plan.team && p.who == plan.who && p.time < plan.time && plan.time - p.time <= SNIPER_SECOND_MS
             });
+            // [diagnosis] The two lines at the plan: from the eye the decision used, and from his eye in the game.
+            let game_eye = Game::eye(him);
+            let from_plan = crate::v026g::bots::aimpoint::sight_line(at.sight, plan.eye, chest);
+            let diag = format!(
+                "plan eye ({:.2},{:.2},{:.2}) line {from_plan}; game eye ({:.2},{:.2},{:.2}) line {line}; crouched {} pitch {:.2} feet y {:.2}",
+                plan.eye.x, plan.eye.y, plan.eye.z, game_eye.x, game_eye.y, game_eye.z,
+                him.keys & crate::v026g::drive::key::CROUCH != 0, him.pitch, him.feet.y
+            );
             let decided = if !him.alive || !rifle || moved {
                 Some(5)
             } else if !line {
@@ -296,16 +304,16 @@ impl SmokeCounts {
             } else {
                 None
             };
-            self.sniper_open.push((*plan, decided.or(second.then_some(usize::MAX))));
+            self.sniper_open.push((*plan, decided.or(second.then_some(usize::MAX)), diag));
         }
         self.sniper_seen = plans.len();
         // Resolve the open plans of the body this record is for.
         let place = at.place;
         let (tick, alive, feet) = (at.tick, at.rec.alive, at.rec.feet);
         let mut kept = Vec::new();
-        for (plan, decided) in std::mem::take(&mut self.sniper_open) {
+        for (plan, decided, diag) in std::mem::take(&mut self.sniper_open) {
             if plan.place != place {
-                kept.push((plan, decided));
+                kept.push((plan, decided, diag));
                 continue;
             }
             let reached = alive && feet.distance_xz(plan.crossing) <= SNIPER_REACH_M;
@@ -323,13 +331,13 @@ impl SmokeCounts {
                     if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
                         let him = &game.bodies[plan.who];
                         eprintln!(
-                            "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms",
+                            "SNIPER-THROW team {} bot {} at {} class {} sniper {} alive {} gun {:?} moved {:.1} m crossing ({:.1},{:.1},{:.1}) resolved {} ms; {diag}",
                             plan.team, plan.place, plan.time, SNIPER_CLASSES[c], plan.who, him.alive, him.gun.class,
                             him.feet.distance_xz(plan.eye), plan.crossing.x, plan.crossing.y, plan.crossing.z, tick.saturating_sub(plan.time)
                         );
                     }
                 }
-                None => kept.push((plan, decided)),
+                None => kept.push((plan, decided, diag)),
             }
         }
         self.sniper_open = kept;
