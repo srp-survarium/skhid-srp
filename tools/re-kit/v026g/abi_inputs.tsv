@@ -4450,6 +4450,7 @@ va	name	location	role	basis
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
+0x002d2770	survarium::game_world_core::deserialize	loop 0x2D2CB3..0x2D2D55 (the tail)	inserts every active place's current player: for each bit of the active places [core+18FD8h] (0x2D2CB3), the place record [core+18458h] + 30h x index, its current player [place + 4 x byte [place+0Ch]] gets vtable+20h (player::insert 0x1F2720 -> base_player::insert 0x2DA850, +33Fh := 1 at 0x2DA869 unconditionally) at 0x2D2D51 with link = newly active (the bit set in [ESP+7Ch], 0x2D2D21) || current player changed (byte [place+2Dh], 0x2D2D25); so after a world load (0xE8, 0x27C116) no alive player is out of the world	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed
 0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed

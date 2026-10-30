@@ -1,9 +1,0 @@
-# Patch 82: a world loaded from the server (0xE8) puts its alive players into
-# the world, as their spawn would have. The site (process_dynamic_match_info
-# after the load) is sites_026g.tsv's; the logic is late_join_insert.rs.
-name = "late_join_insert"
-patch = 82
-
-[[hook]]
-site = "late_join.world_loaded"
-handler = "on_world_loaded"
