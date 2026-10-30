@@ -68,7 +68,7 @@ def main():
         # The wiki's icons: the items', the modifications' and the shop filters'.
         run(HERE.parent / "wiki" / "build_icons.py", "--json", json_dir, "--images", images,
             "--item-icons", icons / "icons", "--swf", raw / "flash_movies__lobby_menu.swf", "--ffdec", args.ffdec,
-            "--flash", SRP / "flash" / "lobby_menu" / "src", "--out", SITE.parent / "wiki" / "icons")
+            "--lobby", SRP / "flash" / "lobby_menu", "--out", SITE.parent / "wiki" / "icons")
     write_built_from(SITE / "built-from.tsv", rows, "the calculator (srp-026g/scripts/damage-calc/build_site.py)")
     print(f"{SITE}: revision {revision(rows)}")
 

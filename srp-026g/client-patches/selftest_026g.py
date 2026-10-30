@@ -4827,6 +4827,28 @@ def test_input_devices(original, image, before):
           f"the code at {block.va:#x} is the link's input_devices.code ({len(code)} bytes)")
 
 
+def test_lamps(original, image, before):
+    """The lamp's generated detours and its shared frame/ray chains."""
+    import hooks_026g
+    linked = P.arena()
+    stock = Image(original)
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "lamps" not in owners or hook["kind"] != "lohook":
+            continue
+        va, old = hook["site"], hook["original"]
+        expected = P.hook_bytes(linked.symbols[hook["entry"]], va, old, 0, 0xE9)
+        check(before.read(va, len(old)) == old and image.read(va, len(old)) == expected,
+              f"lamp hook {hook['site_name']}: native without the arena, generated target with it")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3
+                 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"lamp hook {hook['site_name']}: no branch enters the displaced instructions or relocation overlaps them"
+              + "".join(f", {h:#x}" for h in hits + under))
+
+
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
     ../docs/notes/ragdoll.md). Static, on the bytes: the nine sites and what
@@ -4885,9 +4907,11 @@ def test_ragdoll(original, image, before):
     block = linked.blocks["patches.code"]
     data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
     sym = linked.symbols
-    hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
-                                  0x2477DF, 0x15A950, 0x2DA3DF],
+    declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
+                    if any(m["patch"] == "ragdoll" for m in h.get("chain", [h]))}
+    hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
+    check(len(hooks) == 9 and {h[0] for h in hooks} == {0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
+                                                       0x2477DF, 0x15A950, 0x2DA3DF},
           "the Rust patch ragdoll's nine lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
     check(rows(stock, 0x2477DF, 9) == ["mov ecx,[ebp-0x1c]", "mov edx,[ebx+0xf290]"]
           and rows(stock, 0x15A94D, 10) == ["mov edx,[ebp+0x14]", "cmp byte [edi+0x62d8],0x0"],
@@ -4912,14 +4936,18 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+    # These blocks now contain every Rust patch's statics: the corpse pool,
+    # lamp bindings and carry snapshots/resource owners. Keep a shared
+    # 256 KiB budget (202,464 bytes with all three); test_arena separately
+    # enforces the whole arena's limit and exact linked layout.
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
           f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
     # called, its Flow taken), its replay the site's own bytes, then back
     for va, old, symbol, _ in hooks:
         texts = [text for _, _, text in ndisasm(image.read(sym[symbol], 0x60), sym[symbol])]
-        shim = sym["hook_" + symbol]
+        shim = sym[declarations[symbol]["shim"]]
         check(texts[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
               and f"call {shim:#x}" in texts,
               f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
@@ -6305,7 +6333,7 @@ def test_hook_kinds(original):
     import io
     import unittest
     output = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "port.test_equiv_026g"])
+    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "test_runtime_hooks_026g", "port.test_equiv_026g"])
     result = unittest.TextTestRunner(stream=output).run(suite)
     check(result.wasSuccessful(), f"the hook generator and equivalence build paths: {result.testsRun} tests"
           + ("" if result.wasSuccessful() else "\n" + output.getvalue()))
@@ -6474,6 +6502,7 @@ def test_late_join(original, without, server, source):
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
     ranges.append((image.offset(P.MATCH_KEYS_POLL_SLOT[0]), 4))
+    ranges.append((image.offset(P.ARTEFACT_KEY_DEFAULT[0]), len(P.ARTEFACT_KEY_DEFAULT[1])))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
@@ -6628,6 +6657,7 @@ def test_late_join(original, without, server, source):
     test_bake_cache(original, image, before)
     test_input_devices(original, image, before)
     test_ragdoll(original, image, before)
+    test_lamps(original, image, before)
     test_language(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)

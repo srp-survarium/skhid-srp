@@ -1155,6 +1155,498 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
+global lamps_on_bind
+extern hook_lamps_on_bind
+lamps_on_bind:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_bind
+    mov edx, lamps_on_bind_replay
+    cmp eax, 0
+    je lamps_on_bind_go
+    mov edx, 0x285756
+    cmp eax, 1
+    je lamps_on_bind_go
+    ud2
+lamps_on_bind_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_bind_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x285756
+
+; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
+global lamps_on_remove
+extern hook_lamps_on_remove
+lamps_on_remove:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_remove
+    mov edx, lamps_on_remove_replay
+    cmp eax, 0
+    je lamps_on_remove_go
+    mov edx, 0x285619
+    cmp eax, 1
+    je lamps_on_remove_go
+    ud2
+lamps_on_remove_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_remove_replay:
+    db 0x5f, 0x5b, 0xc3, 0xcc, 0xcc
+    jmp 0x285619
+
+; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
+global lamps_on_destroy
+extern hook_lamps_on_destroy
+lamps_on_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_destroy
+    mov edx, lamps_on_destroy_replay
+    cmp eax, 0
+    je lamps_on_destroy_go
+    mov edx, 0x28533a
+    cmp eax, 1
+    je lamps_on_destroy_go
+    ud2
+lamps_on_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
+    jmp 0x28533a
+
+; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
+global ragdoll_on_step
+extern hook_ragdoll_on_step_chain
+ragdoll_on_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_step_chain
+    mov edx, ragdoll_on_step_replay
+    cmp eax, 0
+    je ragdoll_on_step_go
+    mov edx, 0x1f7c41
+    cmp eax, 1
+    je ragdoll_on_step_go
+    ud2
+ragdoll_on_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_step_replay:
+    db 0x80, 0x7c, 0x24, 0x0f, 0x00
+    jmp 0x1f7c41
+
+; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> ragdoll_on_ray
+global ragdoll_on_ray
+extern hook_ragdoll_on_ray_chain
+ragdoll_on_ray:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_ray_chain
+    mov edx, ragdoll_on_ray_replay
+    cmp eax, 0
+    je ragdoll_on_ray_go
+    mov edx, 0x32d631
+    cmp eax, 1
+    je ragdoll_on_ray_go
+    ud2
+ragdoll_on_ray_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_ray_replay:
+    db 0xf3, 0x0f, 0x7e, 0x00, 0x66, 0x0f, 0xd6, 0x44, 0x24, 0x38
+    jmp 0x32d631
+
+; 0x321c3b serialize epilogue, after native bullet history: lohook -> lamps_on_save
+global lamps_on_save
+extern hook_lamps_on_save
+lamps_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_save
+    mov edx, lamps_on_save_replay
+    cmp eax, 0
+    je lamps_on_save_go
+    mov edx, 0x321c40
+    cmp eax, 1
+    je lamps_on_save_go
+    ud2
+lamps_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_save_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x321c40
+
+; 0x321d01 deserialize epilogue, after native bullet history: lohook -> lamps_on_load
+global lamps_on_load
+extern hook_lamps_on_load
+lamps_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_load
+    mov edx, lamps_on_load_replay
+    cmp eax, 0
+    je lamps_on_load_go
+    mov edx, 0x321d08
+    cmp eax, 1
+    je lamps_on_load_go
+    ud2
+lamps_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_load_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0xc2, 0x04, 0x00
+    jmp 0x321d08
+
+; 0xa029b4 render visual insert slot: vtable -> lamps_on_visual_insert (wraps engine_visual_insert 0x285fa0)
+    RUST_THISCALL lamps_on_visual_insert, hook_lamps_on_visual_insert, 1
+
+; 0xa029b8 render visual remove slot: vtable -> lamps_on_visual_remove (wraps engine_visual_remove 0x285fe0)
+    RUST_THISCALL lamps_on_visual_remove, hook_lamps_on_visual_remove, 1
+
+; 0xa0ae0c object_light insert slot 8: vtable -> lamps_on_light_insert (wraps engine_light_insert 0x291790)
+    RUST_THISCALL lamps_on_light_insert, hook_lamps_on_light_insert, 0
+
+; 0xa0ae10 object_light remove slot 9: vtable -> lamps_on_light_remove (wraps engine_light_remove 0x2917d0)
+    RUST_THISCALL lamps_on_light_remove, hook_lamps_on_light_remove, 0
+
+; 0x32e672 process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there: lohook -> lamps_on_decal_enter
+global lamps_on_decal_enter
+extern hook_lamps_on_decal_enter
+lamps_on_decal_enter:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_enter
+    mov edx, lamps_on_decal_enter_replay
+    cmp eax, 0
+    je lamps_on_decal_enter_go
+    mov edx, 0x32e679
+    cmp eax, 1
+    je lamps_on_decal_enter_go
+    mov edx, 0x32e6ba
+    cmp eax, 2
+    je lamps_on_decal_enter_go
+    ud2
+lamps_on_decal_enter_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_enter_replay:
+    db 0x83, 0x7e, 0x08, 0x00, 0x8d, 0x7e, 0x08
+    jmp 0x32e679
+
+; 0x32e8cc process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there: lohook -> lamps_on_decal_leave
+global lamps_on_decal_leave
+extern hook_lamps_on_decal_leave
+lamps_on_decal_leave:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_leave
+    mov edx, lamps_on_decal_leave_replay
+    cmp eax, 0
+    je lamps_on_decal_leave_go
+    mov edx, 0x32e8d3
+    cmp eax, 1
+    je lamps_on_decal_leave_go
+    mov edx, 0x32e914
+    cmp eax, 2
+    je lamps_on_decal_leave_go
+    ud2
+lamps_on_decal_leave_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_leave_replay:
+    db 0x83, 0x7e, 0x0c, 0x00, 0x8d, 0x7e, 0x0c
+    jmp 0x32e8d3
+
+; 0x32eaf2 process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there: lohook -> lamps_on_decal_ricochet
+global lamps_on_decal_ricochet
+extern hook_lamps_on_decal_ricochet
+lamps_on_decal_ricochet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_ricochet
+    mov edx, lamps_on_decal_ricochet_replay
+    cmp eax, 0
+    je lamps_on_decal_ricochet_go
+    mov edx, 0x32eaf9
+    cmp eax, 1
+    je lamps_on_decal_ricochet_go
+    mov edx, 0x32eb4e
+    cmp eax, 2
+    je lamps_on_decal_ricochet_go
+    ud2
+lamps_on_decal_ricochet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_ricochet_replay:
+    db 0x83, 0x7e, 0x10, 0x00, 0x8d, 0x7e, 0x10
+    jmp 0x32eaf9
+
+; 0x32ed71 process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there: lohook -> lamps_on_decal_stop
+global lamps_on_decal_stop
+extern hook_lamps_on_decal_stop
+lamps_on_decal_stop:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_decal_stop
+    mov edx, lamps_on_decal_stop_replay
+    cmp eax, 0
+    je lamps_on_decal_stop_go
+    mov edx, 0x32ed78
+    cmp eax, 1
+    je lamps_on_decal_stop_go
+    mov edx, 0x32edb9
+    cmp eax, 2
+    je lamps_on_decal_stop_go
+    ud2
+lamps_on_decal_stop_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_decal_stop_replay:
+    db 0x83, 0x7e, 0x14, 0x00, 0x8d, 0x7e, 0x14
+    jmp 0x32ed78
+
+; 0x339630 bullet_manager::explode entry (sub esp,0BCh): ESI the splash, ESP+4 the bullet manager, ESP+8 the centre; every blast, a grenade's (0x30A4ED) and a booby trap's (0x305728): lohook -> lamps_on_explode
+global lamps_on_explode
+extern hook_lamps_on_explode
+lamps_on_explode:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_explode
+    mov edx, lamps_on_explode_replay
+    cmp eax, 0
+    je lamps_on_explode_go
+    mov edx, 0x339636
+    cmp eax, 1
+    je lamps_on_explode_go
+    ud2
+lamps_on_explode_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_explode_replay:
+    db 0x81, 0xec, 0xbc, 0x00, 0x00, 0x00
+    jmp 0x339636
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start
@@ -1275,45 +1767,6 @@ language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
 
-; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
-global ragdoll_on_step
-extern hook_ragdoll_on_step
-ragdoll_on_step:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_step
-    mov edx, ragdoll_on_step_replay
-    cmp eax, 0
-    je ragdoll_on_step_go
-    mov edx, 0x1f7c41
-    cmp eax, 1
-    je ragdoll_on_step_go
-    ud2
-ragdoll_on_step_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_step_replay:
-    db 0x80, 0x7c, 0x24, 0x0f, 0x00
-    jmp 0x1f7c41
-
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
@@ -1430,45 +1883,6 @@ ragdoll_on_eye_go:
 ragdoll_on_eye_replay:
     db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
     jmp 0x1f3649
-
-; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> ragdoll_on_ray
-global ragdoll_on_ray
-extern hook_ragdoll_on_ray
-ragdoll_on_ray:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_ray
-    mov edx, ragdoll_on_ray_replay
-    cmp eax, 0
-    je ragdoll_on_ray_go
-    mov edx, 0x32d631
-    cmp eax, 1
-    je ragdoll_on_ray_go
-    ud2
-ragdoll_on_ray_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_ray_replay:
-    db 0xf3, 0x0f, 0x7e, 0x00, 0x66, 0x0f, 0xd6, 0x44, 0x24, 0x38
-    jmp 0x32d631
 
 ; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
 global ragdoll_on_held_item
@@ -1678,3 +2092,27 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+section .rodata
+align 4
+global lamps_visual_vtable
+lamps_visual_vtable:
+    dd 0xa47c2c
+    dd lamps_on_visual_insert
+    dd lamps_on_visual_remove
+
+section .rodata
+align 4
+global lamps_light_vtable
+lamps_light_vtable:
+    dd 0xa4db04
+    dd 0x2916f0
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x291720
+    dd lamps_on_light_insert
+    dd lamps_on_light_remove

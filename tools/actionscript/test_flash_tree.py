@@ -177,6 +177,43 @@ class TreeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no offset'):
             flash_tree.original(self.tree, archive, self.root / 'y.swf')
 
+    def table(self, text, path='pkg/data/Rows.tsv'):
+        (self.tree / 'tables' / path).parent.mkdir(parents=True, exist_ok=True)
+        (self.tree / 'tables' / path).write_text(text)
+
+    def test_a_table_is_a_class_of_its_lists(self):
+        self.table('# a comment\nlist\ticon:int\ttip:String\tkind:pkg.Kind\n'
+                   'FIRST\t3\tfilter_a\tA_KIND\nSECOND\t-1\tsay "b"\tB_KIND\nFIRST\t0\t\tA_KIND\n')
+        self.assertEqual(flash_tree.tables(self.tree), {Path('pkg/data/Rows.as'): '''package pkg.data
+{
+   import pkg.Kind;
+   // Made by the build (tools/actionscript/flash_tree.py) from tables/pkg/data/Rows.tsv: edit that.
+   public class Rows
+   {
+      public static const FIRST:Array = [
+         {"icon":3,"tip":"filter_a","kind":Kind.A_KIND},
+         {"icon":0,"tip":"","kind":Kind.A_KIND}
+      ];
+      public static const SECOND:Array = [
+         {"icon":-1,"tip":"say \\"b\\"","kind":Kind.B_KIND}
+      ];
+   }
+}
+'''})
+        for text, error in (('list\ticon:int\nA\tx\n', "icon 'x' is not a int"),
+                            ('list\tkind:pkg.Kind\nA\tB.C\n', "is not a pkg.Kind"),
+                            ('list\ticon\nA\t1\n', 'the header is list'),
+                            ('list\ticon:int\nA\t1\t2\n', 'rows of as many columns'),
+                            ('list\ticon:int\nnot a name\t1\n', 'is not a name')):
+            self.table(text)
+            with self.assertRaisesRegex(ValueError, error):
+                flash_tree.tables(self.tree)
+        self.table('list\ticon:int\nA\t1\n')
+        (self.tree / 'src/pkg/data').mkdir(parents=True)
+        (self.tree / 'src/pkg/data/Rows.as').write_text('')
+        with self.assertRaisesRegex(ValueError, 'a class of the tree already'):
+            flash_tree.tables(self.tree)
+
     def test_a_build_needs_the_original_movie_json_names(self):
         self.spec(movie_sha256=sha(b'MOVIE'))
         (self.root / 'o.swf').write_bytes(b'OTHER')

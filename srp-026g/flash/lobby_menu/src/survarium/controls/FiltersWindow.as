@@ -16,8 +16,8 @@ package survarium.controls
    import scaleform.clik.interfaces.IListItemRenderer;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.data.ShopFilters;
    import survarium.constants.Cursor;
-   import survarium.constants.ItemCategory;
    import survarium.constants.SuperCategory;
    
    public class FiltersWindow extends UIWindow
@@ -154,122 +154,21 @@ package survarium.controls
          }
       }
       
-      // The shop's filters by category: their lists, and the icon (FilterItem's itemIcon
-      // frame 300 + icon) a category's filter shows; -1 for a category no filter has.
-      private static function equipmentFilters() : Array
+      // A shop tab's filters (survarium.data.ShopFilters, the lobby's tables/survarium/data/ShopFilters.tsv),
+      // each a new provider row with its tooltip's text.
+      private static function filterRows(rows:Array) : Array
       {
-         return [{
-               "icon":3,
-               "name":"bronya",
-               "tip":LocalizationData.getName("filter_body_armor"),
-               "sucat":ItemCategory.BODY_ARMOR,
-               "selected":false
-            },{
-               "icon":1,
-               "name":"kaska",
-               "tip":LocalizationData.getName("filter_helmet"),
-               "sucat":ItemCategory.HELMETS,
-               "selected":false
-            },{
-               "icon":6,
-               "name":"perchatka",
-               "tip":LocalizationData.getName("filter_gloves"),
-               "sucat":ItemCategory.GLOVES,
-               "selected":false
-            },{
-               "icon":7,
-               "name":"obuv",
-               "tip":LocalizationData.getName("filter_boots"),
-               "sucat":ItemCategory.BOOTS,
-               "selected":false
-            },{
-               "icon":5,
-               "name":"nogi",
-               "tip":LocalizationData.getName("filter_pants"),
-               "sucat":ItemCategory.PANTS,
-               "selected":false
-            },{
-               "icon":2,
-               "name":"maska",
-               "tip":LocalizationData.getName("filter_mask"),
-               "sucat":ItemCategory.MASKS,
-               "selected":false
-            },{
-               "icon":0,
-               "name":"snaryazhenie",
-               "tip":LocalizationData.getName("filter_rig"),
-               "sucat":ItemCategory.RIGS,
-               "selected":false
-            }];
+         var list:Array = [];
+         for each(var row:Object in rows)
+            list.push({"icon":row.icon,"name":row.name,"tip":LocalizationData.getName(row.tip),"sucat":row.sucat,"selected":false});
+         return list;
       }
 
-      private static function weaponFilters() : Array
-      {
-         return [{
-               "icon":8,
-               "name":"pistolet",
-               "tip":LocalizationData.getName("filter_pistol"),
-               "sucat":ItemCategory.PISTOLS,
-               "selected":false
-            },{
-               "icon":9,
-               "name":"gungun",
-               "tip":LocalizationData.getName("filter_submachine_gun"),
-               "sucat":ItemCategory.SUBMACHINE_GUNS,
-               "selected":false
-            },{
-               "icon":10,
-               "name":"avtomat",
-               "tip":LocalizationData.getName("filter_assault_rifle"),
-               "sucat":ItemCategory.ASSAULT_RIFLES,
-               "selected":false
-            },{
-               "icon":11,
-               "name":"pulemet",
-               "tip":LocalizationData.getName("filter_machine_gun"),
-               "sucat":ItemCategory.MACHINE_GUNS,
-               "selected":false
-            },{
-               "icon":12,
-               "name":"drobovik",
-               "tip":LocalizationData.getName("filter_shotgun"),
-               "sucat":ItemCategory.SHOTGUNS,
-               "selected":false
-            },{
-               "icon":13,
-               "name":"snaiperka",
-               "tip":LocalizationData.getName("filter_sniper_rifle"),
-               "sucat":ItemCategory.SNIPER_RIFLES,
-               "selected":false
-            }];
-      }
-
-      private static function itemFilters() : Array
-      {
-         return [{
-               "icon":14,
-               "name":"medkit",
-               "tip":LocalizationData.getName("filter_medkit"),
-               "sucat":ItemCategory.MEDKITS,
-               "selected":false
-            },{
-               "icon":15,
-               "name":"traps",
-               "tip":LocalizationData.getName("filter_mine"),
-               "sucat":ItemCategory.BOOBY_TRAPS,
-               "selected":false
-            },{
-               "icon":16,
-               "name":"grenade",
-               "tip":LocalizationData.getName("filter_grenade"),
-               "sucat":ItemCategory.GRENADES,
-               "selected":false
-            }];
-      }
-
+      // The icon (FilterItem's itemIcon frame 300 + icon) a category's equipment, weapon or item filter
+      // shows; -1 for a category no filter has.
       public static function filterIcon(category:uint) : int
       {
-         for each(var list:Array in [equipmentFilters(),weaponFilters(),itemFilters()])
+         for each(var list:Array in [ShopFilters.EQUIPMENT,ShopFilters.WEAPONS,ShopFilters.ITEMS])
             for each(var filter:Object in list)
                if(filter.sucat == category) return filter.icon;
          return -1;
@@ -289,65 +188,11 @@ package survarium.controls
       {
          trace("FW::",this.optionControl,this.inventoryTabPage,this.itemsTileList);
          removeEventListener(Event.RENDER,this.init);
-         this.optionControl.filterList.registerDataProvider(EQUIPMENT_FILTERS,new DataProvider(equipmentFilters()));
-         this.optionControl.filterList.registerDataProvider(WEAPON_FILTERS,new DataProvider(weaponFilters()));
-         this.optionControl.filterList.registerDataProvider(AMMO_FILTERS,new DataProvider([{
-            "icon":8,
-            "name":"ammo_1",
-            "tip":LocalizationData.getName("filter_ammo_pistol"),
-            "sucat":ItemCategory.PISTOL_AMMO,
-            "selected":false
-         },{
-            "icon":10,
-            "name":"ammo_3",
-            "tip":LocalizationData.getName("filter_ammo_assault_rifle"),
-            "sucat":ItemCategory.ASSAULT_RIFLE_AMMO,
-            "selected":false
-         },{
-            "icon":11,
-            "name":"ammo_4",
-            "tip":LocalizationData.getName("filter_ammo_machine_gun"),
-            "sucat":ItemCategory.MACHINE_GUN_AMMO,
-            "selected":false
-         },{
-            "icon":12,
-            "name":"ammo_5",
-            "tip":LocalizationData.getName("filter_ammo_shotgun"),
-            "sucat":ItemCategory.SHOTGUN_AMMO,
-            "selected":false
-         },{
-            "icon":13,
-            "name":"ammo_6",
-            "tip":LocalizationData.getName("filter_ammo_sniper_rifle"),
-            "sucat":ItemCategory.SNIPER_RIFLE_AMMO,
-            "selected":false
-         }]));
-         this.optionControl.filterList.registerDataProvider(ITEM_FILTERS,new DataProvider(itemFilters()));
-         this.optionControl.filterList.registerDataProvider(UPGRADE_FILTERS,new DataProvider([{
-            "icon":18,
-            "name":"decal",
-            "tip":LocalizationData.getName("filter_decal"),
-            "sucat":ItemCategory.DECALS,
-            "selected":false
-         },{
-            "icon":19,
-            "name":"camo",
-            "tip":LocalizationData.getName("filter_camo"),
-            "sucat":ItemCategory.CAMOUFLAGES,
-            "selected":false
-         },{
-            "icon":20,
-            "name":"vouchers",
-            "tip":LocalizationData.getName("filter_vouchers"),
-            "sucat":ItemCategory.VOUCHERS,
-            "selected":false
-         },{
-            "icon":13,
-            "name":"scope",
-            "tip":LocalizationData.getName("filter_scope"),
-            "sucat":ItemCategory.SCOPES,
-            "selected":false
-         }]));
+         this.optionControl.filterList.registerDataProvider(EQUIPMENT_FILTERS,new DataProvider(filterRows(ShopFilters.EQUIPMENT)));
+         this.optionControl.filterList.registerDataProvider(WEAPON_FILTERS,new DataProvider(filterRows(ShopFilters.WEAPONS)));
+         this.optionControl.filterList.registerDataProvider(AMMO_FILTERS,new DataProvider(filterRows(ShopFilters.AMMO)));
+         this.optionControl.filterList.registerDataProvider(ITEM_FILTERS,new DataProvider(filterRows(ShopFilters.ITEMS)));
+         this.optionControl.filterList.registerDataProvider(UPGRADE_FILTERS,new DataProvider(filterRows(ShopFilters.UPGRADES)));
          this.optionControl.filterList.registerDataProvider(NO_FILTERS,new DataProvider([]));
          if(Boolean(this.mainTabBar))
          {
