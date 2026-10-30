@@ -36,8 +36,27 @@ pub(crate) struct ShotFact {
     /// Where the shot line passed that target, for the owner counts' `shot_offsets` (counts only: the stand-in
     /// resolved the shot before it was worked out).
     pub offset: Option<super::shot_offset::ShotOffset>,
+    /// The shot by the target's height over the eye ([`Rise`]; counts only).
+    pub rise: Option<Rise>,
     /// What the shot's bullets or pellets did ([`Landed`]; counts only).
     pub landed: Landed,
+}
+
+/// A shot at its target by pitch: the target's chest above or below the eye, degrees, and how far above the line to his chest the
+/// view pointed, degrees (positive up): what the view's pitch unit decides (`pitch.rs`), whatever the cone does.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Rise {
+    pub target_deg: f32,
+    pub high_deg: f32,
+}
+
+impl Rise {
+    /// From `eye` with the view along `view` (unit) at `chest`.
+    pub(crate) fn of(eye: Vec3, view: Vec3, chest: Vec3) -> Self {
+        let elevation = |v: Vec3| v.y.atan2(v.x.hypot(v.z)).to_degrees();
+        let target = elevation(chest - eye);
+        Self { target_deg: target, high_deg: elevation(view) - target }
+    }
 }
 
 /// The bullets or pellets of one shot: how many were fired, how many landed on an enemy, and on which part by the

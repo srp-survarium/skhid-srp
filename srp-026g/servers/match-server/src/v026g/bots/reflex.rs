@@ -93,6 +93,7 @@ use super::guns::{
     RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
+use super::pitch::{Pitch, PitchScale};
 use super::aimpoint::PartsLook;
 use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
@@ -2772,6 +2773,10 @@ pub struct Reflex {
     recoil: Recoil,
     cadence: Cadence,
     kick_step: f32,
+    /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
+    kick_before: f32,
+    /// The pitch unit's scale as the last tick's tuning has it (`kin.pitch_scale`): the kick is in the game's unit, the aim in elevations.
+    scale: PitchScale,
 }
 
 /// The bearing of `to` from `from`, radians.
@@ -3629,13 +3634,21 @@ impl Reflex {
     /// the kick as the last tick left it, pitch units: the view the bot
     /// aims from is its base pitch and that; this tick's rise is taken
     /// back by [`Override::pull`].
-    pub fn weapon_tick(&mut self, me: &PlaceView, now: u32) -> f32 {
+    pub fn weapon_tick(&mut self, me: &PlaceView, now: u32, scale: PitchScale) -> f32 {
+        self.scale = scale;
         self.new_life(me);
         self.in_hand();
         let before = self.recoil.y();
         self.recoil.update(now);
         self.kick_step = self.recoil.y() - before;
+        self.kick_before = before;
         before
+    }
+
+    /// [recoil] The kick the view had when the tick's decision was made (pitch units): the one
+    /// [`Self::weapon_tick`] returned.
+    pub fn kick_before(&self) -> f32 {
+        self.kick_before
     }
 
     /// [recoil] The weapon's kick now, pitch units.
@@ -5817,7 +5830,8 @@ impl Reflex {
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
         let pull = -mix((c.recoil_pull_low, c.recoil_pull), skill) * self.kick_step;
-        let lift = self.kick_step + pull;
+        // The kick is in the game's pitch unit; the aim below reckons in elevations (`pitch.rs`).
+        let lift = Pitch::of_elevation(me.pitch, self.scale).rise(self.kick_step + pull, self.scale);
         let off = off_by(me, point, error);
         // Play 19: spot him once he is in the crosshair, the cooldown kept.
         let mut keys = reload;
@@ -5872,7 +5886,7 @@ impl Reflex {
             c.fire_range_m(gun, ceiling_m)
         };
         // [friends] A teammate in the line of fire: no shot, a step aside.
-        let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
+        let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends, self.scale);
         let friend = super::friends::blocking(
             me,
             view,
@@ -6083,7 +6097,7 @@ impl Reflex {
             return None;
         }
         let keys = reload | if carry { key::AIM } else { 0 };
-        let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends);
+        let lines = Self::fire_lines(me, view, (at, (0.0, 0.0), 0.0), now, &aim.friends, self.scale);
         let friend = super::friends::blocking(
             me,
             view,
@@ -6151,8 +6165,9 @@ impl Reflex {
         if lift == 0.0 {
             return self.sight.blocked(me, aimed, error);
         }
+        let (lowest, highest) = self.scale.limits();
         let lifted = PlaceView {
-            pitch: (me.pitch + lift).clamp(-1.0, 1.0),
+            pitch: (me.pitch + lift).clamp(lowest, highest),
             ..me.clone()
         };
         self.sight
@@ -6239,11 +6254,13 @@ impl Reflex {
         (point, error, lift): (Vec3, (f32, f32), f32),
         now: u32,
         t: &super::friends::FriendlyFireTuning,
+        scale: PitchScale,
     ) -> ([Vec3; 2], f32) {
         use super::friends::along;
         let to = point - me.eye();
+        let (lowest, highest) = scale.limits();
         let dirs = [
-            along(me.yaw, (me.pitch + lift).clamp(-1.0, 1.0)),
+            along(me.yaw, (me.pitch + lift).clamp(lowest, highest)),
             along(
                 yaw_of([to.x, to.z]) + error.0,
                 to.y.atan2(to.x.hypot(to.z)) + error.1 + lift,
@@ -7545,7 +7562,7 @@ mod tests {
                 );
             }
             // The bot's own reckoning: its base pitch and its kick.
-            let kick = reflex.weapon_tick(&me, now);
+            let kick = reflex.weapon_tick(&me, now, PitchScale::Radian);
             let seen = PlaceView {
                 pitch: base + kick,
                 ..me.clone()

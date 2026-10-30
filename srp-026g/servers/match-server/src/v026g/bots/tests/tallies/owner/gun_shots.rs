@@ -329,6 +329,7 @@ mod tests {
             aim_state: Default::default(),
             cone: 0.4,
             offset: None,
+            rise: None,
             landed: Landed { fired: 1, on_enemy: u8::from(hit), parts: [0; 4] },
         }
     }

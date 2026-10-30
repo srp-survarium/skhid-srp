@@ -1995,7 +1995,6 @@ va	status	ref_021d	name
 0x002fbdc0	inferred-high	0x001e0d4f	survarium::weapon_user_animations_selector::jump_predicate
 0x002fbf60	inferred-high	0x001e0f22	survarium::weapon_user_animations_selector::dead_predicate
 0x002fbf80	inferred-high	0x001e0f33	survarium::weapon_user_animations_selector::alive_predicate
-0x002fbf90	inferred-medium	0x001e0de8	survarium::base_player::look_time_factor_calculator
 0x002fc000	inferred-high	0x001e0e33	survarium::weapon_user_animations_selector::on_interval_ended
 0x002fc1f0	inferred-high	0x001e0e4c	survarium::weapon_user_animations_selector::is_trying_to_sprint
 0x002fc230	inferred-medium	0x001e0e71	survarium::weapon_user_animations_selector::is_trying_to_jump

@@ -33,6 +33,7 @@
 
 use super::*;
 use mapdata::{DamageShare, FaceArmor, Load};
+use super::super::pitch::{Pitch, PitchScale};
 
 /// The patched client's take of a battery under the feet: its ray and the
 /// distance across (patch 11, `client_patch.md`).
@@ -247,6 +248,8 @@ pub(crate) struct Body {
     /// The base pitch (`m_look_pitch`, as the worlds give it); the view is
     /// it and the kick.
     pub(crate) pitch: f32,
+    /// How the pitch unit relates to the elevation the shots and the eye go along (`SRP_BENCH_PITCH_SCALE`).
+    pub(crate) scale: PitchScale,
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
     pub(crate) health: f32,
@@ -298,6 +301,38 @@ pub(crate) struct Body {
     pub(crate) grenades: standin_grenade::Stock,
     /// Its traps and the catch's slowing ([`standin_traps`]).
     pub(crate) trap: standin_traps::Rig,
+}
+
+impl Body {
+    /// The elevation the view looks along, radians: the pitch and the weapon's kick (0x2E0F60) through the unit's scale.
+    pub(crate) fn view_elevation(&self) -> f32 {
+        Pitch::view(self.pitch, self.recoil.y()).elevation(self.scale)
+    }
+
+    /// The elevation of the base pitch alone, radians.
+    pub(crate) fn base_elevation(&self) -> f32 {
+        Pitch::new(self.pitch).elevation(self.scale)
+    }
+}
+
+/// A bench run has begun (the bench's setup calls it before any game is made): the pitch unit is then the game's unless
+/// `SRP_BENCH_PITCH_SCALE` says otherwise. The unit tests' bodies keep the unit as a radian, the geometry their numbers were made in.
+pub(crate) fn start_bench_run() {
+    BENCH_RUN.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+static BENCH_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// How the stand-in's pitch unit relates to the elevation (`SRP_BENCH_PITCH_SCALE`: `radian` or `client`; unset: `client` in a bench
+/// run, `radian` in a unit test).
+pub(crate) fn pitch_scale() -> PitchScale {
+    static SCALE: std::sync::OnceLock<PitchScale> = std::sync::OnceLock::new();
+    *SCALE.get_or_init(|| match bench_settings().var("SRP_BENCH_PITCH_SCALE").as_deref() {
+        Ok("radian") => PitchScale::Radian,
+        Ok("client") => PitchScale::Client,
+        _ if BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed) => PitchScale::Client,
+        _ => PitchScale::Radian,
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -673,6 +708,7 @@ impl Game {
             node: None,
             yaw: 0.0,
             pitch: 0.0,
+            scale: pitch_scale(),
             blend: Blend::default(),
             keys: 0,
             health: 1.0,
@@ -863,7 +899,7 @@ impl Game {
     /// ([`super::view::eye_height`]) at the body's pace and view.
     pub(crate) fn eye(body: &Body) -> Vec3 {
         let speed = body.step_m / TICK_S;
-        let pitch = body.recoil.view(body.pitch);
+        let pitch = body.view_elevation();
         let up = super::view::eye_height(body.keys & key::CROUCH != 0, speed, pitch);
         body.feet + Vec3::new(0.0, up, 0.0)
     }
@@ -1257,7 +1293,7 @@ impl Game {
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let pitch = body.recoil.view(body.pitch);
+        let pitch = body.view_elevation();
         let (c, s) = (pitch.cos(), pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
         let kick = body.recoil.kick();
@@ -1371,6 +1407,7 @@ impl Game {
             aim_state,
             cone,
             offset,
+            rise: aimed_at.map(|(t, ..)| fight_tally::Rise::of(eye, view_dir, Self::chest(&self.bodies[t]))),
             landed,
         });
         match self.volume {
@@ -1947,7 +1984,7 @@ impl Game {
     fn uses_reach(body: &Body, point: Vec3, radius: f32, reach: f32) -> bool {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         let dir = Vec3::new(fx * c, s, fz * c);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
@@ -1961,7 +1998,7 @@ impl Game {
     pub(crate) fn ray_along(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         (point - eye).dot(Vec3::new(fx * c, s, fz * c))
     }
 
@@ -1970,7 +2007,7 @@ impl Game {
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         let dir = Vec3::new(fx * c, s, fz * c);
         let along = (point - eye).dot(dir).clamp(0.0, super::view::use_ray_m());
         (eye + dir * along - point).length()
@@ -1988,7 +2025,7 @@ impl Game {
             .and_then(|c| c.use_shapes.first())?;
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         mapdata::stands::ray_distance(eye, Vec3::new(fx * c, s, fz * c), shape)
     }
 
@@ -2015,7 +2052,7 @@ impl Game {
     pub(crate) fn uses_shape(&self, body: &Body, shape: &mapdata::Shape) -> bool {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         let dir = Vec3::new(fx * c, s, fz * c);
         mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape, super::view::use_ray_m())
     }
@@ -2044,7 +2081,7 @@ impl Game {
         }
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
-        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
         let dir = Vec3::new(fx * c, s, fz * c);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;

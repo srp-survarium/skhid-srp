@@ -33,6 +33,7 @@ use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::kin::{Blend, JumpSnap, Kinematics, TICK_S, to_world, wrap};
+use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
 /// A world's word on the bot's body.
@@ -65,7 +66,7 @@ pub struct Estimate {
     pub blend: Blend,
     /// In `(-π, π]`.
     pub yaw: f32,
-    /// The base pitch (the world's).
+    /// The base pitch (the world's), in the game's unit ([`Pitch`]).
     pub pitch: f32,
     /// The weapon's kick over it after the tick (a bot's own prediction).
     pub kick: f32,
@@ -80,12 +81,19 @@ pub struct Estimate {
     pub air_until: u32,
     /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_snap`]; infinite: any).
     pub air_cap: f32,
+    /// How the pitch unit relates to the elevation ([`Kinematics::pitch_scale`]).
+    pub scale: PitchScale,
 }
 
 impl Estimate {
-    /// The view's pitch: the base pitch and the kick (0x2E0F60).
+    /// The view's pitch as the game has it: the base pitch and the kick (0x2E0F60).
+    pub fn view(&self) -> Pitch {
+        Pitch::view(self.pitch, self.kick)
+    }
+
+    /// The elevation the view looks along, radians: the geometry's pitch ([`Pitch::elevation`]).
     pub fn view_pitch(&self) -> f32 {
-        (self.pitch + self.kick).clamp(-MAX_PITCH, MAX_PITCH)
+        self.view().elevation(self.scale)
     }
 }
 
@@ -118,6 +126,7 @@ impl Estimate {
             node,
             air_until: 0,
             air_cap: f32::INFINITY,
+            scale: PitchScale::Radian,
         }
     }
 }
@@ -492,6 +501,7 @@ impl BodyTrack {
             node,
             air_until,
             air_cap,
+            scale: kin.pitch_scale,
         };
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
@@ -1191,7 +1201,7 @@ pub(super) mod tests {
 
     #[test]
     fn the_view_is_the_base_pitch_and_the_kick_of_the_last_tick() {
-        let kin = Kinematics::default();
+        let kin = Kinematics { pitch_scale: PitchScale::Radian, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
         // Up 0.02 with no kick; then the kick at 0.03 and a pull of 0.01
