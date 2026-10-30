@@ -28,6 +28,9 @@ const JOB_HEALTH: f32 = 0.35;
 /// The pinner's spot lies this far inside the held spot's reach at most, m:
 /// at the edge of where he kills (his longest kill and 15 m more).
 pub const PIN_DEPTH_M: f32 = 15.0;
+/// [A192] The walk to a choke is timed at the client's walk cap, m/s (PROVEN:
+/// 3.5 m/s times 1 + the movement modifiers, `motor.rs`; a sprint is 5.0-5.1).
+const WALK_M_S: f32 = 3.5;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the choke, metres.
@@ -99,10 +102,39 @@ pub fn tuning() -> PlayTuning {
 /// The candidate's score times the mode's weight (`weight_tdm`,
 /// `weight_batteries`, `weight_timed`): the players' research favours the
 /// play in one mode.
+///
+/// [A192] With `commit.crossfire_arrival_tau_s`, also times the chance the
+/// play is still wanted when the bot gets there, `exp(-walk_s / tau)`: a
+/// crossfire far off was mostly ended on the way (by an objective, a trade
+/// or a death) and never held.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
     let weight = cx.num(kind, cx.view.objective().weight_key());
-    c.score = Score::new(c.score.get() * weight);
+    let arrival = cx.tuning.commit.crossfire_arrival_tau_s.map_or(1.0, |tau| arrival_chance(cx, &c, tau));
+    c.score = Score::new(c.score.get() * weight * arrival);
     (!c.score.is_zero()).then_some(c)
+}
+
+/// The chance a crossfire offered as `c` is still wanted at arrival: the
+/// walk to its choke (the offer's own path distance, else the bot's) at
+/// [`WALK_M_S`], against `tau_s`.
+fn arrival_chance(cx: &Ctx, c: &Candidate, tau_s: f32) -> f32 {
+    let path_m = c
+        .why
+        .parts
+        .iter()
+        .find(|(input, _, _)| *input == Input::PathDist)
+        .map(|&(_, value, _)| value)
+        .or_else(|| cx.point_of(c.target).map(|at| cx.path_dist(at)))
+        .unwrap_or(0.0);
+    arrival_factor(path_m / WALK_M_S, tau_s)
+}
+
+/// `exp(-walk_s / tau_s)`; 1 for a tau of none or less.
+fn arrival_factor(walk_s: f32, tau_s: f32) -> f32 {
+    if tau_s <= 0.0 {
+        return 1.0;
+    }
+    (-walk_s.max(0.0) / tau_s).exp()
 }
 
 /// The choke's number for its slots.
@@ -123,7 +155,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.tuning.threat.job
         && let Some((job, Role::Pinner, line)) = cx.team.threat.job_of(cx.me.place)
     {
-        let choke = Choke { at: line.at, job: job_at(cx, TargetRef::ThreatSpot(line.id), line.at) };
+        let target = TargetRef::ThreatSpot(line.id);
+        let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
         let has_spot = matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
             || has_fine_spot(cx, &choke);
         #[cfg(test)]
@@ -226,13 +259,32 @@ fn round(choke: Vec3, a: Vec3, b: Vec3) -> f32 {
     )
 }
 
-/// The teammates in the choke's ring (the other half): (place, feet).
-fn halves(cx: &Ctx, choke: Vec3) -> Vec<(Place, Vec3)> {
+/// The teammates in the choke's ring (the other half): (place, where).
+///
+/// Off `commit.crossfire_apart_mates`: every teammate within `partner_m` of
+/// the choke, where it stands (one passing by counts). On [A192]: the
+/// teammates running Crossfire on this choke, at the point each means to be
+/// at (its claim, else its feet), within `partner_m` of the choke.
+fn halves(cx: &Ctx, choke: &Choke) -> Vec<(Place, Vec3)> {
     let near = cx.num(PlayKind::Crossfire, "partner_m");
-    cx.view
-        .team(cx.me.team)
-        .filter(|p| p.place != cx.me.place && p.feet.distance_xz(choke) <= near)
-        .map(|p| (p.place, p.feet))
+    let mates = cx.view.team(cx.me.team).filter(|p| p.place != cx.me.place);
+    if !cx.tuning.commit.crossfire_apart_mates {
+        return mates
+            .filter(|p| p.feet.distance_xz(choke.at) <= near)
+            .map(|p| (p.place, p.feet))
+            .collect();
+    }
+    mates
+        .filter(|p| cx.team.crossfiring.contains(&(p.place, choke.target)))
+        .map(|p| {
+            let at = cx
+                .team
+                .claims_of_others(cx.me.place, cx.now)
+                .find(|c| c.who == p.place)
+                .map_or(p.feet, |c| c.at);
+            (p.place, at)
+        })
+        .filter(|(_, at)| at.distance_xz(choke.at) <= near)
         .collect()
 }
 
@@ -282,6 +334,9 @@ fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
 /// spot's id once ([`choke_of`]).
 #[derive(Clone, Copy)]
 struct Choke<'a> {
+    /// What the play covers ([A192] the teammates on the same one are its
+    /// other half).
+    target: TargetRef,
     at: Vec3,
     job: Option<&'a HeldLine>,
 }
@@ -289,7 +344,7 @@ struct Choke<'a> {
 /// The choke of `target` now, if it has a place.
 fn choke_of<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<Choke<'a>> {
     let at = cx.point_of(target)?;
-    Some(Choke { at, job: job_at(cx, target, at) })
+    Some(Choke { target, at, job: job_at(cx, target, at) })
 }
 
 /// The held line a crossfire on `target` (at `at`) pins as a job (K2): by
@@ -326,7 +381,7 @@ fn pin_ring(cx: &Ctx, line: &HeldLine) -> (f32, f32) {
 /// `apart_deg` round the choke from every teammate in its ring.
 fn fine_spots(cx: &Ctx, choke: &Choke) -> Vec<Vec3> {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke.at);
+    let others = halves(cx, choke);
     let spots = spots_by(cx, choke);
     // The bench's count: the spots of a pick left out for a held line.
     #[cfg(test)]
@@ -347,7 +402,7 @@ fn out_of_lines(cx: &Ctx, choke: &Choke) -> bool {
 /// is built whole (the offer only asks whether there is a spot).
 fn has_fine_spot(cx: &Ctx, choke: &Choke) -> bool {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke.at);
+    let others = halves(cx, choke);
     spots_by(cx, choke)
         .iter()
         .any(|at| is_fine(cx, choke, apart, &others, *at))
@@ -358,7 +413,7 @@ fn has_fine_spot(cx: &Ctx, choke: &Choke) -> bool {
 #[cfg(test)]
 fn why_no_fine_spot(cx: &Ctx, choke: &Choke) -> &'static str {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke.at);
+    let others = halves(cx, choke);
     let fails: Vec<&'static str> = spots_by(cx, choke)
         .iter()
         .map(|&at| {
@@ -417,11 +472,21 @@ fn pick(cx: &Ctx, choke: &Choke, rng: &mut Rng) -> Option<Vec3> {
 
 /// Whether a teammate of a lower place stands within `apart_deg` of `spot`
 /// round the choke: this bot then picks again.
-fn crowded(cx: &Ctx, choke: Vec3, spot: Vec3) -> bool {
+fn crowded(cx: &Ctx, choke: &Choke, spot: Vec3) -> bool {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     halves(cx, choke)
         .iter()
-        .any(|(place, o)| *place < cx.me.place && round(choke, spot, *o) < apart)
+        .any(|(place, o)| *place < cx.me.place && round(choke.at, spot, *o) < apart)
+}
+
+/// Whether the bot checks now that its spot is apart from the other half:
+/// every `repick_every_s`; [A192] with `commit.crossfire_apart_mates` only
+/// within `sneak_m` of the spot (on the way, the halves still move).
+fn check_apart(cx: &Ctx, checked: u32, spot: Vec3) -> bool {
+    let num = |name| cx.num(PlayKind::Crossfire, name);
+    let every = (num("repick_every_s") * 1000.0) as u32;
+    cx.now >= checked + every
+        && (!cx.tuning.commit.crossfire_apart_mates || cx.me.feet.distance_xz(spot) <= num("sneak_m"))
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
@@ -448,14 +513,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     if matches!(target, TargetRef::ThreatSpot(_)) && choke.job.is_none() {
         return Step::Done("the spot is no longer held");
     }
-    let every = (num("repick_every_s") * 1000.0) as u32;
     let reach = num("reach_m");
     match state {
         // A job's pin has one slot a spot and no other half: a teammate by
         // the spot (its flanker, most often) is no reason to move or end
         // (the bench: pins ended "no spot apart from the other half" 3 s in).
         State::Going { spot, checked } | State::Hold { spot, checked, .. }
-            if cx.now >= *checked + every && choke.job.is_none() && crowded(cx, choke.at, *spot) =>
+            if check_apart(cx, *checked, *spot) && choke.job.is_none() && crowded(cx, &choke, *spot) =>
         {
             *checked = cx.now;
             let Some(new) = pick(cx, &choke, rng) else {

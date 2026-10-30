@@ -968,6 +968,9 @@ pub struct TeamKnowledge {
     /// The team's bots checking spawners now and the spawner each looks
     /// at (the commander's, from the plays it handed out).
     pub searching: Vec<(Place, usize)>,
+    /// [A192] The team's bots running Crossfire now and the choke each
+    /// covers (the commander's, from the plays it handed out).
+    pub crossfiring: Vec<(Place, super::plays::TargetRef)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).

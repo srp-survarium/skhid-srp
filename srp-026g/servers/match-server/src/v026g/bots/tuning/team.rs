@@ -242,6 +242,24 @@ pub struct CommitTuning {
     /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
     /// `push-record/scripts/human_cover_lastseen.py`).
     pub crossfire_point_s: f32,
+    /// [A192] A Crossfire's other half is a teammate running Crossfire on
+    /// the same choke (the commander's, `TeamKnowledge::crossfiring`), at
+    /// the point it means to be at; and a running one checks it is apart
+    /// only within `sneak_m` of its spot. Off: every teammate within
+    /// `partner_m` of the choke, where it stands, every `repick_every_s`
+    /// (the bench: 92 of 789 takes ended "no spot apart" on a mate passing by).
+    pub crossfire_apart_mates: bool,
+    /// [A192] The commander's slots held by the bots kept on them are
+    /// rebuilt as each bot of the pass is given up: a slot freed earlier in
+    /// the same pass is free for the rest of it. Off: the held slots are
+    /// found once before the pass (a bot that lost its Collect slot took a
+    /// filler for one pass, then the Collect back: 35 flips within 3 s).
+    pub held_in_pass: bool,
+    /// [A192] A Crossfire offer's score is taken times the chance it is
+    /// still wanted at arrival, `exp(-walk_s / tau)`, the walk at a run's
+    /// pace to the choke (the bench: of the takes that ended before the
+    /// spot, the walk's median time to the end was about 13 s). None: off.
+    pub crossfire_arrival_tau_s: Option<f32>,
 }
 
 impl ThreatTuning {
@@ -258,6 +276,9 @@ impl Default for CommitTuning {
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
+            crossfire_apart_mates: false,
+            held_in_pass: false,
+            crossfire_arrival_tau_s: None,
         }
     }
 }

@@ -40,8 +40,11 @@
     "sight_hold_ms": 0
   },
   "commit": {
+    "crossfire_apart_mates": false,
+    "crossfire_arrival_tau_s": null,
     "crossfire_point": false,
     "cut_given_crowd": false,
+    "held_in_pass": false,
     "hold_to_arrival": false
   },
   "cover": {
