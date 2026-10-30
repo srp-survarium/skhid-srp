@@ -595,7 +595,7 @@ mod tests {
             let speed = if t < 12 { 2.0 } else if t < 30 { 3.0 } else { 5.0 };
             feet.x += speed * TICK_S;
             if t == 10 {
-                watch.pressed(clock);
+                watch.pressed(clock, feet, speed);
             }
             if t >= 20 {
                 feet.y = 0.9;
