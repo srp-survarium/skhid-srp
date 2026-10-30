@@ -275,6 +275,7 @@ def main():
     death_drop(bytes(built), (0x498, 0x25F100, 0x25F106))
     moving_draw(bytes(built))
     death_with_optics_hidden(bytes(built))
+    death_rolled_back(bytes(built))
     recipient_hud(bytes(built))
     builder = InputBuilder(bytes(built))
     quick, sprint = 1 << 14, 1 << 9
@@ -464,10 +465,13 @@ def main():
 
 
 def death_with_optics_hidden(built):
-    """A carrier killed with the gun and its optics out of the scene: the
-    native draw of the body updates the optics' models (0x245012) and the
-    renderer asserts on one not in the scene. Likewise a new owner of the
-    place (a respawn, a new kit) must still put back what the old one took."""
+    """A carrier killed with the gun and its optics out of the scene: its
+    hands held the artefact, so the gun stays out (no gun on the corpse, and
+    the ragdoll drops none) and the native draw of the body, which updates
+    the optics' models (0x245012, the renderer asserts on one not in the
+    scene), is skipped as while alive; native on_hide still gets them back
+    before it removes them. A new owner of the place (a respawn, a new kit)
+    puts back what the old one took, before the native draw."""
     for case in ('death', 'new owner'):
         g = Run(built); p = g.players[0]
         _, weapon = g.renderer()
@@ -482,18 +486,52 @@ def death_with_optics_hidden(built):
         hidden = [weapon] + models
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
         if case == 'death':
+            g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)  # the native death entry
             g.emu.mem_write(p + 0x33C, b'\0')
         else:
             g.site(0x2D6990, [0x2D6995], (p,))
         g.rendered.clear()
         g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        if case == 'death':
+            assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477DF, 'death: the native draw met the removed models'
+            assert not any(op == 'add' for op, _, _ in g.rendered), ('death: the gun came back', g.rendered)
+            assert all(g.emu.mem_read(m + 0x10D, 1) == b'\0' for m in hidden), case
+            g.rendered.clear()
+            g.site(0x243FA0, [STOP], (1,), ecx=gun)
+            assert sorted((op, m) for op, m, _ in g.rendered if op == 'add') == sorted(('add', m) for m in hidden), \
+                ('death: native on_hide removed models not in the scene', g.rendered)
+            continue
         assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the native weapon draw was skipped'
         assert sorted((op, m) for op, m, _ in g.rendered) == sorted(('add', m) for m in hidden), (case, g.rendered)
         assert all(g.emu.mem_read(m + 0x10D, 1) == b'\1' for m in hidden), case
         g.rendered.clear()
         g.site(0x243FA0, [STOP], (1,), ecx=gun)
         assert ('add', weapon) not in [(op, m) for op, m, _ in g.rendered], f'{case}: restored twice'
-    print('ok: a death or a new owner with the gun and optics hidden puts all three back before the native draw')
+    print('ok: a carrier\'s death keeps its gun and optics out with the native draw skipped (on_hide still gets them '
+          'back); a new owner puts all three back before the native draw')
+
+
+def death_rolled_back(built):
+    """A carrier's death that a rollback takes back (alive again, the world of
+    before the carry loaded): the gun shows as the live carry says, and a
+    later death in the same life records its own hands (here the gun)."""
+    g = Run(built); p = g.players[0]
+    _, weapon = g.renderer()
+    before = g.save(p)
+    g.input(p, 0, COMMAND); g.tick(p, 800); g.draw()
+    assert g.emu.mem_read(weapon + 0x10D, 1) == b'\0'
+    g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)  # the native death entry
+    g.emu.mem_write(p + 0x33C, b'\0')
+    g.emu.mem_write(p + 0x33C, b'\1'); g.load(p, before)  # the rollback: +33Ch is loaded before the hook
+    for case in ('rolled back', 'a later death'):
+        if case == 'a later death':
+            g.site(0x1F28E0, [0x1F28E5], (0,), ecx=p)
+            g.emu.mem_write(p + 0x33C, b'\0')
+        g.rendered.clear()
+        g.site(0x2477C8, [0x2477CE, 0x2477DF], ebx=p, eax=g.matrix)
+        assert g.emu.reg_read(UC_X86_REG_EIP) == 0x2477CE, f'{case}: the gun stayed out as at the taken-back death'
+        assert g.emu.mem_read(weapon + 0x10D, 1) == b'\1', (case, g.rendered)
+    print('ok: a death a rollback takes back leaves no record: the gun shows, and a later death records afresh')
 
 
 def moving_draw(built):
