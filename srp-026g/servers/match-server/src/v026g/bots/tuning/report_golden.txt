@@ -34,7 +34,7 @@ switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
 switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5}
-switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
+switch values traps: at_defeated={"ahead_m":12.0,"friend_m":6.0,"keep_s":120.0,"within_m":3.0} on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)

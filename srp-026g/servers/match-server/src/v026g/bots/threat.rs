@@ -1128,6 +1128,11 @@ impl ThreatSpots {
         }
     }
 
+    /// The places of `shooter`'s spots that are held at `now` (before his death takes their sense).
+    pub fn held_of(&self, shooter: Place, now: u32) -> Vec<Vec3> {
+        self.spots.iter().filter(|s| s.shooter == shooter && s.held(now)).map(|s| s.at).collect()
+    }
+
     /// The events since the last call, oldest first.
     pub fn take_events(&mut self) -> Vec<SpotEvent> {
         std::mem::take(&mut self.events)

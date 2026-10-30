@@ -132,6 +132,7 @@
     "stranded_start": false
   },
   "traps": {
+    "at_defeated": null,
     "chance": 0.35,
     "enemy_near_m": 50.0,
     "enemy_quiet_s": 4.0,

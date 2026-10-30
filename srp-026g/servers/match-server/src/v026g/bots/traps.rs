@@ -674,6 +674,24 @@ pub struct Search<'a> {
     pub own: &'a [Vec3],
     /// Whether a point is in a spawn area.
     pub in_spawn: &'a dyn Fn(Vec3) -> bool,
+    /// [A145] The spots of killed holders this bot's route passes.
+    pub wish: Option<Wish<'a>>,
+}
+
+/// [A145] The spots of killed holders (`know::Defeated`) a search wants a trap on (`TrapTuning::at_defeated`).
+#[derive(Clone, Copy, Debug)]
+pub struct Wish<'a> {
+    pub spots: &'a [Vec3],
+    /// A candidate within this of one is wanted: it need not pass the lanes' `min_score`, it wins over any other, and a mate must
+    /// be farther off than `friend_m` (now, in 2 s and in 4 s).
+    pub within_m: f32,
+    pub friend_m: f32,
+}
+
+impl Wish<'_> {
+    fn wants(&self, at: Vec3) -> bool {
+        self.spots.iter().any(|spot| spot.distance_xz(at) <= self.within_m)
+    }
 }
 
 /// A spot picked: the yaw to look along, the floor point, its score.
@@ -682,7 +700,12 @@ pub struct Chosen {
     pub yaw: f32,
     pub spot: Vec3,
     pub score: f32,
+    /// On the spot of a killed holder ([`Wish`]).
+    pub wished: bool,
 }
+
+/// What a wished candidate is worth over every other (the scores are under 1).
+const WISH_RANK: f32 = 2.0;
 
 /// The unit vector of a yaw on the ground.
 fn dir(yaw: f32) -> [f32; 2] {
@@ -792,9 +815,20 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             s.feet.y,
             s.feet.z + d[1] * s.reach_m,
         );
+        // [A145] A candidate on the spot of a killed holder is the one the carrier waited for.
+        let wished = s.wish.is_some_and(|w| w.wants(spot));
+        #[cfg(test)]
+        if wished {
+            defeated::count(defeated::CANDIDATES);
+        }
         let Some(spot) = good_floor(s.grid, spot, t) else {
             #[cfg(test)]
-            gates::count(gates::R_FLOOR);
+            {
+                gates::count(gates::R_FLOOR);
+                if wished {
+                    defeated::count(defeated::R_FLOOR);
+                }
+            }
             continue;
         };
         // With the landing rule the candidate lies where the look for its own floor lands (a spot higher or lower than
@@ -804,7 +838,12 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             Some((crouched, wanted)) => {
                 let Some(look) = press_look(crouched, wanted, s.feet.y - spot.y) else {
                     #[cfg(test)]
-                    gates::count(gates::NO_LOOK);
+                    {
+                        gates::count(gates::NO_LOOK);
+                        if wished {
+                            defeated::count(defeated::R_LOOK);
+                        }
+                    }
                     continue;
                 };
                 Vec3::new(s.feet.x + d[0] * look.run_m, spot.y, s.feet.z + d[1] * look.run_m)
@@ -812,47 +851,78 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         };
         if (s.in_spawn)(spot) {
             #[cfg(test)]
-            gates::count(gates::R_SPAWN);
+            {
+                gates::count(gates::R_SPAWN);
+                if wished {
+                    defeated::count(defeated::R_SPAWN);
+                }
+            }
             continue;
         }
         if s.own.iter().any(|own| own.distance_xz(spot) < t.near_own_m) {
             #[cfg(test)]
-            gates::count(gates::R_OWN);
+            {
+                gates::count(gates::R_OWN);
+                if wished {
+                    defeated::count(defeated::R_OWN);
+                }
+            }
             continue;
         }
         // Off its own route ahead, unless it stands.
         if !s.staying && off_route_m(s.ahead, spot) < t.lateral_m.max(AVOID_M) - 1e-3 {
             #[cfg(test)]
-            gates::count(gates::R_ROUTE);
+            {
+                gates::count(gates::R_ROUTE);
+                if wished {
+                    defeated::count(defeated::R_ROUTE);
+                }
+            }
             continue;
         }
         // Where its own body will be: it keeps off the disc.
         if s.feet.distance_xz(spot) < AVOID_M - 0.2 {
             #[cfg(test)]
-            gates::count(gates::R_BODY);
+            {
+                gates::count(gates::R_BODY);
+                if wished {
+                    defeated::count(defeated::R_BODY);
+                }
+            }
             continue;
         }
-        let friends = friend_flow(s.mates, spot, t.friend_m);
+        // The mates are the ones who walk onto a killed holder's spot next: a wider guard there.
+        let friend_m = match s.wish {
+            Some(w) if wished => w.friend_m.max(t.friend_m),
+            _ => t.friend_m,
+        };
+        let friends = friend_flow(s.mates, spot, friend_m);
         if friends > 0 {
             #[cfg(test)]
-            gates::count(gates::R_FRIEND);
+            {
+                gates::count(gates::R_FRIEND);
+                if wished {
+                    defeated::count(defeated::R_FRIEND);
+                }
+            }
             continue;
         }
         let value = score(presence(s.lanes, spot, s.now), friends, t);
-        if value < t.min_score {
+        if value < t.min_score && !wished {
             #[cfg(test)]
             gates::count(gates::R_SCORE);
             continue;
         }
         // The better score wins; a look that turns the view less is worth a
         // little (a half turn costs 0.1).
-        let rank = value - 0.1 * turn(s.view_yaw, yaw).abs() / std::f32::consts::PI;
+        let rank = value - 0.1 * turn(s.view_yaw, yaw).abs() / std::f32::consts::PI + if wished { WISH_RANK } else { 0.0 };
         if best.is_none_or(|(_, r)| rank > r) {
             best = Some((
                 Chosen {
                     yaw,
                     spot,
                     score: value,
+                    wished,
                 },
                 rank,
             ));
@@ -1168,6 +1238,37 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         .standing()
         .map(|trap| trap.at)
         .collect();
+    // [A145] The spots of killed holders this route passes, that no trap of the team stands on.
+    let wished_spots: Vec<Vec3> = match t.at_defeated {
+        Some(d) => {
+            let keep_ms = (d.keep_s * 1000.0) as u32;
+            let route = &ahead[..(d.ahead_m as usize).min(ahead.len())];
+            state
+                .knowledge
+                .defeated
+                .iter()
+                .filter(|w| due.now.saturating_sub(w.time) <= keep_ms)
+                .map(|w| w.at)
+                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= d.within_m))
+                .filter(|at| {
+                    if staying {
+                        me.feet.distance_xz(*at) <= d.within_m + reach_m
+                    } else {
+                        off_route_m(route, *at) <= d.within_m
+                    }
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    let wish = t
+        .at_defeated
+        .filter(|_| !wished_spots.is_empty())
+        .map(|d| Wish {
+            spots: &wished_spots,
+            within_m: d.within_m,
+            friend_m: d.friend_m,
+        });
     let search = Search {
         t,
         reach_m,
@@ -1182,8 +1283,20 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         lanes: &state.knowledge.humans,
         own: &own,
         in_spawn: &in_spawn,
+        wish,
     };
     let chosen = choose(&search);
+    // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
+    if let Some(wish) = wish {
+        #[cfg(test)]
+        defeated::count_team(me.team, defeated::THINKS);
+        if !chosen.is_some_and(|c| c.wished) && wish.spots.iter().any(|at| me.feet.distance_xz(*at) > wish.within_m + reach_m + 1.0) {
+            #[cfg(test)]
+            defeated::count_team(me.team, defeated::WAITED);
+            return;
+        }
+    }
+    let at_defeated = chosen.is_some_and(|c| c.wished);
     #[cfg(test)]
     if waiting {
         if chosen.is_none() {
@@ -1196,7 +1309,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let lanes = &state.knowledge.humans;
     let here = chosen.map(|c| presence(lanes, c.spot, due.now));
     // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
-    if let Some(pass) = t.on_the_pass.filter(|_| !staying) {
+    if let Some(pass) = t.on_the_pass.filter(|_| !staying && !at_defeated) {
         let last = (pass.route_ahead_m as usize).min(ahead.len().saturating_sub(1));
         let cells: Vec<(usize, f32)> = (PASS_FIRST_M..=last)
             .step_by(PASS_STRIDE_M)
@@ -1220,6 +1333,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
     if let Some(chosen) = chosen {
         #[cfg(test)]
+        if chosen.wished {
+            defeated::count_team(me.team, defeated::PLACED);
+        }
+        #[cfg(test)]
         {
             let on_pass = bot
                 .features
@@ -1233,7 +1350,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": due.now, "bot": bot.place, "trap_plan": chosen.spot.to_array(),
-                "score": chosen.score,
+                "score": chosen.score, "defeated": chosen.wished,
             }));
         }
     }
@@ -1331,6 +1448,68 @@ pub mod onpass {
             })
             .collect::<Vec<_>>()
             .join("; ")
+    }
+}
+
+/// The bench's counts of the traps on the spots of killed holders (A145): the records the winning team made (a held threat spot,
+/// a camp), thinks with such a spot on the carrier's route, those that waited for the body to reach it, traps placed on one; and,
+/// of the candidates within reach of a wished spot, what refused them.
+#[cfg(test)]
+pub mod defeated {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const NOTED_SPOT: usize = 0;
+    pub const NOTED_CAMP: usize = 1;
+    pub const THINKS: usize = 2;
+    pub const WAITED: usize = 3;
+    pub const PLACED: usize = 4;
+    static TEAM: [[AtomicU64; 5]; 2] = [const { [const { AtomicU64::new(0) }; 5] }; 2];
+
+    pub const CANDIDATES: usize = 0;
+    pub const R_FLOOR: usize = 1;
+    pub const R_LOOK: usize = 2;
+    pub const R_SPAWN: usize = 3;
+    pub const R_OWN: usize = 4;
+    pub const R_ROUTE: usize = 5;
+    pub const R_BODY: usize = 6;
+    pub const R_FRIEND: usize = 7;
+    static CANDIDATE: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+
+    pub fn count_team(team: u8, kind: usize) {
+        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn count(kind: usize) {
+        CANDIDATE[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        let team = (0..2)
+            .map(|team| {
+                let c = |k: usize| TEAM[team][k].load(Ordering::Relaxed);
+                format!(
+                    "team {team}: holders killed (spot {}, camp {}), thinks with such a spot on the route {}, waited {}, trap placed on one {}",
+                    c(NOTED_SPOT),
+                    c(NOTED_CAMP),
+                    c(THINKS),
+                    c(WAITED),
+                    c(PLACED)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        let n = |k: usize| CANDIDATE[k].load(Ordering::Relaxed);
+        format!(
+            "{team}; candidates at a wished spot {}: refused by floor {}, no look {}, spawn {}, own trap {}, own route {}, own body {}, a mate near {}",
+            n(CANDIDATES),
+            n(R_FLOOR),
+            n(R_LOOK),
+            n(R_SPAWN),
+            n(R_OWN),
+            n(R_ROUTE),
+            n(R_BODY),
+            n(R_FRIEND)
+        )
     }
 }
 
@@ -1926,6 +2105,7 @@ mod tests {
             lanes,
             own: &[],
             in_spawn,
+            wish: None,
         }
     }
 
@@ -1989,6 +2169,71 @@ mod tests {
         // No enemy presence: a spot scoring under the least is not taken.
         let none = HumanLanes::default();
         assert_eq!(choose(&search(&s, &tuning, feet, &none, &not_spawn)), None);
+    }
+
+    /// [A145] A candidate on the spot of a killed holder is taken though no lane runs there, over a spot the lanes like, and not with
+    /// a mate within the wider guard; the others keep their rules.
+    #[test]
+    fn a_killed_holders_spot_is_taken_without_lanes_and_with_no_mate_near() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let tuning = t();
+        let feet = Vec3::new(30.0, 0.0, 10.0);
+        let not_spawn = |_: Vec3| false;
+        // The lanes like +x; the holder's spot is at -x (nothing runs there).
+        let lanes = lanes_at(Vec3::new(33.0, 0.0, 10.0), 6, 100_000);
+        let spot = [Vec3::new(28.5, 0.0, 10.0)];
+        let wish = |friend_m: f32| Wish {
+            spots: &spot,
+            within_m: 1.0,
+            friend_m,
+        };
+        let plain = choose(&search(&s, &tuning, feet, &lanes, &not_spawn)).expect("a spot");
+        assert!(!plain.wished && dir(plain.yaw)[0] > 0.9, "{plain:?}");
+        let wished = choose(&Search {
+            wish: Some(wish(6.0)),
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        })
+        .expect("the holder's spot");
+        assert!(wished.wished && dir(wished.yaw)[0] < -0.9, "{wished:?}");
+        // No lanes at all: only the wished spot passes the least score.
+        let none = HumanLanes::default();
+        let only = choose(&Search {
+            wish: Some(wish(6.0)),
+            ..search(&s, &tuning, feet, &none, &not_spawn)
+        })
+        .expect("the holder's spot");
+        assert!(only.wished, "{only:?}");
+        // A mate 4 m from the spot (outside the guard's 2.5 m, inside the wider 6 m): not there; the lanes' spot is taken instead.
+        let mates = [(Vec3::new(24.5, 0.0, 10.0), [0.0, 0.0])];
+        let guarded = choose(&Search {
+            wish: Some(wish(6.0)),
+            mates: &mates,
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        })
+        .expect("a spot");
+        assert!(!guarded.wished, "{guarded:?}");
+        // The same mate does not stop the ordinary guard.
+        let narrow = choose(&Search {
+            wish: Some(wish(2.5)),
+            mates: &mates,
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        })
+        .expect("the holder's spot");
+        assert!(narrow.wished, "{narrow:?}");
+        // The spawn area and the team's own trap still forbid it.
+        let spawn = |at: Vec3| at.x < 29.5;
+        assert!(choose(&Search {
+            wish: Some(wish(6.0)),
+            ..search(&s, &tuning, feet, &none, &spawn)
+        })
+        .is_none());
+        let own = [Vec3::new(28.5, 0.0, 10.0)];
+        assert!(choose(&Search {
+            wish: Some(wish(6.0)),
+            own: &own,
+            ..search(&s, &tuning, feet, &none, &not_spawn)
+        })
+        .is_none());
     }
 
     #[test]
@@ -2176,6 +2421,23 @@ mod tests {
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
         far.traps.press_landing_m = Some(0.5);
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
+    }
+
+    /// [A145] The rule for killed holders' spots is on by default, off in the all-off patch, validated and read from a patch.
+    #[test]
+    fn the_defeated_rule_is_on_by_default_off_in_the_all_off_patch_and_validated() {
+        use crate::v026g::bots::tuning::{DefeatedTuning, Tuning};
+        assert_eq!(Tuning::default().traps.at_defeated, Some(DefeatedTuning::default()));
+        assert_eq!(Tuning::all_off().traps.at_defeated, None);
+        let mut bad = Tuning::default();
+        bad.traps.at_defeated = Some(DefeatedTuning { within_m: 0.5, ..DefeatedTuning::default() });
+        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated");
+        bad.traps.at_defeated = Some(DefeatedTuning { friend_m: 1.0, ..DefeatedTuning::default() });
+        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "a guard under the ordinary one");
+        bad.traps.at_defeated = Some(DefeatedTuning { ahead_m: 40.0, ..DefeatedTuning::default() });
+        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "farther than the route is read");
+        let patched = Tuning::patched(serde_json::json!({"traps": {"at_defeated": {"keep_s": 60.0}}})).unwrap();
+        assert_eq!(patched.traps.at_defeated.map(|d| (d.keep_s, d.within_m)), Some((60.0, 3.0)));
     }
 
     /// The eye of a pose at the pitch a look down has (`view::eye_height`, up positive).

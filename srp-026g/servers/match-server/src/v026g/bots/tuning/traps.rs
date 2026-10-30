@@ -38,6 +38,11 @@ pub struct TrapTuning {
     /// habit as it was (the best of the eight yaws round the feet at once). On by default (A169, with
     /// `enemy_near_m` 20): see `enemy_near_m`.
     pub on_the_pass: Option<PassTuning>,
+    /// A trap on the spot of a holder the team killed (A145): the place a killed enemy held (`know::Defeated`: a held threat spot
+    /// of his, or a place the killer's senses had him staying at) is a spot the next one comes to; a carrier whose route passes it
+    /// waits and puts the trap there, with the same gates as any trap (the enemy near, the friends, the team's own traps and the
+    /// spawn area) and a wider guard for mates. `None`: the habit as it was.
+    pub at_defeated: Option<DefeatedTuning>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -84,6 +89,35 @@ pub struct TrapTuning {
     pub cooldown_s: f32,
     /// The response to a trap that is not the team's (`bots/trap_react.rs`).
     pub react: ReactTuning,
+}
+
+/// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
+/// own scale (a death is forgotten in two minutes, `threat::DECAY_PER_S`; a spot merges kills within 8 m) and the habit's:
+/// the bench decides.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DefeatedTuning {
+    /// A killed holder's spot is wanted for this long, seconds.
+    pub keep_s: f32,
+    /// The trap lies within this of the spot, metres.
+    pub within_m: f32,
+    /// No mate within this of the trap's cell now, in 2 s or in 4 s (the guard's `friend_m` is 2.5 m): the mates are the ones who
+    /// walk onto the spot next.
+    pub friend_m: f32,
+    /// How far ahead along the route the spot is looked for, metres (at most `route_ahead_m`): a route that passes it within
+    /// `within_m` waits for it.
+    pub ahead_m: f32,
+}
+
+impl Default for DefeatedTuning {
+    fn default() -> Self {
+        Self {
+            keep_s: 120.0,
+            within_m: 3.0,
+            friend_m: 6.0,
+            ahead_m: 12.0,
+        }
+    }
 }
 
 /// The look along the route of the habit's place-on-the-pass rule (`TrapTuning::on_the_pass`).
@@ -245,6 +279,7 @@ impl Default for TrapTuning {
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
+            at_defeated: Some(DefeatedTuning::default()),
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
@@ -282,6 +317,17 @@ impl Check for TrapTuning {
             self.on_the_pass
                 .is_none_or(|p| p.route_ahead_m >= 2.0 && p.route_ahead_m <= self.route_ahead_m && p.gain >= 0.0),
             "traps.on_the_pass",
+        )?;
+        check(
+            self.at_defeated.is_none_or(|d| {
+                d.keep_s > 0.0
+                    && d.within_m >= 1.0
+                    && d.within_m <= 6.0
+                    && d.friend_m >= self.friend_m
+                    && d.ahead_m >= 2.0
+                    && d.ahead_m <= self.route_ahead_m
+            }),
+            "traps.at_defeated",
         )?;
         check(
             self.friend_m >= 0.0
