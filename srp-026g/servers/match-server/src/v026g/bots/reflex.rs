@@ -2823,6 +2823,10 @@ pub struct Reflex {
     kick_step: f32,
     /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
     kick_before: f32,
+    /// [bench] The mirror's kick after the tick's turn and before its shots (pitch units), and the shots it counted in the tick:
+    /// what the stand-in's own kick is read against.
+    #[cfg(test)]
+    seen: (f32, u8),
     /// The pitch unit's scale as the last tick's tuning has it (`kin.pitch_scale`): the kick is in the game's unit, the aim in elevations.
     scale: PitchScale,
 }
@@ -3712,9 +3716,30 @@ impl Reflex {
         let interval_ms = self.recoil.kick().interval_s() * 1000.0;
         let recoil = &mut self.recoil;
         let fire = keys & key::FIRE != 0;
-        self.cadence
-            .tick(now, fire, auto, interval_ms, |at| recoil.mean_shot(at));
+        #[cfg(test)]
+        let mut shots = 0u8;
+        #[cfg(test)]
+        {
+            self.seen.0 = recoil.y();
+        }
+        self.cadence.tick(now, fire, auto, interval_ms, |at| {
+            recoil.mean_shot(at);
+            #[cfg(test)]
+            {
+                shots = shots.saturating_add(1);
+            }
+        });
+        #[cfg(test)]
+        {
+            self.seen.1 = shots;
+        }
         taken
+    }
+
+    /// [bench] The mirror's kick after the last tick's turn, before its shots, and the shots it counted ([`Self::sent`]).
+    #[cfg(test)]
+    pub(crate) fn seen(&self) -> (f32, u8) {
+        self.seen
     }
 
     /// The kick of the weapon in hand: another weapon taken (the pistol)

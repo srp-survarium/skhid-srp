@@ -1541,6 +1541,12 @@ pub(crate) fn real_bot_cost() {
                         gun,
                     ));
                 }
+                // [counts only] The mirrors of the kick the stand-in's own is read against (`kick_gap`).
+                for bot in bots.bots.iter().flatten() {
+                    if let Some(body) = game.bodies.get_mut(bot.place) {
+                        body.mirror = Some(bot.reflex.seen());
+                    }
+                }
             }
             let rays = super::aimpoint::rays_cast() - rays_before - game.metric_rays;
             let searches = super::path::searches();

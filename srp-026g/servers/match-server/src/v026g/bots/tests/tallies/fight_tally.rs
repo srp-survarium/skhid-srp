@@ -42,6 +42,26 @@ pub(crate) struct ShotFact {
     pub landed: Landed,
 }
 
+/// The kick of a shooter's first shot of a tick: the stand-in's (`truth`) and the bot's mirror of it, pitch units, before the shot,
+/// and the distance to his target (`None`: none). Counts only.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct KickPair {
+    pub shooter: Place,
+    pub tick: u32,
+    pub truth: f32,
+    pub mirror: f32,
+    pub distance: Option<f32>,
+}
+
+/// A tick of a shooter with a shot on either side: the shots the stand-in fired and the shots the bot's mirror counted. Counts only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct KickTick {
+    pub shooter: Place,
+    pub tick: u32,
+    pub fired: u8,
+    pub counted: u8,
+}
+
 /// A shot at its target by pitch: the target's chest above or below the eye, degrees, and how far above the line to his chest the
 /// view pointed, degrees (positive up): what the view's pitch unit decides (`pitch.rs`), whatever the cone does.
 #[derive(Clone, Copy, Debug, PartialEq)]
