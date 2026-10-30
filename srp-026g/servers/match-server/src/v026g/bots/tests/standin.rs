@@ -24,6 +24,7 @@
 //! | `SRP_BENCH_BODY_BLOCK_M` | `0.76` (live): enemy bodies block (friends never); `off`: bodies pass through each other |
 //! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
 //! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
+//! | `SRP_BENCH_STAGGER_MODEL` ([`standin_stagger`](super::standin_stagger)) | on: a hit slows by the weapon's `stopping_power`; `off`: 0.75 for 0.5 s |
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
 //! | `SRP_BENCH_TRAPS_MODEL` ([`standin_traps`](super::standin_traps)) | on: the bear traps; `off`: none |
 //!
@@ -278,6 +279,8 @@ pub(crate) struct Body {
     pub(crate) legs: [f32; 2],
     pub(crate) leg_broken_until: u32,
     pub(crate) last_hit: u32,
+    /// The hits of the last half second and their stopping power ([`standin_stagger`]).
+    pub(crate) stagger: standin_stagger::Stagger,
     /// The bot's target as its last input was made (the reflex's).
     pub(crate) target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
@@ -684,6 +687,7 @@ impl Game {
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
+            stagger: standin_stagger::Stagger::default(),
             target: None,
             spread: bench_spread::Spread::default(),
             zone_spell: None,
@@ -828,6 +832,7 @@ impl Game {
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
+        body.stagger.reset();
         body.flight = None;
         body.step_m = 0.0;
         body.zone_spell = None;
@@ -1008,7 +1013,9 @@ impl Game {
             }
             standin_heal::advance(body, tick);
             let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 };
-            if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
+            if standin_stagger::model_on() {
+                level *= 1.0 - body.stagger.share(tick);
+            } else if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
                 level *= STAND_IN_STAGGER;
             }
             // A body whose legs a trap took does not sprint and walks slower
@@ -1490,6 +1497,7 @@ impl Game {
         let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.stamina.hit(stamina);
         other.last_hit = tick;
+        other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
             if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
@@ -1531,6 +1539,8 @@ impl Game {
             let other = &mut self.bodies[target];
             standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
             other.last_hit = tick;
+            // Every pellet that landed is a bullet of its own.
+            other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun) * landed.len() as f32);
             for leg in [0, 1] {
                 if landed.iter().any(|(param, ..)| param.leg() == Some(leg)) {
                     other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
