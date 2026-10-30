@@ -80,7 +80,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@6)
+## lobby_scene/camp_069 (pack lobby-camp-069@8)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -145,6 +145,31 @@ below are content only: each is a project of its own next to the classic one, wh
   between them; @4 is warm and sunlit like both, still darker on the left wall and ceiling than
   0.65b (0.26's eye adaptation evens the level; no 0.69d exposure or filmic curve).
 - Window panes (`water/glass_water`) use 0.26's `tiled/window/glass`.
+- @8, the view out of the windows (the owner: "flat building and plain blue sky", then "they are
+  untextured"). The stock camera orbits all the way round, so the windows show what 0.69d's fixed
+  camera hid: the room is a floor 22.7 m over the donor's own background, level 02's apartment
+  blocks (`bg_house_1/2`, `bg_shop`: 15 to 220 m) on a terrain patch, billboard trees. Their meshes
+  and textures are the donor's, whole; they drew as flat grey-blue slabs:
+  - the faces out of the sun had no light (the outdoor box left out since @4) and the classic's
+    interior fog (rayleigh from 1 m to 185 m) made them flat. The outdoor box is back, drawn before
+    the room's probes (`probe_overrides` `order: first`: 0.26 draws a point's probes in the
+    project's order, each over the ones before, so the room's still win in the room; inside, against
+    @7, within 1/255 in a crisp capture), in a box over all the blocks, diffuse 2.0 at saturation
+    0.15; the fog level 02 day's (rayleigh 15..300 m, mie 40..1200 m);
+  - the far blocks (one at 88 m through the back window stayed a slab) are lit in 0.69d by its
+    outdoor ambient light boxes, which the room's photometric scale had left at 0.15: 1.5
+    (`light_overrides`). 0.26 does not apply the outdoor probe that far out.
+  - The yard (the owner's pick of three captures: faithful, a courtyard, overgrown): an overgrown
+    yard under the windows of 0.26's own level 02 trees and bushes (poplars, birches, willows,
+    fruit and dead trees, the trees scaled 1.1-2.1 so their crowns reach the room's floor), 0.26's
+    level 04 tree belts past the blocks, level 02's background terrain and tree rings (as the
+    school map has them) for the horizon: 110 render visuals of 0.26 models, no collision
+    (`native_scenery`). The pack grows by 0.5 MB (the outdoor probe's cubemap, the project).
+  - Captures: `lobby-audit/rotation/camp_069-8-*` (the full orbit at 1.96 and 4.6, pitch +-30 at the
+    window yaws; before is @7).
+- The lobby's light flips between two states from run to run (same build: the left wall 50 or
+  70 of 255, the dull one a bluish lift of the shadows). Not cloud shadows (`use_sky_shadows`
+  false keeps it); not fixed.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
