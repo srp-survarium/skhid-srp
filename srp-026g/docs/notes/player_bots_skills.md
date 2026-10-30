@@ -142,7 +142,7 @@ level. Each row keeps all of the row below it. Left out:
 - **213:** two of ten take it.
 - **214:** nobody takes it, and it takes the sprint away.
 
-**The owner's kit (2026-10-26, on with `SRP_BOT_KIT=1`, off unless set).** Every row also has
+**The owner's kit (2026-10-26, on unless `SRP_BOT_KIT` is `0`/`off`/`false`, since 2026-10-30).** Every row also has
 `bot_skills::AMMO_POUCH`: 102:5, 104:2, 108:3 and 109:1, 11 points (levels 26, 31 and 41),
 for 109, the extra ammo bag (one more magazine of rounds in the kit). 109 needs 15 points in
 the aim branch's first three rows; 101 has 5. The ten more are the least that is neither aim,

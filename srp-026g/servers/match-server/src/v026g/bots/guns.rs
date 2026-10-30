@@ -73,7 +73,7 @@
 use survarium::v026g::bot_skills::{bot_modifiers, item_added, wire_mods};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
-    BOT_AMMO_SLOTS, BotEquipment, BotMask, BotRole, BotTier, Loadout, RusherKit, RusherKits, bot_kits,
+    BOT_AMMO_SLOTS, BotEquipment, BotMask, BotRole, BotTier, KitSwitches, Loadout, RusherKit, RusherKits, bot_kits,
     upgrades_on,
 };
 use survarium::v026g::skills::{MODIFIERS, modifier_index};
@@ -953,9 +953,10 @@ impl Arms {
     /// (`loadouts::bot_kits`). No pistol: the bots carry none. `None` for
     /// a kit that is not there or a weapon not in the game data ([`guns`]).
     pub fn of_kit(equipment: BotEquipment, role: BotRole, k: usize) -> Option<&'static Arms> {
-        static ALL: std::sync::OnceLock<ArmsTable> = std::sync::OnceLock::new();
+        // One table for each setting of the kit and upgrade switches (the kit's pieces and skills decide the arms).
+        static ALL: [std::sync::OnceLock<ArmsTable>; KitSwitches::SLOTS] = [const { std::sync::OnceLock::new() }; KitSwitches::SLOTS];
         let rusher = equipment.rusher.worn_in(equipment.tier);
-        ALL.get_or_init(|| {
+        ALL[KitSwitches::current().slot()].get_or_init(|| {
             let mut table = Vec::new();
             for tier in BotTier::ALL {
                 // The rusher kits the game data can make: the others are
@@ -1321,6 +1322,8 @@ mod tests {
     /// reload speed and the bots' aim skill; off, they are the table's.
     #[test]
     fn the_upgrades_switch_decides_whether_a_kit_has_modded_guns() {
+        // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+        let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
         use survarium::v026g::bot_skills::bot_modifiers;
         use survarium::v026g::loadouts::bot_kits_in;
         for tier in [BotTier::Mid, BotTier::High] {

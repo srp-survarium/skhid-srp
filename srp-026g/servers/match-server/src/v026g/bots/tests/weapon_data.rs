@@ -67,6 +67,8 @@ fn support_kit() -> &'static Loadout {
 
 #[test]
 fn a_patched_weapon_reaches_the_gun_the_load_the_arms_the_kick_and_the_draw() {
+    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let stock_guns = guns::guns();
     let stock = ak(stock_guns);
     let stock_kick = kick_in(recoil::kicks(), "ak_74u");
