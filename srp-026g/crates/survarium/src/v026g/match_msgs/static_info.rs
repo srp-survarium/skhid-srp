@@ -60,6 +60,47 @@ pub const MAX_MESSAGE: usize = 255 * 483;
 /// factor is `max(0, 1 − 0.1 × value)`.
 pub const NO_PROTECTION: u32 = 10;
 
+/// Blackout's team mark (`docs/notes/blackout.md`, exe patch 65), the
+/// player's own: his profile's protection field says it, which every way a
+/// profile reaches a game carries (the static info, a late joiner's place, a
+/// replay). Every value from [`NO_PROTECTION`] up protects nothing
+/// (`max(0, 1 − 0.1 × v)`: 0x332BAA, 0x332C4D; its other reader, 0x2F4E2A,
+/// tests 0), so the match computes the same: 10 no band, 11 blue, 12 red.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Band {
+    Blue,
+    Red,
+}
+
+impl Band {
+    /// A team's band: team 0 blue, team 1 red (the maps have only those two).
+    pub fn of_team(team: u8) -> Option<Band> {
+        match team {
+            0 => Some(Band::Blue),
+            1 => Some(Band::Red),
+            _ => None,
+        }
+    }
+
+    /// The protection field that says `band`.
+    pub const fn protection(band: Option<Band>) -> u32 {
+        match band {
+            None => NO_PROTECTION,
+            Some(Band::Blue) => NO_PROTECTION + 1,
+            Some(Band::Red) => NO_PROTECTION + 2,
+        }
+    }
+
+    /// The band a protection field says.
+    pub const fn of_protection(protection: u32) -> Option<Band> {
+        match protection {
+            11 => Some(Band::Blue),
+            12 => Some(Band::Red),
+            _ => None,
+        }
+    }
+}
+
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.
 pub const KIT_USABLE: u8 = 0;
@@ -310,6 +351,20 @@ impl MatchProfile {
             items,
             squad: 0,
         }
+    }
+}
+
+impl MatchProfile {
+    /// The profile as a Blackout match gives it: its protection field says
+    /// its team's [`Band`].
+    pub fn wearing_band(mut self) -> Self {
+        self.protection = Band::protection(Band::of_team(self.team));
+        self
+    }
+
+    /// The band its protection field says.
+    pub fn band(&self) -> Option<Band> {
+        Band::of_protection(self.protection)
     }
 }
 
@@ -941,6 +996,22 @@ pub fn parse_payload(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_band_is_the_protection_field() {
+        assert_eq!(Band::of_team(0), Some(Band::Blue));
+        assert_eq!(Band::of_team(1), Some(Band::Red));
+        assert_eq!(Band::of_team(2), None);
+        for band in [None, Some(Band::Blue), Some(Band::Red)] {
+            assert!(Band::protection(band) >= NO_PROTECTION, "protects nothing");
+            assert_eq!(Band::of_protection(Band::protection(band)), band);
+        }
+        assert_eq!(Band::protection(Some(Band::Blue)), 11);
+        assert_eq!(Band::protection(Some(Band::Red)), 12);
+        assert_eq!(Band::of_protection(13), None);
+        assert_eq!(Band::of_protection(0), None);
+    }
+
     use super::super::super::loadouts;
     use super::super::super::skills::modifier_index;
     use super::*;

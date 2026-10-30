@@ -42,6 +42,7 @@ pub mod log;
 mod options;
 pub mod parse;
 mod rt;
+pub mod skin;
 mod sync;
 pub mod trace;
 pub mod types;

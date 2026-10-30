@@ -1653,11 +1653,37 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
   - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
   **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
-### 3.58 Blackout: a battery match with no interface, the players' markers on Tab (written 2026-10-24, the Rust framework's 2026-10-26; README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options read, the markers' feed, Tab and the input run with Unicorn from the game's own code before each site; not run in a game
+### 3.58 Blackout: a battery match with no interface, the players' markers on Tab, the teams' tape (written 2026-10-24, the Rust framework's 2026-10-26, the tape 2026-10-30; README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options read, the markers' feed, Tab, the input and the visual's records run with Unicorn from the game's own code before each site; not run in a game
 
-- **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
-  them): a team colour painted into each torso's sleeve, carried in each player's profile; the
-  findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
+- **The teams' tape** (PROVEN in the code; replaces the parked painted bands of
+  `feat/blackout-bands`). profile_skin_visual_cook::on_configs_loaded (0x204560) builds a visual's
+  cook data (skeleton_combined_cook_data, made at 0x2045AB by 0x127C30: 20 part records of C0Ch at
+  +234h, each constructed by 0x127CB0; +F324h the records in use): record 0 the head's (kind 0,
+  0x2056E6), the items' from 1 (0x204735), each a record +0 base_model, +114h part_name, +228h
+  material (buffer_strings {begin, end, limit} over their own 104h bytes), +C04h "bake", +C08h the
+  kind, 1 + the slot table's index (0xA79870 {kit slot, name}: gloves 1, torso 2, boots 3, pants
+  4, helmet 5, mask 6, back 7; 0x204A44); an additional_models record takes its part's kind
+  (0x205540). An item's optional `material` is copied into +228h (0x20545E) and
+  skeleton_combined_model_cook keeps a set one instead of the model settings'
+  material_settings[<part_name>] (0x1288C7). Both paths (with and without a head, 0x205653) join at
+  0x2056F0 (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, 7 bytes, no branch into them, no relocation
+  under them): ESP+1Ch the cook data, ESP+348h the visual's name (a buffer_string over
+  ESP+354h..458h: per part its item's id and camouflage, the combined skin's resource name queried
+  at 0x20579F, the cache's key), EBP+10h the profile. The profile's +45F4h is the new-player
+  protection (every value from 10 up protects nothing: 0x332BAA, 0x332C4D; 0x2F4E2A tests 0), which
+  srp makes its Blackout band; its +45F0h is_local (the static info's reader sets it by the local
+  index, 0x27BE5F).
+- **The camouflage bake's key** (PROVEN in the code; the tape needs nothing of it). A record with
+  +C04h set (camo_available 0x204BC4, decals 0x204F23) is baked by bake_decals (0x129830 at
+  0x1298EB: a class-6Ch query whose parameters P are the record's +34Ch); each texture type's name is
+  `%s%s` of P+7A4h (the record's +AF0h) and d, n, f or s (0x134206), and the file
+  `user_data/streamed_textures/<name>.dds` (0x12D1D0, 0x9EDB44). +AF0h is the camouflage's file
+  name (0x204DBC, via 0x204500), each decal's texture file name and u64 (0x20513F), then the
+  base_model's file name (0x205622): nothing of part_name or material, while the bake reads the
+  surface's material's t_base, t_normal, t_fresnel, t_roughness. So two materials of one model and
+  camouflage would share one baked file (and patch 70 keeps the folder from game to game): a
+  team-coloured variant of an item's own material would need its own mark in +AF0h. The tape adds
+  a record of its own model instead, which is never baked (+C04h 0; the shell has no camouflage).
 - **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
   (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
   +57870h. The options are read for 0xE4 (process_static_match_info, its call at 0x27B928: ESI the
@@ -1698,16 +1724,35 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
   0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
 - **The patch:** README patch 65: the Rust module `patches::blackout` (rust/patches/src/
-  blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
-  (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
-  0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
-  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
-  (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
-  62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
-  (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.
-- **Checked:** selftest check 65; `check_blackout_026g.py` (Unicorn, from the game's code before each
-  site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
-  (Ruffle). **Not run in a game.**
+  blackout.rs, blackout/tape.rs and blackout.toml; `rust_patches.md`), seven `lohook`s at sites of
+  its own (`sites_026g.tsv`; their bytes read from the original exe at every build):
+  `static_info.options_read` 0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start`
+  0x23AA10, `keyboard.tab_state` 0x25CD2C, `player_names.visibility` 0x1F2F10, `input_builder.end`
+  0x2421B0, `skin_visual.parts_done` 0x2056F0. Its state is the crate's (`patches.state`). No other
+  patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch 62's sites stay theirs alone.
+  Movies: the hud's and the player icons' `force_interface_hidden` (forced, `hide_interface` does
+  nothing: F11 and a match's reset leave it).
+- **The tape** (`skin_visual.parts_done`, `vostok::skin`): the band is the visual's own profile's
+  (protection 11 blue, 12 red; anything else nothing), so a match's start, a late joiner's own copy
+  of his profile, a respawn, a replay and the lobby (10) all read one field, no flag or world; none
+  on the game's own player (is_local: in first person it would be at the camera). Each record in
+  use (before the patch's) of kind gloves, torso or pants whose base_model and part_name are a
+  `tape` row of `scripts/blackout-tape/tape.tsv` (generated into `blackout_tape_026g.rs` by
+  `blackout_tape_026g.py --write`; `--check` and check 65 say it is current) gets one more record
+  while the cook data has room (20): base_model `ported/blackout_tape/<its base_model, '/' as
+  '_'>__<its part_name>`, part_name `tape`, the same kind, material `ported/blackout_tape/tape_blue`
+  or `tape_red` (the item-material override: the shell's own settings name one colour), +C04h 0
+  (never baked); the texts by the game's buffer_string::assign (0x127C0). The item's own records
+  are left as they are. When one is added the visual's name gets `srpbo0_` (blue) or `srpbo1_`
+  (red), in place of its tail when its room is short, so a blue and a red player of the same items
+  never share a cached visual. The models and materials are content (`blackout.md`).
+- **Checked:** selftest check 65 (the sites, the records' layout and kinds, the slot table, the
+  material override and the bake's test, the tape table current); `check_blackout_026g.py`
+  (Unicorn, from the game's code before each site to past it, the original beside: the tape on a
+  cook data of the game's own constructor for 11, 12, 10, 13, 0, the own player, the ways a profile
+  comes, rows under another part or surface, the head's record, an item's own material, the
+  20-record limit, a full name); `cargo test` (rust/); `scripts/blackout-kits/check.sh` (Ruffle).
+  **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

@@ -3907,9 +3907,10 @@ def test_suicide_key(original, image, before):
 
 
 def test_blackout(original, image, before):
-    """Check 65: Blackout (patch 65, the Rust patch `blackout`, six
-    lohooks of blackout.toml at sites of its own). check_blackout_026g.py
-    runs each from the game's code before its site on made-up objects."""
+    """Check 65: Blackout (patch 65, the Rust patch `blackout`, seven
+    lohooks of blackout.toml at sites of its own; the teams' tape table
+    blackout_tape_026g.rs current). check_blackout_026g.py runs each from the
+    game's code before its site on made-up objects."""
     stock = Image(original)
     rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
     check(rows(0x27B921, 12) == ["add esi,byte +0xc", "push esi", "lea eax,[ebp-0x2c]", "call 0x1f0e70"]
@@ -3928,6 +3929,24 @@ def test_blackout(original, image, before):
           "on_keyboard_action asks for Tab (0x25CD22), keeps it in bl and [esp+14h], gives show_player_list the "
           "dword and sends every key to its end while bl is set (0x25CD39); update_ui calls update_player_icons "
           "with the ui pushed (0x23B206)")
+    slot_names = [bytes(original[stock.offset(struct.unpack("<I", stock.read(0xA79874 + 8 * i, 4))[0]):]
+                        ).split(b"\0")[0] for i in range(7)]
+    check(rows(0x205653, 6) == ["jz near 0x2056f0"]
+          and rows(0x2056E6, 0x11) == ["mov dword [esi+0xc08],0x0", "mov edx,[esp+0x58]", "mov esi,[ebp+0xc]"]
+          and rows(0x204A2F, 0x1B) == ["imul esi,esi,dword 0xc0c", "cmp byte [esp+eax+0x74],0x0",
+                                      "lea ebx,[esi+ecx+0x234]", "lea ecx,[eax+0x1]", "mov [ebx+0xc08],ecx"]
+          and slot_names == [b"gloves", b"torso", b"boots", b"pants", b"helmet", b"mask", b"back"]
+          and rows(0x20545E, 0xF) == ["lea edx,[ebx+0x228]", "mov ecx,eax", "mov eax,edx", "call 0x129bb0"]
+          and rows(0x1288C7, 4) == ["cmp ecx,[ebx]", "jnz 0x12891a"]
+          and rows(0x1298EB, 7) == ["cmp byte [esi+0x128],0x0"],
+          "profile_skin_visual_cook::on_configs_loaded joins at 0x2056F0 after the head's record (kind 0) or "
+          "without it (0x205653); a part's record is +234h + n x C0Ch of the cook data, its kind 1 + the slot "
+          "table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back); an item's material is "
+          "copied to +228h (0x20545E) and skeleton_combined_model_cook keeps a set one (0x1288C7); bake_decals "
+          "bakes a record only with +C04h set (0x1298EB)")
+    import blackout_tape_026g
+    problem = blackout_tape_026g.issue()
+    check(problem is None, "blackout_tape_026g.rs is tape.tsv's rows of method tape" + (f": {problem}" if problem else ""))
     import hooks_026g
     hooks = [h for h in hooks_026g.hooks() if h["patch"] == "blackout"]
     linked = P.arena()
@@ -3935,11 +3954,11 @@ def test_blackout(original, image, before):
     state = linked.blocks.get("patches.state")
     sites = {h["site_name"]: h for h in hooks}
     check(sorted(sites) == ["input_builder.end", "keyboard.tab_state", "player_icons.update_start", "player_names.visibility",
-                            "replay.options_read", "static_info.options_read"]
+                            "replay.options_read", "skin_visual.parts_done", "static_info.options_read"]
           and all(h["kind"] == "lohook" for h in hooks) and state is not None,
-          "blackout.toml's six hooks are lohooks at the sites static_info.options_read, replay.options_read, "
-          "player_icons.update_start, player_names.visibility, keyboard.tab_state and input_builder.end; the crate's statics are the "
-          "block patches.state")
+          "blackout.toml's seven hooks are lohooks at the sites static_info.options_read, replay.options_read, "
+          "player_icons.update_start, player_names.visibility, keyboard.tab_state, input_builder.end and "
+          "skin_visual.parts_done; the crate's statics are the block patches.state")
     check(rows(0x1F2DCD, 12) == ["push byte +0x38", "call eax", "test al,al", "jnz near 0x1f2f10"]
           and rows(0x1F2F10, 7) == ["movzx ecx,byte [esi+0x114]"]
           and rows(0x1F2F33, 0x10) == ["mov edx,[esi+0x6b8]", "mov eax,[esp+0x14]", "cmp eax,[edx+0x45ec]"],
