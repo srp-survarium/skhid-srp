@@ -1848,6 +1848,9 @@ pub(crate) fn real_bot_cost() {
                     eprintln!("{line}");
                 }
             }
+            for line in &game.carry_kill_lines {
+                eprintln!("{line}");
+            }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
