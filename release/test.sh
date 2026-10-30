@@ -947,6 +947,9 @@ for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs
     resources/binary-config-examples/a.cfg resources/game-026g/README scripts/run.sh servers/srp/src/main.rs docs/notes.md; do
     echo "$f 1" >"$src/$f"
 done
+# The built maps' key: mapdata's algorithm constants.
+mkdir -p "$src/crates/mapdata/src"
+printf 'pub const GRID_ALGO: u32 = 3;\npub const SIGHT_ALGO: u32 = 1;\n' >"$src/crates/mapdata/src/lib.rs"
 cat >"$src/Dockerfile" <<'DOCKERFILE'
 FROM rust:1-slim-bookworm AS build
 COPY Cargo.toml Cargo.lock ./
@@ -1109,7 +1112,11 @@ no_record() { # <revision>: neither the tag, nor the branch, nor REVISION <revis
     ! origin_tag "026g-rev$1" >/dev/null && ! origin_branch "release/record-rev$1" >/dev/null &&
         test "$(main_revision)" != "$1" && ! git -C "$T/repo" rev-parse -q --verify "refs/tags/026g-rev$1" >/dev/null
 }
-mkdir -p "$T/game" "$T/tmp"
+# The original install: its launcher a stand-in, of its own sha256.
+mkdir -p "$T/game/binaries/x86" "$T/tmp" "$T/no-launcher"
+echo "the original launcher" >"$T/game/binaries/x86/survarium_launcher.exe"
+SKHID_TEST_LAUNCHER_SHA256=$(sha256sum <"$T/game/binaries/x86/survarium_launcher.exe" | cut -d' ' -f1)
+export SKHID_TEST_LAUNCHER_SHA256
 cat >>"$T/release.env" <<ENV
 SKHID_GAME=$T/game
 SKHID_GAME_SERVER=127.0.0.1:1234
@@ -1161,6 +1168,16 @@ admin_log() { tr '\n' ' ' <"$T/state/admin.log" | sed 's/ $//'; }
 offers() { "$bin" info "$T/live/download/server-game-data.db" 2>/dev/null | grep -q "resources.db.$1 "; }
 nothing_staged() { ! ls "$T/live/download/".*.new "$T"/live/release-rev*/*.part "$T"/live/release-rev*/src >/dev/null 2>&1 && ! grep -qxE 'staging|swapping' "$T"/live/release-rev*/state; }
 first_line() { grep -n -- "$1" "$T/args" | tail -n +"${2:-1}" | head -n 1 | cut -d: -f1; }
+
+# The players' launcher is built from the original one in SKHID_GAME: none
+# there, or another file, stops the preflight.
+expect_refused "release: no launcher in SKHID_GAME is a preflight problem" \
+    "MISSING  SKHID_GAME: no binaries/x86/survarium_launcher.exe in $T/no-launcher or its game folder" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME=.*|SKHID_GAME=$T/no-launcher|")" "$here/release.sh"
+expect_refused "release: ... nor is another launcher" \
+    "MISSING  SKHID_GAME: $T/game/binaries/x86/survarium_launcher.exe has sha256 $SKHID_TEST_LAUNCHER_SHA256, not the original 0.26g launcher's (0123)" \
+    env SKHID_TEST_LAUNCHER_SHA256=0123 "$here/release.sh"
+check "release: ... neither planned nor took anything" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
 
 # A whole release, no new content (patch_3 and patch_12 listed), the server
 # code as live; a feature PR merged since the last release (11, no tag yet).
@@ -1217,6 +1234,8 @@ check "release: ... the staged files' sha256 are in new.sha" grep -q "bot-data/m
 expect_refused "release: bot-data.sh run again on a folder with its log refuses, the log and the volume as they were" "bot-data.log is there already"     sh "$(folder 12 a)/bot-data.sh" "$(folder 12 a)" "$T/volume"
 check "release: ... the log still says what the first run did" test "$(wc -l <"$(folder 12 a)/bot-data.log")" = 2
 check "release: says the built maps are not pre-built (srp has no command)" has "$out" "srp has no pre-build command"
+check "release: ... reads the algorithm constants in the live tree: as main's, a map file changes" has "$out" \
+    "the algorithm constants are the live tree's, but 1 map file(s) change"
 check "release: the maintenance ended with the restart" test ! -e "$T/state/maint"
 check "release: took the lock on the jump host" grep -q "^ssh jump mkdir $T/lock" "$T/args"
 check "release: ... and freed it" test ! -e "$T/lock"
@@ -1269,6 +1288,9 @@ echo "crates 2" >"$src/crates/a/src/lib.rs"
 printf 'services:\n  srp26:\n    environment:\n      - SRP_DAILY_BONUS\n' >"$src/docker-compose.yml"
 commit "server code"
 merge_pr 8 "Another feature"
+# A PR squash-merged: one commit "<title> (#<n>)" on main.
+echo "feature 9" >"$src/docs/feature-9.md"
+commit "A squashed feature (#9)"
 # A PR changed what a match computes: it marks it `next`.
 printf 'next\ta new kit before the start (#8)\n' >>"$sim"
 commit "a change of what a match computes"
@@ -1324,8 +1346,8 @@ check "release --resources: ... main's release/patches.tsv has the new row" cmp 
 row=$(on_main srp-026g/client-patches/README.md | grep '^| Revision 13 |' || true)
 check "release --resources: ... the row names the content patch" has "$row" \
     "Its content: \`resources.db.patch_13\` ($(stat -c %s "$T/r13/resources.db.patch_13") bytes, sha256 \`$(sha256sum <"$T/r13/resources.db.patch_13" | cut -d' ' -f1)\`) |$"
-check "release --resources: ... it shipped what was merged since the tag of 12 (not 12's own, nor 12's record)" \
-    bash -c "grep -q 'Shipped: #8 Another feature\. ' <<<\"\$1\" && ! grep -q '#7\|record' <<<\"\$1\"" _ "$row"
+check "release --resources: ... it shipped what was merged since the tag of 12 (not 12's own, nor 12's record), the squash-merged PR too" \
+    bash -c "grep -q 'Shipped: #8 Another feature; #9 A squashed feature\. ' <<<\"\$1\" && ! grep -q '#7\|record' <<<\"\$1\"" _ "$row"
 check "release --resources: ... the rows in revision order" test "$(on_main srp-026g/client-patches/README.md | sed -n 's/^| Revision \([0-9]*\) .*/\1/p' | tr '\n' ' ')" = "10 11 12 13 4 "
 check "release: finds the changed server code" has "$out" "CHANGED   crates/a/src/lib.rs"
 check "release: tags the running image by its ID" grep -q "docker tag $running_before srp-026g:before-rev13-[0-9-]*-b" "$T/log"
@@ -1498,7 +1520,10 @@ check "release --resources: another preflight problem: the pages are not rebuilt
 check "release: ... none of them planned or published anything" bash -c \
     "test ! -s $T/state/admin.log && test ! -e $T/patches/resources.db.patch_14 && test ! -e $T/lock"
 
-# The dry run.
+# The dry run. The live tree's GRID_ALGO other than main's (as main's change
+# of it would be): the built maps' keys change, warned.
+grep -qx 'pub const GRID_ALGO: u32 = 3;' "$T/live/crates/mapdata/src/lib.rs" || fail "the live tree has no GRID_ALGO 3"
+sed -i 's/^pub const GRID_ALGO: u32 = 3;$/pub const GRID_ALGO: u32 = 2;/' "$T/live/crates/mapdata/src/lib.rs"
 before=$(tree)
 : >"$T/build-site.args"
 published_before=$(ls "$T/patches")
@@ -1522,6 +1547,10 @@ check "release --dry-run: ... and step 4 makes the item tables, before staging" 
     '^\[dry run\]    then the checks of release/deploy on both, the item tables of the server data (srp-item-tables: a failure stops here), and the release folder:'
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
     "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: built before the swap' <<<\"\$1\"" _ "$out"
+check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
+    "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
+sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
+before=$(tree)
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --server-code no --minutes 2 && fail "release.sh --dry-run --server-code no: no problem ($out)"
 check "release --dry-run --server-code no: refused as a real run is, the pages to rebuild" bash -c \
     "grep -q 'MISSING  the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code' <<<\"\$1\" && grep -q 'a real run would stop before the lock' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
@@ -1705,6 +1734,29 @@ check "release: no answer at the swap is a no" has "$out" "no answer in 2 min is
 check "release: ... swaps nothing" has "$out" "nothing was swapped"
 check "release: ... cancels the maintenance" test "$(admin_log)" = "plan 1 cancel"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+
+# The swap file answers the question before the swap without a terminal
+# (stdin at its end); one made before the question is no answer (removed as
+# it is asked). srp then makes no backup: rolled back (as below).
+: >"$T/state/admin.log"
+touch "$T/no-backup"
+setsid -w "$here/release.sh" --minutes 1 --label s >"$T/s.out" 2>&1 </dev/null &
+s_pid=$!
+for _ in $(seq 600); do [[ -n $(folder '*' s) ]] && break; sleep 0.1; done
+swap_file=$T/cache/skhid-release/swap-$(basename "$(folder '*' s)")
+touch "$swap_file"
+for _ in $(seq 600); do grep -q '^Swap: answer y here' "$T/s.out" && break; sleep 0.1; done
+check "release: the question before the swap names its swap file, beside the go file" grep -qxF "Swap: answer y here, or run: touch $swap_file" "$T/s.out"
+check "release: ... one made before the question is removed" test ! -e "$swap_file"
+sleep 3
+check "release: ... and is no answer" bash -c "! grep -q '5. the swap' $T/s.out"
+touch "$swap_file"
+wait "$s_pid" || true
+rm "$T/no-backup"
+printf '%s\n' "$(cat "$T/s.out")" >>"$T/outputs"
+check "release: ... the swap file made then answers it: swapped" bash -c "grep -qxF 'swap: $swap_file' $T/s.out && grep -q '5. the swap' $T/s.out"
+check "release: ... and is taken away" test ! -e "$swap_file"
+check "release: ... (then rolled back: srp made no backup)" grep -q "rolled back: srp26" "$T/s.out"
 
 # srp makes no backup at its start (it never opened srp.db): the release does
 # not go on without it, and the rollback keeps srp.db as it is.

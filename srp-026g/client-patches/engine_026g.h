@@ -253,9 +253,6 @@ void engine_release_item(struct artefact *object, unsigned int *count);
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
 
-/* 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly */
-void __attribute__((thiscall)) engine_player_insert(struct player *player, unsigned int link);
-
 /* 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0 */
 float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target);
 
