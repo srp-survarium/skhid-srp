@@ -12,8 +12,8 @@
 use super::*;
 use crate::v026g::bots::tests::tallies::shot_offset::Stance;
 
-/// A shot this many ticks after the shooter's last is the first of a run (500 ms: the kick has returned).
-const RUN_GAP_TICKS: u32 = 10;
+/// A shot this many ms (the stand-in's ticks count ms) after the shooter's last is the first of a run: the kick has returned.
+const RUN_GAP_MS: u32 = 500;
 
 /// The bands' upper bounds, metres.
 const EDGES: [f32; 2] = [20.0, 40.0];
@@ -23,7 +23,7 @@ const STANCES: [&str; 3] = ["stand", "crouch", "air"];
 
 /// Whether a shot at `tick` is the first of a run, the shooter's last shot having been at `last`.
 fn first_of_run(last: Option<u32>, tick: u32) -> bool {
-    last.is_none_or(|last| tick >= last + RUN_GAP_TICKS)
+    last.is_none_or(|last| tick >= last + RUN_GAP_MS)
 }
 
 #[derive(Clone, Copy, Default)]
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn a_shot_after_a_pause_is_the_first_of_its_run() {
         assert!(first_of_run(None, 5));
-        assert!(!first_of_run(Some(5), 5 + RUN_GAP_TICKS - 1));
-        assert!(first_of_run(Some(5), 5 + RUN_GAP_TICKS));
+        assert!(!first_of_run(Some(5), 5 + RUN_GAP_MS - 1));
+        assert!(first_of_run(Some(5), 5 + RUN_GAP_MS));
     }
 }
