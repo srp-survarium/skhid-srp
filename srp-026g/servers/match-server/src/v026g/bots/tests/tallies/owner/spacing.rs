@@ -20,6 +20,23 @@ const KILL_HIT_MS: u32 = 1_000;
 /// A body that moved less than this since a second ago is standing still, m.
 const STILL_M: f32 = 1.5;
 
+/// Two teammates overlap within this (ground distance, m) and less than [`OVERLAP_DY_M`] apart in height; half of it is a body inside the other. Standing
+/// still is under [`STILL_MPS`], moving over [`MOVING_MPS`]; two routes end at the same goal within [`SAME_GOAL_M`].
+const OVERLAP_M: f32 = 1.0;
+const OVERLAP_HALF_M: f32 = 0.5;
+const OVERLAP_DY_M: f32 = 2.0;
+const SAME_GOAL_M: f32 = 2.0;
+const STILL_MPS: f32 = 0.3;
+const MOVING_MPS: f32 = 1.0;
+
+/// Whether two bodies move the same way (their yaws within 45 degrees; the walk keys are forward).
+fn heading_alike(a: Option<&Rec>, b: Option<&Rec>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => crate::v026g::bots::kin::wrap(a.yaw - b.yaw).abs() < std::f32::consts::FRAC_PI_4,
+        _ => false,
+    }
+}
+
 /// Crowded: this many distinct enemies near in the window.
 const CROWD: u32 = 3;
 
@@ -42,6 +59,15 @@ struct TeamSpacing {
     /// What killed a body, for the other deaths (0) and the crowded ones (1): [bullet, not a bullet (a blast, a zone, a fall)];
     /// the distinct shooters that hit it in the last 3 s: 1, 2, 3 or more; the killer standing still for 2 s or more: [no, yes];
     /// the killer's distance: under 10 m, 10-30, 30 and more.
+    /// The overlap itself (A175, the owner 2026-10-30: "too close to each other or maybe even inside each other"): each second, the pairs of living teammates
+    /// (`pairs`) and those within 1 m and within 0.5 m of each other (ground distance, less than 2 m apart in height), the body-seconds with a mate within 1 m, and the
+    /// 1 m pair-seconds by cause: [the same goal (both routes end within 2 m of each other), a follow play (Escort, Buddy, PairUp, CoverHuman), both standing
+    /// still, in file (both moving the same way), other].
+    pairs: u64,
+    overlap_1: u64,
+    overlap_05: u64,
+    body_overlap_1: u64,
+    cause: [u64; 5],
     killed_by: [[u64; 2]; 2],
     shooters: [[u64; 3]; 2],
     killer_still: [[u64; 2]; 2],
@@ -64,6 +90,10 @@ pub(super) struct SpacingCounts {
     still_s: Vec<u32>,
     /// The bodies' last hit's killer (the shooter and the tick) for each body.
     last_killer: Vec<Option<(Place, u32)>>,
+    /// Where each bot's route ends (its goal), as the bot reads it.
+    goal: Vec<Option<Vec3>>,
+    /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
+    overlap_plays: [BTreeMap<String, u64>; 2],
     /// The second each body came alive, for a respawn (its life's age); none for its life from the match's start (the
     /// opening is not a respawn, and is left out of the life-age buckets).
     born: Vec<Option<usize>>,
@@ -82,6 +112,8 @@ impl SpacingCounts {
             last_pos: vec![None; n],
             still_s: vec![0; n],
             last_killer: vec![None; n],
+            goal: vec![None; n],
+            overlap_plays: Default::default(),
             born: vec![None; n],
             by_play: BTreeMap::new(),
         }
@@ -91,6 +123,12 @@ impl SpacingCounts {
 impl Topic for SpacingCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(goal) = self.goal.get_mut(place) {
+            *goal = bot.and_then(|b| b.route.as_ref().map(|(route, _)| route.end()));
+        }
     }
 
     fn begin(&mut self, _run: &Run, game: &mut Game) {
@@ -183,6 +221,9 @@ impl Topic for SpacingCounts {
             }
             self.window[place][second % WINDOW_S] = enemy_mask;
         }
+        if sample {
+            self.overlap(run, game);
+        }
     }
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -191,6 +232,57 @@ impl Topic for SpacingCounts {
 }
 
 impl SpacingCounts {
+    /// The overlap of the living teammates this second: see [`TeamSpacing::pairs`].
+    fn overlap(&mut self, run: &Run, game: &Game) {
+        let n = game.bodies.len().min(self.goal.len());
+        let mut near = vec![false; n];
+        for i in 0..n {
+            let (a, ra) = (&game.bodies[i], run.recs[i].last());
+            if !a.alive {
+                continue;
+            }
+            for j in (i + 1)..n {
+                let (b, rb) = (&game.bodies[j], run.recs[j].last());
+                if !b.alive || b.team != a.team {
+                    continue;
+                }
+                let team = usize::from(a.team & 1);
+                self.by_team[team].pairs += 1;
+                let d = a.feet.distance_xz(b.feet);
+                if d >= OVERLAP_M || (a.feet.y - b.feet.y).abs() >= OVERLAP_DY_M {
+                    continue;
+                }
+                let ts = &mut self.by_team[team];
+                ts.overlap_1 += 1;
+                ts.overlap_05 += u64::from(d < OVERLAP_HALF_M);
+                near[i] = true;
+                near[j] = true;
+                let name = |r: Option<&Rec>| r.and_then(|r| run.plays.get(usize::from(r.play))).cloned().unwrap_or_default();
+                let (pa, pb) = (name(ra), name(rb));
+                let follow = |p: &str| ["Escort", "Buddy", "PairUp", "CoverHuman"].iter().any(|f| p.contains(f));
+                let same_goal = matches!((self.goal[i], self.goal[j]), (Some(x), Some(y)) if x.distance_xz(y) < SAME_GOAL_M);
+                let (sa, sb) = (ra.map_or(0.0, |r| r.speed), rb.map_or(0.0, |r| r.speed));
+                let cause = if same_goal {
+                    0
+                } else if follow(&pa) || follow(&pb) {
+                    1
+                } else if sa < STILL_MPS && sb < STILL_MPS {
+                    2
+                } else if sa >= MOVING_MPS && sb >= MOVING_MPS && heading_alike(ra, rb) {
+                    3
+                } else {
+                    4
+                };
+                ts.cause[cause] += 1;
+                let (lo, hi) = if pa <= pb { (pa, pb) } else { (pb, pa) };
+                *self.overlap_plays[team].entry(format!("{lo} + {hi}")).or_default() += 1;
+            }
+        }
+        for (i, inside) in near.into_iter().enumerate() {
+            self.by_team[usize::from(game.bodies[i].team & 1)].body_overlap_1 += u64::from(inside);
+        }
+    }
+
     fn part(&self) -> Part {
         let team = |t: usize| {
             let c = &self.by_team[t];
@@ -202,6 +294,11 @@ impl SpacingCounts {
                 "deaths": c.deaths,
                 "crowded_deaths": c.crowded_deaths,
                 "crowd_enemies": c.crowd_enemies,
+                "pairs": c.pairs,
+                "overlap_1m_pair_s": c.overlap_1,
+                "overlap_05m_pair_s": c.overlap_05,
+                "overlap_1m_body_s": c.body_overlap_1,
+                "overlap_1m_cause_goal_follow_still_file_other": c.cause,
                 "killed_by_bullet_or_other": c.killed_by,
                 "killed_by_shooters_1_2_3": c.shooters,
                 "killed_by_killer_still_no_yes": c.killer_still,
@@ -216,7 +313,8 @@ impl SpacingCounts {
                 (play.clone(), serde_json::json!({ "samples": n, "mates_near": mates, "clumped_samples": clumped }))
             })
             .collect();
-        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play } });
+        let overlap_plays: serde_json::Value = serde_json::json!([&self.overlap_plays[0], &self.overlap_plays[1]]);
+        let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play, "overlap_plays": overlap_plays } });
         let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 };
         let line = |t: usize| {
             let c = &self.by_team[t];
