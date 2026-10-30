@@ -268,6 +268,7 @@ impl EyeOff {
         // predate them.
         super::standin_heal::force_model(Some(false));
         super::standin_damage::force_by_data(Some(false));
+        super::standin_stagger::force_model(Some(false));
         Self
     }
 }
@@ -277,6 +278,7 @@ impl Drop for EyeOff {
         super::view::set_live_eye(true);
         super::standin_heal::force_model(None);
         super::standin_damage::force_by_data(None);
+        super::standin_stagger::force_model(None);
     }
 }
 

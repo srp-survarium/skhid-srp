@@ -248,7 +248,7 @@ impl BlockTally {
                         &view,
                         &dirs,
                         distance,
-                        t.spread(me.gun),
+                        t.spread(me.gun, super::friends::Sights::of(false, me.keys, false)),
                         0.0,
                         t,
                     )
@@ -441,7 +441,7 @@ impl BlockTally {
             let distance = a
                 .target
                 .map_or(60.0, |target| game.bodies[target].feet.distance_xz(a.feet));
-            let spread = t.spread(a.gun);
+            let spread = t.spread(a.gun, super::friends::Sights::of(false, a.keys, false));
             let held_on = |me: PlaceView, him: PlaceView, dir: Vec3| {
                 super::friends::blocking(&me, &view(vec![me.clone(), him]), &[dir], distance, spread, 0.0, &t)
                     .is_some_and(|blocked| blocked.who == victim)

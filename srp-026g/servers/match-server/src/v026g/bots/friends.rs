@@ -70,6 +70,8 @@
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
+use survarium::v026g::weapons::{Stance, character_dispersion};
+
 use super::guns::{Gun, Handling, SHOTGUN_CATEGORY};
 use super::kin::forward;
 use super::view::{MatchView, Place, PlaceView};
@@ -87,9 +89,11 @@ pub struct FriendlyFireTuning {
     /// Added for a human teammate, whose body is reckoned between his
     /// inputs, metres.
     pub human_m: f32,
-    /// The spread of the shot, by handling, degrees from the line: an
-    /// automatic weapon's bloom over a burst, one round of a semi-automatic
-    /// or bolt weapon, a shotgun's pellets.
+    /// Where the spread of the shot comes from ([`SpreadSource`]).
+    pub spread_source: SpreadSource,
+    /// The spread of the shot by handling, degrees from the line, for
+    /// [`SpreadSource::Constants`]: an automatic weapon's bloom over a burst,
+    /// one round of a semi-automatic or bolt weapon, a shotgun's pellets.
     pub spread_deg: SpreadDeg,
     /// Teammates this far past the target count too, metres: a miss goes
     /// on, and so do the rounds after a kill (in 0x60aeff4f two bots were
@@ -119,6 +123,47 @@ pub struct FriendlyFireTuning {
     pub touch_m: f32,
 }
 
+/// Where [`FriendlyFireTuning::spread`] takes the spread of a shot from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpreadSource {
+    /// The weapon's own `dispersion` block and the player's character dispersion, as the game's shot reads them
+    /// (`get_dispersed_bullet_direction` 0x2E1D50, PROVEN, `player_bots_weapons.md` §9): the line a bullet takes
+    /// is within half the cone of the aim, the cone being the base alone once the sights are in and the base, the
+    /// stance's part and the bloom before; a shotgun's pellets turn again by up to half the ammunition's
+    /// `buck_dispersion` (`get_dispersed_buckshot_direction` 0x2E2120, PROVEN).
+    Data,
+    /// [`FriendlyFireTuning::spread_deg`], by handling (the numbers before the data was read; GUESS).
+    Constants,
+}
+
+/// How the shooter's sights are, for the cone of the shot ([`FriendlyFireTuning::spread`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sights {
+    /// Pressed `aim_time` ago or more: the base alone, whatever he does.
+    AimedIn,
+    /// From the hip, or still aiming in: the stance's part counts (the bloom too, which is not tracked: 0).
+    Hip(Stance),
+}
+
+impl Sights {
+    /// The sights of a shooter holding `keys` (`strafing`: it side-steps to fire, as the keys will have it), aimed in or not.
+    pub fn of(aimed_in: bool, keys: u32, strafing: bool) -> Self {
+        if aimed_in {
+            return Self::AimedIn;
+        }
+        let fb = keys & (key::FORWARD | key::BACK);
+        let lr = keys & (key::LEFT | key::RIGHT);
+        Self::Hip(Stance {
+            crouched: keys & key::CROUCH != 0,
+            moving: strafing || fb == key::FORWARD || fb == key::BACK || lr == key::LEFT || lr == key::RIGHT,
+            sprinting: keys & key::SPRINT != 0,
+            jumping: keys & key::JUMP != 0,
+            aimed: false,
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpreadDeg {
@@ -134,6 +179,7 @@ impl Default for FriendlyFireTuning {
             on: true,
             body_m: 0.35,
             human_m: 0.25,
+            spread_source: SpreadSource::Data,
             spread_deg: SpreadDeg {
                 auto: 3.0,
                 semi: 1.5,
@@ -150,10 +196,19 @@ impl Default for FriendlyFireTuning {
 }
 
 impl FriendlyFireTuning {
-    /// The spread of `gun`'s shot, radians: a shotgun's (category 14)
-    /// pellets whatever its action, else by its handling.
-    pub fn spread(&self, gun: &Gun) -> f32 {
-        let deg = if gun.category == SHOTGUN_CATEGORY {
+    /// The spread of `gun`'s shot, radians from the line, with the sights as `sights`: by the weapon's data
+    /// ([`SpreadSource::Data`]) or, by handling, a shotgun's (category 14) pellets whatever its action, else its
+    /// handling ([`SpreadSource::Constants`]).
+    pub fn spread(&self, gun: &Gun, sights: Sights) -> f32 {
+        let deg = match self.spread_source {
+            SpreadSource::Data => spread_of_data(gun, sights),
+            SpreadSource::Constants => self.spread_of_handling(gun),
+        };
+        deg.to_radians()
+    }
+
+    fn spread_of_handling(&self, gun: &Gun) -> f32 {
+        if gun.category == SHOTGUN_CATEGORY {
             self.spread_deg.shotgun
         } else {
             match gun.handling {
@@ -161,9 +216,31 @@ impl FriendlyFireTuning {
                 Handling::Semi | Handling::Barrels => self.spread_deg.semi,
                 Handling::Bolt => self.spread_deg.bolt,
             }
-        };
-        deg.to_radians()
+        }
     }
+}
+
+/// The widest cone of any pellet ammunition (`buck_dispersion`, full angle, degrees), read once from the data.
+fn pellet_cone_deg() -> f32 {
+    static CONE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *CONE.get_or_init(|| {
+        survarium::v026g::damage::ammo()
+            .iter()
+            .filter(|a| a.buck_shot > 1)
+            .map(|a| a.buck_dispersion)
+            .fold(0.0, f32::max)
+    })
+}
+
+/// The half angle, degrees, a bullet of `gun` may take off the line it was aimed along.
+fn spread_of_data(gun: &Gun, sights: Sights) -> f32 {
+    let d = &gun.dispersion;
+    let cone = match sights {
+        Sights::AimedIn => d.cone_deg(0.0, 0.0, true),
+        Sights::Hip(stance) => d.cone_deg(character_dispersion().of(stance, d), 0.0, false),
+    };
+    let pellets = if gun.category == SHOTGUN_CATEGORY { pellet_cone_deg() } else { 0.0 };
+    (cone + pellets) * 0.5
 }
 
 /// A teammate in the line of fire.
@@ -425,6 +502,40 @@ fn ray_to_segment(from: Vec3, dir: Vec3, reach: f32, a: Vec3, b: Vec3) -> Option
 mod tests {
     use super::*;
     use crate::v026g::bots::view::Mode;
+
+    /// The spread from the data is half the game's cone (`player_bots_weapons.md` §9): the base alone with the sights
+    /// in; from the hip the stance's part times the weapon's hip multiplier too; a shotgun's pellets turn again by
+    /// half the ammunition's cone. The constants stay one switch away, as they were.
+    #[test]
+    fn the_spread_is_read_from_the_weapons_data() {
+        use survarium::v026g::weapons::weapon_named;
+        let gun = |name: &str| Gun::of(weapon_named(name).unwrap());
+        let t = FriendlyFireTuning::default();
+        assert_eq!(t.spread_source, SpreadSource::Data);
+        let deg = |g: &Gun, s: Sights| t.spread(g, s).to_degrees();
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
+        let (uzi, mosin, toz) = (gun("uzi"), gun("mosin_nagant"), gun("toz_34"));
+        // Sights in: the base alone (0.3, 0.1 degrees of the full cone).
+        assert!(close(deg(&uzi, Sights::AimedIn), 0.15));
+        assert!(close(deg(&mosin, Sights::AimedIn), 0.05));
+        // From the hip, standing: the idle 5 degrees times the hip multiplier (1, and 2 for the Mosin), and the base.
+        let idle = Sights::of(false, 0, false);
+        assert!(close(deg(&uzi, idle), (0.3 + 5.0) / 2.0));
+        assert!(close(deg(&mosin, idle), (0.1 + 10.0) / 2.0));
+        // Walking (a move key held) or side-stepping to fire: 10 degrees.
+        assert!(close(deg(&uzi, Sights::of(false, key::FORWARD, false)), (0.3 + 10.0) / 2.0));
+        assert!(close(deg(&uzi, Sights::of(false, 0, true)), (0.3 + 10.0) / 2.0));
+        // Forward and back together is not moving, as the game reads the keys.
+        assert!(close(deg(&uzi, Sights::of(false, key::FORWARD | key::BACK, false)), (0.3 + 5.0) / 2.0));
+        // A shotgun adds its pellets' cone (the buckshot's 4 degrees).
+        assert!(close(deg(&toz, Sights::AimedIn), (1.0 + 4.0) / 2.0));
+        let constants = FriendlyFireTuning { spread_source: SpreadSource::Constants, ..t };
+        for sights in [Sights::AimedIn, idle] {
+            assert!(close(constants.spread(&uzi, sights).to_degrees(), 3.0));
+            assert!(close(constants.spread(&mosin, sights).to_degrees(), 0.75));
+            assert!(close(constants.spread(&toz, sights).to_degrees(), 4.0));
+        }
+    }
 
     fn body(place: Place, team: u8, feet: Vec3, bot: bool) -> PlaceView {
         PlaceView {

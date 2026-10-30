@@ -23,6 +23,9 @@
       "worth": {
         "hurt_from": "body"
       }
+    },
+    "friends": {
+      "spread_source": "constants"
     }
   },
   "avoid": {
