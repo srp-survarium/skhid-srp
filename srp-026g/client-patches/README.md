@@ -3714,35 +3714,6 @@ Every spare is logged to `srp_patches.log` (time, address space, failures);
 computes. `check_spare_weapons_026g.py` runs the three hooks against the
 original exe's profile code. The RE and the cost: `docs/notes/weapon_pickup.md`.
 
-## Dropped-weapon input ownership (parked; patch 83 is now the spike above)
+The rest of dropped-weapon pickup (the command, the record, the switch) is
+designed, not built: `docs/notes/weapon_pickup.md`.
 
-**Parked, not built.** The Rust patch was written against the untyped `raw`
-layer that main has since replaced (typed handles, `rust_patches.md`). Its code,
-its table rows (engine, fields, sites, callbacks), the vostok `world.rs`
-additions and the `check_engine_026g.py` extension are kept, unported, in
-`client-patches/parked/dropped_weapons/`; nothing of it is in the arena, the
-hook tables or the exe. Restarting the client side means porting it to typed
-kinds. What follows describes the parked code.
-
-The Rust `dropped_weapons` hooks create and destroy a separate input-journal
-owner for each native world, and observe local input merging, tick snapping,
-ordinary relay completion, pool eviction and server moves/discards. Moves retain
-their extracted target until placement completes, including source-node reuse.
-The match transport accepts F7 pickup
-relays into that journal and defines D7 request framing, retaining existing
-message behavior. The native history sender emits D7 for attached targets.
-Draw hooks copy each dead weapon's authored model box and final ragdoll transform,
-publishing only completed draw frames under the match owner. The tested selector
-uses oriented boxes and rejects unavailable drop lives. Local camera/input
-attachment and weapon transfer remain unfinished. Death-entry hooks now retain
-independent equipment profiles by exact source life until match teardown;
-donor respawn, mutation or departure cannot replace those templates. Native
-weapon creation from the templates still needs a verified loading context;
-weapon pickup is not playable yet. Native object sizes and the released patch revision are unchanged.
-
-Implementation and remaining integration: `docs/notes/weapon_pickup.md`.
-`tools/re-kit/v026g/check_pickup_hooks.py` executes the linked Rust lifecycle,
-death-profile capture and timing hooks, including original profile copying,
-allocation failures, independent donor lifetime and teardown. `check_pickup_transport.py`
-checks native framing and F7 dispatch. `check_pickup_bounds.py` verifies the
-original renderer's bounds layout and coordinate conversion. None is a gameplay test.

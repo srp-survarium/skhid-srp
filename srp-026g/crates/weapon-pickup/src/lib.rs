@@ -75,15 +75,6 @@ impl WeaponSlot {
         }
     }
 
-    /// The inventory slots of its ammunition: two beside it and two of the
-    /// four extra ammo slots (19..22).
-    pub const fn ammo_slots(self) -> [u8; 4] {
-        match self {
-            WeaponSlot::First => [8, 9, 19, 20],
-            WeaponSlot::Second => [11, 12, 21, 22],
-        }
-    }
-
     const fn bit(self) -> u8 {
         match self {
             WeaponSlot::First => 0,
@@ -166,11 +157,11 @@ pub enum Drop {
 }
 
 impl Drop {
-    /// The kit and slot that can be taken at `now`: open, within the window,
-    /// and the kit's spare free (nobody holds it).
-    pub fn available(self, now: Ms, spare_free: bool) -> Option<(Kit, WeaponSlot)> {
+    /// The kit and slot that can be taken at `now`: open and within the
+    /// window (each death has its own gun).
+    pub fn available(self, now: Ms) -> Option<(Kit, WeaponSlot)> {
         match self {
-            Drop::Open { kit, slot, died } if now.since(died) < WINDOW_MS && spare_free => Some((kit, slot)),
+            Drop::Open { kit, slot, died } if now.since(died) < WINDOW_MS => Some((kit, slot)),
             _ => None,
         }
     }
@@ -270,8 +261,7 @@ pub enum Refusal {
     Borrowing,
     /// No gun of its two in its hands.
     NoGunInHands,
-    /// Its own place, or a drop not available (none, taken, past 5 s, or the
-    /// kit's spare held by someone).
+    /// Its own place, or a drop not available (none, taken, past 5 s).
     NotAvailable,
     /// The spare is not of the held gun's kind (a rifle for a pistol).
     OtherKind,
@@ -287,7 +277,7 @@ pub struct Take {
 /// picker with one of its guns in hands and no borrowed one, an available
 /// drop of another place, and a spare of the held gun's kind (both two-handed
 /// or both not).
-pub fn decide(picker: Picker, target: Place, drop: Drop, now: Ms, spare_free: bool,
+pub fn decide(picker: Picker, target: Place, drop: Drop, now: Ms,
               same_kind: impl FnOnce(Kit, WeaponSlot) -> bool) -> Result<Take, Refusal> {
     if !picker.alive {
         return Err(Refusal::Dead);
@@ -299,7 +289,7 @@ pub fn decide(picker: Picker, target: Place, drop: Drop, now: Ms, spare_free: bo
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
-    let (kit, slot) = drop.available(now, spare_free).ok_or(Refusal::NotAvailable)?;
+    let (kit, slot) = drop.available(now).ok_or(Refusal::NotAvailable)?;
     if !same_kind(kit, slot) {
         return Err(Refusal::OtherKind);
     }
@@ -358,14 +348,13 @@ mod tests {
     }
 
     #[test]
-    fn a_drop_is_open_for_five_seconds_while_its_spare_is_free() {
+    fn a_drop_is_open_for_five_seconds() {
         let drop = Drop::Open { kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second, died: Ms(u32::MAX - 1000) };
         let at = |ms: u32| Ms((u32::MAX - 1000).wrapping_add(ms));
-        assert_eq!(drop.available(at(0), true), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
-        assert!(drop.available(at(4_999), true).is_some());
-        assert_eq!(drop.available(at(5_000), true), None);
-        assert_eq!(drop.available(at(10), false), None);
-        assert_eq!(Drop::Taken.available(at(0), true), None);
+        assert_eq!(drop.available(at(0)), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
+        assert!(drop.available(at(4_999)).is_some());
+        assert_eq!(drop.available(at(5_000)), None);
+        assert_eq!(Drop::Taken.available(at(0)), None);
     }
 
     #[test]
@@ -396,18 +385,17 @@ mod tests {
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
         let drop = Drop::Open { kit, slot: WeaponSlot::First, died: Ms(1_000) };
-        let take = decide(picker, donor, drop, Ms(3_000), true, |_, _| true).unwrap();
+        let take = decide(picker, donor, drop, Ms(3_000), |_, _| true).unwrap();
         assert_eq!(take.borrow, Borrow { donor, kit, slot: WeaponSlot::First, own: WeaponSlot::Second });
-        assert_eq!(decide(picker, donor, drop, Ms(6_000), true, |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, drop, Ms(3_000), false, |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, Drop::Taken, Ms(3_000), true, |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, me, drop, Ms(3_000), true, |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, drop, Ms(3_000), true, |_, _| false), Err(Refusal::OtherKind));
-        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, Ms(3_000), true, |_, _| true),
+        assert_eq!(decide(picker, donor, drop, Ms(6_000), |_, _| true), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, donor, Drop::Taken, Ms(3_000), |_, _| true), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, me, drop, Ms(3_000), |_, _| true), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, donor, drop, Ms(3_000), |_, _| false), Err(Refusal::OtherKind));
+        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, Ms(3_000), |_, _| true),
                    Err(Refusal::Dead));
-        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, Ms(3_000), true, |_, _| true),
+        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, Ms(3_000), |_, _| true),
                    Err(Refusal::NoGunInHands));
-        assert_eq!(decide(Picker { borrow: Some(take.borrow), ..picker }, donor, drop, Ms(3_000), true, |_, _| true),
+        assert_eq!(decide(Picker { borrow: Some(take.borrow), ..picker }, donor, drop, Ms(3_000), |_, _| true),
                    Err(Refusal::Borrowing));
         assert_eq!(Ammo::grant(30, 12, true), Ammo { loaded: 12, chamber: true, reserve: 30 });
         assert_eq!(Ammo::grant(8, 9, false).loaded, 8);
