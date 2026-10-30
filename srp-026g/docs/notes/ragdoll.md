@@ -1077,6 +1077,20 @@ server now support a visual pass: bots cycle through all nine headwear
 items in both kits. Native lighting, shape and release motion still need
 the owner’s visual assessment before release.
 
+## 16. The headshot launch (2026-10-30)
+
+A headshot corpse still creeping after about 3.6 s was flung 2-6 m up and
+frozen there by the 5 s age cap (the owner: "it is often broken"). The
+muscles' strength is `s0 * exp_neg(age / tau)`, and `exp_neg` raised a
+5th-order series on x / 16 to the 16th power: past x = 50 the series turns
+and grows, so the strength became 2.66 s0 at x = 52 and 1e17 s0 at x = 79
+(the headshot's x passes 50 at 3.61 s, a blast's at 7.73 s, an arm's at
+10.3 s). `exp_neg` is now 0 from x = 20 (e^-20 is 2e-9); below it the values
+are unchanged. Offline, 26 of 80 headshot scenes launched before and none
+after. Tests: `exp_neg` against the real exponential over 0..80, never
+growing; a headshot body on flat ground keeps every part below 0.6 m after
+1.5 s (it was 0.83 m and rising at 3.77 s).
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
