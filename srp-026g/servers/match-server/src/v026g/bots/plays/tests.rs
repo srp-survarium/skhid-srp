@@ -47,6 +47,8 @@ pub struct Scenario {
     pub personality: usize,
     /// The kind of the bot's weapon 1; none: its personality's name as a role.
     pub weapon: Option<WeaponKind>,
+    /// `BotFacts::weapons`: every place's weapon 1 as the match knows it.
+    pub weapons: Vec<Option<WeaponKind>>,
     pub medkits_used: u8,
     pub pantry: Pantry,
     pub pools: Option<Pools>,
@@ -140,6 +142,7 @@ impl Scenario {
             paired: true,
             personality: 0,
             weapon: None,
+            weapons: Vec::new(),
             medkits_used: 0,
             pantry: Pantry::standard(),
             pools: None,
@@ -298,6 +301,7 @@ impl Scenario {
                 weapon: self.weapon.or_else(|| {
                     WeaponKind::of_role(&self.tuning.personalities[self.personality].name)
                 }),
+                weapons: &self.weapons,
                 side: self.side,
                 current: self.current,
                 last_ran: &self.last_ran,

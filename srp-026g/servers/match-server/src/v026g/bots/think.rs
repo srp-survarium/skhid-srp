@@ -979,6 +979,7 @@ pub(super) fn decide(
         bot: BotFacts {
             personality: bot.personality(tuning),
             weapon: bot.weapon(weapons, tuning),
+            weapons,
             side: bot.side,
             current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
             last_ran: &bot.last_ran,

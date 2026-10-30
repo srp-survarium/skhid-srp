@@ -201,6 +201,19 @@ pub struct ThreatTuning {
     /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
     /// plays are handed out as before. On by default.
     pub gang_up: Option<GangUp>,
+    /// Play 28 (the owner's X3 part 2, 2026-10-26): a free teammate whose weapon reaches a sensed enemy sniper (a rifle, a
+    /// sniper rifle) takes a spot that sees his last sensed place within its own reach, from a way hidden from him and out of
+    /// his lanes, and answers him from there. Off: no bot is offered the play. OFF by default, not settled (96 pairs by side,
+    /// 2026-10-30): score +1.5 % (z +0.9) on seeds 1-4, -1.5 % (z -1.0) on seeds 5-8; it fires (4.6 starts a match, 0.2 sniper
+    /// kills by answerers) but the snipers killed and the deaths to them do not move, and it scores plays +6 %.
+    pub answer_sniper: bool,
+    /// X3 (the owner, 2026-10-26: "keep to the task by a route out of the sniper's sight"): a sniper the team senses is a
+    /// threat spot at once, with lanes all round him (the ground he sees within his weapon's reach), so the routes of the team
+    /// keep out of his sight as they keep out of a shooter who has killed (`ThreatTuning::sprint` crosses where they cannot).
+    /// Off: a sniper is kept out of only after he has killed. OFF by default, not settled (96 pairs by side, 2026-10-30):
+    /// score +1.7 % (z +1.1) on seeds 1-4, -3.0 % (z -1.8) on seeds 5-8, deaths to snipers within 10 s of a sighting -16 % then
+    /// +10 %; it costs +9 % of the rays cast a second.
+    pub sniper_lanes: bool,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -277,6 +290,8 @@ impl Default for ThreatTuning {
             job_line_by_id: true,
             job_spot_levels: false,
             gang_up: Some(GangUp::default()),
+            answer_sniper: false,
+            sniper_lanes: false,
         }
     }
 }
