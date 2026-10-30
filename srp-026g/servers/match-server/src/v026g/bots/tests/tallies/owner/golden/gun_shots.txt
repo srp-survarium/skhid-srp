@@ -79,6 +79,28 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ]
       ],
+      "by_lateral": [
+        [
+          343,
+          257
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
       "by_shooter_moving": [
         [
           343,
@@ -87,6 +109,32 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
         [
           0,
           0
+        ]
+      ],
+      "by_state": [
+        [
+          5,
+          5
+        ],
+        [
+          19,
+          11
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          317,
+          240
         ]
       ],
       "by_target_moving": [
@@ -101,6 +149,14 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "cone_deg_sum": 0.0,
       "hits": 257,
+      "lateral_sum": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "off_deg_sum": 0.0,
       "on_him": [
         [
@@ -123,7 +179,23 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
         0
       ],
       "shots": 343,
-      "shots_all": 343
+      "shots_all": 343,
+      "speed_sum": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "state_across": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
     }
   }
 }
