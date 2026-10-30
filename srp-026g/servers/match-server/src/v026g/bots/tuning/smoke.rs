@@ -77,6 +77,10 @@ pub struct SmokeTuning {
     /// A life smokes this many snipers' lines at most; its own count beside `lanes_a_life` (a crossing a lane smoke
     /// already covers is not smoked again, the cloud test).
     pub snipers_a_life: u32,
+    /// A sniper's crossing is one he sees from his sensed eye and from this far to either side of it, metres (across the line
+    /// to the bot): where he is is known to a few decimetres, and a sliver open from one point is not his line. The sensed eye
+    /// was 0.1-1.0 m from his eye in the game in the bench's 11 throws onto crossings he could not see.
+    pub sniper_eye_spread_m: Metres,
     /// The owner's rules for every smoke use (2026-10-30): "they shouldnt throw smoke if smoke is already there (they should
     /// plan near smoke if its nearby) and several bots at a time should not plan to smoke near same spot".
     /// - A plan counts every cloud live or forming, of either team, and the team's own still in the air, at full size
@@ -122,6 +126,7 @@ impl Default for SmokeTuning {
             lane_open_m: Metres::of(5.0),
             anti_sniper: false,
             snipers_a_life: 1,
+            sniper_eye_spread_m: Metres::of(0.5),
             spot_rules: true,
             claim_m: Metres::of(8.0),
             claim_ms: 3_000,

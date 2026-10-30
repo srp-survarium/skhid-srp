@@ -643,7 +643,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     };
     // A short gap is sprinted, not smoked: the route a shooter at `eye` sees from the crossing on, 1 m steps, must run at
     // least `lane_open_m` (what a sprint covers in a shooter's answer).
-    let open_from = |eye: Vec3, crossing_s: f32| -> bool {
+    let open_from = |eyes: &[Vec3], crossing_s: f32| -> bool {
         let Some((route, _)) = bot.route.as_ref() else {
             return false;
         };
@@ -652,7 +652,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         let open_m = (1..)
             .map(|k| k as f32)
             .take_while(|&d| d <= open_end)
-            .take_while(|&d| tactics.sees(eye, route.at(crossing_s + d, heights) + chest_over))
+            .take_while(|&d| {
+                let p = route.at(crossing_s + d, heights) + chest_over;
+                eyes.iter().all(|&eye| tactics.sees(eye, p))
+            })
             .last()
             .unwrap_or(0.0);
         open_m >= t.lane_open_m.get()
@@ -666,10 +669,19 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         // crossings he had no line on (`h2h-sniper-vs-off-20261030T0220`, the throw classes).
         let up = view.place(who).map_or(eye_over.y, |him| super::view::eye_height(him.crouched(), 0.0, 0.0));
         let eye = at + Vec3::new(0.0, up, 0.0);
-        if sprinting || tactics.sees(eye, me.feet + chest_over) {
+        // Where he is is known to a few decimetres (the sensing's lag and the view's), and a crossing seen through a sliver
+        // from one point is not his: it is his when he sees it from every eye of that spread (`sniper_eye_spread_m` to either
+        // side across the line to the bot), and the bot is in his sight already when any of them sees it. From one eye, 11 of 56
+        // smokes went onto crossings his eye in the game had no line on, all 11 lines open from the sensed eye and shut from
+        // his, 0.1-1.0 m aside (`h2h-sniper-fresh-20261030T0339`).
+        let (dx, dz) = (me.feet.x - at.x, me.feet.z - at.z);
+        let length = dx.hypot(dz).max(1e-3);
+        let side = Vec3::new(-dz / length, 0.0, dx / length) * t.sniper_eye_spread_m.get();
+        let eyes = [eye, eye + side, eye - side];
+        if sprinting || eyes.iter().any(|&e| tactics.sees(e, me.feet + chest_over)) {
             return None;
         }
-        crossing_of(&|p| tactics.sees(eye, p + chest_over)).map(|(s, crossing)| (who, eye, s, crossing))
+        crossing_of(&|p| eyes.iter().all(|&e| tactics.sees(e, p + chest_over))).map(|(s, crossing)| (who, eyes, s, crossing))
     });
     #[cfg(test)]
     if let Some((who, ..)) = sniper_crossing {
@@ -679,9 +691,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if !t.anti_sniper || bot.reflex.sniper_smokes() >= t.snipers_a_life {
             return None;
         }
-        let (who, eye, crossing_s, crossing) = sniper_crossing?;
+        let (who, eyes, crossing_s, crossing) = sniper_crossing?;
+        let eye = eyes[0];
         let chest = crossing + chest_over;
-        if smoke_there(eye, chest) || !open_from(eye, crossing_s) {
+        if smoke_there(eye, chest) || !open_from(&eyes, crossing_s) {
             return None;
         }
         #[cfg(test)]
@@ -726,7 +739,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if smoke_there(held.at + eye_over, chest) {
             return None;
         }
-        if !open_from(held.at + eye_over, crossing_s) {
+        if !open_from(&[held.at + eye_over], crossing_s) {
             return None;
         }
         smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
