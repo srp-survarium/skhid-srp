@@ -48,6 +48,7 @@
     "spot_cost": null
   },
   "feel": {
+    "band_from_grid": false,
     "band_jump_gate": false,
     "carrier_jump_m": null,
     "drop_aim": false,
