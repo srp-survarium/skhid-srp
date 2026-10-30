@@ -101,6 +101,9 @@ struct Acc {
     /// reflex's legs or the play it ran (`Moving/Range`, `Moving/play:Roam`, `AimedIn/strafe`, ...): why a bot is aimed in or
     /// moves along the line (register #24).
     by_driver: BTreeMap<String, (u32, u32, f64)>,
+    /// By the target's team (0, 1), then by [`TargetState`]: shots on his line, hits, and his crossing speed summed (a
+    /// head-to-head's ON side is one team: what its movement does to the shots at it, register #24).
+    by_target_team: [[[f64; 3]; TargetState::COUNT]; 2],
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
@@ -227,6 +230,10 @@ impl Topic for GunShots {
                 let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
                 tally(&mut a.by_state[state]);
                 a.state_across[state] += f64::from(across);
+                let cell = &mut a.by_target_team[usize::from(t.team != 0)][state];
+                cell[0] += 1.0;
+                cell[1] += h as f64;
+                cell[2] += f64::from(across);
                 if run.camper != Some(target)
                     && let Some(driver) = self.driver.get(target).copied().flatten()
                 {
@@ -282,6 +289,7 @@ impl Topic for GunShots {
                     "state_across": a.state_across,
                     "by_lateral": a.by_lateral,
                     "by_driver": a.by_driver,
+                    "by_target_team": a.by_target_team,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
