@@ -14,6 +14,12 @@ const NEAR_M: f32 = 30.0;
 /// The seconds before a death whose enemies count.
 const WINDOW_S: usize = 10;
 
+/// The shooters counted in the last this long before a death, ms; a death with a hit in the last [`KILL_HIT_MS`] is a bullet's.
+const SHOOTERS_MS: u32 = 3_000;
+const KILL_HIT_MS: u32 = 1_000;
+/// A body that moved less than this since a second ago is standing still, m.
+const STILL_M: f32 = 1.5;
+
 /// Crowded: this many distinct enemies near in the window.
 const CROWD: u32 = 3;
 
@@ -33,6 +39,13 @@ struct TeamSpacing {
     crowded_deaths: u64,
     /// The distinct enemies near in the window before a death, summed over the deaths.
     crowd_enemies: u64,
+    /// What killed a body, for the other deaths (0) and the crowded ones (1): [bullet, not a bullet (a blast, a zone, a fall)];
+    /// the distinct shooters that hit it in the last 3 s: 1, 2, 3 or more; the killer standing still for 2 s or more: [no, yes];
+    /// the killer's distance: under 10 m, 10-30, 30 and more.
+    killed_by: [[u64; 2]; 2],
+    shooters: [[u64; 3]; 2],
+    killer_still: [[u64; 2]; 2],
+    killer_m: [[u64; 3]; 2],
     /// By life-age bucket ([`LIFE_BUCKET_S`]): the samples, the teammates near, and the teammates alive (the available
     /// mates, the body itself left out).
     by_life: [[u64; 3]; LIFE_BUCKETS],
@@ -44,6 +57,13 @@ pub(super) struct SpacingCounts {
     by_team: [TeamSpacing; 2],
     window: Vec<[u64; WINDOW_S]>,
     was_alive: Vec<bool>,
+    /// The hits each body took in the last 3 s (tick, shooter), the position a second ago of each body and the seconds it has stood within
+    /// [`STILL_M`] of it.
+    hits: Vec<Vec<(u32, Place)>>,
+    last_pos: Vec<Option<Vec3>>,
+    still_s: Vec<u32>,
+    /// The bodies' last hit's killer (the shooter and the tick) for each body.
+    last_killer: Vec<Option<(Place, u32)>>,
     /// The second each body came alive, for a respawn (its life's age); none for its life from the match's start (the
     /// opening is not a respawn, and is left out of the life-age buckets).
     born: Vec<Option<usize>>,
@@ -54,13 +74,36 @@ pub(super) struct SpacingCounts {
 
 impl SpacingCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { by_team: Default::default(), window: vec![[0; WINDOW_S]; n], was_alive: vec![false; n], born: vec![None; n], by_play: BTreeMap::new() }
+        Self {
+            by_team: Default::default(),
+            window: vec![[0; WINDOW_S]; n],
+            was_alive: vec![false; n],
+            hits: vec![Vec::new(); n],
+            last_pos: vec![None; n],
+            still_s: vec![0; n],
+            last_killer: vec![None; n],
+            born: vec![None; n],
+            by_play: BTreeMap::new(),
+        }
     }
 }
 
 impl Topic for SpacingCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn begin(&mut self, _run: &Run, game: &mut Game) {
+        let tick = game.tick;
+        for &(_, shooter, target) in &game.hit_log {
+            if let Some(hits) = self.hits.get_mut(target) {
+                hits.push((tick, shooter));
+                self.last_killer[target] = Some((shooter, tick));
+            }
+        }
+        for hits in &mut self.hits {
+            hits.retain(|&(at, _)| tick.saturating_sub(at) <= SHOOTERS_MS);
+        }
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
@@ -75,12 +118,34 @@ impl Topic for SpacingCounts {
                 ts.deaths += 1;
                 ts.crowded_deaths += u64::from(near >= CROWD);
                 ts.crowd_enemies += u64::from(near);
+                let crowded = usize::from(near >= CROWD);
+                let bullet = self.last_killer[place].filter(|&(_, at)| game.tick.saturating_sub(at) <= KILL_HIT_MS);
+                ts.killed_by[crowded][usize::from(bullet.is_none())] += 1;
+                let mut shooters: Vec<Place> = self.hits[place].iter().map(|&(_, s)| s).collect();
+                shooters.sort_unstable();
+                shooters.dedup();
+                if bullet.is_some() {
+                    ts.shooters[crowded][shooters.len().clamp(1, 3) - 1] += 1;
+                }
+                if let Some((killer, _)) = bullet {
+                    ts.killer_still[crowded][usize::from(self.still_s.get(killer).copied().unwrap_or(0) >= 2)] += 1;
+                    let d = game.bodies[killer].feet.distance_xz(body.feet);
+                    ts.killer_m[crowded][if d < 10.0 { 0 } else if d < 30.0 { 1 } else { 2 }] += 1;
+                }
                 self.window[place] = [0; WINDOW_S];
+                self.hits[place].clear();
             }
             if !self.was_alive[place] && body.alive {
                 self.born[place] = (tick > 0).then_some(second);
             }
             self.was_alive[place] = body.alive;
+            if sample && body.alive {
+                self.still_s[place] = match self.last_pos[place] {
+                    Some(before) if before.distance_xz(body.feet) < STILL_M => self.still_s[place] + 1,
+                    _ => 0,
+                };
+                self.last_pos[place] = Some(body.feet);
+            }
             if !(sample && body.alive) {
                 continue;
             }
@@ -137,6 +202,10 @@ impl SpacingCounts {
                 "deaths": c.deaths,
                 "crowded_deaths": c.crowded_deaths,
                 "crowd_enemies": c.crowd_enemies,
+                "killed_by_bullet_or_other": c.killed_by,
+                "killed_by_shooters_1_2_3": c.shooters,
+                "killed_by_killer_still_no_yes": c.killer_still,
+                "killed_by_killer_m_10_30_up": c.killer_m,
                 "by_life": c.by_life.iter().map(|[n, mates, alive]| serde_json::json!({ "samples": n, "mates_near": mates, "mates_alive": alive })).collect::<Vec<_>>(),
             })
         };

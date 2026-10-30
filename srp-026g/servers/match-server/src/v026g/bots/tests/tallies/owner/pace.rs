@@ -43,6 +43,8 @@ const AFTER_SPRINT_MS: u32 = 5_000;
 const AUDIBLE_WINDOW_MS: u32 = 10_000;
 /// A death is "just after a calm sprint" when the body sprinted calm (no enemy within `CALM_M`) in the last this long, ms.
 const JUST_AFTER_MS: u32 = 3_000;
+/// The records kept of those deaths, by team.
+const AFTER_SPRINT_RECORDS: usize = 400;
 
 /// The hit that kills is the one in the last this long before the death, ms.
 const KILLER_MS: u32 = 1_000;
@@ -93,6 +95,8 @@ struct Team {
     deaths_audible: u64,
     /// Deaths within [`JUST_AFTER_MS`] of a calm sprint tick: all, and those that also had an audible sprint tick (an enemy within [`AUDIBLE_M`]) in that time.
     deaths_just_after: [u64; 2],
+    /// A record of each of those deaths (the trace of A185).
+    after_sprint: Vec<serde_json::Value>,
     deaths_no_killer: u64,
     sprint_killer_m: [u64; 3],
     /// Batteries: the carriers' ticks, the nearest living teammate's distance summed over them, and those with a teammate within 15 m; the walking and the
@@ -106,6 +110,18 @@ struct Team {
     contact_enemies: u64,
     /// By the play the body ran (the record's name): walking ticks 30 m or more from the nearest enemy, the sprinting ones, and the deaths.
     by_play: BTreeMap<String, [u64; 3]>,
+}
+
+/// A first contact: when, whether the body was still sprinting, whether it gave the first hit, the other side and its distance, and whether the body's
+/// memory held a track of him.
+#[derive(Clone, Copy)]
+struct Contact {
+    tick: u32,
+    sprinting: bool,
+    by_me: bool,
+    foe: Place,
+    foe_m: f32,
+    known: bool,
 }
 
 #[derive(Default)]
@@ -124,6 +140,11 @@ struct Body {
     last_calm_sprint: Option<u32>,
     /// The last hit it took: the shooter and the tick.
     hit_by: Option<(Place, u32)>,
+    /// The tick its sprint last ended (none while it sprints or before any), and of its first fire key after that.
+    sprint_end: Option<u32>,
+    fire_after: Option<u32>,
+    /// Its last first contact (a hit given or taken after [`QUIET_MS`] quiet).
+    contact: Option<Contact>,
     /// Whom its memory holds a track of (as of the last read).
     known: Vec<Place>,
 }
@@ -211,6 +232,17 @@ impl Topic for PaceCounts {
                 let Some(body) = self.bodies.get_mut(place) else { continue };
                 let quiet = body.last_hit.is_none_or(|at| tick.saturating_sub(at) >= QUIET_MS);
                 body.last_hit = Some(tick);
+                if quiet {
+                    let foe = if place == shooter { target } else { shooter };
+                    body.contact = Some(Contact {
+                        tick,
+                        sprinting: body.sprinting,
+                        by_me: place == shooter,
+                        foe,
+                        foe_m: game.bodies[shooter].feet.distance_xz(game.bodies[target].feet),
+                        known: body.known.contains(&foe),
+                    });
+                }
                 if quiet && body.now.bar > 0.0 {
                     let me = &game.bodies[place];
                     let team = &mut self.teams[usize::from(me.team & 1)];
@@ -257,6 +289,31 @@ impl Topic for PaceCounts {
                 if since(body.last_calm_sprint, JUST_AFTER_MS) {
                     team.deaths_just_after[0] += 1;
                     team.deaths_just_after[1] += u64::from(since(body.last_audible, JUST_AFTER_MS));
+                    // The trace (A185): what the body and its killer were doing.
+                    let killer = body.hit_by.filter(|&(_, at)| tick.saturating_sub(at) <= KILLER_MS).map(|(k, _)| k);
+                    let ms = |from: Option<u32>| from.map(|at| tick.saturating_sub(at));
+                    let c = body.contact;
+                    if team.after_sprint.len() < AFTER_SPRINT_RECORDS {
+                        team.after_sprint.push(serde_json::json!({
+                            "t": tick,
+                            "x": (rec.feet.x * 10.0).round() / 10.0,
+                            "z": (rec.feet.z * 10.0).round() / 10.0,
+                            "play": run.plays.get(usize::from(rec.play)).cloned().unwrap_or_default(),
+                            "killer": killer,
+                            "killer_m": killer.map(|k| (game.bodies[k].feet.distance_xz(rec.feet) * 10.0).round() / 10.0),
+                            "killer_known": killer.map(|k| body.known.contains(&k)),
+                            "sprinting_at_death": body.sprinting,
+                            "ms_since_calm_sprint": ms(body.last_calm_sprint),
+                            "ms_since_sprint_end": ms(body.sprint_end),
+                            "fired_after_sprint_ms": body.sprint_end.zip(body.fire_after).map(|(end, fire)| fire.saturating_sub(end)),
+                            "contact_ms_before": c.map(|c| tick.saturating_sub(c.tick)),
+                            "contact_sprinting": c.map(|c| c.sprinting),
+                            "contact_by_me": c.map(|c| c.by_me),
+                            "contact_foe_is_killer": c.zip(killer).map(|(c, k)| c.foe == k),
+                            "contact_foe_known": c.map(|c| c.known),
+                            "contact_foe_m": c.map(|c| (c.foe_m * 10.0).round() / 10.0),
+                        }));
+                    }
                 }
                 match body.hit_by.filter(|&(_, at)| tick.saturating_sub(at) <= KILLER_MS) {
                     None => team.deaths_no_killer += 1,
@@ -370,6 +427,15 @@ impl Topic for PaceCounts {
             team.ended[cause as usize] += 1;
             body.burst = 0;
         }
+        if sprinting {
+            body.sprint_end = None;
+            body.fire_after = None;
+        } else if body.sprinting {
+            body.sprint_end = Some(tick);
+        }
+        if body.sprint_end.is_some() && body.fire_after.is_none() && rec.keys & key::FIRE != 0 {
+            body.fire_after = Some(tick);
+        }
         body.sprinting = sprinting;
         // The control: a body-second of calm walking without the sprint.
         if ((tick.saturating_sub(run.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) && calm && walking && !sprinting {
@@ -445,6 +511,7 @@ impl PaceCounts {
             put("deaths_after_walk_unknown_killer".into(), team.deaths_walk[1].into());
             put("deaths_after_audible_sprint".into(), team.deaths_audible.into());
             put("deaths_3s_after_calm_sprint".into(), team.deaths_just_after[0].into());
+            put("after_sprint_deaths".into(), serde_json::Value::Array(team.after_sprint.clone()));
             put("deaths_3s_after_calm_sprint_audible".into(), team.deaths_just_after[1].into());
             put("deaths_no_killer".into(), team.deaths_no_killer.into());
             put("sprint_death_killer_0_20".into(), team.sprint_killer_m[0].into());
