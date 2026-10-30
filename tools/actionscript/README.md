@@ -88,6 +88,17 @@ Death/respawn transitions check immediate full-width text, late native label
 validation, animation frames, and removal of the Research field on mode exit.
 This exercises the controls; the game's Scaleform integration still needs a playtest.
 
+### Minimap
+
+`tests/MinimapHarness.as` checks the hud's minimap icons (`survarium.controls.Minimap`).
+Put the newly built hud movie beside its output as `hud.swf`, compile it as above
+(`-output="$OUT/MinimapHarness.swf" tools/actionscript/tests/MinimapHarness.as`) and run it
+the same way. It traces `MINIMAP PASS` or `MINIMAP FAIL`. A team-0 game that joined late
+gets its ally's data before its own team (update_local_player waits for its first spawn):
+the ally's icon is the enemy's until the team comes, then the ally's. It also checks an
+enemy, an ally taking and dropping the battery, an enemy carrier, a player that leaves,
+and a team-1 game.
+
 ## History
 
 Until 2026-10-21 the trees were proven to recompile revision 24 byte for byte

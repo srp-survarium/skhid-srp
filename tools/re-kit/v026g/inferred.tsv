@@ -1301,8 +1301,6 @@ va	status	ref_021d	name
 0x002383b0	inferred-medium		survarium::game_world_ui::show_profiles_selector
 0x00238530	inferred-high	0x00182654	survarium::game_world_ui::update_minimap_objects
 0x002392b0	inferred-high	0x001829c4	survarium::game_world_ui::initialize_minimap
-0x00239420	inferred-high	0x00182a9c	survarium::game_world_ui::update_minimap_players
-0x00239a30	inferred-medium	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x00239bf0	inferred-high	0x00182edb	survarium::game_world_ui::reset_map_rotatable
 0x00239c60	inferred-high	0x00182f36	survarium::game_world_ui::show_quick_slots
 0x00239cc0	inferred-medium	0x00182f7c	survarium::game_world_ui::create_slot_value
@@ -1682,7 +1680,6 @@ va	status	ref_021d	name
 0x0027a170	inferred-medium	0x001a12dd	survarium::match_client::`scalar deleting destructor'
 0x0027a2c0	inferred-high	0x001a13db	survarium::match_client::send_queued_packets
 0x0027a970	inferred-medium	0x001a256a	survarium::force_hash_mismatch
-0x0027a980	inferred-medium	0x001a2572	survarium::network_client::get_player
 0x0027a9c0	inferred-medium	0x001a259b	survarium::network_client::get_active_player
 0x0027aa20	inferred-medium	0x001a25cc	survarium::network_client::on_match_ready
 0x0027aed0	inferred-medium	0x001a27c4	survarium::network_client::query_players
