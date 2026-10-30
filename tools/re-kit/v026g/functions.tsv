@@ -1856,6 +1856,6 @@ va	status	ref_021d	name
 0x00313490	verified		survarium::artefact_base::on_removed
 0x0025fa10	verified	0x00195e34	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>
 0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death
-0x00239420	observed		survarium::game_world_ui::update_minimap_players
-0x00239a30	observed		survarium::game_world_ui::update_minimap_local_player
-0x0027a980	observed		survarium::network_client::get_player
+0x00239420	observed	0x00182a9c	survarium::game_world_ui::update_minimap_players
+0x00239a30	observed	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
+0x0027a980	observed	0x001a2572	survarium::network_client::get_player
