@@ -763,6 +763,20 @@ fn drive_tick_inner(
                     }
                     exposed
                 };
+            #[cfg(test)]
+            if replan || threat_ahead {
+                bot.bench_replan = if threat_ahead {
+                    "threat_ahead"
+                } else if shut {
+                    "zone_shut"
+                } else if aborted {
+                    "crossing_aborted"
+                } else if bot.route.is_none() {
+                    "no_route"
+                } else {
+                    "goal_moved"
+                };
+            }
             let replan = replan || threat_ahead;
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {

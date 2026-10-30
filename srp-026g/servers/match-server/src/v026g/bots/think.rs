@@ -599,12 +599,19 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     // [diagnosis] Its anti-sniper plans whose crossing its route no longer runs by (anywhere along it, walked or ahead, within
     // the throw classes' 2.5 m): the plan changed after the throw.
     #[cfg(test)]
-    smoke::tally::sniper_routes(bot.place, now, bot.last_route_end().map_or("none", |(why, _)| why.name()), |crossing| {
-        bot.route.as_ref().is_some_and(|(route, _)| {
-            let heights = bot.motor.heights();
-            (0..=route.length() as usize).any(|k| route.at(k as f32, heights).distance_xz(crossing) <= 2.5)
-        })
-    });
+    {
+        let why = match bot.last_route_end() {
+            Some((super::route_end::RouteEnd::Replanned, _)) => bot.bench_replan,
+            Some((why, _)) => why.name(),
+            None => "none",
+        };
+        smoke::tally::sniper_routes(bot.place, now, why, |crossing| {
+            bot.route.as_ref().is_some_and(|(route, _)| {
+                let heights = bot.motor.heights();
+                (0..=route.length() as usize).any(|k| route.at(k as f32, heights).distance_xz(crossing) <= 2.5)
+            })
+        });
+    }
     // [diagnosis] Outranged by a sniper it saw within 15 s, whatever the kit and the hands.
     #[cfg(test)]
     if t.anti_sniper
