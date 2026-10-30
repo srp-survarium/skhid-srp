@@ -20,6 +20,8 @@ session = { workspace = true }
 survarium = { workspace = true }
 udp-transport = { workspace = true }
 vostok = { workspace = true }
+# Client patch 83's pickup command, checked as the clients check it.
+weapon-pickup = { path = "../../crates/weapon-pickup" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]
