@@ -402,3 +402,10 @@ pub fn environment_is(_: &Thread, name: &CStr, value: &[u8]) -> bool {
     } as usize;
     length == value.len() && buffer[..length].eq_ignore_ascii_case(value)
 }
+
+/// This process's id (kernel32's GetCurrentProcessId): two local games share
+/// one log file, and each line says whose it is.
+pub fn process_id() -> u32 {
+    // SAFETY: the exe's import, no arguments, no state.
+    unsafe { (raw::engine_get_current_process_id)() }
+}

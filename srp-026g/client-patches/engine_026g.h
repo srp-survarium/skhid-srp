@@ -258,4 +258,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_environment_vari
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
 
+/* the IAT slot 0x8701b8 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_current_process_id)(void);
+
 #endif

@@ -30,7 +30,7 @@ while the kits load. Nothing uses it yet: this spike measures what it costs.
   registered in the world: an inventory's items are bound to the core only by
   the player's bind (0x2FC7D0, called only at 0x2D75BD). So nothing a match
   computes changes: no `simulation_changes` row.
-- **The log** (`srp_patches.log` in the game's working folder, beside the exe):
+- **The log** (`srp_patches.log` in the game's working folder, beside the exe; each line starts with the game's process id, as two local games share the file):
   `spares: on`, then a line per place and kit when the spare is asked for and
   when it is made or FAILED, with the batch's time and the process's address
   space before and after (GlobalMemoryStatusEx: total less available virtual;

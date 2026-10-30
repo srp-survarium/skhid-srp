@@ -38,7 +38,7 @@ QUERY_REPLAY_END = 0x202A1E                 # after the six replayed bytes
 READY_SITE, READY_AFTER = 0x202DD0, 0x202DD6
 DESTROY_SITE, DESTROY_AFTER = 0x1F2100, 0x1F2106
 MALLOC, FREE, QUERY, RELEASE = 0xE4F90, 0x1539D0, 0xE5B60, 0xE0210
-IAT = {"env": 0x8701B4, "memory": 0x870164, "qpc": 0x870158, "qpf": 0x870150, "thread": 0x870118,
+IAT = {"env": 0x8701B4, "memory": 0x870164, "pid": 0x8701B8, "qpc": 0x870158, "qpf": 0x870150, "thread": 0x870118,
        "create": 0x870048, "write": 0x870108, "close": 0x870040}
 ALLOCATOR_SLOT = 0x1F1D9C4
 ORIGINAL = {QUERY_SITE: "8b55d48b45a4", READY_SITE: "558bec83e4f8", DESTROY_SITE: "558bec83e4f8"}
@@ -132,6 +132,8 @@ class Run(hide.Run):
                 self.ret(4, 1)
             elif name == "thread":
                 self.ret(0, 7)
+            elif name == "pid":
+                self.ret(0, 4242)
             elif name == "create":
                 self.ret(28, 0x44)
             elif name == "write":                   # (file, bytes, count, &written, overlapped)
@@ -283,6 +285,7 @@ def main():
     assert r.read(INVENTORY + 0xD0) == 2 and recipe in r.frees and recipe not in r.live and copy in r.live
     assert any("made, inventory 0x%08x" % INVENTORY in l for l in r.log), r.log
     assert any("all cooks in: 1 spares made, 0 failed" in l for l in r.log), r.log
+    assert all(l.startswith("srp: pid 4242 spares") for l in r.log), r.log
     assert any(": cook 250 ms, address space 903 -> 906 MiB, memory load 37 %" in l for l in r.log), r.log
     print("ok the batch in: the spare kept (one reference more), the recipe freed, logged with its time and memory")
 

@@ -280,9 +280,9 @@ fn fill<'a>(out: &mut [crate::vostok::log::Piece<'a>], pieces: &[crate::vostok::
 }
 
 fn log_who(what: &str, who: Who, rest: &[crate::vostok::log::Piece]) {
-    let mut pieces = [Text(""); 20];
-    let n = fill(&mut pieces, &[Text(what), Text(" place "), Dec(u32::from(who.place)), Text(" kit "),
-                                Dec(u32::from(who.kit.number()))]);
+    let mut pieces = [Text(""); 22];
+    let n = fill(&mut pieces, &[Text("pid "), Dec(spare::process_id()), Text(" "), Text(what), Text(" place "),
+                                Dec(u32::from(who.place)), Text(" kit "), Dec(u32::from(who.kit.number()))]);
     let n = n + fill(&mut pieces[n..], rest);
     line(&pieces[..n]);
 }
@@ -300,8 +300,8 @@ fn log_refusal(who: Who, refusal: Refusal, ms: Option<u32>) {
 
 fn log_switch(switch: Switch, since: Moment) {
     let state = if switch == Switch::Off { "spares: off (SRP_SPARE_WEAPONS=off): measuring only" } else { "spares: on" };
-    let mut pieces = [Text(""); 6];
-    let n = fill(&mut pieces, &[Text(state)]);
+    let mut pieces = [Text(""); 9];
+    let n = fill(&mut pieces, &[Text("pid "), Dec(spare::process_id()), Text(" "), Text(state)]);
     let n = n + fill(&mut pieces[n..], &memory_pieces(since.memory));
     line(&pieces[..n]);
 }
@@ -312,7 +312,7 @@ fn log_summary(thread: &Thread, first: Moment, now: Moment, made: u32, failed: u
         (Some((b, _)), Some((a, _))) => (b, a),
         _ => (0, 0),
     };
-    line(&[Text("spares: all cooks in: "), Dec(made), Text(" spares made, "), Dec(failed),
+    line(&[Text("pid "), Dec(spare::process_id()), Text(" spares: all cooks in: "), Dec(made), Text(" spares made, "), Dec(failed),
            Text(" failed, in "), Dec(ms), Text(" ms; address space "), Dec(before), Text(" -> "), Dec(after),
            Text(" MiB (+"), Dec(after.saturating_sub(before)), Text(")")]);
 }

@@ -72,3 +72,4 @@ engine_release_inventory	0x0e0210	ECX:instance EAX:count	void engine_release_inv
 engine_global_memory_status_ex	0x870164	-	unsigned int engine_global_memory_status_ex(void *status)	import	
 engine_get_environment_variable_a	0x8701b4	-	unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)	import	
 engine_allocate_recipe	0x0e4f90	ESI:allocator EAX:size ESP+4:description	struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)	thunk	
+engine_get_current_process_id	0x8701b8	-	unsigned int engine_get_current_process_id(void)	import	
