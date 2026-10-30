@@ -3714,3 +3714,13 @@ counts one. srp weighs event 5 5 and event 16 10. A match's computation
 changes: every client of a match needs it. `check_artefact_score_026g.py`
 runs the hook from the game's site and compares it with the game's own count
 of event 5 and `take_artefact`'s own slot search.
+
+## Names on the Tab map (patch 82, unreleased)
+
+While the Tab map is open and an Alt key is held, each player icon on it shows the player's name
+(the owner, 2026-10-30; `docs/notes/tab-map-names.md`). The hud movie draws them
+(`HUD.show_map_names`, the names from the Tab list's rows by place); the Rust `map_names` hook, in
+`game_world::on_keyboard_action` with the input world's keyboard (0x25CD1C, before it asks for
+Tab), reads both Alt keys' state and tells the movie `root.show_map_names` at each change. The
+interface only: no simulation change. `check_map_names_026g.py` runs the game's own
+on_keyboard_action, keyboard getter and is_key_down to past show_player_list in both builds.

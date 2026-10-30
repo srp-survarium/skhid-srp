@@ -1835,6 +1835,15 @@ package
       public function list_set_players(_players:Array) : void
       {
          this.player_list.players.addPlayersList(_players);
+         this.tabMinimap.setPlayerNames(_players);
+      }
+
+      // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
+      // the movie each change; docs/notes/tab-map-names.md). The map is the Tab list's, so they show
+      // only with it: never in Blackout, whose Tab keeps the list hidden.
+      public function show_map_names(shown:Boolean) : void
+      {
+         this.tabMinimap.namesShown = shown;
       }
       
       public function list_update_player(_player:Object) : void
