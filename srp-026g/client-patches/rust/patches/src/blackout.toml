@@ -10,10 +10,12 @@ patch = 65
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"
+order = 0
 
 [[hook]]
 site = "replay.options_read"
 handler = "on_replay_options"
+order = 0
 
 [[hook]]
 site = "player_icons.update_start"

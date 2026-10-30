@@ -17,6 +17,9 @@ friends, etc.; for now just adding to friends."
   does not crouch, and its held and release events go to no one until it is let go, even after
   Tab. A Ctrl already held before Tab (a crouch) stays the player's, and so does every Ctrl
   pressed without Tab. Crouch toggle (C) works as before.
+- **A lost release** (the chat or another window took Ctrl's up): the next Ctrl pressed without
+  the list is the player's again, so a crouch is never eaten. A new match starts with no cursor
+  state of the match before.
 - **Dead or before the start:** the kits' cursor is already shown, so right-click on a row works
   there without Ctrl. Tab let go leaves that cursor to the kits.
 - **Blackout:** Tab shows no list there, so Ctrl crouches and no cursor shows.
@@ -31,11 +34,12 @@ friends, etc.; for now just adding to friends."
 - **Rows:** everyone in the match, allies and enemies alike, except:
   - your own row: no menu;
   - a player already on your friend list: no "Add to friends" entry (so for now, no menu at all).
-  A bot's row is offered. From a match the lobby says nothing for a name that is no account.
+  A bot's row is offered: the match's place records carry no account, and the server's bots'
+  clan tag "BOT" is one a players' clan may also take, so the client has no reliable bot mark.
+  From a match the lobby says nothing for a name that is no account.
 - **Entries:** one for now, "Add to friends" (`st_srp_hud_add_friend`). The menu's entries are a
   list the exe's answer fills; "Mute" will be one more entry and one more answer field.
-- **Closes** on Tab let go, on a press outside it, after an entry's answer (below), and at the
-  next match.
+- **Closes** on Tab let go, on a press outside it, and at the next match. No timer closes it.
 - **The hide-scores option** (names only, alphabetical) keeps the rows and their places, so the
   menu works there too. The worker who builds it must keep the row renderer and the lists'
   click events.
@@ -46,7 +50,8 @@ friends, etc.; for now just adding to friends."
   lobby's menus send). The lobby link is up during a match, and the request goes through the
   lobby's normal friend rules (social.md 1.5, `Core::important`). The other player answers it in the
   lobby, now or at their next sign-in.
-- **After the click** the menu shows one line instead for 2 s:
+- **After the click** the menu shows one line in its place, until Tab is let go or a press
+  outside it:
   - "Friend request sent" (`st_srp_hud_friend_sent`) when the exe sent it;
   - "Friend request not sent" (`st_srp_hud_friend_not_sent`) when its own checks refused it.
 - **Checks, the same on the client (exe patch 86) and the lobby:**
@@ -71,8 +76,8 @@ friends, etc.; for now just adding to friends."
 - **The row's place** (its `id`) is what the movie sends. The exe reads that place's bare name from
   the match's places, so a clan tag shown in the row is never sent.
 - **The hud movie:** `survarium/controls/PlayerRowMenu.as` (a class of its own), set up in
-  `HUD.as`. The movie's texts are dictionary keys; the hud is now given srp's texts
-  (`localization_026g.FLASH_MOVIES`).
+  `HUD.as`. The movie's texts are dictionary keys; the hud is now given its own srp texts,
+  the `st_srp_hud_*` keys only (`localization_026g.FLASH_MOVIES`), at every match start.
 - **Not a match rule:** nothing a match computes changes, and replays are not affected.
 
 ## Checks

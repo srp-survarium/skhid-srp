@@ -21,7 +21,7 @@ package
    // - a right-click (Scaleform's MouseEventEx CLICK, buttonIdx 1) on another player's row asks the exe
    //   (srp_player_menu with the row's place) and opens the menu at the mouse with "Add to friends";
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on that entry sends srp_add_friend
-   //   with the place, and the answer's line ("Friend request sent") shows, then closes after 2 s;
+   //   with the place, and the answer's line ("Friend request sent") shows until a press elsewhere;
    // - the own row (isLocal) asks nothing; a row the exe offers nothing for (a friend) opens nothing;
    //   a left click on a row opens nothing; an answer for another place, or one that comes when the menu
    //   is not waiting, changes nothing; "not sent" shows its own line; a press elsewhere and the list
@@ -243,7 +243,12 @@ package
          }
          else if(closedAt > 0 && frame == closedAt + 150)
          {
-            expect("2.5 s after",'closed',"",[]);
+            expect("2.5 s after: the answer's line stays",'told',"Friend request sent",[]);
+            var line:DisplayObject = DisplayObjectContainer(menu).getChildAt(0);
+            line.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true));
+            expect("a press on the line",'told',"Friend request sent",[]);
+            stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true));
+            expect("a press elsewhere",'closed',"",[]);
             finish(failures.length ? "fail: " + failures.join("; ") : "pass");
          }
          else if(frame == 900)

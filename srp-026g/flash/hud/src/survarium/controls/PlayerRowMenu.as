@@ -9,8 +9,6 @@ package survarium.controls
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
-   import flash.utils.clearTimeout;
-   import flash.utils.setTimeout;
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
 
@@ -18,8 +16,8 @@ package survarium.controls
    // list's cursor is shown (Ctrl, exe patch 86) asks the exe what the row offers
    // (srp_player_menu(place), answered root.srp_player_menu -> offered), and shows those entries at the
    // mouse. An entry is {key: its text's dictionary key, method: the exe's call with the row's place}; the
-   // exe answers each (root.srp_friend_request -> requested) and the menu shows the answer's line until
-   // NOTE_MS pass. The list hidden (Tab let go) or a press elsewhere closes it.
+   // exe answers each (root.srp_friend_request -> requested) and the menu shows the answer's line in its
+   // place. The list hidden (Tab let go) or a press elsewhere closes it, the answer's line too.
    public class PlayerRowMenu extends Sprite
    {
       // The menu's states: closed; asking the exe for a row's entries; open; an entry sent, awaiting its
@@ -39,8 +37,6 @@ package survarium.controls
          method:"srp_add_friend"
       };
 
-      private static const NOTE_MS:uint = 2000;
-
       private static const ROW:Number = 24;
 
       private static const PAD:Number = 8;
@@ -56,8 +52,6 @@ package survarium.controls
 
       // the row the menu is for (its place, `id`), in every state but CLOSED
       private var _row:Object;
-
-      private var _noteTimeout:uint;
 
       private var _format:TextFormat;
 
@@ -152,12 +146,10 @@ package survarium.controls
          }
          this.draw([{key:sent ? "st_srp_hud_friend_sent" : "st_srp_hud_friend_not_sent"}]);
          this._state = TOLD;
-         this._noteTimeout = setTimeout(this.close,NOTE_MS);
       }
 
       public function close() : void
       {
-         clearTimeout(this._noteTimeout);
          this.listen(false);
          this._state = CLOSED;
          this._row = null;
@@ -257,7 +249,7 @@ package survarium.controls
          item.graphics.endFill();
       }
 
-      // While open, a press anywhere else closes the menu.
+      // While open or telling the answer, a press anywhere else closes the menu.
       private function listen(on:Boolean) : void
       {
          if(stage == null)
@@ -277,7 +269,8 @@ package survarium.controls
       private function onStageDown(e:MouseEvent) : void
       {
          var target:DisplayObject = e.target as DisplayObject;
-         if(this._state == OPEN && !(target != null && contains(target)))
+         var shown:Boolean = this._state == OPEN || this._state == TOLD;
+         if(shown && !(target != null && contains(target)))
          {
             this.close();
          }

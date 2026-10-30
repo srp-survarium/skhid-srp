@@ -11,3 +11,15 @@ handler = "on_key"
 [[hook]]
 site = "hud.callback"
 handler = "on_hud_call"
+
+# A match's (or a replay's) options read, after Blackout's: the cursor of the
+# match before is forgotten.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 1
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 1

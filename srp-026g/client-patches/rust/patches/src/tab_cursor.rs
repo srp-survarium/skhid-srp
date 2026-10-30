@@ -6,6 +6,8 @@
 //!   the hud's cursor (the kits' own show_cursor: the mouse goes to the hud's
 //!   movies, the look and the buttons stop) until Tab is let go, and the Ctrl
 //!   key is taken from the player (no crouch) until it is let go;
+//! - a match's options read (`static_info.options_read`,
+//!   `replay.options_read`, after Blackout's): the cursor state starts over;
 //! - the hud movie's calls (`hud.callback`, scaleform_callback 0x233D30):
 //!   `srp_player_menu(place)`, the row menu asking whether "Add to friends"
 //!   is offered for that place, answered `root.srp_player_menu(place, offer)`;
@@ -23,7 +25,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::{
-    GameCell, GameWorldKey, Flow, Context, HudCall, Key, KeyKind, Lobby, TabCursorOnHudCallExit,
+    GameCell, GameWorldKey, Flow, Context, HudCall, Key, KeyKind, Lobby, NoExit, NotConnected, TabCursorOnHudCallExit,
     TabCursorOnKeyExit, Thread, clock,
 };
 use crate::vostok::types::Place;
@@ -107,6 +109,15 @@ impl Cursor {
         if taken == CtrlKeys::NONE { Cursor::Off } else { Cursor::Draining { taken } }
     }
 
+    /// `ctrl` no longer taken.
+    fn released(self, ctrl: CtrlKeys) -> Cursor {
+        let taken = self.taken().without(ctrl);
+        match self {
+            Cursor::Shown { .. } => Cursor::Shown { taken },
+            _ => Cursor::draining(taken),
+        }
+    }
+
     /// The one transition: a key in a state.
     fn step(self, event: KeyEvent) -> Step {
         // The list went away (Tab let go): the cursor with it.
@@ -118,15 +129,11 @@ impl Cursor {
             (Some(ctrl), KeyKind::Down) if event.list => {
                 (Cursor::Shown { taken: state.taken().with(ctrl) }, true, Some(true))
             }
-            (Some(ctrl), KeyKind::Up) if state.taken().holds(ctrl) => {
-                let taken = state.taken().without(ctrl);
-                let next = match state {
-                    Cursor::Shown { .. } => Cursor::Shown { taken },
-                    _ => Cursor::draining(taken),
-                };
-                (next, true, None)
-            }
-            (Some(ctrl), KeyKind::Down | KeyKind::Held) if state.taken().holds(ctrl) => (state, true, None),
+            (Some(ctrl), KeyKind::Up) if state.taken().holds(ctrl) => (state.released(ctrl), true, None),
+            // A taken key down again with no list: its up was missed (the
+            // chat took it, the window lost the keyboard): the player's again.
+            (Some(ctrl), KeyKind::Down) if state.taken().holds(ctrl) => (state.released(ctrl), false, None),
+            (Some(ctrl), KeyKind::Held) if state.taken().holds(ctrl) => (state, true, None),
             _ => (state, false, None),
         };
         Step { next, take, show: show.or(hide.then_some(false)) }
@@ -160,6 +167,18 @@ fn take_request(allowance: Option<Allowance>, now: u64, frequency: u64) -> (bool
 }
 
 static REQUESTS: GameCell<Option<Allowance>> = GameCell::new(None);
+
+/// A match's options read (0xE4, after Blackout's): nothing of ours is shown
+/// or held in a new match's hud.
+pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    CURSOR.set(ctx.thread(), Cursor::Off);
+    Flow::Continue
+}
+
+/// A replay's options read (its chunk 1, after Blackout's): the same.
+pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    on_static_info(ctx)
+}
 
 /// on_keyboard_action's start (0x25CD00): every key the game world gets.
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<TabCursorOnKeyExit> {
@@ -213,17 +232,22 @@ fn offered<'l>(lobby: &'l Lobby<'_>, place: Place) -> Result<&'l core::ffi::CStr
     Ok(name)
 }
 
+impl From<NotConnected> for Refusal {
+    fn from(_: NotConnected) -> Refusal {
+        Refusal::NotConnected
+    }
+}
+
 fn send_request(thread: &Thread, lobby: &Lobby<'_>, place: Place) -> Result<(), Refusal> {
     let name = offered(lobby, place)?;
-    if !lobby.connected() {
-        return Err(Refusal::NotConnected);
-    }
     let (allowed, after) = take_request(REQUESTS.get(thread), clock::counter(thread), clock::frequency(thread));
-    REQUESTS.set(thread, Some(after));
     if !allowed {
+        REQUESTS.set(thread, Some(after));
         return Err(Refusal::TooMany);
     }
-    lobby.send_friend_request(name);
+    // a request that did not go keeps its share of the allowance
+    lobby.send_friend_request(name)?;
+    REQUESTS.set(thread, Some(after));
     Ok(())
 }
 
@@ -340,6 +364,20 @@ mod tests {
     fn ctrl_again_on_a_new_list_shows_it_again() {
         let step = Cursor::Draining { taken: LEFT }.step(ctrl(RIGHT, KeyKind::Down, true));
         assert_eq!(step, Step { next: Cursor::Shown { taken: LEFT.with(RIGHT) }, take: true, show: Some(true) });
+    }
+
+    #[test]
+    fn a_missed_release_leaves_the_next_crouch_alone() {
+        // the cursor's Ctrl still taken, its up lost (the chat took it)
+        let state = Cursor::Draining { taken: LEFT };
+        let down = state.step(ctrl(LEFT, KeyKind::Down, false));
+        assert_eq!(down, Step { next: Cursor::Off, take: false, show: None });
+        for kind in [KeyKind::Held, KeyKind::Up] {
+            assert!(!down.next.step(ctrl(LEFT, kind, false)).take);
+        }
+        // the other Ctrl stays taken
+        let both = Cursor::Draining { taken: LEFT.with(RIGHT) }.step(ctrl(LEFT, KeyKind::Down, false));
+        assert_eq!(both, Step { next: Cursor::Draining { taken: RIGHT }, take: false, show: None });
     }
 
     #[test]

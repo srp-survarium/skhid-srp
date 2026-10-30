@@ -171,6 +171,11 @@ def main():
         ("right Ctrl let go: taken", 0, 0, RCTRL, UP, []),
         ("Ctrl after it: the player's again", 0, 0, RCTRL, DOWN, None),
         ("", 0, 0, RCTRL, UP, None),
+        ("left Ctrl on the list again", 1, 0, LCTRL, DOWN, shown),
+        ("Tab let go: the cursor hidden, Tab on (left Ctrl still taken)", 1, 0, TAB, UP, None),
+        ("left Ctrl down again without the list, its up missed: the player's (crouch)", 0, 0, LCTRL, DOWN, None),
+        ("", 0, 0, LCTRL, HELD, None),
+        ("", 0, 0, LCTRL, UP, None),
         ("dead (the kits' cursor): Ctrl on the list taken", 1, 1, LCTRL, DOWN, shown),
         ("", 1, 1, LCTRL, UP, []),
         ("Tab let go: the kits keep their cursor", 1, 1, TAB, UP, None),
@@ -204,9 +209,12 @@ def main():
     ours.hud(1, 0)
     b = ours.key(LCTRL, DOWN)
     report(b[0] == hide.SENTINEL and b[4] == shown, "Ctrl on the list of a plain match: the cursor")
-    ours.hud(1, 0)
-    ours.key(TAB, UP)
-    ours.key(LCTRL, UP)
+    report(ours.static_info(blackout.empty_options(b""))[0], "the next match's options read, Ctrl still taken")
+    ours.hud(0, 0)
+    b = ours.key(LCTRL, HELD)
+    report(b[0] == KEY_PAST and b[4] == [], "Ctrl held into the next match: the player's (the state starts over)")
+    b = ours.key(LCTRL, UP)
+    report(b[0] == KEY_PAST and b[4] == [], "its release on")
 
     print("the hud movie's calls (scaleform_callback 0x233D30)")
     menu = lambda place, offer: [(hide.HUD_MOVIE, "root.srp_player_menu", (place, offer))]

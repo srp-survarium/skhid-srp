@@ -884,7 +884,7 @@ artefact_score_on_transfer_replay:
 
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
-extern hook_blackout_on_static_info
+extern hook_blackout_on_static_info_chain
 blackout_on_static_info:
     lea esp, [esp - 4]
     pushfd
@@ -902,7 +902,7 @@ blackout_on_static_info:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_static_info
+    call hook_blackout_on_static_info_chain
     mov edx, blackout_on_static_info_replay
     cmp eax, 0
     je blackout_on_static_info_go
@@ -923,7 +923,7 @@ blackout_on_static_info_replay:
 
 ; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> blackout_on_replay_options
 global blackout_on_replay_options
-extern hook_blackout_on_replay_options
+extern hook_blackout_on_replay_options_chain
 blackout_on_replay_options:
     lea esp, [esp - 4]
     pushfd
@@ -941,7 +941,7 @@ blackout_on_replay_options:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_replay_options
+    call hook_blackout_on_replay_options_chain
     mov edx, blackout_on_replay_options_replay
     cmp eax, 0
     je blackout_on_replay_options_go

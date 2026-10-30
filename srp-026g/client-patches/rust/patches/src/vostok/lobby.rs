@@ -24,6 +24,11 @@ const SENDING: [u32; 2] = [0, 4];
 /// The friend request's type in a 4D (important_message_types: 0).
 const FRIEND_REQUEST: u32 = 0;
 
+/// The lobby connection is down: a messaging message is not sent (as the
+/// lobby's own senders refuse to).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NotConnected;
+
 /// The lobby of a match's network client.
 pub struct Lobby<'t> {
     client: raw::NetworkClient,
@@ -57,7 +62,7 @@ impl<'t> Lobby<'t> {
     }
 
     /// The lobby connection is up: a messaging sender would send now.
-    pub fn connected(&self) -> bool {
+    fn connected(&self) -> bool {
         // SAFETY: the lobby client's connection slot and connection, read as
         // every messaging sender reads them first (0x28C1B6..0x28C1D6).
         unsafe {
@@ -87,8 +92,11 @@ impl<'t> Lobby<'t> {
     }
 
     /// Sends the lobby a friend request to `name`, as the lobby's menus do
-    /// (`4D`, type 0, no text). The caller has checked [`connected`](Self::connected).
-    pub fn send_friend_request(&self, name: &CStr) {
+    /// (`4D`, type 0, no text), when the lobby connection is up.
+    pub fn send_friend_request(&self, name: &CStr) -> Result<(), NotConnected> {
+        if !self.connected() {
+            return Err(NotConnected);
+        }
         // SAFETY: the messaging client the lobby's add_friend_name passes
         // (0x28C1DF), on the game's thread; the name and the text C strings
         // that outlive the call (it copies both before it returns).
@@ -96,5 +104,6 @@ impl<'t> Lobby<'t> {
             raw::engine_send_important(Some(self.client.lobby().messaging()), name.as_ptr().cast(),
                                        FRIEND_REQUEST, c"".as_ptr().cast());
         }
+        Ok(())
     }
 }

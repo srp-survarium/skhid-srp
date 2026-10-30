@@ -77,7 +77,7 @@ pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::TabTest;
 pub use hud_input::{GameWorldKey, Hud, HudCall, HudView, Key, KeyKind};
-pub use lobby::Lobby;
+pub use lobby::{Lobby, NotConnected};
 pub use options::OptionsRead;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};

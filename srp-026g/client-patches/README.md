@@ -3727,7 +3727,9 @@ entry sends the lobby's own friend request (`4D` type 0, through
 messaging_client::send_important_message 0x26AFB0) to that place's bare
 name. The rules are in `../docs/notes/tab-cursor-friends.md`.
 
-The Rust `tab_cursor` module has two lohooks:
+The Rust `tab_cursor` module has two lohooks of its own, and one more after
+Blackout's at a match's options read (`static_info.options_read`,
+`replay.options_read`, order 1), where the cursor state starts over:
 - `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
   Its exit `taken` is the function's `ret 0Ch`, with AL 1.
 - `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).

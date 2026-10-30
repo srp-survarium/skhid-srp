@@ -226,7 +226,10 @@ class LocalizationTests(unittest.TestCase):
         issues = audit_flash(self.root / 'flash', set())['issues']
         self.assertTrue(any('st_srp_rooms_room is not in the dictionaries' in issue for issue in issues))
         self.flash_fixture('hud', 'text = LocalizationData.getName("st_srp_rooms_room");')
-        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues'], [])
+        issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
+        self.assertTrue(any('the hud movie is given st_srp_hud_* texts only' in issue for issue in issues))
+        self.flash_fixture('hud', 'text = LocalizationData.getName("st_srp_hud_hello");')
+        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_rooms_room', 'st_srp_hud_hello'})['issues'], [])
         self.flash_fixture('replay_player', 'text = LocalizationData.getName("st_srp_rooms_room");')
         issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
         self.assertTrue(any('the replay_player movie is not given' in issue for issue in issues))
@@ -267,7 +270,7 @@ class LocalizationTests(unittest.TestCase):
 
     def test_content_edit_maps_srp_texts_for_the_movies_that_read_them(self):
         self.dictionary('english', {'st_test': 'Hello'})
-        self.catalog({'st_test': 'Hello', 'st_srp_hello': 'Hello %1$s'})
+        self.catalog({'st_test': 'Hello', 'st_srp_hello': 'Hello %1$s', 'st_srp_hud_hi': 'Hi'})
         stock = {'lobby_menu_strings': [['caption', 'st_test']], 'login_menu_strings': [['login', 'st_test']],
                  'hud_strings': [['hint', 'st_test']]}
         options = self.root / 'localization/flash_movies_localizations.options'
@@ -284,9 +287,10 @@ class LocalizationTests(unittest.TestCase):
         self.assertIn('0 unexpected differences', run.stdout)
         mapped, errors = read_config(output / 'localization/flash_movies_localizations.options')
         self.assertEqual(errors, [])
-        self.assertEqual(mapped['lobby_menu_strings'], [['caption', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
-        self.assertEqual(mapped['login_menu_strings'], [['login', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
-        self.assertEqual(mapped['hud_strings'], [['hint', 'st_test'], ['st_srp_hello', 'st_srp_hello']])
+        both = [['st_srp_hello', 'st_srp_hello'], ['st_srp_hud_hi', 'st_srp_hud_hi']]
+        self.assertEqual(mapped['lobby_menu_strings'], [['caption', 'st_test']] + both)
+        self.assertEqual(mapped['login_menu_strings'], [['login', 'st_test']] + both)
+        self.assertEqual(mapped['hud_strings'], [['hint', 'st_test'], ['st_srp_hud_hi', 'st_srp_hud_hi']])
         report = checker.audit(output / 'localization')
         self.assertEqual(report['ui_unmapped'], {'lobby_menu_strings': [], 'login_menu_strings': [],
                                                  'hud_strings': []})
@@ -294,7 +298,8 @@ class LocalizationTests(unittest.TestCase):
         # A compiled dictionary with an srp text the mapping lacks fails the audit.
         (output / 'localization/flash_movies_localizations.options').write_bytes(self.mapping(stock))
         report = checker.audit(output / 'localization')
-        self.assertEqual(report['ui_unmapped']['login_menu_strings'], ['st_srp_hello'])
+        self.assertEqual(report['ui_unmapped']['login_menu_strings'], ['st_srp_hello', 'st_srp_hud_hi'])
+        self.assertEqual(report['ui_unmapped']['hud_strings'], ['st_srp_hud_hi'])
         self.assertTrue(checker.failed(report))
 
     def test_all_dictionaries_cover_the_same_keys_and_formats(self):
