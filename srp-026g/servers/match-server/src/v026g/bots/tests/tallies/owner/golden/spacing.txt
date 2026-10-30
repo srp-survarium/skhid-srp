@@ -109,10 +109,17 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "mates_near": 640,
         "overlap_05m_pair_s": 5,
         "overlap_1m_body_s": 10,
-        "overlap_1m_cause_goal_follow_still_file_other": [
+        "overlap_1m_cause_target_goal_follow_still_file_other": [
+          0,
           0,
           0,
           5,
+          0,
+          0
+        ],
+        "overlap_1m_moving_pair_goal_under5_5_20_20up_none": [
+          0,
+          0,
           0,
           0
         ],
@@ -195,8 +202,15 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "mates_near": 720,
         "overlap_05m_pair_s": 0,
         "overlap_1m_body_s": 0,
-        "overlap_1m_cause_goal_follow_still_file_other": [
+        "overlap_1m_cause_target_goal_follow_still_file_other": [
           0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_moving_pair_goal_under5_5_20_20up_none": [
           0,
           0,
           0,
