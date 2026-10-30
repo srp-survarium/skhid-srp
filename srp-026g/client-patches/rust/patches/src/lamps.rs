@@ -71,8 +71,8 @@ impl Lamps {
 fn down() -> RayDirection { RayDirection::parse([0.0, -1.0, 0.0]).expect("a finite, non-zero direction") }
 /// A break's shards: the game's glass hit (some 70 shards of 3.5 cm), about
 /// one burst per 15 cm of the glass (a bulb's one, a 1.5 m tube's ten), at
-/// most ten, and its sound once at the glass's middle. One burst covers a
-/// bulb; four over 1.5 m of tube read as nothing (round 4 of release 39).
+/// most ten, thrown along `direction`, and its sound once at the glass's
+/// middle.
 fn shatter(effects: Option<SurfaceBreakEffects<'_>>, glass: GlassLine, direction: RayDirection) {
     const MOST: core::num::NonZeroUsize = core::num::NonZeroUsize::new(10).expect("non-zero");
     let spacing = Distance::parse(0.15).expect("a finite, non-negative distance");

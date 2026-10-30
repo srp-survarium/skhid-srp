@@ -2583,7 +2583,6 @@ st_srp_rooms_teams_owner	A « és » gombokkal mozgathatod a játékosokat a csa
 st_srp_rooms_unfit_gear	A felszerelésed meghaladja a szintkorlátot. Csökkentsd a szintjét, különben kezdéskor kikerülsz a szobából.
 st_srp_rooms_unfit_kit	Az összeállításod nem használható (nincs fegyver vagy kevés a lőszer). Javítsd ki, különben kezdéskor kikerülsz a szobából.
 st_srp_rooms_vote	Szavazz a következő pályára
-st_srp_rooms_vote_now	Kattints a következő pálya kártyájára. Az idő lejártával a győztesen indul a meccs.
 st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.

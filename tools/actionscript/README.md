@@ -23,6 +23,15 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   the build adds it as a DefineBitsLossless2 of a new character id before the code, bound
   to `<class>` by a SymbolClass after it; `<class>` is a `BitmapData` of the tree, as the
   original's own bitmaps are (the hud's `hudItems`), made with `new <class>()`.
+- **Tables.** Data the movie's code reads, which other tools read too (the
+  lobby's shop filters, which the wiki's icons take), is a table
+  `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
+  class `<Class>` into the copy of `src/` it compiles (a table naming a class
+  `src/` has is refused). Tab-separated, `#` lines comments; the header is
+  `list`, then `<field>:<type>` a column (`int`, `String`, or a qualified
+  class whose static constant the cell names, compiled as `Class.NAME`). Each
+  list is `public static const <list>:Array` of `{field: value}` rows, in the
+  file's order. Other tools read it with `flash_tree.read_table`.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)

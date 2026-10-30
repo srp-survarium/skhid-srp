@@ -3,7 +3,8 @@
 
 python check_lamps_026g.py <original survarium.exe>
 python check_lamps_026g.py <original survarium.exe> --patched <local test exe>
-Renderer/effect queue endpoints, the splash trace (0x3393F0), the writer's byte sink and GetCurrentThreadId are stubbed. Config
+Renderer/effect queue endpoints, the splash trace (0x3393F0), the writer's byte sink and GetCurrentThreadId are stubbed;
+each queued shard burst is then oriented by the game's own game_world::play_particle (0x25B9B0). Config
 lookup, project iteration, vtable dispatch, visual/light methods, empty-bullet
 serialization/deserialization and all installed lamp hooks execute x86 code.
 """
@@ -40,6 +41,9 @@ CAMERA, CORE = HEAP + 0xd0000, HEAP + 0xe0000
 # A blast: its splash (bullet_manager::explode's ESI) and its centre.
 SPLASH, CENTRE = HEAP + 0xba000, HEAP + 0xbb000
 MATERIALS, BULLET_MAT, GLASS_MAT, PAIR, PARTICLES = (HEAP + i for i in (0x200000, 0x211000, 0x212000, 0x213000, 0x214000))
+# game_world::play_particle's receiver (game_world+0ECh: its +(-50h) is the
+# world whose renderer holds the scene) and the arguments of one call.
+ENGINE, ORIENT = HEAP + 0x800100, HEAP + 0x810000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)
 
@@ -84,7 +88,7 @@ class Game:
             u.mem_write(addr, bytes(built[raw:raw + min(rsize, vsize or rsize)]))
         u.mem_map(HEAP, 0xa00000)
         self.active, self.events, self.output = set(), [], bytearray()
-        self.effects, self.decals, self.traces = [], [], []
+        self.effects, self.decals, self.traces, self.bursts = [], [], [], []
         self.passes = 1.0
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21cd0, end=0x21cd0)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21f40, end=0x21f40)
@@ -95,6 +99,7 @@ class Game:
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
         u.hook_add(UC_HOOK_CODE, self.decal, begin=0x321fa0, end=0x321fa0)
         u.hook_add(UC_HOOK_CODE, self.reach, begin=0x3393f0, end=0x3393f0)
+        u.hook_add(UC_HOOK_CODE, self.particle_system, begin=0x22660, end=0x22660)
         self.w(PROJECT + 0x17c, CONFIG); self.w(CONFIG + 0x108, CFG)
         self.w(PROJECT + 0x180, SCENE); self.w(SCENE + 0x98, CAMERA)
         self.w(SCENE + 0x9c, GAME); self.w(GAME + 0x5360, RENDERER)
@@ -119,7 +124,9 @@ class Game:
         self.w(MATERIALS + 0x308 + 4 * (7 * 128 + 29), PAIR)
         self.w(PAIR + 0x18, HEAP + 0x215000)
         self.w(PAIR + 0x24, PARTICLES); self.w(PAIR + 0x28, PARTICLES + 4)
-        self.w(PAIR + 0x74, 1)
+        # particle_orientation: the bullet x glass pair's is 0 (material.pairs).
+        self.w(PAIR + 0x74, 0)
+        self.w(ENGINE - 0x50, GAME)
         # Ragdoll's neighboring hook uses this import for its own lock.
         self.w(0x870118, RET + 0x100)
         u.mem_write(RET + 0x100, b'\xb8\x01\x00\x00\x00\xc3')
@@ -193,16 +200,41 @@ class Game:
         esp = u.reg_read(UC_X86_REG_ESP)
         assert self.r(esp + 4) == MANAGER
         if va == 0x3223e0:
-            assert self.r(esp + 8) == PARTICLES and self.r(esp + 20) == 1
+            assert self.r(esp + 8) == PARTICLES and self.r(esp + 20) == min(self.r(PAIR + 0x74), 1)
             point, kind, cleanup = u.reg_read(UC_X86_REG_EAX), 'shards', 20
-            direction = struct.unpack('<3f', u.mem_read(self.r(esp + 12), 12))
-            normal = struct.unpack('<3f', u.mem_read(self.r(esp + 16), 12))
-            assert normal == tuple(-v for v in direction)
+            self.bursts.append(tuple(struct.unpack('<3f', u.mem_read(self.r(esp + k), 12)) for k in (12, 16))
+                               + (self.r(esp + 20),))
         else:
             assert self.r(esp + 8) == PAIR + 0x18
             point, kind, cleanup = self.r(esp + 12), 'glass sound', 12
         self.effects.append((kind, struct.unpack('<3f', u.mem_read(point, 12))))
         self.finish(cleanup)
+
+    def particle_system(self, u, *_):
+        # scene_renderer::play_particle_system: the emitter's two transforms.
+        esp = u.reg_read(UC_X86_REG_ESP)
+        self.transforms = [struct.unpack('<16f', u.mem_read(self.r(esp + k), 64)) for k in (16, 20)]
+        self.finish(28)
+
+    def thrown(self, ray):
+        """Every queued burst, oriented by the game's own play_particle (made
+        unit as bullet_manager::play_particle makes them): two finite,
+        orthonormal transforms, the first's normal axis back along `ray` (its
+        z along it, for a pair oriented to the direction)."""
+        unit = lambda v: tuple(x / sum(y * y for y in v) ** .5 for x in v)
+        ray = unit(ray)
+        assert self.bursts
+        for direction, normal, orientation in self.bursts:
+            self.f(ORIENT, (0.,) * 4 + unit(direction) + (0.,) + unit(normal)); self.w(ORIENT + 0x30, 0)
+            self.run(0x25b9b0, args=(ORIENT + 0x30, ORIENT, ORIENT + 0x10, ORIENT + 0x20, orientation),
+                     regs={UC_X86_REG_ECX: ENGINE})
+            for m in self.transforms:
+                rows = [m[i * 4:i * 4 + 3] for i in range(3)]
+                assert all(abs(sum(a * b for a, b in zip(rows[i], rows[j])) - (i == j)) < 1e-4
+                           for i in range(3) for j in range(3)), (direction, normal, m)
+            axis = self.transforms[0][8:11] if orientation else tuple(-v for v in self.transforms[0][4:7])
+            assert all(abs(a - b) < 1e-4 for a, b in zip(axis, ray)), (ray, direction, normal, orientation)
+        self.bursts = []
 
     def decal(self, u, *_):
         # bullet_manager::add_decal: the manager in EAX, the pair's slot, the
@@ -357,6 +389,7 @@ def main():
     assert g.active == broken
     assert marks(g) and g.active == broken
     assert g.effects == [('shards', (0., 0., 0.)), ('glass sound', (0., 0., 0.))]
+    g.thrown((1., 0., 0.))
     events = len(g.events)
     g.shoot(); g.present(); assert len(g.events) == events
     assert len(g.effects) == 2
@@ -373,6 +406,15 @@ def main():
     quiet = Game(built); quiet.insert(); quiet.u.mem_write(BULLET + 0x80, b'\x01')
     quiet.shoot(); quiet.present(); assert quiet.active == broken and not quiet.effects
     print('ok: each new break queues glass sound and shards once; quiet bullets and snapshot loads stay silent')
+    # The game builds a burst's basis from normalize(normal x direction):
+    # a normal along the ray made it NaN, and the shards were drawn nowhere.
+    for orientation, ray in ((0, (.6, .8, 0.)), (0, (-.3, .9, .3)), (7, (1., 0., 0.)), (7, (0., -.8, -.6))):
+        aimed = Game(built); aimed.insert(); aimed.w(PAIR + 0x74, orientation)
+        aimed.shoot(start=tuple(-2 * v for v in ray), length=3., direction=ray)
+        assert [kind for kind, _ in aimed.effects] == ['shards', 'glass sound'], aimed.effects
+        aimed.thrown(ray)
+    print('ok: the game orients each burst along its ray, a finite frame, for pairs oriented to the normal '
+          'or to the direction')
     for invalid in (damaged[:-1], damaged[:16], damaged[:16] + bytes(12),
                     damaged[:20] + struct.pack('<I', 256) + damaged[24:]):
         try:
@@ -481,17 +523,20 @@ def main():
         centre = [(a + b) / 2 for a, b in zip(low, high)]
         game = Game(built)
         game.map_metadata(entry['value']); game.insert()
+        middle = [(a + b) / 2 for a, b in zip(start, end)]
         if blast:   # a grenade half a metre under it, reaching it alone
-            game.explode((centre[0], low[1] - .5, centre[2]), .55)
+            grenade = (centre[0], low[1] - .5, centre[2])
+            game.explode(grenade, .55)
+            game.thrown([m - g for m, g in zip(middle, grenade)])
         else:       # up into the fixture's bottom, stopping at its centre
             game.shoot(start=(centre[0], low[1] - .05, centre[2]), length=centre[1] - low[1] + .05,
                        direction=(0., 1., 0.))
+            game.thrown((0., 1., 0.))
         points = [p for kind, p in game.effects if kind == 'shards']
         assert len(points) == bursts, (project, lamp, game.effects)
         expected = [[a + (b - a) * (i + .5) / bursts for a, b in zip(start, end)] for i in range(bursts)]
         assert all(abs(p[k] - q[k]) < 1e-4 for p, q in zip(points, expected) for k in range(3)), (points, expected)
         sounds = [p for kind, p in game.effects if kind == 'glass sound']
-        middle = [(a + b) / 2 for a, b in zip(start, end)]
         assert len(sounds) == 1 and all(abs(a - b) < 1e-4 for a, b in zip(sounds[0], middle)), sounds
         game.remove()
         return points
@@ -506,7 +551,8 @@ def main():
     dx, dz = turned[-1][0] - turned[0][0], turned[-1][2] - turned[0][2]
     assert abs(dx) > .3 and abs(dz) > .3 and all(abs(p[1] - turned[0][1]) < .01 for p in turned), turned
     print('ok: a break bursts along its glass line, one burst per 15 cm (a plafon three, tubes six to ten, '
-          'a turned fixture along its tubes, a blast\'s as a bullet\'s), one sound each at the glass\'s middle')
+          'a turned fixture along its tubes, a blast\'s as a bullet\'s, thrown up into the lamp or away from the '
+          'grenade), one sound each at the glass\'s middle')
 
     # A blast breaks every intact fixture whose bounds come within its splash
     # radius, where the game's own splash trace reaches the bounds' nearest
@@ -545,6 +591,7 @@ def main():
     assert silent.active == {('model', 1), ('model', 3)} and not silent.effects and silent.save() == blasted
     inside = Game(built); inside.insert(); inside.explode((0., 0., 0.), 0.)
     assert inside.save() != fresh and not inside.traces and inside.effects[0] == ('shards', (0., 0., 0.))
+    inside.thrown((0., -1., 0.))   # a blast at the glass throws its shards down
     print('ok: rollback and resimulation repeat a blast\'s breaks, a late join loads them silently, a world without '
           'a renderer breaks quietly; a blast inside a fixture needs no trace')
 
