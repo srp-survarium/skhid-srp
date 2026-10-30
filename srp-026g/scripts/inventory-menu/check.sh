@@ -3,7 +3,7 @@
 # on (docs/notes/shop-character-menu.md), in Ruffle (CPU only: lavapipe on its own virtual X
 # display, never the GPU). InventoryMenuHarness.as makes the lobby movie's own inventory list, item
 # card, character menu and shop, right-clicks a list row, the kit's items in the inventory and in the
-# shop, and a shop entry locked at its seller, chooses Buy and checks what reaches the buy dialog
+# shop, a bundle whose id is an owned item's, and a shop entry locked at its seller, chooses Buy and checks what reaches the buy dialog
 # (GangShop.buyFunction).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.

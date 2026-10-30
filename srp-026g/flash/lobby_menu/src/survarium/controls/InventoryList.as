@@ -1985,16 +1985,22 @@ package survarium.controls
          {
             return;
          }
-         // An owned item as the inventory has it, as the card shows it from the list.
-         if(this.owns(item.itemId))
-         {
-            item = this._inventoryItemsDict[item.itemId];
-         }
+         item = this.ownedCopy(item);
          if(this._item_control.getItemData() != item)
          {
             this.setPrimaryItem(item);
          }
          this._item_control.onBtnClick1();
+      }
+
+      // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
+      // shows it from the list; any other item (a shop entry, a bundle) itself. Not by its id
+      // alone: a shop entry's is 0 and a bundle's is the bundle's id (8 and up), which can be an
+      // owned item's too.
+      private function ownedCopy(item:ItemData) : ItemData
+      {
+         var owned:Boolean = item.descriptor <= ItemPlace.INVENTORY && this.owns(item.itemId);
+         return owned ? this._inventoryItemsDict[item.itemId] : item;
       }
 
       protected function upgradeItem(e:Event = null) : void

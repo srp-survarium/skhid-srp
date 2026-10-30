@@ -17,6 +17,7 @@ package
    // - the kit's medkit and rifle in the inventory (the character menu selects the item's row);
    // - the kit's rifle in the shop, whose list holds the shop's entries only, none selected (the
    //   character menu shows there too: shop-character-menu.md);
+   // - a bundle whose id is an owned item's id too (a bundle's item id is its bundle id);
    // - a shop entry locked at its seller, the item sold unlocked by another seller (the menu lists
    //   Buy for an item the shop sells at any seller).
    // Each buy is caught at GangShop.buyFunction (LobbyMenu.try_buy_item in the game, which opens
@@ -29,6 +30,9 @@ package
       private static const MEDKIT:int = 9002;
 
       private static const HELMET:int = 9003;
+
+      // A bundle's id, the owned rifle's id too (a bundle's id is its own: 8 and up).
+      private static const BUNDLE:int = 11;
 
       // The rifle's second seller, whose entry the account has not unlocked.
       private static const LOCKED_SELLER:int = 1;
@@ -99,7 +103,7 @@ package
             domain.getDefinition("survarium.data.LocalizationData").setData({buy:"Buy",sell:"Sell",wear:"Wear",drop:"Drop",fix:"Repair",non_faction_items:"Any"});
             at = "the icons";
             var Container:Class = C("survarium.data.IconContainer");
-            for each(var icons:String in ["weapons","equipment","consumables","factionItemIcons"])
+            for each(var icons:String in ["weapons","equipment","consumables","factionItemIcons","bundles"])
             {
                new Container(icons,1,1,new BitmapData(1,1,true,0),false,1,0,0,false);
             }
@@ -193,7 +197,8 @@ package
                      return false;
                   });
                   inventory.setupShopItems(offers);
-                  inventory.setupBundleData([]);
+                  // A bundle whose id is an owned item's too (the rifle's).
+                  inventory.setupBundleData([{bundle_id:BUNDLE,bundle_icon:0,bundle_name:"Bundle",bundle_descr:"",bundle_properties:[],currency_type:false,cost:500,bundle_items:[]}]);
                   inventory.setupInventoryData([owned(11,RIFLE,10000),owned(12,MEDKIT,3),owned(13,HELMET,10000)]);
                   break;
                case 1:
@@ -226,17 +231,25 @@ package
                   break;
                case 7:
                   choose(RIFLE,"the kit's rifle in the shop");
+                  // Every group of the shop again (the kit's rifle chose the rifles'): the bundles show.
+                  inventory.inventoryTabPage.selectedIndex = 0;
+                  break;
+               case 8:
+                  rightClick(bundleRow());
+                  break;
+               case 9:
+                  choose(BUNDLE,"the bundle whose id is the rifle's");
                   // The locked seller's items only: the rifle's entry there is locked, the rifle
                   // sold unlocked at seller 0.
                   inventory.optionControl.checkbox_all_traders.selected = false;
                   inventory.sellersTabPage.selectedIndex = 1;
                   break;
-               case 8:
+               case 10:
                   var entry:* = shopRow(RIFLE);
                   require(entry.data.canBuy == false,"the rifle's entry is locked at its seller");
                   rightClick(entry);
                   break;
-               case 9:
+               case 11:
                   choose(RIFLE,"the rifle's entry locked at its seller");
                   break;
                default:
@@ -307,6 +320,20 @@ package
             }
          }
          throw new Error("no shop row for item " + dictId);
+      }
+
+      // The shop list's row of the bundle.
+      private function bundleRow() : *
+      {
+         var Category:Object = domain.getDefinition("survarium.constants.ItemCategory");
+         for each(var r:* in rows())
+         {
+            if(r.data.category == Category.BUNDLE)
+            {
+               return r;
+            }
+         }
+         throw new Error("no bundle row: " + names());
       }
 
       // A right click on a row: its press and release as Scaleform sends them to it
