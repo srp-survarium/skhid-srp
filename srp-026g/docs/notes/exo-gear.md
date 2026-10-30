@@ -45,3 +45,24 @@ glove alone, fingers down) read as an arm pointing down; "just use old ones".
 
 - `exo-gear@3` renders only the two boot icons (as in `@2`); the Duty and
   Freedom gloves keep their stock lobby icons. The textures are `@1`'s.
+
+## The boots under full-length trousers (edit list exo-boots-1)
+
+The owner (2026-10-30), on the rev 39 local test: with the exo boots on, the
+shins look removed, only the bones left between the trousers and the boots.
+
+- Cause: a boot's `data/model_type` picks which model of the trousers is worn
+  with it: `data_full` their `_s1` (full width, 13-18 cm, down to 6-13 cm
+  above the ground), `data_medium` `_s2` and `data_long` `_s3`, narrowed to
+  2-9 cm from about 13 to 30 cm (some `_s3` end at 29 cm) to fit inside a tall
+  boot's shaft (stock `data_long` boots are about 36 cm high, `data_medium`
+  ones 27 cm). The exo boots (one STK2 mesh for both sets) are 22 cm high,
+  the shape of the stock low boots that take `data_full` (Scavenger boots 1,
+  18 cm), but were ported as `data_long`: every trousers' narrowed part showed
+  above them, or a gap.
+- Fix: `srp-026g/scripts/content-edit/exo-boots-1.json` sets both boots'
+  `model_type` to `data_full`; the trousers' hem now goes over the boot's
+  shaft, as STK2 wore them. The mesh, the textures and the stats stay; the
+  gloves are `data_full` already.
+- Check in the game: the exo boots with several trousers (Master's, Rookie's,
+  Novice's, the Black Market's), front, side and back.
