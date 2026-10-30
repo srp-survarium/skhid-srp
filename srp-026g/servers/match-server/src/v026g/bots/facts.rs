@@ -88,6 +88,67 @@ impl Bots {
                     spawner,
                 });
             }
+            // [A145] Where an enemy that held a place died: the killing team's held spots of his, and the places its killers'
+            // own senses had him staying at. Taken before his death takes the spots' sense.
+            if let Some(defeated) = self.tunings.of(1 - team as u8).traps.at_defeated {
+                use super::know::{Defeated, DefeatedKind};
+                let winners = 1 - team;
+                let keep_ms = (defeated.keep_s * 1000.0) as u32;
+                let mut held: Vec<(Vec3, DefeatedKind)> = self.teams[winners]
+                    .features
+                    .threat
+                    .spots
+                    .held_of(a.place, time, usize::from(defeated.min_kills))
+                    .into_iter()
+                    .map(|at| (at, DefeatedKind::Spot))
+                    .collect();
+                let camp_ms = self.tunings.of(winners as u8).aim.combat.camp_ms;
+                for killer in after
+                    .places
+                    .iter()
+                    .zip(&before.places)
+                    .filter(|(now, was)| usize::from(now.team & 1) == winners && now.kills > was.kills)
+                    .map(|(now, _)| now.place)
+                {
+                    if let Some(at) = self
+                        .bots
+                        .iter()
+                        .flatten()
+                        .find(|b| b.place == killer)
+                        .and_then(|b| b.reflex.camp_of(a.place, camp_ms))
+                    {
+                        held.push((at, DefeatedKind::Camp));
+                    }
+                }
+                for (at, kind) in held {
+                    let record = Defeated { at, time, shooter: a.place, kind };
+                    if self.teams[winners].knowledge.defeat(record, keep_ms) {
+                        #[cfg(test)]
+                        super::traps::defeated::count_team(
+                            winners as u8,
+                            match kind {
+                                DefeatedKind::Spot => super::traps::defeated::NOTED_SPOT,
+                                DefeatedKind::Camp => super::traps::defeated::NOTED_CAMP,
+                            },
+                        );
+                        notes.push(Note {
+                            place: usize::MAX,
+                            time,
+                            text: format!(
+                                "team {winners}: defeated holder {} at ({:.1}, {:.1}, {:.1}): {}",
+                                a.place,
+                                at.x,
+                                at.y,
+                                at.z,
+                                match kind {
+                                    DefeatedKind::Spot => "a held threat spot",
+                                    DefeatedKind::Camp => "a camp",
+                                }
+                            ),
+                        });
+                    }
+                }
+            }
             // Threat spots (K1): the killer the team sensed lately, if the
             // kill feed gave one (one enemy's kills rose), is where this
             // death adds to a spot; a dead shooter's spots keep half.
