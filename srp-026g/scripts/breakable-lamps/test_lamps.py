@@ -1,5 +1,6 @@
 """Authoring checks; native behavior is check_lamps_026g.py's Unicorn check."""
 import json
+import math
 from pathlib import Path
 import struct
 import unittest
@@ -183,9 +184,30 @@ class Lamps(unittest.TestCase):
         self.assertEqual(lamp['visuals'], {'intact0': {'index': 1, 'state': 0}})
         self.assertEqual(len(lamp['lights']), 1)
         self.assertAlmostEqual(lamp['min_y'], 4.893)   # the housing's bottom
+        # Its glass is the tube, not the housing: along the tube's length.
+        glass = [[lamp[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to')]
+        for actual, expected in zip(glass, ([-.347, 4.928, .201], [.347, 4.928, .201])):
+            for a, b in zip(actual, expected):
+                self.assertAlmostEqual(a, b, places=6)
         data = bytearray(original)
         edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
         self.assertEqual(edits.check_built('p', data), [])
+
+    def test_a_turned_tube_fixture_breaks_along_its_tubes(self):
+        # lamp_big_01 turned 45 degrees: its glass follows its 1.5 m length
+        # at its tubes' height, under the rods, not a world axis of its box.
+        fixture = dict(visual_name='props/light/lamp_big_01', position=[0., 5., 0.],
+                       rotation=[0., math.pi / 4, 0.], scale=[1., 1., 1.], lib_name='props/light/lamp_big_01')
+        record = (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in fixture.items()])
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record]))])))
+        bounds = {'props/light/lamp_big_01': ([-1.289, -.88, -.179], [.211, 0., .156])}
+        _, _, spec = edits.author('p', original, bounds, 29, 7)
+        lamp, = spec['value']['lamps'].values()
+        start, end = ([lamp[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to'))
+        self.assertAlmostEqual(math.dist(start, end), 1.5, places=5)
+        self.assertAlmostEqual(abs(end[0] - start[0]), abs(end[2] - start[2]), places=5)
+        self.assertAlmostEqual(start[1], 5. - .822, places=5)
+        self.assertAlmostEqual(end[1], 5. - .822, places=5)
 
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'

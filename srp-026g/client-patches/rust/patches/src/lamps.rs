@@ -12,14 +12,14 @@ use crate::vostok::config::{ConfigError, ConfigTable};
 use crate::vostok::history::{HistoryReader, HistoryWriter};
 use crate::vostok::log::Piece::Text;
 use crate::vostok::project::{BindingError, MethodTables, Presentation, ProjectPlan, ProjectRegistry, ProjectView, VisualIndex};
-use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, LampCount, LampEvent, LampId, MAX_LAMPS,
-            RayDirection, Snapshot, Visibility, WorldPoint};
+use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, Fixture, GlassLine, LampCount, LampEvent, LampId,
+            MAX_LAMPS, RayDirection, Snapshot, Visibility, WorldPoint};
 
 #[derive(Clone, Copy)]
 struct Binding { lamp: LampId, visible_when: Condition }
 
 struct Lamps {
-    bounds: BoundedVec<Bounds, MAX_LAMPS>,
+    fixtures: BoundedVec<Fixture, MAX_LAMPS>,
     state: Snapshot,
     /// The fixtures' glass (their collision's material).
     material: MaterialId,
@@ -33,27 +33,27 @@ impl Presentation<Binding> for Lamps {
     }
 }
 impl Lamps {
-    fn shoot(&mut self, segment: BulletSegment, mut shatter: impl FnMut(Bounds, RayDirection)) {
-        self.hit(|bounds| bounds.intersects(segment), |bounds| shatter(bounds, segment.direction()));
+    fn shoot(&mut self, segment: BulletSegment, mut shatter: impl FnMut(GlassLine, RayDirection)) {
+        self.hit(|bounds| bounds.intersects(segment), |glass| shatter(glass, segment.direction()));
     }
     /// A blast breaks every fixture whose bounds come within its splash
     /// radius of the centre, where the game's splash reaches them (as it
     /// would a player's bone there: walls stop it, glass does not).
     fn explode(&mut self, centre: WorldPoint, radius: Distance, reaches: impl Fn(WorldPoint) -> bool,
-               mut shatter: impl FnMut(Bounds, RayDirection)) {
+               mut shatter: impl FnMut(GlassLine, RayDirection)) {
         self.hit(|bounds| {
             let nearest = bounds.nearest(centre);
             centre.within(nearest, radius) && reaches(nearest)
-        }, |bounds| shatter(bounds, RayDirection::between(centre, bounds.centre()).unwrap_or_else(down)));
+        }, |glass| shatter(glass, RayDirection::between(centre, glass.middle()).unwrap_or_else(down)));
     }
     /// The one transition of every break, a bullet's or a blast's: a first
     /// hit of an intact fixture shatters it, once.
-    fn hit(&mut self, struck: impl Fn(Bounds) -> bool, mut shatter: impl FnMut(Bounds)) {
-        for (i, bounds) in self.bounds.iter().enumerate() {
-            let lamp = self.state.count().id(i).expect("bounds and history have the same authored count");
-            if self.state.condition(lamp) == Condition::Intact && struck(*bounds)
+    fn hit(&mut self, struck: impl Fn(Bounds) -> bool, mut shatter: impl FnMut(GlassLine)) {
+        for (i, fixture) in self.fixtures.iter().enumerate() {
+            let lamp = self.state.count().id(i).expect("fixtures and history have the same authored count");
+            if self.state.condition(lamp) == Condition::Intact && struck(fixture.bounds)
                 && self.state.transition(lamp, LampEvent::Hit) == BreakEffect::Shatter {
-                shatter(*bounds);
+                shatter(fixture.glass);
             }
         }
     }
@@ -64,17 +64,19 @@ impl Lamps {
     /// broken: the rule needs no lamp state, and rollback, resimulation and
     /// late joins (which carry no decals) agree with it.
     fn marks_glass(&self, surface: MaterialId, point: WorldPoint) -> bool {
-        surface == self.material && self.bounds.iter().any(|bounds| bounds.holds(point, mark_tolerance()))
+        surface == self.material && self.fixtures.iter().any(|fixture| fixture.bounds.holds(point, mark_tolerance()))
     }
 }
-/// A blast at a fixture's centre throws its shards down.
+/// A blast at a fixture's glass throws its shards down.
 fn down() -> RayDirection { RayDirection::parse([0.0, -1.0, 0.0]).expect("a finite, non-zero direction") }
-/// A break's shards: the game's glass hit, one burst per 40 cm of the
-/// fixture's length (a bulb's one, a fluorescent tube's four), at most four.
-fn shatter(effects: Option<SurfaceBreakEffects<'_>>, bounds: Bounds, direction: RayDirection) {
-    const MOST: core::num::NonZeroUsize = core::num::NonZeroUsize::new(4).expect("non-zero");
-    let spacing = Distance::parse(0.4).expect("a finite, non-negative distance");
-    if let Some(effects) = effects { effects.play(bounds.along(spacing, MOST), bounds.centre(), direction); }
+/// A break's shards: the game's glass hit (some 70 shards of 3.5 cm), about
+/// one burst per 15 cm of the glass (a bulb's one, a 1.5 m tube's ten), at
+/// most ten, and its sound once at the glass's middle. One burst covers a
+/// bulb; four over 1.5 m of tube read as nothing (round 4 of release 39).
+fn shatter(effects: Option<SurfaceBreakEffects<'_>>, glass: GlassLine, direction: RayDirection) {
+    const MOST: core::num::NonZeroUsize = core::num::NonZeroUsize::new(10).expect("non-zero");
+    let spacing = Distance::parse(0.15).expect("a finite, non-negative distance");
+    if let Some(effects) = effects { effects.play(glass.along(spacing, MOST), glass.middle(), direction); }
 }
 /// The game moves a hit's point onto the struck plane to 1 mm; the authored
 /// bounds hold the fixture's collision. A margin for both and for rounding.
@@ -83,7 +85,7 @@ static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 
 #[derive(Debug)]
 enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition }
-/// The metadata's format: 3 adds effect_material.
+/// The metadata's format: 3 adds effect_material and each fixture's glass line.
 const VERSION: u32 = 3;
 impl MetadataError {
     /// The objects the metadata names are not this map's (a wrong index, a
@@ -127,13 +129,16 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     let count = LampCount::parse(rows.len() as u32).ok_or(MetadataError::Count)?;
     let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle());
     let mut plan = project.plan((), methods)?;
-    let mut bounds = BoundedVec::new();
+    let mut fixtures = BoundedVec::new();
     for (i, row) in rows.iter().enumerate() {
         let row = row?.table()?;
         let lamp = count.id(i).expect("entry belongs to the parsed count");
         let low = position(&row, [c"min_x", c"min_y", c"min_z"])?;
         let high = position(&row, [c"max_x", c"max_y", c"max_z"])?;
-        bounds.push(Bounds::parse(low, high).ok_or(MetadataError::Bounds)?).map_err(|_| MetadataError::Count)?;
+        let bounds = Bounds::parse(low, high).ok_or(MetadataError::Bounds)?;
+        let glass = GlassLine::new(position(&row, [c"glass_from_x", c"glass_from_y", c"glass_from_z"])?,
+                                   position(&row, [c"glass_to_x", c"glass_to_y", c"glass_to_z"])?);
+        fixtures.push(Fixture { bounds, glass }).map_err(|_| MetadataError::Count)?;
         for visual in row.required(c"visuals")?.entries()?.iter() {
             let visual = visual?.table()?;
             let visible_when = Condition::parse(visual.required(c"state")?.integer()?).ok_or(MetadataError::Condition)?;
@@ -144,7 +149,7 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
             plan.light_at(position, Binding { lamp, visible_when: Condition::Intact })?;
         }
     }
-    Ok(Some(plan.with_data(Lamps { bounds, state: Snapshot::intact(count), material, effect })))
+    Ok(Some(plan.with_data(Lamps { fixtures, state: Snapshot::intact(count), material, effect })))
 }
 
 pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -167,8 +172,8 @@ pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
         if let Some(segment) = segment {
             PROJECT.with_physics(ctx.thread(), physics, |lamps| {
                 let (effect, material) = (lamps.effect, lamps.material);
-                lamps.shoot(segment, |bounds, direction| {
-                    shatter(ray.surface_break_effects(effect, material), bounds, direction);
+                lamps.shoot(segment, |glass, direction| {
+                    shatter(ray.surface_break_effects(effect, material), glass, direction);
                 });
             });
         }
@@ -179,8 +184,8 @@ pub fn on_explode(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(blast) = Explosion::at(ctx) && let Some(physics) = blast.physics() {
         PROJECT.with_physics(ctx.thread(), physics, |lamps| {
             let (effect, material) = (lamps.effect, lamps.material);
-            lamps.explode(blast.centre(), blast.radius(), |point| blast.reaches(point), |bounds, direction| {
-                shatter(blast.surface_break_effects(effect, material), bounds, direction);
+            lamps.explode(blast.centre(), blast.radius(), |point| blast.reaches(point), |glass, direction| {
+                shatter(blast.surface_break_effects(effect, material), glass, direction);
             });
         });
     }

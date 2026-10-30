@@ -26,7 +26,9 @@ spec.loader.exec_module(c)
 HEAP, STACK, RET = 0x40000000, 0x408ff000, 0x40900000
 PROJECT, CONFIG, SCENE, GAME, RENDERER = (HEAP + i * 0x1000 for i in range(5))
 VISUALS, OBJECTS, LIGHTS, MODELS = HEAP + 0x300000, HEAP + 0x400000, HEAP + 0x410000, HEAP + 0x500000
-CFG, MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(4, 11))
+MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(5, 11))
+# The project config, relocated: Vector's, with its 99 fixtures, is 72 KB.
+CFG, CFG_SIZE = HEAP + 0x600000, 0x100000
 PHYSICS = HEAP + 0xb0000
 # A hit about to queue its decal: process_front_face_piercing, back_face,
 # reflection and collision, each at its pair's decal slot (site, the label
@@ -49,6 +51,8 @@ def config_tree():
         if i == 0:
             views['cone'] = {'index': 4, 'state': 0}
         rows[str(i)] = dict(min_x=x - .1, max_x=x + .1, min_y=-.1, max_y=.1, min_z=-.1, max_z=.1,
+                           glass_from_x=x - .0625, glass_from_y=0.0, glass_from_z=0.0,
+                           glass_to_x=x + .0625, glass_to_y=0.0, glass_to_z=0.0,
                            visuals=views, lights={'light': dict(x=x, y=0.0, z=0.0)})
     return {'srp_lamps': {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': rows}}
 
@@ -132,7 +136,9 @@ class Game:
 
     def map_metadata(self, metadata):
         assert not self.active
-        self.u.mem_write(CFG, bytes(relocated_config({'srp_lamps': metadata})))
+        config = bytes(relocated_config({'srp_lamps': metadata}))
+        assert len(config) <= CFG_SIZE, len(config)
+        self.u.mem_write(CFG, config)
         rows = metadata['lamps'].values()
         indices = [v['index'] for row in rows for v in row['visuals'].values()]
         count = max(indices) + 1
@@ -414,6 +420,9 @@ def main():
     last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
     last['max_x'] = last['min_x']
     cases.append((invalid_bounds, True))
+    no_glass = config_tree()
+    del list(no_glass['srp_lamps']['lamps'].values())[-1]['glass_to_z']
+    cases.append((no_glass, True))
     unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1)}
     for tree, aborts in cases:
         refused = Game(built)
@@ -460,31 +469,44 @@ def main():
         g.remove(); assert not g.active, entry['files']
     print(f"ok: all {len(source['add_value'])} map variants bind, insert and remove their authored fixtures through native code")
 
-    # A break plays the glass pair's shards along the fixture's glass, one
-    # burst per 40 cm of its longest extent (at most four), and its sound
-    # once at the centre, wherever the bullet struck it.
-    def shards(project, lamp, bursts):
+    # A break plays the glass pair's shards along the fixture's authored
+    # glass line, about one burst per 15 cm of it (at most ten), each in the
+    # middle of its share, and its sound once at the line's middle, wherever
+    # the bullet struck the fixture.
+    def shards(project, lamp, bursts, blast=False):
         entry = next(e for e in source['add_value'] if e['files'] == [f'projects/{project}/client_project'])
         row = entry['value']['lamps'][lamp]
         low, high = [row['min_' + a] for a in 'xyz'], [row['max_' + a] for a in 'xyz']
+        start, end = ([row[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to'))
         centre = [(a + b) / 2 for a, b in zip(low, high)]
         game = Game(built)
         game.map_metadata(entry['value']); game.insert()
-        # Up into the fixture's bottom, stopping at its centre.
-        game.shoot(start=(centre[0], low[1] - .05, centre[2]), length=centre[1] - low[1] + .05, direction=(0., 1., 0.))
+        if blast:   # a grenade half a metre under it, reaching it alone
+            game.explode((centre[0], low[1] - .5, centre[2]), .55)
+        else:       # up into the fixture's bottom, stopping at its centre
+            game.shoot(start=(centre[0], low[1] - .05, centre[2]), length=centre[1] - low[1] + .05,
+                       direction=(0., 1., 0.))
         points = [p for kind, p in game.effects if kind == 'shards']
         assert len(points) == bursts, (project, lamp, game.effects)
-        assert len(set(points)) == bursts and all(
-            low[k] - 1e-4 <= p[k] <= high[k] + 1e-4 for p in points for k in range(3)), points
+        expected = [[a + (b - a) * (i + .5) / bursts for a, b in zip(start, end)] for i in range(bursts)]
+        assert all(abs(p[k] - q[k]) < 1e-4 for p, q in zip(points, expected) for k in range(3)), (points, expected)
         sounds = [p for kind, p in game.effects if kind == 'glass sound']
-        assert len(sounds) == 1 and all(abs(a - b) < 1e-4 for a, b in zip(sounds[0], centre)), sounds
+        middle = [(a + b) / 2 for a, b in zip(start, end)]
+        assert len(sounds) == 1 and all(abs(a - b) < 1e-4 for a, b in zip(sounds[0], middle)), sounds
         game.remove()
-    shards('level_06/day_2', 'lamp000', 2)    # Mamayev Kurgan's plafon, 0.52 m high
-    shards('level_02/day_2', 'lamp009', 4)    # School's fluorescent fixture, 1.66 m: capped
-    shards('level_09/day_2', 'lamp002', 3)    # London's lit tubes, 0.84 m
-    shards('level_07/day_2', 'lamp034', 4)    # Vector's tube fixture, 1.52 m
-    print('ok: a plafon break bursts twice along its height, fluorescent ones up to four times along their tubes, '
-          'one sound each')
+        return points
+    shards('level_06/day_2', 'lamp000', 3)    # Mamayev Kurgan's plafon, 0.52 m high
+    shards('level_02/day_2', 'lamp009', 10)   # School's hanging tubes, 1.5 m: capped
+    shards('level_09/day_2', 'lamp002', 6)    # London's lit tubes, 0.83 m
+    shards('level_07/day_2', 'lamp034', 10)   # Vector's tube fixture, 1.5 m
+    shards('level_07/day_2', 'lamp034', 10, blast=True)   # a blast's break: the same bursts
+    # London's fixture turned 54 degrees: its bursts follow its tubes, across
+    # both world axes of its box, at the tubes' height inside the housing.
+    turned = shards('level_09/day_2', 'lamp000', 6)
+    dx, dz = turned[-1][0] - turned[0][0], turned[-1][2] - turned[0][2]
+    assert abs(dx) > .3 and abs(dz) > .3 and all(abs(p[1] - turned[0][1]) < .01 for p in turned), turned
+    print('ok: a break bursts along its glass line, one burst per 15 cm (a plafon three, tubes six to ten, '
+          'a turned fixture along its tubes, a blast\'s as a bullet\'s), one sound each at the glass\'s middle')
 
     # A blast breaks every intact fixture whose bounds come within its splash
     # radius, where the game's own splash trace reaches the bounds' nearest

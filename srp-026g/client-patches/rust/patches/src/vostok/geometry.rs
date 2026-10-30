@@ -9,11 +9,14 @@ impl WorldPoint {
         value.iter().all(|v| v.is_finite()).then_some(Self(value))
     }
     pub fn coordinates(self) -> [f32; 3] { self.0 }
-    /// Whether `other` is at most `distance` from here.
-    pub fn within(self, other: Self, distance: Distance) -> bool {
+    fn square_distance(self, other: Self) -> f32 {
         let mut square = 0.0;
         for k in 0..3 { square += (other.0[k] - self.0[k]) * (other.0[k] - self.0[k]); }
-        square <= distance.0 * distance.0
+        square
+    }
+    /// Whether `other` is at most `distance` from here.
+    pub fn within(self, other: Self, distance: Distance) -> bool {
+        self.square_distance(other) <= distance.0 * distance.0
     }
 }
 
@@ -69,6 +72,33 @@ impl BulletSegment {
     pub fn direction(self) -> RayDirection { self.direction }
 }
 
+/// A fixture's glass in world space, where its break plays: a segment along
+/// its tube or through its bulb, authored with the fixture's placement.
+#[derive(Clone, Copy, Debug)]
+pub struct GlassLine { from: WorldPoint, to: WorldPoint }
+
+impl GlassLine {
+    pub fn new(from: WorldPoint, to: WorldPoint) -> Self { Self { from, to } }
+    pub fn middle(self) -> WorldPoint { self.at(0.5) }
+    fn at(self, t: f32) -> WorldPoint {
+        WorldPoint(core::array::from_fn(|k| self.from.0[k] + (self.to.0[k] - self.from.0[k]) * t))
+    }
+    /// Points spread along the line, one per `spacing` of it rounded (at
+    /// least one, at most `most`), each in the middle of its share: the
+    /// middle alone for a bulb.
+    pub fn along(self, spacing: Distance, most: core::num::NonZeroUsize) -> impl Iterator<Item = WorldPoint> {
+        let square = self.from.square_distance(self.to);
+        let mut count = 1;
+        // The length's share count rounded, without a square root:
+        // one more while (count + 1/2) spacings still fit.
+        while count < most.get() && {
+            let fit = (count as f32 + 0.5) * spacing.0;
+            fit * fit <= square
+        } { count += 1; }
+        (0..count).map(move |i| self.at((i as f32 + 0.5) / count as f32))
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Bounds { low: WorldPoint, high: WorldPoint, centre: WorldPoint }
 
@@ -82,21 +112,6 @@ impl Bounds {
     /// The point of these bounds nearest to `point` (`point` itself inside).
     pub fn nearest(self, point: WorldPoint) -> WorldPoint {
         WorldPoint(core::array::from_fn(|k| point.0[k].max(self.low.0[k]).min(self.high.0[k])))
-    }
-    /// Points spread along the bounds' longest extent through the centre,
-    /// one per `spacing` of it (at least one, at most `most`), each in the
-    /// middle of its share: the centre alone for a short fixture.
-    pub fn along(self, spacing: Distance, most: core::num::NonZeroUsize) -> impl Iterator<Item = WorldPoint> {
-        let extent: [f32; 3] = core::array::from_fn(|k| self.high.0[k] - self.low.0[k]);
-        let axis = (0..3).fold(0, |longest, k| if extent[k] > extent[longest] { k } else { longest });
-        let shares = if spacing.0 > 0.0 { extent[axis] / spacing.0 } else { 1.0 };
-        let whole = shares as usize;
-        let count = (whole + usize::from((whole as f32) < shares)).clamp(1, most.get());
-        (0..count).map(move |i| {
-            let mut point = self.centre.0;
-            point[axis] = self.low.0[axis] + extent[axis] * (i as f32 + 0.5) / count as f32;
-            WorldPoint(point)
-        })
     }
     /// Whether `point` lies in these bounds, or within `tolerance` of them.
     pub fn holds(self, point: WorldPoint, tolerance: Distance) -> bool {

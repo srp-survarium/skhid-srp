@@ -32,7 +32,12 @@ impl LampCount {
     pub fn history_bytes(self) -> usize { (2 + self.words()) * size_of::<u32>() }
 }
 
-pub use crate::vostok::geometry::{Bounds, BulletSegment, Distance, RayDirection, WorldPoint};
+pub use crate::vostok::geometry::{Bounds, BulletSegment, Distance, GlassLine, RayDirection, WorldPoint};
+
+/// A breakable fixture: its bounds (its collision, what a bullet or a blast
+/// must reach) and its glass (where its break plays).
+#[derive(Clone, Copy, Debug)]
+pub struct Fixture { pub bounds: Bounds, pub glass: GlassLine }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Condition { Intact, Broken }
@@ -135,19 +140,22 @@ mod tests {
         assert!(!b.holds(point([-0.009, 0.5, 0.5]), Distance::parse(0.0).unwrap()));
     }
     #[test]
-    fn shards_spread_one_per_spacing_along_the_longest_extent() {
-        let most = core::num::NonZeroUsize::new(4).unwrap();
-        let spacing = Distance::parse(0.4).unwrap();
-        let along = |high: [f32; 3]| {
-            let b = Bounds::parse(point([0.0; 3]), point(high)).unwrap();
-            b.along(spacing, most).map(WorldPoint::coordinates).collect::<std::vec::Vec<_>>()
+    fn shards_spread_about_one_per_spacing_along_the_glass() {
+        let most = core::num::NonZeroUsize::new(10).unwrap();
+        let spacing = Distance::parse(0.15).unwrap();
+        let along = |from: [f32; 3], to: [f32; 3]| {
+            GlassLine::new(point(from), point(to)).along(spacing, most).map(WorldPoint::coordinates)
+                .collect::<std::vec::Vec<_>>()
         };
-        assert_eq!(along([0.11, 0.34, 0.13]), [[0.055, 0.17, 0.065]]);   // a bulb: its centre
-        assert_eq!(along([0.34, 0.1, 0.8]), [[0.17, 0.05, 0.2], [0.17, 0.05, 0.6]]);
-        assert_eq!(along([0.81, 0.1, 0.34]).len(), 3);
-        assert_eq!(along([0.34, 1.5, 0.1]).iter().map(|p| p[1]).collect::<std::vec::Vec<_>>(),
-                   [0.1875, 0.5625, 0.9375, 1.3125]);   // a tube: four along y
-        assert_eq!(along([3.0, 0.1, 0.1]).len(), 4);   // capped
+        assert_eq!(along([0.0, 0.2, 0.0], [0.0, 0.0, 0.0]), [[0.0, 0.1, 0.0]]);   // a bulb: its middle
+        assert_eq!(along([0.0; 3], [0.0; 3]), [[0.0; 3]]);
+        assert_eq!(along([0.0; 3], [0.25, 0.0, 0.0]), [[0.0625, 0.0, 0.0], [0.1875, 0.0, 0.0]]);   // 1.7 shares: two
+        assert_eq!(along([0.0; 3], [0.2, 0.0, 0.0]).len(), 1);   // 1.3 shares: one
+        // A turned tube: on its own line, not a world axis of its box.
+        let turned = along([0.0; 3], [0.6, 0.0, 0.6]);
+        assert_eq!(turned.len(), 6);
+        assert!(turned.iter().all(|p| (p[0] - p[2]).abs() < 1e-6 && p[1] == 0.0));
+        assert_eq!(along([0.0; 3], [3.0, 0.0, 0.0]).len(), 10);   // capped
     }
     #[test]
     fn blasts_measure_to_the_bounds_nearest_point() {

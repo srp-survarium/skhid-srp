@@ -37,7 +37,12 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
   defines the snapshot order identically on every client.
 - Each fixture has world-space `min_x/y/z`, `max_x/y/z`, a `visuals` table
   (`index` in the final render-visual array, `state`: 0 intact, 1 broken), and
-  a `lights` table (exact positions, with names retained for review).
+  a `lights` table (exact positions, with names retained for review), and
+  its glass line `glass_from_x/y/z`, `glass_to_x/y/z`: the longest local axis
+  of its longest glass part, through that part's centre, transformed with its
+  placement as the light tips are (parallel tubes of that length averaged; a
+  tube model's at its tubes' height, `TUBE_Y` in `make_edits.py`). A turned
+  fixture's glass follows its tubes, not a world axis of its box.
 - Nearby light/cone assignments are explicit in the list, not guessed at
   runtime. Authoring rejects ambiguous assignments. Overlapping bulb and cover
   meshes, such as level_06's ceiling fixture, are one lamp.
@@ -117,12 +122,21 @@ Version 2 played the pair of the bullet's own material and the glass once, at
 the centre of the fixture's bounds: one bullet-hit puff of shards, as small as
 an ordinary glass hit and inside the housing's box, which on a 1.2 to 1.6 m
 fluorescent tube or the plafon's cage reads as no shards at all (the owner's
-test of release 39). A break now plays that pair's particles once per 40 cm
-of the bounds' longest extent (at least one, at most four), spread along that
-extent through the centre, each in the middle of its share: a bulb's one,
-Mamayev Kurgan's 0.52 m plafon two (down its height), London's 0.84 m tubes
-three, School's and Vector's 1.5 to 1.7 m fixtures four. The sound plays once,
-at the centre. A bullet's shards fly along the bullet; a blast's away from it.
+test of release 39). Four bursts spread over the box's longest world axis
+still read as nothing on a tube, from a bullet or a grenade (round 4 of
+release 39): `fx/material_hits/glass` is some 70 shards of 3.5 cm flying for
+1 to 1.5 s, which covers a bulb or an alarm lamp's glass close to the eye, but
+not 1.5 m of tube at the ceiling. The stock game has no bigger glass break:
+its only other glass effect, `glass_melee` (the melee x glass pair), is one
+crack sprite and no shards.
+
+A break now plays the pair's particles along the fixture's glass line, one
+burst per 15 cm of it rounded (at least one, at most ten), each in the middle
+of its share: a bulb's or an alarm's one, Mamayev Kurgan's 0.52 m plafon
+three, London's 0.83 to 0.95 m tubes six, School's and Vector's 1.5 m
+fixtures ten, some 700 shards. The sound plays once, at the line's middle. A
+bullet's and a blast's break play the same bursts; a bullet's shards fly
+along the bullet, a blast's away from it.
 
 ## Blasts
 
@@ -220,9 +234,10 @@ the release workflow's responsibility; this feature does not change `REVISION`.
 
 `check_lamps_026g.py <original exe>` runs native config lookup, project
 iteration/vtable dispatch, visual/light methods, bullet history and installed
-hooks in Unicorn. It covers all 96 authored variants, hits, occlusion, the shard bursts of
-Mamayev Kurgan's plafon (2), London's tubes (3) and School's and Vector's
-fluorescent fixtures (4) with one sound each, blasts (two lamps within the
+hooks in Unicorn. It covers all 96 authored variants, hits, occlusion, the shard bursts on
+the glass lines of Mamayev Kurgan's plafon (3), London's tubes (6, one fixture
+turned 54 degrees) and School's and Vector's fluorescent fixtures (10, from a
+bullet and from a blast) with one sound each, blasts (two lamps within the
 radius both break with one burst and sound each and the history a bullet
 leaves; one outside it or with the trace stopped breaks none; rollback,
 resimulation, a late join, a manager without a renderer, a blast inside a

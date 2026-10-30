@@ -51,6 +51,12 @@ GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
 # with glass; on its own it is scenery.
 HOUSINGS = {'props/light/lamp_midle_04'}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Fluorescent glass: a model's tubes are its glass, not its housing or frame.
+# The local height of the tubes' axis in the models that hold them (the
+# triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
+# -0.844..-0.800, under 0.88 m of rods); fx/lamp2* are tubes themselves.
+TUBE_Y = {'lamp_midle_01': -0.077, 'lamp_midle_02': -0.077, 'lamp_midle_03': -0.077, 'lamp_big_01': -0.822}
+TUBES = TUBE_Y.keys() | {'lamp2', 'lamp2_bad', 'lamp2_good'}
 # Light shafts are ordinary render visuals, independently of object_light.
 # Stock, v0.21 and v0.11 use the same converted mesh (CRC d3f2a927),
 # v0.11 uses a different model name and full opacity (stock uses 0.05).
@@ -83,6 +89,34 @@ def world_bounds(visual, low, high):
                for k in range(3)] for p in itertools.product(*zip(low, high))]
     return ([min(p[k] for p in points) for k in range(3)],
             [max(p[k] for p in points) for k in range(3)])
+
+
+def glass_line(group, bounds):
+    """A fixture's glass in world space, where its break plays: the longest
+    local axis of its longest glass part, through that part's centre and
+    transformed with its placement (parallel parts of that length, a
+    housing's tubes, averaged); a tube model's at its tubes' height."""
+    parts = [v for _, v in group if v['visual_name'] not in HOUSINGS]
+    tubes = [v for v in parts if v['visual_name'].rsplit('/', 1)[-1] in TUBES]
+    lines = []
+    for v in tubes or parts:
+        low, high = bounds[v['visual_name']]
+        axis = max(range(3), key=lambda j: (high[j] - low[j]) * abs(v['scale'][j]))
+        ends = []
+        for end in (low[axis], high[axis]):
+            point = [(a + b) / 2 for a, b in zip(low, high)]
+            point[1] = TUBE_Y.get(v['visual_name'].rsplit('/', 1)[-1], point[1])
+            point[axis] = end
+            ends.append(world_bounds(v, point, point)[0])
+        lines.append(ends)
+    a, b = max(lines, key=lambda line: math.dist(*line))
+    length, d = math.dist(a, b), [q - p for p, q in zip(a, b)]
+    same = []
+    for p, q in lines:
+        dot = sum(x * (y1 - y0) for x, y0, y1 in zip(d, p, q))
+        if abs(math.dist(p, q) - length) < 0.01 and abs(dot) > 0.95 * length * math.dist(p, q):
+            same.append((p, q) if dot > 0 else (q, p))
+    return tuple([sum(line[i][k] for line in same) / len(same) for k in range(3)] for i in (0, 1))
 
 
 def selector(v):
@@ -214,6 +248,9 @@ def author(path, data, bounds, break_material, effect_material):
               for j, light in enumerate(lights[i])}
         lo, hi = boxes[i]
         row = dict(zip(('min_x', 'min_y', 'min_z', 'max_x', 'max_y', 'max_z'), lo + hi))
+        start, end = glass_line(group, bounds)
+        row |= dict(zip(('glass_from_x', 'glass_from_y', 'glass_from_z', 'glass_to_x', 'glass_to_y', 'glass_to_z'),
+                        start + end))
         rows[f'lamp{i:03d}'] = dict(row, visuals=vs, lights=ls)
     return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps',
                        'value': {'version': 3, 'break_material': break_material,
@@ -253,6 +290,9 @@ def check_built(path, data):
                 ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        for end in ('from', 'to'):
+            if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
+                problems.append(f'{path}: {name}: its glass line leaves its bounds')
         for key, light in row['lights'].items():
             found = sum(p == [light['x'], light['y'], light['z']] for p in lights)
             if found != 1:
