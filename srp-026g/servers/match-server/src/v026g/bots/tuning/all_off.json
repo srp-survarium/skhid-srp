@@ -48,6 +48,7 @@
     "spot_cost": null
   },
   "feel": {
+    "band_from_grid": false,
     "band_jump_gate": false,
     "carrier_jump_m": null,
     "drop_aim": false,
@@ -96,6 +97,12 @@
     "pocket_store": false,
     "smoke": "off"
   },
+  "pace": {
+    "calm_sprint": false,
+    "reserve": null,
+    "ring_death_spots": false,
+    "ring_radar": false
+  },
   "sense": {
     "bush_notice": 0.0,
     "grass_notice": 0.0,
@@ -106,10 +113,12 @@
     "use_ray_m": 2.0
   },
   "smoke": {
+    "anti_sniper": false,
     "cross_lane": false,
     "react_watch": false,
     "sight": false,
-    "spot_rules": false
+    "spot_rules": false,
+    "throw_keeps_route": false
   },
   "threat": {
     "area": false,

@@ -39,6 +39,8 @@ pub(crate) struct CamperOptions {
     pub(crate) moving: Option<MoveOptions>,
     /// Where the spot is chosen ([`CamperAt`]).
     pub(crate) at: CamperAt,
+    /// Where he looks at his spot, and whether scoped ([`Watch`]).
+    pub(crate) watch: Watch,
 }
 
 impl CamperOptions {
@@ -48,6 +50,7 @@ impl CamperOptions {
         long_gun: false,
         moving: None,
         at: CamperAt::Free,
+        watch: Watch::Around,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -79,6 +82,7 @@ impl CamperOptions {
             long_gun,
             moving: MoveOptions::parse(get("SRP_BENCH_CAMPER_MOVE").as_deref(), get("SRP_BENCH_CAMPER_DWELL_S").as_deref())?,
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
+            watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
         })
     }
 }
@@ -109,6 +113,12 @@ impl Bots {
         bot.kit_chosen = 0;
         bot.life_carried = arms.reserve.min(arms.primary.1);
         bot.reflex = Reflex::armed_carrying(Some(arms), bot.life_carried);
+        // His weapon as the match knows it: live gives a human the weapon of his kit (`game/driven.rs` `weapon_of`), so
+        // the long gun, not his place's role's (a flanker's SMG at place 0), or no one is ever outranged by him.
+        let by_data = self.match_wide_tuning().aim.combat.fire.weapon_class_by_data;
+        if let Some(known) = self.features.weapons.get_mut(place) {
+            *known = Some(super::reflex::WeaponKind::of_class(arms.primary.0.class_for(by_data)));
+        }
     }
 }
 
@@ -276,15 +286,18 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_GUN", "long"),
         ("SRP_BENCH_CAMPER_MOVE", "1"),
         ("SRP_BENCH_CAMPER_AT", "container"),
+        ("SRP_BENCH_CAMPER_WATCH", "lane"),
     ])
     .expect("known values");
     assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
     assert!(all.moving.is_some());
+    assert_eq!(all.watch, Watch::Lane);
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
         ("SRP_BENCH_CAMPER_GUN", "short"),
         ("SRP_BENCH_CAMPER_AT", "batery"),
+        ("SRP_BENCH_CAMPER_WATCH", "lanes"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
         assert!(with(pairs).is_err(), "{bad:?}");
@@ -298,7 +311,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);
@@ -317,10 +330,39 @@ pub(crate) fn the_long_kit_is_a_bolt_or_marksman_rifle() {
     assert!(survarium::v026g::loadouts::BotTier::ALL.into_iter().any(|t| long_kit(t).is_some()));
 }
 
+/// The stand-in armed with a bolt is known to the match as a sniper, as live knows a human by his kit: the place's role
+/// (place 0, a flanker: an SMG) would leave every enemy unaware that he outranges them (h2h-camper-20261030T1200: no
+/// anti-sniper smoke, outranged check never on him).
+#[test]
+pub(crate) fn the_long_gunned_stand_in_is_known_as_a_sniper() {
+    use crate::v026g::bots::reflex::WeaponKind;
+    use survarium::v026g::loadouts::BotTier;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x5A1F,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, true],
+        &[None, None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    bots.set_weapons(vec![Some(WeaponKind::Smg), Some(WeaponKind::Rifle)]);
+    let tier = BotTier::ALL.into_iter().find(|&t| long_kit(t).is_some_and(|a| a.primary.0.class() == "bolt")).expect("a tier with a bolt");
+    bots.arm_camper_long(0, tier);
+    assert_eq!(bots.features.weapons, vec![Some(WeaponKind::Sniper), Some(WeaponKind::Rifle)]);
+}
+
 /// 300 s of a Team Deathmatch on the soak field with the game's seed `seed` and the bots' `tuning`: for the
 /// stand-in camper (bot 0) and its teammate (the near miss) the living ticks they were at the camper's spot in
 /// the life they reached it in, of them those within 2 m of it, and their living ticks in all.
 fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
+    stand_in_camper_with(seed, tuning, CamperOptions::OFF).0
+}
+
+/// [`stand_in_camper_run`] for a camper with `options`, and the ticks its intent held the scope key (`key::AIM`) while it was within 1 m of its spot (the reflex scopes for a target itself, which is not the intent).
+fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([(u32, u32, u32); 2], u32) {
     let world = soak_world();
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
@@ -337,7 +379,7 @@ fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.set_routes(camper_routes());
     }
-    bots.bench_camper = Some(BenchCamper::new(0, CamperOptions::OFF, seed as u32, Arc::new(Tuning::default())));
+    bots.bench_camper = Some(BenchCamper::new(0, options, seed as u32, Arc::new(Tuning::default())));
     let mut game = Game::new(world, &teams, seed, Some(1_000), None);
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
@@ -347,6 +389,7 @@ fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
     // since, and of them those within 2 m of it; living ticks in all.
     let mut there = [false; 2];
     let mut held = [(0u32, 0u32, 0u32); 2];
+    let mut scoped = 0u32;
     // Long enough for the camper to live to its spot: with the weapon's own
     // damage (3-4 hits kill) its lives are 5-10 s and it reaches the spot
     // (13 s from its spawn) in one life of four, where the old flat fifth
@@ -392,12 +435,26 @@ fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
             let bot = bots.bots[made.place].as_ref();
             let target = bot.and_then(|bot| bot.reflex.target());
             let gun = bot.map_or(Arms::fallback().primary.0, |bot| bot.reflex.held_gun());
+            if made.place == 0 && game.bodies[0].alive && game.bodies[0].feet.distance_xz(spot) <= 1.0 && bot.is_some_and(|bot| bot.intent.hold & key::AIM != 0) {
+                scoped += 1;
+            }
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, target, gun));
         }
     }
     let found = bots.bench_camper.as_ref().and_then(BenchCamper::first_spot);
     assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
-    held
+    (held, scoped)
+}
+
+/// With `SRP_BENCH_CAMPER_WATCH=lane` the camper is scoped (the scope key held) a good part of the time it is at its spot; without, it
+/// never does.
+#[test]
+pub(crate) fn the_watching_camper_holds_the_scope_at_its_spot_and_the_old_one_does_not() {
+    let (held, scoped) = stand_in_camper_with(1, Tuning::default(), CamperOptions { watch: Watch::Lane, ..CamperOptions::OFF });
+    assert!(held[0].0 >= 50 && f64::from(held[0].1) >= 0.9 * f64::from(held[0].0), "{held:?}");
+    assert!(scoped >= held[0].0 / 4, "scoped {scoped} of {} ticks at the spot", held[0].0);
+    let (_, never) = stand_in_camper_with(1, Tuning::default(), CamperOptions::OFF);
+    assert!(never < scoped / 4, "the old one scoped {never} against {scoped}");
 }
 
 /// In a Team Deathmatch on the soak field, the stand-in camper (bot 0)

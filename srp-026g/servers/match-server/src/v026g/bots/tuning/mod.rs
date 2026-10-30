@@ -56,6 +56,8 @@ pub struct Tuning {
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
     pub perch: PerchTuning,
+    /// Sprint on the calm stretches (`bots/pace.rs`).
+    pub pace: PaceTuning,
     pub grid: GridTuning,
     /// What counts as cover from a bullet (`mapdata`'s materials).
     pub cover: CoverTuning,
@@ -83,6 +85,7 @@ mod kit;
 mod legacy;
 mod limits;
 mod motion;
+mod pace;
 mod play;
 mod report;
 mod sense;
@@ -113,6 +116,8 @@ pub use kit::KitTuning;
 pub use limits::Metres;
 pub use limits::Positive;
 pub use limits::Span;
+pub use pace::PaceTuning;
+pub use pace::Reserve;
 pub use play::PlayTuning;
 pub use play::PlaysTuning;
 pub use report::SwitchReport;
@@ -136,6 +141,7 @@ pub use team::SearchQueue;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
+pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;

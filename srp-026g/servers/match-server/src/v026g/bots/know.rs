@@ -558,6 +558,12 @@ impl Memory {
         &self.tracks
     }
 
+    /// TEST ONLY: a memory that holds these tracks.
+    #[cfg(test)]
+    pub fn with_tracks(tracks: Vec<Track>) -> Self {
+        Self { tracks, ..Self::default() }
+    }
+
     /// An enemy died: it is not where it was.
     pub fn forget(&mut self, who: Place) {
         self.tracks.retain(|track| track.who != who);
@@ -779,6 +785,27 @@ pub struct Loss {
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
 
+/// Where an enemy the team killed had held a place: a held threat spot of his (K1) or a place the killer's own sense had him staying
+/// at (a camp). The next one to hold it is likely to come to the same cover, so a trap there is worth more than the lanes alone say
+/// (`TrapTuning::at_defeated`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Defeated {
+    pub at: Vec3,
+    pub time: u32,
+    /// The enemy that held it.
+    pub shooter: Place,
+    pub kind: DefeatedKind,
+}
+
+/// How the killed enemy was known to have held the place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DefeatedKind {
+    /// A held threat spot of the team's picture ([`super::threat::ThreatSpots::held_of`]).
+    Spot,
+    /// An enemy the killer's own senses had staying at one place.
+    Camp,
+}
+
 /// An enemy a bot of the team saw carrying a battery (a carrier holds it in
 /// his hands, in sight).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -943,6 +970,8 @@ pub struct TeamKnowledge {
     pub searching: Vec<(Place, usize)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
+    /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
+    pub defeated: Vec<Defeated>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
@@ -973,6 +1002,17 @@ pub struct TeamKnowledge {
 }
 
 impl TeamKnowledge {
+    /// A holder was killed at `at`: kept for `keep_ms`; one within 4 m of an earlier record renews it (its time, its latest holder).
+    /// Returns whether the record is new.
+    pub fn defeat(&mut self, defeated: Defeated, keep_ms: u32) -> bool {
+        self.defeated.retain(|d| defeated.time.saturating_sub(d.time) <= keep_ms);
+        if let Some(old) = self.defeated.iter_mut().find(|d| d.at.distance_xz(defeated.at) < 4.0) {
+            *old = defeated;
+            return false;
+        }
+        self.defeated.push(defeated);
+        true
+    }
     /// A bot of the team sensed something: its teammates know it after
     /// `delay_ms`. Only first-hand senses are called out.
     pub fn call_out(&mut self, by: Place, percept: &Percept, delay_ms: u32, callouts: Callouts) {
@@ -1500,6 +1540,29 @@ impl TeamKnowledge {
 
 #[cfg(test)]
 mod tests {
+    /// [A145] A killed holder's spot is kept, one within 4 m renews it, the old ones go.
+    #[test]
+    fn a_killed_holders_spot_is_kept_renewed_and_forgotten() {
+        use super::{Defeated, DefeatedKind, TeamKnowledge};
+        use mapdata::Vec3;
+        let mut team = TeamKnowledge::default();
+        let spot = |x: f32, time: u32| Defeated {
+            at: Vec3::new(x, 0.0, 0.0),
+            time,
+            shooter: 3,
+            kind: DefeatedKind::Spot,
+        };
+        assert!(team.defeat(spot(10.0, 1_000), 60_000));
+        assert!(!team.defeat(spot(12.0, 20_000), 60_000), "within 4 m: the same place");
+        assert_eq!(team.defeated.len(), 1);
+        assert_eq!(team.defeated[0].time, 20_000);
+        assert!(team.defeat(spot(30.0, 30_000), 60_000));
+        assert_eq!(team.defeated.len(), 2);
+        // At 100 s both are over a minute old: gone.
+        assert!(team.defeat(spot(50.0, 100_000), 60_000));
+        assert_eq!(team.defeated.len(), 1);
+    }
+
     use super::*;
 
     /// A throw claim holds against the teammates' rolls, not the thrower's

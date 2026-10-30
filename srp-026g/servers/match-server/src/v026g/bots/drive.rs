@@ -1,3 +1,4 @@
+use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
 use super::*;
 
@@ -372,7 +373,7 @@ fn drive_tick_inner(
     // carries (`Override::glance`), and with `glance_run_yields` to one
     // that runs somewhere (a turned view slows the legs).
     let running = tuning.aim.combat.glance_run_yields
-        && intent.pace == Pace::Run
+        && matches!(intent.pace, Pace::Run | Pace::Cruise | Pace::Arrive)
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let glance_yields =
         over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
@@ -451,6 +452,8 @@ fn drive_tick_inner(
     }
     // The bench's stand-in camper and a script keep to their spots.
     let held = bot.control.holds_legs();
+    // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
+    let keeps_route = Gates::keeps_route(over.legs.filter(|_| !using && !held), tuning.smoke.throw_keeps_route);
     if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {
             at: legs.at,
@@ -760,6 +763,20 @@ fn drive_tick_inner(
                     }
                     exposed
                 };
+            #[cfg(test)]
+            if replan || threat_ahead {
+                bot.bench_replan = if threat_ahead {
+                    "threat_ahead"
+                } else if shut {
+                    "zone_shut"
+                } else if aborted {
+                    "crossing_aborted"
+                } else if bot.route.is_none() {
+                    "no_route"
+                } else {
+                    "goal_moved"
+                };
+            }
             let replan = replan || threat_ahead;
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {
@@ -1437,7 +1454,9 @@ fn drive_tick_inner(
             }
         }
         None => {
-            bot.end_route(RouteEnd::NoGoal, time);
+            if !keeps_route {
+                bot.end_route(RouteEnd::NoGoal, time);
+            }
             match aim {
                 Some(aim) => {
                     aiming_still = true;
@@ -1512,8 +1531,23 @@ fn drive_tick_inner(
         decision.keys |= key::CROUCH;
         decision.keys &= !key::SPRINT;
     }
-    if intent.pace != Pace::Run {
-        decision.keys &= !key::SPRINT;
+    bot.pace.saw(intent.pace);
+    match intent.pace {
+        Pace::Run => bot.pace.unasked(),
+        Pace::Cruise | Pace::Arrive if tuning.pace.calm_sprint => {
+            let gate = pace_gate(bot, me.feet, &intent, tuning, time);
+            let stripped = matches!(gate, pace::Gate::Walk(_)) && decision.keys & key::SPRINT != 0;
+            if matches!(gate, pace::Gate::Walk(_)) {
+                decision.keys &= !key::SPRINT;
+            }
+            bot.pace.caused(stripped, bot.motor.released_by_bar());
+        }
+        // A play that hands `Cruise` with the gate off is a play that may run.
+        Pace::Cruise | Pace::Arrive => bot.pace.unasked(),
+        Pace::Walk | Pace::Sneak => {
+            decision.keys &= !key::SPRINT;
+            bot.pace.unasked();
+        }
     }
     decision.turn.1 += over.pull;
     if over.fire && !using {
@@ -1611,6 +1645,22 @@ impl Bot {
 /// within [`JUMP_HOLD_MS`] it is held that long with the trigger let go, the
 /// shot of this tick given back ([`Reflex::hold_fire`]), as the weapon takes
 /// no jump while it fires.
+/// The sprint gate for a play that may run (`pace.rs`): the ring is looked at along the route the bot walks, or along the
+/// line to the intent's goal without one.
+pub(super) fn pace_gate(bot: &mut Bot, feet: Vec3, intent: &Intent, tuning: &Tuning, time: u32) -> pace::Gate {
+    let look_m = tuning.pace.look_s.get() * tuning.kin.sprint;
+    let (points, n) = match (bot.route.as_mut(), intent.go) {
+        (Some((route, _)), _) => pace::ahead_points(route, feet, look_m),
+        (None, Go::To { at, .. }) => pace::line_points(feet, at, look_m),
+        (None, Go::Stay) => ([feet; pace::MAX_AHEAD], 0),
+    };
+    let goal = match (intent.pace, intent.go) {
+        (Pace::Arrive, Go::To { at, .. }) => Some(at),
+        _ => None,
+    };
+    bot.pace.decide(&tuning.pace, time, feet, &points[..n], goal, &bot.memory)
+}
+
 pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time: u32) -> u32 {
     let firing = keys & key::FIRE != 0;
     if let Some(by) = by.filter(|_| bot.jump_hold == 0) {
@@ -1868,6 +1918,12 @@ impl Gates {
             _ => None,
         }
     }
+
+    /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
+    /// `smoke.throw_keeps_route` (the walk goes on along the route its crossing was planned for).
+    pub(super) fn keeps_route(legs: Option<Legs>, switch: bool) -> bool {
+        switch && legs.is_some_and(|legs| legs.why == LegsWhy::ThrowingSmoke)
+    }
 }
 
 #[cfg(test)]
@@ -1992,6 +2048,17 @@ mod tests {
             choose_step(left, left, true, true, false, true, only(right)),
             (Step::Stand, None)
         );
+    }
+
+    /// Standing to throw a smoke keeps the route with the switch on; any other stand, and the switch off, drop it.
+    #[test]
+    fn standing_to_throw_a_smoke_keeps_the_route_with_the_switch() {
+        let legs = |why| Some(Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why });
+        assert!(Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), true));
+        assert!(!Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), false));
+        assert!(!Gates::keeps_route(legs(LegsWhy::Throwing), true), "a frag throw drops it as before");
+        assert!(!Gates::keeps_route(legs(LegsWhy::Range), true));
+        assert!(!Gates::keeps_route(None, true));
     }
 
     #[test]
