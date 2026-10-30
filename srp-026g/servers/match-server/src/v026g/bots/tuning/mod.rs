@@ -267,6 +267,7 @@ impl Tuning {
         self.plays.check()?;
         self.sense.check()?;
         self.skill.check()?;
+        self.smoke.check()?;
         self.think.check()?;
         self.traps.check()?;
         self.unstick.check()?;

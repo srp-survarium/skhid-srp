@@ -5,14 +5,20 @@
 //! `Veil::hides` with the default tuning, a spray's apart), and the bodies' time in a cloud and deaths there.
 //!
 //! **Fairness** (BENCH-DECISIONS D): sightings and fire through smoke, read from outside the bots' sight code so
-//! that a path that bypasses the veil shows. The definition (coordinator, 2026-10-29): a count is a sighting or a
-//! shot where **every part a look tests is clearly behind smoke**:
-//! - a sighting: a bot's `Seen` track refreshed this tick (its memory's), from its eye in the game to where that track
-//!   has him (the place its view sensed);
-//! - a shot: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen` track had him;
-//! - "every part": each part of `aimpoint::Part::SIGHT_ORDER`, standing and crouched, is hidden;
-//! - "clearly": by [`FAIR_MARGIN_M`] (0.5 m) more smoke than the bots' 2 m rule, so the few tenths of a metre between
-//!   the bot's view and the game's bodies at a cloud's edge do not count as a bypass.
+//! that a path that bypasses the veil shows (coordinator, 2026-10-29: the replay is the count, the team's rule):
+//! - a sighting through smoke: a bot's `Seen` track refreshed this tick (its memory's) whose look, replayed as the bot
+//!   made it (`smoke::tally::SeenLook`: its eye as its view had it, his feet and crouch as its view had them, the
+//!   look's clock), had every part `aimpoint::look_parts` tests hidden by the clouds then (`smoke.thin_m`, no margin);
+//! - a sighting with no look: a `Seen` track refreshed with no recorded look at its time (a path around the looks);
+//! - a shot through smoke: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen`
+//!   track had him, every part a look tests hidden, standing and crouched, "clearly" ([`FAIR_MARGIN_M`], 0.5 m past
+//!   the 2 m rule) and from every eye ([`FAIR_EYE_UP_M`] above and below, [`FAIR_EYE_SIDE_M`] to either side across
+//!   the line), with no look of the shooter's that showed him within `smoke.spray_ms` (0.75 s, the owner's cap for
+//!   fire through cover), replayed as for a sighting: a shot a tick after a clear look is fire continued, not a shot
+//!   through smoke (`h2h-radio-vs-off-20261029T1852`: all 51 such shots came within 250 ms of a look);
+//! - [diagnosis] the shots that test counts whatever the look, and the sightings that same five-eye margin test from the game's bodies counts at the sensing's time:
+//!   where the game's bodies and the bots' view part at a cloud's rim or flat top (`h2h-radio-vs-off-20261029T1211`
+//!   had 74 with one eye and no replay: 34 within 1 m of a rim, 32 skimming a top or bottom).
 //!
 //! Both read 0 with `smoke.sight` on and count with it off: the loop test below reads 0 / 0 on and 1500 / 131 off.
 //!
@@ -33,6 +39,32 @@ const SPRAY_NEAR_MS: u32 = 150;
 /// The fairness counts take a line as through smoke past this much more smoke than the bots' rule, metres: the bots
 /// look from and at their view's places, which lag the game's bodies the counts read by up to a few tenths of a metre.
 const FAIR_MARGIN_M: f32 = 0.5;
+/// The eyes a fairness count tests besides the game's: this much higher and lower, and this much to either side across
+/// the line, metres (the bot's view of its own eye against the game's: pitch, pace and crouch of the tick, and the
+/// bench's ping of up to 150 ms at a run).
+const FAIR_EYE_UP_M: f32 = 0.3;
+const FAIR_EYE_SIDE_M: f32 = 0.6;
+
+/// The death classes of [`SmokeCounts::top_deaths`]: within [`AFTER_SMOKE_MS`] of letting go of its own smoke, else of standing by a
+/// cloud of its team's (its feet within the cloud's radius and [`BY_CLOUD_M`]: a crossing it smoked or a mate did), else neither.
+const DEATH_CLASSES: [&str; 3] = ["own throw", "by a team cloud", "neither"];
+const AFTER_SMOKE_MS: u32 = 10_000;
+const BY_CLOUD_M: f32 = 3.0;
+/// A death is traded when a mate of the dead kills the killer within this, ms (`metrics.rs`'s rule).
+const TRADE_MS: u32 = 5_000;
+
+/// A death as the smoke topic keeps it, classed at the match's end: the dead, the tick, [`DEATH_CLASSES`]'s index, crowded by
+/// `feel`'s rule, enemies within 30 m at the death, and whether the line from the dead's nearest living mate to the killer ran
+/// through a cloud (the mates could not see him to trade).
+#[derive(Clone, Copy, Debug)]
+struct Death {
+    place: Place,
+    tick: u32,
+    class: usize,
+    crowded: bool,
+    near: u32,
+    screened: bool,
+}
 
 /// A fairness case counted: the bot, the enemy, the tick, its eye, his feet as sensed.
 #[cfg(test)]
@@ -48,6 +80,7 @@ thread_local! {
 pub(super) struct SmokeCounts {
     /// The eyes' counts on this thread when the match began (`smoke::tally::counts`).
     eyes_start: [[u64; smoke::tally::EVENTS]; 2],
+    throws_start: smoke::tally::Throws,
     /// The tracker's throws and clouds at the last tick, and its clouds then; grenade keys of humans whose pockets
     /// are not known (a real cloud the model cannot make).
     thrown: Thrown,
@@ -63,17 +96,31 @@ pub(super) struct SmokeCounts {
     /// Fairness, by the bot's team: `Seen` sensings through smoke, and shots at a target through smoke not a spray.
     seen_through: [u32; 2],
     fire_through: [u32; 2],
+    /// [diagnosis] Shots whose line from the game's bodies is clearly behind smoke from every eye, not a spray,
+    /// whatever the shooter's last look: most follow a clear look by a tick or two (continuing fire).
+    fire_through_margin: [u32; 2],
     /// By bot and enemy: the last time a `Seen` track was refreshed; the tick's new sensings to check.
     seen_times: BTreeMap<(Place, Place), u32>,
     /// By bot and enemy: where its last `Seen` track had him (what its shots are aimed from).
     sensed: BTreeMap<(Place, Place), Vec3>,
-    fresh_seen: Vec<(Place, Place, Vec3)>,
+    fresh_seen: Vec<(Place, crate::v026g::bots::know::Track)>,
+    /// By the bot's team: `Seen` sensings no recorded look made (a path to a sighting that bypasses the looks).
+    seen_unlooked: [u32; 2],
+    /// By the body's team: the last tick each body stood by a cloud of its team's.
+    by_team_cloud: Vec<Option<u32>>,
+    /// The match's deaths, classed at its end (the top is named at the last tick, as `feel` names it).
+    deaths: Vec<Death>,
+    /// [diagnosis] The sensings whose line from the game's bodies is clearly behind smoke from every eye
+    /// ([`Self::hides_body`]): the view's lag at a cloud's rim or flat top, not a bypass (the replay says which).
+    seen_through_margin: [u32; 2],
 }
 
 impl SmokeCounts {
     pub(super) fn new() -> Self {
+        smoke::tally::begin_match();
         Self {
             eyes_start: smoke::tally::counts(),
+            throws_start: smoke::tally::throws(),
             thrown: Thrown::default(),
             clouds: Vec::new(),
             unknown_pockets: 0,
@@ -84,9 +131,14 @@ impl SmokeCounts {
             deaths_in_smoke: [0; 2],
             seen_through: [0; 2],
             fire_through: [0; 2],
+            fire_through_margin: [0; 2],
             seen_times: BTreeMap::new(),
             sensed: BTreeMap::new(),
             fresh_seen: Vec::new(),
+            seen_unlooked: [0; 2],
+            by_team_cloud: Vec::new(),
+            deaths: Vec::new(),
+            seen_through_margin: [0; 2],
         }
     }
 
@@ -101,6 +153,12 @@ impl SmokeCounts {
     /// With [`FAIR_MARGIN_M`] more smoke than the bots' rule: the bot looks from where its view has it and at where
     /// its view has him, up to a few tenths of a metre from the game's bodies here, which at a cloud's edge moves a
     /// line across the 2 m.
+    ///
+    /// And from every eye the bot may have looked from ([`FAIR_EYE_UP_M`], [`FAIR_EYE_SIDE_M`]): the game's eye here and
+    /// the bot's view of itself differ by its pitch, pace and crouch of the tick and the bench's ping, and a level line
+    /// that skims a cloud's flat top or bottom, or its rim, is hidden from one and not the other
+    /// (`h2h-radio-vs-off-20261029T1211`: of 74 counts with one eye, 34 crossed 2-4 m of smoke at a rim and 32 ran
+    /// within 0.5 m of a top or bottom; every bot path to a `Seen` sighting goes through the veil).
     fn hides_body(&self, tick: u32, eye: Vec3, feet: Vec3) -> bool {
         let clouds = Clouds::new(self.clouds.clone());
         let default = SmokeTuning::default();
@@ -109,11 +167,87 @@ impl SmokeCounts {
             ..default
         };
         let veil = clouds.veil(tick, &tuning);
-        [false, true].iter().all(|&crouched| {
-            BodyPart::SIGHT_ORDER
-                .iter()
-                .all(|part| veil.hides(eye, part.point_of(feet, crouched, eye)))
+        let (dx, dz) = (feet.x - eye.x, feet.z - eye.z);
+        let length = dx.hypot(dz).max(1e-3);
+        let side = Vec3::new(-dz / length * FAIR_EYE_SIDE_M, 0.0, dx / length * FAIR_EYE_SIDE_M);
+        let up = Vec3::new(0.0, FAIR_EYE_UP_M, 0.0);
+        [eye, eye + up, eye - up, eye + side, eye - side].iter().all(|&from| {
+            [false, true].iter().all(|&crouched| {
+                BodyPart::SIGHT_ORDER
+                    .iter()
+                    .all(|part| veil.hides(from, part.point_of(feet, crouched, from)))
+            })
         })
+    }
+
+    /// The bot's own look replayed (`aimpoint::look_parts` with the team's rule, `smoke.thin_m` 2 m, no margin): from its
+    /// eye as its view had it, at his feet and crouch as its view had them, through the clouds at the look's clock.
+    /// Whether the clouds hid every part it tests: a look that showed him while they did is a sighting through smoke.
+    fn replay_hides(&self, look: &smoke::tally::SeenLook) -> bool {
+        let clouds = Clouds::new(self.clouds.clone());
+        let tuning = SmokeTuning::default();
+        let veil = clouds.veil(look.time, &tuning);
+        BodyPart::SIGHT_ORDER
+            .iter()
+            .all(|part| veil.hides(look.eye, part.point_of(look.feet, look.crouched, look.eye)))
+    }
+
+    /// The death of the bot at `place` at `tick`: its class, crowded or not, and whether its killer stood behind smoke from its
+    /// nearest living mate.
+    fn death(&mut self, run: &Run, game: &Game, place: Place, tick: u32) {
+        let team = game.bodies[place].team;
+        let recent = |t: Option<u32>| t.is_some_and(|t| tick.saturating_sub(t) <= AFTER_SMOKE_MS);
+        let class = if recent(smoke::tally::last_threw(place)) {
+            0
+        } else if recent(self.by_team_cloud.get(place).copied().flatten()) {
+            1
+        } else {
+            2
+        };
+        let Some((crowded, near)) = super::feel::Feel::crowded_at_death(run, game, place) else {
+            return;
+        };
+        let killer = run.kills.iter().rev().find(|&&(_, _, victim)| victim == place).map(|&(_, killer, _)| killer);
+        let dead_at = game.bodies[place].feet;
+        let mate = game
+            .bodies
+            .iter()
+            .enumerate()
+            .filter(|&(p, b)| p != place && b.team == team && b.alive)
+            .min_by(|a, b| a.1.feet.distance_xz(dead_at).total_cmp(&b.1.feet.distance_xz(dead_at)));
+        let screened = match (killer, mate) {
+            (Some(killer), Some((_, mate))) if killer < game.bodies.len() => {
+                !self.clouds.is_empty() && self.hides(tick, Game::eye(mate), Game::chest(&game.bodies[killer]))
+            }
+            _ => false,
+        };
+        self.deaths.push(Death { place, tick, class, crowded, near, screened });
+    }
+
+    /// The deaths by team, top or not and class: [deaths, crowded, enemies near at the deaths, traded within [`TRADE_MS`] by a
+    /// mate, killer screened by smoke from the nearest mate].
+    fn deaths_by_class(&self, run: &Run, game: &Game) -> [[[[u32; 5]; 3]; 2]; 2] {
+        let team = |place: Place| usize::from(game.bodies.get(place).map_or(0, |b| b.team) & 1);
+        let tops = [super::feel::Feel::top_of(game, 0), super::feel::Feel::top_of(game, 1)];
+        let mut by = [[[[0u32; 5]; 3]; 2]; 2];
+        for d in &self.deaths {
+            let t = team(d.place);
+            let kill = run.kills.iter().enumerate().find(|&(_, &(k_t, _, victim))| victim == d.place && k_t.abs_diff(d.tick) <= 2 * TICK_MS);
+            let traded = kill.is_some_and(|(i, &(k_t, killer, _))| {
+                run.kills[i + 1..]
+                    .iter()
+                    .take_while(|&&(t2, ..)| t2.saturating_sub(k_t) <= TRADE_MS)
+                    .any(|&(_, killer2, victim2)| victim2 == killer && killer2 != d.place && team(killer2) == t)
+            });
+            let who = usize::from(tops[t] != Some(d.place));
+            let row = &mut by[t][who][d.class];
+            row[0] += 1;
+            row[1] += u32::from(d.crowded);
+            row[2] += d.near;
+            row[3] += u32::from(traded);
+            row[4] += u32::from(d.screened);
+        }
+        by
     }
 
     /// Whether `feet` stand inside a cloud at `tick`.
@@ -161,9 +295,36 @@ impl SmokeCounts {
                 // Where the shooter's eyes have him (its memory's sight), else the game's body.
                 let feet = self.sensed.get(&(fact.shooter, target)).copied().unwrap_or(game.bodies[target].feet);
                 if fact.tick == tick && self.hides_body(tick, eye, feet) && !Self::sprayed(fact.shooter, tick) {
-                    self.fire_through[team] += 1;
+                    self.fire_through_margin[team] += 1;
+                    // Fair: the shooter's last look that found him, replayed with the team's rule, showed him within
+                    // the spray's time (`smoke.spray_ms`, the owner's cap for fire through cover): fire continued.
+                    let look = smoke::tally::seen_look(fact.shooter, target);
+                    let spray_ms = SmokeTuning::default().spray_ms;
+                    let fair = look.is_some_and(|l| tick.saturating_sub(l.time) <= spray_ms && !self.replay_hides(&l));
+                    self.fire_through[team] += u32::from(!fair);
+                    if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
+                        // The shooter's last sight of him: its age, and whether the clouds hid him then too.
+                        let seen = self.seen_times.get(&(fact.shooter, target)).copied();
+                        let hidden_then = seen.map(|t| self.hides_body(t, eye, feet));
+                        let spray = smoke::tally::last_spray(fact.shooter).map(|t| tick as i64 - t as i64);
+                        eprintln!(
+                            "FAIR-SHOT bot {} (team {team}) at {target} tick {tick} seen {:?} (age {:?} ms) hidden-then {:?} spray-ago {:?} ms sensed {} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1}) look-age {:?} look-replay-hidden {:?} counted {}",
+                            fact.shooter,
+                            seen,
+                            seen.map(|t| tick.saturating_sub(t)),
+                            hidden_then,
+                            spray,
+                            self.sensed.contains_key(&(fact.shooter, target)),
+                            eye.x, eye.y, eye.z, feet.x, feet.y, feet.z,
+                            look.map(|l| tick.saturating_sub(l.time)),
+                            look.map(|l| self.replay_hides(&l)),
+                            !fair,
+                        );
+                    }
                     #[cfg(test)]
-                    SEEN_CASES.with(|c| c.borrow_mut().push((fact.shooter, target, tick, eye, feet)));
+                    if !fair {
+                        SEEN_CASES.with(|c| c.borrow_mut().push((fact.shooter, target, tick, eye, feet)));
+                    }
                 }
             }
         }
@@ -175,7 +336,7 @@ impl SmokeCounts {
             let last = self.seen_times.insert((place, track.who), track.time);
             self.sensed.insert((place, track.who), track.at);
             if last != Some(track.time) {
-                self.fresh_seen.push((place, track.who, track.at));
+                self.fresh_seen.push((place, *track));
             }
         }
     }
@@ -183,29 +344,108 @@ impl SmokeCounts {
     /// The tick's fresh `Seen` sensings of the bot at `place` whose every part the clouds hide: from its eye to where
     /// it sensed him (the track's place, the view's: the game's body is later than what the bot saw).
     fn check_seen(&mut self, game: &Game, place: Place, tick: u32) {
-        let mine: Vec<(Place, Vec3)> =
-            self.fresh_seen.iter().filter(|(p, _, _)| *p == place).map(|&(_, who, at)| (who, at)).collect();
-        self.fresh_seen.retain(|(p, _, _)| *p != place);
+        let mine: Vec<crate::v026g::bots::know::Track> =
+            self.fresh_seen.iter().filter(|(p, _)| *p == place).map(|(_, track)| *track).collect();
+        self.fresh_seen.retain(|(p, _)| *p != place);
         let me = &game.bodies[place];
-        for (who, at) in mine {
+        for track in mine {
+            let (who, at, time) = (track.who, track.at, track.time);
             let (eye, team) = (Game::eye(me), usize::from(me.team & 1));
-            if game.bodies[who].alive && self.hides_body(tick, eye, at) {
-                self.seen_through[team] += 1;
+            if !game.bodies[who].alive {
+                continue;
+            }
+            // The look that made this sensing, as the bot made it; none is a path that bypassed the looks.
+            let look = smoke::tally::seen_look(place, who).filter(|look| look.time == time);
+            let replay = look.as_ref().map(|look| self.replay_hides(look));
+            // [diagnosis] With the game's bodies, every eye and the margin, at the sensing's time.
+            let margin = self.hides_body(time, eye, at);
+            self.seen_through_margin[team] += u32::from(margin);
+            let counted = match replay {
+                None => {
+                    self.seen_unlooked[team] += 1;
+                    true
+                }
+                Some(hidden) => {
+                    self.seen_through[team] += u32::from(hidden);
+                    hidden
+                }
+            };
+            if (counted || margin) && crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
+                let near: Vec<String> = self
+                    .clouds
+                    .iter()
+                    .filter(|c| c.centre.distance_xz(at) < 40.0 || c.centre.distance_xz(eye) < 40.0)
+                    .map(|c| {
+                        format!(
+                            "cloud by {} team {} centre ({:.1},{:.1},{:.1}) pours {} r(tick) {:?} r(sense) {:?}",
+                            c.by, c.team, c.centre.x, c.centre.y, c.centre.z, c.pours.0,
+                            c.radius_at(smoke::MatchMs(tick)), c.radius_at(smoke::MatchMs(time))
+                        )
+                    })
+                    .collect();
+                eprintln!(
+                    "FAIR-SEEN bot {place} (team {team}) saw {who} tick {tick} sensed {time} (lag {} ms) replay {} margin {margin} look {:?} sight_since {:?} held_until {} missed {:?} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1}) body ({:.1},{:.1},{:.1}); {}",
+                    tick.saturating_sub(time),
+                    match replay { None => "unlooked", Some(true) => "hidden", Some(false) => "clear" },
+                    look.map(|l| (l.eye, l.feet, l.crouched)),
+                    track.sight_since,
+                    track.held_until,
+                    track.missed,
+                    eye.x, eye.y, eye.z, at.x, at.y, at.z,
+                    game.bodies[who].feet.x, game.bodies[who].feet.y, game.bodies[who].feet.z,
+                    near.join(" | ")
+                );
+            }
+            if counted {
                 #[cfg(test)]
                 SEEN_CASES.with(|c| c.borrow_mut().push((place, who, tick, eye, at)));
             }
         }
     }
 
-    fn part(&self) -> Part {
+    fn part(&self, deaths: &[[[[u32; 5]; 3]; 2]; 2]) -> Part {
         let now = smoke::tally::counts();
         let eyes: [[u64; smoke::tally::EVENTS]; 2] =
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
-        use smoke::tally::Event::{AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, SightLost, Spray, WatchBusy};
+        use smoke::tally::Event::{
+            AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedAny, OutrangedNoPlan, SightLost, Spray, WatchBusy,
+        };
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
+        // The bots' smoke throws, by team and use: [begun, thrown, given up]; and the thrown by team and role.
+        let now_throws = smoke::tally::throws();
+        let roles = survarium::v026g::loadouts::BotRole::ALL;
+        let uses = smoke::SmokeUse::ALL;
+        let throw = |team: usize, role: usize, u: usize, step: usize| {
+            now_throws[team][role][u][step] - self.throws_start[team][role][u][step]
+        };
+        let by_use: [[[u64; smoke::tally::THROW_STEPS]; smoke::SmokeUse::ALL.len()]; 2] = std::array::from_fn(|team| {
+            std::array::from_fn(|u| std::array::from_fn(|step| (0..roles.len()).map(|r| throw(team, r, u, step)).sum()))
+        });
+        let thrown_by_role: [[u64; survarium::v026g::loadouts::BotRole::ALL.len()]; 2] =
+            std::array::from_fn(|team| std::array::from_fn(|r| (0..uses.len()).map(|u| throw(team, r, u, 1)).sum()));
+        let uses_json: serde_json::Map<String, serde_json::Value> = uses
+            .iter()
+            .map(|u| (format!("{u:?}"), serde_json::json!([by_use[0][u.index()], by_use[1][u.index()]])))
+            .collect();
+        let roles_json: serde_json::Map<String, serde_json::Value> = roles
+            .iter()
+            .enumerate()
+            .map(|(r, role)| (role.name().to_owned(), serde_json::json!([thrown_by_role[0][r], thrown_by_role[1][r]])))
+            .collect();
+        // By class: [team 0's, team 1's], each [deaths, crowded, enemies near at the deaths, traded, screened].
+        let classes = |who: usize| -> serde_json::Map<String, serde_json::Value> {
+            DEATH_CLASSES
+                .iter()
+                .enumerate()
+                .map(|(c, name)| ((*name).to_owned(), serde_json::json!([deaths[0][who][c], deaths[1][who][c]])))
+                .collect()
+        };
+        let by_who = |who: usize| -> [[[u32; 5]; 3]; 2] { [deaths[0][who], deaths[1][who]] };
         let json = serde_json::json!({
+            "smoke_bot_throws_by_use": uses_json,
+            "smoke_bot_thrown_by_role": roles_json,
             "smoke_thrown": self.thrown.thrown,
             "smoke_clouds": self.thrown.clouds,
             "smoke_dropped": self.thrown.dropped,
@@ -221,6 +461,9 @@ impl SmokeCounts {
             "smoke_learnt_seen": by(LearntSeen),
             "smoke_learnt_heard": by(LearntHeard),
             "smoke_learnt_told": by(LearntTold),
+            "smoke_outranged_planned": by(Outranged),
+            "smoke_outranged_no_plan": by(OutrangedNoPlan),
+            "smoke_outranged_any": by(OutrangedAny),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -228,9 +471,16 @@ impl SmokeCounts {
             "smoke_deaths_in": self.deaths_in_smoke,
             "smoke_fair_seen_through": self.seen_through,
             "smoke_fair_fire_through": self.fire_through,
+            "smoke_fair_seen_unlooked": self.seen_unlooked,
+            "smoke_fair_seen_through_margin": self.seen_through_margin,
+            "smoke_fair_fire_through_margin": self.fire_through_margin,
+            "smoke_top_deaths_by_class": classes(0),
+            "smoke_rest_deaths_by_class": classes(1),
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
+            uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
+            roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
@@ -246,13 +496,22 @@ impl SmokeCounts {
             by(LearntSeen),
             by(LearntHeard),
             by(LearntTold),
+            by(Outranged),
+            by(OutrangedNoPlan),
+            by(OutrangedAny),
             self.hits_through,
             self.spray_hits,
             self.kills_through,
             in_smoke_s,
             self.deaths_in_smoke,
             self.seen_through,
+            self.seen_unlooked,
             self.fire_through,
+            self.seen_through_margin,
+            self.fire_through_margin,
+            DEATH_CLASSES,
+            by_who(0),
+            by_who(1),
         );
         Part::new(json, text)
     }
@@ -279,10 +538,25 @@ impl Topic for SmokeCounts {
         self.through(game);
     }
 
-    fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+    fn body(&mut self, run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+        if at.prev.alive && !at.rec.alive {
+            self.death(run, at.game, at.place, at.tick);
+        }
         if self.clouds.is_empty() {
-            self.fresh_seen.retain(|(p, _, _)| *p != at.place);
+            self.fresh_seen.retain(|(p, _)| *p != at.place);
             return;
+        }
+        let team = at.game.bodies[at.place].team;
+        let by_cloud = at.rec.alive
+            && self.clouds.iter().any(|c| {
+                c.team == team
+                    && c.radius_at(smoke::MatchMs(at.tick)).is_some_and(|r| c.centre.distance_xz(at.rec.feet) <= r + BY_CLOUD_M)
+            });
+        if by_cloud {
+            if self.by_team_cloud.len() <= at.place {
+                self.by_team_cloud.resize(at.place + 1, None);
+            }
+            self.by_team_cloud[at.place] = Some(at.tick);
         }
         self.check_seen(at.game, at.place, at.tick);
         let body = &at.game.bodies[at.place];
@@ -295,8 +569,9 @@ impl Topic for SmokeCounts {
         }
     }
 
-    fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
-        vec![("smoke", self.part())]
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        let deaths = self.deaths_by_class(run, game);
+        vec![("smoke", self.part(&deaths))]
     }
 }
 
@@ -341,7 +616,7 @@ mod tests {
         counts.through(&game);
         assert_eq!((counts.hits_through, counts.spray_hits), ([1, 0], [1, 0]));
         assert!(counts.inside(5_000, game.bodies[1].feet) && !counts.inside(5_000, game.bodies[0].feet));
-        let part = counts.part();
+        let part = counts.part(&[[[[0; 5]; 3]; 2]; 2]);
         assert!(part.text.contains("through smoke hits [1, 0] (spray [1, 0]) kills [1, 0]"), "{}", part.text);
     }
 
@@ -370,13 +645,22 @@ mod tests {
         }];
         counts.through(&game);
         assert_eq!(counts.fire_through, [1, 0]);
+        // A look that showed him 100 ms before (he stood clear of the cloud then): fire continued, not counted.
+        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(10.0, 0.0, 40.0), crouched: false };
+        smoke::tally::looked_seen(0, 1, clear);
+        counts.through(&game);
+        assert_eq!((counts.fire_through, counts.fire_through_margin), ([1, 0], [2, 0]), "a clear look 100 ms before");
+        // The same look 1 s before: past the spray's time, counted.
+        smoke::tally::looked_seen(0, 1, smoke::tally::SeenLook { time: 5_000, ..clear });
+        counts.through(&game);
+        assert_eq!(counts.fire_through, [2, 0], "a look 1 s before");
         smoke::tally::sprayed(0, 6_000);
         counts.through(&game);
-        assert_eq!(counts.fire_through, [1, 0], "a spray's shot");
+        assert_eq!(counts.fire_through, [2, 0], "a spray's shot");
         counts.clouds = vec![cloud(20.0, 40.0)];
         smoke::tally::sprayed(0, 0);
         counts.through(&game);
-        assert_eq!(counts.fire_through, [1, 0], "a clear line");
+        assert_eq!(counts.fire_through, [2, 0], "a clear line");
     }
 
     /// The fairness counts in a real loop (the stand-in game, the bots' poll, the owner tally): 2 against 2 for 60 s on
@@ -469,7 +753,8 @@ mod tests {
                 println!("seen through (sight {sight}): {case:?}");
             }
         });
-        (counts.seen_through, counts.fire_through)
+        let seen = [counts.seen_through[0] + counts.seen_unlooked[0], counts.seen_through[1] + counts.seen_unlooked[1]];
+        (seen, counts.fire_through)
     }
 
     #[test]
@@ -486,8 +771,8 @@ mod tests {
         assert!(off_seen > 0 && off_fire > 0, "off: seen {off_seen} fire {off_fire}");
     }
 
-    /// The fairness count: a `Seen` sensing through a cloud counts once (a refreshed track), not again while the
-    /// track stands, and not when the line is clear.
+    /// The fairness count: a `Seen` sensing whose look, replayed, the cloud hid counts once (a refreshed track), not
+    /// again while the track stands, and not when the line is clear; one no look made counts apart.
     #[test]
     fn a_seen_sensing_through_a_cloud_is_counted_once() {
         let (mut game, _) = made_up(&[0, 1]);
@@ -506,16 +791,23 @@ mod tests {
             missed: None,
             held_until: 0,
         };
+        let look = |time| smoke::tally::SeenLook { time, eye: Game::eye(&game.bodies[0]), feet: game.bodies[1].feet, crouched: false };
         counts.clouds = vec![cloud(20.0, 10.0)];
+        smoke::tally::looked_seen(0, 1, look(5_000));
         counts.read_seen(0, &[track(5_000)]);
         counts.check_seen(&game, 0, 5_000);
-        assert_eq!(counts.seen_through, [1, 0]);
+        assert_eq!((counts.seen_through, counts.seen_unlooked), ([1, 0], [0, 0]));
         counts.read_seen(0, &[track(5_000)]);
         counts.check_seen(&game, 0, 5_100);
         assert_eq!(counts.seen_through, [1, 0], "the same sensing");
         counts.clouds = vec![cloud(20.0, 40.0)];
+        smoke::tally::looked_seen(0, 1, look(5_200));
         counts.read_seen(0, &[track(5_200)]);
         counts.check_seen(&game, 0, 5_200);
-        assert_eq!(counts.seen_through, [1, 0], "a clear line");
+        assert_eq!((counts.seen_through, counts.seen_unlooked), ([1, 0], [0, 0]), "a clear line");
+        // A sighting no look made: counted apart, whatever the clouds.
+        counts.read_seen(0, &[track(5_400)]);
+        counts.check_seen(&game, 0, 5_400);
+        assert_eq!((counts.seen_through, counts.seen_unlooked), ([1, 0], [1, 0]), "no look");
     }
 }

@@ -122,7 +122,15 @@ fn the_bench_reads_every_bodys_pockets_from_its_profile() {
         assert!(matches!(throws, Throws::Bot(_)), "place {place}: {throws:?}");
         let (equipment, role) = bot_equipment_of(profile).expect("a bot");
         let first = bot_kits_kit(equipment, role, tunings.of(teams[place]).kit.pockets())[0];
-        assert_eq!(throws.frags_left(), Some(grenades_in(first) as u16), "place {place} {role:?}");
+        // The frags: the kit's grenades but its smoke (`kit.smoke`, radio_place by default), thrown with its own key.
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let smokes: u32 = first
+            .items
+            .iter()
+            .filter(|item| dictionary.item(item.dict_id).is_some_and(|row| row.name == "rdg-m"))
+            .map(|item| item.count)
+            .sum();
+        assert_eq!(throws.frags_left(), Some((grenades_in(first) - smokes) as u16), "place {place} {role:?}");
     }
     let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0x5E10);
     bots.set_throws(crate::v026g::bots::tests::bench::bench_throws(&bench_roster(&[0, 0, 1, 1], equipment, &tunings), &tunings));
@@ -604,6 +612,9 @@ fn only_the_team_whose_tuning_reads_react_watch_watches_a_clouds_near_edge() {
     let run = |on: u8| {
         let before = tally::counts();
         let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        // On by default: both off, then one team's on.
+        team0.smoke.react_watch = false;
+        team1.smoke.react_watch = false;
         if on == 0 {
             team0.smoke.react_watch = true;
         } else {
@@ -651,7 +662,10 @@ fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
     team1.kit.smoke = survarium::v026g::loadouts::KitSmoke::RadioPlace;
     let teams = [0u8, 0, 1, 1];
     let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
-    let roster = bench_roster(&teams, equipment, &tunings(Tuning::default(), team1));
+    // radio_place by default: team 0's kit smoke off.
+    let mut team0 = Tuning::default();
+    team0.kit.smoke = survarium::v026g::loadouts::KitSmoke::Off;
+    let roster = bench_roster(&teams, equipment, &tunings(team0, team1));
     let dictionary = Dictionary::shared();
     let mut carried = 0;
     for (place, &team) in teams.iter().enumerate() {

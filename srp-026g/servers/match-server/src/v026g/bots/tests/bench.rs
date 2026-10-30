@@ -524,8 +524,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
-    // What each bot's kit holds in frags, for its grenade logic (`CombatTuning::grenade_kit_cap`), as `Bots::poll` does.
-    bots.tell_frags_left();
+    // What each bot's kit can throw (its frags, its smoke's key), as `Bots::poll` does.
+    bots.tell_kit();
     bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);

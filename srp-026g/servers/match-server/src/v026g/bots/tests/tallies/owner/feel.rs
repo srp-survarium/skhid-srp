@@ -286,7 +286,7 @@ impl Feel {
 
     /// The team's top by PairUp's own rule (`TopRule`, its default numbers) from the game's kills and streaks, every body of the team
     /// ranked, the stand-ins too.
-    fn top_of(game: &Game, team: u8) -> Option<Place> {
+    pub(super) fn top_of(game: &Game, team: u8) -> Option<Place> {
         let players = game.bodies.iter().enumerate().filter(|(_, body)| body.team == team).map(|(place, _)| {
             let (kills, _, streak) = game.stats.get(place).copied().unwrap_or_default();
             (place, kills, streak)
@@ -309,6 +309,24 @@ impl Feel {
             }
         }
         set
+    }
+
+    /// [the smoke topic] Whether the death of `victim` at its last record is crowded by [`Self::deaths_tick`]'s rule (3 or more
+    /// distinct enemies within 30 m at some sample of the 10 s before, within the life), and how many are near at the death.
+    pub(super) fn crowded_at_death(run: &Run, game: &Game, victim: Place) -> Option<(bool, u32)> {
+        let team = game.bodies.get(victim)?.team;
+        let recs = run.recs.get(victim)?;
+        let last = recs.len().checked_sub(1)?;
+        let now = Self::near(run, game, team, recs[last].feet, last);
+        let mut window = 0u64;
+        for back in (0..=WINDOW_TICKS.min(last)).step_by(SAMPLE_TICKS) {
+            let idx = last - back;
+            if back > 0 && !recs[idx].alive {
+                break;
+            }
+            window |= Self::near(run, game, team, recs[idx].feet, idx);
+        }
+        Some((window.count_ones() >= CROWD, now.count_ones()))
     }
 
     /// The tick's deaths: crowded or not, and a note for a top's or the human's.

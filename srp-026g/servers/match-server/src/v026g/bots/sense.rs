@@ -342,6 +342,8 @@ pub fn sense_looks_through(
             let eye = me.eye();
             let looked = super::aimpoint::look_parts(eye, enemy, sight, veil, || rays.take(me.place, me.team));
             if looked == PartsLook::Shows {
+                #[cfg(test)]
+                super::smoke::tally::record_seen(me, enemy, view.clock);
                 out.push(seen_percept(enemy, view));
             }
             continue;
@@ -365,6 +367,8 @@ pub fn sense_looks_through(
         rays.exempt += LOOK_RAYS - own.left;
         looks.push((who, outcome));
         if outcome == LookOutcome::Seen {
+            #[cfg(test)]
+            super::smoke::tally::record_seen(me, enemy, view.clock);
             out.push(seen_percept(enemy, view));
         }
     }

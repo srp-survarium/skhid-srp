@@ -341,6 +341,8 @@ fn drive_tick_inner(
         &tuning.heal,
         time,
     ));
+    #[cfg(test)]
+    super::smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
     let over = bot.reflex.tick(
         aiming_me,
         view,
