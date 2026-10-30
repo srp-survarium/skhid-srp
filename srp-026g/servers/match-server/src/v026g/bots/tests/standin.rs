@@ -537,8 +537,8 @@ pub(crate) struct Game {
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
     /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
-    /// A bullet takes time to arrive (`SRP_BENCH_HIT_FLIGHT`, a diagnosis of A182): the shape test finds each body where its
-    /// last step carries it in the time the shooter's ammunition takes to fly to it, not where it stood at the shot.
+    /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
+    /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
     pub(crate) flight: bool,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
