@@ -26,7 +26,7 @@ switches OFF pace: goal_clause
 switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels replan sniper_lanes
 switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
-switch values aim: combat.worth.hurt_from=seen combat.zoom_error=off friends.spread_source=data
+switch values aim: combat.settle=off combat.worth.hurt_from=seen combat.zoom_error=off friends.spread_source=data
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed

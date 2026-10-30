@@ -88,6 +88,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 use survarium::v026g::weapons::Optic;
 
+use super::aim_settle::{self, Settle};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
@@ -816,6 +817,13 @@ pub struct CombatTuning {
     pub turn_feed: bool,
     /// The error angles times the sights' zoom ([`ZoomError`]); off.
     pub zoom_error: ZoomError,
+    /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]); off. The
+    /// policy's number is `settle_k` (the error to expect against this times the body's angular half width at his distance:
+    /// GUESS 1.0) and its cap `settle_max_wait_ms` after the target was taken (GUESS 5 s, the humans' aim-held q75 of a
+    /// bolt action at 40-80 m).
+    pub settle: Settle,
+    pub settle_k: f32,
+    pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -1288,6 +1296,9 @@ impl Default for CombatTuning {
             live_eye: true,
             turn_feed: true,
             zoom_error: ZoomError::Off,
+            settle: Settle::Off,
+            settle_k: 1.0,
+            settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -2450,9 +2461,11 @@ pub mod gate {
     pub const LOST: u32 = 1 << 25;
     pub const REACTION_AGAIN: u32 = 1 << 26;
     pub const AIMING_AGAIN: u32 = 1 << 27;
+    /// The shot waits for the aim to settle ([`super::Settle::WanderAndPolicy`]).
+    pub const SETTLING: u32 = 1 << 28;
 
     /// The gates' names, in their order.
-    pub const NAMES: [(u32, &str); 28] = [
+    pub const NAMES: [(u32, &str); 29] = [
         (UNSTICK, "unstick"),
         (PLAY, "play"),
         (JUMP_ROUTE, "jump_route"),
@@ -2474,6 +2487,7 @@ pub mod gate {
         (RUNNING, "running"),
         (AIMING_IN, "aiming_in"),
         (AIMING_AGAIN, "aiming_again"),
+        (SETTLING, "settling"),
         (FRIEND, "friend"),
         (HIDDEN, "hidden"),
         (VIEW_RAY, "view_ray"),
@@ -5894,7 +5908,14 @@ impl Reflex {
         // and wanders slowly about him as a player's tracking does.
         let t = now.saturating_sub(self.since) as f32 / 1000.0;
         let fade = (-t / settle_s).exp();
-        self.wander_step(aim, skill, rng);
+        let wander_deg = aim_settle::wander_deg(
+            c.settle,
+            mix(aim.wander_deg, skill),
+            mix(aim.settled_wander_deg, skill),
+            mix(aim.settle_tau_s, skill),
+            t,
+        );
+        self.wander_step(aim, wander_deg, rng);
         let gun = self.hands().held().gun;
         // The error angles go with the zoom of the sights (`zoom_error`): the aim progress is the time since the aim key went
         // down over the sights' aim time.
@@ -5906,6 +5927,8 @@ impl Reflex {
             (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
             (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
         );
+        // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
+        let expected_deg = aim_settle::error_rms_deg(mix(aim.error_deg, skill), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
@@ -6005,6 +6028,20 @@ impl Reflex {
                 } else {
                     gate::AIMING_IN
                 },
+            ),
+            // A burst under way is held to its end; the first shot of one, and every shot of another weapon, waits.
+            (
+                now >= self.burst_until
+                    && aim_settle::waits(
+                        c.settle,
+                        expected_deg,
+                        distance,
+                        c.body_half_m,
+                        c.settle_k,
+                        now.saturating_sub(self.since),
+                        c.settle_max_wait_ms,
+                    ),
+                gate::SETTLING,
             ),
             (friend.is_some(), gate::FRIEND),
         ] {
@@ -6397,10 +6434,11 @@ impl Reflex {
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
-    /// the skill's `wander_deg` (the pitch's half) and which comes back in
-    /// about `wander_s`.
-    fn wander_step(&mut self, aim: &AimTuning, skill: f32, rng: &mut Rng) {
-        let spread = mix(aim.wander_deg, skill).max(0.0).to_radians();
+    /// `spread_deg` (the skill's `wander_deg`, settled with the time on target
+    /// when [`Settle`] says; the pitch's half) and which comes back in about
+    /// `wander_s`.
+    fn wander_step(&mut self, aim: &AimTuning, spread_deg: f32, rng: &mut Rng) {
+        let spread = spread_deg.max(0.0).to_radians();
         let a = (self.tick_ms as f32 / 1000.0 / aim.wander_s.max(0.01)).min(1.0);
         // Uniform shocks (a spread of 1/sqrt(12)) scaled to keep the walk's
         // spread at `spread`.
