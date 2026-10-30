@@ -13,7 +13,8 @@
 //! `srp_camera_sweep.csv` there (`step,yaw,pitch,distance`), which the
 //! capture script waits for. After the last pose the camera stays there.
 //! A line `squad` makes both squad panels' characters the account's own
-//! (setup_profile with its profile and chosen kit), for the full squad's view.
+//! (setup_profile with its profile and chosen kit) when the second pose
+//! starts, for the full squad's view.
 
 #![forbid(unsafe_code)]
 
@@ -186,11 +187,6 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
             Some(n) => match parse(&text[..n]) {
                 Some(script) => {
                     first = true;
-                    if script.squad
-                        && let Some((camera, _)) = LobbyCamera::at(ctx)
-                    {
-                        camera.show_squad_dummies();
-                    }
                     READ.set(thread, script);
                     Sweep::At { step: 0, held: 0.0 }
                 }
@@ -222,6 +218,11 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
             }
         }
         let logged = if first { Some(0) } else { new };
+        // the squad's characters at the second pose (the account's profile is there by then:
+        // the first is the settling hold after the sign-in)
+        if new == Some(1) && script.squad {
+            camera.show_squad_dummies();
+        }
         if let Some(step) = logged
             && let Some(file) = TraceFile::open(thread, LOG)
         {

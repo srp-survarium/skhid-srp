@@ -542,9 +542,11 @@ def main():
             run = d[first:last + 1]
             top = max(run)
             peak = run.index(top)
+            # (2 % of the peak: the lift over a character's spot near the line bends it a little)
+            wobble = 0.02 * top
             return top < 0.8 and run[0] < 0.35 * top and run[-1] < 0.35 * top and all(
-                run[n] >= run[n - 1] - 1e-4 for n in range(1, peak + 1)) and all(
-                run[n] <= run[n - 1] + 1e-4 for n in range(peak + 1, len(run))), (max(moving), last, d[last])
+                run[n] >= run[n - 1] - wobble for n in range(1, peak + 1)) and all(
+                run[n] <= run[n - 1] + wobble for n in range(peak + 1, len(run))), (max(moving), last, d[last])
 
         flight = Table(patched, delta)
         flight.set_f(CAMERA + YAW, 0.4)

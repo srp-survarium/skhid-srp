@@ -2767,7 +2767,8 @@ Round 6 (2026-10-29, the lobby scenes: each scene the player picks has its own t
 Round 7 (2026-10-30, the lobby audit; `../docs/notes/lobby-scenes.md`, "The camera flight").
 - **The flight in Rust.** The camera's flight there and back is the Rust patch `weapon_flight`
   (`rust/patches/src/weapon_flight.rs`, one lohook at `lobby_camera.view`, 0x2840F2: the tick
-  with its yaw and pitch final): the eye on a straight line between the two eyes, the yaw, pitch,
+  with its yaw and pitch final): the eye on a straight line between the two eyes (over a
+  character's head where it comes within 0.9 m of one), the yaw, pitch,
   distance, side angle and zoom with it, one smoothstep over 0.45 s; back, to the stock camera's
   eye (the wheel's target cut by the camera's own ray there, `engine_lobby_camera_ray`), a tick
   held with no ray, then the stock camera from there. Until round 6 the NASM's glide went back

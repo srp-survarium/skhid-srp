@@ -184,7 +184,8 @@ classic's. What the exe and our patches take from it:
 ## The camera flight to the weapon (patch 45, round 7)
 
 The weapon's upgrade window flies the camera from where it is to the spot's view, and the close
-flies it back: the eye on a straight line between the two eyes, the yaw, the pitch, the distance,
+flies it back: the eye on a straight line between the two eyes (over a character's head where the
+line comes within 0.9 m of one: the camp's spot is behind the character), the yaw, the pitch, the distance,
 the side angle and the zoom with it, one smoothstep over 0.45 s; back, to where the stock camera
 will be (the wheel's target cut by the camera's own ray there), held a tick with no ray, then the
 stock camera from exactly there. The Rust patch `weapon_flight` (one enum `Flight`, one

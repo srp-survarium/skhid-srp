@@ -8,7 +8,8 @@
 //! its zoom; the setter gives the height, the side angle and the distance).
 //! This is the flight alone, at `lobby_camera.view` every tick:
 //!
-//! - the eye moves on a straight line from where it is to where it goes,
+//! - the eye moves on a straight line from where it is to where it goes
+//!   (over a character's head where the line comes within 0.9 m of one),
 //!   the yaw, the pitch, the distance, the side angle and the zoom with it,
 //!   all by one smoothstep over [`DURATION`]: no cut, no start or stop at
 //!   full speed; the eye of either end is in the room, and so is the line
@@ -132,11 +133,38 @@ fn nearest_turn(from: f32, to: f32) -> f32 {
 }
 
 /// The pose a share `s` of the way: the eye on the straight line between
-/// the two eyes, the yaw (its nearest turn), the pitch, the distance, the
-/// side angle and the zoom by the same share; the point where that view
-/// looks from that eye.
+/// the two eyes (over a character's head where the line comes near one),
+/// the yaw (its nearest turn), the pitch, the distance, the side angle and
+/// the zoom by the same share; the point where that view looks from that eye.
+/// Where the lobby's characters stand (the exe's: the own at the origin, the
+/// squad panels' at (+-1, 0, 0.5); 0x21CCD2, 0x21CD33, 0x21CD94), on the floor.
+const CHARACTERS: [(f32, f32); 3] = [(0.0, 0.0), (1.0, 0.5), (-1.0, 0.5)];
+/// An eye nearer a character than this (across the floor) goes over its head.
+const CLEAR: f32 = 0.9;
+/// The eye's height over a character's head (a character is about 1.85 m tall).
+const OVER: f32 = 2.25;
+
+/// How far the eye of the straight line must rise at `s` to pass over the
+/// characters (the camp's spot is behind the character: the line went
+/// through it, the game's capture of 2026-10-30): a smooth bump where the eye
+/// comes within CLEAR of one, none at either end.
+fn lift(eye: Vec3, s: f32) -> f32 {
+    let near = CHARACTERS
+        .iter()
+        .map(|&(x, z)| {
+            let (dx, dz) = (eye.x - x, eye.z - z);
+            let u = clamp(1.0 - (dx * dx + dz * dz) / (CLEAR * CLEAR), 0.0, 1.0);
+            u * u
+        })
+        .fold(0.0, |a: f32, b| if b > a { b } else { a });
+    let ends = clamp(6.0 * s * (1.0 - s), 0.0, 1.0);
+    let rise = OVER - eye.y;
+    if rise > 0.0 { rise * near * ends } else { 0.0 }
+}
+
 fn between(from: &CameraPose, to: &CameraPose, s: f32) -> CameraPose {
-    let eye = from.eye().lerp(to.eye(), s);
+    let line = from.eye().lerp(to.eye(), s);
+    let eye = Vec3::new(line.x, line.y + lift(line, s), line.z);
     let yaw = from.yaw + (nearest_turn(from.yaw, to.yaw) - from.yaw) * s;
     let pitch = from.pitch + (to.pitch - from.pitch) * s;
     let distance = from.distance + (to.distance - from.distance) * s;

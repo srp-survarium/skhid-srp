@@ -55,13 +55,19 @@ fn to_the_bench_on_a_straight_line_eased_and_exactly_there() {
     // the eye on the line between the two eyes, its steps growing then shrinking
     let (e0, e1) = (start.eye(), view.at(1.2).eye());
     let axis = e1 - e0;
-    let len = dist(e1, e0);
     let mut eyes = vec![e0];
     eyes.extend(actions.iter().map(|a| posed(a).eye()));
+    // across the floor on the line; up only where it passes over a character (here the squad's
+    // right member's spot, 0.9 m)
+    let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
+    let (f0, faxis) = (flat(e0), flat(axis));
+    let flen = dist(flat(e1), f0);
     for e in &eyes {
-        let along = (*e - e0).dot(axis) / len;
-        let off = dist(*e, e0 + axis * (along / len));
+        let along = (flat(*e) - f0).dot(faxis) / flen;
+        let off = dist(flat(*e), f0 + faxis * (along / flen));
         assert!(off < 1e-4, "off the line by {off}");
+        let on = e0 + axis * (along / flen);
+        assert!(e.y >= on.y - 1e-4 && e.y <= OVER + 1e-4, "{} against {}", e.y, on.y);
     }
     let steps: Vec<f32> = eyes.windows(2).map(|w| dist(w[1], w[0])).collect();
     let top = steps.iter().cloned().fold(0.0, f32::max);
@@ -183,3 +189,24 @@ fn every_sequence_stays_finite_and_leaves_only_the_stock_camera() {
         }
     }
 }
+
+#[test]
+fn a_line_through_a_character_goes_over_its_head() {
+    // the camp's: the bench's eye behind the character, the start in front of it
+    let start = pose(Vec3::new(0.0, 1.2, 0.0), 0.0, 0.0, 1.55);
+    let view = BenchView { point: Vec3::new(-1.6, 1.37, 3.255), yaw: PI / 2.0, pitch: -0.25, side: 0.42, zoom: 1.0 };
+    let (flight, _) = Flight::Stock.step(Event::Asked { goal: Goal::Bench { view, distance: 1.2 }, now: start });
+    let (actions, _) = fly(flight, 1.2, 200, |f| matches!(f, Flight::AtBench { .. }));
+    let mut eyes = vec![start.eye()];
+    eyes.extend(actions.iter().map(|a| posed(a).eye()));
+    for e in &eyes {
+        for (x, z) in CHARACTERS {
+            let across = ((e.x - x) * (e.x - x) + (e.z - z) * (e.z - z)).sqrt();
+            assert!(across > 0.45 || e.y > 2.0, "the eye {e:?} in a character at ({x}, {z})");
+        }
+    }
+    let steps: Vec<f32> = eyes.windows(2).map(|w| dist(w[1], w[0])).collect();
+    assert!(steps.iter().all(|s| *s < 0.6), "no jump: {steps:?}");
+    assert_eq!(posed(actions.last().unwrap()), view.at(1.2), "exactly there");
+}
+
