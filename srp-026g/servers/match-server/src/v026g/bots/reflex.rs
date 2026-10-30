@@ -1946,6 +1946,7 @@ impl GrenadeStats {
         self.pushes_skipped += other.pushes_skipped;
         plus(&mut self.volley, &other.volley);
         plus(&mut self.near, &other.near);
+        plus(&mut self.close, &other.close);
         plus(&mut self.held_funnel, &other.held_funnel);
         plus(&mut self.held_busy, &other.held_busy);
         plus(&mut self.held_dropped, &other.held_dropped);
@@ -8770,6 +8771,20 @@ mod tests {
     #[test]
     fn close_throws_are_off_by_default() {
         assert!(!CombatTuning::default().grenade_close);
+    }
+
+    /// [close] The close counts are summed over lives and read as a change since the last reading.
+    #[test]
+    fn the_close_counts_are_added_and_read_as_a_change() {
+        let one = GrenadeStats {
+            close: [1, 2, 3, 4, 5, 6, 7],
+            ..GrenadeStats::default()
+        };
+        let mut sum = GrenadeStats::default();
+        sum.add(&one);
+        sum.add(&one);
+        assert_eq!(sum.close, [2, 4, 6, 8, 10, 12, 14]);
+        assert_eq!(sum.since(Some(&one)).0.close, [1, 2, 3, 4, 5, 6, 7]);
     }
 
     /// Match 0x60aeff4f: 2 of the 5 team kills were the bots' own
