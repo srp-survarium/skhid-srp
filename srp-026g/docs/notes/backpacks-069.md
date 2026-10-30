@@ -110,8 +110,15 @@ Every number here is a proposal. Balance is the owner's call.
   own (over the native heads and the masks), and the builder has only the back
   fit. Not added.
 
+## Owner's decisions (2026-10-30)
+
+- Factions as proposed: the Medic's bag with the Black Market, the Soldier's
+  backpack with the Scavengers.
+- The Medic's bag stays as 0.69d shipped it, without straps. Its mesh has
+  none: one spine-weighted box on the back, nothing over the shoulders, and
+  0.69d adds none when a back piece is worn. Straps borrowed from the
+  Backpack with container were proposed and turned down.
+
 ## Open questions for the owner
 
-- The levels, factions, weights, prices and drop weights above.
-- The Soldier's backpack for the Scavengers, although its name fits the Army
-  (whose level-14 slot already has the Assault fighter's backpack).
+- The levels, weights, prices and drop weights above.
