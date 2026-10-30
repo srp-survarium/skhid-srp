@@ -66,3 +66,6 @@ engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ES
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
+engine_get_current_process	0x870034	-	void *engine_get_current_process(void)	import	
+engine_terminate_process	0x870030	-	unsigned int engine_terminate_process(void *process, unsigned int exit_code)	import	
+engine_message_box_w	0xaefecc	-	unsigned int engine_message_box_w(void *window, const unsigned short *text, const unsigned short *caption, unsigned int type)	import	

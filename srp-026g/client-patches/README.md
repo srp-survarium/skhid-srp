@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `input_devices_026g.asm`, `input_devices_026g.c`, `check_input_devices_026g.py` | Patch 83: a failed DirectInput step at the start (DirectInput8Create, the keyboard's or the mouse's CreateDevice) shows a message with the HRESULT and what to do, then ends the game, instead of a NULL read (the arena's block `input_devices.code`); its check runs create_devices with the game's own constructors on a made-up DirectInput, every step succeeding and each failing (needs Unicorn) |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -3626,6 +3627,65 @@ site from the game's code on the game's own static baker:
   random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
 - any other query's finish goes straight through.
 **Not run:** a game.
+
+### 83. A DirectInput step that fails at the start shows a message instead of crashing (the next release's revision)
+
+A player's revision 38 client crashed at every start (2026-10-30): an access violation reading 0 in
+the keyboard's constructor (0x3B8BFD), Windows 11 24H2, the system's own dinput8.dll, nothing
+injected. `client_patch.md` 3.59.
+
+**Why.** The input world's create_devices (0x3B82F0) calls DirectInput8Create, then the keyboard's
+(0x3B8BC0) and the mouse's (0x3B94F0) constructors, each IDirectInput8::CreateDevice. The retail
+build (MASTER_GOLD: the 0.10b source's `R_ASSERT(!FAILED(result))` compiled out) reads none of the
+three results and goes on through the interface or the device: a failed step is a NULL read, a
+crash report that says nothing of the cause.
+
+**The patch** (with the late join; input_devices_026g.asm and .c in the arena's block
+input_devices.code): right after each of the three calls (eax its HRESULT) the site calls an entry
+that hands the step, the HRESULT, the pointer the call wrote and the game's window to
+`input_devices_check`, then does the site's own bytes:
+- create_devices' `cmp byte [esp+1Ch],0` (0x3B8319), only on the DirectInput path (that byte 0;
+  the other path makes no DirectInput device);
+- the keyboard's and the mouse's `mov eax,[edi] / mov ecx,[eax] / mov edx,[ecx+2Ch]` (0x3B8C0A,
+  0x3B9522), the loads of SetDataFormat through the new device.
+
+A step fails when FAILED(hr) or it wrote no pointer. Then one message box (owned by the game's
+window, MB_ICONERROR, topmost), Russian, then English: the step, the HRESULT in hex, and the advice
+for it; then TerminateProcess(GetCurrentProcess(), 1), as the game's own quit ends (no crash
+report). REGDB_E_CLASSNOTREG / DIERR_DEVICENOTREG, CLASS_E_CLASSNOTAVAILABLE, E_NOINTERFACE,
+DIERR_OLDDIRECTINPUTVERSION, DIERR_BETADIRECTINPUTVERSION and a success with no pointer (Windows'
+DirectInput damaged or unregistered):
+
+```
+Survarium cannot start: DirectInput could not open the keyboard (error 0x80040154).
+1. Open Command Prompt as administrator and run: sfc /scannow
+2. Install the DirectX End-User Runtime from Microsoft.
+3. Restart the PC and start the game again.
+Still failing? Send this text (Ctrl+C copies it) to discord.gg/Pxa4prXfwu
+```
+
+Any other HRESULT (E_ACCESSDENIED, E_FAIL, ...): 1. Restart the PC. 2. In Task Manager, make sure no
+other survarium_skhid.exe is running. 3. Unplug game controllers and unusual input devices, then
+start the game again. A step that succeeds goes on as the original. The library's imports
+MessageBoxW (USER32, delay-loaded, 0xAEFECC), GetCurrentProcess (0x870034) and TerminateProcess
+(0x870030) are new rows of `engine_026g.tsv`. Sites: 0x3B8319, 0x3B8C0A, 0x3B9522 (INLINE); no base
+relocation under them, no branch into them. No log line: the engine's log writer is varargs, not
+in the library.
+
+**Checked:** `selftest_026g.py` check 83 (the three steps' code and the sites in the original, the
+IAT slots by the import and delay-load tables, the calls, no relocation or branch inside, the
+link's code). `check_input_devices_026g.py` (Unicorn) runs create_devices from its entry with the
+game's own gamepad, keyboard and mouse constructors on a made-up DirectInput:
+- every step S_OK (and S_FALSE from CreateDevice), on either path: the world, the devices, their
+  calls, the registers and the stack as the original's, no message;
+- DirectInput8Create failing with five HRESULTs, failing with an interface written, S_OK with
+  none: the original crashes at 0x3B8BFD (or goes on with one written); the build shows the
+  message with the step, the HRESULT and its advice, and ends; no device is made;
+- the same failure on the other path: as the original;
+- the keyboard's or the mouse's CreateDevice failing (REGDB_E_CLASSNOTREG, E_ACCESSDENIED, S_OK with
+  no device): the original crashes at 0x3B8C0C / 0x3B9524; the build shows that step's message and
+  ends; the mouse is not made after the keyboard's failure; no SetDataFormat on a failed device.
+**Not run:** a game, Windows' own MessageBoxW and TerminateProcess.
 
 ## Not ported, not done
 

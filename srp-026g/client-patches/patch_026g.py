@@ -2408,6 +2408,29 @@ WEIGHT_UI_HOOKS = (
 )
 INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
 INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
+# Patch 83 (client_patch.md section 3.59): a DirectInput step that fails at
+# the start (DirectInput8Create, the keyboard's or the mouse's CreateDevice)
+# shows a message and ends the game instead of reading through a NULL
+# interface. input_devices_026g.asm and .c in the arena's block
+# input_devices.code; each site, right after the step's call (eax its
+# HRESULT), calls an entry that checks the step and does the site's bytes.
+INPUT_DEVICES_HOOKS = (
+    # create_devices' `cmp byte [esp+1Ch],0` after DirectInput8Create (ebx &world+1Ch, ebp the window)
+    (0x3B8319, bytes.fromhex("807c241c00"), "input_dinput_created", 0xE8),
+    # keyboard::keyboard's `mov eax,[edi] / mov ecx,[eax] / mov edx,[ecx+2Ch]` after CreateDevice (edi &+914h)
+    (0x3B8C0A, bytes.fromhex("8b078b088b512c"), "input_keyboard_created", 0xE8),
+    # mouse::mouse's same three after CreateDevice (edi &+28h)
+    (0x3B9522, bytes.fromhex("8b078b088b512c"), "input_mouse_created", 0xE8),
+)
+INSTALLS[0x3B8319] = (INLINE, "create_devices' `cmp byte [esp+1Ch],0` after DirectInput8Create (eax the HRESULT, "
+                              "ebx &world+1Ch): dinput_created, which on the DirectInput path stops the game on a "
+                              "failure, then the compare", None, None)
+INSTALLS[0x3B8C0A] = (INLINE, "keyboard::keyboard's three loads of SetDataFormat after CreateDevice (eax the HRESULT, "
+                              "edi &the device): keyboard_created, which stops the game on a failure, then the loads",
+                      None, None)
+INSTALLS[0x3B9522] = (INLINE, "mouse::mouse's three loads of SetDataFormat after CreateDevice (eax the HRESULT, edi "
+                              "&the device): mouse_created, which stops the game on a failure, then the loads",
+                      None, None)
 
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2619,6 +2642,8 @@ ARENA = (
     # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
     ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
+    # patch 83: a failed DirectInput step stops the game with a message
+    ArenaBlock("input_devices.code", "code", 0x1000, ("input_devices_026g.asm", "input_devices_026g.c")),
 )
 
 
@@ -3666,7 +3691,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + INPUT_DEVICES_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

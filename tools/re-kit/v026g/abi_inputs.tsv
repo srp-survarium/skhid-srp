@@ -4792,3 +4792,21 @@ va	name	location	role	basis
 0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
+0x003b82f0	vostok::input::input_world::create_devices	EAX	the input world (EDI in the body): +1Ch the IDirectInput8A DirectInput8Create writes (&+1Ch in EBX), +20h, +24h, +28h the gamepad, keyboard and mouse	observed
+0x003b82f0	vostok::input::input_world::create_devices	entry ESP+4	the window (EBP in the body): the keyboard's and the mouse's entry ESP+4	observed
+0x003b82f0	vostok::input::input_world::create_devices	entry ESP+8 low byte	0: the DirectInput path (je 0x3B83B3: gamepad 0x3B8790, keyboard 0x3B8BC0, mouse 0x3B94F0, each of the allocator's 60h, 91Ch, 38h bytes); else three receivers without DirectInput (vtables 0xA25314, 0xA25360, 0xA25338, the world at +4); the input world's ctor 0x3B7B30 passes DL, set at 0x207363 (ESI == 2)	observed
+0x003b8bc0	vostok::input::platform::keyboard::keyboard	ESI	the keyboard (91Ch bytes, vtable 0xA25478): +914h the IDirectInputDevice8A CreateDevice writes (EDI = &+914h), +910h the window, +918h the input world	observed
+0x003b8bc0	vostok::input::platform::keyboard::keyboard	EAX	the IDirectInput8A (the world's +1Ch): CreateDevice (vtable +0Ch) at 0x3B8C08 with GUID_SysKeyboard 0x88E34C, &+914h, 0; its HRESULT unread, the device read at 0x3B8C0A (SetDataFormat, +2Ch, c_dfDIKeyboard 0x9047CC)	observed
+0x003b8bc0	vostok::input::platform::keyboard::keyboard	EDX	the input world (stored at +918h)	observed
+0x003b8bc0	vostok::input::platform::keyboard::keyboard	entry ESP+4	the window (EBX in the body; +910h): SetCooperativeLevel (vtable +34h) with 6, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE	observed
+0x003b94f0	vostok::input::platform::mouse::mouse	ESI	the mouse (38h bytes, vtable 0xA25518): +28h the IDirectInputDevice8A CreateDevice writes (EDI = &+28h), +24h the window, +2Ch the input world	observed
+0x003b94f0	vostok::input::platform::mouse::mouse	EAX	the IDirectInput8A (the world's +1Ch): CreateDevice (vtable +0Ch) at 0x3B9520 with GUID_SysMouse 0x88E33C, &+28h, 0; its HRESULT unread, the device read at 0x3B9522 (SetDataFormat, +2Ch, c_dfDIMouse2 0x9049D4)	observed
+0x003b94f0	vostok::input::platform::mouse::mouse	ECX	the input world (stored at +2Ch)	observed
+0x003b94f0	vostok::input::platform::mouse::mouse	entry ESP+4	the window (EBP in the body; +24h): SetCooperativeLevel (vtable +34h) with 6, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE	observed
+0x003b8790	vostok::input::platform::gamepad::gamepad	EAX	the gamepad (60h bytes, vtable 0xA2538C)	observed
+0x003b8790	vostok::input::platform::gamepad::gamepad	ECX	the input world (stored at +4)	observed
+0x00824792	DirectInput8Create	entry ESP+4	the instance: GetModuleHandleA(0) (IAT 0x87003C) at 0x3B82FD	observed
+0x00824792	DirectInput8Create	entry ESP+8	the version, 0x800	observed
+0x00824792	DirectInput8Create	entry ESP+12	the IID, IID_IDirectInput8A at 0x88E2EC	observed
+0x00824792	DirectInput8Create	entry ESP+16	the interface's place (the input world +1Ch); jmp [0xAEFE1C], DINPUT8.dll's delay-load IAT slot	observed
+0x00824792	DirectInput8Create	entry ESP+20	the outer unknown, 0	observed

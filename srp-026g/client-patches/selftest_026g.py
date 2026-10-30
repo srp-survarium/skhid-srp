@@ -1556,6 +1556,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.INPUT_DEVICES_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
@@ -4762,6 +4763,70 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_input_devices(original, image, before):
+    """Check 83: a failed DirectInput step at the start stops the game with a
+    message (patch 83, INPUT_DEVICES_HOOKS). Static, on the bytes: the three
+    steps' calls and what the sites hold in the original, the imports the
+    code calls, the calls to input_devices.code in the build, no base
+    relocation under a site and no branch inside one. What it does runs in
+    check_input_devices_026g.py (Unicorn: create_devices with the game's
+    constructors, every step succeeding and each failing)."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    guid = lambda va: stock.read(va, 16).hex()
+    check(rows(0x3B82FD, 0x2D) == ["call [dword 0x87003c]", "push byte +0x0", "lea ebx,[edi+0x1c]", "push ebx",
+                                   "push dword 0x88e2ec", "push dword 0x800", "push eax", "call 0x824792",
+                                   "cmp byte [esp+0x1c],0x0", "mov esi,[dword 0x1f1dbd4]", "jz near 0x3b83b3"]
+          and rows(0x824792, 6) == ["jmp [dword 0xaefe1c]"]
+          and rows(0x3B83FB, 0xA) == ["mov eax,[ebx]", "push ebp", "mov edx,edi", "call 0x3b8bc0"]
+          and rows(0x3B842D, 0xA) == ["mov eax,[ebx]", "push ebp", "mov ecx,edi", "call 0x3b94f0"]
+          and guid(0x88E2EC) == "308079bf3a48a24daa995d64ed369700",
+          "create_devices (0x3B82F0): DirectInput8Create(GetModuleHandleA(0), 0x800, IID_IDirectInput8A, "
+          "&world+1Ch, 0) through the delay-load thunk 0x824792, its HRESULT in eax unread; the second "
+          "argument's byte 0 is the DirectInput path, where the keyboard (0x3B8BC0) and the mouse (0x3B94F0) "
+          "get [world+1Ch] in eax and the window (ebp)")
+    check(rows(0x3B8BFB, 0x1B) == ["mov [edi],ebp", "mov ecx,[eax]", "mov edx,[ecx+0xc]", "push dword 0x88e34c",
+                                   "push eax", "call edx", "mov eax,[edi]", "mov ecx,[eax]", "mov edx,[ecx+0x2c]",
+                                   "push dword 0x9047cc"]
+          and rows(0x3B8BC4, 4) == ["mov ebx,[esp+0x1c]"] and rows(0x3B8BCF, 6) == ["lea edi,[esi+0x914]"]
+          and rows(0x3B9515, 0x1C) == ["mov edx,[eax]", "push dword 0x88e33c", "push eax", "mov eax,[edx+0xc]",
+                                       "call eax", "mov eax,[edi]", "mov ecx,[eax]", "mov edx,[ecx+0x2c]",
+                                       "push dword 0x9049d4", "push eax", "call edx"]
+          and rows(0x3B94F1, 4) == ["mov ebp,[esp+0x8]"] and rows(0x3B94F8, 3) == ["lea edi,[esi+0x28]"]
+          and guid(0x88E34C) == "612b1d6fa0d5cf11bfc7444553540000"
+          and guid(0x88E33C) == "602b1d6fa0d5cf11bfc7444553540000",
+          "the keyboard's (0x3B8C08) and the mouse's (0x3B9520) CreateDevice(GUID_SysKeyboard / GUID_SysMouse, "
+          "edi = &the device: +914h, +28h) and right after it SetDataFormat's three loads through the device "
+          "unchecked; the window in ebx and ebp")
+    table = imports(stock)
+    check(table.get(0x87003C) == ("KERNEL32.dll", "GetModuleHandleA")
+          and table.get(0xAEFE1C) == ("DINPUT8.dll", "DirectInput8Create")
+          and table.get(0xAEFECC) == ("USER32.dll", "MessageBoxW")
+          and table.get(0x870034) == ("KERNEL32.dll", "GetCurrentProcess")
+          and table.get(0x870030) == ("KERNEL32.dll", "TerminateProcess"),
+          "the IAT slots: GetModuleHandleA 0x87003C, DirectInput8Create 0xAEFE1C (delay-loaded), and the "
+          "library's MessageBoxW 0xAEFECC (delay-loaded), GetCurrentProcess 0x870034, TerminateProcess 0x870030")
+    linked = P.arena()
+    block = linked.blocks["input_devices.code"]
+    for va, old, symbol, opcode in P.INPUT_DEVICES_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, `call {target:#x}` "
+              f"({symbol}, an entry of input_devices.code) here")
+    sites = [(s, o) for s, o, _, _ in P.INPUT_DEVICES_HOOKS]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "input_devices.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's input_devices.code ({len(code)} bytes)")
+
+
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
     ../docs/notes/ragdoll.md). Static, on the bytes: the nine sites and what
@@ -6561,6 +6626,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
+    test_input_devices(original, image, before)
     test_ragdoll(original, image, before)
     test_language(original, image, before)
     test_stage_focus(original, image, before)

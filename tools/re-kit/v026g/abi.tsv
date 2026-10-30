@@ -2061,3 +2061,8 @@ va	name	source	ret_cleanup	result
 0x00239420	survarium::game_world_ui::update_minimap_players	manual	4	none: root.update_players of the hud movie [ui+8], one object a player (player_id, is_local_player, player_pos_x/y, player_rotation_in_rad, team = [player+6B8h]+45ECh, is_carrying_item, is_squad_player)
 0x00239a30	survarium::game_world_ui::update_minimap_local_player	manual	4	none: root.update_local_player of the hud movie [ui+8] (x, y, rotation, team = [local+6B8h]+45ECh, 2 without a local player at 0x239B3C), the minimap's own team
 0x0027a980	survarium::network_client::get_player	manual	8	EAX = the out pointer: the place's current kit player ([[client+1F1C40h]+18650h] + place x 30h, kit byte +0Ch), reference added, or 0; no active-mask check, unlike get_active_player 0x27A9C0; the network client's vtable 0x9FFB14 +4Ch
+0x003b82f0	vostok::input::input_world::create_devices	manual	8	none: the devices in the input world's +1Ch..+28h
+0x003b8bc0	vostok::input::platform::keyboard::keyboard	manual	4	EAX = ESI, the keyboard
+0x003b94f0	vostok::input::platform::mouse::mouse	manual	4	EAX = ESI, the mouse
+0x003b8790	vostok::input::platform::gamepad::gamepad	manual	0	EAX, the gamepad
+0x00824792	DirectInput8Create	manual	20	EAX the HRESULT (stdcall); create_devices does not read it (0x3B8319 tests its second argument)

@@ -1859,3 +1859,9 @@ va	status	ref_021d	name
 0x00239420	observed	0x00182a9c	survarium::game_world_ui::update_minimap_players
 0x00239a30	observed	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x0027a980	observed	0x001a2572	survarium::network_client::get_player
+0x003b82f0	reviewed	0x002647e3	vostok::input::input_world::create_devices
+0x003b8bc0	reviewed	0x00264edd	vostok::input::platform::keyboard::keyboard
+0x003b94f0	reviewed	0x002655a7	vostok::input::platform::mouse::mouse
+0x00824792	verified		DirectInput8Create
+0x00824777	verified		__imp_load__DirectInput8Create@20
+0x00824781	verified		__tailMerge_DINPUT8_dll

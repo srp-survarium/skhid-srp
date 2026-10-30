@@ -238,4 +238,13 @@ void engine_release_item(struct artefact *object, unsigned int *count);
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
 
+/* the IAT slot 0x870034 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_current_process)(void);
+
+/* the IAT slot 0x870030 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_terminate_process)(void * process, unsigned int exit_code);
+
+/* the IAT slot 0xaefecc (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_message_box_w)(void * window, const unsigned short * text, const unsigned short * caption, unsigned int type);
+
 #endif

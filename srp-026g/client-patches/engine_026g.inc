@@ -217,3 +217,15 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; void *engine_get_current_process(void)
+; the IAT slot 0x870034 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_current_process
+; unsigned int engine_terminate_process(void *process, unsigned int exit_code)
+; the IAT slot 0x870030 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_terminate_process
+; unsigned int engine_message_box_w(void *window, const unsigned short *text, const unsigned short *caption, unsigned int type)
+; the IAT slot 0xaefecc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_message_box_w

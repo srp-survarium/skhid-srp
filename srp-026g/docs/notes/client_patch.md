@@ -1709,6 +1709,62 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
   (Ruffle). **Not run in a game.**
 
+### 3.59 A DirectInput step that fails at the start shows a message instead of crashing (written 2026-10-30, README patch 83, the next release's revision) — PROVEN in the code, create_devices with the game's constructors run with Unicorn; not run in a game
+
+**Why** (a player's revision 38 crash, 2026-10-30): ACCESS_VIOLATION reading 0 at 0x3B8BFD, in the
+keyboard's constructor, at every start; Windows 11 24H2, the genuine dinput8.dll
+6.2.26100.1591, nothing injected; the HRESULT was not in the dump. Stack: `survarium::game::on_configs_loaded`
+-> 0x207373 (the input world's ctor 0x3B7B30) -> create_devices 0x3B82F0 -> 0x3B8400 (keyboard).
+
+**The code** (PROVEN, read against the 0.10b source `input_world_win.cpp`,
+`receiver_keyboard_win.cpp`, `receiver_mouse_win.cpp`; their `R_ASSERT(!FAILED(result))` are
+compiled out under MASTER_GOLD, `debug_macros.h`):
+- create_devices (thiscall-like: eax the input world, kept in edi; the window and a byte on the
+  stack, `ret 8`): `push 0 / call [0x87003C]` (GetModuleHandleA), then
+  `DirectInput8Create(hinst, 0x800, IID_IDirectInput8A 0x88E2EC, &world+1Ch, 0)` through the
+  delay-load thunk 0x824792 (`jmp [0xAEFE1C]`, DINPUT8.dll's delay IAT slot; its first call goes
+  through `__imp_load__DirectInput8Create@20` 0x824777 and `__tailMerge_DINPUT8_dll` 0x824781 to
+  `__delayLoadHelper2` 0xE48E0). The HRESULT in eax is never read: 0x3B8319 `cmp byte
+  [esp+1Ch],0` tests the second argument; 0 (`je 0x3B83B3`) is the DirectInput path: the gamepad
+  0x3B8790 (60h bytes), the keyboard 0x3B8BC0 (91Ch) and the mouse 0x3B94F0 (38h), each given
+  `[world+1Ch]` in eax and the window. The other path makes three receivers of vtables 0xA25314,
+  0xA25360, 0xA25338 without DirectInput. The input world's ctor passes `dl = (esi == 2)` (0x207363).
+- The keyboard (esi this, eax the IDirectInput8A, edx the world, the window at entry esp+4 in ebx):
+  `mov [edi],ebp` (edi = &this+914h, the device, 0), `CreateDevice` (vtable +0Ch) at 0x3B8C08 with
+  GUID_SysKeyboard 0x88E34C, then 0x3B8C0A `mov eax,[edi] / mov ecx,[eax] / mov edx,[ecx+2Ch]` and
+  SetDataFormat(c_dfDIKeyboard 0x9047CC), SetCooperativeLevel(window, 6), SetProperty(BUFFERSIZE 256),
+  memset 0x424500. A NULL interface faults at 0x3B8BFD (`mov ecx,[eax]`), a NULL device at 0x3B8C0C.
+- The mouse (esi this, eax the interface, ecx the world, the window at entry esp+4 in ebp): edi =
+  &this+28h, CreateDevice at 0x3B9520 with GUID_SysMouse 0x88E33C, then 0x3B9522 the same three
+  loads and SetDataFormat(c_dfDIMouse2 0x9049D4), SetCooperativeLevel(window, 6). A NULL device
+  faults at 0x3B9524.
+
+**The patch** (README patch 83; `input_devices_026g.asm` and `.c`, the arena's block
+`input_devices.code`; `INPUT_DEVICES_HOOKS`, three INLINE sites, no base relocation under them):
+
+| Site | Original | Now | Entry |
+|---|---|---|---|
+| 0x3B8319 | `cmp byte [esp+1Ch],0` | `call input_dinput_created` | on the DirectInput path, `input_devices_check(DIRECT_INPUT, eax, [ebx], ebp)`; then the compare (its flags for the `je`) |
+| 0x3B8C0A | `mov eax,[edi] / mov ecx,[eax] / mov edx,[ecx+2Ch]` | `call input_keyboard_created` + 2 nops | `input_devices_check(KEYBOARD, eax, [edi], ebx)`; then the three loads |
+| 0x3B9522 | the same | `call input_mouse_created` + 2 nops | `input_devices_check(MOUSE, eax, [edi], ebp)`; then the three loads |
+
+`input_devices_check` (C, cdecl: ebx, esi, edi and ebp kept; eax, ecx and edx are dead at the
+first site and loaded again by the others) reads the raw step once into an outcome: ready
+(SUCCEEDED and a pointer), or failed with the step, the HRESULT and its advice (repair DirectX for
+REGDB_E_CLASSNOTREG/DIERR_DEVICENOTREG, CLASS_E_CLASSNOTAVAILABLE, E_NOINTERFACE,
+DIERR_OLDDIRECTINPUTVERSION, DIERR_BETADIRECTINPUTVERSION and a success with no pointer; restart,
+no second game, unplug controllers for anything else). A failure: one MessageBoxW (owned by the
+game's window; MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST), Russian then English, the HRESULT as
+`0x%08X`; then `TerminateProcess(GetCurrentProcess(), 1)`, as the engine's own end does
+(0x15C80 -> 0x1148D0), so no crash report and no destructor of a half-made world. The imports are
+the library's (`engine_026g.tsv`: engine_message_box_w 0xAEFECC, delay-loaded USER32;
+engine_get_current_process 0x870034; engine_terminate_process 0x870030). The engine's log writer
+(log_message 0x111ED0) is varargs and not in the library, so no log line is written.
+
+- **Checked:** selftest check 83 (static); `check_input_devices_026g.py` (Unicorn: create_devices
+  from its entry to 0x3B843E with the game's constructors; every step succeeding as the original,
+  each failing: the original's fault, the build's message and end). **Not run in a game.**
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

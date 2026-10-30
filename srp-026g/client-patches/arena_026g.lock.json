@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 471136,
-  "sha256": "76e2c9c003a1c96dc1a304338182b3b06ac8a4772743ca9b9b045517b32ea555",
+  "size": 478392,
+  "sha256": "cf56bac9eba1d8fb0b2721da9a77008b4fd7561d45d80f0df1647d8e0b353d19",
   "blocks": {
     "weight_ui.code": {
       "kind": "code",
@@ -83,12 +83,18 @@
       "kind": "state",
       "va": "0xa49d000",
       "size": 12384
+    },
+    "input_devices.code": {
+      "kind": "code",
+      "va": "0xa4a1000",
+      "size": 3256
     }
   },
   "symbols": {
     "SRP_DIAGNOSTICS": "0xa47287c",
     "__rodata_bake_cache_code": "0xa43d0e9",
     "__rodata_hide_ui_code": "0xa4381e2",
+    "__rodata_input_devices_code": "0xa4a122e",
     "__rodata_kill_feed_code": "0xa43b178",
     "__rodata_match_keys_code": "0xa436154",
     "__rodata_patches_code": "0xa4722f2",
@@ -249,6 +255,10 @@
     "hook_ragdoll_on_step": "0xa464969",
     "hook_suicide_key_on_spot": "0xa46c1f6",
     "hook_text_input_on_char": "0xa46c267",
+    "input_devices_check": "0xa4a11b8",
+    "input_dinput_created": "0xa4a1000",
+    "input_keyboard_created": "0xa4a101b",
+    "input_mouse_created": "0xa4a1031",
     "kill_feed_event": "0xa43b000",
     "kill_feed_row": "0xa43b09f",
     "kit_keys": "0xa43704a",

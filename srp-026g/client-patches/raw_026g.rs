@@ -167,6 +167,12 @@ unsafe extern "C" {
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870034 (an import, stdcall): void *engine_get_current_process(void)
+    pub static engine_get_current_process: unsafe extern "stdcall" fn() -> *mut c_void;
+    /// the IAT slot 0x870030 (an import, stdcall): unsigned int engine_terminate_process(void *process, unsigned int exit_code)
+    pub static engine_terminate_process: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0xaefecc (an import, stdcall): unsigned int engine_message_box_w(void *window, const unsigned short *text, const unsigned short *caption, unsigned int type)
+    pub static engine_message_box_w: unsafe extern "stdcall" fn(*mut c_void, *const u16, *const u16, u32) -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

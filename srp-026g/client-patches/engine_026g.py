@@ -503,7 +503,7 @@ def include_text(fs):
     return "\n".join(lines) + "\n"
 
 
-RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned short": "u16", "unsigned int": "u32", "float": "f32",
               "unsigned long long": "u64"}
 # C parameter names that are Rust keywords: written as raw identifiers.
 RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",
