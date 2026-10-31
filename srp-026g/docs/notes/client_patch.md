@@ -1675,8 +1675,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   hud then still held a movie that did not take it (the game world's own comes with it). So the
   forced state is told from the feed: at update_player_icons' start (each frame) the movies the hud
   holds are told it at a change of movie or state, and again while the Invoke answers 0. Forced,
-  the player icons hide their objects' icons (ids from 37) and show the players' only while Tab is
-  held (`root.force_interface_tab`, told with it; the owner, 2026-10-26).
+  the player icons hide their objects' icons (ids from 37) and keep the players' as in a plain match
+  (the teammates' always, an enemy's never; the owner, 2026-10-31: before, only while Tab was held).
 - **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
   (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
   the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
