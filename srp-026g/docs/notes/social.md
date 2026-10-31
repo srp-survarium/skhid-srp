@@ -118,7 +118,7 @@ Types (lobby_menu 0x226020, PROVEN unless marked):
 | 1 | quest | text `#+q` (new) / `#!q` (failed) / `#q!` (completed); queries 0x3E / 0x40, 0x39, 0x3E / 0x3C via 0x26FE20 (other agent); auto-accept |
 | 2 | squad invite | `st_add_to_squad_request`; waits |
 | 3 | squad invite accepted | no UI; auto-accept, then `4A 02 <sender_name>` |
-| 4 | reputation level unlocked | text `#ru…`; queries 0x40, 0x39 (0x2265F6, 0x226606; **corrected 2026-10-12**: the exe has no writer for 0x3A, `coverage.md` §1.2); auto-accept |
+| 4 | reputation level unlocked | text `#ru…`; queries 0x40, 0x39 (0x2265F6, 0x226606; **corrected 2026-10-12**: the exe has no writer for 0x3A); auto-accept |
 | 5 | drop arrived | log only; auto-accept |
 | 6 | item repaired | text `#ir[<item id>]` (PROVEN: the bracket parser 0x227120; the item's `repair_time` is set to 0, 0x22693A); inventory refresh (0x288520). Not auto-answered (GUESS: stays pending; server should not expect `50`) |
 | 7 | **clan invite** NEW | `st_add_to_clan_request` + `%s "%s"` (LIKELY text = clan name); waits |

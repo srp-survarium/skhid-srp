@@ -2160,7 +2160,7 @@ lock (whichever merges second runs `--write` again on top of the first).
 **The dynamic anomalies (#225), taken out again (2026-10-23).** #225's
 block `anomalies.code` (`dynamic_anomalies_026g.asm`, 0x337 bytes, after
 `engine.code`) was the first block added this way. The owner took patch 42
-out of revision 31 (`dynamic_anomalies.md`): its row, its two hooks and
+out of revision 31: its row, its two hooks and
 INSTALLS rows and check 42 are gone, and `link_026g.py --write` moved
 `match_keys.code` and `match_keys.state` down one page (0xA434000 and
 0xA435000 before); no other block moved. The code stays on the branch

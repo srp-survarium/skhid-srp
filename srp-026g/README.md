@@ -67,7 +67,6 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `docs/SRP-026G.md` | The server: its parts, how a player gets into a match, every setting, the web page and the admin, what is implemented |
 | `docs/MATCH-SYNC-026G.md` | How a match stays in step: uploads, hash phases, resync |
 | `docs/CLIENT-FACTS-026G.md` | Proven facts about the 0.26g client, with addresses |
-| `docs/OPEN-ISSUES.md` | What is unverified, broken or not done |
 | `docs/DEPLOY.md` | Hosting in Docker: the files, the ports, the settings, updating |
 | `docs/notes/` | The protocol and client research, message by message (`README.md` first) |
 | `client-patches/` | The patch tools for the original exe, the login certificate, and what each patch does |
@@ -76,5 +75,4 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `crates/survarium/src/v026g/`, `crates/session/src/v026g/` | Game data and wire formats; the account, the rules, the rewards |
 | `servers/*/src/v026g*` | The 0.26g login server, lobby, match server and web page; `servers/srp` joins them |
 | `crates/resources-db`, `resources/game-026g/` | The players' `resources.db` and the server's game data of a release (`srp-game-data`), read at start; the test copy of it |
-| `scripts/packet-coverage/` | Which messages the tests cover |
 | `certs/` | The login server's certificate and key |

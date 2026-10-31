@@ -61,7 +61,6 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
     Kills, help and the fixed payment are not cut by the objective rule;
   - these counters are evidence of repeated objectives, not proof of collusion. Objective-only
     legitimate play can still cross the allowance, while coordinated combat can raise it.
-    Historical audit details and limits: `farm_cap_audit.md`.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred right under them, as in rev 30;
   the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
   following its position every frame, so the indicator's centring never counts them) (letter,

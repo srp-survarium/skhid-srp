@@ -67,8 +67,8 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 ## Limits
 
 - The exe is 32-bit, large-address-aware; its arenas reserve about 1835 MiB. Map loading
-  ran out of the 376 MiB multithreaded arena before `-mt_allocator=768`
-  (`docs/notes/upstream_compare.md`); the "ai" arena story is `client_patch.md` §3.34.
+  ran out of the 376 MiB multithreaded arena before `-mt_allocator=768`;
+  the "ai" arena story is `client_patch.md` §3.34.
 - Static render geometry is the hard budget: the vertex pool holds 88 MB; beyond it the
   client logs "No enough memory in vertices pool" and draws holes. Native maps load
   43-48 MiB; Rudnya (v0.69) is 35.6 MiB (TDM), 40.9 MiB (charging stations).
