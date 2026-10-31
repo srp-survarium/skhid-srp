@@ -1471,6 +1471,28 @@ pub enum LegsWhy {
     Stand,
 }
 
+/// Why the side step is or is not held in an aimed fight, in ticks (the `gun_shots` topic's `strafe`, register #24); nothing
+/// decides by them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StrafeStats {
+    /// Ticks aimed in on a target.
+    pub ticks: u32,
+    /// The side step is on a run (a side key held by it).
+    pub running: u32,
+    /// Between two runs (`strafe_still_chance`) with the step free to go.
+    pub stopped: u32,
+    /// This target was drawn not to be strafed at (`FireTuning::strafe_chance`: a bolt or marksman rifle).
+    pub not_for_target: u32,
+    /// The bolt action stands still for its shot.
+    pub bolt_holds: u32,
+    /// The legs are the reflex's own or run, and `strafe_walking` does not weave there.
+    pub legs_no_weave: u32,
+    /// The step away from a teammate in the line of fire.
+    pub friend_away: u32,
+    /// The gait was [`Gait::StandStrafe`].
+    pub stand: u32,
+}
+
 /// How the legs go while the bot fights (`CombatTuning::stand_strafe`). One state, not a flag: what the legs do in a fight is
 /// either the play's way or the stand-and-strafe, and the transition is total over the tick's one fact.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -2742,6 +2764,7 @@ pub struct Reflex {
     range_step: Option<Vec3>,
     /// How the legs go in a fight (`stand_strafe`).
     gait: Gait,
+    strafe_stats: StrafeStats,
     /// Which side of the line the last range step went to (`band_cross_deg`): the next new step takes the other.
     range_right: bool,
     spot_pending: Option<Place>,
@@ -5542,6 +5565,11 @@ impl Reflex {
         self.strafe
     }
 
+    /// The side step's reasons so far ([`StrafeStats`]).
+    pub fn strafe_stats(&self) -> StrafeStats {
+        self.strafe_stats
+    }
+
     /// The legs the reflex takes this tick, if any.
     fn legs(&mut self, now: u32) -> Option<Legs> {
         if self.push.is_some_and(|p| now >= p.until) {
@@ -6218,6 +6246,25 @@ impl Reflex {
             strafe = friend.away;
         }
         let strafe_away = friend.is_some_and(|friend| !running && friend.away != 0);
+        if aimed_in {
+            let can_step = stand || legs.is_none() || (c.strafe_walking && !running);
+            let st = &mut self.strafe_stats;
+            st.ticks += 1;
+            st.stand += u32::from(stand);
+            if friend.is_some() && !running {
+                st.friend_away += 1;
+            } else if !self.strafe_fire {
+                st.not_for_target += 1;
+            } else if aiming_the_shot {
+                st.bolt_holds += 1;
+            } else if !can_step {
+                st.legs_no_weave += 1;
+            } else if strafe != 0 {
+                st.running += 1;
+            } else {
+                st.stopped += 1;
+            }
+        }
         Override {
             look_at: Some(point),
             error,

@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 use crate::v026g::bots::plays::PlayKind;
-use crate::v026g::bots::reflex::LegsWhy;
+use crate::v026g::bots::reflex::{LegsWhy, StrafeStats};
 use crate::v026g::bots::tests::tallies::fight_tally::stance;
 
 /// The live humans' distance bands, metres (upper edges; the last takes the rest): 0-20, 20-40, 40-65, 65-80, 80-105, 105+.
@@ -160,6 +160,8 @@ pub(super) struct GunShots {
     still: Vec<u32>,
     /// What drives each bot this tick ([`Driver`]), read in [`Topic::read`].
     driver: Vec<Option<Driver>>,
+    /// Each bot's side-step reasons so far (cumulative; the latest read), summed by team in the parts.
+    strafe: Vec<Option<StrafeStats>>,
     /// Since when (game ms) each body's aim key has been held unbroken, and its view has been on an enemy unbroken; whether
     /// its fire key was down the tick before.
     aim_since: Vec<Option<u32>>,
@@ -198,6 +200,7 @@ impl GunShots {
             on_since: vec![None; n],
             was_firing: vec![false; n],
             driver: vec![None; n],
+            strafe: vec![None; n],
         }
     }
 
@@ -217,6 +220,9 @@ impl Topic for GunShots {
     }
 
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(bot) = bot {
+            self.strafe[place] = Some(bot.reflex.strafe_stats());
+        }
         self.driver[place] = bot.map(|bot| Driver {
             legs: bot.bench_legs_why,
             play: bot.assignment.as_ref().map(|a| a.kind),
@@ -360,12 +366,30 @@ impl Topic for GunShots {
         }
     }
 
-    fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         for place in 0..self.open.len() {
             self.close(place);
         }
         let mut json = serde_json::Map::new();
         let mut lines = Vec::new();
+        // The side step's reasons in aimed fights, by team (register #24).
+        let mut by_team = [StrafeStats::default(); 2];
+        for (place, stats) in self.strafe.iter().enumerate() {
+            let (Some(s), Some(body)) = (stats, game.bodies.get(place)) else { continue };
+            let t = &mut by_team[usize::from(body.team != 0)];
+            t.ticks += s.ticks;
+            t.running += s.running;
+            t.stopped += s.stopped;
+            t.not_for_target += s.not_for_target;
+            t.bolt_holds += s.bolt_holds;
+            t.legs_no_weave += s.legs_no_weave;
+            t.friend_away += s.friend_away;
+            t.stand += s.stand;
+        }
+        json.insert(
+            "strafe_by_team".to_owned(),
+            serde_json::json!(by_team.iter().map(|t| [t.ticks, t.running, t.stopped, t.not_for_target, t.bolt_holds, t.legs_no_weave, t.friend_away, t.stand]).collect::<Vec<_>>()),
+        );
         for (key, a) in &self.groups {
             if a.shots_all == 0 {
                 continue;
