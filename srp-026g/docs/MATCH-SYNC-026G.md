@@ -22,8 +22,7 @@ How a 0.26g match stays in step. Byte-level detail:
 `srp-026g/docs/notes/match.md` (§1 messages, §2 handshake, §3
 snapshot and hash, §4 time, §5 input rules, §13 the server, §14 hash
 phases), `client_patch.md`, `snapshot_rules.md`, `transport.md`. Client
-facts in short: CLIENT-FACTS-026G.md. The server: SRP-026G.md. The work
-order: PLAN-026G.md (step 5 the patch, step 6 matches).
+facts in short: CLIENT-FACTS-026G.md. The server: SRP-026G.md.
 
 Tags are the notes': **PROVEN** (read in the exe at the address given),
 **LIKELY**, **GUESS**. A client fact with no tag is PROVEN in its note.

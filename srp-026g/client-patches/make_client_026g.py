@@ -54,7 +54,7 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         (-mt_allocator: the global multithreaded arena, 376 MiB by
         default, which map loading ran out of in upstream's live runs;
         -minimum_resources_memory_size: the resources arenas' floor.
-        Two different arenas: docs/notes/README.md.)
+        Two different arenas: docs/SRP-026G.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/play_skhid.sh

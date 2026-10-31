@@ -40,7 +40,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 **The third kit is not premium's in srp** (the owner's choice, 2026-10-17): every account uses all three kits, premium or not, and no kit is sent with the client's premium state 2 (`Account::kit_usable`; lobby.md §2.5). The client locks a kit only by that state (`ProfileSelector.setupProfiles`, `LobbyMenu.onProfileContextMenu`: the buy-premium box opens for a state-2 tab), not by the account's premium. The original game's third kit was premium's (PN 0.26g, `progression_sources.md`). Premium's other benefits are unchanged. OPEN: the client's premium windows (`MessagePremium`, `MessagePremiumDiscount`) still list `st_premium_bonus_profile` ("Профиль экипировки", an equipment profile) among premium's bonuses; that text is the game's localization in `resources.db`, which a server change does not reach.
 
-**Gold has no real-money source in srp**: level rewards, a new account's 500 (`no-tutorial.md`), the daily bonus (50 a week), drops, the operator's web page.
+**Gold has no real-money source in srp**: level rewards, a new account's 150 (`no-tutorial.md`), the daily bonus (50 a week), drops, the operator's web page.
 
 ## 2. Buying: requests and answers
 
@@ -105,12 +105,8 @@ The tutorial is a state machine in the exe (state objects 0x2A4240..0x2A5320; ea
 
 **Why no weapon could be dragged (PROVEN).** `inventory_content_filled` is in the handler table but **nothing in the lobby SWF calls it**: the exe raises it itself at the end of `setup_inventory_data` (0x288520 @0x2886F5), which runs when an `89` is read (0x274C45 -> 0x21D720, case 0x89 -> 0x21D822). The callback 0x283470 then calls `root.highlight_inventory_items([0x6A, 0x6B])` (0x22A840): the PPSh-41 (dict 106) and the Mosin carbine (dict 107), found by dict id (`InventoryList.filterItems`, `getItemRenderer`), filtered into the list and raised above the sheet. **So after `46 0A` the client waits for an `89`.** srp answered `49 02` with `83` and `46 0A` with nothing (packet log of the session: `49 02` + `46 0A` in, `83` out, then only keep-alives until `4B 02`): the two weapons stayed under the sheet, with every other handler off. The items themselves were right (dict 106 and 107 owned, not locked: `InventoryItem.handleDragEnabling` needs only `descriptor` != 200 / 300, `repairTime` 0).
 
-**[srp] `46 0A` is answered with the inventory, the account and the money (`89`, `87`, `8B`)**; an account still in the tutorial that lacks one of the two weapons gets it first (the highlight needs both: `highlight_element(null)` for a missing one is a script error, LIKELY ending the call). What the original server did at `46 0A` is not in the client; LIKELY it handed the two weapons over there (the twin state "no check" hints that `46 0A` is a check or a grant). srp's new account owns them from the start. The strict model has the rule: `survarium::v026g::lobby::tutorial_model` (held by `client_model::Client`): nothing can be dragged in `choose_wpn` until an `89` with both weapons came.
-
-**Not seen live yet, read from the exe only:**
-- The tutorial's text says "drag ... into the empty weapon slot" and the slot it highlights is weapon slot 1 (slot 7). **srp's starter kit has the TT-33 there** (`loadouts::STARTER`), weapon slot 2 is the empty one and stays under the sheet. Dropping on slot 7 replaces the pistol (`rules::move_items` takes it). LIKELY the original new account had the TT-33 in weapon slot 2 (slot 10) and slot 7 empty; srp's kit was not changed (owner's decision: it is also what the match and autobuy were tested with).
-- `relocate_item` (0x288D60) adds the ammo moves itself when a weapon is put on (0x289DD0..0x28A1E6: the first owned stacks that pair with the kit's weapons, `count = bags / required_bags x clip_size`, into slots 8 and 9). `choose_ammo` then reads the stack of **slot 8 without a check** (0x2A4AA2: index 0xFFFF for an empty slot, read 0xB4 x 0xFFFF past the item table): if slot 8 were empty there the client would LIKELY crash. With srp's kit slot 8 holds the 7.62x25 before the step, and a Mosin's own ammo is owned.
-- The `46 00` of `choose_ammo` asks for 1000 rounds in all; srp tops the free starting ammo up to that for nothing (`rules::move_items`, `top_up`).
+**Read from the exe only:**
+- `relocate_item` (0x288D60) adds the ammo moves itself when a weapon is put on (0x289DD0..0x28A1E6: the first owned stacks that pair with the kit's weapons, `count = bags / required_bags x clip_size`, into slots 8 and 9). `choose_ammo` then reads the stack of **slot 8 without a check** (0x2A4AA2: index 0xFFFF for an empty slot, read 0xB4 x 0xFFFF past the item table): if slot 8 were empty there the client would LIKELY crash.
 
 ### 5.2 "Skip tutorial" (`skip_tutorial` 0x28CCB0 -> 0x281660)
 
@@ -138,7 +134,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 ## 9. Open
 
-- Everything above against a live client. The tutorial: its steps after "choose a weapon" (§5.1), and whether the starter kit should leave weapon slot 1 empty for it.
+- Everything above against a live client.
 - The original prices, the discount label's item fields, when `A8` / `A9` were sent.
 - `9D`'s `b`; bits 0 and 5 of `a`.
 - `42 00 <drop>` is not answered, on purpose: the client sends it only after a chat line srp never sends, and nothing waits for the answer (results.md §5.3).

@@ -20,7 +20,7 @@ Addresses are virtual addresses in `survarium.exe` 0.26g (image base
 code or data at the address given), **LIKELY**, **GUESS**. A line with no tag
 is PROVEN in its note. Detail: `srp-026g/docs/notes/` (start with
 its `README.md`); "lobby.md §3" below points there. The server: SRP-026G.md.
-The work order: PLAN-026G.md. Matches: MATCH-SYNC-026G.md.
+Matches: MATCH-SYNC-026G.md.
 
 ## The exe and how its functions were named
 
@@ -76,9 +76,9 @@ How names were found:
 | Option | What it does | Tag | Note |
 |---|---|---|---|
 | `-server=host:port` | login server | PROVEN | login_chat.md §1 |
-| `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | PLAN-026G.md step 0 |
-| `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | notes README.md, login_chat.md §5.6 |
-| `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | PLAN-026G.md step 0 |
+| `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | |
+| `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | login_chat.md §5.6 |
+| `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | |
 | `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768 | **not in the shortcut yet**; in `make_client_026g.py` and the web page | `upstream_compare.md` §10 |
 | `-account_name=`, `-account_password=` | fill in the login (key objects 0xAA4910, 0xAA4B40) | PROVEN; that the launcher passes them LIKELY | login_chat.md §1 |
 | `-spectator` | "connect as spectator" | PROVEN it exists | login_chat.md §1 |
@@ -92,7 +92,7 @@ How names were found:
 | `qos`, `match_bandwidth_in_kbits` | Windows qWAVE on the client's own socket; nothing on the wire | LIKELY client-only | transport.md §8 |
 
 The window: 0.26g shares `Documents\survarium\user.cfg` with 0.21d and needs
-the `HIGHDPIAWARE` compatibility flag (PLAN-026G.md step 0).
+the `HIGHDPIAWARE` compatibility flag.
 
 ## Login (`login_chat.md` §3, §4)
 

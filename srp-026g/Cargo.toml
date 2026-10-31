@@ -19,9 +19,6 @@ members = [
   "servers/web-server",
 
   "scripts/binary-config-cli",      # Parser for binary config files
-  "scripts/build-engine-structure", # IDA helper for buidling directory structure based on C++ namespaces
-  "scripts/nasm-decompiler",        # Patcher for `survarium.exe`
-  "scripts/parse-journal-file",     # Parser for .journal files available in ~0.20 versions
 ]
 exclude = []
 resolver = "3"
@@ -41,7 +38,6 @@ bytemuck = { version = "1.23.1", features = ["derive", "min_const_generics"] }
 clap = { version = "4.5.41", features = ["derive", "env"] }
 crc32fast = "1.4.2"
 encoding_rs = "0.8.35"
-iced-x86 = "1.21.0"
 # The replay conversion thread's lowest priority on Linux (`setpriority`).
 libc = "0.2"
 # The world snapshot 0xE8 goes out as real LZMA2 (`survarium::v026g::lzma2`).

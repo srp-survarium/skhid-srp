@@ -17,8 +17,7 @@
 > bot: "Run locally" below.
 
 `srp-026g` began as a copy of `srp-021d`; the 0.26g code was added beside the
-0.21d code. The work order is
-PLAN-026G.md; the client facts are in CLIENT-FACTS-026G.md; how a match
+0.21d code. The client facts are in CLIENT-FACTS-026G.md; how a match
 stays in step is in MATCH-SYNC-026G.md; the research is in
 `srp-026g/docs/notes/` (start with its `README.md`).
 
@@ -139,8 +138,9 @@ limits, and the modification, craft, reroll, drop, quest, skill, award and
 test-profile files (`tables.rs` checks them against each other). So it
 cannot know an item, a map, or a value of one, the players' game does not.
 What the game's files do not say stays in code: the shop's exceptions
-(`prices.rs`), the bundles, and the maps offered against bots (`pvb.rs`
-`MAPS`, the maps the bots' map files exist for).
+(`prices.rs`), the bundles, a new account's gear (`tutorial.rs`), and the
+maps offered against bots (`pvb.rs` `MAPS`, the maps the bots' map files
+exist for).
 
 | Variable | Default | What |
 |---|---|---|
@@ -533,8 +533,7 @@ file and the shortcuts use, and maps load with them (live since 2026-10-12).
 Start the game from its `game\binaries\x86` folder (the client finds its
 login certificate by a path relative to the working directory). The game
 folder needs the patched exe and srp's certificate
-(`client-patches/README.md`). What to watch in a first session, step by
-step: `srp-026g/docs/notes/README.md`. For a quick first match:
+(`client-patches/README.md`). For a quick first match:
 `SRP_MATCH_GATHER_SECONDS=5 SRP_MATCH_MAPS=117 SRP_PACKET_LOG=logs/packets`.
 
 ### A match alone: the test bot (added 2026-10-12)
