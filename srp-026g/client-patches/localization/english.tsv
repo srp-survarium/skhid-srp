@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Hide player scores
 st_srp_hud_add_friend	Add to friends
 st_srp_hud_friend_not_sent	Friend request not sent
 st_srp_hud_friend_sent	Friend request sent
+st_srp_hud_mute_hide	Hide chat
+st_srp_hud_mute_mask	Show chat as <muted>
+st_srp_hud_mute_not_sent	Not sent
+st_srp_hud_muted	Chat muted
+st_srp_hud_unmute	Unmute chat
+st_srp_hud_unmuted	Chat unmuted
 st_srp_inventory_search	Search
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.

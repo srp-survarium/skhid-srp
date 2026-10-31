@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Ukryj wyniki graczy
 st_srp_hud_add_friend	Dodaj do znajomych
 st_srp_hud_friend_not_sent	Zaproszenie do znajomych nie zostało wysłane
 st_srp_hud_friend_sent	Zaproszenie do znajomych wysłane
+st_srp_hud_mute_hide	Ukryj czat
+st_srp_hud_mute_mask	Pokaż czat jako <muted>
+st_srp_hud_mute_not_sent	Nie wysłano
+st_srp_hud_muted	Czat wyciszony
+st_srp_hud_unmute	Włącz czat
+st_srp_hud_unmuted	Czat włączony
 st_srp_inventory_search	Szukaj
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.

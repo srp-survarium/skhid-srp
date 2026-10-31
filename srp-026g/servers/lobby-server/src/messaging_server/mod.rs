@@ -471,7 +471,9 @@ fn friendship_reply(
         });
         if let Some(target) = target.filter(|target| accepted && !account.ignored.contains(target))
         {
-            account.ignored.push(target);
+            account
+                .ignored
+                .set(target, Some(session::chat_mutes::ChatMuteMode::Hidden));
             store.mark_dirty(account_id);
         }
         ServerMessage::FriendshipResult { action, accepted }
@@ -494,7 +496,7 @@ fn friendship_reply(
             ignore(account_named(store, name, account_id))
         }
         FriendshipRequest::RemoveIgnored { account_id: target } => {
-            account.locked().ignored.retain(|id| id != target);
+            account.locked().ignored.set(*target, None);
             store.mark_dirty(account_id);
             ServerMessage::FriendshipResult {
                 action,
@@ -517,7 +519,7 @@ fn friendship_reply(
             ServerMessage::FriendList(listed(&friends))
         }
         FriendshipRequest::QueryIgnoreList => {
-            let ignored = account.locked().ignored.clone();
+            let ignored: Vec<u32> = account.locked().ignored.iter().copied().collect();
             ServerMessage::IgnoreList(listed(&ignored))
         }
         FriendshipRequest::UpdateFriendsStatus => {
@@ -1464,6 +1466,16 @@ mod tests {
             }],
             &[a],
         );
-        assert_eq!(store.account(a).unwrap().locked().ignored, [b]);
+        assert_eq!(
+            store
+                .account(a)
+                .unwrap()
+                .locked()
+                .ignored
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [b]
+        );
     }
 }

@@ -265,7 +265,10 @@ survarium::lobby_client	name	0x1E55D0	u8	the account's name, a C string (the lob
 survarium::lobby_client	messaging	0x1E56C4	obj<survarium::messaging_client>	the messaging client (constructed at 0x26F149..0x26F151; the network client's vtable +44h, 0x21BD80, gives it: +1E58A4h = +1E0h + 1E56C4h)
 survarium::messaging_client	friends_begin	0xC	ptr<survarium::listed_account>	the friend list's first element (A3 07's reader 0x26C540 fills the vector at +0Ch; update_friends_status 0x26C4FF reads +0Ch begin, +10h end)
 survarium::messaging_client	friends_end	0x10	ptr<survarium::listed_account>	the friend list's end (0x26C4FF)
+survarium::messaging_client	ignored_begin	0x1C	ptr<survarium::listed_account>	the ignore list's first element (A3 08's reader 0x26C620 fills the vector at +1Ch; lobby_menu::set_ignored_list 0x28B910 reads +1Ch begin, +20h end)
+survarium::messaging_client	ignored_end	0x20	ptr<survarium::listed_account>	the ignore list's end (0x28B95E)
 survarium::listed_account	size	0x5C	size	a friend, ignored or found player's record: 5Ch bytes (0x26C54E, the lookup's add ecx,5Ch at 0x26C03B)
+survarium::listed_account	id	0x4	u32	its account id as the lobby sent it (A3 08's reader at 0x26C683; srp marks a `<muted>` player's with bit 31, chat-mute.md)
 survarium::listed_account	name	0x8	u8	its name, 64 bytes with its zero (social.md 1.3: +4 the account id, +8 the name)
 survarium::hud_callback_frame	method	0x8	ptr<u8>	the hud movie's ExternalInterface call at game_world_ui::scaleform_callback's start (0x233D30, by the site's ESP): the method's name, a C string
 survarium::hud_callback_frame	arguments	0xC	ptr<scaleform::gfx_value>	its GFx arguments (24 bytes each; profile_changed reads the first's +8, 0x233F16)

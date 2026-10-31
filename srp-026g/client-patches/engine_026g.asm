@@ -78,6 +78,7 @@ global engine_release_model
 global engine_explosion_reach
 global engine_show_cursor
 global engine_send_important
+global engine_comment_about_user
 global engine_close_current_match
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
@@ -1067,6 +1068,24 @@ engine_send_important:
     push dword [esp + 28]   ; messaging -> 4
     mov edx, [esp + 44]   ; text
     call 0x26afb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_comment_about_user:
+    ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; mode -> 16
+    push dword [esp + 32]   ; kind -> 12
+    push dword [esp + 32]   ; nickname -> 8
+    push dword [esp + 32]   ; lobby_client -> 4
+    call 0x274470
     pop edi
     pop esi
     pop ebx

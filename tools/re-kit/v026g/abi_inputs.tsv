@@ -4860,3 +4860,9 @@ va	name	location	role	basis
 0x003b82f0	vostok::input::input_world::create_devices	EDI	the input world: +20h the gamepad (0x3B8790), +24h the platform keyboard (0x91Ch bytes, its ctor 0x3B8BC0 writes the vtable 0xA25478 at 0x3B8BDC), +28h the mouse (0x3B94F0); the input world's vtable 0xA252D4 +24h is 0x79E40 (mov eax,[ecx+24h] / ret), the keyboard on_keyboard_action (0x25CD13) and render_name (0x1F2DC2) ask	observed
 0x00239420	survarium::game_world_ui::update_minimap_players	[esp+20h], [esp+1Ch]	the loop's place 0..13h (a u32 and its byte, both incremented at 0x23998A): each object's player_id is the place (0x2395AC), the same place initialize_match gives the hud's list rows as `id`, so a map icon and a Tab list row are matched by it	observed
 0x00234880	survarium::game_world_ui::initialize_match	EBX at 0x234FE4, [esp+190h] at 0x2350E0	root.list_set_players' rows: `id` (an int, type 3) the place ([esp+17h], 0x234EDB), `team` 1 ally / 2 enemy of the local player (0x23500E: setne + 1), `name` the place's profile name (+8 of the 45FCh-byte entry) as "[%s] %s" (0x9FB140) with its clan tag (+48h) when it has one, else the name alone, cut to 4Eh bytes	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	ECX	lobby_menu receiver	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	entry ESP+4	Flash callback params; +8 points to 24-byte values: nickname, kind, mode	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+4	lobby_client pointer; link at +8	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed
