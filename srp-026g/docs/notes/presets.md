@@ -164,7 +164,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   rows; the active row as the rooms list's selected room (gold-tinted, a gold bar at its left,
   white text); hover and press lighten a row and the title alike (`LocalPlayerProfile`'s
   `ROW_H`). A press on a row chooses it (one press to open, one to choose); a
-  press outside or Esc closes the list with no change. No step arrows: each step would choose a
+  press outside, Esc or a window opening closes the list with no change (a transient window:
+  `transient-windows.md`). No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
   is "Character"; while the kits are locked (a search, a match) it takes no press.
   - The movie asks for the list at its setup, on every account push, and every 2 s until the

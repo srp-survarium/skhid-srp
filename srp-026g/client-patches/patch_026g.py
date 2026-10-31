@@ -1190,7 +1190,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
 RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score",
-                "lamps", "map_names", "tab_cursor", "lobby_scene", "weapon_flight", "camera_sweep")
+                "lamps", "map_names", "hud_options", "tab_cursor", "lobby_scene", "weapon_flight", "camera_sweep")
 
 
 def rust_hooks(original):

@@ -32,7 +32,8 @@
 use core::ffi::CStr;
 
 use crate::vostok::clock;
-use crate::vostok::language::{ConsoleString, save_user_config};
+use crate::vostok::language::ConsoleString;
+use crate::vostok::settings::save_user_config;
 use crate::vostok::lobby_menu::{DrawnLobby, HiddenLobby, Picks, SceneQuery, ScenesReady, Shade, SquadId, SquadRead};
 use crate::vostok::lobby_camera::LobbyCamera;
 use crate::vostok::log::{self, Piece::Text};

@@ -315,6 +315,9 @@ survarium::lobby_client	squad_commander	0x1EAAA9	u8	0xA1's commander index: the 
 survarium::lobby_client	i_am_commander	0x1EAAAC	u8	0xA1's i_am_commander (0x2748AB; 0 first, 0x2747C3)
 survarium::image	postprocess	0xAC914C	obj<vostok::render::postprocess_flags>	stage_postprocess's byte flag of the eye adaptation (compute_per_pixel_eye_adaptated_luminance 0x1B14A6), 1 in the image
 vostok::render::postprocess_flags	reset_eye_adaptation	0x0	u8	1: the next frame's eye adaptation takes the frame's own luminance (t_current) as the last one's (t_previous_luminance, 0x1B14B2), so it is at once where it settles; the render thread clears it (0x1B14F2); nothing else of the game writes it (the first frame's)
+vostok::console_commands::cc_bool	size	0x48	size	a cc_bool console variable's object (cc_value<bool>::cc_value 0x1DDB0: +0Ch the list's next, +10h the name, +14h the kind, +1Dh saved, +40h the value's address; the hud's show_quests_progress 0x2339C9)
+vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, written after cc_value<bool>::cc_value (which leaves its base's), as the hud's show_quests_progress does (0x2339E8) and patch 58's variable
+vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
 survarium::game_world_key_frame	key	0x8	u32	game_world::on_keyboard_action's second argument at its start (0x25CD00, by the site's ESP): the DirectInput key (0Fh Tab, 1Dh/9Dh the Ctrl keys)
 survarium::game_world_key_frame	state	0xC	u32	its third: the key's kind, 1 down, 2 up, 3 held (as keyboard_action_frame's state; match_keys_026g.asm)
 survarium::game_world_input	ui	0x4	obj<survarium::game_world_ui>	the hud inside the game world's input handler (game_world+1F8h, on_keyboard_action's ECX): its +4 (lea esi,[edi+4] at 0x25CD30, show_player_list's ESI)

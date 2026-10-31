@@ -12,7 +12,7 @@ configs.start with it, a chain).
 
 - on_configs_loaded's start: `srp_lobby`, a saved string of 4 bytes,
   registered once with the game's own cc_string::cc_string, after patch 79's
-  `localization`; the game's cc_string::execute sets it from a user.cfg line;
+  `localization` and patch 83's settings; the game's cc_string::execute sets it from a user.cfg line;
 - a whole user.cfg through the console's own load (console_commands::load
   0xEBF00, as load_cc_script gives it user.cfg: 1, 2), run.py's file (LF,
   `r_resolution 1280x720` last) and the game's (CRLF) with the faction's
@@ -353,15 +353,15 @@ def main():
     stock, ours = Run(original), Run(patched)
     expect = lambda ok, text: print("ok", text) if ok else sys.exit("FAIL " + text)
 
-    # on_configs_loaded's start: the variable, once, after patch 79's
+    # on_configs_loaded's start: the variable, once, after patch 79's and patch 83's
     head_before = ours.read(language.LIST_HEAD)
     _, _, head = ours.start()
     variable = language.console_variable(ours, head)
-    localization = language.console_variable(ours, ours.read(head + 0x0C))
+    names = [ours.text(ours.read(node + 0x10)).decode() for node in language.registered(ours, head, head_before)]
     expect(variable[0] == "srp_lobby" and variable[2] == 4 and variable[3] == 1
-           and localization[0] == "localization" and ours.read(ours.read(head + 0x0C) + 0x0C) == head_before,
-           "configs.start: `srp_lobby`, a saved string of 4 bytes, at the head of the console's list, "
-           "after patch 79's `localization` (the site's chain)")
+           and names[0] == "srp_lobby" and names[-1] == "localization" and names.count("srp_lobby") == 1,
+           f"configs.start: `srp_lobby`, a saved string of 4 bytes, at the head of the console's list, "
+           f"after patch 79's `localization` and patch 83's (the site's chain: {', '.join(names)})")
     _, _, again = ours.start()
     expect(again == head, "configs.start again: registered once")
     buffer = variable[1]

@@ -84,7 +84,7 @@ unsafe extern "C" {
     /// 0x263950 survarium::lobby_character::accept_decal_edit: character ESI, host ESP+4, decal ESP+8; pops 8
     pub fn engine_accept_decal_edit(character: *mut c_void, host: u32, decal: u32);
     /// 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
-    pub fn engine_cc_bool(object: *mut c_void, name: *const u8, value: *mut u8, saved: u32, kind: u32);
+    pub fn engine_cc_bool(object: Option<CcBool>, name: *const u8, value: *mut u8, saved: u32, kind: u32);
     /// 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
     pub fn engine_binded_action(binder: *const c_void, kinds: u32, key: u32, toggle: *mut u32) -> u32;
     /// 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
@@ -5506,6 +5506,73 @@ impl PostprocessFlags {
     }
 }
 
+/// A vostok::console_commands::cc_bool (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CcBool(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CcBool {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: CC_BOOL_VTABLE, written after cc_value<bool>::cc_value (which leaves its base's), as the hud's show_quests_progress does (0x2339E8) and patch 58's variable
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x48 bytes: a cc_bool console variable's object (cc_value<bool>::cc_value 0x1DDB0: +0Ch the list's next, +10h the name, +14h the kind, +1Dh saved, +40h the value's address; the hud's show_quests_progress 0x2339C9)
+    pub const SIZE: usize = 0x48;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::console_commands::cc_bools (0x48 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CcBoolStorage([u8; 0x48]);
+
+#[allow(dead_code)]
+impl CcBoolStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x48])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CcBool {
+        CcBool(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CcBool> {
+        (!rooms.is_empty()).then(|| CcBool(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A survarium::game_world_key_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -6221,6 +6288,9 @@ pub mod image {
         // SAFETY: an image VA, not 0.
         PostprocessFlags(unsafe { NonNull::new_unchecked(0xac914c as *mut c_void) })
     }
+
+    /// 0x9e7c4c (u32, vostok::console_commands::image): cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
+    pub const CC_BOOL_VTABLE: u32 = 0x9e7c4c;
 
     /// 0xa25478 (u32, survarium::image): vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
     pub const KEYBOARD_VTABLE: u32 = 0xa25478;

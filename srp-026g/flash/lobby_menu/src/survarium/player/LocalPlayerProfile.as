@@ -20,12 +20,13 @@ package survarium.player
    import scaleform.clik.controls.Button;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
+   import scaleform.clik.events.ComponentEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.motion.Tween;
    import survarium.Util;
    import survarium.controls.Message;
-   import survarium.controls.Modals;
+   import survarium.controls.Transient;
    import survarium.controls.PlayerProfileBase;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -1028,6 +1029,7 @@ package survarium.player
          // itself (scaleform-movie-pitfalls) is found by its point.
          addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
          addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
+         addEventListener(ComponentEvent.HIDE,this.onPresetsGone);
          this.showPresetTitle();
          this._presetsRetry = new Timer(2000,0);
          this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
@@ -1202,8 +1204,7 @@ package survarium.player
          this.drawPresetTitle();
       }
       
-      // A press on the title opens or closes the list. A press on a row the
-      // list missed (given to the panel) chooses that row.
+      // A press on the title opens or closes the list.
       private function onPanelPress(e:MouseEvent) : void
       {
          if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
@@ -1220,17 +1221,12 @@ package survarium.player
             {
                this.openPresetList();
             }
-            return;
          }
-         if(e.target != this || this._presetList == null)
-         {
-            return;
-         }
-         this.choosePresetAt(e.stageX,e.stageY);
       }
       
-      // The row under a stage point chosen (a press given to the panel or
-      // the list itself: scaleform-movie-pitfalls).
+      // The row under a stage point chosen (a press given to the list itself:
+      // scaleform-movie-pitfalls; one given to the transient layer's holder comes
+      // to the list too, Transient.onHolderPress).
       private function choosePresetAt(stageX:Number, stageY:Number) : void
       {
          var i:int = 0;
@@ -1291,14 +1287,10 @@ package survarium.player
          this._presetList = list;
          this.fillPresetRows();
          addChild(list);
-         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
-         addEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
-         // a modal (Modals): Esc closes the list with no change
-         Modals.open(list,Modals.LOBBY,this.closePresetList,function():Boolean
-         {
-            return _presetList == list && list.stage != null;
-         });
+         // a transient window (Transient, docs/notes/transient-windows.md): a press outside the
+         // list and the title, Esc or a window opening closes it with no change
+         Transient.open(list,this._presetTitle,this.closePresetList);
       }
       
       private function rowText() : TextField
@@ -1436,7 +1428,7 @@ package survarium.player
          }
          var list:Sprite = this._presetList;
          this._presetList = null;
-         Modals.leave(list);
+         Transient.closed(list);
          for each(var row:Sprite in this._presetRows)
          {
             row.removeEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
@@ -1453,47 +1445,10 @@ package survarium.player
          {
             list.parent.removeChild(list);
          }
-         if(stage != null)
-         {
-            stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
-         }
-         removeEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
       }
       
-      // A press outside the title and the list closes it, no choice.
-      private function onStagePress(e:MouseEvent) : void
-      {
-         if(this._presetList == null)
-         {
-            return;
-         }
-         if(this._presetList.hitTestPoint(e.stageX,e.stageY,false) || this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
-         {
-            return;
-         }
-         this.closePresetList();
-      }
-      
-      // The panel hidden (closed, another window) closes the list.
-      private function watchPresetList(e:Event) : void
-      {
-         var at:DisplayObject = this;
-         while(at != null)
-         {
-            if(!at.visible)
-            {
-               this.closePresetList();
-               return;
-            }
-            at = at.parent;
-         }
-         if(stage == null)
-         {
-            this.closePresetList();
-         }
-      }
-      
+      // The panel hidden (another window) or gone closes the list.
       private function onPresetsGone(e:Event) : void
       {
          this._presetHover = false;

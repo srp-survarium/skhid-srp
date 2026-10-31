@@ -1,13 +1,15 @@
 # Patch 79: the game language is a setting, kept in user.cfg
 # (docs/notes/language-option.md). Only the decisions: which sites, and the
 # handlers. The sites are sites_026g.tsv's; the logic is language.rs.
+# configs.start and options.callback are patch 83's sites too: each chain
+# runs this hook first (order 1).
 name = "language"
 patch = 79
 
 [[hook]]
 site = "configs.start"
 handler = "on_configs_start"
-order = 1                           # the site's chain: patch 81's after (lobby_scene.toml)
+order = 1
 
 [[hook]]
 site = "configs.texts"
@@ -16,3 +18,4 @@ handler = "on_configs_texts"
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"
+order = 1

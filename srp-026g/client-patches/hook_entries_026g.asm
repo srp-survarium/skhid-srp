@@ -962,7 +962,7 @@ blackout_on_replay_options_replay:
 
 ; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
 global blackout_on_update_icons
-extern hook_blackout_on_update_icons
+extern hook_blackout_on_update_icons_chain
 blackout_on_update_icons:
     lea esp, [esp - 4]
     pushfd
@@ -980,7 +980,7 @@ blackout_on_update_icons:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_update_icons
+    call hook_blackout_on_update_icons_chain
     mov edx, blackout_on_update_icons_replay
     cmp eax, 0
     je blackout_on_update_icons_go
@@ -1193,6 +1193,87 @@ consumable_activity_on_update_go:
 consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
+
+; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
+global language_on_configs_start
+extern hook_language_on_configs_start_chain
+language_on_configs_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_configs_start_chain
+    mov edx, language_on_configs_start_replay
+    cmp eax, 0
+    je language_on_configs_start_go
+    mov edx, 0x1ea216
+    cmp eax, 1
+    je language_on_configs_start_go
+    ud2
+language_on_configs_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_configs_start_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ea216
+
+; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
+global language_on_options_call
+extern hook_language_on_options_call_chain
+language_on_options_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_options_call_chain
+    mov edx, language_on_options_call_replay
+    cmp eax, 0
+    je language_on_options_call_go
+    mov edx, 0x1ff5d6
+    cmp eax, 1
+    je language_on_options_call_go
+    mov edx, 0x1ff971
+    cmp eax, 2
+    je language_on_options_call_go
+    ud2
+language_on_options_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_options_call_replay:
+    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x1ff5d6
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
@@ -1686,45 +1767,6 @@ lamps_on_explode_replay:
     db 0x81, 0xec, 0xbc, 0x00, 0x00, 0x00
     jmp 0x339636
 
-; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
-global language_on_configs_start
-extern hook_language_on_configs_start_chain
-language_on_configs_start:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_language_on_configs_start_chain
-    mov edx, language_on_configs_start_replay
-    cmp eax, 0
-    je language_on_configs_start_go
-    mov edx, 0x1ea216
-    cmp eax, 1
-    je language_on_configs_start_go
-    ud2
-language_on_configs_start_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-language_on_configs_start_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x1ea216
-
 ; 0x1ea306 on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded: lohook -> language_on_configs_texts
 global language_on_configs_texts
 extern hook_language_on_configs_texts
@@ -1763,48 +1805,6 @@ language_on_configs_texts_go:
 language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
-
-; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
-global language_on_options_call
-extern hook_language_on_options_call
-language_on_options_call:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_language_on_options_call
-    mov edx, language_on_options_call_replay
-    cmp eax, 0
-    je language_on_options_call_go
-    mov edx, 0x1ff5d6
-    cmp eax, 1
-    je language_on_options_call_go
-    mov edx, 0x1ff971
-    cmp eax, 2
-    je language_on_options_call_go
-    ud2
-language_on_options_call_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-language_on_options_call_replay:
-    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
-    jmp 0x1ff5d6
 
 ; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
