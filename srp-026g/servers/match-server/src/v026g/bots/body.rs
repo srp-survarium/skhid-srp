@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, JumpSnap, Kinematics, TICK_S, to_world, wrap};
+use super::kin::{Blend, Edge, JumpSnap, Kinematics, TICK_S, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -562,7 +562,10 @@ fn advance(
         );
         match (grid, at.node) {
             (Some(grid), Some(node)) => {
-                let (mut node, mut feet, mut stopped) = slide(grid, node, at.feet, to);
+                let (mut node, mut feet, mut stopped) = match kin.edge {
+                    Edge::Lattice => slide(grid, node, at.feet, to),
+                    Edge::Client => slide_supported(grid, node, at.feet, to, f32::INFINITY, SUPPORT_M),
+                };
                 if at.time + step * TICK_MS <= at.air_until
                     && feet.distance_xz(to) > 1e-3
                     && let Some(up) = jumped_to(grid, node, feet, to)
@@ -628,18 +631,19 @@ pub fn slide_capped(
 /// support the live players show at lip floors: of 62,000 on-ground samples of Vector Laboratory, those whose nearest floor is a
 /// lip floor stand 0.18-0.32 m past its centre in 20 % of the cases (2.5-2.7 % at floors with no lip near), and the samples
 /// beyond 0.4 m are the drops themselves.
-#[cfg(test)]
 pub const SUPPORT_M: f32 = 0.435;
 
 /// [`slide_capped`] for the stand-in's body at a ledge: a step off a ledge ([`dropped_to`]) is not the fall until the feet are
 /// [`SUPPORT_M`] past the centre of the floor they are held by (that floor or one it walks to). The bots' reckoning and the lip
-/// guard keep [`slide`]: the server's picture of a body falls at the lattice's boundary, the client's body later.
-#[cfg(test)]
+/// guard keep [`slide`] unless [`Edge::Client`] is set: the lattice's picture of a body falls at the cell boundary, the client's
+/// body later. `max_rise` is the step up a walk link (infinite for the reckoning, which climbs the grid's forced stairs); what
+/// counts as a fall is a floor lower than the grid body's step.
 pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, max_rise: f32, support_m: f32) -> (NodeId, Vec3, bool) {
     let half = grid.cell_size() * 0.5;
     let (dx, dz) = (to.x - from.x, to.z - from.z);
     let steps = ((dx.abs().max(dz.abs()) / half).ceil() as usize).max(1);
     let (sx, sz) = (dx / steps as f32, dz / steps as f32);
+    let fall_below = grid.body().step;
     let mut at = from;
     for _ in 0..steps {
         let tries = [(sx, sz), (sx, 0.0), (0.0, sz)];
@@ -652,7 +656,7 @@ pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, 
             // A step down onto a floor lower than a step is a fall, whether the cell is walked to or the drop skips one.
             let walked = floor_under(grid, node, point, max_rise).map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)));
             let fall = match walked {
-                Some((next, _)) if grid.position(next).y >= base - max_rise => return walked,
+                Some((next, _)) if grid.position(next).y >= base - fall_below => return walked,
                 Some((next, _)) => Some((next, grid.position(next))),
                 None => dropped_to(grid, node, at, (mx, mz))
                     .or_else(|| dropped_past(grid, node, point, (mx, mz)))
@@ -666,7 +670,7 @@ pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, 
                     grid.links(node)
                         .filter(|(_, kind)| !kind.is_leap())
                         .map(|(next, _)| next)
-                        .filter(|&next| grid.position(next).y >= base - max_rise && grid.position(next).y - base <= max_rise),
+                        .filter(|&next| grid.position(next).y >= base - fall_below && grid.position(next).y - base <= max_rise),
                 )
                 .map(|n| (n, grid.position(n).distance_xz(point)))
                 .filter(|&(n, d)| d <= support_m && (fall.is_some() || grid.is_lip(n)))
@@ -772,7 +776,6 @@ fn walk_off_drops(grid: &WalkGrid, node: NodeId) -> impl Iterator<Item = NodeId>
 
 /// The drop of `node` a body that has gone past the support of its floors comes down on: `node`'s drop ahead of the step
 /// `(sx, sz)` nearest to `point`. A body held past the edge is further out than [`dropped_to`]'s line reaches.
-#[cfg(test)]
 fn dropped_past(grid: &WalkGrid, node: NodeId, point: Vec3, (sx, sz): (f32, f32)) -> Option<NodeId> {
     let from = grid.position(node);
     walk_off_drops(grid, node)
@@ -1219,6 +1222,45 @@ pub(super) mod tests {
             (node, feet, _) = slide_supported(&grid, node, feet, to, grid.body().step, SUPPORT_M);
         }
         assert!(feet.y > 1.9, "along the edge it stays up: {feet:?}");
+    }
+
+    /// [`Edge::Client`]: the reckoned body walking out over a ledge stays on the top floor until it is [`SUPPORT_M`] past the last
+    /// floor's centre, where [`Edge::Lattice`] has it on the floor below at the cell boundary, 0.125 m past it; both come down.
+    #[test]
+    fn the_reckoned_body_is_held_at_a_ledge_with_the_client_edge_and_falls_at_the_cell_boundary_with_the_lattice() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let last = (0..grid.len() as NodeId)
+            .map(|n| grid.position(n))
+            .filter(|p| p.y > 1.9 && (p.z - 5.0).abs() < 0.2)
+            .map(|p| p.x)
+            .fold(f32::MIN, f32::max);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        // The overhang past the top floor's last centre the tick before the feet are down on the ground floor (None: never).
+        let first_down = |edge: Edge| {
+            let kin = Kinematics { blend_ticks: 1, edge, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
+            let mut before = 8.0;
+            for time in (50..=4_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                let at = track.estimate().unwrap().feet;
+                if at.y < 1.0 {
+                    // Where the feet were the tick before the fall (the fall puts them on the landing).
+                    return Some(before - last);
+                }
+                before = at.x;
+            }
+            None
+        };
+        let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
+        assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
+        assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
     }
 
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of
