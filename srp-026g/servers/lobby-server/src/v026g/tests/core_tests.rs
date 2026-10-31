@@ -1699,9 +1699,11 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
                 member.ready
             ))
             .collect::<Vec<_>>(),
+        // Both free in the lobby (no room, a kit that plays): ready, so that
+        // the commander's Play takes the other along.
         [
-            (alice_id, "Alice", true, false),
-            (bob_id, "Bob", true, false)
+            (alice_id, "Alice", true, true),
+            (bob_id, "Bob", true, true)
         ]
     );
     // Her own entry has her own kit's id; Bob's an id that is none of
@@ -1752,9 +1754,9 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
         Decoded::ChatText { channel: channel::SQUAD, body, .. } if body == "ready?"
     )));
 
-    // Bob's Play makes a room, Alice's goes into it, and Carol's too: the
-    // one open room. When its match
-    // starts the squad is on one team, Carol on the other.
+    // Bob's Play makes a room and takes Alice along (Alice's Play then
+    // finds her in it), and Carol's goes into it too: the one open room.
+    // When its match starts the squad is on one team, Carol on the other.
     for client in [bob, alice, carol] {
         world.ask(client, request::play(1));
     }

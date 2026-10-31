@@ -2460,6 +2460,7 @@ st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
 st_srp_pvb_busy	%1$s (busy)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Your equipment is above the max level.
 st_srp_rooms_code_13	Your kit could not play (no weapon or too little ammo): you were taken out of the room.
 st_srp_rooms_code_14	The loadout could not be chosen.
 st_srp_rooms_code_16	Press Play to enter a public room.
+st_srp_rooms_code_17	Your squad leader chooses the room.
 st_srp_rooms_code_2	That room is gone.
 st_srp_rooms_code_3	Wrong PIN.
 st_srp_rooms_code_4	That room is full.

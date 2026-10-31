@@ -2460,6 +2460,7 @@ st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
 st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
 st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
 st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_17	Den Raum wählt der Anführer deiner Abteilung.
 st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
 st_srp_rooms_code_3	Falsche PIN.
 st_srp_rooms_code_4	Der Raum ist voll.

@@ -2460,6 +2460,7 @@ st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Osztagban
 st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
 st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva
 st_srp_pvb_busy	%1$s (foglalt)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	A felszerelésed meghaladja a szintkorlátot.
 st_srp_rooms_code_13	Az összeállításod nem volt használható (hiányzó fegyver vagy kevés lőszer), ezért kikerültél a szobából.
 st_srp_rooms_code_14	Nem sikerült kiválasztani az összeállítást.
 st_srp_rooms_code_16	Nyomd meg a Játék gombot egy nyilvános szobához.
+st_srp_rooms_code_17	A szobát az osztag vezetője választja.
 st_srp_rooms_code_2	Ez a szoba már nem létezik.
 st_srp_rooms_code_3	Hibás PIN.
 st_srp_rooms_code_4	Ez a szoba megtelt.

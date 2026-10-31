@@ -2460,6 +2460,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
+st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
 st_srp_pvb_busy	%1$s (занято)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Ваше снаряжение выше макс. уровн
 st_srp_rooms_code_13	Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.
 st_srp_rooms_code_14	Не удалось выбрать комплект.
 st_srp_rooms_code_16	Нажмите «Играть», чтобы войти в открытую комнату.
+st_srp_rooms_code_17	Комнату выбирает командир отряда.
 st_srp_rooms_code_2	Этой комнаты больше нет.
 st_srp_rooms_code_3	Неверный PIN.
 st_srp_rooms_code_4	Комната заполнена.

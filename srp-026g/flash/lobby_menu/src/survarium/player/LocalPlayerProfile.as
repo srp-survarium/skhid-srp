@@ -28,6 +28,7 @@ package survarium.player
    import survarium.controls.Message;
    import survarium.controls.Transient;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.interfaces.IAmmoShare;
@@ -807,43 +808,60 @@ package survarium.player
          {"bit":BLOCK_MAINTENANCE,"key":"st_srp_loadout_block_maintenance"}
       ];
       
+      // A squad member that is not its leader (the owner's of 2026-10-31,
+      // squads.md): its Play greyed all the time, and it goes into no room on
+      // its own (Join, Queue, a friend's room, a PIN, a new room); its
+      // leader's take it. The server refuses them too (code 17).
+      public static function squadSoldier() : Boolean
+      {
+         return PlayerInfo.isInSquad && !PlayerInfo.commander;
+      }
+      
       // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or
       // while the reasons are not known yet.
       public static function mayPlay() : Boolean
       {
-         return me == null || me._reasonsKnown && me._blocks == 0;
+         return !squadSoldier() && (me == null || me._reasonsKnown && me._blocks == 0);
       }
       
       // Making a room: greyed under the maintenance rule only (a kit that
       // can not play is warned in the room), and until the reasons are known.
       public static function mayCreate() : Boolean
       {
-         return me == null || me._reasonsKnown && (me._blocks & BLOCK_MAINTENANCE) == 0;
+         return !squadSoldier() && (me == null || me._reasonsKnown && (me._blocks & BLOCK_MAINTENANCE) == 0);
       }
       
       // Every reason that holds, a line each (the greyed buttons' tip).
       public static function reasons() : String
       {
+         var lines:Array = [];
+         if(squadSoldier())
+         {
+            lines.push(noStop(LocalizationData.getName("st_srp_rooms_code_17")));
+         }
          if(me == null)
          {
-            return "";
+            return lines.join("\n");
          }
-         var lines:Array = [];
          for each(var reason:Object in REASONS)
          {
             if((me._blocks & int(reason.bit)) == 0)
             {
                continue;
             }
-            // A line each, no full stop at its end (the owner's of 2026-10-23).
-            var text:String = LocalizationData.format(String(reason.key),Math.max(0,me._maintenanceMinutes));
-            while(text.length > 0 && (text.charAt(text.length - 1) == "." || text.charAt(text.length - 1) == " "))
-            {
-               text = text.substr(0,text.length - 1);
-            }
-            lines.push(text);
+            lines.push(noStop(LocalizationData.format(String(reason.key),Math.max(0,me._maintenanceMinutes))));
          }
          return lines.join("\n");
+      }
+      
+      // A line each, no full stop at its end (the owner's of 2026-10-23).
+      private static function noStop(text:String) : String
+      {
+         while(text.length > 0 && (text.charAt(text.length - 1) == "." || text.charAt(text.length - 1) == " "))
+         {
+            text = text.substr(0,text.length - 1);
+         }
+         return text;
       }
       
       // A tip over a greyed button (a disabled one takes no hover): the
@@ -879,6 +897,10 @@ package survarium.player
       // otherwise.
       public static function mayEnter(maxLevel:int) : Boolean
       {
+         if(squadSoldier())
+         {
+            return false;
+         }
          if(mayPlay())
          {
             return true;

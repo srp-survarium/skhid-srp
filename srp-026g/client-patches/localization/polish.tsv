@@ -2460,6 +2460,7 @@ st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	W oddziale
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
 st_srp_pvb_busy	%1$s (zajęte)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
 st_srp_rooms_code_13	Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju.
 st_srp_rooms_code_14	Nie udało się wybrać zestawu.
 st_srp_rooms_code_16	Naciśnij Graj, aby wejść do pokoju publicznego.
+st_srp_rooms_code_17	Pokój wybiera dowódca brygady.
 st_srp_rooms_code_2	Ten pokój już nie istnieje.
 st_srp_rooms_code_3	Błędny PIN.
 st_srp_rooms_code_4	Pokój jest pełny.
