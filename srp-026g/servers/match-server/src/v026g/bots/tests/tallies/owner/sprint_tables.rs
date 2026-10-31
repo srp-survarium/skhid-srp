@@ -14,6 +14,7 @@
 //! read a little low there.
 
 use super::*;
+use crate::v026g::bots::tests::standin_stamina;
 
 /// The census's turn between chords that ends a straight stretch, radians.
 const TURN: f32 = 0.6;
@@ -48,7 +49,7 @@ impl Topic for SprintTables {
                 self.count(&run.recs[place], team);
             }
         }
-        vec![("sprint_tables", self.part())]
+        vec![("sprint_tables", self.part(game))]
     }
 }
 
@@ -84,10 +85,14 @@ impl SprintTables {
         }
     }
 
-    fn part(&self) -> Part {
+    /// The two tables by team, and each team's stamina lockouts (the guard: more sprint spends more of the bar).
+    fn part(&self, game: &Game) -> Part {
         let mut json = serde_json::Map::new();
         let mut text = Vec::new();
         for team in 0..2 {
+            let bar = standin_stamina::counts_of(game.bodies.iter().filter(|b| usize::from(b.team.min(1)) == team).map(|b| &b.stamina));
+            json.insert(format!("sprint_t{team}_stamina_lockouts"), bar.lockouts.into());
+            json.insert(format!("sprint_t{team}_stamina_low_ticks"), bar.low_ticks.into());
             for (band, name) in LEG_NAMES.iter().enumerate() {
                 let [n, s] = self.legs[team][band];
                 json.insert(format!("sprint_legs_t{team}_{name}_ticks"), n.into());
@@ -106,9 +111,10 @@ impl SprintTables {
                     .join(", ")
             };
             text.push(format!(
-                "team {team}: by the straight way ahead (m) {}; by the turn within 3 m (deg) {}",
+                "team {team}: by the straight way ahead (m) {}; by the turn within 3 m (deg) {}; stamina lockouts {}",
                 shares(&self.legs[team], &LEG_NAMES),
-                shares(&self.turns[team], &TURN_NAMES)
+                shares(&self.turns[team], &TURN_NAMES),
+                bar.lockouts
             ));
         }
         Part::new(serde_json::Value::Object(json), format!("owner-test sprint tables: {}", text.join("; ")))

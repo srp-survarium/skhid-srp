@@ -5130,7 +5130,7 @@ mod tests {
     }
 
     /// The ticks a body walking `points` from the first, faced along the first leg, holds the sprint keys within `near_m`
-    /// of `at`; and in all.
+    /// of `at` on its way there (up to and with its nearest to `at`); and in all.
     fn sprinted_near(feel: &Feel, gait: Gait, points: &[(f32, f32)], at: (f32, f32), near_m: f32) -> (usize, usize) {
         let mut r = route(points);
         let mut feet = Vec::new();
@@ -5138,8 +5138,10 @@ mod tests {
         let start = Vec3::new(points[0].0, 0.0, points[0].1);
         let (decisions, _) = walk_feel(feel.clone(), &mut r, start, yaw, 400, gait, &mut feet);
         let at = Vec3::new(at.0, 0.0, at.1);
-        let sprints = || decisions.iter().zip(&feet).filter(|(d, _)| d.keys & key::SPRINT != 0);
-        (sprints().filter(|(_, f)| f.distance_xz(at) <= near_m).count(), sprints().count())
+        let nearest = (0..feet.len()).min_by(|&a, &b| feet[a].distance_xz(at).total_cmp(&feet[b].distance_xz(at))).unwrap_or(0);
+        let sprint = |k: &usize| decisions[*k].keys & key::SPRINT != 0;
+        let near = (0..=nearest).filter(sprint).filter(|&k| feet[k].distance_xz(at) <= near_m).count();
+        (near, (0..decisions.len()).filter(sprint).count())
     }
 
     /// A leg of `first` metres along +x, then a turn of `deg` degrees (to the left) and `then` metres on.
@@ -5160,9 +5162,12 @@ mod tests {
         };
         for deg in [60.0, 90.0] {
             let points = turning(6.0, deg, 8.0);
-            let near = |feel: &Feel, gait| sprinted_near(feel, gait, &points, points[1], 1.0).0;
-            assert!(near(&on, Gait::Run) >= 6, "{deg}: a run through the turn: {}", near(&on, Gait::Run));
-            assert!(near(&on, Gait::Cruise) >= 6, "{deg}: the gate's legs: {}", near(&on, Gait::Cruise));
+            let near = |feel: &Feel, gait| sprinted_near(feel, gait, &points, points[1], 2.0).0;
+            assert!(near(&on, Gait::Run) >= 5, "{deg}: a run into the turn: {}", near(&on, Gait::Run));
+            assert!(near(&on, Gait::Cruise) >= 5, "{deg}: the gate's legs: {}", near(&on, Gait::Cruise));
+            // And on through it: the second leg's first metres are sprinted too.
+            let after = (points[1].0 + 1.5 * deg.to_radians().cos(), 1.5 * deg.to_radians().sin());
+            assert!(sprinted_near(&on, Gait::Run, &points, after, 1.0).0 >= 1, "{deg}: through the turn");
             assert_eq!(near(&on, Gait::Walk), 0, "{deg}: a walk");
             assert_eq!(near(&run_only, Gait::Cruise), 0, "{deg}: the switch for the run only");
             assert_eq!(near(&Feel::default(), Gait::Run), 0, "{deg}: the old rule");

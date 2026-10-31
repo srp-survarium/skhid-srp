@@ -4,8 +4,9 @@
 //! [`MERGE_M`] after one are part of its turn. It is passed when the body's progress ([`Route::segment`]) goes past it.
 //! Each pass is counted by the turn's band (34-60, 60-90, 90-120, 120 degrees and over) and by whether the body held
 //! the sprint keys then, and watched for [`WATCH_MS`]: how far the body got to the outside of the corner's legs (an
-//! overshoot is [`OVERSHOOT_M`] or more) and whether it fell a metre or more off its route (no drop of it there). One set
-//! of keys per team (`turns_t0_34_60`), so a one-sided run reads the team with the switch against the team without it.
+//! overshoot is [`OVERSHOOT_M`] or more) and whether it fell a metre or more off its route (no drop of it there); and
+//! every fall off the route. One set of keys per team (`turns_t0_34_60`), so a one-sided run reads the team with the
+//! switch against the team without it.
 
 use super::*;
 use crate::v026g::bots::kin::Kinematics;
@@ -90,6 +91,8 @@ pub(super) struct Turns {
     following: Vec<Option<Following>>,
     open: Vec<Vec<Pass>>,
     sums: [[[[u64; 4]; 2]; BANDS]; 2],
+    /// By team: every fall off the route (at a corner or not), the guard.
+    falls: [u64; 2],
 }
 
 impl Turns {
@@ -143,6 +146,9 @@ impl RouteTopic for Turns {
         let place = at.place;
         let alive = at.body.alive;
         let fell = at.fall.is_some_and(|fall| !fall.planned);
+        if fell {
+            self.falls[usize::from(run.teams[place].unwrap_or(0).min(1))] += 1;
+        }
         let mut open = std::mem::take(&mut self.open[place]);
         for pass in &mut open {
             if alive {
@@ -181,6 +187,7 @@ impl RouteTopic for Turns {
             self.close(pass);
         }
         for team in 0..2 {
+            line.tail.push(format!("turns_t{team}_falls_off {}", self.falls[team]));
             for (band, name) in BAND_NAMES.iter().enumerate() {
                 let [walk, sprint] = self.sums[team][band];
                 line.tail.push(format!(
