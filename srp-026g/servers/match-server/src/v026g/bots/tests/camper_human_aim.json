@@ -367,7 +367,7 @@
     "settle_guns": "scoped",
     "settle_k": 1.0,
     "settle_max_wait_ms": 5000,
-    "band_cross_deg": 0.0,
+    "band_cross_deg": null,
     "stand_strafe": false,
     "stand_strafe_hold_ms": 400,
     "threat_shot_ms": 1000,
