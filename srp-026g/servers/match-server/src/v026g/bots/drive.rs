@@ -1688,7 +1688,11 @@ fn drive_tick_inner(
             }
             #[cfg(test)]
             {
-                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else { 2 };
+                // A refused step (2) whose other side is clear is 5: the bot is against a wall on the side away from him, not in a corridor.
+                let other = if away == key::LEFT { key::RIGHT } else { key::LEFT };
+                let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
+                let other_clear = !held_off && !clear && tactics.clear_step_for(me.feet, other_to, time, bot.side, intent.objective);
+                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else if other_clear { 5 } else { 2 };
             }
         }
     }
