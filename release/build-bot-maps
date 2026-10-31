@@ -7,7 +7,7 @@
 # GRID_ALGO, SIGHT_ALGO or bot body changes every key: release.sh warns).
 #
 #   1. builds srp-build-maps from this checkout (the commit the release ships,
-#      nix develop, nice 10);
+#      nix develop, nice 10; $SRP_BUILD_MAPS_BIN names one built already);
 #   2. runs it on the .mapdata files release/bot-data.tsv lists (the offered
 #      maps), into a new folder: it builds each map through the server's own
 #      store with the server's tuning (SRP_BOT_TUNING as srp reads it; the
@@ -52,11 +52,16 @@ for path in "${BD_PATH[@]}"; do
 done
 ((${#projects[@]})) || die "release/bot-data.tsv lists no mapdata/*.mapdata"
 
-say "building srp-build-maps (srp-026g, nix develop) ..."
-(cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
-    'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-build-maps') ||
-    die "srp-build-maps did not build"
-bin=$ROOT/srp-026g/target/release/srp-build-maps
+# Our srp-build-maps: $SRP_BUILD_MAPS_BIN, else built from this checkout (as lib.sh builds srp-game-data).
+if [[ -n ${SRP_BUILD_MAPS_BIN:-} ]]; then
+    bin=$SRP_BUILD_MAPS_BIN
+else
+    say "building srp-build-maps (srp-026g, nix develop) ..."
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-build-maps') ||
+        die "srp-build-maps did not build"
+    bin=$ROOT/srp-026g/target/release/srp-build-maps
+fi
 
 new=$(mktemp -d "$maps/built.new.XXXXXX")
 say "building ${#projects[@]} maps into $new (minutes) ..."
