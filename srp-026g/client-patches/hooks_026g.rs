@@ -932,6 +932,132 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- music (patch 88) ----
+
+/// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_login` (0x21eac8, login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_login(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_login` calls this, from the game's jump at 0x21eac8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_login(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_lobby(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_lobby` calls this, from the game's jump at 0x21d31d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_lobby(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_loading` (0x2204b3, lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_loading(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_loading` calls this, from the game's jump at 0x2204b3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_loading(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_announced` calls this, from the game's jump at 0x23b36a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_announced(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_unload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_sound_tick` calls this, from the game's jump at 0x59ab1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_sound_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The convention of engine_store_first_resource (0x14730), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigStoreFirstResource;
+
+/// The entry `music_on_query_done` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `music_on_query_done`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `music_on_query_done` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::music::on_query_done(result, tag); 0 }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
@@ -1175,6 +1301,15 @@ pub extern "C" fn hook_ragdoll_on_ray_chain(frame: &mut Frame) -> u32 {
     let flow = hook_lamps_on_ray(frame);
     if flow != 0 { return flow; }
     0
+}
+
+unsafe extern "C" { fn music_on_query_done(); }
+/// The entry `music_on_query_done`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_address(music_on_query_done as *const () as usize as u32) }
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

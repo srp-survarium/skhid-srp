@@ -94,6 +94,37 @@ impl<'t, T: Copy> Out<'t, T> {
     }
 }
 
+/// A generated entry that a patch hands the game as a callback (a `callback`
+/// site's, in the convention its marker `F` names). Only the generated glue
+/// makes one (`<patch>_<handler>_entry()`), so a callback the game calls is
+/// always an entry of ours in the convention the game calls it in.
+pub struct CallbackEntry<F> {
+    address: u32,
+    convention: PhantomData<fn() -> F>,
+}
+
+impl<F> Clone for CallbackEntry<F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<F> Copy for CallbackEntry<F> {}
+
+impl<F> CallbackEntry<F> {
+    /// # Safety
+    /// `address` is a generated entry in `F`'s convention, alive as long as
+    /// the executable.
+    pub unsafe fn from_address(address: u32) -> CallbackEntry<F> {
+        CallbackEntry { address, convention: PhantomData }
+    }
+
+    /// The entry's address, for the game function it is handed to.
+    pub(in crate::vostok) fn address(self) -> u32 {
+        self.address
+    }
+}
+
 /// A game object a hooked function's argument points to, built by the
 /// generated shim from the argument's raw handle (typed by the function's
 /// row; an unsafe step a patch cannot take). A patch receives the handle; it
