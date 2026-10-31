@@ -210,6 +210,18 @@ pub fn no_way_near(list: &[(Vec3, u32)], at: Vec3, now: u32) -> bool {
         .any(|&(goal, until)| now < until && goal.distance_xz(at) <= crate::v026g::bots::drive::REPLAN_MOVED_M)
 }
 
+/// How lately a search to a goal must have failed to count as failing still, ms: the motor searches again every half second while it has no way, so a mark that
+/// is older than this is a proof that no search has renewed since (a way was found, or the goal changed), though it is kept [`NO_WAY_KEEP_MS`].
+pub const NO_WAY_FRESH_MS: u32 = 4_000;
+
+/// Whether `list` has a mark near `at` that a search to it renewed within [`NO_WAY_FRESH_MS`] (a mark is left [`NO_WAY_KEEP_MS`] after its failure).
+pub fn no_way_failing(list: &[(Vec3, u32)], at: Vec3, now: u32) -> bool {
+    let kept = crate::v026g::bots::search::NO_WAY_KEEP_MS;
+    list.iter().any(|&(goal, until)| {
+        now < until && until > now.saturating_add(kept.saturating_sub(NO_WAY_FRESH_MS)) && goal.distance_xz(at) <= crate::v026g::bots::drive::REPLAN_MOVED_M
+    })
+}
+
 /// A track of an enemy counts for the climb's exposure while its own sense
 /// (sight, hearing, a teammate's word) is this fresh, ms.
 pub const CLIMB_FRESH_MS: u32 = 5_000;
