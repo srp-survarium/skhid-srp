@@ -24,6 +24,7 @@ package survarium.controls
    import survarium.Util;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.lobbypick.LobbyButton;
    import survarium.gsearch.LobbyGameSearch;
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
@@ -54,7 +55,7 @@ package survarium.controls
       public static const LOBBY_WINDOW:String = "lobbyWindow";
 
       // the lobby button: the player panel's (topPanelLeftContainer_56)
-      public var btn_lobby:SrvButtonTop;
+      public var btn_lobby:LobbyButton;
 
       // the premium offer after a match (LobbyMenu.show_premium_post_reward): its seconds left, 0 none
       public var premiumDiscount:int = 0;

@@ -5,10 +5,12 @@ package
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
+   import flash.utils.getQualifiedClassName;
    import flash.utils.setTimeout;
 
    // The lobby scene's black (exe patch 81, docs/notes/lobby-scenes.md) with the lobby movie's own
@@ -149,8 +151,61 @@ package
             if(w.parent != null)
                failures.push("the lobby window not closed by its toggle");
             lobby.srp_lobby_window();
-            button(w);
+            var b:Object = button(w);
+            if(b != null)
+            {
+               // its states once it is on the stage (CLIK sets its mouse handlers then)
+               setTimeout(this.states,200,b);
+               return;
+            }
          }
+         finish(failures.length ? "fail: " + failures.join("; ") : "pass");
+      }
+
+      // The lobby button's states: it has no timeline (one frame: no state frame places a coin,
+      // an amount or a hint again), every state CLIK can ask for has one of the money boxes' four
+      // back pieces, and through a press, a selection and disabled it holds only that piece and
+      // its label; no tooltip and no data (no hint). (Ruffle has no ExternalInterface, which the
+      // game's roll-over and release play their sound through, so those two are not driven here.)
+      private function states(b:Object) : void
+      {
+         var Button:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.lobbypick.LobbyButton");
+         var pieces:Array = ["btnBackUp", "btnBackHover", "btnBackDown", "btnBackDisabled"];
+         if(b.totalFrames != 1)
+            failures.push("the lobby button has " + b.totalFrames + " frames");
+         for each(var state:String in Button.states)
+         {
+            if(pieces.indexOf(Button.backOf(state)) < 0)
+               failures.push("the lobby button's state " + state + " shows " + Button.backOf(state));
+         }
+         for each(var s:String in ["over", "release", "selecting", "down", "disabled"])
+         {
+            if(Button.backOf(s) != {over:"btnBackHover", release:"btnBackHover", selecting:"btnBackHover",
+                  down:"btnBackDown", disabled:"btnBackDisabled"}[s])
+               failures.push("the lobby button's state " + s + ": " + Button.backOf(s));
+         }
+         var steps:Array = [["up", null, "btnBackUp"], ["down", MouseEvent.MOUSE_DOWN, "btnBackDown"],
+            ["selected", "select", null], ["disabled", "disable", "btnBackDisabled"], ["enabled", "enable", null]];
+         for each(var step:Array in steps)
+         {
+            if(step[1] == "select")
+               b.selected = true;
+            else if(step[1] == "disable")
+               b.enabled = false;
+            else if(step[1] == "enable")
+               b.enabled = true;
+            else if(step[1] != null)
+               b.dispatchEvent(new MouseEvent(step[1], true, false, 1, 1));
+            var names:Array = [];
+            for(var i:int = 0; i < b.numChildren; i++)
+               names.push(getQualifiedClassName(b.getChildAt(i)) + ":" + b.getChildAt(i).name);
+            trace("FADE lobby button " + step[0] + ": " + b.shown + " [" + names.join(", ") + "]");
+            if(b.numChildren != 2 || getQualifiedClassName(b.getChildAt(0)) != b.shown || pieces.indexOf(b.shown) < 0
+               || b.getChildAt(1).name != "lobbyLabel" || (step[2] != null && b.shown != step[2]))
+               failures.push("the lobby button " + step[0] + ": " + names.join(", "));
+         }
+         if(b.tooltipRendererName || b.data != null)
+            failures.push("the lobby button has a tooltip or data (" + b.tooltipRendererName + ", " + b.data + ")");
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
       }
 
@@ -159,7 +214,7 @@ package
       // language: the dictionary's text in upper case, an embedded Calibri bold (the top menu's),
       // every glyph drawn (each at least 5 px wide), inside the box with 4 px margins and centred
       // in it both ways to the pixel.
-      private function button(w:Object) : void
+      private function button(w:Object) : Object
       {
          var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
          var Panel:Class = domain.getDefinition("top_fla.topPanelLeftContainer_56") as Class;
@@ -171,22 +226,22 @@ package
             dictionary.setData(HarnessText.DATA[language]);
             panel = new Panel() as Sprite;
             var b:Object = panel.getChildByName("btn_lobby");
-            var label:Object = panel.getChildByName("lobbyLabel");
+            var label:Object = b != null ? b.getChildByName("lobbyLabel") : null;
             if(panel.getChildByName("btn_premium") != null)
                failures.push("the premium button still in the player panel");
             if(b == null || b != Object(panel).btn_lobby || label == null)
             {
                failures.push("no lobby button with its label in the player panel");
-               return;
+               return null;
             }
             var text:String = HarnessText.DATA[language]["st_srp_lobby_title"];
             var f:Object = label.getTextFormat();
-            var dx:Number = label.x + label.width / 2 - (b.x + b.width / 2);
-            var dy:Number = label.y + label.height / 2 - (b.y + b.height / 2);
+            var dx:Number = label.x + label.width / 2 - b.boxWidth / 2;
+            var dy:Number = label.y + label.height / 2 - b.boxHeight / 2;
             trace("FADE lobby button " + language + ": '" + label.text + "' " + int(label.textWidth) + " x " + int(label.textHeight)
-               + " in " + int(b.width) + " x " + int(b.height) + ", off centre " + dx.toFixed(1) + "," + dy.toFixed(1));
+               + " in " + int(b.boxWidth) + " x " + int(b.boxHeight) + ", off centre " + dx.toFixed(1) + "," + dy.toFixed(1));
             if(label.text != text.toUpperCase() || !label.embedFonts || f.font != "Calibri" || !f.bold
-               || label.textWidth < 5 * text.length || label.width > b.width - 8
+               || label.textWidth < 5 * text.length || label.width > b.boxWidth - 8
                || Math.abs(dx) > 1 || Math.abs(dy) > 1)
                failures.push("the lobby button's label in " + language + ": '" + label.text + "'");
          }
@@ -194,6 +249,7 @@ package
          panel.x = 10;
          panel.y = 4;
          addChild(panel);
+         return panel.getChildByName("btn_lobby");
       }
 
       private function finish(result:String) : void
