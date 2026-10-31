@@ -31,6 +31,8 @@ struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
+struct queries_result;
+struct query_function;
 struct ray_result;
 struct render_model_instance;
 struct render_visual;
@@ -38,9 +40,14 @@ struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct sound_emitter;
+struct sound_instance_proxy;
+struct sound_scene;
+struct sound_world;
 struct static_model_instance;
 struct statistics_listener;
 struct text_translator;
+struct world_user;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);
@@ -263,5 +270,26 @@ void engine_show_cursor(struct game_world_ui *ui, unsigned int shown);
 
 /* 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12 */
 void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text);
+
+/* 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX */
+struct sound_instance_proxy **engine_emit_hud_sound(struct sound_emitter *emitter, struct sound_scene **scene, struct world_user *user, struct sound_instance_proxy **out);
+
+/* 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_play_voice(struct sound_instance_proxy *proxy, unsigned int mode, const void *producer, const void *receiver);
+
+/* 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_free_voice(struct sound_instance_proxy *proxy);
+
+/* 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8 */
+void engine_bind_query_callback(struct query_function *boost, const void *f, unsigned int value);
+
+/* 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX */
+unsigned int engine_scene_params_type(void);
+
+/* 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0 */
+void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene);
+
+/* 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_store_first_resource(struct queries_result *result, void *value);
 
 #endif

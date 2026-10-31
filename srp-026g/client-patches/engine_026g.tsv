@@ -73,3 +73,10 @@ engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(s
 engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	
 engine_show_cursor	0x23a930	EDI:hud ESP+4:shown	void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)	thunk	
 engine_send_important	0x26afb0	ESP+4:messaging ESP+8:target ESP+12:type EDX:text	void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)	thunk	
+engine_emit_hud_sound	0x065630	ESI:emitter EAX:scene ECX:user EDI:out	struct sound_instance_proxy **engine_emit_hud_sound(struct sound_emitter *emitter, struct sound_scene **scene, struct world_user *user, struct sound_instance_proxy **out)	thunk	
+engine_play_voice	0x05aba0	ECX:proxy ESP+4:mode ESP+8:producer ESP+12:receiver	void engine_play_voice(struct sound_instance_proxy *proxy, unsigned int mode, const void *producer, const void *receiver)	thiscall	
+engine_free_voice	0x05b390	ECX:proxy	void engine_free_voice(struct sound_instance_proxy *proxy)	thiscall	
+engine_bind_query_callback	0x0176d0	ESI:boost ESP+4:f ESP+8:value	void engine_bind_query_callback(struct query_function *boost, const void *f, unsigned int value)	thunk	
+engine_scene_params_type	0x0630f0	-	unsigned int engine_scene_params_type(void)	thunk	
+engine_add_active_scene	0x059fb0	ECX:world EAX:scene	void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene)	thunk	
+engine_store_first_resource	0x014730	ESP+4:result ESP+8:value	void engine_store_first_resource(struct queries_result *result, void *value)	cdecl	result: QueryResults, tag: QueryTag ->
