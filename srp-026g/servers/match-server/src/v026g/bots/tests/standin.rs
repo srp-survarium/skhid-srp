@@ -1111,7 +1111,7 @@ impl Game {
         for place in suicides {
             self.kill(place, place, Kill::Own, tick);
         }
-        if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
+        if self.walls.is_none() && (self.bodies.iter().any(|b| b.flight.is_some()) || (stand_in_edge() && stand_in_fall())) {
             let walker = self.world.map.walker_triangles();
             self.walls = Some(if walker.is_empty() {
                 self.world.sight.clone()
@@ -1226,7 +1226,13 @@ impl Game {
                         to
                     };
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        slide_supported(grid, node, body.feet, target, grid.body().step, body::SUPPORT_M)
+                        let slid = slide_supported(grid, node, body.feet, target, grid.body().step, body::SUPPORT_M);
+                        // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
+                        let walls = self.walls.as_deref().filter(|_| stand_in_fall());
+                        match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
+                            Some((n, f)) => (n, f, false),
+                            None => slid,
+                        }
                     } else {
                         slide_capped(grid, node, body.feet, target, grid.body().step)
                     };
