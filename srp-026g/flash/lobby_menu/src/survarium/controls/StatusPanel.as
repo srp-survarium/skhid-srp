@@ -102,8 +102,6 @@ package survarium.controls
       
       public var playBtn:Button;
       
-      public var survivalNotesBtn:MovieClip;
-      
       public var btn_add_premium_money:Button;
       
       public var btn_add_regular_money:Button;
@@ -164,10 +162,6 @@ package survarium.controls
       
       protected var _clanState:uint = ClanState.RESERVE;
       
-      private var _notesLabels:Array = ["prepare_to_battle_notes","items_notes"];
-      
-      private var _notesIndex:uint = 0;
-      
       private var _vtMessage:MessageBase;
       
       protected var _factionData:Object;
@@ -198,11 +192,10 @@ package survarium.controls
          this.factionHint = this.panelFaction.factionHint;
          this.newItemsIcon.visible = false;
          this.btnChangeName = this.panel_player.btnChangeName;
-         trace("StatusPanel11",this.playBtn,this.newItemsIcon,this.btnChangeName,this.matchSettings,this.labelInfo,this.left_corner.notesTutorial);
+         trace("StatusPanel11",this.playBtn,this.newItemsIcon,this.btnChangeName,this.matchSettings,this.labelInfo);
          this.btnChangeName.addEventListener(ComponentEvent.STATE_CHANGE,this.updateIconPosition);
          this.btnChangeName.preventAutosizing = true;
          this.btnChangeName.constraintsDisabled = true;
-         this.survivalNotesBtn = this.left_corner.notesTutorial;
          this.panel_player.btnChangeName.addEventListener(ButtonEvent.CLICK,this.showChangeNameMessage);
          this.right_corner.btnShowDailyMessage.addEventListener(ButtonEvent.CLICK,this.showDailyMessage);
          trace("StatusPanel2",this.play_container.dropDownButton,this.panel_player.txLevel,this.matchSettings);
@@ -254,7 +247,7 @@ package survarium.controls
       
       private function sortAdminMessages() : void
       {
-         this.labelInfo.y = (this.left_corner.notesTutorial.visible) || (this.left_corner.videoTutorial.visible) ? 164 : 108;
+         this.labelInfo.y = this.left_corner.videoTutorial.visible ? 164 : 108;
          this.labelInfoAdmin.y = this.labelInfo.visible ? this.labelInfo.y + 60 : this.labelInfo.y;
       }
       
@@ -566,8 +559,6 @@ package survarium.controls
          this.left_corner.videoTutorial.closeBtn.addEventListener(MouseEvent.CLICK,this.closeVT);
          this.left_corner.videoTutorial.clickArea.addEventListener(MouseEvent.CLICK,this.showVT);
          this.left_corner.notesTutorial.visible = false;
-         this.left_corner.notesTutorial.clickArea.addEventListener(MouseEvent.CLICK,this.showNT);
-         this.left_corner.notesTutorial.mouseChildren = true;
          if((this.right_corner.textFieldShop))
          {
             LocalizationData.addTextField(this.right_corner.textFieldShop,"online_store");
@@ -583,26 +574,6 @@ package survarium.controls
       {
          this.left_corner.videoTutorial.visible = bool;
          this.sortAdminMessages();
-      }
-      
-      public function showNotesTutorial(bool:Boolean, index:uint) : void
-      {
-         trace("showNotesTutorial",bool,index);
-         if(bool)
-         {
-            _notesIndex = index;
-         }
-         this.left_corner.notesTutorial.mouseChildren = true;
-         this.left_corner.notesTutorial.visible = bool;
-         this.left_corner.notesTutorial.container.textField.text = LocalizationData.getName(this._notesLabels[index]);
-         this.left_corner.notesTutorial.container.icon.gotoAndStop(index + 1);
-         this.sortAdminMessages();
-      }
-      
-      private function showNT(e:MouseEvent) : void
-      {
-         trace("survival_tutorial_clicked",this._notesIndex);
-         ExternalInterface.call("survival_tutorial_clicked",this._notesIndex);
       }
       
       private function showVT(e:MouseEvent) : void

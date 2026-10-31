@@ -899,6 +899,7 @@ va	status	ref_021d	name
 0x0021d9d0	reviewed	0x0016f29f	survarium::lobby_menu::on_operation_denied_received
 0x0021e170	reviewed	0x0016f821	survarium::lobby_menu::set_mouse_position
 0x0021e260	reviewed	0x0016f8d3	survarium::lobby_menu::demo_play
+0x0021e780	observed		survarium::lobby_menu::show_video_tutorial_link
 0x0021f3d0	reviewed	0x001704ef	survarium::login_menu::enable_button
 0x0021f430	reviewed	0x00170536	survarium::login_menu::update_online_queue
 0x002206d0	reviewed	0x001724e6	survarium::lobby_menu::show_match_making
@@ -911,11 +912,18 @@ va	status	ref_021d	name
 0x002274b0	reviewed	0x00177bbf	survarium::lobby_menu::set_player_elo_rating
 0x002277c0	reviewed	0x001780fe	survarium::lobby_menu::fill_squad_info
 0x00227d80	reviewed	0x001784a4	survarium::lobby_menu::set_player_premium_access_status
+0x0022a350	observed		survarium::lobby_menu::show_slide
+0x0022a930	observed		survarium::lobby_menu::set_tutorial_rewards
+0x0022ae00	observed		survarium::lobby_menu::show_tutorial_complete_message
+0x0022ae90	observed		survarium::lobby_menu::show_notes_tutorial_link
+0x0022af80	observed		survarium::lobby_menu::show_survival_notes
 0x00231b50	reviewed	0x0017d323	survarium::victory_item_cook::create_resource
 0x00231dc0	reviewed	0x0017d539	survarium::victory_item_cook::on_subresources_ready
 0x002326a0	reviewed	0x0017d8dc	survarium::victory_items_container_cook::allocate_resource
 0x002326d0	reviewed	0x0017d905	survarium::victory_items_container_cook::create_resource
 0x00232a50	reviewed	0x0017db94	survarium::victory_items_container_cook::on_locators_config_ready
+0x0023d2d0	observed		survarium::game_world_ui::show_tutorial_slide
+0x0023d3c0	observed		survarium::game_world_ui::set_tutorial_rewards
 0x0023dc00	reviewed	0x0017e421	survarium::base_game_scene::show_movie
 0x0023dc70	reviewed	0x0017e474	survarium::base_game_scene::hide_movie
 0x0023dd60	reviewed	0x0017e564	survarium::base_game_scene::on_activate
