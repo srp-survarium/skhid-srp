@@ -116,7 +116,8 @@
     "ring_radar": false
   },
   "spacing": {
-    "apart": false
+    "apart": false,
+    "lane": null
   },
   "sense": {
     "bush_notice": 0.0,

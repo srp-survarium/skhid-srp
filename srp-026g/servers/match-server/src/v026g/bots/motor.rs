@@ -615,6 +615,21 @@ const KEY_HOLD_TICKS: u32 = 2;
 /// (more than a sector and a half: the facing swung round).
 const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 
+/// The lane a walk is in this tick (A175, `spacing.lane`): how far to the left the steering point moves (negative: the right), whether the body itself stands where a shift is safe,
+/// and the test of a shifted point against the route's own (the same floor, off a lip and a fall).
+pub struct LaneAim<'a> {
+    pub offset_m: f32,
+    pub body_ok: bool,
+    pub safe: &'a dyn Fn(Vec3, Vec3) -> bool,
+}
+
+/// A lane is kept off a gate, a jump or a drop within this far past the look-ahead, m, and off the route's last stretch of this length, m: the route's own line is the one that lines
+/// up for a jump, a gate or an arrival.
+const LANE_ROUTE_M: f32 = 4.0;
+const LANE_END_M: f32 = 6.0;
+/// The steering point is this far from the feet at least for a side to be known, m.
+const LANE_MIN_AIM_M: f32 = 0.5;
+
 /// One bot's hands.
 #[derive(Clone, Debug)]
 pub struct Motor {
@@ -653,6 +668,8 @@ pub struct Motor {
     t: f32,
     /// Standing: the heading looked at, and ticks till the next look.
     look: Option<(f32, u32)>,
+    /// What this tick's lane did to the steering point ([`LaneAim`], A175): the bench counts it by reason.
+    pub lane_use: super::apart::LaneUse,
     /// The turn's time constant for this tick when not the feel's (the
     /// reflex aims faster or slower by skill).
     pub turn_time: Option<f32>,
@@ -921,6 +938,7 @@ impl Motor {
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
+            lane_use: super::apart::LaneUse::Idle,
             turn_time: None,
             track: None,
             exact_end: None,
@@ -1194,6 +1212,39 @@ impl Motor {
         (target, clear(target))
     }
 
+    /// The steering point `target` moved over to the lane, when the route is plain ahead of the body and the shifted point is one the body walks to in a line and a floor the route
+    /// chose (`lane.safe`); else `target` itself, with the reason in [`Self::lane_use`].
+    #[allow(clippy::too_many_arguments)]
+    fn laned(&mut self, route: &Route, s: f32, ahead: f32, feet: Vec3, target: Vec3, lane: LaneAim<'_>, clear: &impl Fn(Vec3) -> bool) -> Vec3 {
+        use super::apart::LaneUse;
+        let reach = ahead.max(self.feel.look_ahead_m) + LANE_ROUTE_M;
+        if route.length() - s < LANE_END_M
+            || route.gate_within(s, reach).is_some()
+            || route.link_ahead(s, reach, mapdata::Body::client().step)
+        {
+            self.lane_use = LaneUse::RouteBusy;
+            return target;
+        }
+        let (dx, dz) = (target.x - feet.x, target.z - feet.z);
+        let len = dx.hypot(dz);
+        if len < LANE_MIN_AIM_M {
+            self.lane_use = LaneUse::RouteBusy;
+            return target;
+        }
+        // The left of the way is a quarter turn: (-dz, dx).
+        let shifted = Vec3::new(target.x - dz / len * lane.offset_m, target.y, target.z + dx / len * lane.offset_m);
+        if !lane.body_ok || !(lane.safe)(shifted, target) {
+            self.lane_use = LaneUse::UnsafeFloor;
+            return target;
+        }
+        if !clear(shifted) {
+            self.lane_use = LaneUse::NoRoom;
+            return target;
+        }
+        self.lane_use = LaneUse::Applied;
+        shifted
+    }
+
     /// The decision of one tick that walks the route from `pose`. `off_m`:
     /// how far off the route the caller lets the body be before it plans
     /// again; `clear(point)`: whether the body walks to `point` in a line.
@@ -1204,8 +1255,21 @@ impl Motor {
         off_m: f32,
         clear: impl Fn(Vec3) -> bool,
     ) -> (Decision, Walked) {
+        self.walk_in_lane(route, pose, off_m, clear, None)
+    }
+
+    /// [`Self::walk`] on a lane (A175, `spacing.lane`): the point the walk steers at is moved sideways by `lane.offset_m` where that is safe, else it is the route's own.
+    pub fn walk_in_lane(
+        &mut self,
+        route: &mut Route,
+        pose: &Pose,
+        off_m: f32,
+        clear: impl Fn(Vec3) -> bool,
+        lane: Option<LaneAim<'_>>,
+    ) -> (Decision, Walked) {
         self.next_tick();
         self.look = None;
+        self.lane_use = super::apart::LaneUse::Idle;
         self.under_jump(route, pose.feet);
         self.follow_band_press(pose.feet);
         self.follow_lift(pose.feet);
@@ -1260,7 +1324,11 @@ impl Motor {
                     ahead = (gate - s).max(MIN_AHEAD_M);
                 }
                 match self.aim_point(route, s, ahead, &clear) {
-                    Aim::Clear(target) | Aim::Unclear(target) => target,
+                    Aim::Clear(target) => match lane {
+                        Some(lane) => self.laned(route, s, ahead, pose.feet, target, lane, &clear),
+                        None => target,
+                    },
+                    Aim::Unclear(target) => target,
                     // No point of the route is one the body walks to in a line: it is off it.
                     Aim::None => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
                 }

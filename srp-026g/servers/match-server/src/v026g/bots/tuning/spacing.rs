@@ -50,10 +50,35 @@ pub struct SpacingTuning {
     /// Where the step aside is refused (no clear ground either side: a corridor, a lip) and a teammate inside `apart_m` is ahead and moving the same way, the bot behind lets go of
     /// forward for the tick: the one ahead pulls away and the file opens (the live players' nearest mate is a median 21 m away). Off: it walks on his heels.
     pub apart_ease: bool,
+    /// A175 (the A175 note, 2026-10-31): bots of one team that go the same way walk one line at one speed, with nothing between them (no collision for teammates): of the pairs
+    /// moving alike within 16 m 26.6 % are on the same line (under 0.5 m across) against the live players' 12.4 %, and the step aside (one key for one tick) is pulled back by the
+    /// route steering. With a lane a bot with a teammate in file on its line walks a parallel line `offset_m` to the side away from him (`bots/apart.rs` [`Lane`]), by shifting the
+    /// point its walk steers at; off: every bot steers at the route's own line.
+    pub lane: Option<LaneTuning>,
+}
+
+/// The lane's settings (A175): when a teammate is in file and how far the bot moves over.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LaneTuning {
+    /// How far to the side the steering point moves, m (a body is 0.8 m wide; the live players' lateral offset to a teammate walking their way is 1 m or more in 78 % of the pairs).
+    pub offset_m: Metres,
+    /// A teammate walking the same way within this far along the bot's heading, ahead or behind, is in file, m.
+    pub look_m: Metres,
+    /// … and within this across it, m (a teammate farther to the side is already on a line of his own).
+    pub line_m: Metres,
+    /// The lane is kept this long after the teammate is gone, ms (so a pair does not weave).
+    pub hold_ms: u32,
+}
+
+impl Default for LaneTuning {
+    fn default() -> Self {
+        Self { offset_m: Metres::of(0.9), look_m: Metres::of(8.0), line_m: Metres::of(0.7), hold_ms: 2_000 }
+    }
 }
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false, lane: None }
     }
 }

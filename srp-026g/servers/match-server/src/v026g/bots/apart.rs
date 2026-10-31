@@ -13,9 +13,26 @@ const STAND_MPS: f32 = 0.5;
 /// Teammates this far apart in height are not in each other's way (a floor above).
 const SAME_FLOOR_M: f32 = 2.0;
 
+/// The step away from a teammate inside the body: the strafe key, and whether the teammate stands on the line (within 0.15 m across), so that either side would do and the
+/// side chosen is the lower place's by convention, not by where he is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Away {
+    pub key: u32,
+    pub tie: bool,
+}
+
+impl Away {
+    const NONE: Self = Self { key: 0, tie: false };
+
+    /// The key of the other side.
+    pub(super) fn other_key(self) -> u32 {
+        if self.key == key::LEFT { key::RIGHT } else { key::LEFT }
+    }
+}
+
 /// The strafe key that takes `me` away from the nearest living teammate within `within_m` (none: 0). A teammate straight ahead or behind (within 0.15 m of the line)
 /// is stepped away from to the side the lower place number takes, so two bodies never step the same way into each other.
-pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
+pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> Away {
     let mut nearest: Option<(f32, &PlaceView)> = None;
     let mut at = (0.0f32, 0.0f32);
     for mate in view.team(me.team) {
@@ -31,22 +48,125 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> u32 {
         }
     }
     let Some((_, mate)) = nearest else {
-        return 0;
+        return Away::NONE;
     };
     // The one that walks gives way to the one that stands (a camper at its post, a bot at a battery): a standing bot steps only when the other stands too, and then the higher place does.
     let still = |p: &PlaceView| p.velocity[0].hypot(p.velocity[1]) < STAND_MPS;
     if still(me) && (!still(mate) || me.place < mate.place) {
-        return 0;
+        return Away::NONE;
     }
     let [lx, lz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
     let left = (at.0 - me.feet.x) * lx + (at.1 - me.feet.z) * lz;
-    if left > 0.15 {
+    let tie = left.abs() <= 0.15;
+    let key = if left > 0.15 {
         key::RIGHT
     } else if left < -0.15 || me.place < mate.place {
         key::LEFT
     } else {
         key::RIGHT
+    };
+    Away { key, tie }
+}
+
+/// A side of the bot's heading.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Side {
+    Left,
+    Right,
+}
+
+impl Side {
+    /// +1 for the left (a quarter turn from the heading), -1 for the right.
+    fn sign(self) -> f32 {
+        match self {
+            Self::Left => 1.0,
+            Self::Right => -1.0,
+        }
     }
+}
+
+/// The line a bot walks (A175, `spacing.lane`): the route's own, or one beside it on a side until a time. The walk steers at the route's point shifted by [`Lane::offset`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Lane {
+    #[default]
+    Centre,
+    Over { side: Side, until: u32 },
+}
+
+impl Lane {
+    /// The one transition: the lane after a tick at `now` (ms) in which a teammate in file was `in_file` (the side to move over to, none: nobody in file). From the centre a teammate
+    /// in file puts the bot over on that side; a bot over keeps its side while one is in file (the time runs from the last), and goes back to the centre `hold_ms` after the last.
+    pub(super) fn next(self, now: u32, in_file: Option<Side>, hold_ms: u32) -> Self {
+        match (self, in_file) {
+            (Self::Centre, Some(side)) => Self::Over { side, until: now.wrapping_add(hold_ms) },
+            (Self::Over { side, .. }, Some(_)) => Self::Over { side, until: now.wrapping_add(hold_ms) },
+            (Self::Over { until, .. }, None) if (now.wrapping_sub(until) as i32) >= 0 => Self::Centre,
+            (lane, None) => lane,
+        }
+    }
+
+    /// The signed offset of the steering point from the route's line, m (left positive); none in the centre.
+    pub(super) fn offset(self, offset_m: f32) -> Option<f32> {
+        match self {
+            Self::Centre => None,
+            Self::Over { side, .. } => Some(side.sign() * offset_m),
+        }
+    }
+}
+
+/// A bot walks the same way as a teammate when both go over this, m/s, and their directions are within 45 degrees.
+const FILE_MPS: f32 = 1.0;
+
+/// The side `me` moves over to when a living teammate walks his way in file: within `look_m` along his heading (ahead or behind) and `band_m` across it, on one floor. The side is
+/// away from the teammate (he is on the left: the right); one on the line (within 0.15 m across) is gone round on the left by the lower place and on the right by the higher, so the two
+/// never choose the same one. None: nobody in file, or `me` is not walking (a standing bot has no line).
+pub(super) fn in_file(me: &PlaceView, view: &MatchView, look_m: f32, band_m: f32) -> Option<Side> {
+    let speed = me.velocity[0].hypot(me.velocity[1]);
+    if speed < FILE_MPS {
+        return None;
+    }
+    let (ux, uz) = (me.velocity[0] / speed, me.velocity[1] / speed);
+    let mut best: Option<(f32, f32, &PlaceView)> = None;
+    for mate in view.team(me.team) {
+        if mate.place == me.place || (mate.feet.y - me.feet.y).abs() >= SAME_FLOOR_M {
+            continue;
+        }
+        let mate_speed = mate.velocity[0].hypot(mate.velocity[1]);
+        if mate_speed < FILE_MPS || (mate.velocity[0] * ux + mate.velocity[1] * uz) / mate_speed < std::f32::consts::FRAC_PI_4.cos() {
+            continue;
+        }
+        let [mx, mz] = led(mate, me.known_at);
+        let (dx, dz) = (mx - me.feet.x, mz - me.feet.z);
+        // The left of the heading is a quarter turn: (-uz, ux).
+        let (along, left) = (dx * ux + dz * uz, -dx * uz + dz * ux);
+        if along.abs() <= look_m && left.abs() < band_m && best.is_none_or(|(a, _, _)| along.abs() < a) {
+            best = Some((along.abs(), left, mate));
+        }
+    }
+    let (_, left, mate) = best?;
+    Some(if left > 0.15 {
+        Side::Right
+    } else if left < -0.15 || me.place < mate.place {
+        Side::Left
+    } else {
+        Side::Right
+    })
+}
+
+/// What a lane did this tick, for the bench's counts by reason.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LaneUse {
+    /// No lane (the centre), or the walk did not reach the steering point (a jump, an aimed walk).
+    #[default]
+    Idle,
+    /// The steering point was moved over.
+    Applied,
+    /// The shifted point is not one the body walks to in a line (a wall, a corner).
+    NoRoom,
+    /// The shifted point is on another floor than the route's point, or near a lip or a fall.
+    UnsafeFloor,
+    /// The route has a gate, a jump or a drop within reach, or its end is near: the route's own line is kept.
+    RouteBusy,
 }
 
 /// Whether the bot behind should ease off: a living teammate within `within_m`, ahead of it (in the cone of its heading) and moving along it at over 1 m/s. A teammate standing
@@ -133,15 +253,72 @@ mod tests {
         let mut me = at(0, 0, 0.0, 0.0);
         me.velocity = [0.0, 4.0];
         let on_left = view_of(vec![me.clone(), at(1, 0, -0.8, 0.0)]);
-        assert_eq!(key_away(&me, &on_left, 1.1), key::RIGHT);
+        assert_eq!(key_away(&me, &on_left, 1.1).key, key::RIGHT);
         let on_right = view_of(vec![me.clone(), at(1, 0, 0.8, 0.0)]);
-        assert_eq!(key_away(&me, &on_right, 1.1), key::LEFT);
+        assert_eq!(key_away(&me, &on_right, 1.1).key, key::LEFT);
         let outside = view_of(vec![me.clone(), at(1, 0, 1.4, 0.0)]);
-        assert_eq!(key_away(&me, &outside, 1.1), 0);
+        assert_eq!(key_away(&me, &outside, 1.1).key, 0);
         let enemy = view_of(vec![me.clone(), at(1, 1, 0.5, 0.0)]);
-        assert_eq!(key_away(&me, &enemy, 1.1), 0);
+        assert_eq!(key_away(&me, &enemy, 1.1).key, 0);
         let above = view_of(vec![me.clone(), PlaceView { feet: Vec3::new(0.3, 3.0, 0.0), ..at(1, 0, 0.3, 0.0) }]);
-        assert_eq!(key_away(&me, &above, 1.1), 0);
+        assert_eq!(key_away(&me, &above, 1.1).key, 0);
+    }
+
+    fn walking(place: usize, x: f32, z: f32, speed: f32) -> PlaceView {
+        let mut p = at(place, 0, x, z);
+        p.velocity = [0.0, speed];
+        p
+    }
+
+    #[test]
+    fn a_bot_walking_in_file_goes_over_to_the_side_away_from_the_teammate_on_its_line() {
+        let me = walking(0, 0.0, 0.0, 4.0);
+        // Heading +z; the left of it is -x. A mate 3 m ahead and 0.4 m to the left: go right.
+        let view = view_of(vec![me.clone(), walking(1, -0.4, 3.0, 4.0)]);
+        assert_eq!(in_file(&me, &view, 8.0, 0.7), Some(Side::Right));
+        let view = view_of(vec![me.clone(), walking(1, 0.4, -3.0, 4.0)]);
+        assert_eq!(in_file(&me, &view, 8.0, 0.7), Some(Side::Left));
+        // On the line: the lower place goes left, the higher right.
+        let view = view_of(vec![me.clone(), walking(1, 0.0, 3.0, 4.0)]);
+        assert_eq!(in_file(&me, &view, 8.0, 0.7), Some(Side::Left));
+        let high = walking(2, 0.0, 0.0, 4.0);
+        let view = view_of(vec![walking(1, 0.0, 3.0, 4.0), high.clone()]);
+        assert_eq!(in_file(&high, &view, 8.0, 0.7), Some(Side::Right));
+        // Too far along, too far across, walking another way, standing, an enemy, a floor above: nobody in file.
+        for mate in [
+            walking(1, 0.0, 9.0, 4.0),
+            walking(1, 1.2, 3.0, 4.0),
+            walking(1, 0.0, 3.0, -4.0),
+            walking(1, 0.0, 3.0, 0.2),
+            PlaceView { team: 1, ..walking(1, 0.0, 3.0, 4.0) },
+            PlaceView { feet: Vec3::new(0.0, 3.0, 3.0), ..walking(1, 0.0, 3.0, 4.0) },
+        ] {
+            assert_eq!(in_file(&me, &view_of(vec![me.clone(), mate]), 8.0, 0.7), None);
+        }
+        // A bot that stands has no line.
+        let still = walking(0, 0.0, 0.0, 0.2);
+        assert_eq!(in_file(&still, &view_of(vec![still.clone(), walking(1, 0.0, 3.0, 4.0)]), 8.0, 0.7), None);
+    }
+
+    #[test]
+    fn a_lane_is_taken_kept_while_the_teammate_is_in_file_and_given_up_after_the_hold() {
+        let hold = 2_000;
+        let lane = Lane::Centre.next(1_000, Some(Side::Left), hold);
+        assert_eq!(lane, Lane::Over { side: Side::Left, until: 3_000 });
+        // Still in file on the other side's account: the side is kept, the time runs on.
+        let lane = lane.next(2_000, Some(Side::Right), hold);
+        assert_eq!(lane, Lane::Over { side: Side::Left, until: 4_000 });
+        // Nobody in file: kept until the hold is out, then the centre.
+        assert_eq!(lane.next(3_900, None, hold), lane);
+        assert_eq!(lane.next(4_000, None, hold), Lane::Centre);
+        assert_eq!(Lane::Centre.next(5_000, None, hold), Lane::Centre);
+        // The clock wraps.
+        let late = Lane::Centre.next(u32::MAX - 500, Some(Side::Right), hold);
+        assert_eq!(late.next(u32::MAX - 100, None, hold), late);
+        assert_eq!(late.next(1_600, None, hold), Lane::Centre);
+        assert_eq!(Lane::Over { side: Side::Left, until: 0 }.offset(0.9), Some(0.9));
+        assert_eq!(Lane::Over { side: Side::Right, until: 0 }.offset(0.9), Some(-0.9));
+        assert_eq!(Lane::Centre.offset(0.9), None);
     }
 
     #[test]
@@ -165,13 +342,13 @@ mod tests {
         let a = at(0, 0, 0.0, 0.0);
         let b = at(1, 0, 0.0, 0.0);
         let view = view_of(vec![a.clone(), b.clone()]);
-        assert_eq!(key_away(&a, &view, 1.1), 0);
-        assert_ne!(key_away(&b, &view, 1.1), 0);
+        assert_eq!(key_away(&a, &view, 1.1).key, 0);
+        assert_ne!(key_away(&b, &view, 1.1).key, 0);
         // A walker steps whatever his place; a stander does not step for a walker.
         let mut walker = at(0, 0, 0.0, 0.0);
         walker.velocity = [0.0, 4.0];
         let view = view_of(vec![walker.clone(), b.clone()]);
-        assert_ne!(key_away(&walker, &view, 1.1), 0);
-        assert_eq!(key_away(&b, &view, 1.1), 0);
+        assert_ne!(key_away(&walker, &view, 1.1).key, 0);
+        assert_eq!(key_away(&b, &view, 1.1).key, 0);
     }
 }
