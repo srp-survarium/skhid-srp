@@ -15,14 +15,9 @@ configs.start with it, a chain).
   `localization` and patch 83's settings; the game's cc_string::execute sets it from a user.cfg line;
 - a whole user.cfg through the console's own load (console_commands::load
   0xEBF00, as load_cc_script gives it user.cfg: 1, 2), run.py's file (LF,
-  `r_resolution 1280x720` last) and the game's (CRLF) with the faction's
+  `r_resolution 1280x720` last) and the game's (CRLF) with the pick's
   line: every line to its variable (a stand-in `r_resolution` registered
   with the game's own cc_string::cc_string), the stack as it was;
-- the 0x8E handler as it keeps the faction (0x2717CF to its `pop ebp`): the
-  faction kept at the lobby client's +1EA998h as the original does, and the
-  saved value the faction's id, user.cfg written once when it changed and
-  not again for the same one; none (0) or an unknown id saved as the
-  Scavengers (1);
 - lobby_menu::query_resources (0x21E450) from its start to its query
   (0x21E5ED): the fourth request is the saved pick's project ({"lobby_scene/<id>",
   40h}, the lobby menu's variant as its user data; no value or an unknown one
@@ -50,10 +45,19 @@ configs.start with it, a chain).
   spinner off and the byte again, the black stepped out; a stall's frame
   steps the black by a 30th of a second; a project without its track behind
   the black: nothing put in, the black stepped out, not asked again;
+- while patch 45's camera is the table's (a weapon's upgrade window: its
+  state's TABLE 1, or its flight there or back), the lobby shown is kept: a
+  pick then asks nothing and steps no black, a fade begun steps back out
+  without a query, and a project that comes behind the black is let go (no
+  swap: the spot patch 45 read from the lobby shown's project stays its
+  lobby's); once the window is closed and the camera home (the flight's word
+  0 again, the ray a stub), the pick's change plays and the new lobby's first
+  frame puts the camera at its ctor's pose;
 - 0xA1 (read_squad_info at its id, 0x2747C3, and a squad's revision,
-  0x2748BC): srp's picks 0 (the sign-in) send the saved pick (3B through the
-  lobby client's 0x270070); the own pick saved; a squad's commander's pick
-  asked; a match entered (lobby_menu::on_deactivate 0x21D4A0) during the fade
+  0x2748BC): srp's two bytes after the squad (the receiver's pick and its
+  commander's, lobby ids): picks 0 (the sign-in) send the saved pick (3B
+  through the lobby client's 0x270070); the own pick saved; a squad's
+  commander's pick asked; a match entered (lobby_menu::on_deactivate 0x21D4A0) during the fade
   or behind the black: the black gone, a project that comes put in at once;
   back (on_activate 0x21D2E0) while it loads: the black again;
   game::clear_resources (0x1ED030, the game closing): its on_deactivate of
@@ -101,6 +105,10 @@ SQUAD_ID, SQUAD_ID_END = 0x2747C3, 0x2747CA             # lobby_client.squad_id:
 SQUAD, SQUAD_END = 0x2748BC, 0x2748C2                   # lobby_client.squad_read: a squad's revision kept
 READER, MESSAGE = MENU + 0xA000, MENU + 0xA100          # a 0xA1's reader {begin, cursor, size} and bytes
 EYE_ADAPTATION = 0xAC914C                               # stage_postprocess's reset byte
+RAY = 0x2844D0                                          # the lobby camera's collision ray (`ret 4`): a stub
+# patch 45's state (weapon_table_026g.asm's STATE, .srpd) and its fields
+TABLE_STATE = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_TABLE_STATE_OFFSET
+TABLE_ON, TABLE_FLIGHT, TABLE_TARGETS, TABLE_REQUEST, TABLE_ZOOM = 0x00, 0x04, 0x08, 0x2C, 0x4C
 FRAME = 1 / 60
 # the game's functions the swap reaches, stubbed: name, what it records, its pops
 SWAP_STUBS = {0x2855B0: "remove", 0x285540: "insert", 0x2F8720: "on_inserted", 0x2F8850: "collision_insert",
@@ -128,6 +136,23 @@ class Run(language.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.players_range, begin=PLAYERS_RANGE, end=PLAYERS_RANGE)
         for at in SWAP_STUBS:
             self.emu.hook_add(UC_HOOK_CODE, self.swap_stub, begin=at, end=at)
+        self.emu.hook_add(UC_HOOK_CODE, self.ray_stub, begin=RAY, end=RAY)
+
+    def ray_stub(self, emu, address, size, _):
+        """The camera's collision ray (patch 45's flight home casts it; `ret 4`): nothing in the way."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_ESP, sp + 8)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def table(self, on):
+        """Patch 45's camera entry as a weapon's upgrade window leaves it (weapon_table_026g.asm
+        `camera`): the table on or off, a request counted, its targets (on: the classic's spot and
+        view; off: the origin and the yaw and pitch the camera had)."""
+        targets = (4.25, 3.05, -1.5707964, -0.2) if on else (0.0, 0.0, 2.5, -0.5)
+        self.word(TABLE_STATE + TABLE_ON, on)
+        self.emu.mem_write(TABLE_STATE + TABLE_TARGETS, struct.pack("<4f", *targets))
+        self.emu.mem_write(TABLE_STATE + TABLE_ZOOM, struct.pack("<f", 1.0))
+        self.word(TABLE_STATE + TABLE_REQUEST, self.read(TABLE_STATE + TABLE_REQUEST) + 1)
 
     def lobby_variable(self):
         """on_configs_loaded's start run: `srp_lobby`'s node, found by its name (a later handler of
@@ -394,9 +419,9 @@ def main():
         ours.emu.mem_write(buffer, b"\0" * 4)
         ours.emu.mem_write(STAND_IN + 0x80, bytes(32))
         _, popped = ours.call_at(CONSOLE_LOAD, (1, 2), {UC_X86_REG_ESI: CFG + 0x1000})
-        faction = text.split(b"srp_lobby ")[1][:1]
-        expect(ours.text(buffer) == faction and ours.text(STAND_IN + 0x80) == b"1280x720" and popped == 4,
-               f"user.cfg {label}: `srp_lobby {faction.decode()}` and `r_resolution 1280x720` each to its "
+        pick = text.split(b"srp_lobby ")[1][:1]
+        expect(ours.text(buffer) == pick and ours.text(STAND_IN + 0x80) == b"1280x720" and popped == 4,
+               f"user.cfg {label}: `srp_lobby {pick.decode()}` and `r_resolution 1280x720` each to its "
                "variable through the console's own load; the stack as it was")
 
     def saved(value):
@@ -611,6 +636,8 @@ def a_change(patched, stock, stock_requests, expect):
     expect(fades(r.invokes()) == [(1000, 1)],
            "back from the match while the project loads: the black and the spinner again")
 
+    under_the_table(shown, to_black, fades, stock_log, expect)
+
     # the game closing: results let go untouched
     r = shown("2", "lobby_scene/day")
     r.saved("4")
@@ -624,6 +651,80 @@ def a_change(patched, stock, stock_requests, expect):
            and r.deactivate() == [],
            "game::clear_resources' start (its span replayed), then a change's results: let go, nothing touched; "
            "its on_deactivate of the lobby asks nothing")
+
+
+def under_the_table(shown, to_black, fades, stock_log, expect):
+    """A pick while patch 45's camera is the table's (a weapon's upgrade window: its spot read from
+    the lobby shown's project): the lobby shown kept until the window is closed and the camera home."""
+    def quiet(r, ticks):
+        """`ticks` frames: whether none asked a query, stepped the black or swapped."""
+        return all(asked == [] and log == [] and fades(invokes) == [] for asked, log, invokes in
+                   (r.tick() for _ in range(ticks)))
+
+    def then_the_change(r):
+        """The window closed: the flight home, then the pick's change and the new lobby at the
+        camera's ctor's pose."""
+        r.table(0)
+        home = 0
+        while r.read(TABLE_STATE + TABLE_FLIGHT) != 0 and home < 60:
+            asked, log, invokes = r.tick()
+            assert asked == [] and log == [] and fades(invokes) == [], (home, invokes)
+            home += 1
+        out = to_black(r)
+        requests, _, _ = r.query()
+        flow = r.ready(PROJECT, swap=True)
+        swapped = r.log
+        r.tick()
+        return (20 <= home <= 30 and out[-1][0] == [MENU] and requests[3] == ("lobby_scene/stk2_bunker", 0x40)
+                and flow == ("returned", []) and swapped == stock_log and r.pose() == (0.0, 0.0, 1.96, 1.96, 0.0)), home
+
+    r = shown("2", "lobby_scene/day")
+    r.table(1)
+    r.saved("3")
+    kept = quiet(r, 60) and r.read(MENU + 0x114) == OLD - 0x38
+    changed, home = then_the_change(r)
+    expect(kept and changed,
+           "the Bunker picked with a weapon's upgrade window open (patch 45's table on, its camera flown to the "
+           "spot): 60 frames, nothing asked, no black, the classic's project kept; the window closed: the camera "
+           f"flies home ({home} frames, still nothing), then the change: the black, the Bunker's query, its project "
+           "put in, the camera at the ctor's pose")
+
+    r = shown("2", "lobby_scene/day")
+    r.saved("3")
+    r.tick()
+    r.tick()
+    r.table(1)
+    back = []
+    while len(back) < 40:
+        asked, log, invokes = r.tick()
+        back.append((asked, log, fades(invokes)))
+        if back[-1][2] == [(0, 0)]:
+            break
+    stepped_out = back[-1][2] == [(0, 0)] and all(asked == [] and log == [] for asked, log, _ in back)
+    changed, _ = then_the_change(r)
+    expect(stepped_out and changed,
+           f"the window opened during the fade to black: the black stepped back out ({len(back)} frames), nothing "
+           "asked; closed: the change plays")
+
+    r = shown("2", "lobby_scene/day")
+    r.saved("3")
+    to_black(r)
+    r.query()
+    r.table(1)
+    flow = r.ready(PROJECT, swap=True)
+    let_go = flow == ("returned", []) and r.log == [] and r.read(MENU + 0x114) == OLD - 0x38 \
+        and fades(r.invokes()) == [(1000, 0)]
+    out = []
+    while len(out) < 40:
+        f = fades(r.tick()[2])
+        out.append(f)
+        if f == [(0, 0)]:
+            break
+    changed, _ = then_the_change(r)
+    expect(let_go and out[-1] == [(0, 0)] and changed,
+           "the window opened while the Bunker's project loads behind the black: its results let go, nothing put "
+           "in (the classic's project, the spot's, kept), the spinner off and the black stepped out; closed: the "
+           "change plays")
 
 
 if __name__ == "__main__":
