@@ -950,6 +950,8 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     }
     #[cfg(test)]
     stuck::self_kills::count(usize::from(again));
+    #[cfg(test)]
+    bot.stuck.drop_watch_self_kill();
     let (since, why) = facts.hopeless.map_or((now, String::new()), |h| (h.since, format!("{:?}", h.why)));
     bot.note(
         notes,

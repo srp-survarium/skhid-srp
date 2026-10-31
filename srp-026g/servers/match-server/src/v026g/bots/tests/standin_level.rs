@@ -1,4 +1,4 @@
-//! The speed level of a stand-in body (`SRP_BENCH_STAND_IN_LEVEL=on`, C14): the bodies move at the level their kit gives, as the
+//! The speed level of a stand-in body (`SRP_BENCH_STAND_IN_LEVEL`, on by default, C14): the bodies move at the level their kit gives, as the
 //! live server hands it (`game/driven.rs`: `bot_skills::profile_movement_level`, `Bots::set_speed_levels`), not at the nominal speed.
 //!
 //! The client moves a body at the nominal speed times its movement level, `1 + 0.05 (skill 208) - 0.2 (1 + overweight penalty) t`
@@ -11,9 +11,9 @@
 
 use super::*;
 
-/// Whether the stand-in bodies move at their kit's level (`SRP_BENCH_STAND_IN_LEVEL`; off by default: the nominal speed).
+/// Whether the stand-in bodies move at their kit's level (`SRP_BENCH_STAND_IN_LEVEL`; on by default, as live: `off` or `0` is the nominal speed).
 pub(crate) fn enabled() -> bool {
-    bench_settings().var("SRP_BENCH_STAND_IN_LEVEL").is_ok_and(|v| v == "on" || v == "1")
+    bench_settings().is_on("SRP_BENCH_STAND_IN_LEVEL")
 }
 
 /// The level of the stand-in human's body: the median over live players of their sprint speed over the nominal 5.0 m/s, 1.02 (PROVEN

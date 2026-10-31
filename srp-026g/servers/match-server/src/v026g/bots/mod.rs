@@ -304,6 +304,11 @@ pub struct Bot {
     /// The step apart from a teammate of the last drive tick (`spacing.apart`): 0 no teammate inside, 1 taken, 2 refused (no clear ground that side), 3 held off (the reflex strafes or fires, a use is held, a side key is down).
     #[cfg(test)]
     pub(crate) bench_apart: u8,
+    /// The line the bot walks (`spacing.lane`, A175): the route's own, or one beside it.
+    pub(crate) lane: apart::Lane,
+    /// What the lane did to the steering point in the last walk tick: [`apart::LaneUse`] as a number.
+    #[cfg(test)]
+    pub(crate) bench_lane: u8,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -495,6 +500,9 @@ impl Bot {
             bench_stepped: 0,
             #[cfg(test)]
             bench_apart: 0,
+            lane: apart::Lane::Centre,
+            #[cfg(test)]
+            bench_lane: 0,
             #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]
@@ -1433,6 +1441,8 @@ impl Bots {
         {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
+            bot.stuck.watch_drop(time, feet, true);
+            #[cfg(test)]
             if after_gap {
                 stuck::fix_gaps::count(1);
             }
@@ -1468,6 +1478,27 @@ impl Bots {
                     route_text
                 ),
             );
+            // [unstick] Held at the top of a drop its route goes down (A199): the drops off where it stands are shut to its
+            // searches, so the next one takes another way down, or none is left (`Stuck::hopeless`).
+            if let Some(shut) = self.tunings.of(bot.team).unstick.drop_shut
+                && let Some(tactics) = self.tactics.as_ref()
+                && bot.route.as_ref().is_some_and(|(route, _)| route.heads_down_from(feet))
+            {
+                let landings = stuck::drops_off(&tactics.world.grid, feet, shut.near_m.get());
+                if !landings.is_empty() {
+                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms);
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!(
+                            "shuts {} drops off {:?} to its searches for {} s: held at their top",
+                            landings.len(),
+                            feet.to_array(),
+                            shut.kept_ms / 1_000
+                        ),
+                    );
+                }
+            }
             let (side, other) = if bot.rng.unit() < 0.5 {
                 (key::LEFT, key::RIGHT)
             } else {
@@ -1555,6 +1586,8 @@ impl Bots {
             }
             return notes;
         }
+        #[cfg(test)]
+        bot.stuck.watch_drop(time, feet, false);
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
         if bot.control.reacts()
             && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms

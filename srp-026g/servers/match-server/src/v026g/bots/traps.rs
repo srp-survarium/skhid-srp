@@ -1133,7 +1133,7 @@ pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> R
 /// The hard part of a search's filter: the landings it gave up shut, and the
 /// floors of the team's traps shut, but for the floor the body stands on
 /// (`start`: a trap let go of a metre off must not shut the way out).
-pub(super) fn filter(bot: &Bot, landings: Vec<Vec3>, start: Option<NodeId>) -> RouteFilter {
+pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
     if bot.features.traps.field.is_empty() {
         return filter;
