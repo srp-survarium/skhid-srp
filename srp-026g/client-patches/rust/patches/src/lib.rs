@@ -52,3 +52,4 @@ pub mod language;
 pub mod lamps;
 pub mod artefact_score;
 pub mod tab_cursor;
+pub mod map_names;

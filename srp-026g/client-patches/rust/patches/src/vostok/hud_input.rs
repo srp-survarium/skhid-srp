@@ -1,47 +1,16 @@
-//! The match hud's input: the game world's keys at their start
-//! (`tab_cursor.key`, game_world::on_keyboard_action 0x25CD00, before its Tab
-//! test) and the hud movie's calls to the exe (`hud.callback`,
+//! The match hud: its view and cursor (the game world's keys that act on
+//! them are `keyboard`'s), and the hud movie's calls to the exe (`hud.callback`,
 //! game_world_ui::scaleform_callback 0x233D30, before it matches the
 //! method's name), with the hud's cursor and the Tab list they act on.
 
 use core::ffi::CStr;
 use core::marker::PhantomData;
 
-use super::context::{Context, Reg};
+use super::context::Context;
 use super::hook::Thread;
 use super::lobby::Lobby;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
-
-/// A DirectInput key code, as the game world's keys come.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Key(u32);
-
-impl Key {
-    pub const TAB: Key = Key(0x0F);
-    pub const LEFT_CONTROL: Key = Key(0x1D);
-    pub const RIGHT_CONTROL: Key = Key(0x9D);
-}
-
-/// A key's event (the keyboard's process 0x3B9AF0): down and up once each,
-/// held at every tick while it is down.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum KeyKind {
-    Down,
-    Up,
-    Held,
-}
-
-impl KeyKind {
-    fn of(raw: u32) -> Option<KeyKind> {
-        match raw {
-            1 => Some(KeyKind::Down),
-            2 => Some(KeyKind::Up),
-            3 => Some(KeyKind::Held),
-            _ => None,
-        }
-    }
-}
 
 /// What the hud shows, as the game keeps it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,7 +29,13 @@ pub struct Hud<'t> {
     thread: PhantomData<&'t Thread>,
 }
 
-impl Hud<'_> {
+impl<'t> Hud<'t> {
+    /// # Safety
+    /// `this` is the live hud of the hook's site, alive for `'t` on the game's thread.
+    pub(super) unsafe fn of(this: raw::GameWorldUi) -> Hud<'t> {
+        Hud { this, thread: PhantomData }
+    }
+
     pub fn view(&self) -> HudView {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe {
@@ -91,52 +66,6 @@ impl Hud<'_> {
         // long as the hud, on its thread.
         let client = unsafe { self.this.world()?.game()?.network_client()? };
         Some(Lobby::of(client))
-    }
-}
-
-/// A key at the game world's on_keyboard_action's start (`tab_cursor.key`).
-pub struct GameWorldKey<'c, 'm> {
-    ctx: &'c mut Context<'m>,
-    hud: Hud<'c>,
-    key: Key,
-    kind: KeyKind,
-}
-
-impl<'c, 'm> GameWorldKey<'c, 'm> {
-    /// None for a kind the keyboard does not give.
-    pub fn at_start(ctx: &'c mut Context<'m>) -> Option<GameWorldKey<'c, 'm>> {
-        use raw::site::tab_cursor_key as site;
-        // SAFETY: the context is this site's: the game world's input handler
-        // (its hud inside it) and the function's arguments, alive while it
-        // runs on the game's thread.
-        let (ui, key, kind) = unsafe {
-            let (input, frame) = (site::input(&*ctx)?, site::frame(&*ctx)?);
-            (input.ui(), *frame.key(), *frame.state())
-        };
-        let kind = KeyKind::of(kind)?;
-        Some(GameWorldKey { ctx, hud: Hud { this: ui, thread: PhantomData }, key: Key(key), kind })
-    }
-
-    pub fn key(&self) -> Key {
-        self.key
-    }
-
-    pub fn kind(&self) -> KeyKind {
-        self.kind
-    }
-
-    pub fn hud(&self) -> &Hud<'c> {
-        &self.hud
-    }
-
-    pub fn thread(&self) -> &Thread {
-        self.ctx.thread()
-    }
-
-    /// The key is taken here: no later handler (the player's) gets it. The
-    /// caller then leaves by the site's `taken` exit (its `ret 0Ch`).
-    pub fn take(self) {
-        self.ctx.set_reg8(Reg::Eax, 1);
     }
 }
 

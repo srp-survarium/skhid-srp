@@ -108,6 +108,18 @@ the ally's icon is the enemy's until the team comes, then the ally's. It also ch
 enemy, an ally taking and dropping the battery, an enemy carrier, a player that leaves,
 and a team-1 game.
 
+### Tab map names
+
+`tests/TabMapNamesHarness.as` checks the names on the Tab map (`srp-026g/docs/notes/tab-map-names.md`)
+with the hud movie's own Tab list (`SrvPlayerList`, its map) and corner minimap, fed as `HUD.as`
+feeds them (the hud's root does not run outside the game). Put the newly built hud movie beside
+its output as `hud.swf`, compile and run it as above. It traces `NAMES ... ok` lines and
+`NAMES RESULT pass` or `NAMES RESULT fail: ...`: no names without Alt; with Alt each other
+player's icon its place's name centred over it, the own icon and a place with no row none, the
+corner minimap none; the names following their icons over 100 updates with the same text fields;
+Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
+rows made again; and Blackout (the list kept hidden): none on screen.
+
 ## History
 
 Until 2026-10-21 the trees were proven to recompile revision 24 byte for byte

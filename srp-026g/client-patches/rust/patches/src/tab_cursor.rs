@@ -25,7 +25,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::{
-    GameCell, GameWorldKey, Flow, Context, HudCall, Key, KeyKind, Lobby, NoExit, NotConnected, TabCursorOnHudCallExit,
+    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, NoExit, NotConnected, TabCursorOnHudCallExit,
     TabCursorOnKeyExit, Thread, clock,
 };
 use crate::vostok::types::Place;
@@ -44,10 +44,10 @@ struct CtrlKeys(u8);
 impl CtrlKeys {
     const NONE: CtrlKeys = CtrlKeys(0);
 
-    fn of(key: Key) -> Option<CtrlKeys> {
+    fn of(key: Dik) -> Option<CtrlKeys> {
         match key {
-            Key::LEFT_CONTROL => Some(CtrlKeys(1)),
-            Key::RIGHT_CONTROL => Some(CtrlKeys(2)),
+            Dik::LEFT_CONTROL => Some(CtrlKeys(1)),
+            Dik::RIGHT_CONTROL => Some(CtrlKeys(2)),
             _ => None,
         }
     }
@@ -187,7 +187,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<TabCursorOnKeyExit> {
     let view = key.hud().view();
     // The list after this key: Tab's own event says; any other key leaves it
     // as the key before it made it (on_keyboard_action asks for Tab at every key).
-    let list = !blackout && if key.key() == Key::TAB { key.kind() != KeyKind::Up } else { view.list };
+    let list = !blackout && if key.key() == Dik::TAB { key.kind() != KeyKind::Up } else { view.list };
     let event = KeyEvent { ctrl: CtrlKeys::of(key.key()), kind: key.kind(), list };
     let thread = key.thread();
     let step = CURSOR.get(thread).step(event);

@@ -2538,6 +2538,46 @@ places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
 
+### Names on the Tab map (patch 82)
+
+`map_names` (Rust, `vostok::GameWorldKeys`) is a lohook at 0x25CD1C in
+`game_world::on_keyboard_action` (0x25CD00), right after it took the input
+world's keyboard (its vtable+24h, 0x79E40: `[input_world+24h]`, the platform
+keyboard `create_devices` 0x3B82F0 made) and before it asks it for Tab
+(`mov edx,[eax] / mov ecx,eax / mov eax,[edx]`, 6 bytes, then `push 0Fh`;
+EAX the keyboard, EDI the game world's input handler, the hud at +4, as
+`lea esi,[edi+4]` at 0x25CD30 gives show_player_list). The game world's
+handler is given every key before the player's (priority 7 to 10, section
+3.53), a held key every tick (the keyboard's process 0x3B9AF0, kind 3), so
+each change of an Alt key comes with a key of its own, and while Tab is held
+the hook runs every tick. It reads the keys' state only when the keyboard's
+vtable is the platform keyboard's (0xA25478; its ctor 0x3B8BDC writes it):
+`[keyboard + 4 + 4 x DIK]`, bit 80h, as `is_key_down` 0x3B8D00 reads it; left
+Alt 38h (the game's names key, `render_name` 0x1F2DCD) or right Alt B8h
+(`alt_is_held` 0x241200 asks both). The hud movie
+(`[[[handler+4]+8]+108h]+4`) is told `root.show_map_names(bool)` when the
+state or the movie changes, again at the next key while the Invoke answers 0.
+
+The names: `update_minimap_players` (0x239420) gives each icon `player_id` =
+the place of its loop (0..13h, 0x2395AC), and `initialize_match` (0x234880)
+gives the Tab list's rows `id` = the same place (0x234FE4) and `name` (the
+profile's name, `[%s] %s` with its clan tag, 0x235090). The movie keeps the
+rows' names by place (`HUD.list_set_players` -> `Minimap.setPlayerNames`, the
+Tab map's alone) and an icon shows its place's while the names are shown,
+none for the local player (`is_local_player`). The Tab map is the Tab list's
+(`SrvPlayerList.minimap`), which Blackout's forced Tab never shows, so no
+name shows in Blackout.
+
+Checked: `check_map_names_026g.py` (Unicorn) runs on_keyboard_action from its
+start to past show_player_list (0x25CD39) in both builds on a made-up input
+world (the game's own getter) and keyboard (the platform vtable, the game's
+own is_key_down asked for Tab): the registers, stack, frame and Tab byte the
+original's; the Invokes at the first key and each change (left, right, both,
+state bits other than 80h), a refusing movie told again until it takes it,
+another movie told at once, none without a movie or with another keyboard's
+vtable. `tools/actionscript/tests/TabMapNamesHarness.as` (Ruffle) the movie's
+part. Not run: a game.
+
 ### Tab list cursor and friend requests (patch 86)
 
 Written 2026-10-30; the rules are in `tab-cursor-friends.md`. PROVEN in the code, and both sites run
