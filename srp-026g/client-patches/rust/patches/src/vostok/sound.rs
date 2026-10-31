@@ -20,6 +20,7 @@ use core::ptr::null;
 
 use super::config::ConfigValue;
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use crate::raw;
 
@@ -44,12 +45,13 @@ unsafe impl Send for SoundUser {}
 
 impl SoundUser {
     /// The game's, at `game.tick` (EBX the game).
-    pub fn at_game_tick(ctx: &Context<'_>) -> Option<SoundUser> {
+    pub fn at_game_tick(ctx: &Context<'_, site::GameTick>) -> Option<SoundUser> {
+        let game = raw::site::game_tick::game(ctx)?;
         // SAFETY: the site's EBX is the game, alive and ticking on this
         // thread; its sound world (+5350h) and the world's logic user
         // (+0B0h, get_logic_world_user 0x9F7E0) are the engine's.
         unsafe {
-            let world = raw::site::game_tick::game(ctx)?.sound_world()?;
+            let world = game.sound_world()?;
             Some(SoundUser { world, user: world.logic_user()? })
         }
     }
@@ -187,13 +189,11 @@ pub struct SoundTick<'t> {
 }
 
 impl<'t> SoundTick<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<SoundTick<'t>> {
-        // SAFETY: the site's EDI is the ticking sound world, EBX the ms
-        // since its last tick, on the sound thread.
-        unsafe {
-            let world = raw::site::sound_world_tick::world(ctx)?;
-            Some(SoundTick { world, elapsed: raw::site::sound_world_tick::elapsed(ctx), thread: PhantomData })
-        }
+    /// The site's EDI is the ticking sound world, EBX the ms since its last
+    /// tick, on the sound thread.
+    pub fn at(ctx: &'t Context<'_, site::SoundWorldTick>) -> Option<SoundTick<'t>> {
+        let world = raw::site::sound_world_tick::world(ctx)?;
+        Some(SoundTick { world, elapsed: raw::site::sound_world_tick::elapsed(ctx), thread: PhantomData })
     }
 
     /// The ms since the world's last tick.
@@ -263,11 +263,12 @@ pub enum LoadingMusic {
 }
 
 impl LoadingMusic {
-    pub fn at_level_loading(ctx: &Context<'_>) -> LoadingMusic {
+    pub fn at_level_loading(ctx: &Context<'_, site::LevelLoadingUi>) -> LoadingMusic {
         // SAFETY: the site's ESI is the mode's ui table, a node of its
         // config, which the map's descriptor holds loaded for the call.
         let table = unsafe {
             match raw::site::level_loading_ui::ui(ctx).map(|node| ConfigValue::read(node)) {
+
                 Some(Ok(value)) => value.table(),
                 _ => return LoadingMusic::None,
             }

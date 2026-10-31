@@ -10,6 +10,7 @@
 use core::marker::PhantomData;
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::world::read;
 use crate::raw;
@@ -81,13 +82,14 @@ impl<'t> ArtefactPickup<'t> {
     /// The pickup the site is about to transfer; None when the match has no
     /// statistics handler (use_execute then counts nothing either) or the
     /// user's place or kit is none of the records'.
-    pub fn at_transfer(ctx: &'t Context<'_>) -> Option<ArtefactPickup<'t>> {
-        use raw::site::artefact_container_transfer as site;
-        // SAFETY: the context is this site's: the user and the container
-        // use_execute holds, their inventory, world core and statistics
-        // alive on the game's thread; take_artefact reads the same slots.
+    pub fn at_transfer(ctx: &'t Context<'_, site::ArtefactContainerTransfer>) -> Option<ArtefactPickup<'t>> {
+        use raw::site::artefact_container_transfer as at;
+        let (user, container) = (at::user(ctx)?, at::container(ctx)?);
+        // SAFETY: the site's user and container use_execute holds, their
+        // inventory, world core and statistics alive on the game's thread;
+        // take_artefact reads the same slots.
         unsafe {
-            let (user, container) = (site::user(ctx)?, site::container(ctx)?);
+
             let statistics = container.world_core()?.statistics()?.shared();
             let place = Place::parse(read(user.place()))?;
             let kit = Kit::parse(read(user.kit()))?;

@@ -7,6 +7,7 @@ use core::ffi::CStr;
 use core::marker::PhantomData;
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::lobby::Lobby;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
@@ -79,15 +80,13 @@ pub struct HudCall<'c> {
 }
 
 impl<'c> HudCall<'c> {
-    pub fn at(ctx: &'c Context<'_>) -> Option<HudCall<'c>> {
-        use raw::site::hud_callback as site;
-        // SAFETY: the context is this site's: the hud and the callback's
-        // frame, alive for the call, on the game's thread; the method's name a
-        // C string the movie gave.
-        let (ui, frame, method) = unsafe {
-            let (ui, frame) = (site::ui(ctx)?, site::frame(ctx)?);
-            (ui, frame, c_string(frame.method(), TEXT_LIMIT)?)
-        };
+    pub fn at(ctx: &'c Context<'_, site::HudCallback>) -> Option<HudCall<'c>> {
+        use raw::site::hud_callback as at;
+        let (ui, frame) = (at::ui(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's callback frame, alive for the call, on the
+        // game's thread; the method's name a C string the movie gave.
+        let method = unsafe { c_string(frame.method(), TEXT_LIMIT)? };
+
         Some(HudCall { hud: Hud { this: ui, thread: PhantomData }, frame, method, thread: ctx.thread() })
     }
 

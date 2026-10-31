@@ -8,7 +8,7 @@
 //! identity and that time: presentation only, nothing of the simulation.
 #![forbid(unsafe_code)]
 use crate::vostok::consumable::{DrugId, GameTime, Observed, Shown};
-use crate::vostok::{Context, Flow, GameCell, NoExit, QuickSlotActivity};
+use crate::vostok::{Context, Flow, GameCell, NoExit, QuickSlotActivity, site};
 
 /// How long a stopped drug's slot shows red (the owner, 2026-10-31).
 const INTERRUPTED_MS: u32 = 1000;
@@ -42,7 +42,7 @@ fn step(seen: Seen, observed: Observed, now: GameTime) -> (Seen, Shown) {
     }
 }
 
-pub fn on_update(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_update(ctx: &mut Context<'_, site::QuickSlotsActivity>) -> Flow<NoExit> {
     if let Some(slot) = QuickSlotActivity::at_update(ctx) {
         let index = slot.slot();
         if index < 6 {

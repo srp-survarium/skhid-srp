@@ -2,7 +2,7 @@
 //! this class; an owned reference lives until the exact item's destructor.
 //! Its normal model, inventory state and ground collision are untouched.
 use core::sync::atomic::{AtomicU32, Ordering};
-use super::{Context, Lock, Thread};
+use super::{Context, Lock, Thread, site};
 use super::world::{read};
 use super::carry_runtime::Scene;
 use crate::raw;
@@ -37,11 +37,11 @@ unsafe impl Send for Flower {}
 // the pool, retain nothing and leave that item using its original model.
 static FLOWERS: Lock<[Option<Flower>; 256]> = Lock::new([const { None }; 256]);
 
-pub fn query(ctx: &Context<'_>) -> bool {
+pub fn query(ctx: &Context<'_, site::CarryFlowerQuery>) -> bool {
+    let Some(frame) = raw::site::carry_flower_query::frame(ctx) else { return false };
     // SAFETY: 0x25E91A, the native cook's three resource requests. At this
     // call site stack has the five arguments, but no call return address.
     unsafe {
-        let Some(frame) = raw::site::carry_flower_query::frame(ctx) else { return false };
         let first = frame.requests();
         let path = first.path();
         if path.is_null() || read(first.class()) != 15 { return false; }
@@ -61,13 +61,13 @@ pub fn query(ctx: &Context<'_>) -> bool {
     true
 }
 
-pub fn ready(ctx: &Context<'_>) {
+pub fn ready(ctx: &Context<'_, site::CarryFlowerReady>) {
+    let Some(result) = raw::site::carry_flower_ready::result(ctx) else { return };
+    let Some(item) = raw::site::carry_flower_ready::item(ctx).map(|i| i.address()) else { return };
     // SAFETY: Lifebone branch at 0x260278: EDI is the live artefact, EBX
     // the result passed to its native assignment routine. Count is checked
     // before reading the appended query (header 50h, stride 2E0h).
     unsafe {
-        let Some(result) = raw::site::carry_flower_ready::result(ctx) else { return };
-        let Some(item) = raw::site::carry_flower_ready::item(ctx).map(|i| i.address()) else { return };
         if read(result.count()) != 4 { return; }
         let Some(model) = result.flower() else { return };
         FLOWERS.with(ctx.thread(), |slots| {
@@ -79,9 +79,9 @@ pub fn ready(ctx: &Context<'_>) {
     }
 }
 
-pub fn destroy(ctx: &Context<'_>) {
-    // SAFETY: native Lifebone destructor argument.
-    let Some(item) = (unsafe { raw::site::carry_flower_destroy::item(ctx) }) else { return };
+pub fn destroy(ctx: &Context<'_, site::CarryFlowerDestroy>) {
+    let Some(item) = raw::site::carry_flower_destroy::item(ctx) else { return };
+
     FLOWERS.with(ctx.thread(), |slots| {
         if let Some(slot) = slots.iter_mut().find(|s| s.as_ref().is_some_and(|f| f.item == item.address())) {
             let flower = slot.take().expect("matched flower owner");

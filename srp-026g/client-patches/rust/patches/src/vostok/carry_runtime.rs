@@ -4,7 +4,7 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 use artefact_carry::{Artefact, Place};
 use artefact_carry::carry::{Carry, Time};
-use super::Context;
+use super::{Context, site};
 use super::world::{Player, floats, read};
 use crate::raw;
 
@@ -73,59 +73,49 @@ impl Player<'_> {
     }
 }
 
-pub enum PlayerSite { Input, Filter, Tick, Save, Load, Weapon, Death }
-pub fn player<'t>(ctx: &'t Context<'_>, site: PlayerSite) -> Option<Player<'t>> {
-    // SAFETY: each caller names the hook whose live player it borrows.
-    let raw = unsafe { match site {
-        PlayerSite::Input => raw::site::carry_input::player(ctx),
-        PlayerSite::Filter => raw::site::carry_filter::player(ctx),
-        PlayerSite::Tick => raw::site::carry_tick::player(ctx),
-        PlayerSite::Save => raw::site::carry_save::player(ctx),
-        PlayerSite::Load => raw::site::carry_load::player(ctx),
-        PlayerSite::Weapon => raw::site::carry_weapon::player(ctx),
-        PlayerSite::Death => raw::site::carry_death::player(ctx),
-    }};
-    Player::of(ctx, raw)
+/// A site whose `player` is a live player (sites_026g.tsv `holds`).
+pub use raw::site::HoldsPlayer as PlayerSite;
+pub fn player<'t, S: PlayerSite>(ctx: &'t Context<'_, S>) -> Option<Player<'t>> {
+    Player::of(ctx, S::player(ctx))
 }
 
-pub fn local_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+pub fn local_player<'t>(ctx: &'t Context<'_, site::PlayerIconsUpdateStart>) -> Option<Player<'t>> {
+    let frame = raw::site::player_icons_update_start::frame(ctx)?;
     // SAFETY: update_player_icons entry argument and its live client world.
     unsafe {
-        let ui = raw::site::player_icons_update_start::frame(ctx)?.ui()?;
+        let ui = frame.ui()?;
         let client = ui.world()?.game()?.network_client()?;
         Some(Player { this: client.local_player()?, thread: ctx.thread() })
     }
 }
 
-pub fn incoming(ctx: &Context<'_>) -> Option<(Time, u32)> {
+pub fn incoming(ctx: &Context<'_, site::CarryInput>) -> Option<(Time, u32)> {
+    let frame = raw::site::carry_input::frame(ctx)?;
     // SAFETY: set_input's entry frame, before its prologue.
-    unsafe {
-        let frame = raw::site::carry_input::frame(ctx)?;
-        Some((Time(read(frame.time())), read(frame.input()?.actions())))
-    }
+    unsafe { Some((Time(read(frame.time())), read(frame.input()?.actions()))) }
 }
 
 /// The carry key's event at player_input_handler::on_keyboard_action (site
 /// carry.key): the event of the key bound to `action`, `None` for another
 /// action or a state the engine does not define. Every key event passes
 /// here, its up too, whatever the input builder does after.
-pub fn key_event(ctx: &Context<'_>, action: super::Action) -> Option<super::KeyboardAction> {
-    // SAFETY: the site's typed registers: EDI the binder's action, EBP the
-    // function's frame (its third argument, the key's state, at +10h).
-    let (bound, frame) = unsafe { (raw::site::carry_key::action(ctx), raw::site::carry_key::frame(ctx)?) };
+pub fn key_event(ctx: &Context<'_, site::CarryKey>, action: super::Action) -> Option<super::KeyboardAction> {
+    // EDI the binder's action, EBP the function's frame (its third
+    // argument, the key's state, at +10h).
+    let (bound, frame) = (raw::site::carry_key::action(ctx), raw::site::carry_key::frame(ctx)?);
     if bound != action.0 { return None; }
     // SAFETY: the frame's argument slot, read once.
     super::KeyboardAction::parse(unsafe { read(frame.state()) })
 }
 
-pub fn constructed(ctx: &Context<'_>) -> u32 {
+pub fn constructed(ctx: &Context<'_, site::CarryConstruct>) -> u32 {
     // SAFETY: constructor's destination is an identity, never dereferenced.
-    unsafe { raw::site::carry_construct::frame(ctx).map_or(0, |f| read(f.player())) }
+    raw::site::carry_construct::frame(ctx).map_or(0, |f| unsafe { read(f.player()) })
 }
 
-pub fn write_snapshot(ctx: &Context<'_>, carry: Carry) {
-    // SAFETY: base_player::serialize's epilogue, its live writer.
-    if let Some(writer) = unsafe { raw::site::carry_save::writer(ctx) } { write_bytes(writer, &carry.snapshot()); }
+/// At base_player::serialize's epilogue, to its live writer.
+pub fn write_snapshot(ctx: &Context<'_, site::CarrySave>, carry: Carry) {
+    if let Some(writer) = raw::site::carry_save::writer(ctx) { write_bytes(writer, &carry.snapshot()); }
 }
 pub(super) fn write_bytes(writer: raw::BufferWriter, bytes: &[u8]) {
     for &byte in bytes {
@@ -136,9 +126,9 @@ pub(super) fn write_bytes(writer: raw::BufferWriter, bytes: &[u8]) {
     }
 }
 
-pub fn read_snapshot(ctx: &Context<'_>) -> Option<Carry> {
-    // SAFETY: live deserialize reader at the player-load site.
-    Carry::restore(read_bytes(unsafe { raw::site::carry_load::reader(ctx) }?)?)
+/// From the live deserialize reader at the player-load site.
+pub fn read_snapshot(ctx: &Context<'_, site::CarryLoad>) -> Option<Carry> {
+    Carry::restore(read_bytes(raw::site::carry_load::reader(ctx)?)?)
 }
 pub(super) fn read_bytes<const N: usize>(reader: raw::BufferReader) -> Option<[u8; N]> {
     // SAFETY: base_player::deserialize's live reader. Check the complete
@@ -262,12 +252,11 @@ unsafe fn weapon_models(weapon: raw::Weapon) -> [Option<raw::SceneModel>; 3] {
 /// already selected a different weapon. Never dereference a cached identity.
 pub struct WeaponHiding { weapon: raw::Weapon }
 impl WeaponHiding {
-    pub fn at(ctx: &Context<'_>) -> Option<Self> {
+    pub fn at(ctx: &Context<'_, site::CarryWeaponHide>) -> Option<Self> {
+        let frame = raw::site::carry_weapon_hide::frame(ctx)?;
         // SAFETY: weapon::on_hide entry, exact native frame and live this.
-        unsafe {
-            if read(raw::site::carry_weapon_hide::frame(ctx)?.was_visible()) == 0 { return None; }
-            Some(Self { weapon: raw::site::carry_weapon_hide::weapon(ctx)? })
-        }
+        if unsafe { read(frame.was_visible()) } == 0 { return None; }
+        Some(Self { weapon: raw::site::carry_weapon_hide::weapon(ctx)? })
     }
     pub fn restore(&self, hidden: &mut HiddenWeapons) {
         let Some(record) = hidden.find(self.weapon.address()) else { return };
@@ -290,8 +279,8 @@ impl WeaponHiding {
 /// Sole owner of the temporary render removal: `hide` takes the held
 /// weapon's models out, otherwise any it took go back, at this frame's
 /// transform. True when they are out (the native draw must be skipped).
-pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapons) -> bool {
-    let Some(player) = player(ctx, PlayerSite::Weapon) else { return false };
+pub fn weapon_visibility(ctx: &Context<'_, site::CarryWeapon>, hide: bool, hidden: &mut HiddenWeapons) -> bool {
+    let Some(player) = player(ctx) else { return false };
     // SAFETY: player_draw's live player, client weapon parsed by exact vtable.
     unsafe {
         let Some(weapon) = player.this.held_item() else { return false };
@@ -320,8 +309,24 @@ pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapo
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum ArtefactClass { Spring, Lifebone, Onyx, Rattle }
+/// The four artefact classes' draw callback sites (carry.spring, ..): each
+/// site's `callback` its class's live client.
+pub trait ArtefactSite: Sized {
+    /// The site's draw callback and its artefact.
+    fn client(ctx: &Context<'_, Self>) -> Option<(raw::ArtefactClient, raw::Artefact)>;
+}
+macro_rules! artefact_sites {
+    ($($site:ident: $at:ident),*) => {$(
+        impl ArtefactSite for site::$site {
+            fn client(ctx: &Context<'_, Self>) -> Option<(raw::ArtefactClient, raw::Artefact)> {
+                let client = raw::site::$at::callback(ctx)?;
+                // SAFETY: the site's live client, its class's offsets in raw.
+                Some(unsafe { (client.callback(), client.base()) })
+            }
+        }
+    )*};
+}
+artefact_sites!(CarrySpring: carry_spring, CarryLifebone: carry_lifebone, CarryOnyx: carry_onyx, CarryRattle: carry_rattle);
 
 pub enum DrawCommand { Present([f32; 16]), Keep, Native }
 
@@ -339,19 +344,13 @@ impl ArtefactDraw {
         Some(Self { item, callback })
     }
 
-    pub fn at(ctx: &Context<'_>, class: ArtefactClass) -> Option<Self> {
-        // SAFETY: class names the exact callback site, whose offsets are in raw.
-        let (callback, item) = unsafe { match class {
-            ArtefactClass::Spring => { let c = raw::site::carry_spring::callback(ctx)?; (c.callback(), c.base()) },
-            ArtefactClass::Lifebone => { let c = raw::site::carry_lifebone::callback(ctx)?; (c.callback(), c.base()) },
-            ArtefactClass::Onyx => { let c = raw::site::carry_onyx::callback(ctx)?; (c.callback(), c.base()) },
-            ArtefactClass::Rattle => { let c = raw::site::carry_rattle::callback(ctx)?; (c.callback(), c.base()) },
-        }};
+    pub fn at<S: ArtefactSite>(ctx: &Context<'_, S>) -> Option<Self> {
+        let (callback, item) = S::client(ctx)?;
         Some(Self { callback, item })
     }
     pub fn id(&self) -> u32 { self.item.address() }
-    pub fn ground(&self, ctx: &Context<'_>) -> bool {
-        let Some(item) = super::carry_ground::GroundItem::of_item(self.item, ctx.thread()) else { return false };
+    pub fn ground(&self, thread: &super::Thread) -> bool {
+        let Some(item) = super::carry_ground::GroundItem::of_item(self.item, thread) else { return false };
         // SAFETY: native item world owns its simulation clock.
         let now = unsafe { self.item.item().world()
             .map(|w| Time(read(w.time()))) };
@@ -362,7 +361,7 @@ impl ArtefactDraw {
             let Some(model) = self.callback.model() else { return false };
             let cached = self.callback.cached_state();
             if read(cached) == 5 {
-                super::carry_flower::with_model(ctx.thread(), self.item.address(), model, |held| { scene.remove(held); });
+                super::carry_flower::with_model(thread, self.item.address(), model, |held| { scene.remove(held); });
             }
             let Some(instance) = model.render_instance().instance().map(|instance| instance.static_model()) else { return false };
             let mut bounds = [0.; 6];
@@ -379,7 +378,8 @@ impl ArtefactDraw {
     }
     /// True: this callback was fully handled. False: native ground/active
     /// presentation must run. Its state transitions still own particles.
-    pub fn update(&self, ctx: &Context<'_>, command: DrawCommand) -> bool {
+    pub fn update(&self, thread: &super::Thread, command: DrawCommand) -> bool {
+
         // SAFETY: the original callback owns its item/model/world throughout.
         unsafe {
             let cached = self.callback.cached_state();
@@ -388,7 +388,8 @@ impl ArtefactDraw {
             let Some(scene) = Scene::of_world(world) else { return false };
             let Some(model) = self.callback.model() else { return false };
             if read(cached) == 6 { scene.remove(model); cached.write(0); }
-            super::carry_flower::with_model(ctx.thread(), self.item.address(), model, |held| {
+            super::carry_flower::with_model(thread, self.item.address(), model, |held| {
+
                 if read(cached) == 5 && (state != 3 || matches!(command, DrawCommand::Native)) {
                     scene.remove(held);
                     cached.write(3);

@@ -4,10 +4,13 @@
 //! [`Frame`], calls the handler, applies what it wrote and takes its
 //! [`Flow`]. The registers and flags are vostok's alone: a site's view
 //! (`vostok::draw`, `vostok::keyboard`, ..) reads and writes them in typed
-//! methods, so a patch never writes a raw register.
+//! methods, so a patch never writes a raw register. A context is its site's
+//! (`Context<'t, S>`, `S` a [`site`](super::site) marker): a view takes the
+//! context of the site it reads, so a handler builds only its own site's.
 //!
 //! Patch 76 (the ragdoll) is the first to ship lohooks (`ragdoll.toml`).
 
+use core::marker::PhantomData;
 use super::hook::{Regs, Thread};
 
 /// A general-purpose register (raw's: a site's typed registers are read by it).
@@ -31,19 +34,21 @@ pub struct Frame {
     pub fxsave: *mut u8,
 }
 
-/// The machine at a `lohook`, borrowing the hook's [`Thread`].
-pub struct Context<'t> {
+/// The machine at the `lohook` site `S`, borrowing the hook's [`Thread`].
+pub struct Context<'t, S> {
     frame: &'t mut Frame,
     thread: Thread,
+    site: PhantomData<S>,
 }
 
-impl<'t> Context<'t> {
+impl<'t, S> Context<'t, S> {
     /// # Safety
     /// Called by a generated `lohook` shim: `frame`'s pointers are its
-    /// entry's saved registers and fxsave area, on the game's thread.
-    pub unsafe fn new(frame: &'t mut Frame) -> Context<'t> {
+    /// entry's saved registers and fxsave area, at the site `S`, on the
+    /// game's thread.
+    pub unsafe fn new(frame: &'t mut Frame) -> Context<'t, S> {
         // SAFETY: the shim's contract is this function's.
-        Context { frame, thread: unsafe { Thread::new() } }
+        Context { frame, thread: unsafe { Thread::new() }, site: PhantomData }
     }
 
     /// The hook's thread, to build a handle.
@@ -108,8 +113,8 @@ impl<'t> Context<'t> {
     }
 }
 
-/// What a site's typed registers (sites_026g.tsv `holds`, raw's `site`) are read from.
-impl crate::raw::Machine for Context<'_> {
+/// What the site's typed registers (sites_026g.tsv `holds`, raw's `site`) are read from.
+impl<S> crate::raw::Machine<S> for Context<'_, S> {
     fn register(&self, register: Reg) -> u32 {
         self.reg(register)
     }
@@ -164,7 +169,7 @@ mod tests {
         let mut frame = Frame { regs: &mut regs, fxsave: fxsave.as_mut_ptr() };
         // SAFETY: the test owns the registers and the fxsave area, and stands
         // in for the thread.
-        let mut ctx = unsafe { Context::new(&mut frame) };
+        let mut ctx = unsafe { Context::<()>::new(&mut frame) };
         ctx.set_reg(Reg::Eax, 0x1234_56FF);
         ctx.set_reg8(Reg::Eax, 0x01);
         assert_eq!(ctx.reg(Reg::Eax), 0x1234_5601);

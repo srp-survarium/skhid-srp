@@ -27,7 +27,7 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::{clock, parse::Reader};
+use crate::vostok::{clock, parse::Reader, site};
 use crate::vostok::{
     ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
     TabTest, Thread,
@@ -153,12 +153,12 @@ fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
 }
 
 /// process_static_match_info after its deserialize (0x27B92D).
-pub fn on_static_info(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_static_info(ctx: &mut Context<'_, site::StaticInfoOptionsRead>) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_static_info(ctx))
 }
 
 /// A replay's chunk 1 after its deserialize (0x1F0971).
-pub fn on_replay_options(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_replay_options(ctx: &mut Context<'_, site::ReplayOptionsRead>) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_replay(ctx))
 }
 
@@ -174,7 +174,7 @@ fn tell(thread: &Thread, cell: &GameCell<Told>, movie: Option<Movie>, forced: bo
 }
 
 /// update_player_icons' start (0x23AA10), every frame: [esp+4] the ui.
-pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_update_icons(ctx: &mut Context<'_, site::PlayerIconsUpdateStart>) -> Flow<NoExit> {
     crate::artefact_carry::on_hud(ctx);
     let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
@@ -187,7 +187,7 @@ pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
 
 /// on_keyboard_action after its ask of Tab (0x25CD2C). In a Blackout match
 /// the key goes on as with Tab up.
-pub fn on_tab(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_tab(ctx: &mut Context<'_, site::KeyboardTabState>) -> Flow<NoExit> {
     let blackout = BLACKOUT.get(ctx.thread());
     let down = {
         let mut key = TabTest::at(ctx);
@@ -208,7 +208,7 @@ pub fn on_tab(ctx: &mut Context) -> Flow<NoExit> {
 
 /// render_name's Alt/crosshair result, after the game's visibility checks.
 /// Tab reveals teammate names only; the game's other name decisions survive.
-pub fn on_name_visibility(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_name_visibility(ctx: &mut Context<'_, site::PlayerNamesVisibility>) -> Flow<NoExit> {
     if BLACKOUT.get(ctx.thread()) && TAB.get(ctx.thread()).down()
         && let Some(name) = NameVisibility::for_teammate(ctx)
     {
@@ -218,7 +218,7 @@ pub fn on_name_visibility(ctx: &mut Context) -> Flow<NoExit> {
 }
 
 /// process_first_person_mode's end (0x2421B0): ebx the input handler.
-pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
+pub fn on_input_end(ctx: &mut Context<'_, site::InputBuilderEnd>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let (blackout, mut tab, held) = (BLACKOUT.get(thread), TAB.get(thread), HELD.get(thread));
     if blackout && matches!(tab, TabState::Grace { .. }) {

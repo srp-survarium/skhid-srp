@@ -19,7 +19,7 @@ use core::ffi::CStr;
 
 use crate::vostok::language::{ConsoleString, LangId, PrimaryLanguage, current, set_current, user_locale};
 use crate::vostok::settings::{OptionsCall, save_user_config};
-use crate::vostok::{Context, Flow, NoExit, LanguageOnOptionsCallExit};
+use crate::vostok::{Context, Flow, NoExit, LanguageOnOptionsCallExit, site};
 
 /// A game language: its resource name (`-localization=`,
 /// `resources/localization/<name>`), its own name and the Windows primary
@@ -60,12 +60,12 @@ pub fn resolve(flag: &[u8], saved: &[u8], system: impl FnOnce() -> LangId) -> &'
 /// variable (r_current_render_configuration).
 static SAVED: ConsoleString<256> = ConsoleString::new();
 
-pub fn on_configs_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_configs_start(ctx: &mut Context<'_, site::ConfigsStart>) -> Flow<NoExit> {
     SAVED.register(ctx.thread(), c"localization");
     Flow::Continue
 }
 
-pub fn on_configs_texts(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_configs_texts(ctx: &mut Context<'_, site::ConfigsTexts>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let flag = current(thread);
     let language = resolve(flag.as_bytes(), SAVED.get(thread), || user_locale(thread));
@@ -79,7 +79,7 @@ pub fn on_configs_texts(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// What the Settings' Language list shows: its label, the note, the saved
 /// choice, the running language, then each registered language's resource
 /// name and own name.
-pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<LanguageOnOptionsCallExit> {
+pub fn on_options_call(ctx: &mut Context<'_, site::OptionsCallback>) -> Flow<LanguageOnOptionsCallExit> {
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     if call.method() != c"srp_language" {
         return Flow::Continue;

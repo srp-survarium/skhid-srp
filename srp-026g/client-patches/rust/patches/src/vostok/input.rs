@@ -137,10 +137,10 @@ impl<'t> Handle<'t> for InputHandler<'t> {
 
 impl<'t> InputHandler<'t> {
     /// At `input_builder.end` (process_first_person_mode's epilogue).
-    pub fn at_builder_end(ctx: &'t super::Context<'_>) -> Option<InputHandler<'t>> {
-        // SAFETY: the context is this site's: the handler building the input,
-        // alive until the epilogue returns, on the hook's thread.
-        let this = unsafe { raw::site::input_builder_end::handler(ctx) }?;
+    /// The handler building the input, alive until the epilogue returns.
+    pub fn at_builder_end(ctx: &'t super::Context<'_, super::site::InputBuilderEnd>) -> Option<InputHandler<'t>> {
+        let this = raw::site::input_builder_end::handler(ctx)?;
+
         Some(InputHandler { this, thread: PhantomData })
     }
 }

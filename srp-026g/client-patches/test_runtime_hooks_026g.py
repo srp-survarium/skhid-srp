@@ -74,26 +74,28 @@ class RuntimeHooks(unittest.TestCase):
         source = '''
 #![allow(dead_code)]
 struct Frame { value: u32 }
-struct Context<'a>(&'a mut Frame);
-impl<'a> Context<'a> { unsafe fn new(f: &'a mut Frame) -> Self { Self(f) } }
+struct Context<'a, S>(&'a mut Frame, core::marker::PhantomData<S>);
+impl<'a, S> Context<'a, S> { unsafe fn new(f: &'a mut Frame) -> Self { Self(f, core::marker::PhantomData) } }
+mod site { pub enum TestSite {} }
+
 enum NoExit {}
 enum Flow<E> { Continue, Skip, Exit(E) }
 mod generated { use super::*; include!("generated.rs"); }
 mod first {
     use super::*;
-    pub fn run(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    pub fn run(ctx: &mut Context<'_, site::TestSite>) -> Flow<NoExit> {
         ctx.0.value += 10; Flow::Continue
     }
 }
 mod second {
     use super::*;
-    pub fn run(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    pub fn run(ctx: &mut Context<'_, site::TestSite>) -> Flow<NoExit> {
         if ctx.0.value == 11 { Flow::Skip } else { ctx.0.value += 20; Flow::Continue }
     }
 }
 mod third {
     use super::*;
-    pub fn run(ctx: &mut Context<'_>) -> Flow<NoExit> { ctx.0.value += 30; Flow::Continue }
+    pub fn run(ctx: &mut Context<'_, site::TestSite>) -> Flow<NoExit> { ctx.0.value += 30; Flow::Continue }
 }
 #[test]
 fn all_run_in_order_but_skip_stops_the_chain() {

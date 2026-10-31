@@ -11,9 +11,9 @@
 /// The entry `artefact_carry_on_weapon_hide` (0x243fa0, weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_weapon_hide(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_weapon_hide` calls this, from the game's jump at 0x243fa0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_weapon_hide` calls this, from the game's jump at 0x243fa0
+    // (carry.weapon_hide), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryWeaponHide>::new(frame) };
     match crate::artefact_carry::on_weapon_hide(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -26,9 +26,9 @@ pub extern "C" fn hook_artefact_carry_on_weapon_hide(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_input` (0x2d86e0, base_player set_input entry; ECX player, stack time and immutable input; before early-out) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_input(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_input` calls this, from the game's jump at 0x2d86e0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_input` calls this, from the game's jump at 0x2d86e0
+    // (carry.input), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryInput>::new(frame) };
     match crate::artefact_carry::on_input(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -41,9 +41,9 @@ pub extern "C" fn hook_artefact_carry_on_input(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_filter` (0x2d876f, set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_filter(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_filter` calls this, from the game's jump at 0x2d876f,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_filter` calls this, from the game's jump at 0x2d876f
+    // (carry.filter), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryFilter>::new(frame) };
     match crate::artefact_carry::on_filter(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -56,9 +56,9 @@ pub extern "C" fn hook_artefact_carry_on_filter(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_tick` (0x2daac1, base_player tick before held object tick; EBX player, updated time at +324h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_tick` calls this, from the game's jump at 0x2daac1,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_tick` calls this, from the game's jump at 0x2daac1
+    // (carry.tick), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryTick>::new(frame) };
     match crate::artefact_carry::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -71,9 +71,9 @@ pub extern "C" fn hook_artefact_carry_on_tick(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_construct` (0x2d6990, base_player constructor entry; stack first argument destination, identity only) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_construct(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_construct` calls this, from the game's jump at 0x2d6990,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_construct` calls this, from the game's jump at 0x2d6990
+    // (carry.construct), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryConstruct>::new(frame) };
     match crate::artefact_carry::on_construct(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -86,9 +86,9 @@ pub extern "C" fn hook_artefact_carry_on_construct(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_save` (0x2db47e, base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_save(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_save` calls this, from the game's jump at 0x2db47e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_save` calls this, from the game's jump at 0x2db47e
+    // (carry.save), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarrySave>::new(frame) };
     match crate::artefact_carry::on_save(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -101,9 +101,9 @@ pub extern "C" fn hook_artefact_carry_on_save(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_load` (0x2dbab5, base_player deserialize after final native field; EBX player, ESI reader) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_load` calls this, from the game's jump at 0x2dbab5,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_load` calls this, from the game's jump at 0x2dbab5
+    // (carry.load), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryLoad>::new(frame) };
     match crate::artefact_carry::on_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -121,9 +121,9 @@ pub enum ArtefactCarryOnWeaponExit { Skeleton }
 /// The entry `artefact_carry_on_weapon` (0x2477c8, mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_weapon(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_weapon` calls this, from the game's jump at 0x2477c8,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_weapon` calls this, from the game's jump at 0x2477c8
+    // (carry.weapon), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryWeapon>::new(frame) };
     match crate::artefact_carry::on_weapon(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -141,9 +141,9 @@ pub enum ArtefactCarryOnSpringExit { Done }
 /// The entry `artefact_carry_on_spring` (0x25ebb0, Spring client update entry; ECX callback; done is native bare ret, no prologue executed) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_spring(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_spring` calls this, from the game's jump at 0x25ebb0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_spring` calls this, from the game's jump at 0x25ebb0
+    // (carry.spring), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarrySpring>::new(frame) };
     match crate::artefact_carry::on_spring(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -161,9 +161,9 @@ pub enum ArtefactCarryOnLifeboneExit { Done }
 /// The entry `artefact_carry_on_lifebone` (0x25f100, Lifebone client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_lifebone(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_lifebone` calls this, from the game's jump at 0x25f100,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_lifebone` calls this, from the game's jump at 0x25f100
+    // (carry.lifebone), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryLifebone>::new(frame) };
     match crate::artefact_carry::on_lifebone(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -181,9 +181,9 @@ pub enum ArtefactCarryOnOnyxExit { Done }
 /// The entry `artefact_carry_on_onyx` (0x25f640, Onyx client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_onyx(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_onyx` calls this, from the game's jump at 0x25f640,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_onyx` calls this, from the game's jump at 0x25f640
+    // (carry.onyx), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryOnyx>::new(frame) };
     match crate::artefact_carry::on_onyx(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -201,9 +201,9 @@ pub enum ArtefactCarryOnRattleExit { Done }
 /// The entry `artefact_carry_on_rattle` (0x25fb80, Rattle client update entry; ECX callback; done is native bare ret) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_rattle(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_rattle` calls this, from the game's jump at 0x25fb80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_rattle` calls this, from the game's jump at 0x25fb80
+    // (carry.rattle), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryRattle>::new(frame) };
     match crate::artefact_carry::on_rattle(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -216,9 +216,9 @@ pub extern "C" fn hook_artefact_carry_on_rattle(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_damage_bones` (0x2da769, before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_damage_bones(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_damage_bones` calls this, from the game's jump at 0x2da769,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_damage_bones` calls this, from the game's jump at 0x2da769
+    // (carry.damage_bones), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryDamageBones>::new(frame) };
     match crate::artefact_carry::on_damage_bones(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -236,9 +236,9 @@ pub enum ArtefactCarryOnFlowerQueryExit { Done }
 /// The entry `artefact_carry_on_flower_query` (0x25e91a, artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_flower_query(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_flower_query` calls this, from the game's jump at 0x25e91a,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_flower_query` calls this, from the game's jump at 0x25e91a
+    // (carry.flower_query), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryFlowerQuery>::new(frame) };
     match crate::artefact_carry::on_flower_query(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -251,9 +251,9 @@ pub extern "C" fn hook_artefact_carry_on_flower_query(frame: &mut Frame) -> u32 
 /// The entry `artefact_carry_on_flower_ready` (0x260278, Lifebone assignment call: EDI item EBX queries_result; retain fourth model) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_flower_ready(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_flower_ready` calls this, from the game's jump at 0x260278,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_flower_ready` calls this, from the game's jump at 0x260278
+    // (carry.flower_ready), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryFlowerReady>::new(frame) };
     match crate::artefact_carry::on_flower_ready(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -266,9 +266,9 @@ pub extern "C" fn hook_artefact_carry_on_flower_ready(frame: &mut Frame) -> u32 
 /// The entry `artefact_carry_on_flower_destroy` (0x25efe0, Lifebone destructor entry: ECX item; remove held model and release owned resource) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_flower_destroy(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_flower_destroy` calls this, from the game's jump at 0x25efe0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_flower_destroy` calls this, from the game's jump at 0x25efe0
+    // (carry.flower_destroy), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryFlowerDestroy>::new(frame) };
     match crate::artefact_carry::on_flower_destroy(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -281,9 +281,9 @@ pub extern "C" fn hook_artefact_carry_on_flower_destroy(frame: &mut Frame) -> u3
 /// The entry `artefact_carry_on_death` (0x2d77c0, base_player::on_player_death entry, ECX live player before remove_alive/inventory death) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_death(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_death` calls this, from the game's jump at 0x2d77c0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_death` calls this, from the game's jump at 0x2d77c0
+    // (carry.death), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryDeath>::new(frame) };
     match crate::artefact_carry::on_death(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -296,9 +296,9 @@ pub extern "C" fn hook_artefact_carry_on_death(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_ground_save` (0x313735, artefact_base::serialize after native state-dependent fields; ESI item EDI writer) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_ground_save(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_ground_save` calls this, from the game's jump at 0x313735,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_ground_save` calls this, from the game's jump at 0x313735
+    // (carry.ground_save), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryGroundSave>::new(frame) };
     match crate::artefact_carry::on_ground_save(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -311,9 +311,9 @@ pub extern "C" fn hook_artefact_carry_on_ground_save(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_ground_load` (0x3137ec, artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_ground_load(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_ground_load` calls this, from the game's jump at 0x3137ec,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_ground_load` calls this, from the game's jump at 0x3137ec
+    // (carry.ground_load), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryGroundLoad>::new(frame) };
     match crate::artefact_carry::on_ground_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -326,9 +326,9 @@ pub extern "C" fn hook_artefact_carry_on_ground_load(frame: &mut Frame) -> u32 {
 /// The entry `artefact_carry_on_client_death` (0x1f28e0, client player death override, ECX player; inlines base teardown, does not call 0x2D77C0) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_client_death(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_client_death` calls this, from the game's jump at 0x1f28e0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_client_death` calls this, from the game's jump at 0x1f28e0
+    // (carry.client_death), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryClientDeath>::new(frame) };
     match crate::artefact_carry::on_client_death(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -341,9 +341,9 @@ pub extern "C" fn hook_artefact_carry_on_client_death(frame: &mut Frame) -> u32 
 /// The entry `artefact_carry_on_key` (0x23fe42, player_input_handler::on_keyboard_action after the binder's answer: EDI the key's action (49h none, gone), EBP the frame; before mov esi,[ebp+10h] / cmp esi,1) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_carry_on_key` calls this, from the game's jump at 0x23fe42,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_carry_on_key` calls this, from the game's jump at 0x23fe42
+    // (carry.key), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CarryKey>::new(frame) };
     match crate::artefact_carry::on_key(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -356,9 +356,9 @@ pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
 /// The entry `artefact_score_on_transfer` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_score_on_transfer(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_score_on_transfer` calls this, from the game's jump at 0x31c810,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `artefact_score_on_transfer` calls this, from the game's jump at 0x31c810
+    // (artefact_container.transfer), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ArtefactContainerTransfer>::new(frame) };
     match crate::artefact_score::on_transfer(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -371,9 +371,9 @@ pub extern "C" fn hook_artefact_score_on_transfer(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_static_info(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_static_info` calls this, from the game's jump at 0x27b92d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_static_info` calls this, from the game's jump at 0x27b92d
+    // (static_info.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::StaticInfoOptionsRead>::new(frame) };
     match crate::blackout::on_static_info(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -386,9 +386,9 @@ pub extern "C" fn hook_blackout_on_static_info(frame: &mut Frame) -> u32 {
 /// The entry `tab_cursor_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_tab_cursor_on_static_info(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `tab_cursor_on_static_info` calls this, from the game's jump at 0x27b92d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `tab_cursor_on_static_info` calls this, from the game's jump at 0x27b92d
+    // (static_info.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::StaticInfoOptionsRead>::new(frame) };
     match crate::tab_cursor::on_static_info(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -401,9 +401,9 @@ pub extern "C" fn hook_tab_cursor_on_static_info(frame: &mut Frame) -> u32 {
 /// The entry `hud_options_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_options_on_static_info` calls this, from the game's jump at 0x27b92d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `hud_options_on_static_info` calls this, from the game's jump at 0x27b92d
+    // (static_info.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::StaticInfoOptionsRead>::new(frame) };
     match crate::hud_options::on_static_info(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -416,9 +416,9 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_replay_options(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_replay_options` calls this, from the game's jump at 0x1f0971,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_replay_options` calls this, from the game's jump at 0x1f0971
+    // (replay.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ReplayOptionsRead>::new(frame) };
     match crate::blackout::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -431,9 +431,9 @@ pub extern "C" fn hook_blackout_on_replay_options(frame: &mut Frame) -> u32 {
 /// The entry `tab_cursor_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_tab_cursor_on_replay_options(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `tab_cursor_on_replay_options` calls this, from the game's jump at 0x1f0971,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `tab_cursor_on_replay_options` calls this, from the game's jump at 0x1f0971
+    // (replay.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ReplayOptionsRead>::new(frame) };
     match crate::tab_cursor::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -446,9 +446,9 @@ pub extern "C" fn hook_tab_cursor_on_replay_options(frame: &mut Frame) -> u32 {
 /// The entry `hud_options_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_replay_options(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_options_on_replay_options` calls this, from the game's jump at 0x1f0971,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `hud_options_on_replay_options` calls this, from the game's jump at 0x1f0971
+    // (replay.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ReplayOptionsRead>::new(frame) };
     match crate::hud_options::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -461,9 +461,9 @@ pub extern "C" fn hook_hud_options_on_replay_options(frame: &mut Frame) -> u32 {
 /// The entry `music_on_replay` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_replay` calls this, from the game's jump at 0x1f0971,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_replay` calls this, from the game's jump at 0x1f0971
+    // (replay.options_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ReplayOptionsRead>::new(frame) };
     match crate::music::on_replay(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -476,9 +476,9 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_update_icons(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_update_icons` calls this, from the game's jump at 0x23aa10,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_update_icons` calls this, from the game's jump at 0x23aa10
+    // (player_icons.update_start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerIconsUpdateStart>::new(frame) };
     match crate::blackout::on_update_icons(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -491,9 +491,9 @@ pub extern "C" fn hook_blackout_on_update_icons(frame: &mut Frame) -> u32 {
 /// The entry `hud_options_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_update_icons(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_options_on_update_icons` calls this, from the game's jump at 0x23aa10,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `hud_options_on_update_icons` calls this, from the game's jump at 0x23aa10
+    // (player_icons.update_start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerIconsUpdateStart>::new(frame) };
     match crate::hud_options::on_update_icons(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -506,9 +506,9 @@ pub extern "C" fn hook_hud_options_on_update_icons(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_tab` (0x25cd2c, game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_tab(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_tab` calls this, from the game's jump at 0x25cd2c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_tab` calls this, from the game's jump at 0x25cd2c
+    // (keyboard.tab_state), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::KeyboardTabState>::new(frame) };
     match crate::blackout::on_tab(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -521,9 +521,9 @@ pub extern "C" fn hook_blackout_on_tab(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_input_end` calls this, from the game's jump at 0x2421b0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_input_end` calls this, from the game's jump at 0x2421b0
+    // (input_builder.end), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::InputBuilderEnd>::new(frame) };
     match crate::blackout::on_input_end(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -536,9 +536,9 @@ pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
 /// The entry `blackout_on_name_visibility` (0x1f2f10, render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_name_visibility(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_name_visibility` calls this, from the game's jump at 0x1f2f10,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `blackout_on_name_visibility` calls this, from the game's jump at 0x1f2f10
+    // (player_names.visibility), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerNamesVisibility>::new(frame) };
     match crate::blackout::on_name_visibility(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -551,9 +551,9 @@ pub extern "C" fn hook_blackout_on_name_visibility(frame: &mut Frame) -> u32 {
 /// The entry `weapon_flight_on_view` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_weapon_flight_on_view(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `weapon_flight_on_view` calls this, from the game's jump at 0x2840f2,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `weapon_flight_on_view` calls this, from the game's jump at 0x2840f2
+    // (lobby_camera.view), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyCameraView>::new(frame) };
     match crate::weapon_flight::on_view(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -566,9 +566,9 @@ pub extern "C" fn hook_weapon_flight_on_view(frame: &mut Frame) -> u32 {
 /// The entry `camera_sweep_on_view` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_camera_sweep_on_view(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `camera_sweep_on_view` calls this, from the game's jump at 0x2840f2,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `camera_sweep_on_view` calls this, from the game's jump at 0x2840f2
+    // (lobby_camera.view), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyCameraView>::new(frame) };
     match crate::camera_sweep::on_view(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -581,9 +581,9 @@ pub extern "C" fn hook_camera_sweep_on_view(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_tick` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_tick` calls this, from the game's jump at 0x2840f2,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_tick` calls this, from the game's jump at 0x2840f2
+    // (lobby_camera.view), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyCameraView>::new(frame) };
     match crate::lobby_scene::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -596,9 +596,9 @@ pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
 /// The entry `consumable_activity_on_update` (0x23b7a0, update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `consumable_activity_on_update` calls this, from the game's jump at 0x23b7a0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `consumable_activity_on_update` calls this, from the game's jump at 0x23b7a0
+    // (quick_slots.activity), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::QuickSlotsActivity>::new(frame) };
     match crate::consumable_activity::on_update(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -611,9 +611,9 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
 /// The entry `drug_interrupt_on_hit_applied` (0x2d9cb1, base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_drug_interrupt_on_hit_applied(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `drug_interrupt_on_hit_applied` calls this, from the game's jump at 0x2d9cb1,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `drug_interrupt_on_hit_applied` calls this, from the game's jump at 0x2d9cb1
+    // (player.hit_applied), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerHitApplied>::new(frame) };
     match crate::drug_interrupt::on_hit_applied(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -626,9 +626,9 @@ pub extern "C" fn hook_drug_interrupt_on_hit_applied(frame: &mut Frame) -> u32 {
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_configs_start(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `language_on_configs_start` calls this, from the game's jump at 0x1ea210,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `language_on_configs_start` calls this, from the game's jump at 0x1ea210
+    // (configs.start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ConfigsStart>::new(frame) };
     match crate::language::on_configs_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -641,9 +641,9 @@ pub extern "C" fn hook_language_on_configs_start(frame: &mut Frame) -> u32 {
 /// The entry `hud_options_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_configs(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_options_on_configs` calls this, from the game's jump at 0x1ea210,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `hud_options_on_configs` calls this, from the game's jump at 0x1ea210
+    // (configs.start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ConfigsStart>::new(frame) };
     match crate::hud_options::on_configs(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -656,9 +656,9 @@ pub extern "C" fn hook_hud_options_on_configs(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_configs_start(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_configs_start` calls this, from the game's jump at 0x1ea210,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_configs_start` calls this, from the game's jump at 0x1ea210
+    // (configs.start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ConfigsStart>::new(frame) };
     match crate::lobby_scene::on_configs_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -671,9 +671,9 @@ pub extern "C" fn hook_lobby_scene_on_configs_start(frame: &mut Frame) -> u32 {
 /// The entry `music_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_configs(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_configs` calls this, from the game's jump at 0x1ea210,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_configs` calls this, from the game's jump at 0x1ea210
+    // (configs.start), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ConfigsStart>::new(frame) };
     match crate::music::on_configs(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -691,9 +691,9 @@ pub enum LanguageOnOptionsCallExit { Done }
 /// The entry `language_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_options_call(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `language_on_options_call` calls this, from the game's jump at 0x1ff5d0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `language_on_options_call` calls this, from the game's jump at 0x1ff5d0
+    // (options.callback), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::OptionsCallback>::new(frame) };
     match crate::language::on_options_call(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -711,9 +711,9 @@ pub enum HudOptionsOnOptionsCallExit { Done }
 /// The entry `hud_options_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_options_call(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_options_on_options_call` calls this, from the game's jump at 0x1ff5d0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `hud_options_on_options_call` calls this, from the game's jump at 0x1ff5d0
+    // (options.callback), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::OptionsCallback>::new(frame) };
     match crate::hud_options::on_options_call(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -726,9 +726,9 @@ pub extern "C" fn hook_hud_options_on_options_call(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_bind` calls this, from the game's jump at 0x285750,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_bind` calls this, from the game's jump at 0x285750
+    // (project.insert), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ProjectInsert>::new(frame) };
     match crate::lamps::on_bind(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -741,9 +741,9 @@ pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_remove` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_remove` calls this, from the game's jump at 0x285614,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_remove` calls this, from the game's jump at 0x285614
+    // (project.removed), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ProjectRemoved>::new(frame) };
     match crate::lamps::on_remove(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -756,9 +756,9 @@ pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_destroy` calls this, from the game's jump at 0x285330,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_destroy` calls this, from the game's jump at 0x285330
+    // (project.destroy), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ProjectDestroy>::new(frame) };
     match crate::lamps::on_destroy(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -771,9 +771,9 @@ pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c
+    // (game_world.after_move), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameWorldAfterMove>::new(frame) };
     match crate::ragdoll::on_step(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -786,9 +786,9 @@ pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c
+    // (game_world.after_move), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameWorldAfterMove>::new(frame) };
     match crate::lamps::on_present(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -801,9 +801,9 @@ pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_ray(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_ray` calls this, from the game's jump at 0x32d627,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_ray` calls this, from the game's jump at 0x32d627
+    // (bullet.ray_traced), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletRayTraced>::new(frame) };
     match crate::ragdoll::on_ray(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -816,9 +816,9 @@ pub extern "C" fn hook_ragdoll_on_ray(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_ray(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_ray` calls this, from the game's jump at 0x32d627,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_ray` calls this, from the game's jump at 0x32d627
+    // (bullet.ray_traced), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletRayTraced>::new(frame) };
     match crate::lamps::on_ray(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -831,9 +831,9 @@ pub extern "C" fn hook_lamps_on_ray(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_save` (0x321c3b, serialize epilogue, after native bullet history) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_save(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_save` calls this, from the game's jump at 0x321c3b,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_save` calls this, from the game's jump at 0x321c3b
+    // (bullet_history.saved), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletHistorySaved>::new(frame) };
     match crate::lamps::on_save(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -846,9 +846,9 @@ pub extern "C" fn hook_lamps_on_save(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_load` (0x321d01, deserialize epilogue, after native bullet history) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_load(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_load` calls this, from the game's jump at 0x321d01,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_load` calls this, from the game's jump at 0x321d01
+    // (bullet_history.loaded), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletHistoryLoaded>::new(frame) };
     match crate::lamps::on_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1002,9 +1002,9 @@ pub enum LampsOnDecalEnterExit { Skip }
 /// The entry `lamps_on_decal_enter` (0x32e672, process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_decal_enter(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_decal_enter` calls this, from the game's jump at 0x32e672,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_decal_enter` calls this, from the game's jump at 0x32e672
+    // (bullet.decal_front), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletDecalFront>::new(frame) };
     match crate::lamps::on_decal_enter(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1022,9 +1022,9 @@ pub enum LampsOnDecalLeaveExit { Skip }
 /// The entry `lamps_on_decal_leave` (0x32e8cc, process_back_face_piercing at the pair's exit decal (cmp [esi+0Ch],0; lea edi): EBP the bullet, EBX its hit; skip is the particles after add_decal, EDI unused there) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_decal_leave(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_decal_leave` calls this, from the game's jump at 0x32e8cc,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_decal_leave` calls this, from the game's jump at 0x32e8cc
+    // (bullet.decal_back), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletDecalBack>::new(frame) };
     match crate::lamps::on_decal_leave(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1042,9 +1042,9 @@ pub enum LampsOnDecalRicochetExit { Skip }
 /// The entry `lamps_on_decal_ricochet` (0x32eaf2, process_reflection at the pair's ricochet decal (cmp [esi+10h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_decal_ricochet(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_decal_ricochet` calls this, from the game's jump at 0x32eaf2,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_decal_ricochet` calls this, from the game's jump at 0x32eaf2
+    // (bullet.decal_reflect), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletDecalReflect>::new(frame) };
     match crate::lamps::on_decal_ricochet(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1062,9 +1062,9 @@ pub enum LampsOnDecalStopExit { Skip }
 /// The entry `lamps_on_decal_stop` (0x32ed71, process_collision at the pair's stop decal (cmp [esi+14h],0; lea edi): EBP the bullet, EBX its hit; skip is the sound/particles after add_decal, EDI unused there) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_decal_stop(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_decal_stop` calls this, from the game's jump at 0x32ed71,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_decal_stop` calls this, from the game's jump at 0x32ed71
+    // (bullet.decal_collide), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletDecalCollide>::new(frame) };
     match crate::lamps::on_decal_stop(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1077,9 +1077,9 @@ pub extern "C" fn hook_lamps_on_decal_stop(frame: &mut Frame) -> u32 {
 /// The entry `lamps_on_explode` (0x339630, bullet_manager::explode entry (sub esp,0BCh): ESI the splash, ESP+4 the bullet manager, ESP+8 the centre; every blast, a grenade's (0x30A4ED) and a booby trap's (0x305728)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lamps_on_explode(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_explode` calls this, from the game's jump at 0x339630,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lamps_on_explode` calls this, from the game's jump at 0x339630
+    // (bullet_manager.explode), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::BulletManagerExplode>::new(frame) };
     match crate::lamps::on_explode(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1092,9 +1092,9 @@ pub extern "C" fn hook_lamps_on_explode(frame: &mut Frame) -> u32 {
 /// The entry `language_on_configs_texts` (0x1ea306, on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `language_on_configs_texts` calls this, from the game's jump at 0x1ea306,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `language_on_configs_texts` calls this, from the game's jump at 0x1ea306
+    // (configs.texts), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::ConfigsTexts>::new(frame) };
     match crate::language::on_configs_texts(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1107,9 +1107,9 @@ pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_squad_id` calls this, from the game's jump at 0x2747c3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_squad_id` calls this, from the game's jump at 0x2747c3
+    // (lobby_client.squad_id), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyClientSquadId>::new(frame) };
     match crate::lobby_scene::on_squad_id(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1122,9 +1122,9 @@ pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_squad(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_squad` calls this, from the game's jump at 0x2748bc,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_squad` calls this, from the game's jump at 0x2748bc
+    // (lobby_client.squad_read), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyClientSquadRead>::new(frame) };
     match crate::lobby_scene::on_squad(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1137,9 +1137,9 @@ pub extern "C" fn hook_lobby_scene_on_squad(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_scene_request` (0x21e5cc, lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_scene_request(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_scene_request` calls this, from the game's jump at 0x21e5cc,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_scene_request` calls this, from the game's jump at 0x21e5cc
+    // (lobby_menu.scene_request), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyMenuSceneRequest>::new(frame) };
     match crate::lobby_scene::on_scene_request(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1157,9 +1157,9 @@ pub enum LobbySceneOnScenesReadyExit { Done }
 /// The entry `lobby_scene_on_scenes_ready` (0x220b20, lobby_menu::on_render_scenes_ready's start (push ebp / mov ebp,esp / and esp,-8): ECX the lobby menu, the site's ESP+4 the query's results; done is its `ret 4`) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_scenes_ready(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_scenes_ready` calls this, from the game's jump at 0x220b20,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_scenes_ready` calls this, from the game's jump at 0x220b20
+    // (lobby_menu.scenes_ready), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyMenuScenesReady>::new(frame) };
     match crate::lobby_scene::on_scenes_ready(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1172,9 +1172,9 @@ pub extern "C" fn hook_lobby_scene_on_scenes_ready(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_deactivate` (0x21d4a0, lobby_menu::on_deactivate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+4): ECX the lobby menu, no longer the active scene (a match entered): its scene not drawn until on_activate) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_deactivate(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_deactivate` calls this, from the game's jump at 0x21d4a0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_deactivate` calls this, from the game's jump at 0x21d4a0
+    // (lobby_menu.deactivate), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyMenuDeactivate>::new(frame) };
     match crate::lobby_scene::on_deactivate(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1187,9 +1187,9 @@ pub extern "C" fn hook_lobby_scene_on_deactivate(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_activate` (0x21d2e0, lobby_menu::on_activate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+0, 0x9FFE74): ECX the lobby menu, about to be shown again (after a match, or the sign-in)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_activate` calls this, from the game's jump at 0x21d2e0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_activate` calls this, from the game's jump at 0x21d2e0
+    // (lobby_menu.activate), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyMenuActivate>::new(frame) };
     match crate::lobby_scene::on_activate(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1202,9 +1202,9 @@ pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
 /// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030
+    // (game.clear_resources), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameClearResources>::new(frame) };
     match crate::music::on_unload(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1217,9 +1217,9 @@ pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
 /// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030
+    // (game.clear_resources), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameClearResources>::new(frame) };
     match crate::lobby_scene::on_game_closing(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1232,9 +1232,9 @@ pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
 /// The entry `map_names_on_key` (0x25cd1c, game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `map_names_on_key` calls this, from the game's jump at 0x25cd1c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `map_names_on_key` calls this, from the game's jump at 0x25cd1c
+    // (keyboard.key_state), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::KeyboardKeyState>::new(frame) };
     match crate::map_names::on_key(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1247,9 +1247,9 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
 /// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_frame` calls this, from the game's jump at 0x1ec8ec,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_frame` calls this, from the game's jump at 0x1ec8ec
+    // (game.tick), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameTick>::new(frame) };
     match crate::music::on_frame(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1262,9 +1262,9 @@ pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
 /// The entry `music_on_login` (0x21eac8, login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_login(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_login` calls this, from the game's jump at 0x21eac8,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_login` calls this, from the game's jump at 0x21eac8
+    // (login_menu.activated), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LoginMenuActivated>::new(frame) };
     match crate::music::on_login(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1277,9 +1277,9 @@ pub extern "C" fn hook_music_on_login(frame: &mut Frame) -> u32 {
 /// The entry `music_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_lobby(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_lobby` calls this, from the game's jump at 0x21d31d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_lobby` calls this, from the game's jump at 0x21d31d
+    // (lobby_menu.activated), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LobbyMenuActivated>::new(frame) };
     match crate::music::on_lobby(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1292,9 +1292,9 @@ pub extern "C" fn hook_music_on_lobby(frame: &mut Frame) -> u32 {
 /// The entry `music_on_loading` (0x2204b3, lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_loading(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_loading` calls this, from the game's jump at 0x2204b3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_loading` calls this, from the game's jump at 0x2204b3
+    // (level_loading.ui), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::LevelLoadingUi>::new(frame) };
     match crate::music::on_loading(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1307,9 +1307,9 @@ pub extern "C" fn hook_music_on_loading(frame: &mut Frame) -> u32 {
 /// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_announced` calls this, from the game's jump at 0x23b36a,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_announced` calls this, from the game's jump at 0x23b36a
+    // (game_world_ui.welcome), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::GameWorldUiWelcome>::new(frame) };
     match crate::music::on_announced(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1322,9 +1322,9 @@ pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
 /// The entry `music_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_sound_tick` calls this, from the game's jump at 0x59ab1,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `music_on_sound_tick` calls this, from the game's jump at 0x59ab1
+    // (sound_world.tick), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::SoundWorldTick>::new(frame) };
     match crate::music::on_sound_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1358,9 +1358,9 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
 /// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_cull` calls this, from the game's jump at 0x24757c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_cull` calls this, from the game's jump at 0x24757c
+    // (player_draw.cull), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerDrawCull>::new(frame) };
     match crate::ragdoll::on_cull(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1373,9 +1373,9 @@ pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_bones` (0x247716, mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_bones` calls this, from the game's jump at 0x247716,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_bones` calls this, from the game's jump at 0x247716
+    // (player_draw.bones), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerDrawBones>::new(frame) };
     match crate::ragdoll::on_bones(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1388,9 +1388,9 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643
+    // (camera.eye), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::CameraEye>::new(frame) };
     match crate::ragdoll::on_eye(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1408,9 +1408,9 @@ pub enum RagdollOnHeldItemExit { NoBones }
 /// The entry `ragdoll_on_held_item` (0x24754f, mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_held_item` calls this, from the game's jump at 0x24754f,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_held_item` calls this, from the game's jump at 0x24754f
+    // (player_draw.held_item), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerDrawHeldItem>::new(frame) };
     match crate::ragdoll::on_held_item(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1428,9 +1428,9 @@ pub enum RagdollOnPostBonesExit { Posted }
 /// The entry `ragdoll_on_post_bones` (0x2477df, mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_post_bones(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_post_bones` calls this, from the game's jump at 0x2477df,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_post_bones` calls this, from the game's jump at 0x2477df
+    // (player_draw.post_bones), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerDrawPostBones>::new(frame) };
     match crate::ragdoll::on_post_bones(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1443,9 +1443,9 @@ pub extern "C" fn hook_ragdoll_on_post_bones(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_render_bones` (0x15a950, update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_render_bones(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_render_bones` calls this, from the game's jump at 0x15a950,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_render_bones` calls this, from the game's jump at 0x15a950
+    // (render.skeleton_updated), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::RenderSkeletonUpdated>::new(frame) };
     match crate::ragdoll::on_render_bones(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1458,9 +1458,9 @@ pub extern "C" fn hook_ragdoll_on_render_bones(frame: &mut Frame) -> u32 {
 /// The entry `ragdoll_on_killed` (0x2da3df, generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_killed` calls this, from the game's jump at 0x2da3df,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `ragdoll_on_killed` calls this, from the game's jump at 0x2da3df
+    // (player.killed_event), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::PlayerKilledEvent>::new(frame) };
     match crate::ragdoll::on_killed(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1512,9 +1512,9 @@ pub enum TabCursorOnKeyExit { Taken }
 /// The entry `tab_cursor_on_key` (0x25cd00, game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_tab_cursor_on_key(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `tab_cursor_on_key` calls this, from the game's jump at 0x25cd00,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `tab_cursor_on_key` calls this, from the game's jump at 0x25cd00
+    // (tab_cursor.key), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::TabCursorKey>::new(frame) };
     match crate::tab_cursor::on_key(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1532,9 +1532,9 @@ pub enum TabCursorOnHudCallExit { Done }
 /// The entry `tab_cursor_on_hud_call` (0x233d30, game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_tab_cursor_on_hud_call(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `tab_cursor_on_hud_call` calls this, from the game's jump at 0x233d30,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `tab_cursor_on_hud_call` calls this, from the game's jump at 0x233d30
+    // (hud.callback), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::HudCallback>::new(frame) };
     match crate::tab_cursor::on_hud_call(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1552,9 +1552,9 @@ pub enum TextInputOnCharExit { Ignore }
 /// The entry `text_input_on_char` (0x79d369, AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `text_input_on_char` calls this, from the game's jump at 0x79d369,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `text_input_on_char` calls this, from the game's jump at 0x79d369
+    // (text_input.char_target), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::TextInputCharTarget>::new(frame) };
     match crate::text_input::on_char(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1572,9 +1572,9 @@ pub enum WorldCheckOnUnpackedExit { Refused }
 /// The entry `world_check_on_unpacked` (0x27c0d0, process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h])) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_world_check_on_unpacked(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `world_check_on_unpacked` calls this, from the game's jump at 0x27c0d0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `world_check_on_unpacked` calls this, from the game's jump at 0x27c0d0
+    // (world_load.unpacked), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::WorldLoadUnpacked>::new(frame) };
     match crate::world_check::on_unpacked(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
@@ -1592,9 +1592,9 @@ pub enum WorldCheckOnRawExit { Refused }
 /// The entry `world_check_on_raw` (0x27c0ff, process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `world_check_on_raw` calls this, from the game's jump at 0x27c0ff,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
+    // SAFETY: only the entry `world_check_on_raw` calls this, from the game's jump at 0x27c0ff
+    // (world_load.raw), on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::<site::WorldLoadRaw>::new(frame) };
     match crate::world_check::on_raw(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,

@@ -34,7 +34,7 @@
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, MuteChoice, Muted, NoExit, NotConnected,
     TabCursorOnHudCallExit,
-    TabCursorOnKeyExit, Thread, clock,
+    TabCursorOnKeyExit, Thread, clock, site,
 };
 use crate::vostok::types::Place;
 
@@ -178,18 +178,20 @@ static REQUESTS: GameCell<Option<Allowance>> = GameCell::new(None);
 
 /// A match's options read (0xE4, after Blackout's): nothing of ours is shown
 /// or held in a new match's hud.
-pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_static_info(ctx: &mut Context<'_, site::StaticInfoOptionsRead>) -> Flow<NoExit> {
     CURSOR.set(ctx.thread(), Cursor::Off);
     Flow::Continue
 }
 
 /// A replay's options read (its chunk 1, after Blackout's): the same.
-pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    on_static_info(ctx)
+pub fn on_replay_options(ctx: &mut Context<'_, site::ReplayOptionsRead>) -> Flow<NoExit> {
+    CURSOR.set(ctx.thread(), Cursor::Off);
+    Flow::Continue
 }
 
+
 /// on_keyboard_action's start (0x25CD00): every key the game world gets.
-pub fn on_key(ctx: &mut Context<'_>) -> Flow<TabCursorOnKeyExit> {
+pub fn on_key(ctx: &mut Context<'_, site::TabCursorKey>) -> Flow<TabCursorOnKeyExit> {
     let blackout = crate::blackout::forced(ctx.thread());
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
     let view = key.hud().view();
@@ -285,7 +287,7 @@ enum Request {
 }
 
 /// scaleform_callback's start (0x233D30): every call of the hud movie.
-pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<TabCursorOnHudCallExit> {
+pub fn on_hud_call(ctx: &mut Context<'_, site::HudCallback>) -> Flow<TabCursorOnHudCallExit> {
     let Some(call) = HudCall::at(ctx) else { return Flow::Continue };
     let request = match call.method().to_bytes() {
         b"srp_player_menu" => Request::Menu,

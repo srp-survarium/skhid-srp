@@ -15,7 +15,7 @@
 use world_frame::{Frame, Part, Places, Refusal};
 
 use crate::vostok::log::{line, Piece};
-use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
+use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad, site};
 
 /// What becomes of a world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,7 +25,7 @@ enum Verdict {
 }
 
 /// `world_load.unpacked`: before the load of an unpacked world (0x27C0D9).
-pub fn on_unpacked(ctx: &mut Context<'_>) -> Flow<WorldCheckOnUnpackedExit> {
+pub fn on_unpacked(ctx: &mut Context<'_, site::WorldLoadUnpacked>) -> Flow<WorldCheckOnUnpackedExit> {
     match check(WorldLoad::at_unpacked(ctx)) {
         Verdict::Load => Flow::Continue,
         Verdict::Refused => Flow::Exit(WorldCheckOnUnpackedExit::Refused),
@@ -33,7 +33,7 @@ pub fn on_unpacked(ctx: &mut Context<'_>) -> Flow<WorldCheckOnUnpackedExit> {
 }
 
 /// `world_load.raw`: before the load of a raw world (0x27C111).
-pub fn on_raw(ctx: &mut Context<'_>) -> Flow<WorldCheckOnRawExit> {
+pub fn on_raw(ctx: &mut Context<'_, site::WorldLoadRaw>) -> Flow<WorldCheckOnRawExit> {
     match check(WorldLoad::at_raw(ctx)) {
         Verdict::Load => Flow::Continue,
         Verdict::Refused => Flow::Exit(WorldCheckOnRawExit::Refused),

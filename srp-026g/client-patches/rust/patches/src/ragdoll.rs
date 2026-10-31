@@ -39,6 +39,7 @@ use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton,
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
+use crate::vostok::site;
 use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
@@ -396,7 +397,7 @@ fn seen(
 }
 
 /// Record the native death event without changing simulation state.
-pub fn on_killed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_killed(ctx: &mut Context<'_, site::PlayerKilledEvent>) -> Flow<NoExit> {
     if let Some((place, life, hit)) = headwear::killed(ctx) {
         STATE.with(ctx.thread(), |state| {
             if let Some(death) = state.deaths.get_mut(usize::from(place)) {
@@ -408,7 +409,7 @@ pub fn on_killed(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// The step: once a frame on the logic thread, after the simulation's move.
-pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_step(ctx: &mut Context<'_, site::GameWorldAfterMove>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let client = GameWorld::at_after_move(ctx).and_then(|world| world.network_client());
     STATE.with(thread, |state| step(state, client.as_ref(), thread));
@@ -683,7 +684,7 @@ impl Line {
 /// at the next step, once a shot, and shows the game's body-hit effects.
 /// Reads the game's memory only (and calls the bullet manager's own effect
 /// queues), so the bullet goes on exactly as before.
-pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_ray(ctx: &mut Context<'_, site::BulletRayTraced>) -> Flow<NoExit> {
     let thread = ctx.thread();
     if let Some(ray) = BulletRay::at(ctx) {
         bullet(&ray, thread);
@@ -781,7 +782,7 @@ fn draw_of(state: &State, player: &Player<'_>) -> Option<(DeathKey, SlotId, Bone
 
 /// mt_draw's cull: a corpse of ours is drawn even when its model was not
 /// seen the last frame (its bones move).
-pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_cull(ctx: &mut Context<'_, site::PlayerDrawCull>) -> Flow<NoExit> {
     if let Flow::Skip = crate::artefact_carry::on_cull(ctx) { return Flow::Skip; }
     let ours = match draw::culled_player(ctx) {
         Some(player) => STATE.with(ctx.thread(), |state| draw_of(state, &player).is_some()),
@@ -792,7 +793,7 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// mt_draw's bones: the model-space matrices of the skeleton. The clip is
 /// captured; a ragdoll's bones are written over it.
-pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_bones(ctx: &mut Context<'_, site::PlayerDrawBones>) -> Flow<NoExit> {
     crate::artefact_carry::on_bones(ctx);
     if let Some(bones) = DrawnBones::at(ctx) {
         STATE.with(ctx.thread(), |state| apply(state, &bones));
@@ -812,7 +813,7 @@ fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
 
 /// mt_draw's render command, after its weapon draw and before any arguments
 /// have been pushed. Alive/canned bodies use Head; a ragdoll uses its own pose.
-pub fn on_post_bones(ctx: &mut Context<'_>) -> Flow<RagdollOnPostBonesExit> {
+pub fn on_post_bones(ctx: &mut Context<'_, site::PlayerDrawPostBones>) -> Flow<RagdollOnPostBonesExit> {
     let posted = DrawnBones::at_post_bones(ctx).is_some_and(|bones| {
         let extra = STATE.with(ctx.thread(), |state| headwear_pose(state, &bones.player()));
         bones.post_headwear(extra)
@@ -820,7 +821,7 @@ pub fn on_post_bones(ctx: &mut Context<'_>) -> Flow<RagdollOnPostBonesExit> {
     if posted { Flow::Exit(RagdollOnPostBonesExit::Posted) } else { Flow::Continue }
 }
 
-pub fn on_render_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_render_bones(ctx: &mut Context<'_, site::RenderSkeletonUpdated>) -> Flow<NoExit> {
     headwear::finish_update(ctx);
     Flow::Continue
 }
@@ -849,7 +850,7 @@ fn apply(state: &mut State, bones: &DrawnBones<'_>) {
 /// (mt_draw would update no bone: the `je` after the span) is posed from its
 /// ragdoll alone and given to the renderer as mt_draw gives its own; then
 /// the draw goes on where that `je` goes.
-pub fn on_held_item(ctx: &mut Context<'_>) -> Flow<RagdollOnHeldItemExit> {
+pub fn on_held_item(ctx: &mut Context<'_, site::PlayerDrawHeldItem>) -> Flow<RagdollOnHeldItemExit> {
     // the bones made under the lock, given to the renderer after it
     let posed = draw::unheld_player(ctx).is_some_and(|player| {
         STATE.with(ctx.thread(), |state| {
@@ -891,7 +892,7 @@ fn pose_unheld(state: &State, player: &Player<'_>) -> Option<[[f32; 16]; BONE_CO
 
 /// update_camera's eye: the local player's ragdoll's eye in the first
 /// person, while it has one.
-pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_eye(ctx: &mut Context<'_, site::CameraEye>) -> Flow<NoExit> {
     let eye = match camera::eye_player(ctx) {
         Some((player, true)) => STATE.with(ctx.thread(), |state| match state.eye {
             EyeView::On { player: p, matrix } if p == player.id() && draw_of(state, &player).is_some() => Some(matrix),

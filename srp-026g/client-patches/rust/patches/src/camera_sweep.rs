@@ -31,7 +31,7 @@ use crate::lobby_scene::{self, Lobby, Squad};
 use crate::vostok::lobby_menu::DrawnLobby;
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::{Context, Flow, GameCell, NoExit};
+use crate::vostok::{Context, Flow, GameCell, NoExit, site};
 
 /// The most poses a script has.
 pub const MOST: usize = 64;
@@ -237,7 +237,7 @@ static SWEEP: GameCell<Sweep> = GameCell::new(Sweep::Unread);
 static READ: GameCell<Script> = GameCell::new(Script::EMPTY);
 
 /// `lobby_camera.view`, after patch 45's flight (its chain).
-pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_view(ctx: &mut Context<'_, site::LobbyCameraView>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let mut sweep = SWEEP.get(thread);
     let mut first = false;

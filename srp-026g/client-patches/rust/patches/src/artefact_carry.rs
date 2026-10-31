@@ -5,8 +5,9 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
+use crate::vostok::site;
 use crate::vostok::{Action, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
-use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
+use crate::vostok::carry_runtime::{self as native, ArtefactDraw, HiddenWeapons, Key, PlayerSite};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::world::Player;
@@ -40,13 +41,13 @@ static CHORD: GameCell<carry::Chord> = GameCell::new(carry::Chord::Idle);
 static CARRY_KEY: GameCell<CarryKey> = GameCell::new(CarryKey::Up);
 static HINT: GameCell<Option<(usize, bool)>> = GameCell::new(None);
 
-fn machine(player: &Player<'_>, ctx: &Context<'_>) -> Carry {
-    player.carry_key().and_then(|key| OWNERS.with(ctx.thread(), |o| o.get(key).map(|o| o.carry))).unwrap_or_default()
+fn machine(player: &Player<'_>, thread: &Thread) -> Carry {
+    player.carry_key().and_then(|key| OWNERS.with(thread, |o| o.get(key).map(|o| o.carry))).unwrap_or_default()
 }
 
-fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
+fn event(player: &Player<'_>, thread: &Thread, event: Event) {
     let Some(key) = player.carry_key() else { return };
-    OWNERS.with(ctx.thread(), |owners| {
+    OWNERS.with(thread, |owners| {
         let owner = owners.get_mut(key);
         let before = owner.carry;
         owner.carry.step(event);
@@ -56,53 +57,54 @@ fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
 
 /// Called on every set_input, including inputs for which native early-out
 /// skips its copy. Command and Use edge detection therefore sees releases.
-pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
+pub fn on_input(ctx: &mut Context<'_, site::CarryInput>) -> Flow<NoExit> {
+    let Some(player) = native::player(ctx) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
-    let before = machine(&player, ctx);
+    let before = machine(&player, ctx.thread());
     let allowed = player.carry_allowed();
     if !allowed {
-        event(&player, ctx, Event::Gone);
+        event(&player, ctx.thread(), Event::Gone);
     }
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
         .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
-    event(&player, ctx, Event::Input { now, actions, artefact });
+    event(&player, ctx.thread(), Event::Input { now, actions, artefact });
     // Use is ours only when a take happens; otherwise the game has it
     // (a battery, a trap, a native pickup).
     if before.use_pressed(actions) {
-        let taken = match target(&player, ctx) {
+        let taken = match target(&player, ctx.thread()) {
             // Resolve once more at commit: native world owns the current kit,
             // and the exact generation must still be offered.
-            Some((donor, token)) => machine(&donor, ctx).offer() == Some(token) && reachable(&player, &donor)
+            Some((donor, token)) => machine(&donor, ctx.thread()).offer() == Some(token) && reachable(&player, &donor)
                 && match (donor.inventory(), player.inventory()) {
                     (Some(mut from), Some(mut to)) => from.transfer_artefact(&mut to, token.artefact),
                     _ => Err(Refused::OwnershipChanged),
-                }.inspect(|()| event(&donor, ctx, Event::Taken { now, token })).is_ok(),
+                }.inspect(|()| event(&donor, ctx.thread(), Event::Taken { now, token })).is_ok(),
             None => ground_target(&player).zip(player.inventory())
                 .is_some_and(|(item, mut inventory)| item.take(&mut inventory).is_ok()),
         };
-        if taken { consume_use(&player, ctx); }
+        if taken { consume_use(&player, ctx.thread()); }
     }
     Flow::Continue
 }
 
-fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
+fn consume_use(player: &Player<'_>, thread: &Thread) {
     if let Some(key) = player.carry_key() {
-        OWNERS.with(ctx.thread(), |owners| owners.get_mut(key).carry.consume_use());
+        OWNERS.with(thread, |owners| owners.get_mut(key).carry.consume_use());
     }
 }
 
-pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> { on_death(ctx) }
-pub fn on_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
-        let carry = machine(&player, ctx);
+pub fn on_client_death(ctx: &mut Context<'_, site::CarryClientDeath>) -> Flow<NoExit> { died(ctx) }
+pub fn on_death(ctx: &mut Context<'_, site::CarryDeath>) -> Flow<NoExit> { died(ctx) }
+fn died<S: PlayerSite>(ctx: &Context<'_, S>) -> Flow<NoExit> {
+    if let Some(player) = native::player(ctx) {
+        let carry = machine(&player, ctx.thread());
         // The first of the two death hooks decides, before Gone stows the hand.
         if let Some(key) = player.carry_key() {
             let hands = if carry.presentation(player.carry_time()).hide_weapon { Hands::Artefact } else { Hands::Gun };
             OWNERS.with(ctx.thread(), |owners| { owners.get_mut(key).death.get_or_insert(hands); });
         }
         if let Some(artefact) = carry.artefact() { player.drop_carried(artefact); }
-        event(&player, ctx, Event::Gone);
+        event(&player, ctx.thread(), Event::Gone);
     }
     Flow::Continue
 }
@@ -117,34 +119,34 @@ fn death_hands(player: &Player<'_>, thread: &Thread) -> Option<Hands> {
 pub fn gun_in_hands_at_death(player: &Player<'_>, thread: &Thread) -> bool {
     death_hands(player, thread) != Some(Hands::Artefact)
 }
-pub fn on_ground_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_ground_save(ctx: &mut Context<'_, site::CarryGroundSave>) -> Flow<NoExit> {
     crate::vostok::carry_ground::save(ctx); Flow::Continue
 }
-pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_ground_load(ctx: &mut Context<'_, site::CarryGroundLoad>) -> Flow<NoExit> {
     crate::vostok::carry_ground::load(ctx); Flow::Continue
 }
 
-pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, native::PlayerSite::Filter)
+pub fn on_filter(ctx: &mut Context<'_, site::CarryFilter>) -> Flow<NoExit> {
+    if let Some(player) = native::player(ctx)
         && player.carry_key().is_some() {
-            player.carry_filter(machine(&player, ctx).filtered());
+            player.carry_filter(machine(&player, ctx.thread()).filtered());
         }
     Flow::Continue
 }
 
-pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, native::PlayerSite::Tick) {
+pub fn on_tick(ctx: &mut Context<'_, site::CarryTick>) -> Flow<NoExit> {
+    if let Some(player) = native::player(ctx) {
         if player.carry_allowed() {
-            let carry = machine(&player, ctx);
-            if carry.pending().is_some_and(|a| !player.carry_owned(a)) { event(&player, ctx, Event::PendingLost); }
+            let carry = machine(&player, ctx.thread());
+            if carry.pending().is_some_and(|a| !player.carry_owned(a)) { event(&player, ctx.thread(), Event::PendingLost); }
             let owned = carry.artefact().is_none_or(|a| player.carry_owned(a));
-            event(&player, ctx, Event::Tick { now: player.carry_time(), owned });
-        } else { event(&player, ctx, Event::Gone); }
+            event(&player, ctx.thread(), Event::Tick { now: player.carry_time(), owned });
+        } else { event(&player, ctx.thread(), Event::Gone); }
     }
     Flow::Continue
 }
 
-pub fn on_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_construct(ctx: &mut Context<'_, site::CarryConstruct>) -> Flow<NoExit> {
     let object = native::constructed(ctx);
     OWNERS.with(ctx.thread(), |owners| {
         for slot in &mut owners.0 { if slot.is_some_and(|o| o.key.object == object) { *slot = None; } }
@@ -152,13 +154,13 @@ pub fn on_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, native::PlayerSite::Save) { native::write_snapshot(ctx, machine(&player, ctx)); }
+pub fn on_save(ctx: &mut Context<'_, site::CarrySave>) -> Flow<NoExit> {
+    if let Some(player) = native::player(ctx) { native::write_snapshot(ctx, machine(&player, ctx.thread())); }
     Flow::Continue
 }
-pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_load(ctx: &mut Context<'_, site::CarryLoad>) -> Flow<NoExit> {
     let saved = native::read_snapshot(ctx).unwrap_or_default();
-    if let Some(player) = native::player(ctx, native::PlayerSite::Load)
+    if let Some(player) = native::player(ctx)
         && let Some(key) = player.carry_key() {
             OWNERS.with(ctx.thread(), |owners| {
                 let owner = owners.get_mut(key);
@@ -174,7 +176,7 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// H's own events, down and up, as the key handler gets them: the input
 /// builder's action query sees the down and not always the up, which left
 /// the key held.
-pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_key(ctx: &mut Context<'_, site::CarryKey>) -> Flow<NoExit> {
     let press = native::key_event(ctx, Action::ARTEFACT).map(|event| match event {
         KeyboardAction::Down | KeyboardAction::Hold => KeyPress::Pressed,
         KeyboardAction::Up => KeyPress::Released,
@@ -186,7 +188,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_input_end(ctx: &mut Context<'_, site::InputBuilderEnd>) -> Flow<NoExit> {
     if let Some(mut handler) = InputHandler::at_builder_end(ctx) {
         let actions = handler.actions().bits();
         let mut chord = CHORD.get(ctx.thread());
@@ -198,9 +200,9 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_hud(ctx: &Context<'_>) {
+pub fn on_hud(ctx: &Context<'_, site::PlayerIconsUpdateStart>) {
     // Shown only when Use would take: otherwise the native hint stays.
-    let text = native::local_player(ctx).filter(|p| target(p, ctx).is_some() || ground_target(p).is_some())
+    let text = native::local_player(ctx).filter(|p| target(p, ctx.thread()).is_some() || ground_target(p).is_some())
         .map(|_| c"st_artefact_take_teammate");
     let visible = text.is_some();
     if let Some(movie) = crate::vostok::GameWorldUi::at_update_icons(ctx).and_then(|ui| ui.hud_movie()) {
@@ -231,14 +233,14 @@ fn reachable(recipient: &Player<'_>, donor: &Player<'_>) -> bool {
 }
 
 /// The offer Use would take: none without a free container.
-fn target<'a>(recipient: &'a Player<'_>, ctx: &Context<'_>) -> Option<(Player<'a>, Token)> {
+fn target<'a>(recipient: &'a Player<'_>, thread: &Thread) -> Option<(Player<'a>, Token)> {
     if recipient.container_space() != ContainerSpace::Available { return None; }
     let mut best = None;
     let (eye, _) = recipient.carry_eye();
     let mut nearest = 2.2;
     for n in 0..20 {
         let Some(donor) = recipient.carry_peer(Place::parse(n).unwrap()) else { continue };
-        let Some(token) = machine(&donor, ctx).offer() else { continue };
+        let Some(token) = machine(&donor, thread).offer() else { continue };
         if !reachable(recipient, &donor) { continue; }
         let (point, _) = donor.carry_eye();
         let distance = (v(point) - Vec3::Y * 0.25 - v(eye)).length();
@@ -268,29 +270,29 @@ fn ground_target<'t>(recipient: &Player<'t>) -> Option<crate::vostok::carry_grou
     target
 }
 
-pub fn on_damage_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_damage_bones(ctx: &mut Context<'_, site::CarryDamageBones>) -> Flow<NoExit> {
     if let Some(bones) = DrawnBones::at_damage(ctx) {
         let player = bones.player();
         if player.alive() {
-            pose::apply(&bones, machine(&player, ctx).presentation(player.carry_time()));
+            pose::apply(&bones, machine(&player, ctx.thread()).presentation(player.carry_time()));
         }
     }
     Flow::Continue
 }
 
-pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_bones(ctx: &mut Context<'_, site::PlayerDrawBones>) -> Flow<NoExit> {
     let Some(bones) = DrawnBones::at(ctx) else { return Flow::Continue };
     let player = bones.player();
     let Some(key) = player.carry_key() else { return Flow::Continue };
     if !player.alive() { return Flow::Continue; }
-    let carry = machine(&player, ctx);
+    let carry = machine(&player, ctx.thread());
     let presentation = carry.presentation(player.carry_time());
     if let Some(matrix) = pose::apply(&bones, presentation) {
         let attachment = presentation.artefact.and_then(|a| {
             let draw = player.inventory()?.presentation(a)?;
             let item = draw.id();
             let token = carry.presentation_token()?;
-            draw.update(ctx, native::DrawCommand::Present(matrix));
+            draw.update(ctx.thread(), native::DrawCommand::Present(matrix));
             Some(Attachment { item, token })
         });
         OWNERS.with(ctx.thread(), |owners| owners.get_mut(key).attachment = attachment);
@@ -298,13 +300,13 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWeaponExit> {
-    let Some(player) = native::player(ctx, native::PlayerSite::Weapon) else { return Flow::Continue };
+pub fn on_weapon(ctx: &mut Context<'_, site::CarryWeapon>) -> Flow<crate::vostok::ArtefactCarryOnWeaponExit> {
+    let Some(player) = native::player(ctx) else { return Flow::Continue };
     // A dead body's weapon is drawn natively (its optics update their
     // models): its models go back here before it, unless it died carrying,
     // when they stay out and the native draw is skipped, as while alive.
     let hide = if player.alive() {
-        machine(&player, ctx).presentation(player.carry_time()).hide_weapon
+        machine(&player, ctx.thread()).presentation(player.carry_time()).hide_weapon
     } else {
         death_hands(&player, ctx.thread()) == Some(Hands::Artefact)
     };
@@ -314,49 +316,51 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
 
 /// Hand the temporarily removed models back before native on_hide removes
 /// them. Its renderer asserts if asked to remove a model absent from scene.
-pub fn on_weapon_hide(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_weapon_hide(ctx: &mut Context<'_, site::CarryWeaponHide>) -> Flow<NoExit> {
     if let Some(weapon) = native::WeaponHiding::at(ctx) {
         HIDDEN.with(ctx.thread(), |weapons| weapon.restore(weapons));
     }
     Flow::Continue
 }
 
-pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_cull(ctx: &mut Context<'_, site::PlayerDrawCull>) -> Flow<NoExit> {
     if let Some(player) = draw::culled_player(ctx)
-        && player.alive() && machine(&player, ctx).active() { return draw::draw_anyway(ctx); }
+        && player.alive() && machine(&player, ctx.thread()).active() { return draw::draw_anyway(ctx); }
     Flow::Continue
 }
 
-fn artefact_draw(ctx: &Context<'_>, class: ArtefactClass) -> bool {
-    let Some(draw) = ArtefactDraw::at(ctx, class) else { return false };
-    if draw.ground(ctx) { return true; }
-    let held = OWNERS.with(ctx.thread(), |owners| owners.0.iter().flatten().find_map(|owner| {
+fn artefact_draw(draw: Option<ArtefactDraw>, thread: &Thread) -> bool {
+    let Some(draw) = draw else { return false };
+    if draw.ground(thread) { return true; }
+    let held = OWNERS.with(thread, |owners| owners.0.iter().flatten().find_map(|owner| {
         let a = owner.attachment?;
         (a.item == draw.id() && owner.carry.artefact() == Some(a.token.artefact)).then_some(())
     }));
-    draw.update(ctx, if held.is_some() { native::DrawCommand::Keep } else { native::DrawCommand::Native })
+    draw.update(thread, if held.is_some() { native::DrawCommand::Keep } else { native::DrawCommand::Native })
 }
 
 macro_rules! callback {
-    ($fn:ident, $class:ident, $exit:ident) => {
-        pub fn $fn(ctx: &mut Context<'_>) -> Flow<crate::vostok::$exit> {
-            if artefact_draw(ctx, ArtefactClass::$class) { Flow::Exit(crate::vostok::$exit::Done) } else { Flow::Continue }
+    ($fn:ident, $site:ident, $exit:ident) => {
+        pub fn $fn(ctx: &mut Context<'_, site::$site>) -> Flow<crate::vostok::$exit> {
+            if artefact_draw(ArtefactDraw::at(ctx), ctx.thread()) { Flow::Exit(crate::vostok::$exit::Done) } else { Flow::Continue }
+
         }
     };
 }
-callback!(on_spring, Spring, ArtefactCarryOnSpringExit);
-callback!(on_lifebone, Lifebone, ArtefactCarryOnLifeboneExit);
-callback!(on_onyx, Onyx, ArtefactCarryOnOnyxExit);
-callback!(on_rattle, Rattle, ArtefactCarryOnRattleExit);
+callback!(on_spring, CarrySpring, ArtefactCarryOnSpringExit);
+callback!(on_lifebone, CarryLifebone, ArtefactCarryOnLifeboneExit);
+callback!(on_onyx, CarryOnyx, ArtefactCarryOnOnyxExit);
 
-pub fn on_flower_query(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnFlowerQueryExit> {
+callback!(on_rattle, CarryRattle, ArtefactCarryOnRattleExit);
+
+pub fn on_flower_query(ctx: &mut Context<'_, site::CarryFlowerQuery>) -> Flow<crate::vostok::ArtefactCarryOnFlowerQueryExit> {
     if crate::vostok::carry_flower::query(ctx) { Flow::Exit(crate::vostok::ArtefactCarryOnFlowerQueryExit::Done) } else { Flow::Continue }
 }
-pub fn on_flower_ready(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_flower_ready(ctx: &mut Context<'_, site::CarryFlowerReady>) -> Flow<NoExit> {
     crate::vostok::carry_flower::ready(ctx);
     Flow::Continue
 }
-pub fn on_flower_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_flower_destroy(ctx: &mut Context<'_, site::CarryFlowerDestroy>) -> Flow<NoExit> {
     crate::vostok::carry_flower::destroy(ctx);
     Flow::Continue
 }

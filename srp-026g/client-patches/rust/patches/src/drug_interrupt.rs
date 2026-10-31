@@ -14,10 +14,10 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::drug::{AppliedHit, Effect, HitType};
-use crate::vostok::{Context, Flow, NoExit};
+use crate::vostok::{Context, Flow, NoExit, site};
 
 /// hit_impl once the hit took health (`player.hit_applied`).
-pub fn on_hit_applied(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_hit_applied(ctx: &mut Context<'_, site::PlayerHitApplied>) -> Flow<NoExit> {
     if let Some(hit) = AppliedHit::at_applied(ctx)
         && hit.kind() == HitType::Ranged
     {

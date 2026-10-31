@@ -29,7 +29,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::settings::{ConsoleBool, OptionsCall, save_user_config};
-use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
+use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread, site};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
 /// for it by the same name; its label is a dictionary key.
@@ -107,7 +107,7 @@ struct Told {
 /// None until a hud movie took the settings.
 static TOLD: GameCell<Option<Told>> = GameCell::new(None);
 
-pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_configs(ctx: &mut Context<'_, site::ConfigsStart>) -> Flow<NoExit> {
     for setting in SETTINGS {
         setting.value.register(ctx.thread(), setting.name);
     }
@@ -117,7 +117,7 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// The Settings' calls: a setting's name answers its label and saved state
 /// (`root.srp_check_option`), saving a "1" or "0" first; `srp_hud_texts`
 /// answers the group's texts (`root.srp_hud_texts`).
-pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExit> {
+pub fn on_options_call(ctx: &mut Context<'_, site::OptionsCallback>) -> Flow<HudOptionsOnOptionsCallExit> {
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     if call.method() == c"srp_hud_texts" {
         let mut rooms = [[0; 0x200]; TEXTS.len()];
@@ -149,17 +149,17 @@ fn new_match(thread: &Thread) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_static_info(ctx: &mut Context<'_, site::StaticInfoOptionsRead>) -> Flow<NoExit> {
     new_match(ctx.thread())
 }
 
-pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_replay_options(ctx: &mut Context<'_, site::ReplayOptionsRead>) -> Flow<NoExit> {
     new_match(ctx.thread())
 }
 
 /// update_player_icons' start (0x23AA10), every frame of a match: the hud
 /// told the settings when it is another movie or they changed.
-pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_update_icons(ctx: &mut Context<'_, site::PlayerIconsUpdateStart>) -> Flow<NoExit> {
     let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let Some(movie) = ui.hud_movie() else { return Flow::Continue };
     let thread = ctx.thread();

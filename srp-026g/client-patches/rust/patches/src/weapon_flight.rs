@@ -36,7 +36,7 @@ use ragdoll::math::{PI, Vec3, clamp};
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, StepTargets, Steps, TableRequest,
                                   WeaponTableState, forward};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
+use crate::vostok::{Context, Flow, GameCell, NoExit, Thread, site};
 
 /// How long a flight takes (s).
 pub const DURATION: f32 = 0.45;
@@ -277,7 +277,7 @@ pub fn goal_of(request: &TableRequest, targets: &StepTargets, cut: impl FnOnce(V
 }
 
 /// `lobby_camera.view`: the tick with its yaw and pitch final.
-pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_view(ctx: &mut Context<'_, site::LobbyCameraView>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some((mut camera, dt)) = LobbyCamera::at(ctx) else { return Flow::Continue };
     let mut table = WeaponTableState::of(thread);

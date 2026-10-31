@@ -7100,19 +7100,169 @@ pub enum Register {
     Edi,
 }
 
-/// The machine at a lohook's site (vostok's `Context`): what a site's typed registers are read from.
-pub trait Machine {
+/// The machine at the lohook site `S` (a [`site::marker`]; vostok's `Context<S>`): what that
+/// site's typed registers are read from.
+pub trait Machine<S> {
     /// A register as the hook's entry saved it.
     fn register(&self, register: Register) -> u32;
     /// ESP as the site's own code has it (not the entry's).
     fn site_esp(&self) -> u32;
 }
 
-/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.
+/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles. A reader takes
+/// the machine at its own site alone (the site's marker is in its type), so it is safe.
 #[allow(dead_code)]
 pub mod site {
     #[allow(unused_imports)]
     use super::*;
+
+    /// A type per lohook site: a `Machine<S>` is the machine at site `S`.
+    pub mod marker {
+        /// game_world.after_move (0x1f7c3c).
+        pub enum GameWorldAfterMove {}
+        /// player_draw.cull (0x24757c).
+        pub enum PlayerDrawCull {}
+        /// player_draw.bones (0x247716).
+        pub enum PlayerDrawBones {}
+        /// player_draw.post_bones (0x2477df).
+        pub enum PlayerDrawPostBones {}
+        /// render.skeleton_updated (0x15a950).
+        pub enum RenderSkeletonUpdated {}
+        /// player.killed_event (0x2da3df).
+        pub enum PlayerKilledEvent {}
+        /// camera.eye (0x1f3643).
+        pub enum CameraEye {}
+        /// bullet.ray_traced (0x32d627).
+        pub enum BulletRayTraced {}
+        /// player_draw.held_item (0x24754f).
+        pub enum PlayerDrawHeldItem {}
+        /// static_info.options_read (0x27b92d).
+        pub enum StaticInfoOptionsRead {}
+        /// replay.options_read (0x1f0971).
+        pub enum ReplayOptionsRead {}
+        /// player_icons.update_start (0x23aa10).
+        pub enum PlayerIconsUpdateStart {}
+        /// keyboard.tab_state (0x25cd2c).
+        pub enum KeyboardTabState {}
+        /// input_builder.end (0x2421b0).
+        pub enum InputBuilderEnd {}
+        /// player_names.visibility (0x1f2f10).
+        pub enum PlayerNamesVisibility {}
+        /// text_input.char_target (0x79d369).
+        pub enum TextInputCharTarget {}
+        /// quick_slots.activity (0x23b7a0).
+        pub enum QuickSlotsActivity {}
+        /// configs.start (0x1ea210).
+        pub enum ConfigsStart {}
+        /// configs.texts (0x1ea306).
+        pub enum ConfigsTexts {}
+        /// options.callback (0x1ff5d0).
+        pub enum OptionsCallback {}
+        /// lobby_menu.scene_request (0x21e5cc).
+        pub enum LobbyMenuSceneRequest {}
+        /// lobby_menu.scenes_ready (0x220b20).
+        pub enum LobbyMenuScenesReady {}
+        /// lobby_client.squad_id (0x2747c3).
+        pub enum LobbyClientSquadId {}
+        /// lobby_client.squad_read (0x2748bc).
+        pub enum LobbyClientSquadRead {}
+        /// lobby_menu.activate (0x21d2e0).
+        pub enum LobbyMenuActivate {}
+        /// lobby_menu.deactivate (0x21d4a0).
+        pub enum LobbyMenuDeactivate {}
+        /// project.insert (0x285750).
+        pub enum ProjectInsert {}
+        /// project.removed (0x285614).
+        pub enum ProjectRemoved {}
+        /// project.destroy (0x285330).
+        pub enum ProjectDestroy {}
+        /// bullet_history.saved (0x321c3b).
+        pub enum BulletHistorySaved {}
+        /// bullet_history.loaded (0x321d01).
+        pub enum BulletHistoryLoaded {}
+        /// carry.key (0x23fe42).
+        pub enum CarryKey {}
+        /// carry.input (0x2d86e0).
+        pub enum CarryInput {}
+        /// carry.weapon_hide (0x243fa0).
+        pub enum CarryWeaponHide {}
+        /// carry.filter (0x2d876f).
+        pub enum CarryFilter {}
+        /// carry.tick (0x2daac1).
+        pub enum CarryTick {}
+        /// carry.construct (0x2d6990).
+        pub enum CarryConstruct {}
+        /// carry.save (0x2db47e).
+        pub enum CarrySave {}
+        /// carry.load (0x2dbab5).
+        pub enum CarryLoad {}
+        /// carry.weapon (0x2477c8).
+        pub enum CarryWeapon {}
+        /// carry.spring (0x25ebb0).
+        pub enum CarrySpring {}
+        /// carry.lifebone (0x25f100).
+        pub enum CarryLifebone {}
+        /// carry.onyx (0x25f640).
+        pub enum CarryOnyx {}
+        /// carry.rattle (0x25fb80).
+        pub enum CarryRattle {}
+        /// carry.damage_bones (0x2da769).
+        pub enum CarryDamageBones {}
+        /// carry.flower_query (0x25e91a).
+        pub enum CarryFlowerQuery {}
+        /// carry.flower_ready (0x260278).
+        pub enum CarryFlowerReady {}
+        /// carry.flower_destroy (0x25efe0).
+        pub enum CarryFlowerDestroy {}
+        /// carry.death (0x2d77c0).
+        pub enum CarryDeath {}
+        /// carry.ground_save (0x313735).
+        pub enum CarryGroundSave {}
+        /// carry.ground_load (0x3137ec).
+        pub enum CarryGroundLoad {}
+        /// carry.client_death (0x1f28e0).
+        pub enum CarryClientDeath {}
+        /// artefact_container.transfer (0x31c810).
+        pub enum ArtefactContainerTransfer {}
+        /// lobby_camera.view (0x2840f2).
+        pub enum LobbyCameraView {}
+        /// bullet.decal_front (0x32e672).
+        pub enum BulletDecalFront {}
+        /// bullet.decal_back (0x32e8cc).
+        pub enum BulletDecalBack {}
+        /// bullet.decal_reflect (0x32eaf2).
+        pub enum BulletDecalReflect {}
+        /// bullet.decal_collide (0x32ed71).
+        pub enum BulletDecalCollide {}
+        /// bullet_manager.explode (0x339630).
+        pub enum BulletManagerExplode {}
+        /// tab_cursor.key (0x25cd00).
+        pub enum TabCursorKey {}
+        /// hud.callback (0x233d30).
+        pub enum HudCallback {}
+        /// keyboard.key_state (0x25cd1c).
+        pub enum KeyboardKeyState {}
+        /// world_load.unpacked (0x27c0d0).
+        pub enum WorldLoadUnpacked {}
+        /// world_load.raw (0x27c0ff).
+        pub enum WorldLoadRaw {}
+        /// game.tick (0x1ec8ec).
+        pub enum GameTick {}
+        /// login_menu.activated (0x21eac8).
+        pub enum LoginMenuActivated {}
+        /// lobby_menu.activated (0x21d31d).
+        pub enum LobbyMenuActivated {}
+        /// level_loading.ui (0x2204b3).
+        pub enum LevelLoadingUi {}
+        /// game_world_ui.welcome (0x23b36a).
+        pub enum GameWorldUiWelcome {}
+        /// game.clear_resources (0x1ed030).
+        pub enum GameClearResources {}
+        /// sound_world.tick (0x59ab1).
+        pub enum SoundWorldTick {}
+        /// player.hit_applied (0x2d9cb1).
+        pub enum PlayerHitApplied {}
+    }
 
     /// game_world.after_move (0x1f7c3c): game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)
     pub mod game_world_after_move {
@@ -7120,11 +7270,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::game_world (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+        pub fn world(machine: &impl Machine<marker::GameWorldAfterMove>) -> Option<GameWorld> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(GameWorld)
         }
     }
@@ -7135,11 +7282,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::PlayerDrawCull>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
     }
@@ -7150,20 +7294,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::PlayerDrawBones>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// EBP: a survarium::mt_draw_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
+        pub fn frame(machine: &impl Machine<marker::PlayerDrawBones>) -> Option<MtDrawFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
         }
     }
@@ -7174,20 +7312,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::PlayerDrawPostBones>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// EBP: a survarium::mt_draw_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
+        pub fn frame(machine: &impl Machine<marker::PlayerDrawPostBones>) -> Option<MtDrawFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
         }
     }
@@ -7198,11 +7330,8 @@ pub mod site {
         use super::*;
 
         /// EDI: a vostok::render::skeleton_instance (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn instance(machine: &impl Machine) -> Option<SkeletonInstance> {
+        pub fn instance(machine: &impl Machine<marker::RenderSkeletonUpdated>) -> Option<SkeletonInstance> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SkeletonInstance)
         }
     }
@@ -7213,11 +7342,8 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+        pub fn victim(machine: &impl Machine<marker::PlayerKilledEvent>) -> Option<Player> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
@@ -7228,11 +7354,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CameraEye>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
     }
@@ -7243,29 +7366,20 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::bullet (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+        pub fn bullet(machine: &impl Machine<marker::BulletRayTraced>) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Bullet)
         }
 
         /// EAX: a vostok::physics::ray_result (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn result(machine: &impl Machine) -> Option<RayResult> {
+        pub fn result(machine: &impl Machine<marker::BulletRayTraced>) -> Option<RayResult> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(RayResult)
         }
 
         /// the site's ESP: a survarium::check_collision_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<CheckCollisionFrame> {
+        pub fn frame(machine: &impl Machine<marker::BulletRayTraced>) -> Option<CheckCollisionFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(CheckCollisionFrame)
         }
     }
@@ -7276,11 +7390,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::PlayerDrawHeldItem>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
     }
@@ -7291,20 +7402,14 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::match_options (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn options(machine: &impl Machine) -> Option<MatchOptions> {
+        pub fn options(machine: &impl Machine<marker::StaticInfoOptionsRead>) -> Option<MatchOptions> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(MatchOptions)
         }
 
         /// EBP: a survarium::static_info_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<StaticInfoFrame> {
+        pub fn frame(machine: &impl Machine<marker::StaticInfoOptionsRead>) -> Option<StaticInfoFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StaticInfoFrame)
         }
     }
@@ -7315,11 +7420,8 @@ pub mod site {
         use super::*;
 
         /// the site's ESP: a survarium::replay_options_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<ReplayOptionsFrame> {
+        pub fn frame(machine: &impl Machine<marker::ReplayOptionsRead>) -> Option<ReplayOptionsFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ReplayOptionsFrame)
         }
     }
@@ -7330,11 +7432,8 @@ pub mod site {
         use super::*;
 
         /// the site's ESP: a survarium::update_player_icons_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<UpdatePlayerIconsFrame> {
+        pub fn frame(machine: &impl Machine<marker::PlayerIconsUpdateStart>) -> Option<UpdatePlayerIconsFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(UpdatePlayerIconsFrame)
         }
     }
@@ -7345,11 +7444,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player_input_handler (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn handler(machine: &impl Machine) -> Option<PlayerInputHandler> {
+        pub fn handler(machine: &impl Machine<marker::InputBuilderEnd>) -> Option<PlayerInputHandler> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PlayerInputHandler)
         }
     }
@@ -7360,20 +7456,14 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::PlayerNamesVisibility>) -> Option<Player> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
 
         /// the site's ESP: a survarium::render_name_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<RenderNameFrame> {
+        pub fn frame(machine: &impl Machine<marker::PlayerNamesVisibility>) -> Option<RenderNameFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderNameFrame)
         }
     }
@@ -7384,11 +7474,8 @@ pub mod site {
         use super::*;
 
         /// EDI: a scaleform::avm_text_field (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn field(machine: &impl Machine) -> Option<AvmTextField> {
+        pub fn field(machine: &impl Machine<marker::TextInputCharTarget>) -> Option<AvmTextField> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(AvmTextField)
         }
     }
@@ -7399,29 +7486,20 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::game_world_ui (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+        pub fn ui(machine: &impl Machine<marker::QuickSlotsActivity>) -> Option<GameWorldUi> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldUi)
         }
 
         /// EBP: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::QuickSlotsActivity>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
         }
 
         /// EBX: a survarium::inventory (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+        pub fn inventory(machine: &impl Machine<marker::QuickSlotsActivity>) -> Option<Inventory> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Inventory)
         }
     }
@@ -7432,20 +7510,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::game_options_interface (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn options(machine: &impl Machine) -> Option<GameOptionsInterface> {
+        pub fn options(machine: &impl Machine<marker::OptionsCallback>) -> Option<GameOptionsInterface> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameOptionsInterface)
         }
 
         /// the site's ESP: a survarium::options_callback_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<OptionsCallbackFrame> {
+        pub fn frame(machine: &impl Machine<marker::OptionsCallback>) -> Option<OptionsCallbackFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(OptionsCallbackFrame)
         }
     }
@@ -7456,11 +7528,8 @@ pub mod site {
         use super::*;
 
         /// EBP: a survarium::lobby_query_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<LobbyQueryFrame> {
+        pub fn frame(machine: &impl Machine<marker::LobbyMenuSceneRequest>) -> Option<LobbyQueryFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(LobbyQueryFrame)
         }
     }
@@ -7471,20 +7540,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::lobby_menu (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn menu(machine: &impl Machine) -> Option<LobbyMenu> {
+        pub fn menu(machine: &impl Machine<marker::LobbyMenuScenesReady>) -> Option<LobbyMenu> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(LobbyMenu)
         }
 
         /// the site's ESP: a survarium::scenes_ready_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<ScenesReadyFrame> {
+        pub fn frame(machine: &impl Machine<marker::LobbyMenuScenesReady>) -> Option<ScenesReadyFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ScenesReadyFrame)
         }
     }
@@ -7495,20 +7558,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::lobby_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
+        pub fn client(machine: &impl Machine<marker::LobbyClientSquadId>) -> Option<LobbyClient> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
         }
 
         /// ESI: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::LobbyClientSquadId>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -7519,20 +7576,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::lobby_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
+        pub fn client(machine: &impl Machine<marker::LobbyClientSquadRead>) -> Option<LobbyClient> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
         }
 
         /// ESI: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::LobbyClientSquadRead>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -7543,11 +7594,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::lobby_menu (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn menu(machine: &impl Machine) -> Option<LobbyMenu> {
+        pub fn menu(machine: &impl Machine<marker::LobbyMenuActivate>) -> Option<LobbyMenu> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(LobbyMenu)
         }
     }
@@ -7558,11 +7606,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::lobby_menu (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn menu(machine: &impl Machine) -> Option<LobbyMenu> {
+        pub fn menu(machine: &impl Machine<marker::LobbyMenuDeactivate>) -> Option<LobbyMenu> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(LobbyMenu)
         }
     }
@@ -7573,20 +7618,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::simple_game_project (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+        pub fn project(machine: &impl Machine<marker::ProjectInsert>) -> Option<SimpleGameProject> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(SimpleGameProject)
         }
 
         /// the site's ESP: a survarium::project_insert_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<ProjectInsertFrame> {
+        pub fn frame(machine: &impl Machine<marker::ProjectInsert>) -> Option<ProjectInsertFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProjectInsertFrame)
         }
     }
@@ -7597,11 +7636,8 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::simple_game_project (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+        pub fn project(machine: &impl Machine<marker::ProjectRemoved>) -> Option<SimpleGameProject> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SimpleGameProject)
         }
     }
@@ -7612,11 +7648,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::simple_game_project (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn project(machine: &impl Machine) -> Option<SimpleGameProject> {
+        pub fn project(machine: &impl Machine<marker::ProjectDestroy>) -> Option<SimpleGameProject> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(SimpleGameProject)
         }
     }
@@ -7627,20 +7660,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::bullet_manager (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+        pub fn manager(machine: &impl Machine<marker::BulletHistorySaved>) -> Option<BulletManager> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletManager)
         }
 
         /// EBP: a survarium::history_save_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<HistorySaveFrame> {
+        pub fn frame(machine: &impl Machine<marker::BulletHistorySaved>) -> Option<HistorySaveFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HistorySaveFrame)
         }
     }
@@ -7651,20 +7678,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::bullet_manager (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+        pub fn manager(machine: &impl Machine<marker::BulletHistoryLoaded>) -> Option<BulletManager> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletManager)
         }
 
         /// EBX: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::BulletHistoryLoaded>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -7675,20 +7696,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a u32 value.
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn action(machine: &impl Machine) -> u32 {
+        pub fn action(machine: &impl Machine<marker::CarryKey>) -> u32 {
             machine.register(Register::Edi)
         }
 
         /// EBP: a survarium::keyboard_action_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<KeyboardActionFrame> {
+        pub fn frame(machine: &impl Machine<marker::CarryKey>) -> Option<KeyboardActionFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(KeyboardActionFrame)
         }
     }
@@ -7699,20 +7714,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryInput>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
         }
 
         /// the site's ESP: a survarium::input_entry_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<InputEntryFrame> {
+        pub fn frame(machine: &impl Machine<marker::CarryInput>) -> Option<InputEntryFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(InputEntryFrame)
         }
     }
@@ -7723,20 +7732,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::weapon (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+        pub fn weapon(machine: &impl Machine<marker::CarryWeaponHide>) -> Option<Weapon> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Weapon)
         }
 
         /// the site's ESP: a survarium::weapon_hide_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponHideFrame> {
+        pub fn frame(machine: &impl Machine<marker::CarryWeaponHide>) -> Option<WeaponHideFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponHideFrame)
         }
     }
@@ -7747,11 +7750,8 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryFilter>) -> Option<Player> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Player)
         }
     }
@@ -7762,11 +7762,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryTick>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
     }
@@ -7777,11 +7774,8 @@ pub mod site {
         use super::*;
 
         /// the site's ESP: a survarium::base_player_ctor_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<BasePlayerCtorFrame> {
+        pub fn frame(machine: &impl Machine<marker::CarryConstruct>) -> Option<BasePlayerCtorFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(BasePlayerCtorFrame)
         }
     }
@@ -7792,20 +7786,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarrySave>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// EDI: a vostok::buffer_writer (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+        pub fn writer(machine: &impl Machine<marker::CarrySave>) -> Option<BufferWriter> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferWriter)
         }
     }
@@ -7816,20 +7804,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryLoad>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// ESI: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::CarryLoad>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -7840,20 +7822,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryWeapon>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// EAX: a vostok::float4x4 (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn transform(machine: &impl Machine) -> Option<Float4x4> {
+        pub fn transform(machine: &impl Machine<marker::CarryWeapon>) -> Option<Float4x4> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Float4x4)
         }
     }
@@ -7864,11 +7840,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::artefact_spring_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn callback(machine: &impl Machine) -> Option<ArtefactSpringClient> {
+        pub fn callback(machine: &impl Machine<marker::CarrySpring>) -> Option<ArtefactSpringClient> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ArtefactSpringClient)
         }
     }
@@ -7879,11 +7852,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::artefact_lifebone_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn callback(machine: &impl Machine) -> Option<ArtefactLifeboneClient> {
+        pub fn callback(machine: &impl Machine<marker::CarryLifebone>) -> Option<ArtefactLifeboneClient> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ArtefactLifeboneClient)
         }
     }
@@ -7894,11 +7864,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::artefact_onyx_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn callback(machine: &impl Machine) -> Option<ArtefactOnyxClient> {
+        pub fn callback(machine: &impl Machine<marker::CarryOnyx>) -> Option<ArtefactOnyxClient> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ArtefactOnyxClient)
         }
     }
@@ -7909,11 +7876,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::artefact_rattle_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn callback(machine: &impl Machine) -> Option<ArtefactRattleClient> {
+        pub fn callback(machine: &impl Machine<marker::CarryRattle>) -> Option<ArtefactRattleClient> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ArtefactRattleClient)
         }
     }
@@ -7924,29 +7888,20 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryDamageBones>) -> Option<Player> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Player)
         }
 
         /// ESI: a vostok::render::bone_matrix (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bones(machine: &impl Machine) -> Option<BoneMatrix> {
+        pub fn bones(machine: &impl Machine<marker::CarryDamageBones>) -> Option<BoneMatrix> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BoneMatrix)
         }
 
         /// EBX: a u32 value.
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn count(machine: &impl Machine) -> u32 {
+        pub fn count(machine: &impl Machine<marker::CarryDamageBones>) -> u32 {
             machine.register(Register::Ebx)
         }
     }
@@ -7957,11 +7912,8 @@ pub mod site {
         use super::*;
 
         /// the site's ESP: a survarium::flower_query_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<FlowerQueryFrame> {
+        pub fn frame(machine: &impl Machine<marker::CarryFlowerQuery>) -> Option<FlowerQueryFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(FlowerQueryFrame)
         }
     }
@@ -7972,20 +7924,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::artefact (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn item(machine: &impl Machine) -> Option<Artefact> {
+        pub fn item(machine: &impl Machine<marker::CarryFlowerReady>) -> Option<Artefact> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Artefact)
         }
 
         /// EBX: a vostok::carry_queries (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn result(machine: &impl Machine) -> Option<CarryQueries> {
+        pub fn result(machine: &impl Machine<marker::CarryFlowerReady>) -> Option<CarryQueries> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CarryQueries)
         }
     }
@@ -7996,11 +7942,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::carry_lifebone (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn item(machine: &impl Machine) -> Option<CarryLifebone> {
+        pub fn item(machine: &impl Machine<marker::CarryFlowerDestroy>) -> Option<CarryLifebone> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CarryLifebone)
         }
     }
@@ -8011,11 +7954,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryDeath>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
         }
     }
@@ -8026,20 +7966,14 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::artefact (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn item(machine: &impl Machine) -> Option<Artefact> {
+        pub fn item(machine: &impl Machine<marker::CarryGroundSave>) -> Option<Artefact> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Artefact)
         }
 
         /// EDI: a vostok::buffer_writer (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+        pub fn writer(machine: &impl Machine<marker::CarryGroundSave>) -> Option<BufferWriter> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferWriter)
         }
     }
@@ -8050,20 +7984,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::artefact (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn item(machine: &impl Machine) -> Option<Artefact> {
+        pub fn item(machine: &impl Machine<marker::CarryGroundLoad>) -> Option<Artefact> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Artefact)
         }
 
         /// EDI: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::CarryGroundLoad>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -8074,11 +8002,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+        pub fn player(machine: &impl Machine<marker::CarryClientDeath>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
         }
     }
@@ -8089,20 +8014,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn user(machine: &impl Machine) -> Option<Player> {
+        pub fn user(machine: &impl Machine<marker::ArtefactContainerTransfer>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// EDI: a survarium::artefact_container_core (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn container(machine: &impl Machine) -> Option<ArtefactContainerCore> {
+        pub fn container(machine: &impl Machine<marker::ArtefactContainerTransfer>) -> Option<ArtefactContainerCore> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ArtefactContainerCore)
         }
     }
@@ -8113,20 +8032,14 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::lobby_camera_ticker (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn camera(machine: &impl Machine) -> Option<LobbyCameraTicker> {
+        pub fn camera(machine: &impl Machine<marker::LobbyCameraView>) -> Option<LobbyCameraTicker> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyCameraTicker)
         }
 
         /// the site's ESP: a survarium::lobby_camera_tick_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<LobbyCameraTickFrame> {
+        pub fn frame(machine: &impl Machine<marker::LobbyCameraView>) -> Option<LobbyCameraTickFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(LobbyCameraTickFrame)
         }
     }
@@ -8137,20 +8050,14 @@ pub mod site {
         use super::*;
 
         /// EBP: a survarium::bullet (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+        pub fn bullet(machine: &impl Machine<marker::BulletDecalFront>) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
         }
 
         /// EBX: a vostok::physics::ray_result (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+        pub fn hit(machine: &impl Machine<marker::BulletDecalFront>) -> Option<RayResult> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
         }
     }
@@ -8161,20 +8068,14 @@ pub mod site {
         use super::*;
 
         /// EBP: a survarium::bullet (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+        pub fn bullet(machine: &impl Machine<marker::BulletDecalBack>) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
         }
 
         /// EBX: a vostok::physics::ray_result (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+        pub fn hit(machine: &impl Machine<marker::BulletDecalBack>) -> Option<RayResult> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
         }
     }
@@ -8185,20 +8086,14 @@ pub mod site {
         use super::*;
 
         /// EBP: a survarium::bullet (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+        pub fn bullet(machine: &impl Machine<marker::BulletDecalReflect>) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
         }
 
         /// EBX: a vostok::physics::ray_result (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+        pub fn hit(machine: &impl Machine<marker::BulletDecalReflect>) -> Option<RayResult> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
         }
     }
@@ -8209,20 +8104,14 @@ pub mod site {
         use super::*;
 
         /// EBP: a survarium::bullet (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+        pub fn bullet(machine: &impl Machine<marker::BulletDecalCollide>) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Bullet)
         }
 
         /// EBX: a vostok::physics::ray_result (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn hit(machine: &impl Machine) -> Option<RayResult> {
+        pub fn hit(machine: &impl Machine<marker::BulletDecalCollide>) -> Option<RayResult> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RayResult)
         }
     }
@@ -8233,20 +8122,14 @@ pub mod site {
         use super::*;
 
         /// ESI: a survarium::explosion_params (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn params(machine: &impl Machine) -> Option<ExplosionParams> {
+        pub fn params(machine: &impl Machine<marker::BulletManagerExplode>) -> Option<ExplosionParams> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ExplosionParams)
         }
 
         /// the site's ESP: a survarium::explode_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<ExplodeFrame> {
+        pub fn frame(machine: &impl Machine<marker::BulletManagerExplode>) -> Option<ExplodeFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ExplodeFrame)
         }
     }
@@ -8257,20 +8140,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::game_world_input (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
+        pub fn input(machine: &impl Machine<marker::TabCursorKey>) -> Option<GameWorldInput> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameWorldInput)
         }
 
         /// the site's ESP: a survarium::game_world_key_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<GameWorldKeyFrame> {
+        pub fn frame(machine: &impl Machine<marker::TabCursorKey>) -> Option<GameWorldKeyFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(GameWorldKeyFrame)
         }
     }
@@ -8281,20 +8158,14 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::game_world_ui (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+        pub fn ui(machine: &impl Machine<marker::HudCallback>) -> Option<GameWorldUi> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameWorldUi)
         }
 
         /// the site's ESP: a survarium::hud_callback_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<HudCallbackFrame> {
+        pub fn frame(machine: &impl Machine<marker::HudCallback>) -> Option<HudCallbackFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(HudCallbackFrame)
         }
     }
@@ -8305,20 +8176,14 @@ pub mod site {
         use super::*;
 
         /// EAX: a vostok::input::keyboard (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn keyboard(machine: &impl Machine) -> Option<Keyboard> {
+        pub fn keyboard(machine: &impl Machine<marker::KeyboardKeyState>) -> Option<Keyboard> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Keyboard)
         }
 
         /// EDI: a survarium::game_world_input (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
+        pub fn input(machine: &impl Machine<marker::KeyboardKeyState>) -> Option<GameWorldInput> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldInput)
         }
     }
@@ -8329,20 +8194,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::network_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+        pub fn client(machine: &impl Machine<marker::WorldLoadUnpacked>) -> Option<NetworkClient> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
         }
 
         /// EBP: a survarium::dynamic_info_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<DynamicInfoFrame> {
+        pub fn frame(machine: &impl Machine<marker::WorldLoadUnpacked>) -> Option<DynamicInfoFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(DynamicInfoFrame)
         }
     }
@@ -8353,20 +8212,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a survarium::network_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+        pub fn client(machine: &impl Machine<marker::WorldLoadRaw>) -> Option<NetworkClient> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
         }
 
         /// ESI: a vostok::buffer_reader (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+        pub fn reader(machine: &impl Machine<marker::WorldLoadRaw>) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
         }
     }
@@ -8377,11 +8230,8 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::game (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn game(machine: &impl Machine) -> Option<Game> {
+        pub fn game(machine: &impl Machine<marker::GameTick>) -> Option<Game> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Game)
         }
     }
@@ -8392,11 +8242,8 @@ pub mod site {
         use super::*;
 
         /// ESI: a vostok::engine_cfg (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn ui(machine: &impl Machine) -> Option<EngineCfg> {
+        pub fn ui(machine: &impl Machine<marker::LevelLoadingUi>) -> Option<EngineCfg> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EngineCfg)
         }
     }
@@ -8407,11 +8254,8 @@ pub mod site {
         use super::*;
 
         /// ECX: a survarium::game (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn game(machine: &impl Machine) -> Option<Game> {
+        pub fn game(machine: &impl Machine<marker::GameClearResources>) -> Option<Game> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Game)
         }
     }
@@ -8422,20 +8266,14 @@ pub mod site {
         use super::*;
 
         /// EDI: a vostok::sound::sound_world (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn world(machine: &impl Machine) -> Option<SoundWorld> {
+        pub fn world(machine: &impl Machine<marker::SoundWorldTick>) -> Option<SoundWorld> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SoundWorld)
         }
 
         /// EBX: a u32 value.
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn elapsed(machine: &impl Machine) -> u32 {
+        pub fn elapsed(machine: &impl Machine<marker::SoundWorldTick>) -> u32 {
             machine.register(Register::Ebx)
         }
     }
@@ -8446,21 +8284,121 @@ pub mod site {
         use super::*;
 
         /// EBX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+        pub fn victim(machine: &impl Machine<marker::PlayerHitApplied>) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
         }
 
         /// ESI: a survarium::hit_info (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
+        pub fn hit(machine: &impl Machine<marker::PlayerHitApplied>) -> Option<HitInfo> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitInfo)
         }
     }
+
+    /// The sites whose `player` is a Player: player_draw.cull, player_draw.bones, player_draw.post_bones, camera.eye, player_draw.held_item, player_names.visibility, quick_slots.activity, carry.input, carry.filter, carry.tick, carry.save, carry.load, carry.weapon, carry.damage_bones, carry.death, carry.client_death.
+    pub trait HoldsPlayer: Sized { fn player(machine: &impl Machine<Self>) -> Option<Player>; }
+    impl HoldsPlayer for marker::PlayerDrawCull { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { player_draw_cull::player(machine) } }
+    impl HoldsPlayer for marker::PlayerDrawBones { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { player_draw_bones::player(machine) } }
+    impl HoldsPlayer for marker::PlayerDrawPostBones { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { player_draw_post_bones::player(machine) } }
+    impl HoldsPlayer for marker::CameraEye { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { camera_eye::player(machine) } }
+    impl HoldsPlayer for marker::PlayerDrawHeldItem { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { player_draw_held_item::player(machine) } }
+    impl HoldsPlayer for marker::PlayerNamesVisibility { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { player_names_visibility::player(machine) } }
+    impl HoldsPlayer for marker::QuickSlotsActivity { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { quick_slots_activity::player(machine) } }
+    impl HoldsPlayer for marker::CarryInput { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_input::player(machine) } }
+    impl HoldsPlayer for marker::CarryFilter { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_filter::player(machine) } }
+    impl HoldsPlayer for marker::CarryTick { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_tick::player(machine) } }
+    impl HoldsPlayer for marker::CarrySave { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_save::player(machine) } }
+    impl HoldsPlayer for marker::CarryLoad { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_load::player(machine) } }
+    impl HoldsPlayer for marker::CarryWeapon { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_weapon::player(machine) } }
+    impl HoldsPlayer for marker::CarryDamageBones { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_damage_bones::player(machine) } }
+    impl HoldsPlayer for marker::CarryDeath { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_death::player(machine) } }
+    impl HoldsPlayer for marker::CarryClientDeath { #[inline(always)] fn player(machine: &impl Machine<Self>) -> Option<Player> { carry_client_death::player(machine) } }
+
+    /// The sites whose `frame` is a MtDrawFrame: player_draw.bones, player_draw.post_bones.
+    pub trait HoldsFrameMtDrawFrame: Sized { fn frame(machine: &impl Machine<Self>) -> Option<MtDrawFrame>; }
+    impl HoldsFrameMtDrawFrame for marker::PlayerDrawBones { #[inline(always)] fn frame(machine: &impl Machine<Self>) -> Option<MtDrawFrame> { player_draw_bones::frame(machine) } }
+    impl HoldsFrameMtDrawFrame for marker::PlayerDrawPostBones { #[inline(always)] fn frame(machine: &impl Machine<Self>) -> Option<MtDrawFrame> { player_draw_post_bones::frame(machine) } }
+
+    /// The sites whose `victim` is a Player: player.killed_event, player.hit_applied.
+    pub trait HoldsVictim: Sized { fn victim(machine: &impl Machine<Self>) -> Option<Player>; }
+    impl HoldsVictim for marker::PlayerKilledEvent { #[inline(always)] fn victim(machine: &impl Machine<Self>) -> Option<Player> { player_killed_event::victim(machine) } }
+    impl HoldsVictim for marker::PlayerHitApplied { #[inline(always)] fn victim(machine: &impl Machine<Self>) -> Option<Player> { player_hit_applied::victim(machine) } }
+
+    /// The sites whose `bullet` is a Bullet: bullet.ray_traced, bullet.decal_front, bullet.decal_back, bullet.decal_reflect, bullet.decal_collide.
+    pub trait HoldsBullet: Sized { fn bullet(machine: &impl Machine<Self>) -> Option<Bullet>; }
+    impl HoldsBullet for marker::BulletRayTraced { #[inline(always)] fn bullet(machine: &impl Machine<Self>) -> Option<Bullet> { bullet_ray_traced::bullet(machine) } }
+    impl HoldsBullet for marker::BulletDecalFront { #[inline(always)] fn bullet(machine: &impl Machine<Self>) -> Option<Bullet> { bullet_decal_front::bullet(machine) } }
+    impl HoldsBullet for marker::BulletDecalBack { #[inline(always)] fn bullet(machine: &impl Machine<Self>) -> Option<Bullet> { bullet_decal_back::bullet(machine) } }
+    impl HoldsBullet for marker::BulletDecalReflect { #[inline(always)] fn bullet(machine: &impl Machine<Self>) -> Option<Bullet> { bullet_decal_reflect::bullet(machine) } }
+    impl HoldsBullet for marker::BulletDecalCollide { #[inline(always)] fn bullet(machine: &impl Machine<Self>) -> Option<Bullet> { bullet_decal_collide::bullet(machine) } }
+
+    /// The sites whose `ui` is a GameWorldUi: quick_slots.activity, hud.callback.
+    pub trait HoldsUiGameWorldUi: Sized { fn ui(machine: &impl Machine<Self>) -> Option<GameWorldUi>; }
+    impl HoldsUiGameWorldUi for marker::QuickSlotsActivity { #[inline(always)] fn ui(machine: &impl Machine<Self>) -> Option<GameWorldUi> { quick_slots_activity::ui(machine) } }
+    impl HoldsUiGameWorldUi for marker::HudCallback { #[inline(always)] fn ui(machine: &impl Machine<Self>) -> Option<GameWorldUi> { hud_callback::ui(machine) } }
+
+    /// The sites whose `menu` is a LobbyMenu: lobby_menu.scenes_ready, lobby_menu.activate, lobby_menu.deactivate.
+    pub trait HoldsMenu: Sized { fn menu(machine: &impl Machine<Self>) -> Option<LobbyMenu>; }
+    impl HoldsMenu for marker::LobbyMenuScenesReady { #[inline(always)] fn menu(machine: &impl Machine<Self>) -> Option<LobbyMenu> { lobby_menu_scenes_ready::menu(machine) } }
+    impl HoldsMenu for marker::LobbyMenuActivate { #[inline(always)] fn menu(machine: &impl Machine<Self>) -> Option<LobbyMenu> { lobby_menu_activate::menu(machine) } }
+    impl HoldsMenu for marker::LobbyMenuDeactivate { #[inline(always)] fn menu(machine: &impl Machine<Self>) -> Option<LobbyMenu> { lobby_menu_deactivate::menu(machine) } }
+
+    /// The sites whose `client` is a LobbyClient: lobby_client.squad_id, lobby_client.squad_read.
+    pub trait HoldsClientLobbyClient: Sized { fn client(machine: &impl Machine<Self>) -> Option<LobbyClient>; }
+    impl HoldsClientLobbyClient for marker::LobbyClientSquadId { #[inline(always)] fn client(machine: &impl Machine<Self>) -> Option<LobbyClient> { lobby_client_squad_id::client(machine) } }
+    impl HoldsClientLobbyClient for marker::LobbyClientSquadRead { #[inline(always)] fn client(machine: &impl Machine<Self>) -> Option<LobbyClient> { lobby_client_squad_read::client(machine) } }
+
+    /// The sites whose `reader` is a BufferReader: lobby_client.squad_id, lobby_client.squad_read, bullet_history.loaded, carry.load, carry.ground_load, world_load.raw.
+    pub trait HoldsReader: Sized { fn reader(machine: &impl Machine<Self>) -> Option<BufferReader>; }
+    impl HoldsReader for marker::LobbyClientSquadId { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { lobby_client_squad_id::reader(machine) } }
+    impl HoldsReader for marker::LobbyClientSquadRead { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { lobby_client_squad_read::reader(machine) } }
+    impl HoldsReader for marker::BulletHistoryLoaded { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { bullet_history_loaded::reader(machine) } }
+    impl HoldsReader for marker::CarryLoad { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { carry_load::reader(machine) } }
+    impl HoldsReader for marker::CarryGroundLoad { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { carry_ground_load::reader(machine) } }
+    impl HoldsReader for marker::WorldLoadRaw { #[inline(always)] fn reader(machine: &impl Machine<Self>) -> Option<BufferReader> { world_load_raw::reader(machine) } }
+
+    /// The sites whose `project` is a SimpleGameProject: project.insert, project.removed, project.destroy.
+    pub trait HoldsProject: Sized { fn project(machine: &impl Machine<Self>) -> Option<SimpleGameProject>; }
+    impl HoldsProject for marker::ProjectInsert { #[inline(always)] fn project(machine: &impl Machine<Self>) -> Option<SimpleGameProject> { project_insert::project(machine) } }
+    impl HoldsProject for marker::ProjectRemoved { #[inline(always)] fn project(machine: &impl Machine<Self>) -> Option<SimpleGameProject> { project_removed::project(machine) } }
+    impl HoldsProject for marker::ProjectDestroy { #[inline(always)] fn project(machine: &impl Machine<Self>) -> Option<SimpleGameProject> { project_destroy::project(machine) } }
+
+    /// The sites whose `manager` is a BulletManager: bullet_history.saved, bullet_history.loaded.
+    pub trait HoldsManager: Sized { fn manager(machine: &impl Machine<Self>) -> Option<BulletManager>; }
+    impl HoldsManager for marker::BulletHistorySaved { #[inline(always)] fn manager(machine: &impl Machine<Self>) -> Option<BulletManager> { bullet_history_saved::manager(machine) } }
+    impl HoldsManager for marker::BulletHistoryLoaded { #[inline(always)] fn manager(machine: &impl Machine<Self>) -> Option<BulletManager> { bullet_history_loaded::manager(machine) } }
+
+    /// The sites whose `writer` is a BufferWriter: carry.save, carry.ground_save.
+    pub trait HoldsWriter: Sized { fn writer(machine: &impl Machine<Self>) -> Option<BufferWriter>; }
+    impl HoldsWriter for marker::CarrySave { #[inline(always)] fn writer(machine: &impl Machine<Self>) -> Option<BufferWriter> { carry_save::writer(machine) } }
+    impl HoldsWriter for marker::CarryGroundSave { #[inline(always)] fn writer(machine: &impl Machine<Self>) -> Option<BufferWriter> { carry_ground_save::writer(machine) } }
+
+    /// The sites whose `item` is a Artefact: carry.flower_ready, carry.ground_save, carry.ground_load.
+    pub trait HoldsItemArtefact: Sized { fn item(machine: &impl Machine<Self>) -> Option<Artefact>; }
+    impl HoldsItemArtefact for marker::CarryFlowerReady { #[inline(always)] fn item(machine: &impl Machine<Self>) -> Option<Artefact> { carry_flower_ready::item(machine) } }
+    impl HoldsItemArtefact for marker::CarryGroundSave { #[inline(always)] fn item(machine: &impl Machine<Self>) -> Option<Artefact> { carry_ground_save::item(machine) } }
+    impl HoldsItemArtefact for marker::CarryGroundLoad { #[inline(always)] fn item(machine: &impl Machine<Self>) -> Option<Artefact> { carry_ground_load::item(machine) } }
+
+    /// The sites whose `hit` is a RayResult: bullet.decal_front, bullet.decal_back, bullet.decal_reflect, bullet.decal_collide.
+    pub trait HoldsHitRayResult: Sized { fn hit(machine: &impl Machine<Self>) -> Option<RayResult>; }
+    impl HoldsHitRayResult for marker::BulletDecalFront { #[inline(always)] fn hit(machine: &impl Machine<Self>) -> Option<RayResult> { bullet_decal_front::hit(machine) } }
+    impl HoldsHitRayResult for marker::BulletDecalBack { #[inline(always)] fn hit(machine: &impl Machine<Self>) -> Option<RayResult> { bullet_decal_back::hit(machine) } }
+    impl HoldsHitRayResult for marker::BulletDecalReflect { #[inline(always)] fn hit(machine: &impl Machine<Self>) -> Option<RayResult> { bullet_decal_reflect::hit(machine) } }
+    impl HoldsHitRayResult for marker::BulletDecalCollide { #[inline(always)] fn hit(machine: &impl Machine<Self>) -> Option<RayResult> { bullet_decal_collide::hit(machine) } }
+
+    /// The sites whose `input` is a GameWorldInput: tab_cursor.key, keyboard.key_state.
+    pub trait HoldsInput: Sized { fn input(machine: &impl Machine<Self>) -> Option<GameWorldInput>; }
+    impl HoldsInput for marker::TabCursorKey { #[inline(always)] fn input(machine: &impl Machine<Self>) -> Option<GameWorldInput> { tab_cursor_key::input(machine) } }
+    impl HoldsInput for marker::KeyboardKeyState { #[inline(always)] fn input(machine: &impl Machine<Self>) -> Option<GameWorldInput> { keyboard_key_state::input(machine) } }
+
+    /// The sites whose `client` is a NetworkClient: world_load.unpacked, world_load.raw.
+    pub trait HoldsClientNetworkClient: Sized { fn client(machine: &impl Machine<Self>) -> Option<NetworkClient>; }
+    impl HoldsClientNetworkClient for marker::WorldLoadUnpacked { #[inline(always)] fn client(machine: &impl Machine<Self>) -> Option<NetworkClient> { world_load_unpacked::client(machine) } }
+    impl HoldsClientNetworkClient for marker::WorldLoadRaw { #[inline(always)] fn client(machine: &impl Machine<Self>) -> Option<NetworkClient> { world_load_raw::client(machine) } }
+
+    /// The sites whose `game` is a Game: game.tick, game.clear_resources.
+    pub trait HoldsGame: Sized { fn game(machine: &impl Machine<Self>) -> Option<Game>; }
+    impl HoldsGame for marker::GameTick { #[inline(always)] fn game(machine: &impl Machine<Self>) -> Option<Game> { game_tick::game(machine) } }
+    impl HoldsGame for marker::GameClearResources { #[inline(always)] fn game(machine: &impl Machine<Self>) -> Option<Game> { game_clear_resources::game(machine) } }
 }

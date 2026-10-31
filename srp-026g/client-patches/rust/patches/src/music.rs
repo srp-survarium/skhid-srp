@@ -26,7 +26,7 @@ use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag, Serial};
 use crate::vostok::settings::ConsoleFloat;
 use crate::vostok::sound::{BusScene, Emitter, LoadingMusic, SoundTick, SoundUser, TrackPath, Voice, Volume};
 use crate::vostok::log::{self, Piece::Text};
-use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, clock};
+use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, clock, site};
 
 /// A fade's length, in and out (retail's 2000 ms).
 const FADE_MS: f32 = 2000.0;
@@ -506,13 +506,13 @@ fn tell(thread: &Thread, told: Told) {
 }
 
 /// game::on_configs_loaded, before user.cfg: the Music slider's variable.
-pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_configs(ctx: &mut Context<'_, site::ConfigsStart>) -> Flow<NoExit> {
     MUSIC_VOLUME.register(ctx.thread(), c"s_music_volume");
     Flow::Continue
 }
 
 /// game::tick (every frame): the slider's level to the bus, then the music.
-pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_frame(ctx: &mut Context<'_, site::GameTick>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let level = Volume::new(MUSIC_VOLUME.get(thread) / 100.0);
     BUS.with(thread, |bus| bus.level = level);
@@ -521,19 +521,19 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// login_menu::on_activate: the main theme.
-pub fn on_login(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_login(ctx: &mut Context<'_, site::LoginMenuActivated>) -> Flow<NoExit> {
     tell(ctx.thread(), Told::Ask(Some(Want::new(Track::Main))));
     Flow::Continue
 }
 
 /// lobby_menu::on_activate: the lobby theme.
-pub fn on_lobby(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_lobby(ctx: &mut Context<'_, site::LobbyMenuActivated>) -> Flow<NoExit> {
     tell(ctx.thread(), Told::Ask(Some(Want::new(Track::Lobby))));
     Flow::Continue
 }
 
 /// switch_to_level_loading: the mode's theme, or none.
-pub fn on_loading(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_loading(ctx: &mut Context<'_, site::LevelLoadingUi>) -> Flow<NoExit> {
     let want = match LoadingMusic::at_level_loading(ctx) {
         LoadingMusic::Track(path) => Some(Want::new(Track::Map(path))),
         LoadingMusic::None => None,
@@ -545,19 +545,19 @@ pub fn on_loading(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// A replay's options read (its chunk 1): a replay has no theme (it never
 /// passes switch_to_level_loading, whose only caller is a live match's
 /// process_static_match_info 0x27BEA0): what plays fades out.
-pub fn on_replay(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_replay(ctx: &mut Context<'_, site::ReplayOptionsRead>) -> Flow<NoExit> {
     tell(ctx.thread(), Told::Ask(None));
     Flow::Continue
 }
 
 /// update_ui's welcome message: the match has started.
-pub fn on_announced(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_announced(ctx: &mut Context<'_, site::GameWorldUiWelcome>) -> Flow<NoExit> {
     tell(ctx.thread(), Told::Announced);
     Flow::Continue
 }
 
 /// game::clear_resources: the music stops.
-pub fn on_unload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_unload(ctx: &mut Context<'_, site::GameClearResources>) -> Flow<NoExit> {
     tell(ctx.thread(), Told::Unload);
     Flow::Continue
 }
@@ -568,7 +568,7 @@ pub fn on_query_done(results: QueryResults<'_>, tag: QueryTag) {
 }
 
 /// The sound thread's tick: the bus kept active at its stepped volume.
-pub fn on_sound_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_sound_tick(ctx: &mut Context<'_, site::SoundWorldTick>) -> Flow<NoExit> {
     if let Some(tick) = SoundTick::at(ctx)
         && let Some((scene, volume)) = BUS.with(ctx.thread(), |bus| bus.tick(tick.elapsed()))
     {
