@@ -50,9 +50,11 @@ pub mod counts {
         LegsKept,
         /// Metres the routes got longer by, in millimetres.
         AddedMm,
+        /// The time the pass took, in microseconds.
+        Micros,
     }
-    pub const NAMES: [&str; 8] = ["routes", "corners_low", "corners_moved", "corners_kept", "legs_dipping", "legs_corner", "legs_kept", "added_mm"];
-    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+    pub const NAMES: [&str; 9] = ["routes", "corners_low", "corners_moved", "corners_kept", "legs_dipping", "legs_corner", "legs_kept", "added_mm", "micros"];
+    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
 
     pub fn add(count: Count, n: u64) {
         COUNTS[count as usize].fetch_add(n, Ordering::Relaxed);
@@ -119,6 +121,16 @@ impl Route {
     /// This route with its corners kept where the capsule fits (module documentation). A grid with no clearance table, or a
     /// route of fewer than two points, comes back as it is.
     pub fn wall_cleared(self, grid: &WalkGrid) -> Self {
+        let started = std::time::Instant::now();
+        let counted = grid.has_wall_clearance() && self.points.len() >= 2;
+        let route = self.wall_cleared_inner(grid);
+        if counted {
+            add(Count::Micros, started.elapsed().as_micros() as u64);
+        }
+        route
+    }
+
+    fn wall_cleared_inner(self, grid: &WalkGrid) -> Self {
         let n = self.points.len();
         if n < 2 || !grid.has_wall_clearance() {
             return self;
