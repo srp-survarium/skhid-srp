@@ -281,6 +281,10 @@ impl Tuning {
         self.traps.check()?;
         self.unstick.check()?;
         sense::validate_sight(&self.sense, &self.cheats, &self.think)?;
+        // The corner pass reads the grid's table of wall clearances: without it the pass changes nothing, silently.
+        if self.think.wall_clear_corners && !self.grid.wall_clearance {
+            return Err("think.wall_clear_corners needs grid.wall_clearance".to_owned());
+        }
         Ok(())
     }
 
@@ -662,6 +666,7 @@ mod tests {
             wrong(|t| t.sense.ranges = HearingRanges::Game { crouch_step_m: t.sense.step_m + 1.0 }),
             "sense.ranges.game.crouch_step_m"
         );
+        assert_eq!(wrong(|t| t.think.wall_clear_corners = true), "think.wall_clear_corners needs grid.wall_clearance");
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.off_walk_below_m = 0.1), "feel.off_walk_below_m");

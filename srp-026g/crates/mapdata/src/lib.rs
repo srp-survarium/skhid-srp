@@ -158,6 +158,12 @@ impl World {
 
     /// [`Self::build`] with the off-mesh links `links` in its grid.
     pub fn build_with_links(map: MapData, cell: f32, body: Body, links: OffMeshLinks) -> Self {
+        Self::build_with(map, cell, body, links, false)
+    }
+
+    /// [`Self::build_with_links`], with the grid's table of wall clearances ([`WalkGrid::wall_clearance`]) when `wall_clearance`
+    /// is set (0.5-1.7 s a map).
+    pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -169,8 +175,7 @@ impl World {
             &spawns,
             links,
         );
-        // With its table of wall clearances ([`WalkGrid::wall_clearance`]), as the server's maps have it.
-        let grid = grid.with_wall_clearance(&walker);
+        let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }

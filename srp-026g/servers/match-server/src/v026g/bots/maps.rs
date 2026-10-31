@@ -529,8 +529,10 @@ fn build(
                     || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
-                // The table of wall clearances ([`WalkGrid::wall_clearance`]): derived from the triangles, in neither the cached file nor the key.
-                let grid = Arc::new(grid.with_wall_clearance(&walker));
+                // The table of wall clearances ([`WalkGrid::wall_clearance`]) only where the tuning asks for it (`GridTuning::wall_clearance`):
+                // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
+                let grid = if grid_tuning.wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+                let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
             }

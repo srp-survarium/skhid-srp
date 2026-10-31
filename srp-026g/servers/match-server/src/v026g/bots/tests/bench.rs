@@ -674,7 +674,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
+        let world = Arc::new(World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, bench_tuning().grid.wall_clearance));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {

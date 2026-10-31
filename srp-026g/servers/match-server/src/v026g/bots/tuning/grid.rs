@@ -60,6 +60,11 @@ pub struct GridTuning {
     /// is not (J0 climbed flat tops of 1.00-1.02 m, the 8f rows mounted +1.08), so the client test G-V4 may move the
     /// number. 1.05 is the exe's, the base's. With `client_numbers` off the body keeps the exe's. A grid is the map's.
     pub jump_cap_m: Positive,
+    /// Whether the maps' walk grids carry the table of each floor's distance to a wall the capsule meets
+    /// (`mapdata::WalkGrid::wall_clearance`, A191b), which `think.wall_clear_corners` reads. Off (the default): no table is made, and
+    /// the 0.5-1.7 s of CPU a map's table costs is not spent (the live host has one core, and a map's grid is built whenever no match
+    /// holds it). `Tuning::validate` refuses the switch without it. A grid is the map's (see `gap_links`).
+    pub wall_clearance: bool,
 }
 
 impl Default for GridTuning {
@@ -75,6 +80,7 @@ impl Default for GridTuning {
             keep_last_resorts: false,
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
+            wall_clearance: false,
         }
     }
 }
