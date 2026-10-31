@@ -632,6 +632,80 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     {
         smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
     }
+    let grenade = smoke::SmokeGrenade::RDG_M;
+    let eye_over = Vec3::new(0.0, 1.6, 0.0);
+    let chest_over = Vec3::new(0.0, 1.3, 0.0);
+    // The first point of its route within `lane_ahead_m` that `exposed` holds for (2 m steps), and how far on.
+    let crossing_of = |exposed: &dyn Fn(Vec3) -> bool| -> Option<(f32, Vec3)> {
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        let end = (start + t.lane_ahead_m.get()).min(route.length());
+        (1..).map(|k| start + k as f32 * 2.0).take_while(|&s| s <= end).map(|s| (s, route.at(s, heights))).find(|&(_, p)| exposed(p))
+    };
+    // [A208] Where a bot holds for a cloud short of the crossing `crossing_s` metres along its route: the last of
+    // `crossing_of`'s samples before it that `seen` does not hold for (2 m steps back), its feet if none is ahead.
+    let hold_short = |crossing_s: f32, seen: &dyn Fn(Vec3) -> bool| -> Vec3 {
+        let Some((route, _)) = bot.route.as_ref() else {
+            return me.feet;
+        };
+        let heights = bot.motor.heights();
+        let start = route.walked();
+        (1..)
+            .map(|k| crossing_s - k as f32 * 2.0)
+            .take_while(|&s| s > start)
+            .map(|s| route.at(s, heights))
+            .find(|&p| !seen(p))
+            .unwrap_or(me.feet)
+    };
+    // [A208] Under a mate's cloud (`CloudWaiters::Crossers`): a bot, a carrier too, whose route enters a held lane ahead
+    // that a team cloud in the air or forming will hide but does not hide yet holds short of it until it does.
+    if t.wait_for_cloud.is_some_and(|w| w.who == super::tuning::CloudWaiters::Crossers)
+        && !bot.reflex.holds_for_cloud()
+        && !bot.smoke_threat.is_empty()
+        && !bot.lanes.is_empty()
+        && view.smoke.all().iter().any(|c| {
+            let at = smoke::MatchMs(now);
+            c.team == bot.team && at < c.ends() && at < c.pours.plus(smoke::Forming::of(t).ms(&c.shape))
+        })
+    {
+        let grid = &tactics.world.grid;
+        let exposed = |p: Vec3| bot.smoke_threat.exposed_at(grid, p);
+        if !exposed(me.feet)
+            && let Some((crossing_s, crossing)) = crossing_of(&exposed)
+        {
+            let chest = crossing + chest_over;
+            let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
+            let planning = view.smoke.planning(view.clock, bot.team, smoke::Forming::of(t));
+            let veil = view.smoke.veil(view.clock, t);
+            let held = bot
+                .lanes
+                .iter()
+                .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
+                .filter(|l| tactics.sees(l.at + eye_over, chest))
+                .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)));
+            if let Some(held) = held
+                && planning.covers(view.clock, t, held.at + eye_over, chest)
+                && !veil.hides(held.at + eye_over, chest)
+            {
+                let line = smoke::SmokeLine { eye: held.at + eye_over, target: chest, crossing };
+                let hold = hold_short(crossing_s, &exposed);
+                if let Some(w) = smoke::CloudWait::of(t, &grenade, line, Some(held.shooter), smoke::WaitsFor::Mates, hold)
+                    && bot.reflex.hold_for_cloud(w, me, now)
+                {
+                    bot.note(
+                        notes,
+                        now,
+                        format!(
+                            "holds for a mate's cloud short of the lane of player {} at ({:.1}, {:.1}, {:.1}), at ({:.1}, {:.1}, {:.1})",
+                            held.shooter, held.at.x, held.at.y, held.at.z, hold.x, hold.y, hold.z
+                        ),
+                    );
+                    return;
+                }
+            }
+        }
+    }
     // A carrier throws nothing: the battery is in its hands, and the client ignores the quick keys then
     // (`process_quick_slots` 0x2D8BB0: the hands object's byte +0Eh, 0 for a battery, stops the quick pockets and the
     // grenade key; observed, LIKELY for the battery, as for the heal habit).
@@ -640,11 +714,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     }
     let reach = smoke::Reach {
         mesh: &tactics.world.sight,
-        grenade: smoke::SmokeGrenade::RDG_M,
+        grenade,
         thrower_eye: me.eye(),
     };
     let thin = t.thin_m.get();
-    let eye_over = Vec3::new(0.0, 1.6, 0.0);
     // Smoke there already: with `spot_rules` every cloud live or forming and the team's own in the air, at full size.
     let planning = view.smoke.planning(view.clock, bot.team, smoke::Forming::of(t));
     let smoke_there = |eye: Vec3, point: Vec3| {
@@ -658,15 +731,6 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     // Not running a gap already: a bot holding a sprint is across before the cloud forms (0.7 s), as a player sprinting
     // a gap does not stop to smoke it.
     let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
-    let chest_over = Vec3::new(0.0, 1.3, 0.0);
-    // The first point of its route within `lane_ahead_m` that `exposed` holds for (2 m steps), and how far on.
-    let crossing_of = |exposed: &dyn Fn(Vec3) -> bool| -> Option<(f32, Vec3)> {
-        let (route, _) = bot.route.as_ref()?;
-        let heights = bot.motor.heights();
-        let start = route.walked();
-        let end = (start + t.lane_ahead_m.get()).min(route.length());
-        (1..).map(|k| start + k as f32 * 2.0).take_while(|&s| s <= end).map(|s| (s, route.at(s, heights))).find(|&(_, p)| exposed(p))
-    };
     // A short gap is sprinted, not smoked: the route a shooter at `eye` sees from the crossing on, 1 m steps, must run at
     // least `lane_open_m` (what a sprint covers in a shooter's answer).
     let open_from = |eyes: &[Vec3], crossing_s: f32| -> bool {
@@ -748,7 +812,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
                 "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
                 eye.x, eye.y - eye_over.y, eye.z, crossing.x, crossing.y, crossing.z
             );
-            (plan, why, eye)
+            // [A208] Short of it where none of his eyes sees the chest.
+            let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| eyes.iter().any(|&e| tactics.sees(e, p + chest_over))));
+            (plan, why, eye, hold, Some(who))
         })
     };
     let sniper = sniper();
@@ -796,10 +862,12 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
                 held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
             );
-            (plan, why, held.at + eye_over)
+            // [A208] Short of it, out of the held lanes.
+            let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| bot.smoke_threat.exposed_at(grid, p)));
+            (plan, why, held.at + eye_over, hold, Some(held.shooter))
         })
     };
-    let Some((plan, why, against)) = sniper.or_else(lane) else {
+    let Some((plan, why, against, hold, threat)) = sniper.or_else(lane) else {
         return;
     };
     // A mate's live plan near its landing or against the same shooter: none of its own.
@@ -808,7 +876,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         smoke::tally::add(bot.team, smoke::tally::Event::ClaimRefused);
         return;
     }
-    if bot.reflex.start_smoke(plan, now) {
+    // [A208] Its cloud first: the hold after the launch (`smoke.wait_for_cloud`).
+    let wait = hold.and_then(|hold| smoke::CloudWait::of(t, &reach.grenade, plan.line, threat, smoke::WaitsFor::Own(plan.for_use), hold));
+    if bot.reflex.start_smoke(plan, now, wait) {
         if t.spot_rules {
             knowledge.claim_smoke(know::SmokeClaim { who: bot.place, at: plan.at, against, time: now });
         }

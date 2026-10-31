@@ -127,7 +127,7 @@ pub use sense::CheatTuning;
 pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
-pub use smoke::SmokeTuning;
+pub use smoke::{CloudWaiters, SmokeTuning, WaitForCloud};
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
 pub use team::AvoidTuning;
