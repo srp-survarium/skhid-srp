@@ -74,7 +74,7 @@ struct Pass {
 
 /// A walk of the J0 runner's kind (`Go::To` the goal) from `start` to `goal`, for `until` ms.
 fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> Pass {
-    let mut tuning = Tuning::default();
+    let tuning = Tuning::default();
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x717,
