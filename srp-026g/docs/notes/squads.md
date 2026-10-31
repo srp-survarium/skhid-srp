@@ -65,8 +65,13 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   pair keeping its place (whether a pair may wait on so: the owner's decision is pending, a
   test kept aside). At the pair's turn, a mate that may not come then (in a match, its gear over
   the max level, its kit unable to play, gone) leaves its commander to go in alone; the mate
-  stays where it is, out of the queue. The commander leaving the queue takes the pair out; the
-  soldier leaving it leaves the place to its commander, alone. A soldier cannot queue, so it
+  stays where it is, out of the queue. A mate idle in another room waits with its commander
+  and leaves that room at their turn, as a Join with places takes it (the review of 1314956a:
+  the same rule, `room_mate`, for a Join, the queue's turn and the scale-out). The commander
+  leaving the queue takes the pair out; the soldier leaving it leaves the place to its
+  commander, alone. A pair whose squad breaks, or that another commands, waits as two entries
+  at its place, the commander's first, then its mate's: nobody loses its place, and each is its
+  own (or its new squad's) from then on. A soldier cannot queue, so it
   never jumps those between it and its commander (the review of #884).
 - **The list:** a mate is listed right after the other; in a private room it comes on the
   other's team while that has a place (its owner may still move it). Its owner's

@@ -797,3 +797,79 @@ fn a_full_private_room_queues_the_pair_on_its_commanders_pin() {
     assert_eq!(room_of(&world, alice), Some(key));
     assert_eq!(room_of(&world, bob), Some(key));
 }
+
+/// The review of 1314956a: a commander's Join of a full room while its mate
+/// idles in another room queues the pair, as a Join with places would take
+/// both; at their turn both come in, the mate out of its room.
+#[test]
+fn a_full_rooms_queue_takes_the_mate_from_its_room_at_the_pairs_turn() {
+    let mut world = World::new();
+    let owner = world.connect("Owner");
+    let x = create(&mut world, owner, spec(6), None);
+    let members = fill(&mut world, x, 0);
+    let other = world.connect("Other");
+    let y = create(&mut world, other, spec(6), None);
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    rows(&mut world, bob, ROOM_JOIN_BASE + y, 1);
+    form_squad(&mut world, alice, bob);
+    assert_eq!(
+        rows(&mut world, alice, ROOM_JOIN_BASE + x, 1),
+        [format!("S1;N;0;{x};1")]
+    );
+    assert_eq!(queued(&world, bob), Some((x, 1)));
+    assert_eq!(room_of(&world, bob), Some(y), "still in its room meanwhile");
+    rows(&mut world, members[0], ROOM_LEAVE, 1);
+    rows(&mut world, members[1], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(room_of(&world, alice), Some(x));
+    assert_eq!(room_of(&world, bob), Some(x));
+    assert!(
+        !world
+            .core
+            .rooms
+            .get(y)
+            .unwrap()
+            .members
+            .contains(&world.ids[bob].0)
+    );
+}
+
+/// The review of 1314956a: a queued pair follows its squad. It breaks and
+/// forms again with Bob commanding: the entry splits in two at its place,
+/// Alice first, then Bob; at their turns both go in, nobody dropped; the
+/// new squad's rules from then on.
+#[test]
+fn a_queued_pair_follows_its_squad_and_nobody_loses_a_place() {
+    let mut world = World::new();
+    let owner = world.connect("Owner");
+    let key = create(&mut world, owner, spec(6), None);
+    let members = fill(&mut world, key, 0);
+    let (alice, bob) = pair(&mut world);
+    rows(&mut world, alice, ROOM_QUEUE_BASE + key, 1);
+    let single = world.connect("Single");
+    rows(&mut world, single, ROOM_QUEUE_BASE + key, 1);
+    assert_eq!(queued(&world, bob), Some((key, 1)));
+    world.ask(bob, request::leave_squad());
+    let (alice_id, bob_id) = (world.ids[alice].0, world.ids[bob].0);
+    world.store.squads().invite_accepted(bob_id, alice_id);
+    world.store.squads().add(bob_id, alice_id).unwrap();
+    world.advance(Duration::from_secs(1));
+    assert_eq!(queued(&world, alice), Some((key, 1)));
+    assert_eq!(queued(&world, bob), Some((key, 2)));
+    assert_eq!(queued(&world, single), Some((key, 3)));
+    // Places free: both get their turns, in that order.
+    rows(&mut world, members[0], ROOM_LEAVE, 1);
+    rows(&mut world, members[1], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(room_of(&world, alice), Some(key));
+    assert_eq!(room_of(&world, bob), Some(key));
+    // The new squad's rules: Alice is Bob's soldier, no room of her own.
+    let other_owner = world.connect("Other");
+    let other = create(&mut world, other_owner, spec(6), None);
+    let refused = rows(&mut world, alice, ROOM_JOIN_BASE + other, 1);
+    assert_eq!(header(&refused)[CODE], "17", "{refused:?}");
+    rows(&mut world, bob, ROOM_JOIN_BASE + other, 1);
+    assert_eq!(room_of(&world, alice), Some(other));
+    assert_eq!(queued(&world, single), Some((key, 1)));
+}

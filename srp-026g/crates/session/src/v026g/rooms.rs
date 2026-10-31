@@ -866,8 +866,11 @@ impl Rooms {
     /// level) wait in room `key`'s queue as one entry, the account's place
     /// ([`Waiting::Pair`]), on the account's PIN: its place, or why not
     /// (then nothing changed). The mate the room does not let in (its max
-    /// level, turned out) or that is in a room stays out of it: the account
-    /// waits alone. Queuing again for the same room keeps the place.
+    /// level, turned out) or that is in it already stays out of it: the
+    /// account waits alone. A mate idle in another room waits with it and
+    /// leaves that room at their turn ([`Self::admit_party`]), as a Join
+    /// with places takes it. Queuing again for the same room keeps the
+    /// place.
     pub fn enqueue_party(
         &mut self,
         account_id: u32,
@@ -896,7 +899,7 @@ impl Rooms {
         }
         let entry = match mate.filter(|&(mate, mate_gear)| {
             mate != account_id
-                && !self.of_account.contains_key(&mate)
+                && self.of_account.get(&mate) != Some(&key)
                 && room.lets_in(mate_gear)
                 && !room.kicked.contains(&mate)
         }) {
@@ -990,6 +993,26 @@ impl Rooms {
             }
         }
         Some(key)
+    }
+
+    /// Every pair entry whose squad no longer holds (`holds(commander,
+    /// mate)` false: the squad broke, or another commands it) becomes two
+    /// entries at its place, the commander's first, then its mate's: nobody
+    /// loses its place, each waits on its own from then on.
+    pub fn split_pairs(&mut self, holds: &dyn Fn(u32, u32) -> bool) {
+        for queue in self.queues.values_mut() {
+            let mut at = 0;
+            while at < queue.len() {
+                if let Waiting::Pair { commander, mate } = queue[at]
+                    && !holds(commander, mate)
+                {
+                    queue[at] = Waiting::One(commander);
+                    queue.insert(at + 1, Waiting::One(mate));
+                    at += 1;
+                }
+                at += 1;
+            }
+        }
     }
 
     /// The room an account waits for and its place there, 1 the first.
@@ -1131,13 +1154,21 @@ impl Rooms {
         let Some(room) = self.rooms.get(&key) else {
             return false;
         };
-        if accounts.is_empty()
-            || accounts
+        let Some((&lead, mates)) = accounts.split_first() else {
+            return false;
+        };
+        if self.of_account.contains_key(&lead)
+            || mates
                 .iter()
-                .any(|account_id| self.of_account.contains_key(account_id))
+                .any(|mate| self.of_account.get(mate) == Some(&key))
             || !room.has_places(accounts.len(), beside)
         {
             return false;
+        }
+        // A mate idle in another room leaves it, as its commander's Join
+        // would take it.
+        for &mate in mates {
+            self.leave(mate);
         }
         let mut beside = beside;
         for &account_id in accounts {

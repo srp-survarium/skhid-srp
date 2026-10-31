@@ -353,9 +353,9 @@ impl Core<'_> {
                 .is_some_and(|(mate, _)| mate == account_id)
     }
 
-    /// The commander and its mate (`room_mate`; one in a room stays out)
-    /// wait in room `key`'s queue as one entry, its place. The place, or
-    /// why not.
+    /// The commander and its mate (`room_mate`: the one a Join with places
+    /// would take, from another room too) wait in room `key`'s queue as one
+    /// entry, its place. The place, or why not.
     fn room_enqueue_party(
         &mut self,
         who: &Who,
@@ -1909,6 +1909,15 @@ impl Core<'_> {
         self.room_left_matches();
         self.room_failed_joins();
         self.room_unseen_gone(now);
+        // A queued pair whose squad broke, or that another commands now,
+        // waits as two at its place, the commander first (nobody loses its
+        // place; each is its own from then on).
+        let squads = self.store.squads();
+        self.rooms.split_pairs(&|commander, mate| {
+            squads.of(commander).is_some_and(|squad| {
+                squad.commander() == commander && squad.mate_of(commander) == Some(mate)
+            })
+        });
         // A squad's "ready" follows its members' rooms, queues and matches
         // (`squad_ready`): the infos are compared and sent when they differ.
         if !self.store.squads().is_empty() {
