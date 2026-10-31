@@ -7497,9 +7497,10 @@ mod tests {
         let shots_at = |gated: bool, busy_until: u32, ready_at: f32, now: u32| {
             let mut reflex = Reflex::default();
             reflex.gate_mirror(gated);
+            // The first tick takes the weapon in hand (and clears the clip), so the state is set after it.
+            reflex.sent(now - 50, 0, 0.0);
             reflex.busy_until = busy_until;
             reflex.ready_at = ready_at;
-            reflex.sent(now - 50, 0, 0.0);
             reflex.sent(now, key::FIRE, 0.0);
             reflex.seen().1
         };
