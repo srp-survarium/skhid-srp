@@ -18,7 +18,7 @@
 //! The walls are the walker mesh's faces that are not ground (steeper than the client's slope, or `dont_walk`), cut at three
 //! heights in the middle of the capsule that sweeps (`cc_step_height 0.80`: it is lifted by the step height from below, so a face
 //! lower than that is a step, and its ends are round: a face above 1.6 m or under 1.0 m meets a hemisphere, not the full radius, and
-//! is left out; a crouched body, 1.1 m tall, is cut at one height), and the body holds off them by `RADIUS_M`. `SRP_BENCH_STAND_IN_CORNER=on` turns it on; unset (or `off`) the stand-in slides along the lattice.
+//! is left out; a crouched body, 1.1 m tall, is cut at one height), and the body holds off them by `RADIUS_M`. `SRP_BENCH_STAND_IN_CORNER=off` leaves the lattice's slide.
 //! Tests-only: the bots' reckoning does not know it.
 
 use std::collections::HashMap;
@@ -28,10 +28,10 @@ use mapdata::{Triangle, Vec3, WalkerBehaviour};
 
 use super::bench_settings;
 
-/// Whether the stand-in body meets walls as the client's capsule does (`SRP_BENCH_STAND_IN_CORNER`, off unless `on`).
+/// Whether the stand-in body meets walls as the client's capsule does (`SRP_BENCH_STAND_IN_CORNER`, on unless `off`).
 pub(crate) fn stand_in_corner() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_CORNER").is_ok_and(|v| v == "on"))
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_CORNER").map_or(true, |v| v != "off"))
 }
 
 /// The capsule's radius, half of `stand_capsule_width` (0.76 m, PROVEN).

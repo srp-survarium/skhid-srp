@@ -1365,7 +1365,7 @@ and 80 degrees):
   the second half of 0x89B80; the stand-in takes the sweep to be an exact circle of the capsule's radius 0.38 m in the walls'
   horizontal sections (GUESS: the complex test's shapes).
 
-`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER=on`; unset or `off`: the lattice): the walker mesh's
+`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER`, on unless `off`): the walker mesh's
 faces that are not ground (steeper than the client's slope, or `dont_walk`) are cut by horizontal planes, the body is a circle of radius
 0.38 m in those sections, pushed out of a wall it overlaps (at most 0.15 m a tick) and moved by the rule above; the lattice then walks
 it to where the rule put it (ledges, floors and the sprint lift stay the lattice's and the intended move's). Tests-only: the bots'
@@ -1468,4 +1468,4 @@ level_01 day 4 189 / 130 / 153; level_02 day 2 716 / 489 / 600; level_02 day 4 8
 level_08 day 4 1,025 / 231 / 198. The capsule is nearer to live than the lattice on 8 of these 11 maps (the lattice on level_04 day 2,
 level_05 day 2, level_08 day 4), and both stay under live on the two biggest live maps (level_08 day 4, level_02 day 4: 3-4 times). The earlier read
 ("the capsule is further from live than the lattice") was made against the 2026-10-24 owner matches (0.12-0.28) and does not hold against the week.
-The switch merges OFF; whether it becomes the bench default before the final sweep is the coordinator's call (see the PR).
+The switch merged OFF (#887) and is the bench default from the follow-up before the final sweep: the client's own rule, the live clearance matches it, 0.63 of the live stuck rate against the lattice's 0.52, no CPU cost; it moves every bench's stuck (+22 %), idle (+8 %) and contact (-4 %) numbers.

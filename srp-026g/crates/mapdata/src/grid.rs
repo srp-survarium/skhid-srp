@@ -2851,6 +2851,12 @@ impl WalkGrid {
     /// The nearest floor to a point at the feet: within `max_distance` on
     /// the ground plane, from 1 m above the point to 2.5 m below it.
     pub fn locate(&self, point: Vec3, max_distance: f32) -> Option<NodeId> {
+        self.locate_within(point, max_distance, 1.0)
+    }
+
+    /// [`Self::locate`] with no floor more than `above` metres over the
+    /// point (a body's feet are on its floor or over it).
+    pub fn locate_within(&self, point: Vec3, max_distance: f32, above: f32) -> Option<NodeId> {
         if !point.is_finite() {
             return None;
         }
@@ -2869,7 +2875,7 @@ impl WalkGrid {
                     };
                     for node in self.start[c]..self.start[c + 1] {
                         let h = self.height[node as usize];
-                        if h > point.y + 1.0 || point.y - h > 2.5 {
+                        if h > point.y + above || point.y - h > 2.5 {
                             continue;
                         }
                         let p = self.position(node);

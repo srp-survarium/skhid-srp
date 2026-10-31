@@ -1487,7 +1487,7 @@ impl Tactics {
     /// - None within [`ESCAPE_FLOORS`] (deep in a big zone): the way out
     ///   the zone's exit field gives ([`Self::exit_of`]).
     ///
-    /// `filter`: its hard part (the landings of jumps the body gave up,
+    /// `filter`: its hard part (the landings of jumps and drops the body gave up,
     /// [`super::stuck::Stuck::shut_landings`]): neither the search nor the
     /// route to the way out goes over what it shuts.
     pub fn escape(
@@ -3625,7 +3625,7 @@ pub(super) mod tests {
         // for the way out and by the route to it.
         let shut = [Vec3::new(end.x, end_node_y(&tactics, end_node), end.z)];
         let other = tactics
-            .escape(inside, None, 0, Some(0), false, &RouteFilter::shutting_landings(shut.to_vec()))
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::shutting_landings(shut.iter().map(|&at| crate::v026g::bots::stuck::Shut::jump(at)).collect()))
             .unwrap();
         let end2 = other.point_at(other.length());
         assert!(end2.distance_xz(end) >= 0.35, "{end2:?} against {end:?}");
