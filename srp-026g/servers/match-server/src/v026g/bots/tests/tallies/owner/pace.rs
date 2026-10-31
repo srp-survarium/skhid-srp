@@ -384,7 +384,7 @@ impl Topic for PaceCounts {
             if calm && let Some(pace) = body.now.pace {
                 let kind = match pace {
                     Pace::Walk => 0,
-                    Pace::Run => 1,
+                    Pace::Run | Pace::Escape(_) => 1,
                     Pace::Cruise => 2,
                     Pace::Sneak => 3,
                     Pace::Arrive => 4,
