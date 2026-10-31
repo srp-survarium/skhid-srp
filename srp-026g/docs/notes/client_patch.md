@@ -2630,3 +2630,30 @@ runs it on the game's own set_item, remove_item and set_owner. A row of
 `simulation_changes.tsv`. The prompt, the ragdoll's gun and the input
 builder's encoding are stage 2b: `docs/notes/weapon_pickup.md`.
 
+## Dropped-weapon pickup: the ragdoll's gun, the prompt, the command (patch 83, stage 2b)
+
+What this client draws and sends; nothing a match computes. At `carry.weapon`
+(0x2477C8; artefact_carry's on_weapon composes `weapon_pickup::ragdoll_gun`
+for a dead player) the gun of the place's open drop, on the body whose death
+this client saw, is kept by place: the site's transform (EAX) and its model's
+box (weapon+1810h -> its render instance, a skeleton_render_model_instance ->
++62B4h its resource -> +108h, turned by Y(pi) as update_render_matrices
+0x15A5B0 turns it); a taken drop's gun and a borrowed gun on a dead holder
+are taken out of the scene as patch 78 takes a carrier's (the native draw
+skipped). At `player_icons.update_start` artefact_carry's on_hud, after its
+own targets, asks `weapon_pickup::aim`: the eye's (player+44Ch) 2.2 m segment
+entering a kept box padded by 5 cm, patch 78's ray (0x24, 2) clear up to it,
+the drop open within 5 s, its gun made here and `weapon_pickup::decide` (the
+kind too) yes; the hud's `show_artefact_offer("st_weapon_pick_up", name)`
+with the gun's ui_desc/text_descriptions/name (its dictionary entry +114h ->
++108h, as fill_items_dictionary_impl 0x286410 reads it) translated
+(0x1FF0F0). At `input_builder.end` (artefact_carry's on_input_end, after
+patch 78's chord step) Use's down edge while that gun is the prompt's becomes
+`weapon_pickup::encode` when `weapon_pickup::sane` passes it (the match's
+places from match_options +577B5h); the press stays the pickup's (no Use for
+the game) until Use is let go. The text: `st_weapon_pick_up` in the ten
+dictionaries, `scripts/content-edit/weapon-pickup-hint-1.json` (hud_strings)
+and the hud movie's `show_artefact_offer(key, value)`.
+`check_weapon_pickup_026g.py` runs the draw, the prompt, the command and the
+hiding; the carry Ruffle harness the named prompt.
+

@@ -44,11 +44,28 @@
   - a gun given back (its holder's death, respawn, destruction, a rollback)
     stays cooked until its death's window and margin end (a rollback can
     take it again); a loaded world's gun is freed at the next frame.
+- My picks for stage 2b (the same rule):
+  - the prompt shows only when the pickup would be taken now (the drop open
+    within 5 s, its gun made on this client, the picker alive with a gun of
+    its own in hands, no borrow, the same kind), as patch 78's take prompt;
+    patch 78's own targets (a teammate's offer, a ground artefact) come
+    first; the nearest gun wins;
+  - the target is the gun's model box as the renderer has it, padded by
+    5 cm, along the eye's 2.2 m segment; the level's ray (patch 78's) must
+    be clear up to it;
+  - a client that did not see the death (a late joiner) shows no prompt
+    for that drop (it has no body for it and no cooked gun); it still plays
+    a pickup another client sends;
+  - Use's press sent as a pickup stays the pickup's until Use is let go (the
+    crate or a battery under the body is not used by the same press);
+  - the gun of a drop taken is hidden on its donor's ragdoll, and so is a
+    borrowed gun on its dead holder's (it vanishes);
+  - a gun whose config has no name shows the text without one.
 - Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
   server's check and record shift, the instance (a gun cooked at each
-  death), the record, the pickup, its restore and the crate are built
-  (stage 2a, not run in a game); the input builder's encoding, the prompt
-  and the ragdoll's gun (stage 2b) are not.
+  death), the record, the pickup, its restore and the crate (stage 2a), the
+  ragdoll's gun, the prompt and the input builder's encoding (stage 2b) are
+  built and checked under Unicorn; not run in a game yet.
 
 ## How a pickup is installed (patch 83, stage 2a, built, not run in a game)
 
@@ -123,11 +140,9 @@ cooked gun).
 - **The cache**: a gun installed is lent (never freed by the window or its
   donor's destruction); given back, it is kept until its death's window and
   margin end, so a rollback that takes it again finds it.
-- **For stage 2b**: `weapon_pickup::available_drop(thread, viewer, place)`
-  (open, within 5 s at the viewer's time, its gun made on this client: the
-  local prompt), `drop_taken(thread, viewer, place)` (hide the ragdoll's
-  gun), `borrowing(thread, player)` (its ragdoll drops none),
-  `instance(thread, place, died)`.
+- **For stage 2b**: `borrowing(thread, player)`, `instance(thread, place,
+  died)`; the death's body (player object and life) kept with the place's
+  record (below).
 - **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe, the
   game's own set_item, remove_item and set_owner; the switch's calls and
   the byte writer recorded): the records written at a death and read back;
@@ -147,6 +162,65 @@ cooked gun).
   inventory reader was not traced for it); a client whose cook failed, or
   whose wait was refused (a late joiner whose players were made this
   frame), refuses a pickup the others accept and then differs.
+
+## How the local client offers and sends a pickup (patch 83, stage 2b, built, not run in a game)
+
+`rust/patches/src/weapon_pickup.rs` (`ragdoll_gun`, `aim`, `on_input_end`)
+over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
+(`GameWorldUi::translate`, `places`). Nothing a match computes.
+
+- **The ragdoll's gun** (`carry.weapon` 0x2477C8, mt_draw before the held
+  item's draw; artefact_carry's on_weapon calls `ragdoll_gun` for a dead
+  player): a borrowed gun on its dead holder, and the gun of a taken drop on
+  the body whose death this client saw last at that place (player object and
+  spawn time +328h, kept with the place's record, not synced), are hidden
+  as patch 78 hides a carrier's (out of the scene, the native draw skipped;
+  native on_hide gets them back). For an open drop the gun's pose is kept by
+  place (a Lock: mt_draw may run in tasks): the site's transform (EAX, row
+  vectors) and the box of its model (weapon+1810h -> +108h the render
+  reference -> +0 a skeleton_render_model_instance -> +62B4h its resource ->
+  +108h, 6 f32, turned by Y(pi): [-maxx, miny, -maxz] .. [-minx, maxy,
+  -minz]; refused when not finite, inverted or a side over 4 m).
+- **The prompt** (artefact_carry's on_hud at `player_icons.update_start`,
+  after patch 78's own targets): for each kept pose, the eye's (player+44Ch:
+  position m[12..14], forward m[8..10]) 2.2 m segment into the box padded by
+  5 cm (the box's frame from the transform's rows, taken as orthogonal);
+  the nearest whose drop a pickup would take now (the body still the
+  drop's and dead, the drop open within 5 s at the viewer's +324h, its cook
+  made here, `decide` with the kind yes) and with patch 78's ray (group
+  0x24, mask 2) clear up to it, and a place the server allows
+  (`weapon_pickup::allowed` with match_options +577B5h). The hud is told
+  `root.show_artefact_offer("st_weapon_pick_up", name)`: the name key from
+  the cooked gun's dictionary entry (+114h its config holder, +108h the root,
+  ui_desc/text_descriptions/name, each table's key asked first:
+  engine_cfg_child reads past the end for a missing one), translated by the
+  game's text translator (0x1FF0F0); `Pick up %1$s ({USE})`, `{USE}` the
+  bound key (the localizer's), `%1$s` the name (the movie's
+  `LocalizationData.format`). The target is remembered for Use.
+- **The command** (artefact_carry's on_input_end at `input_builder.end`,
+  after patch 78's chord step): on Use's down edge while a gun is the
+  prompt's and the input has no carry command, the mask becomes
+  `weapon_pickup::encode(actions, target)` when `weapon_pickup::sane`
+  passes it (the server's check: another place of the match); the press
+  then stays the pickup's (Use cleared) until Use is let go. Logged:
+  `pickup: place P sends a pickup of the gun of place T`.
+- **The text**: `st_weapon_pick_up` in the ten `localization/*.tsv`;
+  `scripts/content-edit/weapon-pickup-hint-1.json` maps it into
+  `hud_strings`; the hud movie's `show_artefact_offer(key, value = "")`
+  shows `LocalizationData.format(key, value)`. An older hud movie (one
+  argument) refuses the two-argument call: the prompt is then not shown,
+  the pickup by Use still works.
+- **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe): the
+  donor's gun drawn on its ragdoll is offered to the picker looking at it
+  with its translated name; Use's press becomes the pickup command, held it
+  stays off the game; the command played takes it, its gun is then out of
+  the scene and the prompt gone; no prompt looking away, beyond 2.2 m,
+  behind a wall, after 5 s, for a gun of another kind or a place the match
+  lacks; the 5 cm padding. Unit tests of the segment test and the press.
+  `check_artefact_carry_026g.py`, `check_ragdoll_026g.py`,
+  `check_blackout_026g.py` (the composed handlers),
+  `check_localization_026g.py`, the carry Ruffle harness
+  (`scripts/artefact-carry/check.sh`) on the rebuilt hud movie.
 
 ## The facts the install was built from (read in the exe)
 
