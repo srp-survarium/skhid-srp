@@ -705,7 +705,9 @@ pub mod tally {
     ];
     pub const PINNER_LOST: usize = 26;
     pub const CROSSER_DOWNS: usize = 27;
-    pub const ALL: usize = 28;
+    /// Thinks an objective player waited out of a held lane for the team's Breach (§13, §14).
+    pub const OBJECTIVE_WAITS: usize = 28;
+    pub const ALL: usize = 29;
 
     // A match runs on one thread: its counts are the thread's (the topic reads the difference from its start).
     thread_local! {

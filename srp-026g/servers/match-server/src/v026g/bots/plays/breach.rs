@@ -46,6 +46,41 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     out.extend(cx.job_offer(Role::Crosser, PlayKind::Breach, TargetRef::ThreatSpot(b.spot), JOB_KEY + b.spot * 2 + k as u32, JOB_HEALTH, true));
 }
 
+/// How far along its way to `to` an objective player looks for a Breach's held lane, metres, in steps of [`WAIT_STEP_M`].
+const WAIT_AHEAD_M: f32 = 20.0;
+const WAIT_STEP_M: f32 = 2.0;
+
+/// [threat.breach] §13, §14: whether this objective player (a carrier on its way home, a collector to a battery) waits: a Breach
+/// of the team gathers or goes on a held spot whose lanes lie on its way toward `to` (the straight line, the next
+/// [`WAIT_AHEAD_M`]) while it stands out of them. It crosses once the crossers hold (or the job ends): last, behind them.
+pub fn waits_for_breach(cx: &Ctx, to: Vec3) -> bool {
+    if cx.tuning.threat.breach.is_none() {
+        return false;
+    }
+    let feet = cx.me.feet;
+    let d = feet.distance_xz(to).min(WAIT_AHEAD_M);
+    let len = feet.distance_xz(to).max(0.01);
+    let dir = [(to.x - feet.x) / len, (to.z - feet.z) / len];
+    let waits = cx
+        .team
+        .breaches
+        .iter()
+        .filter(|b| matches!(b.phase, Phase::Gather { .. } | Phase::Go { .. }))
+        .filter_map(|b| cx.team.threat.line(b.spot))
+        .any(|line| {
+            !line.covers(feet)
+                && (1..=(d / WAIT_STEP_M) as u32).any(|k| {
+                    let m = k as f32 * WAIT_STEP_M;
+                    line.covers(Vec3::new(feet.x + dir[0] * m, feet.y, feet.z + dir[1] * m))
+                })
+        });
+    #[cfg(test)]
+    if waits {
+        breach::tally::add(cx.me.team, breach::tally::OBJECTIVE_WAITS, 1);
+    }
+    waits
+}
+
 /// The play keeps nothing of its own: the job's phase and points are its state.
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {

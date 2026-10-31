@@ -45,11 +45,12 @@ impl BreachCounts {
             }
             t.insert("pinner_lost".into(), n(tally::PINNER_LOST).into());
             t.insert("crosser_downs".into(), n(tally::CROSSER_DOWNS).into());
+            t.insert("objective_waits".into(), n(tally::OBJECTIVE_WAITS).into());
             let get = |name: &str| t.get(name).and_then(serde_json::Value::as_u64).unwrap_or(0);
             let went = get("went");
             let traded = get("traded");
             text.push(format!(
-                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / aborted {} / time {}; pinners lost {}, crossers down {}",
+                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / aborted {} / time {}; pinners lost {}, crossers down {}; objective player waits (thinks) {}",
                 get("due"),
                 get("opened"),
                 get("opened_with_pinner"),
@@ -77,6 +78,7 @@ impl BreachCounts {
                 get("failed_time"),
                 n(tally::PINNER_LOST),
                 n(tally::CROSSER_DOWNS),
+                n(tally::OBJECTIVE_WAITS),
             ));
             json.insert(format!("team{team}"), serde_json::Value::Object(t));
         }

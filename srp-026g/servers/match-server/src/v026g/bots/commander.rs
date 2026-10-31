@@ -82,7 +82,9 @@ fn breach_tick(
                     notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {ended}") });
                 }
             }
-            breach::Event::Stepped { at, from, was, step: breach::Step::Ended(phase), shooter, bots, .. } => {
+            breach::Event::Stepped { spot, at, from, was, step: breach::Step::Ended(phase), shooter, bots, .. } => {
+                // Its spot rests as a Flank job's does: no new Flank (so no new Breach) on it for a while.
+                threat.rested.push((spot, now + threat::JOB_REST_MS));
                 if matches!(phase, breach::Phase::Done { done: breach::Done::ShooterDied { by_job: true }, .. })
                     && matches!(was, breach::Phase::Go { .. } | breach::Phase::Hold { .. })
                 {
