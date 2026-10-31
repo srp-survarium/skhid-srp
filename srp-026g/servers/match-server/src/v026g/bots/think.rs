@@ -761,12 +761,12 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     }
     // Across the first held lane its route enters ahead, before it steps in.
     let lane = || {
-        if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
+        if !t.cross_lane || bot.smoke_threat.is_empty() || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
             return None;
         }
         let grid = &tactics.world.grid;
         // Not in the lane already, and not running it already.
-        if bot.threat.exposed_at(grid, me.feet) {
+        if bot.smoke_threat.exposed_at(grid, me.feet) {
             return None;
         }
         if sprinting {
@@ -774,7 +774,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             smoke::tally::add(bot.team, smoke::tally::Event::SprintSkip);
             return None;
         }
-        let (crossing_s, crossing) = crossing_of(&|p| bot.threat.exposed_at(grid, p))?;
+        let (crossing_s, crossing) = crossing_of(&|p| bot.smoke_threat.exposed_at(grid, p))?;
         // The shooter known to be there now, with a line onto the crossing.
         let chest = crossing + chest_over;
         let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
