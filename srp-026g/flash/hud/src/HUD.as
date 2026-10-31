@@ -1875,9 +1875,9 @@ package
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
       // request or a chat mute sent or not.
-      public function srp_player_menu(place:uint, addFriend:uint, mute:uint) : void
+      public function srp_player_menu(place:uint, addFriend:uint, mute:uint, muted:uint) : void
       {
-         this._rowMenu.offered(place,addFriend != 0,mute != 0);
+         this._rowMenu.offered(place,addFriend != 0,mute != 0,muted);
       }
 
       public function srp_friend_request(place:uint, sent:uint) : void

@@ -11,8 +11,9 @@
 //!   `replay.options_read`, after Blackout's): the cursor state starts over;
 //! - the hud movie's calls (`hud.callback`, scaleform_callback 0x233D30):
 //!   `srp_player_menu(place)`, the row menu asking whether "Add to friends"
-//!   and "Mute chat" are offered for that place, answered
-//!   `root.srp_player_menu(place, add_friend, mute)`;
+//!   and the chat mute entries are offered for that place, and how the
+//!   player is muted now (`Muted::code`, from the lobby's ignore list),
+//!   answered `root.srp_player_menu(place, add_friend, mute, muted)`;
 //!   `srp_add_friend(place)`, answered `root.srp_friend_request(place, sent)`
 //!   after the lobby's own friend request (`4D` type 0, as the lobby's menus
 //!   send it) or none; `srp_chat_mute(place, choice)`, answered
@@ -24,13 +25,14 @@
 //! the lobby's allowance ([`REQUEST_BURST`] at once, one more every
 //! [`REQUEST_EVERY_S`]); and the lobby connection up, as the lobby's
 //! senders check it. A mute's are the lobby's `set_chat_mute`'s: never the
-//! player's own name, a known choice; and the connection up. Nothing a match computes: the local interface
+//! player's own name, a known choice that changes the player's state (the
+//! menu offers only those); and the connection up. Nothing a match computes: the local interface
 //! and a lobby message.
 
 #![forbid(unsafe_code)]
 
 use crate::vostok::{
-    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, MuteChoice, NoExit, NotConnected,
+    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, MuteChoice, Muted, NoExit, NotConnected,
     TabCursorOnHudCallExit,
     TabCursorOnKeyExit, Thread, clock,
 };
@@ -224,6 +226,8 @@ enum Refusal {
     NotConnected,
     /// Past the allowance.
     TooMany,
+    /// A mute choice that leaves the player as they are.
+    Unchanged,
 }
 
 /// The name of another player at `place`: what a mute goes to.
@@ -265,6 +269,9 @@ fn send_request(thread: &Thread, lobby: &Lobby<'_>, place: Place) -> Result<(), 
 
 fn send_mute(lobby: &Lobby<'_>, place: Place, choice: MuteChoice) -> Result<(), Refusal> {
     let name = other_player(lobby, place)?;
+    if lobby.muted(name.to_bytes()) == choice.state() {
+        return Err(Refusal::Unchanged);
+    }
     lobby.send_chat_mute(name, choice)?;
     Ok(())
 }
@@ -294,8 +301,10 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<TabCursorOnHudCallExit> {
     match request {
         Request::Menu => {
             let add_friend = lobby.as_ref().is_some_and(|lobby| offered(lobby, place).is_ok());
-            let mute = lobby.as_ref().is_some_and(|lobby| other_player(lobby, place).is_ok());
-            call.answer(c"root.srp_player_menu", &[index, u32::from(add_friend), u32::from(mute)]);
+            let other = lobby.as_ref().and_then(|lobby| Some((lobby, other_player(lobby, place).ok()?)));
+            let muted = other.and_then(|(lobby, name)| lobby.muted(name.to_bytes()));
+            call.answer(c"root.srp_player_menu",
+                        &[index, u32::from(add_friend), u32::from(other.is_some()), Muted::code(muted)]);
         }
         Request::AddFriend => {
             let sent = lobby.as_ref().ok_or(Refusal::NotConnected)
@@ -422,6 +431,11 @@ mod tests {
         assert_eq!(MuteChoice::parse(b"1"), Some(MuteChoice::Hide));
         assert_eq!(MuteChoice::parse(b"2"), Some(MuteChoice::ShowMuted));
         assert_eq!(MuteChoice::parse(b"0"), Some(MuteChoice::Unmute));
+        // the hud's state codes are the choices that set them
+        for choice in [MuteChoice::Hide, MuteChoice::ShowMuted, MuteChoice::Unmute] {
+            let code = Muted::code(choice.state());
+            assert_eq!(MuteChoice::parse(code.to_string().as_bytes()).map(MuteChoice::state), Some(choice.state()));
+        }
         for text in [&b""[..], b"3", b"254", b"01", b"x"] {
             assert_eq!(MuteChoice::parse(text), None);
         }

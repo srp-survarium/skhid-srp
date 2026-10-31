@@ -33,13 +33,13 @@ friends, etc.; for now just adding to friends."
   nothing new.
 - **Rows:** everyone in the match, allies and enemies alike, except:
   - your own row: no menu;
-  - a player already on your friend list: no "Add to friends" entry ("Mute chat" alone).
+  - a player already on your friend list: no "Add to friends" entry (the two mute entries alone).
   A bot's row is offered: the match's place records carry no account, and the server's bots'
   clan tag "BOT" is one a players' clan may also take, so the client has no reliable bot mark.
   From a match the lobby says nothing for a name that is no account.
-- **Entries:** "Add to friends" (`st_srp_hud_add_friend`) and "Mute chat" (its three choices:
-  [chat-mute.md](chat-mute.md)). The menu's entries are a list the exe's answer fills
-  (`root.srp_player_menu(place, add_friend, mute)`).
+- **Entries:** "Add to friends" (`st_srp_hud_add_friend`) and the two chat mute entries that change
+  the player's state ([chat-mute.md](chat-mute.md)). The menu's entries are a list the exe's answer
+  fills (`root.srp_player_menu(place, add_friend, mute, muted)`).
 - **Closes** on Tab let go, on a press outside it, and at the next match. No timer closes it.
 - **The hide-scores option** (names only, alphabetical) keeps the rows and their places, so the
   menu works there too. The worker who builds it must keep the row renderer and the lists'

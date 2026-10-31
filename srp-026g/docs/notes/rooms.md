@@ -362,7 +362,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
 - **Player actions in rooms and rankings:** the same menu also offers Add/Remove friend,
-  Mute chat (its three choices: [chat-mute.md](chat-mute.md)), Send message, and Invite to squad
+  the two chat mute entries ([chat-mute.md](chat-mute.md)), Send message, and Invite to squad
   when the local player leads a squad with space and the target is not already in it. Your own
   entry only offers information. The room UI harness checks the menu.
 - **Deferred:**

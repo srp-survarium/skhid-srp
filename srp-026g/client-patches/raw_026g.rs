@@ -4638,6 +4638,24 @@ impl MessagingClient {
     pub unsafe fn friends_end(self) -> Option<ListedAccount> {
         unsafe { self.0.byte_add(0x10).cast::<Option<ListedAccount>>().read_volatile() }
     }
+
+    /// +0x1c (ptr<survarium::listed_account>): the ignore list's first element (A3 08's reader 0x26C620 fills the vector at +1Ch; lobby_menu::set_ignored_list 0x28B910 reads +1Ch begin, +20h end)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ignored_begin(self) -> Option<ListedAccount> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ListedAccount>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<survarium::listed_account>): the ignore list's end (0x28B95E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ignored_end(self) -> Option<ListedAccount> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<ListedAccount>>().read_volatile() }
+    }
 }
 
 /// A survarium::listed_account (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4652,6 +4670,15 @@ impl ListedAccount {
     #[inline(always)]
     pub fn address(self) -> u32 {
         self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its account id as the lobby sent it (A3 08's reader at 0x26C683; srp marks a `<muted>` player's with bit 31, chat-mute.md)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
     }
 
     /// +0x8 (u8): its name, 64 bytes with its zero (social.md 1.3: +4 the account id, +8 the name)

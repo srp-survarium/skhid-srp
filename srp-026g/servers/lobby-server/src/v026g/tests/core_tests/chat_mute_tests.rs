@@ -160,3 +160,57 @@ fn a_mute_from_the_tab_list_reaches_the_lobby_and_one_for_nobody_is_silent() {
     assert_eq!(mode(&world), None);
     world.assert_clean();
 }
+
+#[test]
+fn the_client_gets_every_mute_and_its_mode_after_each_change() {
+    // Both menus offer the two choices other than the player's state, so
+    // the client is told both modes: A3 08 lists every muted player, a
+    // `<muted>` one's id marked (SHOWN_MUTED) so its lines still pass the
+    // client's own filter (chat-mute.md).
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    for client in [alice, bob, carol] {
+        world.ask(client, request::subscribe());
+        world.take(client);
+    }
+    let (alice_id, carol_id) = (world.ids[alice].0, world.ids[carol].0);
+    let shown = |id: u32| id | survarium::v026g::lobby::SHOWN_MUTED;
+    let pushed = |world: &mut World| -> Vec<Vec<(u32, String)>> {
+        world
+            .take(bob)
+            .into_iter()
+            .filter_map(|message| match message {
+                Decoded::Friendship(FriendshipPush::Ignored(ignored)) => Some(ignored),
+                _ => None,
+            })
+            .collect()
+    };
+    type Step<'a> = (&'a str, Option<survarium::v026g::lobby::ChatMuteMode>, Vec<(u32, &'a str)>);
+    let steps: [Step; 5] = [
+        ("Alice", Some(Placeholder), vec![(shown(alice_id), "Alice")]),
+        ("Carol", Some(Hidden), vec![(shown(alice_id), "Alice"), (carol_id, "Carol")]),
+        ("Alice", Some(Hidden), vec![(alice_id, "Alice"), (carol_id, "Carol")]),
+        ("Carol", Some(Placeholder), vec![(alice_id, "Alice"), (shown(carol_id), "Carol")]),
+        ("Alice", None, vec![(shown(carol_id), "Carol")]),
+    ];
+    for (name, mode, list) in steps {
+        world.ask(bob, request::chat_mute(name, mode));
+        let list: Vec<(u32, String)> = list.into_iter().map(|(id, name)| (id, name.to_owned())).collect();
+        assert_eq!(pushed(&mut world), [list], "after {name} {mode:?}");
+    }
+    // Carol's `<muted>` lines reach Bob through his client's filter.
+    world.ask(carol, request::chat(2, "", channel::GENERAL, "secret"));
+    assert_eq!(
+        lines(world.take(bob)),
+        [("Carol".to_owned(), channel::GENERAL, "<muted>".to_owned())]
+    );
+    // The friends window sends the id as it has it: Unignore (4E 05) of the
+    // marked id unmutes Carol.
+    world.ask(bob, request::stop_ignoring(shown(carol_id)));
+    assert_eq!(pushed(&mut world), [Vec::<(u32, String)>::new()]);
+    world.ask(carol, request::chat(2, "", channel::GENERAL, "back"));
+    assert_eq!(lines(world.take(bob)), [("Carol".to_owned(), channel::GENERAL, "back".to_owned())]);
+    world.assert_clean();
+}

@@ -2388,9 +2388,8 @@ st_srp_exchange_title	Обмен
 st_srp_hud_add_friend	Добавить в друзья
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
-st_srp_hud_mute_chat	Заглушить чат
-st_srp_hud_mute_hide	Скрыть сообщения
-st_srp_hud_mute_mask	Показывать имя: <muted>
+st_srp_hud_mute_hide	Скрыть чат
+st_srp_hud_mute_mask	Показывать чат как <muted>
 st_srp_hud_mute_not_sent	Не отправлено
 st_srp_hud_muted	Чат заглушён
 st_srp_hud_unmute	Включить чат

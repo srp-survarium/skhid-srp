@@ -2388,9 +2388,8 @@ st_srp_exchange_title	Vaihda
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
-st_srp_hud_mute_chat	Mykistä chat
-st_srp_hud_mute_hide	Piilota viestit
-st_srp_hud_mute_mask	Näytä nimi: <muted>
+st_srp_hud_mute_hide	Piilota chat
+st_srp_hud_mute_mask	Näytä chat muodossa <muted>
 st_srp_hud_mute_not_sent	Ei lähetetty
 st_srp_hud_muted	Chat mykistetty
 st_srp_hud_unmute	Poista mykistys

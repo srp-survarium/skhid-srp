@@ -22,9 +22,11 @@ Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
   and stack as the original's, which takes none and calls nothing;
 - the hud movie's calls (game_world_ui::scaleform_callback 0x233D30 to its
   return): `srp_player_menu(place)` answers root.srp_player_menu(place,
-  add_friend, mute), add_friend 1 only for a place of the match that is not
-  the account's own name nor a friend's (ASCII case ignored), mute 1 for
-  one that is not the own name (a friend's too);
+  add_friend, mute, muted), add_friend 1 only for a place of the match that
+  is not the account's own name nor a friend's (ASCII case ignored), mute 1
+  for one that is not the own name (a friend's too), muted the player's
+  state by the lobby's ignore list (0 not on it, 1 hidden, 2 its id marked
+  with bit 31: shown as <muted>);
   `srp_add_friend(place)` sends the lobby's friend request (the messaging
   client, the place's name, type 0, "") when it is offered, the lobby
   connection's state 0 or 4 and the lobby's allowance has one (five at once,
@@ -32,7 +34,8 @@ Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
   root.srp_friend_request(place, sent); `srp_chat_mute(place, choice)` sends
   the lobby's chat mute (the lobby client, the place's name, kind 254, the
   choice 0, 1 or 2 as the mode) when the place is not the own name, the choice
-  one of the three and the lobby connection's state 0 or 4, and answers
+  one of the three and not the player's state already, and the lobby
+  connection's state 0 or 4, and answers
   root.srp_chat_mute(place, sent); a place that is not a number answers
   nothing; both return as the function does (`ret 10h`); an unknown method
   goes on to the original's dispatch in both builds; the original answers
@@ -67,6 +70,8 @@ LOBBY = NC + 0x1E0
 MESSAGING = LOBBY + 0x1E56C4
 PLACES = ["sheep", "Wolf", "Bear", "Fox"]
 OWN, FRIEND_NAMES = "Sheep", ["bear", "Owl"]
+IGNORED = FRIENDS + 0x800                       # the ignore list's records
+SHOWN_MUTED = 1 << 31                           # srp's mark on a <muted> player's id
 FREQUENCY = 1000                                # the clock's ticks a second (check_blackout's stub)
 
 
@@ -114,7 +119,7 @@ class Run(blackout.Run):
 
     # ---- the hud movie's calls
 
-    def lobby(self, state=0, link=True, own=OWN, friends=FRIEND_NAMES, count=len(PLACES)):
+    def lobby(self, state=0, link=True, own=OWN, friends=FRIEND_NAMES, count=len(PLACES), ignored=()):
         self.emu.mem_write(UI, bytes(0x1000))
         self.word(UI + 0x18, WORLD)
         self.word(WORLD + 0x9C, GAME)
@@ -133,6 +138,11 @@ class Run(blackout.Run):
             self.emu.mem_write(FRIENDS + 0x5C * i + 8, name.encode() + b"\0")
         self.word(MESSAGING + 0xC, FRIENDS)
         self.word(MESSAGING + 0x10, FRIENDS + 0x5C * len(friends))
+        for i, (name, id) in enumerate(ignored):
+            self.word(IGNORED + 0x5C * i + 4, id)
+            self.emu.mem_write(IGNORED + 0x5C * i + 8, name.encode() + b"\0")
+        self.word(MESSAGING + 0x1C, IGNORED)
+        self.word(MESSAGING + 0x20, IGNORED + 0x5C * len(ignored))
 
     def call(self, method, argument=None):
         """scaleform_callback(caller, method, arguments, count) on the hud:
@@ -253,7 +263,9 @@ def main():
     report(b[0] == KEY_PAST and b[4] == [], "its release on")
 
     print("the hud movie's calls (scaleform_callback 0x233D30)")
-    menu = lambda place, offer, mute: [(hide.HUD_MOVIE, "root.srp_player_menu", (place, offer, mute))]
+    menu = lambda place, offer, mute, muted=0: [(hide.HUD_MOVIE, "root.srp_player_menu", (place, offer, mute, muted))]
+    # Wolf (place 1) hidden, Fox (place 3) shown as <muted>, as the lobby's A3 08 gives them
+    muting = dict(ignored=[("WOLF", 7), ("fox", 9 | SHOWN_MUTED)])
     answer = lambda place, sent: [(hide.HUD_MOVIE, "root.srp_friend_request", (place, sent))]
     request = lambda name: [(MESSAGING, name, 0, "")]
     muted = lambda place, sent: [(hide.HUD_MOVIE, "root.srp_chat_mute", (place, sent))]
@@ -293,7 +305,8 @@ def main():
          mute("Wolf", 1)),
         ("Show name: <muted>, a friend's place: mode 2", None, None, "srp_chat_mute", ("2", "2"), muted(2, 1),
          mute("Bear", 2)),
-        ("Unmute: mode 0", None, None, "srp_chat_mute", ("3", "0"), muted(3, 1), mute("Fox", 0)),
+        ("Unmute a <muted> player: mode 0", dict(ignored=[("Fox", 9 | SHOWN_MUTED)]), None, "srp_chat_mute",
+         ("3", "0"), muted(3, 1), mute("Fox", 0)),
         ("many at once: each sent (no allowance)", None, None, "srp_chat_mute", ("3", "1"), muted(3, 1),
          mute("Fox", 1)),
         ("the own place: not sent", None, None, "srp_chat_mute", ("0", "1"), muted(0, 0), []),
@@ -305,6 +318,18 @@ def main():
         ("in state 1: not sent", dict(state=1), None, "srp_chat_mute", ("1", "2"), muted(1, 0), []),
         ("no connection: not sent", dict(link=False), None, "srp_chat_mute", ("1", "2"), muted(1, 0), []),
         ("a place that is no number: no answer", dict(), None, "srp_chat_mute", ("x", "1"), [], []),
+        ("the menu of a hidden player (ignore list, case ignored)", muting, None, "srp_player_menu", "1",
+         menu(1, 1, 1, 1), []),
+        ("the menu of a <muted> player (marked id)", None, None, "srp_player_menu", "3", menu(3, 1, 1, 2), []),
+        ("the menu of a friend not muted", None, None, "srp_player_menu", "2", menu(2, 0, 1, 0), []),
+        ("Hide a hidden player: not sent (unchanged)", None, None, "srp_chat_mute", ("1", "1"), muted(1, 0), []),
+        ("show a hidden player as <muted>: sent", None, None, "srp_chat_mute", ("1", "2"), muted(1, 1),
+         mute("Wolf", 2)),
+        ("<muted> a <muted> player: not sent (unchanged)", None, None, "srp_chat_mute", ("3", "2"), muted(3, 0),
+         []),
+        ("Unmute a <muted> player: sent", None, None, "srp_chat_mute", ("3", "0"), muted(3, 1), mute("Fox", 0)),
+        ("Unmute a player not muted: not sent (unchanged)", None, None, "srp_chat_mute", ("2", "0"), muted(2, 0),
+         []),
     ]
     for what, lobby, ticks, method, argument, invokes, sent in calls:
         results = []

@@ -544,6 +544,12 @@ pub mod request {
         (0x4E, body)
     }
 
+    pub fn stop_ignoring(account_id: u32) -> (u8, Vec<u8>) {
+        let mut body = vec![5];
+        body.extend(account_id.to_le_bytes());
+        (0x4E, body)
+    }
+
     pub fn chat_mute(
         name: &str,
         mode: Option<survarium::v026g::lobby::ChatMuteMode>,

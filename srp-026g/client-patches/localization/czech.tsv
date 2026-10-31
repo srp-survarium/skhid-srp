@@ -2388,9 +2388,8 @@ st_srp_exchange_title	Směnit
 st_srp_hud_add_friend	Přidat do přátel
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána
 st_srp_hud_friend_sent	Žádost o přátelství odeslána
-st_srp_hud_mute_chat	Ztlumit chat
-st_srp_hud_mute_hide	Skrýt zprávy
-st_srp_hud_mute_mask	Zobrazit jméno: <muted>
+st_srp_hud_mute_hide	Skrýt chat
+st_srp_hud_mute_mask	Zobrazit chat jako <muted>
 st_srp_hud_mute_not_sent	Neodesláno
 st_srp_hud_muted	Chat ztlumen
 st_srp_hud_unmute	Zapnout chat

@@ -3732,7 +3732,7 @@ Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
 own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
 buttons stop; the moves go on. That Ctrl press and its held and release
 events are taken from the player, so it does not crouch. A right-click on
-a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and "Mute chat". The
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and two chat mute entries. The
 entry sends the lobby's own friend request (`4D` type 0, through
 messaging_client::send_important_message 0x26AFB0) to that place's bare
 name. The rules are in `../docs/notes/tab-cursor-friends.md`.
@@ -3751,7 +3751,8 @@ friend's; five requests at once, then one every 10 s; and the lobby
 connection up, as the lobby's senders check it. A chat mute
 (`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
 mode), sent by lobby_client::comment_about_user (0x274470): never the own
-name, one of the three choices, the connection up.
+name, one of the three choices that changes the state the lobby's ignore list
+gives (a `<muted>` player's id marked with bit 31), the connection up.
 
 Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
 crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code

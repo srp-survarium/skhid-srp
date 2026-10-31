@@ -19,8 +19,12 @@ use crate::raw;
 const NAME_LIMIT: usize = 64;
 /// The account's own name's room in the lobby client (+1E55D0h, the clan at +1E5650h).
 const OWN_NAME_LIMIT: usize = 0x80;
-/// The friend list holds at most this many (the lobby sends at most 200).
-const MAX_FRIENDS: usize = 1000;
+/// The friend and ignore lists hold at most this many (the lobby sends at
+/// most 200).
+const MAX_LISTED: usize = 1000;
+/// srp's mark on an ignore list's id: a player shown as `<muted>`, not hidden
+/// (the lobby's `SHOWN_MUTED`, docs/notes/chat-mute.md).
+const SHOWN_MUTED: u32 = 1 << 31;
 /// The lobby connection's states in which a messaging sender sends (0x28C1CF..0x28C1D6).
 const SENDING: [u32; 2] = [0, 4];
 /// The friend request's type in a 4D (important_message_types: 0).
@@ -30,6 +34,31 @@ const FRIEND_REQUEST: u32 = 0;
 /// `CHAT_MUTE_ACTION` (survarium::v026g::lobby), the lobby movie's
 /// `ChatMute.ACTION`.
 const CHAT_MUTE: u32 = 254;
+
+/// How a player's chat lines are muted for the account: the lobby's
+/// `ChatMuteMode`, read from the ignore list it pushed (`A3 08`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Muted {
+    Hidden,
+    ShownMuted,
+}
+
+impl Muted {
+    /// An ignore list row's id: the mode is its mark.
+    fn of_listed_id(id: u32) -> Muted {
+        if id & SHOWN_MUTED != 0 { Muted::ShownMuted } else { Muted::Hidden }
+    }
+
+    /// The hud movie's code for a mute state: the menu's choice that sets it
+    /// (`"1"`, `"2"`; 0 not muted, `MuteChoice::Unmute`'s).
+    pub fn code(state: Option<Muted>) -> u32 {
+        match state {
+            None => 0,
+            Some(Muted::Hidden) => 1,
+            Some(Muted::ShownMuted) => 2,
+        }
+    }
+}
 
 /// A chat mute choice of a player's menu (docs/notes/chat-mute.md), as the
 /// movies send it: `"1"` hide the player's lines, `"2"` show them as
@@ -48,6 +77,15 @@ impl MuteChoice {
             b"2" => Some(MuteChoice::ShowMuted),
             b"0" => Some(MuteChoice::Unmute),
             _ => None,
+        }
+    }
+
+    /// The state the choice leaves.
+    pub fn state(self) -> Option<Muted> {
+        match self {
+            MuteChoice::Hide => Some(Muted::Hidden),
+            MuteChoice::ShowMuted => Some(Muted::ShownMuted),
+            MuteChoice::Unmute => None,
         }
     }
 
@@ -111,20 +149,22 @@ impl<'t> Lobby<'t> {
     /// `name` is on the friend list the lobby pushed (by the name, ignoring
     /// ASCII case, as the lobby finds an account).
     pub fn is_friend(&self, name: &[u8]) -> bool {
-        // SAFETY: the messaging client's friend vector {begin, end}, its
-        // elements 5Ch bytes each, their names C strings in their 64 bytes,
-        // alive on the hook's thread (only the lobby's messages, on this
-        // thread, change it).
+        // SAFETY: the messaging client's friend vector, alive on the hook's
+        // thread (only the lobby's messages, on this thread, change it).
         unsafe {
             let messaging = self.client.lobby().messaging();
-            let (Some(first), Some(end)) = (messaging.friends_begin(), messaging.friends_end()) else {
-                return false;
-            };
-            let count = end.index_from(first).unwrap_or(0).min(MAX_FRIENDS);
-            (0..count).any(|i| {
-                c_string(first.at(i).name(), NAME_LIMIT)
-                    .is_some_and(|friend| friend.to_bytes().eq_ignore_ascii_case(name))
-            })
+            listed(messaging.friends_begin(), messaging.friends_end(), name).is_some()
+        }
+    }
+
+    /// How `name`'s lines are muted, by the ignore list the lobby pushed
+    /// (every muted player, the mode its id's mark), or `None`.
+    pub fn muted(&self, name: &[u8]) -> Option<Muted> {
+        // SAFETY: the messaging client's ignore vector, as the friend one.
+        unsafe {
+            let messaging = self.client.lobby().messaging();
+            listed(messaging.ignored_begin(), messaging.ignored_end(), name)
+                .map(|account| Muted::of_listed_id(*account.id()))
         }
     }
 
@@ -160,5 +200,22 @@ impl<'t> Lobby<'t> {
                                            choice.mode());
         }
         Ok(())
+    }
+}
+
+/// The record of a list {begin, end} named `name` (ASCII case ignored).
+///
+/// # Safety
+/// `begin..end` is one of the messaging client's vectors of 5Ch-byte
+/// records, alive for the call, their names C strings in their 64 bytes.
+unsafe fn listed(begin: Option<raw::ListedAccount>, end: Option<raw::ListedAccount>, name: &[u8])
+                 -> Option<raw::ListedAccount> {
+    let (Some(first), Some(end)) = (begin, end) else { return None };
+    // SAFETY: the caller's vector.
+    unsafe {
+        let count = end.index_from(first).unwrap_or(0).min(MAX_LISTED);
+        (0..count).map(|i| first.at(i)).find(|account| {
+            c_string(account.name(), NAME_LIMIT).is_some_and(|listed| listed.to_bytes().eq_ignore_ascii_case(name))
+        })
     }
 }

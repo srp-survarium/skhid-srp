@@ -2388,9 +2388,8 @@ st_srp_exchange_title	Razmeni
 st_srp_hud_add_friend	Dodaj u prijatelje
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
 st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
-st_srp_hud_mute_chat	Utišaj čet
-st_srp_hud_mute_hide	Sakrij poruke
-st_srp_hud_mute_mask	Prikaži ime: <muted>
+st_srp_hud_mute_hide	Sakrij čet
+st_srp_hud_mute_mask	Prikaži čet kao <muted>
 st_srp_hud_mute_not_sent	Nije poslato
 st_srp_hud_muted	Čet utišan
 st_srp_hud_unmute	Uključi čet

@@ -619,11 +619,11 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 account_id: r.u32()?,
             },
             3 => FriendshipAction::Ignore {
-                account_id: r.u32()?,
+                account_id: super::listed_account(r.u32()?),
             },
             4 => FriendshipAction::IgnoreByName { name: r.str()? },
             5 => FriendshipAction::StopIgnoring {
-                account_id: r.u32()?,
+                account_id: super::listed_account(r.u32()?),
             },
             6 => FriendshipAction::FindPlayers { name: r.str()? },
             sub => return Err(r.unknown_sub(sub)),

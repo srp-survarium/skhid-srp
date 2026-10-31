@@ -16,10 +16,9 @@ package survarium.controls
    // row while the list's cursor is shown (Ctrl, exe patch 86) asks the exe what the row offers
    // (srp_player_menu(place), answered root.srp_player_menu -> offered), and shows those entries at the
    // mouse. An entry is {key: its text's dictionary key, method: the exe's call with the row's place (and
-   // its choice, when it has one)}, or {key, entries: what it opens in its place} ("Mute chat": the lobby
-   // menu's three choices, ChatMute.as there). The exe answers each call (root.srp_friend_request ->
-   // requested, root.srp_chat_mute -> muted) and the menu shows the answer's line in its place. The list
-   // hidden (Tab let go) or a press elsewhere closes it, the answer's line too.
+   // its choice, when it has one)}. The exe answers each call (root.srp_friend_request -> requested,
+   // root.srp_chat_mute -> muted) and the menu shows the answer's line in its place. The list hidden (Tab
+   // let go) or a press elsewhere closes it, the answer's line too.
    public class PlayerRowMenu extends Sprite
    {
       // The menu's states: closed; asking the exe for a row's entries; open; an entry sent, awaiting its
@@ -39,15 +38,12 @@ package survarium.controls
          method:"srp_add_friend"
       };
 
-      // The choices are the lobby's modes (ChatMute.as: 1 hide, 2 show "<muted>", 0 unmute); the exe
-      // sends them as the lobby's player menu does. Unmute is always offered: the client is told only
-      // the hidden players (the native ignore list), not those shown as "<muted>".
-      public static const MUTE_CHAT:Object = {
-         key:"st_srp_hud_mute_chat",
-         entries:[{key:"st_srp_hud_mute_hide",method:"srp_chat_mute",choice:"1"},
-                  {key:"st_srp_hud_mute_mask",method:"srp_chat_mute",choice:"2"},
-                  {key:"st_srp_hud_unmute",method:"srp_chat_mute",choice:"0"}]
-      };
+      // The chat mute entries (chat-mute.md): the lobby's modes, as the lobby's player menu has them
+      // (ChatMute.as): a choice's code is the state it leaves (the exe's `muted`: 0 not muted, 1 hidden,
+      // 2 shown as "<muted>"). The menu offers the two that change the player's state.
+      public static const MUTES:Array = [{key:"st_srp_hud_mute_hide",method:"srp_chat_mute",choice:"1"},
+                                         {key:"st_srp_hud_mute_mask",method:"srp_chat_mute",choice:"2"},
+                                         {key:"st_srp_hud_unmute",method:"srp_chat_mute",choice:"0"}];
 
       private static const ROW:Number = 24;
 
@@ -131,7 +127,7 @@ package survarium.controls
       }
 
       // The exe's answer to srp_player_menu: what the row at `place` offers.
-      public function offered(place:uint, addFriend:Boolean, mute:Boolean) : void
+      public function offered(place:uint, addFriend:Boolean, mute:Boolean, muted:uint) : void
       {
          if(this._state != ASKING || uint(this._row.id) != place)
          {
@@ -144,7 +140,13 @@ package survarium.controls
          }
          if(mute)
          {
-            entries.push(MUTE_CHAT);
+            for each(var choice:Object in MUTES)
+            {
+               if(choice.choice != String(muted))
+               {
+                  entries.push(choice);
+               }
+            }
          }
          if(entries.length == 0)
          {
@@ -214,11 +216,6 @@ package survarium.controls
          {
             return;
          }
-         if(entry.entries)
-         {
-            this.draw(entry.entries);
-            return;
-         }
          this._state = SENDING;
          this._sent = entry;
          if(entry.choice != undefined)
@@ -231,7 +228,7 @@ package survarium.controls
          }
       }
 
-      // The entries (an entry without a method or entries is a line of text), one row each.
+      // The entries (an entry without a method is a line of text), one row each.
       private function draw(entries:Array) : void
       {
          this.clear();
@@ -261,7 +258,7 @@ package survarium.controls
             fields[i].x = PAD;
             fields[i].y = (ROW - fields[i].height) / 2;
             item.addChild(fields[i]);
-            if(entries[i].method || entries[i].entries)
+            if(entries[i].method)
             {
                this.makeChoice(item,width,entries[i]);
             }

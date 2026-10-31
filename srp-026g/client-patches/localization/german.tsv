@@ -2388,9 +2388,8 @@ st_srp_exchange_title	Tausch
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
-st_srp_hud_mute_chat	Chat stummschalten
-st_srp_hud_mute_hide	Nachrichten ausblenden
-st_srp_hud_mute_mask	Name: <muted> anzeigen
+st_srp_hud_mute_hide	Chat ausblenden
+st_srp_hud_mute_mask	Chat als <muted> zeigen
 st_srp_hud_mute_not_sent	Nicht gesendet
 st_srp_hud_muted	Chat stummgeschaltet
 st_srp_hud_unmute	Chat freigeben

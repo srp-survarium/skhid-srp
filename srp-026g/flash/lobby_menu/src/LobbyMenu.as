@@ -6389,10 +6389,7 @@ package
                   }
                }
             });
-            options.push({
-               name:LocalizationData.getName(ChatMute.LABEL),
-               options:ChatMute.options(nickname)
-            });
+            options = options.concat(ChatMute.options(nickname));
             options.push({
                name:LocalizationData.getName("send_message"),
                click_function:function():void

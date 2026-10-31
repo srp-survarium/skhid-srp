@@ -361,36 +361,45 @@ package
             Player.isSquadFull = false;
             friends.setPlayers([]);
             friends.setPlayers([],false);
-            Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            var items:Object = Menu.getInstance().contextList.list.dataProvider;
-            if(items.length != 5 || items[1].name != "#add_to_friends" || items[2].name != "#st_srp_hud_mute_chat"
-               || items[3].name != "#send_message" || items[4].name != "#invite_to_squad")
-               failures.push("stranger menu lacks friend, mute, message or squad actions");
-            var muteOptions:Array = items[2].options;
-            if(muteOptions == null || muteOptions.length != 3 || muteOptions[0].name != "#st_srp_hud_mute_hide"
-               || muteOptions[1].name != "#st_srp_hud_mute_mask" || muteOptions[2].name != "#st_srp_hud_unmute")
-               failures.push("mute submenu lacks hide, placeholder or unmute modes");
+            // The menu's names, from the second entry on: the friend action, the two mute entries that
+            // change Bob's state (the server's ignore list: every muted player, a <muted> one's id with
+            // bit 31), then message and squad.
+            var names:Function = function():String
+            {
+               var items:Object = Menu.getInstance().contextList.list.dataProvider;
+               var out:Array = [];
+               for(var i:int = 1; i < items.length; i++)
+                  out.push(items[i].name);
+               return out.join("|");
+            };
+            var self:RoomsHarness = this;
+            var menuFor:Function = function(what:String, want:String):void
+            {
+               Lobby.showPlayerInfoMenu("Bob",17,0,self);
+               var got:String = names();
+               trace("ROOMS player menu, " + what + ": " + got);
+               if(got != want)
+                  failures.push("player menu, " + what + ": " + got + ", not " + want);
+            };
+            menuFor("a stranger not muted", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             friends.setPlayers([{id:123,name:"Bob",status:0}]);
             friends.setPlayers([{id:456,name:"Bob"}],false);
-            Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            items = Menu.getInstance().contextList.list.dataProvider;
-            if(items[1].name != "#remove_from_friends" || items[2].options.length != 3
-               || Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
-               failures.push("friend menu or mute choices missing after ignore push");
+            menuFor("a friend hidden", "#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            if(Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
+               failures.push("the pushed friend and ignore lists' ids");
+            friends.setPlayers([{id:uint(456 | 0x80000000),name:"Bob"}],false);
+            menuFor("a friend shown as <muted>", "#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
             friends.setPlayers([]);
             friends.setPlayers([],false);
-            Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            items = Menu.getInstance().contextList.list.dataProvider;
-            if(items[1].name != "#add_to_friends" || items[2].name != "#st_srp_hud_mute_chat")
-               failures.push("remove/unmute push did not reset player actions");
+            menuFor("unmuted, no longer a friend", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             Player.commander = false;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 4)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
                failures.push("non-commander can invite to squad");
             Player.commander = true;
             Player.isSquadFull = true;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 4)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
                failures.push("full squad can invite another player");
             Lobby.showPlayerInfoMenu("Alice",17,0,this);
             if(Menu.getInstance().contextList.list.dataProvider.length != 1)
@@ -400,7 +409,7 @@ package
             if(Menu.visisble)
                failures.push("empty player name opened a menu");
             Player.isSquadFull = false;
-            trace("ROOMS player menu: friend/remove, hide/placeholder/unmute, message, squad guards and self passed");
+            trace("ROOMS player menu: friend/remove, the two mute entries of each state, message, squad guards and self");
          }
          catch(err:Error)
          {

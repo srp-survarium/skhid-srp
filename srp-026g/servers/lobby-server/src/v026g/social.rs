@@ -40,8 +40,9 @@
 //!   `ignored`: kept in `srp.db` as for 0.21d). The client never asks for
 //!   them: they are pushed at sign-in and after each change (`A3 07`,
 //!   `A3 08`), and the friends' statuses when one changes (`A3 09`, with
-//!   exactly the friends of the last `A3 07`). `A3 08` contains only Hidden
-//!   senders so the native client accepts placeholder messages. The old `u8 result`
+//!   exactly the friends of the last `A3 07`). `A3 08` lists every muted
+//!   player; a `<muted>` one's id is marked (`lobby::SHOWN_MUTED`), so the
+//!   client's own filter passes its `<muted>` lines (chat-mute.md). The old `u8 result`
 //!   answers are gone: the client would read them as a search list. A
 //!   player may send [`FRIEND_REQUEST_BURST`] friend requests at once and
 //!   one every [`FRIEND_REQUEST_EVERY`] after (the client keeps the same
@@ -241,8 +242,7 @@ impl Core<'_> {
                 self.store.mark_dirty(who.account_id);
             }
         }
-        // The native client drops every account on this list before reading
-        // the body. Only Hidden belongs here; Placeholder must reach the HUD.
+        // Both menus offer the choices by the mode this list gives them.
         self.push_ignored(who);
     }
 
@@ -696,17 +696,17 @@ impl Core<'_> {
         }
     }
 
-    /// `A3 08`: hidden senders only. Placeholder senders must pass the native filter.
+    /// `A3 08`: every muted player, a `<muted>` one's id marked
+    /// (`lobby::SHOWN_MUTED`) so that its lines pass the client's filter.
     pub(super) fn push_ignored(&mut self, who: &Who) {
         let ids = self
             .store
             .account(who.account_id)
             .map(|account| account.locked().ignored.clone())
             .unwrap_or_default();
-        let ignored: Vec<(u32, String)> = ids
+        let ignored: Vec<(u32, String, lobby::ChatMuteMode)> = ids
             .entries()
-            .filter(|(_, mode)| *mode == lobby::ChatMuteMode::Hidden)
-            .filter_map(|(account_id, _)| Some((account_id, self.name_of(account_id)?)))
+            .filter_map(|(account_id, mode)| Some((account_id, self.name_of(account_id)?, mode)))
             .collect();
         self.send_made(who.addr, lobby::ignore_list(&ignored));
     }
