@@ -34,7 +34,11 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
     the minimap does not turn with the view (north up; the hud's `set_rotable(false)`, the player
     arrow turns instead). Its value and behaviour are the stock ones.
   - **The minimap position list** (`_setter_static_minimap_position`: off, lower left, upper left)
-    as it was. These two are the game's only map settings (no other tab has any).
+    as it was, its off choice named "Hidden minimap" as the crosshair list's "Hidden crosshair"
+    (the owner, 2026-10-31: "minimap off and hidden crosshair are inconsistent"; the stock key
+    `st_minimap_off`, which only this list uses, in every dictionary;
+    `../images/hide-options-minimap.png`). These two are the game's only map settings (no other
+    tab has any).
 - **The crosshair list:** Dynamic and Static are the stock static crosshair setting
   (`_setter_static_cross`: unchecked Dynamic, checked Static), so the stock values carry over; a
   pick of either sets it, which reaches the exe as the tab's own change. Hidden is patch 83's
@@ -129,8 +133,8 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Checks:** `../../client-patches/check_hud_options_026g.py` (Unicorn: the registration and
   user.cfg's lines, the Settings' calls, the hud told at each change), Rust tests,
   `../../scripts/hud-options/check.sh` (Ruffle: the two columns' order, edges, spacing, no
-  overlaps, nothing below the window, every language's texts fitting, with the note shown and
-  hidden; each pending change, Apply, Cancel; Hide quests' inversion through the stock setter and
-  its default; the crosshair list's mapping, Hidden keeping the stock value, closing on a press
-  outside; the hit marker shown off, hidden on, none with the crosshair hidden; the Tab list as
+  overlaps, nothing below the window, every language's texts fitting (the crosshair and minimap
+  lists' choices too), with the note shown and hidden; each pending change, Apply, Cancel; Hide
+  quests' inversion through the stock setter and its default; the crosshair list's mapping, Hidden
+  keeping the stock value, closing on a press outside; the hit marker shown off, hidden on, none with the crosshair hidden; the Tab list as
   today off, names only on, by clan and name). Not yet run in the game.

@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Primaj privatne poruke samo od prijatelja
 st_microphone_sensitivity_option	Osetljivost mikrofona
 st_minimap	Mini-mapa
 st_minimap_bottom	Donji levi ugao
-st_minimap_off	Isključena mini-mapa
+st_minimap_off	Skrivena mini-mapa
 st_minimap_position	Položaj mini-mape
 st_minimap_rotable_option	Fiksiraj mini-mapu
 st_minimap_top	Gornji levi ugao

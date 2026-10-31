@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Yksityisviestit vain kavereilta
 st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_minimap	Pienoiskartta
 st_minimap_bottom	Vasen alakulma
-st_minimap_off	Pienoiskartta pois
+st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
 st_minimap_top	Vasen yläkulma
