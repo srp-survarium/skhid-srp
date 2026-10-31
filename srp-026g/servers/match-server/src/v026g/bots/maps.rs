@@ -529,7 +529,8 @@ fn build(
                     || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
-                let grid = Arc::new(grid);
+                // The table of wall clearances ([`WalkGrid::wall_clearance`]): derived from the triangles, in neither the cached file nor the key.
+                let grid = Arc::new(grid.with_wall_clearance(&walker));
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
             }
