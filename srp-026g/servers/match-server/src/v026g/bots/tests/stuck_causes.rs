@@ -14,6 +14,9 @@
 //! - `line_free`: nothing in the sweep: the cause is not the wall (a ledge, a jump, a lift, the recovery itself);
 //! - `no_waypoint`: the note names none.
 //!
+//! Each note is also counted `humans` when live players have stood within 1 m of the spot (5 or more samples of the 12+ human matches
+//! at the same height, `SRP_HUMAN_DIR`): a place players use.
+//!
 //! `SRP_MAPDATA_DIR=<maps> SRP_STUCK_NOTES=<tsv> cargo test -p match-server --release stuck_causes -- --ignored --nocapture`, the tsv of
 //! `arm<TAB>project<TAB>x<TAB>y<TAB>z<TAB>nx<TAB>ny<TAB>nz<TAB>beside<TAB>heading_off` per note (`nan` for no waypoint).
 
@@ -89,6 +92,20 @@ fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to:
     false
 }
 
+/// The live alive samples of a map (x, feet, z) that were on the ground, from `SRP_HUMAN_DIR/<level>_<weather>_<n>.tsv`.
+fn humans_of(project: &str) -> Vec<[f32; 3]> {
+    let Ok(dir) = std::env::var("SRP_HUMAN_DIR") else { return Vec::new() };
+    let path = std::path::Path::new(&dir).join(format!("{}.tsv", project.replace('/', "_")));
+    let Ok(text) = std::fs::read_to_string(path) else { return Vec::new() };
+    text.lines()
+        .skip(1)
+        .filter_map(|line| {
+            let c: Vec<&str> = line.split('	').collect();
+            (c.len() >= 10 && c[8] == "0").then(|| Some([c[3].parse().ok()?, c[4].parse().ok()?, c[5].parse().ok()?])).flatten()
+        })
+        .collect()
+}
+
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_STUCK_NOTES"]
 fn stuck_causes() {
@@ -108,6 +125,7 @@ fn stuck_causes() {
         by_project.entry(f[1].to_string()).or_default().push((f[0].to_string(), [num(2), num(3), num(4)], next, f[8] == "1"));
     }
     let mut totals: HashMap<(String, Cause), u32> = HashMap::new();
+    let mut human_totals: HashMap<(String, Cause), u32> = HashMap::new();
     let mut projects: Vec<_> = by_project.into_iter().collect();
     projects.sort_by(|a, b| a.0.cmp(&b.0));
     for (project, rows) in projects {
@@ -117,6 +135,7 @@ fn stuck_causes() {
         let world = World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links);
         let mut segs = Vec::new();
         let mut per: HashMap<(String, Cause), u32> = HashMap::new();
+        let humans = humans_of(&project);
         for (arm, at, next, beside) in rows {
             let here = (at[0], at[2]);
             let clear = clearance(&sections, &mut segs, here, at[1]);
@@ -141,6 +160,10 @@ fn stuck_causes() {
             } else {
                 Cause::NoWaypoint
             };
+            let used = humans.iter().filter(|h| (h[0] - at[0]).hypot(h[2] - at[2]) <= 1.0 && (h[1] - at[1]).abs() <= 1.5).count() >= 5;
+            if used {
+                *human_totals.entry((arm.clone(), cause)).or_default() += 1;
+            }
             *per.entry((arm.clone(), cause)).or_default() += 1;
             *totals.entry((arm, cause)).or_default() += 1;
         }
@@ -150,5 +173,5 @@ fn stuck_causes() {
     }
     let mut keys: Vec<_> = totals.keys().cloned().collect();
     keys.sort();
-    println!("ALL: {}", keys.iter().map(|k| format!("{} {:?} {}", k.0, k.1, totals[k])).collect::<Vec<_>>().join(", "));
+    println!("ALL: {}", keys.iter().map(|k| format!("{} {:?} {} (humans use the spot {})", k.0, k.1, totals[k], human_totals.get(k).copied().unwrap_or(0))).collect::<Vec<_>>().join(", "));
 }
