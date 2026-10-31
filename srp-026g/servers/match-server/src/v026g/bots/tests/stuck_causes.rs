@@ -61,11 +61,15 @@ enum FreeKind {
     UpLow,
     /// The next waypoint is over 1.11 m higher: a jump up.
     UpHigh,
-    /// The next waypoint is 0.5 m or more lower: a drop.
+    /// The next waypoint is 0.5 m or more lower: a drop, the spot a lip floor or near a lip or a fall.
+    DownLip,
+    /// The same, the spot away from a lip.
     Down,
     /// The spot is a lip floor or near a lip or a fall, on the level.
     Lip,
-    /// None of these: on the level, away from a ledge.
+    /// None of these, within 0.45 m of a wall: pressed along a wall (the slide's speed under the stuck watch's?).
+    LevelWall,
+    /// None of these, in the open.
     Level,
 }
 
@@ -204,15 +208,21 @@ fn stuck_causes() {
                 } else if rise > 0.6 {
                     FreeKind::UpLow
                 } else if rise < -0.5 {
-                    FreeKind::Down
+                    if node.is_some_and(|n| world.grid.is_lip(n) || world.grid.near_lip(n) || world.grid.near_fall(n)) {
+                        FreeKind::DownLip
+                    } else {
+                        FreeKind::Down
+                    }
                 } else if node.is_some_and(|n| world.grid.is_lip(n) || world.grid.near_lip(n) || world.grid.near_fall(n)) {
                     FreeKind::Lip
+                } else if clear < 0.45 {
+                    FreeKind::LevelWall
                 } else {
                     FreeKind::Level
                 };
                 *free_per.entry((arm.clone(), kind)).or_default() += 1;
                 *free_totals.entry((arm.clone(), kind)).or_default() += 1;
-                if kind == FreeKind::Level {
+                if matches!(kind, FreeKind::Level | FreeKind::LevelWall) {
                     *level_recovery.entry((arm.clone(), recovery.clone())).or_default() += 1;
                 }
             }
