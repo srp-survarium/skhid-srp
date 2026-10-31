@@ -2700,6 +2700,34 @@ st_stats_saved	Pelastettu:
 st_stats_silent_kills	Hiljaiset tapot:
 st_stats_stolen_victory_items	Varastetut akut:
 st_status_str	Tila:
+st_stk2_bandit_026_boots_desc	Kuluneet lenkkarit perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_boots_name	Lenkkarit
+st_stk2_bandit_026_legs_desc	Raidalliset verryttelyhousut perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_legs_name	Verryttelyhousut
+st_stk2_bandit_026_torso_desc	Musta nahkainen bomber-takki T-paidan päällä perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_torso_name	Nahkainen bomber-takki
+st_stk2_loner_026_boots_desc	Yksinäisen nauhalliset nahkasaappaat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_boots_name	Yksinäisen saappaat
+st_stk2_loner_026_hand_desc	Yksinäisen sormettomat hanskat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_hand_name	Yksinäisen sormettomat käsineet
+st_stk2_loner_026_legs_desc	Maastohousut polvisuojilla, koteloilla ja taskuilla perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_legs_name	Yksinäisen maastohousut
+st_stk2_loner_026_torso_desc	Huputettu takki taskullisen kantoliivin alla perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_torso_name	Yksinäisen takki ja liivi
+st_stk2_novice_026_back_desc	Aloittelevan stalkerin yksihihnainen kangasreppu perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_back_name	Tulokkaan reppu
+st_stk2_novice_026_boots_desc	Aloittelevan stalkerin nahkasaappaat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_boots_name	Tulokkaan saappaat
+st_stk2_novice_026_hand_desc	Aloittelevan stalkerin sormettomat hanskat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_hand_name	Tulokkaan sormettomat käsineet
+st_stk2_novice_026_hood_desc	Aloittelevan stalkerin kangashuppu perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_hood_name	Tulokkaan huppu
+st_stk2_novice_026_legs_desc	Aloittelevan stalkerin kuluneet farkut perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_legs_name	Tulokkaan farkut
+st_stk2_novice_026_torso_desc	Aloittelevan stalkerin kenttätakki, vyöllä juomapullo ja veitsi, perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_torso_name	Tulokkaan kenttätakki
+st_stk2_novice_026_torso_v2_desc	Aloittelevan stalkerin kenttätakki, vyöllä kaksi taskua, perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_torso_v2_name	Tulokkaan kenttätakki taskuilla
 st_storage	Varasto
 st_string_pattern_error	Nimessä on virheellisiä merkkejä tai se on liian pitkä tai lyhyt
 st_support	Tuki
