@@ -184,14 +184,22 @@ impl DrugInUse<'_> {
     /// active time it heals no more, and what it healed stays. Its own
     /// state says how far it got (+2ACh, +2A8h), so set_active undoes only
     /// what was done (the drug_activity node once the active time began).
-    /// The unit was taken at the press.
+    /// The unit was taken at the press. Once only: set_active(0) twice
+    /// unlinks its tick node and drug_activity node again (the tick lists
+    /// at world+19830h, the kit's modifier list emptied), so the flag
+    /// `DrugsInUse` saw is read again under the lock: a bullet of another
+    /// task that hit the same holder in this tick may have stopped it since.
     pub fn stop(self, at: HitTime) {
         STOPPING.with(self.thread, |_| {
-            // SAFETY: a drug in use in the victim's slot, on the thread of
-            // the hit; set_active is what the game's own tick calls on it in
-            // the simulation, and what it touches is the drug's, its
-            // holder's and the world's tick list, the latter under the lock.
-            unsafe { raw::engine_medkit_set_active(Some(self.medkit), 0, at.0) }
+            // SAFETY: a drug in the victim's slot, on the thread of the hit,
+            // under the lock every stop takes; set_active is what the game's
+            // own tick calls on it in the simulation, and what it touches is
+            // the drug's, its holder's and the world's tick list.
+            unsafe {
+                if read(self.medkit.active()) != 0 {
+                    raw::engine_medkit_set_active(Some(self.medkit), 0, at.0);
+                }
+            }
         });
     }
 }

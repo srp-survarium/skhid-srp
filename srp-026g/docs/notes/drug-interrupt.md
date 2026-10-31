@@ -52,7 +52,9 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   from the world's tick list, ends its drug_activity modifier only if the active time began, tells
   the listeners, zeroes the healed-so-far counters and unlinks its damage protectors.
 - With 256 bullets or more in flight the game ticks bullets on several threads, hits and all;
-  the stops take a lock, since every drug shares the world's tick list.
+  the stops take a lock, since every drug shares the world's tick list, and each reads the drug's
+  use flag again under it: two bullets of two tasks that hit one holder in one tick stop the drug
+  once (set_active(0) twice would unlink its tick and drug_activity nodes again).
 - Check: `client-patches/check_drug_interrupt_026g.py` (Unicorn: the hook in the patched exe,
   and the game's own set_active(0) in the use time, the active time and between them).
 
