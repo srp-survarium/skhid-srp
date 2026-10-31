@@ -6,6 +6,8 @@
 //! - `beside`: a body (friend or enemy) within 1.2 m;
 //! - `inside`: the spot is within the capsule's reach of a wall (a clearance under 0.36 m): a floor the grid has that the capsule does
 //!   not fit;
+//! - `line_blocked_waypoint_inside`: the same sweep meets a wall, and the next waypoint itself has no point the capsule fits within
+//!   0.5 m (a floor the grid has that the capsule does not fit);
 //! - `line_blocked_no_way`: the capsule swept from the spot toward the next waypoint meets a wall within 3 m of it, and there is no
 //!   way for the capsule (clearance 0.38 m or more at every 0.1 m step of a floor) from the spot to the waypoint inside a 8 m square:
 //!   the route goes through a gap narrower than the capsule;
@@ -37,10 +39,19 @@ const STEP_M: f32 = 0.1;
 enum Cause {
     Beside,
     Inside,
+    LineBlockedWaypointInside,
     LineBlockedNoWay,
     LineBlockedWay,
     LineFree,
     NoWaypoint,
+}
+
+/// What the search for a way for the capsule found.
+enum Way {
+    Yes,
+    No,
+    /// The waypoint's surroundings have no point the capsule fits.
+    GoalInside,
 }
 
 fn clearance(sections: &Sections, segs: &mut Vec<Seg>, at: (f32, f32), y: f32) -> f32 {
@@ -50,7 +61,7 @@ fn clearance(sections: &Sections, segs: &mut Vec<Seg>, at: (f32, f32), y: f32) -
 
 /// Whether the capsule can walk from `from` to `to` inside the box: a breadth-first search over the 0.1 m lattice of the points
 /// with a floor within 1 m of `y` and a wall clearance of the capsule's radius.
-fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to: (f32, f32), y: f32) -> bool {
+fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to: (f32, f32), y: f32) -> Way {
     let grid = &world.grid;
     let n = (2.0 * BOX_M / STEP_M) as i32 + 1;
     let cell = |p: (f32, f32)| (((p.0 - (from.0 - BOX_M)) / STEP_M).round() as i32, ((p.1 - (from.1 - BOX_M)) / STEP_M).round() as i32);
@@ -69,7 +80,10 @@ fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to:
     // The spot itself may be inside a wall's reach: start from the fitting cells within 0.5 m of it, end within 0.5 m of the waypoint.
     let (start, goal) = (cell(from), cell(to));
     let near = |c: (i32, i32), r: i32| (-r..=r).flat_map(move |dx| (-r..=r).map(move |dz| (c.0 + dx, c.1 + dz)));
-    let goals: Vec<(i32, i32)> = near(goal, 5).collect();
+    let goals: Vec<(i32, i32)> = near(goal, 5).filter(|&c| fit(c, &mut segs)).collect();
+    if goals.is_empty() {
+        return Way::GoalInside;
+    }
     let mut seen = std::collections::HashSet::new();
     let mut queue = VecDeque::new();
     for c in near(start, 5) {
@@ -79,7 +93,7 @@ fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to:
     }
     while let Some(c) = queue.pop_front() {
         if goals.contains(&c) {
-            return true;
+            return Way::Yes;
         }
         for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
             let next = (c.0 + dx, c.1 + dz);
@@ -89,7 +103,7 @@ fn way_for_the_capsule(world: &World, sections: &Sections, from: (f32, f32), to:
             }
         }
     }
-    false
+    Way::No
 }
 
 /// The live alive samples of a map (x, feet, z) that were on the ground, from `SRP_HUMAN_DIR/<level>_<weather>_<n>.tsv`.
@@ -152,7 +166,11 @@ fn stuck_causes() {
                     let k = (LOOK_M / len).min(1.0);
                     sections.near(here, at[1], LOOK_M + 1.0, &mut segs);
                     if sweep(&segs, here, (dx * k, dz * k), RADIUS_M).is_some() {
-                        if way_for_the_capsule(&world, &sections, here, (next[0], next[2]), at[1]) { Cause::LineBlockedWay } else { Cause::LineBlockedNoWay }
+                        match way_for_the_capsule(&world, &sections, here, (next[0], next[2]), at[1]) {
+                            Way::Yes => Cause::LineBlockedWay,
+                            Way::No => Cause::LineBlockedNoWay,
+                            Way::GoalInside => Cause::LineBlockedWaypointInside,
+                        }
                     } else {
                         Cause::LineFree
                     }
