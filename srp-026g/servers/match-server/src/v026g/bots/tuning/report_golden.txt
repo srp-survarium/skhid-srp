@@ -22,7 +22,7 @@ switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
-switches OFF feel: fight_lift floor_height_clear
+switches OFF feel: fight_lift floor_height_clear lip_guard_full
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
@@ -35,7 +35,7 @@ switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped com
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values kin: jump_snap=by_keys pitch_scale=client
+switch values kin: edge=lattice jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
