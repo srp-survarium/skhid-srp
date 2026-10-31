@@ -1185,13 +1185,11 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # before it, a Rust crate per patch with a tail jump.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
 
-# The Rust exe patches (docs/notes/rust_patches.md): the module names (for
-# link_026g.py --sizes) and the hooks the patches declare in their TOML,
-# applied like the other arena hooks (site VA, the bytes replaced, the
+# The Rust exe patches (docs/notes/rust_patches.md): the module names, one
+# per TOML (for link_026g.py --sizes), and the hooks the patches declare in
+# it, applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score",
-                "lamps", "map_names", "hud_options", "tab_cursor", "lobby_scene", "weapon_flight", "camera_sweep",
-                "world_check", "music", "drug_interrupt")
+RUST_PATCHES = tuple(toml["name"] for toml in hooks_026g.read_tomls())
 
 
 def rust_hooks(original):
