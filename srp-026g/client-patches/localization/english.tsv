@@ -2385,6 +2385,11 @@ st_srp_exchange_receive	Receive
 st_srp_exchange_short_gold	Not enough gold
 st_srp_exchange_short_silver	Not enough silver
 st_srp_exchange_title	Exchange
+st_srp_hide_hit_markers_option	Hide hit markers
+st_srp_hide_scores_option	Hide player scores
+st_srp_hud_add_friend	Add to friends
+st_srp_hud_friend_not_sent	Friend request not sent
+st_srp_hud_friend_sent	Friend request sent
 st_srp_inventory_search	Search
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.

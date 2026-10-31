@@ -216,6 +216,30 @@ fn a_friend_request_or_an_invite_for_nobody_is_answered_with_player_not_found() 
     world.assert_clean();
 }
 
+/// From a match (the Tab list's menu, exe patch 86) a friend request for a
+/// name that is no account (a bot's place) is dropped: the lobby's message
+/// box would only come up back in the lobby.
+#[test]
+fn a_friend_request_for_nobody_from_a_match_is_dropped_in_silence() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let carol = world.connect("Carol");
+    world.ask(alice, request::play(1));
+    world.ask(carol, request::play(1));
+    world.advance(PLAY_TO_MATCH);
+    for client in [alice, carol] {
+        world.take(client);
+    }
+    let mark = world.mark(alice);
+    world.ask(alice, request::important("Nobody", 0, ""));
+    assert!(world.denials_since(alice, mark).is_empty());
+    // One to a player is sent from the match as from the lobby.
+    let carol_mark = world.mark(carol);
+    world.ask(alice, request::important("Carol", 0, ""));
+    assert!(world.pushed_since(carol, carol_mark).iter().any(|(id, _)| *id == 0xA4));
+    world.assert_clean();
+}
+
 #[test]
 fn a_refused_squad_action_is_answered_with_the_squad_and_no_text() {
     let mut world = World::new();

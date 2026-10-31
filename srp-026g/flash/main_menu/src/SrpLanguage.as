@@ -1,5 +1,6 @@
 package
 {
+    import flash.display.DisplayObject;
     import flash.display.MovieClip;
     import flash.external.ExternalInterface;
     import flash.text.TextField;
@@ -75,10 +76,17 @@ package
             show();
         }
 
-        // On every bind of a tab (create_content): shown on the gameplay
-        // frame, where the exe is asked for the list.
+        // On every bind of a tab (create_content): on top of the tab (a tab
+        // change puts the tab's own timeline children back over script-added
+        // ones, the bottom panel's translucent rect among them, which would
+        // dim and cover these controls), shown on the gameplay frame, where
+        // the exe is asked for the list.
         public function place():void
         {
+            for each (var control:DisplayObject in [label, menu, note])
+            {
+                content.setChildIndex(control, content.numChildren - 1);
+            }
             show();
             if (content.currentFrame == GAMEPLAY_FRAME)
             {
