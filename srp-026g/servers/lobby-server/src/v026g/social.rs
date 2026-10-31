@@ -223,7 +223,12 @@ impl Core<'_> {
             return;
         }
         let Some(target) = self.account_named(name, who.account_id) else {
-            self.player_not_found(who, name, now);
+            // From a match (the Tab list's menu: a bot's place has no
+            // account) the lobby's message box would come up only back in
+            // the lobby, for a player long gone: none.
+            if self.player(who.addr).is_some_and(|player| player.in_match.is_none()) {
+                self.player_not_found(who, name, now);
+            }
             return;
         };
         if let Some(account) = self.store.account(who.account_id) {

@@ -111,7 +111,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
-| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -3732,7 +3732,7 @@ Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
 own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
 buttons stop; the moves go on. That Ctrl press and its held and release
 events are taken from the player, so it does not crouch. A right-click on
-a row opens the hud movie's `PlayerRowMenu` with "Add to friends". The
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and "Mute chat". The
 entry sends the lobby's own friend request (`4D` type 0, through
 messaging_client::send_important_message 0x26AFB0) to that place's bare
 name. The rules are in `../docs/notes/tab-cursor-friends.md`.
@@ -3743,12 +3743,15 @@ Blackout's at a match's options read (`static_info.options_read`,
 - `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
   Its exit `taken` is the function's `ret 0Ch`, with AL 1.
 - `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).
-  It answers `srp_player_menu` and `srp_add_friend` itself; any other call
-  goes on to the game's own dispatch.
+  It answers `srp_player_menu`, `srp_add_friend` and `srp_chat_mute` itself;
+  any other call goes on to the game's own dispatch.
 
 The client's checks are the lobby's: never the account's own name or a
 friend's; five requests at once, then one every 10 s; and the lobby
-connection up, as the lobby's senders check it.
+connection up, as the lobby's senders check it. A chat mute
+(`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
+mode), sent by lobby_client::comment_about_user (0x274470): never the own
+name, one of the three choices, the connection up.
 
 Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
 crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code

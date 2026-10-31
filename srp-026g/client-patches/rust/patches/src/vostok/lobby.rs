@@ -2,7 +2,9 @@
 //! the friend list the lobby pushed (`A3 07`, social.md 1.3), the lobby
 //! connection the messaging senders check, the friend request the lobby's
 //! own menus send (`4D` type 0, messaging_client::send_important_message
-//! 0x26AFB0), and the match's places (the Tab list's rows).
+//! 0x26AFB0), the chat mute the lobby's player menu sends (`49 05` kind 254,
+//! lobby_client::comment_about_user 0x274470), and the match's places (the
+//! Tab list's rows).
 
 use core::ffi::CStr;
 use core::marker::PhantomData;
@@ -23,6 +25,41 @@ const MAX_FRIENDS: usize = 1000;
 const SENDING: [u32; 2] = [0, 4];
 /// The friend request's type in a 4D (important_message_types: 0).
 const FRIEND_REQUEST: u32 = 0;
+
+/// srp's chat mute in a `49 05` (comment_about_user's kind): the lobby's
+/// `CHAT_MUTE_ACTION` (survarium::v026g::lobby), the lobby movie's
+/// `ChatMute.ACTION`.
+const CHAT_MUTE: u32 = 254;
+
+/// A chat mute choice of a player's menu (docs/notes/chat-mute.md), as the
+/// movies send it: `"1"` hide the player's lines, `"2"` show them as
+/// `<muted>`, `"0"` unmute.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MuteChoice {
+    Hide,
+    ShowMuted,
+    Unmute,
+}
+
+impl MuteChoice {
+    pub fn parse(text: &[u8]) -> Option<MuteChoice> {
+        match text {
+            b"1" => Some(MuteChoice::Hide),
+            b"2" => Some(MuteChoice::ShowMuted),
+            b"0" => Some(MuteChoice::Unmute),
+            _ => None,
+        }
+    }
+
+    /// The `49 05`'s mode byte (the lobby's `ChatMuteMode`, 0 unmute).
+    fn mode(self) -> u32 {
+        match self {
+            MuteChoice::Unmute => 0,
+            MuteChoice::Hide => 1,
+            MuteChoice::ShowMuted => 2,
+        }
+    }
+}
 
 /// The lobby connection is down: a messaging message is not sent (as the
 /// lobby's own senders refuse to).
@@ -103,6 +140,24 @@ impl<'t> Lobby<'t> {
         unsafe {
             raw::engine_send_important(Some(self.client.lobby().messaging()), name.as_ptr().cast(),
                                        FRIEND_REQUEST, c"".as_ptr().cast());
+        }
+        Ok(())
+    }
+
+    /// Sends the lobby `choice` for `name`'s chat lines, as the lobby's player
+    /// menu does (`49 05`, kind 254), when the lobby connection is up
+    /// (comment_about_user checks none itself).
+    pub fn send_chat_mute(&self, name: &CStr, choice: MuteChoice) -> Result<(), NotConnected> {
+        if !self.connected() {
+            return Err(NotConnected);
+        }
+        // SAFETY: the lobby client the lobby's own comment_about_user passes
+        // (0x28CC57: the network client's vtable +3Ch, 0x219960, its +1E0h),
+        // on the game's thread; the name a C string that outlives the call
+        // (written into the message before it returns).
+        unsafe {
+            raw::engine_comment_about_user(Some(self.client.lobby()), name.as_ptr().cast(), CHAT_MUTE,
+                                           choice.mode());
         }
         Ok(())
     }

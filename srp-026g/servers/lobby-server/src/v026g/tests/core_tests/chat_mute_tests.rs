@@ -127,3 +127,36 @@ fn mute_mode_is_per_recipient_and_switching_never_leaks_original_text() {
     );
     world.assert_clean();
 }
+
+#[test]
+fn a_mute_from_the_tab_list_reaches_the_lobby_and_one_for_nobody_is_silent() {
+    // The Tab list's menu (exe patch 86) sends the lobby menu's own 49 05
+    // from a match: the same rule, and a bot's place (no account) is
+    // dropped without the lobby's message box (chat-mute.md).
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    world.ask(alice, request::play(1));
+    world.ask(bob, request::play(1));
+    world.advance(PLAY_TO_MATCH);
+    for client in [alice, bob] {
+        world.take(client);
+    }
+    let mark = world.mark(bob);
+    world.ask(bob, request::chat_mute("Nobody", Some(Hidden)));
+    assert!(world.pushed_since(bob, mark).iter().all(|(id, _)| *id != 0x84));
+    world.ask(bob, request::chat_mute("alice", Some(Placeholder)));
+    let mode = |world: &World| {
+        world
+            .store
+            .account(world.ids[bob].0)
+            .unwrap()
+            .locked()
+            .ignored
+            .mode(world.ids[alice].0)
+    };
+    assert_eq!(mode(&world), Some(Placeholder));
+    world.ask(bob, request::chat_mute("Alice", None));
+    assert_eq!(mode(&world), None);
+    world.assert_clean();
+}

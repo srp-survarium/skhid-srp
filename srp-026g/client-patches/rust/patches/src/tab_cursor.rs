@@ -1,5 +1,6 @@
-//! Patch 86: a cursor over the Tab list, and a friend request from its rows
-//! (docs/notes/tab-cursor-friends.md). The hooks are `tab_cursor.toml`'s:
+//! Patch 86: a cursor over the Tab list, and a friend request and a chat
+//! mute from its rows (docs/notes/tab-cursor-friends.md, chat-mute.md). The
+//! hooks are `tab_cursor.toml`'s:
 //!
 //! - the game world's keys at their start (`tab_cursor.key`,
 //!   on_keyboard_action 0x25CD00): Ctrl pressed while the Tab list is up shows
@@ -10,22 +11,27 @@
 //!   `replay.options_read`, after Blackout's): the cursor state starts over;
 //! - the hud movie's calls (`hud.callback`, scaleform_callback 0x233D30):
 //!   `srp_player_menu(place)`, the row menu asking whether "Add to friends"
-//!   is offered for that place, answered `root.srp_player_menu(place, offer)`;
+//!   and "Mute chat" are offered for that place, answered
+//!   `root.srp_player_menu(place, add_friend, mute)`;
 //!   `srp_add_friend(place)`, answered `root.srp_friend_request(place, sent)`
 //!   after the lobby's own friend request (`4D` type 0, as the lobby's menus
-//!   send it) or none.
+//!   send it) or none; `srp_chat_mute(place, choice)`, answered
+//!   `root.srp_chat_mute(place, sent)` after the lobby's player menu's own
+//!   mute (`49 05` kind 254 with the choice's mode) or none.
 //!
 //! The client's checks are the lobby's (servers/lobby-server social.rs,
 //! `Core::important`): never the player's own name, never a friend, within
 //! the lobby's allowance ([`REQUEST_BURST`] at once, one more every
 //! [`REQUEST_EVERY_S`]); and the lobby connection up, as the lobby's
-//! senders check it. Nothing a match computes: the local interface
+//! senders check it. A mute's are the lobby's `set_chat_mute`'s: never the
+//! player's own name, a known choice; and the connection up. Nothing a match computes: the local interface
 //! and a lobby message.
 
 #![forbid(unsafe_code)]
 
 use crate::vostok::{
-    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, NoExit, NotConnected, TabCursorOnHudCallExit,
+    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, Lobby, MuteChoice, NoExit, NotConnected,
+    TabCursorOnHudCallExit,
     TabCursorOnKeyExit, Thread, clock,
 };
 use crate::vostok::types::Place;
@@ -205,7 +211,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<TabCursorOnKeyExit> {
     Flow::Continue
 }
 
-/// Why no friend request is offered or sent to a place.
+/// Why no friend request or mute is offered or sent to a place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Refusal {
     /// The match has no such place.
@@ -220,12 +226,18 @@ enum Refusal {
     TooMany,
 }
 
-/// The name a friend request to `place` would go to.
-fn offered<'l>(lobby: &'l Lobby<'_>, place: Place) -> Result<&'l core::ffi::CStr, Refusal> {
+/// The name of another player at `place`: what a mute goes to.
+fn other_player<'l>(lobby: &'l Lobby<'_>, place: Place) -> Result<&'l core::ffi::CStr, Refusal> {
     let name = lobby.place_name(place).filter(|name| !name.is_empty()).ok_or(Refusal::NoPlace)?;
     if lobby.own_name().is_some_and(|own| own.to_bytes().eq_ignore_ascii_case(name.to_bytes())) {
         return Err(Refusal::Own);
     }
+    Ok(name)
+}
+
+/// The name a friend request to `place` would go to.
+fn offered<'l>(lobby: &'l Lobby<'_>, place: Place) -> Result<&'l core::ffi::CStr, Refusal> {
+    let name = other_player(lobby, place)?;
     if lobby.is_friend(name.to_bytes()) {
         return Err(Refusal::Friend);
     }
@@ -251,10 +263,18 @@ fn send_request(thread: &Thread, lobby: &Lobby<'_>, place: Place) -> Result<(), 
     Ok(())
 }
 
+fn send_mute(lobby: &Lobby<'_>, place: Place, choice: MuteChoice) -> Result<(), Refusal> {
+    let name = other_player(lobby, place)?;
+    lobby.send_chat_mute(name, choice)?;
+    Ok(())
+}
+
 /// The hud movie's calls the patch answers.
 enum Request {
     Menu,
     AddFriend,
+    /// The choice, when the movie gave a known one.
+    Mute(Option<MuteChoice>),
 }
 
 /// scaleform_callback's start (0x233D30): every call of the hud movie.
@@ -263,6 +283,7 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<TabCursorOnHudCallExit> {
     let request = match call.method().to_bytes() {
         b"srp_player_menu" => Request::Menu,
         b"srp_add_friend" => Request::AddFriend,
+        b"srp_chat_mute" => Request::Mute(call.string_argument(1).and_then(|text| MuteChoice::parse(text.to_bytes()))),
         _ => return Flow::Continue,
     };
     let Some(place) = call.string_argument(0).and_then(|text| Place::parse(text.to_bytes())) else {
@@ -272,13 +293,18 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<TabCursorOnHudCallExit> {
     let index = u32::from(place.get());
     match request {
         Request::Menu => {
-            let offer = lobby.as_ref().is_some_and(|lobby| offered(lobby, place).is_ok());
-            call.answer(c"root.srp_player_menu", &[index, u32::from(offer)]);
+            let add_friend = lobby.as_ref().is_some_and(|lobby| offered(lobby, place).is_ok());
+            let mute = lobby.as_ref().is_some_and(|lobby| other_player(lobby, place).is_ok());
+            call.answer(c"root.srp_player_menu", &[index, u32::from(add_friend), u32::from(mute)]);
         }
         Request::AddFriend => {
             let sent = lobby.as_ref().ok_or(Refusal::NotConnected)
                 .and_then(|lobby| send_request(call.thread(), lobby, place)).is_ok();
             call.answer(c"root.srp_friend_request", &[index, u32::from(sent)]);
+        }
+        Request::Mute(choice) => {
+            let sent = lobby.as_ref().zip(choice).is_some_and(|(lobby, choice)| send_mute(lobby, place, choice).is_ok());
+            call.answer(c"root.srp_chat_mute", &[index, u32::from(sent)]);
         }
     }
     Flow::Exit(TabCursorOnHudCallExit::Done)
@@ -388,6 +414,16 @@ mod tests {
                 assert!(!step.take);
                 assert_eq!(step.next, state);
             }
+        }
+    }
+
+    #[test]
+    fn a_mute_choice_is_one_of_the_movies_three() {
+        assert_eq!(MuteChoice::parse(b"1"), Some(MuteChoice::Hide));
+        assert_eq!(MuteChoice::parse(b"2"), Some(MuteChoice::ShowMuted));
+        assert_eq!(MuteChoice::parse(b"0"), Some(MuteChoice::Unmute));
+        for text in [&b""[..], b"3", b"254", b"01", b"x"] {
+            assert_eq!(MuteChoice::parse(text), None);
         }
     }
 

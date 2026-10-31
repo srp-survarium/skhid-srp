@@ -242,3 +242,6 @@ extern engine_show_cursor
 ; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
 ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
 extern engine_send_important
+; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
+; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+extern engine_comment_about_user

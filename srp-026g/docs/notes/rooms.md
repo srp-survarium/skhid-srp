@@ -362,27 +362,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
 - **Player actions in rooms and rankings:** the same menu also offers Add/Remove friend,
-  a Mute chat submenu, Send message, and Invite to squad when the local player leads a squad
-  with space and the target is not already in it. Your own entry only offers information.
-  The submenu offers **Hide messages**, **Show name: `<muted>`**, and **Unmute chat** for
-  each player. Both modes persist by account id in the ignore table (schema step 5);
-  existing ignores migrate to Hide. A single typed policy per account prevents conflicting
-  modes. All incoming chat uses that policy: match/team, general/private, squad/clan, and
-  room messages including history sent on joining. Already displayed lines are not removed.
-  Hidden messages produce no packet; placeholders keep the real sender and channel and
-  replace the body before serialization, so the original text never reaches that recipient.
-  Only Hidden is sent in the native `A3 08` ignore list: the client would otherwise discard
-  placeholders before reading their bodies. Both modes still suppress requests/invites.
-  The menu uses the existing `comment_about_user(name,254,mode)` transport (`49 05`, mode
-  0 = unmute, 1 = hide, 2 = placeholder). Ordinary report/praise kinds remain unchanged;
-  unknown modes are rejected. No executable patch is needed. The native callback at
-  0x28CBE0 forwards both numeric arguments without clamping, and 0x274470 writes their low
-  bytes at 0x2744D8 and 0x2744F4. Names retain the existing 63-byte limit.
-  The room UI harness checks the submenu; with a third `hud.swf` argument it also checks
-  literal `name: <muted>` rendering in the match HUD. `chat_mute_tests` checks match/team
-  isolation, per-recipient modes, switches and absence of the original text in packets;
-  room-chat tests cover live messages and history, persistence tests cover both modes and
-  migration of existing ignores.
+  Mute chat (its three choices: [chat-mute.md](chat-mute.md)), Send message, and Invite to squad
+  when the local player leads a squad with space and the target is not already in it. Your own
+  entry only offers information. The room UI harness checks the menu.
 - **Deferred:**
   - **The list's counts** (the owner's of 2026-10-18: after rooms are solid): "Full · N in
     queue" on a full room, and totals in the list's header ("12 rooms · 87 players · 9
