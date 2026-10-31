@@ -147,6 +147,13 @@ pub struct Body {
     /// ([`WalkGrid::can_stand`] false). Off: it is taken away as the standing capsule's meeting a wall always did. A build input:
     /// in the key when off.
     pub crouch_only_floors: bool,
+    /// Whether a rise up a ledge's edge within [`Body::edge_step`] is walked (a Walk link up; down it stays a Drop), not jumped.
+    /// The client's `step_up` (0x7C900) lifts the capsule from below by the step and moves it on; `step_down` (0x7E1B0) sweeps
+    /// it down and keeps it where `impassable_slope` passes the contact's normal. A capsule's round bottom resting on an edge
+    /// over the step meets it at a normal within the slope up to [`Body::edge_step`] over the feet (LIKELY: the re-kit's
+    /// notes of those functions, not run in the client): Vostok Radar Station's 0.86-0.90 m edge at (8.41, -16.51), walked up
+    /// with no jump by the live players (A198). Off: a rise over [`Body::step`] is a jump. A build input: in the key when set.
+    pub capsule_steps: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -192,6 +199,7 @@ impl Body {
             landing_carry: false,
             keep_last_resorts: true,
             crouch_only_floors: true,
+            capsule_steps: false,
         }
     }
 }
@@ -215,6 +223,13 @@ impl Body {
     /// body that cannot sprint, `with_max_jump_rise`).
     pub fn jump_cap(&self) -> f32 {
         if self.client_slope() { SPRINT_JUMP_LOW_M.max(self.max_jump) } else { self.max_jump }
+    }
+
+    /// The highest edge the capsule steps up onto ([`Self::capsule_steps`]): the step, and the part of the radius over which its
+    /// round bottom meets an edge at a normal within the slope, `radius * (1 - min_ground_normal_y)`. With the clients'
+    /// numbers 0.80 + 0.38 * (1 - 0.574) = 0.96 m.
+    pub fn edge_step(&self) -> f32 {
+        self.step + self.radius * (1.0 - self.min_ground_normal_y)
     }
 
     /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
@@ -241,6 +256,7 @@ impl Default for Body {
             landing_carry: false,
             keep_last_resorts: true,
             crouch_only_floors: true,
+            capsule_steps: false,
         }
     }
 }
@@ -890,7 +906,9 @@ impl WalkGrid {
                     } else {
                         body.step
                     };
-                    if rise <= limit && gap >= body.crouch_height && rise < best.1 {
+                    // Up a ledge's edge the capsule rides (`Body::capsule_steps`); down it stays a drop.
+                    let edge = body.capsule_steps && hb > ha && hb - ha <= body.edge_step();
+                    if (rise <= limit || edge) && gap >= body.crouch_height && rise < best.1 {
                         best = (b as u32, rise, LinkKind::Walk);
                     }
                 }
@@ -1265,9 +1283,13 @@ impl WalkGrid {
             (1.0 - up * up).max(0.0).sqrt() / up
         };
         let grade = |a: usize, wide: &Wide| -> f32 {
+            // A walk up an edge over the step ([`Body::capsule_steps`]) is no ground's slope.
             let side = |d: usize| {
                 let b = wide.links[a][d];
-                (b != NONE && wide.kinds[a][d] == LinkKind::Walk).then(|| self.height[b as usize])
+                (b != NONE
+                    && wide.kinds[a][d] == LinkKind::Walk
+                    && !(self.body.capsule_steps && (self.height[b as usize] - self.height[a]).abs() > self.body.step))
+                    .then(|| self.height[b as usize])
             };
             let axis = |plus: usize, minus: usize| match (side(plus), side(minus)) {
                 (Some(p), Some(m)) => (p - m) / (2.0 * self.cell),
@@ -4537,6 +4559,41 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert_eq!(edge_drop(&ledge, 3.0), (true, true));
+    }
+
+    /// `Body::capsule_steps`: a ledge whose edge is within the capsule's edge step (0.96 m with the clients' numbers) is walked up
+    /// (no Jump on the way up; down it stays a Drop); one over it is jumped as before; off, both are jumped. The key changes only
+    /// with the switch on.
+    #[test]
+    fn a_ledge_within_the_capsules_edge_step_is_walked_up_with_capsule_steps() {
+        let client = Body::client();
+        assert!((client.edge_step() - 0.962).abs() < 0.002, "{}", client.edge_step());
+        let kinds = |grid: &WalkGrid, from: Vec3, to: Vec3| -> Vec<LinkKind> {
+            let (a, b) = (grid.locate(from, 1.0).unwrap(), grid.locate(to, 1.0).unwrap());
+            grid.path(a, b)
+                .unwrap()
+                .nodes
+                .windows(2)
+                .filter_map(|w| grid.links(w[0]).find(|l| l.0 == w[1]).map(|l| l.1))
+                .collect()
+        };
+        for (height, walked) in [(0.9, true), (1.0, false)] {
+            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 10.0, 10.0, height));
+            tris.extend(wall_x(5.0, 0.0, 10.0, height));
+            let (low, top) = (Vec3::new(2.0, 0.0, 5.0), Vec3::new(8.0, height, 5.0));
+            for on in [false, true] {
+                let body = Body { capsule_steps: on, ..client };
+                let grid = WalkGrid::build(&tris, AREA, 0.25, body);
+                let up = kinds(&grid, low, top);
+                let label = format!("height {height}, capsule_steps {on}");
+                assert_eq!(!up.contains(&LinkKind::Jump), on && walked, "{label}: {up:?}");
+                assert!(up.iter().all(|&k| matches!(k, LinkKind::Walk | LinkKind::Jump)), "{label}: {up:?}");
+                assert!(kinds(&grid, top, low).contains(&LinkKind::Drop), "{label}");
+            }
+            let key = |on: bool| crate::grid_key(&tris, AREA, 0.25, Body { capsule_steps: on, ..client }, &[]);
+            assert_ne!(key(false), key(true));
+        }
     }
 
     #[test]
