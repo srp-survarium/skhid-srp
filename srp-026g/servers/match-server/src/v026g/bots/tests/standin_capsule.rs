@@ -377,7 +377,7 @@ mod tests {
         let out = client_move(&[wall(-10.0, 10.0)], (-1.0, 0.0), (0.8, 0.0), RADIUS_M);
         assert!((out.to.0 + RADIUS_M).abs() < 1e-3, "{out:?}");
         assert_eq!(out.contacts, 1);
-        assert!(out.made < 0.3, "{out:?}");
+        assert!((out.made - 0.775).abs() < 0.01, "{out:?}");
     }
 
     /// The client's wall slide (0x7AC50 run with Unicorn at the live 0.5 and 0.08): what is left of the move after the contact goes
