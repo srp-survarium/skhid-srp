@@ -674,4 +674,52 @@ mod tests {
             assert!((60..=150).contains(&drop.count));
         }
     }
+
+    /// On a server game data file as `release/build-content` makes it
+    /// (`SRP_TEST_GAME_DATA`), with the STK2 outfits' packs (stk2-outfits.md):
+    /// each of their 14 items has no faction (the Independent traders'), is
+    /// sold by no one (no `prices` exception names it), and drops after a
+    /// match at its level: a drop weight, a category of the generic table,
+    /// and a level row of it that rolls its item level.
+    #[test]
+    #[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
+    fn the_stk2_outfits_only_drop() {
+        use super::super::game_data::GameData;
+        use super::super::item_params::derive;
+        use super::super::prices::sellers_of;
+        let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
+        let data = GameData::open(std::path::Path::new(&path)).unwrap();
+        let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
+        let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
+        let params = derive(&data, &dictionary).unwrap();
+        let drops = Drops::parse(file(PATH)).unwrap();
+        // (id, item level): the owner's levels (2026-10-31).
+        let items: [(u16, u8); 14] = [
+            (1864, 6), (1865, 6), (1866, 6),
+            (1822, 4), (1867, 4), (1868, 4), (1869, 4), (1870, 4), (1871, 4), (1872, 4),
+            (1873, 6), (1874, 6), (1875, 6), (1876, 6),
+        ];
+        for (dict_id, level) in items {
+            let item = dictionary.item(dict_id).unwrap();
+            let row = params.iter().find(|row| row.dict_id == dict_id).unwrap();
+            assert!(item.name.starts_with("stk2_"), "{}", item.name);
+            assert_eq!(row.faction, 0, "{}", item.name);
+            assert_eq!(row.item_level, level, "{}", item.name);
+            assert!(row.drop_weight > 0, "{}", item.name);
+            assert!(sellers_of(&dictionary, item, row).is_empty(), "{} is sold", item.name);
+            let table = &drops.generic;
+            assert!(
+                table.categories.iter().any(|group| group.weight > 0 && group.categories.contains(&item.category)),
+                "{}: its category {} never drops",
+                item.name,
+                item.category
+            );
+            assert!(
+                table.level_independent.contains(&item.category)
+                    || table.levels.iter().any(|row| row.get(usize::from(level)).is_some_and(|&w| w > 0)),
+                "{}: no match level rolls item level {level}",
+                item.name
+            );
+        }
+    }
 }
