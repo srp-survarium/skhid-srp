@@ -1,4 +1,4 @@
-# Hide hit markers, hide player scores
+# The HUD group: crosshair, hit markers, player scores, quests, minimap
 
 The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) and player scores
 (and kills/deaths); it should only show names in alphabetic order". Exe patch 83
@@ -9,38 +9,62 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 ## The options
 
 - **Where:** Settings, Gameplay, a group of its own, "HUD:", at the top of the right column
-  (`../images/hide-options-settings.png`): "Hide hit markers", "Hide player scores", then the
-  stock quest progress controls ("Show quest progress in match" and its "Transparency" slider) and
-  the stock minimap controls ("Fix minimap" and the minimap position list). The tab's own look:
-  the heading as "Friends:" is, plain checkboxes, the same spacing.
+  (`../images/hide-options-settings.png`), in this order: the crosshair list (Dynamic crosshair,
+  Static crosshair, Hidden crosshair), "Hide hit markers", "Hide player scores", "Hide quests",
+  "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
+  plain checkboxes and the stock list, the same spacing.
 - **The tab's groups** (the owner, 2026-10-31: "quest progress I think is part of the HUD too",
-  "and map"): left "Friends:", "Crosshair:" (now only "Static crosshair"), "Language:"; right
-  "HUD:". The stock controls keep their own bindings (the exe binds them by name); only their
-  places change, and the "Quest progress:" heading is not shown. Each column's headings share its
-  left edge, its controls the stock controls' edge (a list one pixel further, as the timeline has
-  it); the spacing is the timeline's own, read once: the gap before a group, a heading's first
-  control, the checkbox step, the slider's distance from its checkbox (its bar is its row, the
-  next control a step under it), the minimap list's under its checkbox. Language (patch 79's list)
-  is a group under "Crosshair:", its label a heading, its "Applies after restart." note under the
-  list while it shows. The old bottom panel (the hidden seeding and statistics options') is not
-  drawn on this tab. One column for all of it did not fit the window; the column divider is the
-  timeline's and stops where that panel began.
-- **The map settings:** the game has two, both from the stock "Crosshair:" group of this tab:
-  "Fix minimap" (`_setter_static_minimap`) and the minimap position list
-  (`_setter_static_minimap_position`: off, lower left, upper left). No other tab has map settings.
+  "and map"; the crosshair a list in HUD; "Language:" under Friends): left "Friends:", then
+  "Language:" (patch 79's list, its label a heading, its "Applies after restart." note under the
+  list while it shows); right "HUD:". Each column's headings share its left edge, its controls
+  the stock controls' edge (a list one pixel further, as the timeline has it); the spacing is the
+  timeline's own, read once: the gap before a group, a heading's first control, the checkbox step,
+  the minimap list's distance under its checkbox. Not shown: the stock "Crosshair:" and "Quest
+  progress:" headings, the stock static crosshair checkbox (the list sets it) and the quest
+  progress "Transparency" slider (the owner: not useful; its value stays as the exe has it, the
+  menu never changes it). The old bottom panel (the hidden seeding and statistics options') is not
+  drawn on this tab; the column divider is the timeline's and stops where that panel began.
+- **The stock controls in HUD** keep their bindings (the exe binds them by name and its setters);
+  only their places and labels change:
+  - **Hide quests** is the stock "Show quest progress in match" (`_setter_static_show_quests`)
+    inverted: checked is the stock value off. The menu shows the opposite of the exe's value and
+    gives the exe the opposite of the box (`Settings.flip`: the bind of the values, a toggle given
+    to the exe's setter, Apply). The stock default (shown) is Hide quests unchecked.
+  - **Static minimap** is the stock "Fix minimap" (`_setter_static_minimap`), renamed: checked,
+    the minimap does not turn with the view (north up; the hud's `set_rotable(false)`, the player
+    arrow turns instead). Its value and behaviour are the stock ones.
+  - **The minimap position list** (`_setter_static_minimap_position`: off, lower left, upper left)
+    as it was. These two are the game's only map settings (no other tab has any).
+- **The crosshair list:** Dynamic and Static are the stock static crosshair setting
+  (`_setter_static_cross`: unchecked Dynamic, checked Static), so the stock values carry over; a
+  pick of either sets it, which reaches the exe as the tab's own change. Hidden is patch 83's
+  `srp_hide_crosshair`; picking it leaves the stock value, so Dynamic or Static comes back as it
+  was when Hidden is dropped. The stock CLIK list, as the minimap's: it opens over the controls
+  under it and a press outside closes it. (#862's transient rules are the lobby movie's; the
+  Settings window is the main menu's, whose lists close this way already.)
 - **Texts:** dictionary keys in all ten languages: the heading `st_srp_options_hud` ("HUD:";
   Russian, Ukrainian, Belarusian "Интерфейс боя:"/"Інтерфейс бою:"/"Інтэрфейс бою:", not
-  "Interface", which the Interface level selector may take), the labels
-  `st_srp_hide_hit_markers_option`, `st_srp_hide_scores_option`. The exe gives them with each
-  checkbox's answer.
-- **Off by default:** off is the game as it was.
-- **Apply saves:** a toggle is a pending change of the tab like any option there; Apply saves it,
-  Cancel or leaving without Apply puts the saved state back.
+  "Interface", which the Interface level selector may take), `st_srp_hide_hit_markers_option`,
+  `st_srp_hide_scores_option`, `st_srp_hide_quests_option`, `st_srp_static_minimap_option` (each
+  language's word for "static" from its "Static crosshair"), `st_srp_crosshair_dynamic`,
+  `st_srp_crosshair_static` (the stock "Static crosshair" texts), `st_srp_crosshair_hidden`. The
+  exe gives the checkboxes' labels with their answers and the group's other texts with
+  `root.srp_hud_texts`. The Finnish "Applies after restart." is shorter ("Vaatii
+  uudelleenkäynnistyksen."): the old one took two lines.
+- **Off by default:** off is the game as it was (Hidden off: the stock crosshair).
+- **Apply saves:** a toggle or a pick is a pending change of the tab like any option there; Apply
+  saves it, Cancel or leaving without Apply puts the saved state back.
 - **At once:** the hud takes a change in its next frame, in a match too (no next-match wait).
 - **Stored in user.cfg** (`Documents\survarium\user.cfg`): `srp_hide_hit_markers on|off`,
-  `srp_hide_scores on|off` (saved bools, as the game's own options; the file is written at Apply).
-  An older game ignores the lines.
+  `srp_hide_scores on|off`, `srp_hide_crosshair on|off` (saved bools, as the game's own options;
+  the file is written at Apply). An older game ignores the lines.
 - **Per player, on this computer:** nothing is sent; other players see what they chose.
+
+## Hidden crosshair
+
+- No crosshair is drawn in a match: the hud's whole crosshair is hidden, its hit marker with it
+  (the marker is part of it), whatever "Hide hit markers" says. Back on Dynamic or Static, the
+  marker follows its own option again.
 
 ## Hide hit markers
 
@@ -78,29 +102,35 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 ## How
 
-- **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at the same
-  site):
-  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the two saved
+- **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at
+  the same site):
+  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the three saved
     bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs;
   - `options.callback` (game_options::scaleform_callback's start, after patch 79): a call named
-    `srp_hide_hit_markers` or `srp_hide_scores` answers `root.srp_check_option(name, label,
-    "1"|"0", the group's heading)`; with "1" or "0" it saves that first (user.cfg at once);
+    `srp_hide_hit_markers`, `srp_hide_scores` or `srp_hide_crosshair` answers
+    `root.srp_check_option(name, label, "1"|"0")`; with "1" or "0" it saves that first (user.cfg at
+    once); `srp_hud_texts` answers `root.srp_hud_texts(heading, Hide quests, Dynamic, Static,
+    Hidden, Static minimap)`;
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
-    65): `root.srp_hud_options(hide hit markers, hide scores)` to the hud movie, once for each new
-    hud movie or change.
+    65): `root.srp_hud_options(hide hit markers, hide scores, hide crosshair)` to the hud movie,
+    once for each new hud movie or change;
   - `static_info.options_read`, `replay.options_read` (a match's or a replay's options read,
     after patch 65): the hud is told again, since a new match can make its hud movie at the last
     one's address (as patch 65 tells its own state again).
 - **Settings code:** `vostok::settings` (the Settings' call, the save of user.cfg, `ConsoleBool`),
   shared with patch 79's Language choice.
-- **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden` and the Tab list's
-  `PlayerList.namesOnly`.
-- **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two of them in an
-  `SrpCheckGroup` (the heading and its checkboxes), placed with `SrpLanguage` and the stock groups
-  by `Settings.layoutGameplay`.
+- **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden`, the Tab list's
+  `PlayerList.namesOnly` and the crosshair's visibility.
+- **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two in an
+  `SrpCheckGroup` (the heading, the texts asked); `SrpCrosshairChoice` (the list over the stock
+  checkbox and `srp_hide_crosshair`); `Settings.layoutGameplay` places them with `SrpLanguage` and
+  the stock controls; `Settings.flip` inverts Hide quests.
 - Nothing a match computes changes: no `simulation_changes.tsv` row.
 - **Checks:** `../../client-patches/check_hud_options_026g.py` (Unicorn: the registration and
   user.cfg's lines, the Settings' calls, the hud told at each change), Rust tests,
-  `../../scripts/hud-options/check.sh` (Ruffle: the checkboxes' place, pending change, Apply,
-  Cancel, every language's labels inside the panel; the hit marker shown off, hidden on; the Tab
-  list as today off, names only by name on). Not yet run in the game.
+  `../../scripts/hud-options/check.sh` (Ruffle: the two columns' order, edges, spacing, no
+  overlaps, nothing below the window, every language's texts fitting, with the note shown and
+  hidden; each pending change, Apply, Cancel; Hide quests' inversion through the stock setter and
+  its default; the crosshair list's mapping, Hidden keeping the stock value, closing on a press
+  outside; the hit marker shown off, hidden on, none with the crosshair hidden; the Tab list as
+  today off, names only on, by clan and name). Not yet run in the game.

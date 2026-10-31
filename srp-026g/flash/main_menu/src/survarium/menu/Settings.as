@@ -89,6 +89,12 @@ package survarium.menu
       // time it is laid out (layoutGameplay); null until then.
       protected var _gameplaySpacing:Object = null;
       
+      // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
+      protected var _crosshair:SrpCrosshairChoice;
+      
+      // The HUD group's own texts (setHudTexts); null until the exe answers.
+      protected var _hudTexts:Array = null;
+      
       public function Settings()
       {
          super();
@@ -226,17 +232,59 @@ package survarium.menu
          this.layoutGameplay();
       }
       
-      // The exe's answer to a checkbox of the HUD group (root.srp_check_option):
-      // its name, label, saved state (checked, so no toggle is pending) and the
-      // group's heading.
+      // The exe's answer to a setting of the HUD group (root.srp_check_option):
+      // its name, label and saved state (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == SrpCrosshairChoice.NAME)
+         {
+            this._crosshair.answer(values.slice(1));
+            this.crosshairChanged(null);
+            return;
+         }
          this._hudGroup.answer(values);
          var option:SrpCheckOption = values.length > 0 ? this._hudGroup.option(values[0]) : null;
          if(option != null)
          {
             this.checkChanged(option);
          }
+      }
+      
+      // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
+      // list's three choices, "Static minimap".
+      public function setHudTexts(values:Array) : void
+      {
+         if(values.length >= 6)
+         {
+            _hudTexts = values;
+            this.applyHudTexts();
+         }
+      }
+      
+      // The HUD group's texts on its controls: the stock ones' labels (which each bind of the tab
+      // sets again from the exe's settings) replaced.
+      protected function applyHudTexts() : void
+      {
+         var c:MovieClip = this.settings_content;
+         if(this._hudTexts == null || c.currentFrame != 1)
+         {
+            return;
+         }
+         this._hudGroup.title(this._hudTexts[0]);
+         c._setter_static_show_quests.label = this._hudTexts[1];
+         this._crosshair.texts(this._hudTexts[2],this._hudTexts[3],this._hudTexts[4]);
+         c._setter_static_minimap.label = this._hudTexts[5];
+      }
+      
+      // The stock checkboxes the HUD group shows inverted: "Hide quests" is the stock "Show quest
+      // progress in match" unchecked. The menu shows and takes the opposite of the stock value; the
+      // exe gives and gets the stock one (update_value, someOneSelected, onAccept).
+      private static const INVERTED:Array = ["_setter_static_show_quests"];
+      
+      protected function flip(control:Object, value:*) : Boolean
+      {
+         var on:Boolean = Boolean(value);
+         return INVERTED.indexOf(control.name) != -1 ? !on : on;
       }
       
       public function selectIndex(tabIndex:uint) : void
@@ -417,6 +465,10 @@ package survarium.menu
                {
                   this._language.save();
                }
+               else if(control == this._crosshair.menu)
+               {
+                  this._crosshair.save();
+               }
                else if(this.checkOf(control) != null)
                {
                   this.checkOf(control).save();
@@ -430,7 +482,7 @@ package survarium.menu
                   }
                   else if(control is CheckBoxMultiline)
                   {
-                     newValue = uint(control.selected);
+                     newValue = uint(this.flip(control,control.selected));
                   }
                   else if(false || control is ListItemRenderer)
                   {
@@ -469,6 +521,7 @@ package survarium.menu
          {
             option.revert();
          }
+         this._crosshair.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -508,7 +561,10 @@ package survarium.menu
             this._changed[option.box] = 0;
             option.box.addEventListener(Event.SELECT,this.onCheckSelect);
          }
-         this._language = new SrpLanguage(this.settings_content,this.settings_content.s_cross);
+         this._crosshair = new SrpCrosshairChoice(this.settings_content);
+         this._changed[this._crosshair.menu] = 0;
+         this._crosshair.menu.addEventListener(ListEvent.INDEX_CHANGE,this.onCrosshairPick);
+         this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
@@ -519,7 +575,6 @@ package survarium.menu
          SrpFovSlider.apply(this);
          this._hudGroup.place();
          this._language.place();
-         this.layoutGameplay();
          var key:Object;
          var tabIndex:uint;
          var i:int;
@@ -621,6 +676,10 @@ package survarium.menu
             hideChat.enabled = true;
          }
          SrpFovSlider.finish(this);
+         // the HUD group, after the tab's settings are bound (their labels set)
+         this._crosshair.place();
+         this.applyHudTexts();
+         this.layoutGameplay();
       }
       
       protected function someOneSelected(event:Event) : void
@@ -628,11 +687,11 @@ package survarium.menu
          var elementIndex:int;
          if(this._setters[event.target] && !this._ignoreChange)
          {
-            event.target.selected = this._setters[event.target](event.target.selected);
+            event.target.selected = this.flip(event.target,this._setters[event.target](this.flip(event.target,event.target.selected)));
             elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(event.target.name));
             this._content_values[this.tabs.selectedIndex][elementIndex] = event.target.selectedIndex;
          }
-         if(event.target.selected != this._elements[event.target])
+         if(this.flip(event.target,event.target.selected) != Boolean(this._elements[event.target]))
          {
             if(this._changed[event.target] != 1)
             {
@@ -717,12 +776,14 @@ package survarium.menu
       }
       
       // The gameplay tab's groups in its two columns, each group's heading over its controls, at the
-      // tab's own spacing (the timeline's, read once): on the left "Friends:", "Crosshair:" (the static
-      // crosshair) and the Language choice; on the right srp's "HUD:" group: Hide hit markers, Hide
-      // player scores, then the stock quest progress (its checkbox and transparency slider) and minimap
-      // (fixed minimap, its position) controls, moved here with their own bindings, the "Quest
-      // progress:" heading not shown. The bottom panel (the seeding and statistics options', hidden)
-      // is not shown there: the columns run on over it.
+      // tab's own spacing (the timeline's, read once): on the left "Friends:" and the Language choice;
+      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), Hide hit
+      // markers, Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
+      // and the stock minimap controls ("Static minimap", the minimap position list), moved here with
+      // their own bindings. Not shown: the stock "Crosshair:" and "Quest progress:" headings, the
+      // static crosshair checkbox (the crosshair list sets it) and the quest progress transparency
+      // slider (its value stays as the exe gives it). The bottom panel (the seeding and statistics
+      // options', hidden) is not shown there: the columns run on over it.
       protected function layoutGameplay() : void
       {
          var c:MovieClip = this.settings_content;
@@ -742,7 +803,6 @@ package survarium.menu
             space = {"leftFirst":c._setter_invite.y - c.s_friends.y,"step":c._setter_message.y - c._setter_invite.y,
                "rightFirst":c._setter_static_cross.y - c.s_cross.y,
                "gap":c.s_quest_propgress.y - c._setter_static_minimap_position.y,
-               "slider":c._slider_quest_alpha.y - c._setter_static_show_quests.y,
                "dropdown":c._setter_static_minimap_position.y - c._setter_static_minimap.y,
                "dropdownX":c._setter_static_minimap_position.x - c._setter_static_minimap.x,
                "top":c.s_friends.y,
@@ -750,25 +810,59 @@ package survarium.menu
                "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
             _gameplaySpacing = space;
          }
-         // the left column: Friends (as the timeline has it), then Crosshair, then Language
-         c.s_cross.x = space.leftHeading;
-         c.s_cross.y = c._hide_spam.y + space.gap;
-         c._setter_static_cross.x = space.leftControl;
-         c._setter_static_cross.y = c.s_cross.y + space.rightFirst;
-         this._language.layout(c.s_cross,space.leftHeading,space.leftControl + space.dropdownX,
-            c._setter_static_cross.y + space.gap,space.rightFirst);
-         // the right column: the HUD group
-         var last:Number = this._hudGroup.layout(c.s_friends,space.rightHeading,space.rightControl,space.top,space.rightFirst,
-            space.step);
-         c._setter_static_show_quests.x = c._slider_quest_alpha.x = c._setter_static_minimap.x = space.rightControl;
-         c._setter_static_show_quests.y = last + space.step;
-         c._slider_quest_alpha.y = c._setter_static_show_quests.y + space.slider;
-         // the slider's bar is its row (its label is drawn above its origin): the next row a step under it
-         c._setter_static_minimap.y = c._slider_quest_alpha.y + space.step;
-         c._setter_static_minimap_position.x = space.rightControl + space.dropdownX;
-         c._setter_static_minimap_position.y = c._setter_static_minimap.y + space.dropdown;
-         c.s_quest_propgress.visible = false;
+         // the left column: Friends (as the timeline has it), then Language
+         this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
+            c._hide_spam.y + space.gap,space.leftFirst);
+         // the right column: the HUD group, each row a step under the last (a list under a checkbox
+         // as the minimap's is), a list one further right as the timeline has them
+         this._hudGroup.layout(c.s_friends,space.rightHeading,space.top);
+         var rows:Array = [this._crosshair.menu];
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            rows.push(option.box);
+         }
+         rows.push(c._setter_static_show_quests,c._setter_static_minimap,c._setter_static_minimap_position);
+         var y:Number = space.top + space.rightFirst;
+         for(var i:int = 0; i < rows.length; i++)
+         {
+            var list:Boolean = rows[i] is DropdownMenu;
+            if(i > 0)
+            {
+               y += list ? space.dropdown : space.step;
+            }
+            rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
+            rows[i].y = y;
+         }
+         c.s_cross.visible = c._setter_static_cross.visible = false;
+         c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;
+      }
+      
+      // A pick in the crosshair list: Dynamic or Static is the stock checkbox's change; Hidden
+      // picked or dropped is the list's own, pending while it is not the saved one.
+      protected function onCrosshairPick(event:Event) : void
+      {
+         this._crosshair.pick();
+         this.crosshairChanged(event);
+      }
+      
+      protected function crosshairChanged(event:Event) : void
+      {
+         var menu:DropdownMenu = this._crosshair.menu;
+         if(this._crosshair.pending)
+         {
+            if(this._changed[menu] != 1)
+            {
+               this._changed[menu] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[menu] == 1)
+         {
+            this._changed[menu] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.
@@ -853,7 +947,7 @@ package survarium.menu
                {
                   this._changed[control] = 0;
                }
-               control.selected = value;
+               control.selected = this.flip(control,value);
             }
             if(control is UIComponent)
             {
@@ -892,6 +986,8 @@ package survarium.menu
             this._changed[option.box] = 0;
             option.revert();
          }
+         this._changed[this._crosshair.menu] = 0;
+         this._crosshair.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

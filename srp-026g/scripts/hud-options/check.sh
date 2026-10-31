@@ -8,7 +8,7 @@
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive).
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
-# enabled), list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
+# enabled), settings-crosshair-open.png, list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 menu=$(readlink -f "$1")
@@ -22,13 +22,14 @@ else
     work=$(mktemp -d)
 fi
 
-# Every dictionary's two labels, the group's heading, "Language:" and its restart note, as JSON.
+# Every dictionary's texts of the HUD group and the Language choice (SettingsHarness.check), as JSON.
 texts=$("${PYTHON:-python3}" - "$here/../../client-patches" <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
 keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
-        'st_srp_language_restart')
+        'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
+        'st_srp_crosshair_hidden', 'st_srp_static_minimap_option')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -78,6 +79,7 @@ shot() { "$ffmpeg" -loglevel error -y -f x11grab -draw_mouse 0 -video_size 1280x
 run SettingsHarness
 wait_for SettingsHarness 'SETTINGS SHOT settings' && shot settings.png
 wait_for SettingsHarness 'SETTINGS SHOT checked' && shot settings-checked.png
+wait_for SettingsHarness 'SETTINGS SHOT open' && shot settings-crosshair-open.png
 kill $ruffle_pid 2>/dev/null || true
 run HudHarness
 wait_for HudHarness 'HUD SHOT scores' && shot list-scores.png
