@@ -86,7 +86,7 @@ class ReleaseTests(unittest.TestCase):
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
-            'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid.sh',
+            'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
             'VPN.txt', 'Skhid-network-setup.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
@@ -163,6 +163,19 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn(b'start "" /d "%~dp0game\\binaries\\x86" "%~dp0game\\binaries\\x86\\launcher_skhid.exe"\r\n',
                       starter)
         self.assertEqual(starter.count(b'\n'), starter.count(b'\r\n'))
+        # Without the updater: the file as it is, in ASCII with CRLF line ends.
+        alone = paths['Skhid-without-updater.bat'].read_bytes()
+        alone.decode('ascii')
+        self.assertEqual(alone.count(b'\n'), alone.count(b'\r\n'))
+        self.assertEqual(alone.replace(b'\r\n', b'\n'),
+                         Path(overlay.HERE, 'Skhid-without-updater.bat').read_bytes().replace(b'\r\n', b'\n'))
+        # The original game it downloads is the one the updater pins.
+        pins = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'game.rs').read_text(encoding='utf-8')
+        [url] = re.findall(r'pub const GAME_URL: &str = "([^"]+)";', pins)
+        [digest] = re.findall(r'pub const ARCHIVE: Pin = Pin \{\s*size: [0-9_]+,\s*sha256: "([0-9a-f]{64})",', pins)
+        self.assertIn(b'\r\nset GAME_URL=' + url.replace('&', '^&').encode() + b'\r\n', alone)
+        self.assertIn(b'\r\nset GAME_SHA=' + digest.encode() + b'\r\n', alone)
+        self.assertIn('start Skhid-without-updater.bat', ' '.join(readme.split()))
         # The same for Linux: a Bash script with Unix line ends.
         linux = paths['Skhid.sh'].read_bytes()
         self.assertTrue(linux.startswith(b'#!/usr/bin/env bash\n'))

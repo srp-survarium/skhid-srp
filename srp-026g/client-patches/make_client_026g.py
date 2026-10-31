@@ -87,6 +87,11 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/Skhid.bat
         the one file a player starts: it starts launcher_skhid.exe, and
         says where the files belong when it is not found.
+    <output>/Skhid-without-updater.bat
+        for a player whose antivirus deletes updater_skhid.exe: installs and
+        updates the game and the Skhid files with curl, tar, PowerShell and
+        7zr.exe, without the launcher and the updater, and starts the game
+        (Skhid-without-updater.bat here).
     <output>/Skhid.sh
         the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
         runs play_skhid.sh from wherever it is called, with its arguments.
@@ -157,6 +162,9 @@ EXE_DIR = os.path.join("binaries", "x86")
 EXE_DIR_WINDOWS = "binaries\\x86"
 # The one file a player starts: beside the `game` folder.
 STARTER = "Skhid.bat"
+# The same without the launcher and the updater, for a player whose
+# antivirus deletes updater_skhid.exe: it installs and updates by itself.
+WITHOUT_UPDATER = "Skhid-without-updater.bat"
 CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
 LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
 # The same for Linux, run as `bash Skhid.sh` beside the `game` folder.
@@ -381,6 +389,8 @@ def readme(server, description, files, embedded=False, site=None):
             "   which is in this archive.",
             "   If Windows warns about an unknown publisher, let it run:",
             "   these files are not signed.",
+            "   If your antivirus deletes updater_skhid.exe, start",
+            f"   {WITHOUT_UPDATER} instead: it installs and updates the game itself.",
             "   Linux: install Wine and Winetricks, open a terminal in that folder and",
             f"   run bash {LINUX_STARTER} (the game) or bash {LINUX_STARTER} launcher (the launcher,",
             "   which downloads a missing game and looks for updates first). For a new",
@@ -399,6 +409,8 @@ def readme(server, description, files, embedded=False, site=None):
             "",
             "WHAT THE ARCHIVE ADDS",
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
+            f"{WITHOUT_UPDATER} beside it: installs, updates and starts the game without",
+            "the launcher and the updater.",
             f"{LINUX_STARTER} beside it, for Linux: it runs play_skhid.sh, nothing else.",
             "In game\\binaries\\x86: survarium_skhid.exe (the game for this server),",
             "launcher_skhid.exe, updater_skhid.exe with updater_skhid.url, the folder",
@@ -572,6 +584,7 @@ def main():
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             (STARTER, starter()),
+            (WITHOUT_UPDATER, crlf(Path(HERE, WITHOUT_UPDATER).read_bytes())),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
             (VPN_HELP, vpn_help()),
