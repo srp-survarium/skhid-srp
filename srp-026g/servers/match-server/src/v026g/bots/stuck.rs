@@ -647,6 +647,15 @@ impl Stuck {
         }
     }
 
+    /// Whether a search of this body that finds no way at `time` proves the goal has none (`Bot::no_way_to`, which its
+    /// team learns for [`super::search::TEAM_NO_WAY_KEEP_MS`]): not while it holds a drop it shut ([`Self::failed_drop`]),
+    /// as the search failed for this body's own landings, not for the goal (A199: 47 of the ON side's 95 Collect "no way
+    /// to it" ends came within 45 s after that bot's own shut, 1.2 m from its spot at the median). A jump's shut keeps
+    /// today's rule.
+    pub fn no_way_is_proof(&self, time: u32) -> bool {
+        !self.shut_landings(time).any(|shut| shut.kind == ShutKind::Drop)
+    }
+
     /// The landings given up that every search keeps off at `time`.
     pub fn shut_landings(&self, time: u32) -> impl Iterator<Item = Shut> + '_ {
         self.shut_landings.iter().copied().filter(move |shut| shut.until > time)
@@ -1392,6 +1401,21 @@ mod tests {
         stuck.failed_drop(40_000, top, &landings, 45_000);
         stuck.watch_drop(41_000, top + Vec3::new(0.0, -5.0, 0.0), false);
         assert!(drop_shuts::counts()[drop_shuts::LEFT] > before[drop_shuts::LEFT]);
+    }
+
+    /// A body that holds a drop it shut proves no goal has no way (its search failed for its own landings); one with only a
+    /// jump's shut, or none, does, as before.
+    #[test]
+    fn a_held_drops_shut_makes_no_no_way_proof() {
+        let top = Vec3::new(108.6, 11.5, 73.8);
+        let mut stuck = Stuck::default();
+        assert!(stuck.no_way_is_proof(1_000));
+        stuck.failed_jump(1_000, top, Some(Vec3::new(108.6, 12.7, 73.0)));
+        assert!(stuck.no_way_is_proof(1_000), "a jump's shut keeps today's rule");
+        stuck.failed_drop(2_000, top, &[Vec3::new(108.4, 6.6, 73.6)], 45_000);
+        assert!(!stuck.no_way_is_proof(2_000));
+        assert!(!stuck.no_way_is_proof(46_999));
+        assert!(stuck.no_way_is_proof(47_000), "the drop's shut has ended");
     }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the

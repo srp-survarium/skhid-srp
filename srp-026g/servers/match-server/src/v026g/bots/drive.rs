@@ -946,8 +946,9 @@ fn drive_tick_inner(
             if let Some((goal, route, crossed)) = found {
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 bot.features.crossing.goal = crossed.then_some(goal);
-                // Both ends were on floors, from one it may walk on: proven.
-                if route.is_none() {
+                // Both ends were on floors, from one it may walk on: proven, unless the body's own shut drops are what
+                // shut the way (`Stuck::no_way_is_proof`): a way its mates may walk is no proof for the team.
+                if route.is_none() && bot.stuck.no_way_is_proof(time) {
                     bot.no_way_to.retain(|&(old, until)| {
                         time < until && old.distance_xz(goal) > REPLAN_MOVED_M
                     });
@@ -1439,7 +1440,7 @@ fn drive_tick_inner(
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.
-                    if route.is_none() && ends.is_some() && !escaping && !there {
+                    if route.is_none() && ends.is_some() && !escaping && !there && bot.stuck.no_way_is_proof(time) {
                         bot.no_way_to.retain(|&(goal, until)| {
                             time < until && goal.distance_xz(at) > REPLAN_MOVED_M
                         });

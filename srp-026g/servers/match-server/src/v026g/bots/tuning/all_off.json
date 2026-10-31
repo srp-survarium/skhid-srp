@@ -4,6 +4,7 @@
       "aim_last_known": false,
       "band_carrier_seen_ms": 0,
       "fire": {
+        "burst_pause": null,
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,
