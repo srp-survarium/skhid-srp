@@ -223,6 +223,15 @@ impl ZoomError {
     }
 }
 
+/// [close] How a roll that has only close places is paced (`CombatTuning::grenade_close_pace`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ClosePace {
+    /// The wait for the next roll, ms.
+    pub roll_ms: u32,
+    /// The chance a roll says yes.
+    pub chance: f32,
+}
+
 /// The reflex's numbers besides the aim (`AimTuning::combat`). None of
 /// them is mixed by skill but the pull against the kick (`recoil_pull_low`
 /// to `recoil_pull`): play 23 changes only aim and reaction.
@@ -598,6 +607,10 @@ pub struct CombatTuning {
     pub grenade_close_margin_m: f32,
     /// ... a teammate's position is no older than this, ms: an older one refuses the throw.
     pub grenade_close_fresh_ms: u32,
+    /// ... a roll that has only close places waits this long for the next, ms, and says yes at this chance (none: the roll's own
+    /// `grenade_roll_ms` and chance). An enemy 4-12 m off out of sight is not where the track says 4 s later, and a "no" of the
+    /// chance costs the whole lockout.
+    pub grenade_close_pace: Option<ClosePace>,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -1316,6 +1329,7 @@ impl Default for CombatTuning {
             grenade_close_m: (4.0, 12.0),
             grenade_close_margin_m: 2.0,
             grenade_close_fresh_ms: 1_500,
+            grenade_close_pace: None,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -2074,6 +2088,13 @@ pub struct GrenadeStats {
     /// landing or a teammate's blast; refused for a teammate not seen lately; refused for no way out of the blast; throws
     /// decided; throws let go.
     pub close: [u32; 7],
+    /// [close] The funnel of a think with the switch on, for why the throw is rare: thinks with a held spot, camp or enemy track
+    /// within the close band by position alone; of those, stopped before the roll by a throw under way, a target in sight, all
+    /// the life's grenades thrown, the lockout of the last roll; no frag in the kit; no retreat or map for the check; nothing
+    /// left after the track window and the claims; the chance said no; a far place was thrown at instead; reached the close
+    /// throw. Then tracks in the band, per track and think, left out for being younger than `grenade_track_gap_ms`, older than
+    /// `grenade_track_ms`, or with an error over `grenade_track_error_m`; then the close weighings refused, by [`Refuse::index`].
+    pub close_gate: [u32; 20],
     /// [A170] The held spots of a roll (`grenade_at_held`), thinks that reached the roll with: a held spot of the team, one
     /// whose shooter the team sensed on it lately, one of those in the throw range, one the thrower's feet are not in the lanes
     /// of, one with no mate in its blast and no other place at it, one no mate claimed, and, of those, thinks of a bot with a
@@ -2117,6 +2138,7 @@ impl GrenadeStats {
             volley: sub(self.volley, before.volley),
             near: sub(self.near, before.near),
             close: sub(self.close, before.close),
+            close_gate: sub(self.close_gate, before.close_gate),
             held_funnel: sub(self.held_funnel, before.held_funnel),
             held_busy: sub(self.held_busy, before.held_busy),
             held_dropped: sub(self.held_dropped, before.held_dropped),
@@ -2154,6 +2176,7 @@ impl GrenadeStats {
         plus(&mut self.volley, &other.volley);
         plus(&mut self.near, &other.near);
         plus(&mut self.close, &other.close);
+        plus(&mut self.close_gate, &other.close_gate);
         plus(&mut self.held_funnel, &other.held_funnel);
         plus(&mut self.held_busy, &other.held_busy);
         plus(&mut self.held_dropped, &other.held_dropped);
@@ -5064,6 +5087,13 @@ impl Reflex {
                 throw.at.x, throw.at.y, throw.at.z
             ));
         }
+        // [close] A place within the close band by position alone, for the funnel of why the close throw is rare.
+        let in_band = |at: Vec3| (c.grenade_close_m.0..=c.grenade_close_m.1).contains(&at.distance_xz(me.feet));
+        let present = c.grenade_close
+            && (self.held.iter().any(|(_, at, _)| in_band(*at))
+                || self.camps.iter().any(|camp| camp.last >= camp.since + c.camp_ms && in_band(camp.at))
+                || (c.grenade_tracks && memory.tracks().iter().any(|track| track.own.is_some_and(|(at, _)| in_band(at)))));
+        self.grenade_stats.close_gate[0] += u32::from(present);
         let busy = if self.throw.is_some() {
             Some(0)
         } else if self.target.is_some() {
@@ -5076,6 +5106,7 @@ impl Reflex {
             None
         };
         if let Some(reason) = busy {
+            self.grenade_stats.close_gate[1 + reason] += u32::from(present);
             // [measure] A sensed held spot that this think could not roll for.
             if c.grenade_at_held.is_some()
                 && team.is_some_and(|team| {
@@ -5148,6 +5179,12 @@ impl Reflex {
                     continue;
                 };
                 let age = now.saturating_sub(sensed);
+                if present && in_band(at) {
+                    let gate = &mut self.grenade_stats.close_gate;
+                    gate[11] += u32::from(age < c.grenade_track_gap_ms);
+                    gate[12] += u32::from(age > c.grenade_track_ms);
+                    gate[13] += u32::from(track.error_m > c.grenade_track_error_m);
+                }
                 if in_close(at)
                     && age >= c.grenade_track_gap_ms
                     && age <= c.grenade_track_ms
@@ -5231,9 +5268,12 @@ impl Reflex {
         }
         self.grenade_stats.claimed += dropped;
         if places.is_empty() && close.is_empty() {
+            self.grenade_stats.close_gate[6] += u32::from(present);
+            self.grenade_stats.close_gate[10] += u32::from(present && !near_range);
             return;
         }
         if no_frag {
+            self.grenade_stats.close_gate[5] += u32::from(present);
             // A roll with a place in range that the kit cannot throw: refused (counted once), and the next one waits as a
             // roll would have.
             self.refused_no_frag += 1;
@@ -5249,7 +5289,9 @@ impl Reflex {
         };
         places.sort_by(order);
         close.sort_by(order);
-        self.next_grenade_roll = now + c.grenade_roll_ms;
+        // [close] A roll with close places only is paced by `grenade_close_pace` when it is set.
+        let pace = c.grenade_close_pace.filter(|_| places.is_empty());
+        self.next_grenade_roll = now + pace.map_or(c.grenade_roll_ms, |pace| pace.roll_ms);
         self.grenade_stats.rolls += 1;
         for (_, source) in &places {
             self.grenade_stats.places[source.index()] += 1;
@@ -5257,13 +5299,17 @@ impl Reflex {
         let Some(&(_, lead)) = places.first().or(close.first()) else {
             return;
         };
-        let chance = match (lead, c.grenade_at_held) {
-            (PlaceSource::Spot, Some(chance)) => chance,
-            (source, _) if source.is_track() => c.grenade_track_chance,
-            _ => c.grenade_chance,
+        let chance = match pace {
+            Some(pace) => pace.chance,
+            None => match (lead, c.grenade_at_held) {
+                (PlaceSource::Spot, Some(chance)) => chance,
+                (source, _) if source.is_track() => c.grenade_track_chance,
+                _ => c.grenade_chance,
+            },
         };
         if rng.unit() >= chance {
             self.grenade_stats.chance_no += 1;
+            self.grenade_stats.close_gate[7] += u32::from(!close.is_empty());
             return;
         }
         let hold_ms = rng.range(c.grenade_hold_ms.0 as f32, c.grenade_hold_ms.1 as f32) as u32;
@@ -5273,6 +5319,8 @@ impl Reflex {
             self.start_throw(&look, c, &places, error, hold_ms, ThrowKind::Roll);
         }
         // [close] No far place was thrown at: the close ones.
+        self.grenade_stats.close_gate[8] += u32::from(self.throw.is_some() && !close.is_empty());
+        self.grenade_stats.close_gate[9] += u32::from(self.throw.is_none() && !close.is_empty());
         if self.throw.is_none() && !close.is_empty() {
             self.start_close(&look, c, &close, error, hold_ms);
         }
@@ -5307,9 +5355,13 @@ impl Reflex {
                     stats.close[3] += 1;
                     return None;
                 }
-                let Ok(pick) = weigh_place(me, view, at, error, &lowered, ground) else {
-                    stats.close[2] += 1;
-                    continue;
+                let pick = match weigh_place(me, view, at, error, &lowered, ground) {
+                    Ok(pick) => pick,
+                    Err(refuse) => {
+                        stats.close[2] += 1;
+                        stats.close_gate[14 + refuse.index()] += 1;
+                        continue;
+                    }
                 };
                 let landing = throw_view_of(me, at, &lowered, pick).and_then(|(yaw, pitch)| {
                     arc::Flight::thrown(me.eye(), yaw + error.0, pitch + error.1).landing(ground)
@@ -9507,6 +9559,32 @@ mod tests {
         let slow = start(None, 5_000, Some(Retreat { margin_m: 0.5, told_ms: 3_500 }));
         assert!(slow.throw.is_none());
         assert_eq!(slow.grenade_stats().close, [1, 1, 0, 0, 1, 0, 0]);
+    }
+
+    /// [close] A roll with only a close place waits `grenade_close_pace.roll_ms` for the next and says yes at its chance; with the
+    /// pace unset it waits `grenade_roll_ms`.
+    #[test]
+    fn a_roll_with_only_a_close_place_is_paced_by_the_close_pace() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let me = body(0, 0, Vec3::new(20.0, 0.0, 10.0), 0.0);
+        let retreat = Retreat { margin_m: 0.5, told_ms: 400 };
+        let roll = |pace: Option<ClosePace>| {
+            let combat = CombatTuning { grenade_close: true, grenade_trace: true, grenade_close_pace: pace, ..combat_off() };
+            let aim = AimTuning { combat, ..crate::v026g::bots::tuning::Tuning::all_off().aim };
+            let view = view_of(vec![me.clone()]);
+            let memory = Memory::default();
+            let sit = Situation { tactics: Some(&tactics), side: Some(0), retreat: Some(retreat), ..Situation::of(&view) };
+            let look = RollView { me: &me, sit: &sit, memory: &memory, now: 5_000 };
+            let mut reflex = Reflex::default();
+            reflex.held.push((9, Vec3::new(20.0, 0.0, 18.0), 4_000));
+            reflex.grenade_roll(look, &aim, 1.0, &mut Rng::new(1));
+            reflex
+        };
+        let paced = roll(Some(ClosePace { roll_ms: 1_000, chance: 1.0 }));
+        assert_eq!(paced.next_grenade_roll, 6_000);
+        assert_eq!(paced.grenade_stats().close[0], 1, "the roll reached the close throw at its chance");
+        let own = roll(None);
+        assert_eq!(own.next_grenade_roll, 5_000 + combat_off().grenade_roll_ms);
     }
 
     /// [close] The throw is made where the way out was found, and given up when he walked off it: the floor of a close

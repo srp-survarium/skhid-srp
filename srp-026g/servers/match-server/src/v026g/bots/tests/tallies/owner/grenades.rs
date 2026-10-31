@@ -1052,11 +1052,12 @@ impl GrenadeCounts {
                 "fire_hidden_throw": hidden_throw,
             });
         }
-        let counted = logic.sum.close != [0; 7] || self.close.gone > 0;
+        let counted = logic.sum.close != [0; 7] || logic.sum.close_gate != [0; 20] || self.close.gone > 0;
         if counted {
             let close = &self.close;
             json["grenade_close"] = serde_json::json!({
                 "stats": logic.sum.close,
+                "gate": logic.sum.close_gate,
                 "blasts": close.gone,
                 "leaks": close.leaks,
                 "dmg": close.dmg.map(|d| (100.0 * d).round() / 100.0),
@@ -1145,8 +1146,8 @@ impl GrenadeCounts {
         if counted {
             let close = &self.close;
             text.push_str(&format!(
-                "; close throws [rolls with a close place, weighed, refused by the arc or a mate's blast, refused for a mate not seen lately, refused for no way out, decided, let go] {:?}, blasts {} (leaks: the thrower or a mate hurt {}), damage [thrower, mates, enemies] {:.2?}, killed {:?}, inside {:?}, nearest [thrower, mate] to the blast {:.1?} m, leak cases [thrower m, nearest mate m, thrower dmg, mates dmg] {:.2?}",
-                logic.sum.close, close.gone, close.leaks, close.dmg, close.kills, close.inside, close.least_m, close.cases,
+                "; close throws [rolls with a close place, weighed, refused by the arc or a mate's blast, refused for a mate not seen lately, refused for no way out, decided, let go] {:?}, blasts {} (leaks: the thrower or a mate hurt {}), damage [thrower, mates, enemies] {:.2?}, killed {:?}, inside {:?}, nearest [thrower, mate] to the blast {:.1?} m, leak cases [thrower m, nearest mate m, thrower dmg, mates dmg] {:.2?}; close gates [thinks with a place in the band, stopped: throw under way, target in sight, all thrown, lockout; no frag, nothing left after window and claims, chance said no, a far place thrown instead, reached the close throw, no retreat or map; tracks in the band left out: too young, too old, error; close weighings refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place]] {:?}",
+                logic.sum.close, close.gone, close.leaks, close.dmg, close.kills, close.inside, close.least_m, close.cases, logic.sum.close_gate,
             ));
         }
         if let Some(listed) = self.listed {
