@@ -564,6 +564,17 @@ fn drive_tick_inner(
             intent.straight = false;
         }
     }
+    // [zones] On a floor a zone hurts on now, the legs escape (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): the walk out is at the legs' top speed, the
+    // sprint on any route, and the fight goes on (`escape_legs`). The zones kill by a pool that runs out in 4-5 s; a player runs out of a toxic cloud.
+    if reacts && tuning.hazard.run_out {
+        let hurt = tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.on_at(node, time));
+        if Gates::runs_out(intent.pace, intent.crouch, hurt, over.legs.is_none()) {
+            intent.pace = Pace::Escape(EscapeWhy::Zone);
+            intent.crouch = false;
+            #[cfg(test)]
+            super::hazards::damage_zone_fixes::asked_by(bot.team, || super::hazards::damage_zone_fixes::count(super::hazards::damage_zone_fixes::Ev::RunOut));
+        }
+    }
     // [Pace::Escape] Out of somewhere first: what of the reflex's wish slows the legs is let go, by the reason (`escape_legs`).
     let aim = match intent.pace {
         Pace::Escape(why) => {
@@ -2039,6 +2050,12 @@ impl Gates {
         goal.is_none() && !intent.zone_ok
     }
 
+    /// Whether a body on a floor a zone hurts on now (`hurt`) escapes (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): it was to walk or run (a run is no
+    /// sprint on a short route), is not crouched, not sneaking and not escaping already, and the reflex's legs (a fight) are not on it.
+    pub(super) fn runs_out(pace: Pace, crouch: bool, hurt: bool, legs_free: bool) -> bool {
+        hurt && legs_free && !crouch && matches!(pace, Pace::Walk | Pace::Cruise | Pace::Arrive | Pace::Run)
+    }
+
     /// Whether the walk is by keys with no route (`Intent::straight`): not when a zone's way out is the goal.
     pub(super) fn straight(straight: bool, zone_out: bool) -> bool {
         straight && !zone_out
@@ -2373,6 +2390,19 @@ mod tests {
         assert!(!Gates::wants_zone_way_out(&intent(true, false, false), goal));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), None));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), goal));
+    }
+
+    #[test]
+    fn a_body_in_a_hurting_zone_runs_unless_it_is_crouched_runs_already_or_the_reflex_has_its_legs() {
+        assert!(Gates::runs_out(Pace::Walk, false, true, true));
+        assert!(Gates::runs_out(Pace::Cruise, false, true, true));
+        assert!(Gates::runs_out(Pace::Arrive, false, true, true));
+        assert!(Gates::runs_out(Pace::Run, false, true, true));
+        assert!(!Gates::runs_out(Pace::Escape(EscapeWhy::Grenade), false, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, false, true));
+        assert!(!Gates::runs_out(Pace::Walk, true, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, true, false));
+        assert!(!Gates::runs_out(Pace::Sneak, false, true, true));
     }
 
     #[test]

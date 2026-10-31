@@ -107,6 +107,17 @@ pub struct Link {
     pub kind: Kind,
     pub take_off: Vec3,
     pub landing: Vec3,
+    /// How deep the top is past the face, m, where the planner measured it ([`super::path::Route::ledge_top`]).
+    pub top: Option<f32>,
+}
+
+/// Where and how fast the body was at the first press of a link: metres before the take-off along its way (negative past
+/// it), metres to the side of its line, and the ground speed.
+#[derive(Clone, Copy, Debug)]
+struct Press {
+    before: f32,
+    side: f32,
+    speed: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -136,6 +147,7 @@ struct Run {
     route_ended_by: Option<usize>,
     /// The tick of the first press, and of getting up (the phases of the time: before the press, in the air, after).
     pressed_at: Option<u32>,
+    press: Option<Press>,
     up_at: Option<u32>,
     /// Ticks before the first press (or getting up) spent stopped (under [`STOPPED_MS`]) and slowed (under the cruise).
     stopped_ticks: u32,
@@ -147,6 +159,19 @@ struct Run {
 #[derive(Clone, Debug, Default)]
 pub struct Watch {
     run: Option<Run>,
+    /// The link last given up on, followed for [`GHOST_TICKS`] to see where the body went (a face of 0.8-1.2 m only).
+    ghost: Option<Ghost>,
+}
+
+/// A link given up on, followed on: does the body climb it anyway, or stay near its foot?
+#[derive(Clone, Copy, Debug)]
+struct Ghost {
+    link: Link,
+    kind: usize,
+    ended: usize,
+    since: u32,
+    near_ticks: u32,
+    climbed: bool,
 }
 
 /// How [`Watch::tick`] says the body is up the link: the feet, the link's kind.
@@ -195,6 +220,7 @@ impl Watch {
             lost: Lost::Silent,
             route_ended_by: None,
             pressed_at: None,
+            press: None,
             up_at: None,
             stopped_ticks: 0,
             slowed_ticks: 0,
@@ -220,11 +246,18 @@ impl Watch {
         }
     }
 
-    /// A jump key pressed for the link.
-    pub fn pressed(&mut self, clock: u32) {
+    /// A jump key pressed for the link, with the body's feet and ground speed.
+    pub fn pressed(&mut self, clock: u32, feet: Vec3, speed: f32) {
         if let Some(run) = self.run.as_mut() {
             run.presses += 1;
-            run.pressed_at.get_or_insert(clock);
+            if run.pressed_at.is_none() {
+                run.pressed_at = Some(clock);
+                let (dx, dz) = (run.link.landing.x - run.link.take_off.x, run.link.landing.z - run.link.take_off.z);
+                let len = (dx * dx + dz * dz).sqrt().max(1e-3);
+                let (wx, wz) = (dx / len, dz / len);
+                let (fx, fz) = (feet.x - run.link.take_off.x, feet.z - run.link.take_off.z);
+                run.press = Some(Press { before: -(fx * wx + fz * wz), side: (fx * wz - fz * wx).abs(), speed });
+            }
         }
     }
 
@@ -244,6 +277,7 @@ impl Watch {
 
     /// One tick of the walk: the feet and ground speed now.
     pub fn tick(&mut self, clock: u32, feet: Vec3, speed: f32, why: Why) {
+        self.follow_ghost(clock, feet);
         let Some(run) = self.run.as_mut() else {
             return;
         };
@@ -277,6 +311,38 @@ impl Watch {
                 }
             }
         }
+    }
+
+    /// One tick of the link given up on: up it, and near its foot; counted when [`GHOST_TICKS`] have passed.
+    fn follow_ghost(&mut self, clock: u32, feet: Vec3) {
+        let Some(g) = self.ghost.as_mut() else {
+            return;
+        };
+        if feet.distance_xz(g.link.take_off) <= GONE_NEAR_M {
+            g.near_ticks += 1;
+        }
+        if is_up(Kind::Walking, feet, &g.link) {
+            g.climbed = true;
+        }
+        if clock.wrapping_sub(g.since) > GHOST_TICKS {
+            self.settle_ghost(feet);
+        }
+    }
+
+    /// Count the ghost: climbed anyway, still within [`GHOST_STAY_M`] of the take-off, or gone elsewhere.
+    fn settle_ghost(&mut self, feet: Vec3) {
+        let Some(g) = self.ghost.take() else {
+            return;
+        };
+        let slot = if g.climbed {
+            0
+        } else if feet.distance_xz(g.link.take_off) <= GHOST_STAY_M {
+            2
+        } else {
+            1
+        };
+        GHOST[g.kind][g.ended][slot].fetch_add(1, Ordering::Relaxed);
+        GHOST[g.kind][g.ended][3].fetch_add((g.near_ticks as f32 * TICK_S * 1000.0) as u64, Ordering::Relaxed);
     }
 
     fn finish(&mut self, clock: u32, feet: Vec3, _speed: f32, ending: Ending) {
@@ -314,18 +380,31 @@ impl Watch {
                 // The faces of a rise of 0.8-1.2 m (the bands 3 to 6 of a climb) by method, for the lift's whole-face table.
                 if (3..=6).contains(&band) {
                     ENDED_FACE[kind][ended].fetch_add(1, Ordering::Relaxed);
+                    press_hist(&run, 1);
+                    self.settle_ghost(feet);
+                    self.ghost = Some(Ghost { link: run.link, kind, ended, since: clock, near_ticks: 0, climbed: false });
                 }
                 return;
             }
             Ending::Cut => {
                 add(Field::Cut, 1);
+                if run.up_at.is_some() && (3..=6).contains(&band) {
+                    press_hist(&run, 0);
+                }
                 return;
             }
             Ending::Slow => {
                 add(Field::Slow, 1);
+                if (3..=6).contains(&band) {
+                    press_hist(&run, 0);
+                }
                 return;
             }
-            Ending::Cruising => {}
+            Ending::Cruising => {
+                if (3..=6).contains(&band) {
+                    press_hist(&run, 0);
+                }
+            }
         }
         let ticks = clock.wrapping_sub(run.start);
         let ms = (ticks as f32 * TICK_S * 1000.0) as u64;
@@ -429,6 +508,43 @@ static ENDED_FACE: [[AtomicU64; ENDED_NONE + 1]; 7] = [const { [const { AtomicU6
 /// A link given up with the body this near its take-off stayed at the face.
 const GONE_NEAR_M: f32 = 3.0;
 
+/// The links given up on followed for this long, ticks (10 s), and the body is counted to have stayed at the foot if it is
+/// within [`GHOST_STAY_M`] of the take-off at the end.
+const GHOST_TICKS: u32 = 300;
+const GHOST_STAY_M: f32 = 6.0;
+/// What became of the links of a 0.8-1.2 m face given up on: by kind and route end, climbed anyway / went elsewhere /
+/// still near the foot (counts), and the milliseconds within [`GONE_NEAR_M`] of the take-off in the 10 s.
+static GHOST: [[[AtomicU64; 4]; ENDED_NONE + 1]; 7] = [const { [const { [const { AtomicU64::new(0) }; 4] }; ENDED_NONE + 1] }; 7];
+
+/// The first press of the links of a 0.8-1.2 m face that were walking jumps or sprint jumps, by outcome (got up, pressed
+/// and not up): the metres before the take-off (0.25 m bins), to the side of its line (0.1 m), the ground speed (0.5 m/s),
+/// the top's depth (0.5 m) and the rise from 0.8 m (0.05 m).
+pub const PRESS_BINS: usize = 12;
+pub const PRESS_METRICS: usize = 5;
+static PRESS: [[[[AtomicU64; PRESS_BINS]; PRESS_METRICS]; 2]; 2] =
+    [const { [const { [const { [const { AtomicU64::new(0) }; PRESS_BINS] }; PRESS_METRICS] }; 2] }; 2];
+
+fn press_hist(run: &Run, outcome: usize) {
+    let (Some(press), kind) = (run.press, run.link.kind) else {
+        return;
+    };
+    let k = match kind {
+        Kind::Walking => 0,
+        Kind::SprintBand => 1,
+        _ => return,
+    };
+    let bin = |x: f32, width: f32| ((x / width).max(0.0) as usize).min(PRESS_BINS - 1);
+    let rise = run.link.landing.y - run.link.take_off.y;
+    let h = &PRESS[k][outcome];
+    h[0][bin(press.before, 0.25)].fetch_add(1, Ordering::Relaxed);
+    h[1][bin(press.side, 0.1)].fetch_add(1, Ordering::Relaxed);
+    h[2][bin(press.speed, 0.5)].fetch_add(1, Ordering::Relaxed);
+    if let Some(top) = run.link.top {
+        h[3][bin(top, 0.5)].fetch_add(1, Ordering::Relaxed);
+    }
+    h[4][bin(rise - 0.8, 0.05)].fetch_add(1, Ordering::Relaxed);
+}
+
 static WHY: [[[AtomicU64; 2]; 5]; 7] = [const { [const { [const { AtomicU64::new(0) }; 2] }; 5] }; 7];
 
 fn add_why(kind: usize, why: usize, slow: usize, ms: u64) {
@@ -439,7 +555,11 @@ fn add_why(kind: usize, why: usize, slow: usize, ms: u64) {
 /// kind and [`Why`] (`[kind][why][stopped, slowed]`).
 pub fn counts() -> Vec<u64> {
     let fields = COUNTS.iter().flatten().flatten();
-    fields.chain(WHY.iter().flatten().flatten()).chain(ENDED.iter().flatten()).chain(ENDED_FACE.iter().flatten()).map(|c| c.load(Ordering::Relaxed)).collect()
+    fields.chain(WHY.iter().flatten().flatten()).chain(ENDED.iter().flatten()).chain(ENDED_FACE.iter().flatten())
+        .chain(GHOST.iter().flatten().flatten())
+        .chain(PRESS.iter().flatten().flatten().flatten())
+        .map(|c| c.load(Ordering::Relaxed))
+        .collect()
 }
 
 /// The index of (`kind`, `band`, `field`) in [`counts`].
@@ -454,7 +574,7 @@ mod tests {
     use super::*;
 
     fn link(kind: Kind, rise: f32) -> Link {
-        Link { kind, take_off: Vec3::new(5.0, 0.0, 0.0), landing: Vec3::new(5.4, rise, 0.0) }
+        Link { kind, take_off: Vec3::new(5.0, 0.0, 0.0), landing: Vec3::new(5.4, rise, 0.0), top: Some(3.0) }
     }
 
     /// A link timed from the lining up to the regained speed: the time, the excess over the path at the starting speed,
@@ -475,7 +595,7 @@ mod tests {
             let speed = if t < 12 { 2.0 } else if t < 30 { 3.0 } else { 5.0 };
             feet.x += speed * TICK_S;
             if t == 10 {
-                watch.pressed(clock);
+                watch.pressed(clock, feet, speed);
             }
             if t >= 20 {
                 feet.y = 0.9;
@@ -509,6 +629,41 @@ mod tests {
         let after = counts();
         assert_eq!(after[at(kind, band, Field::Abandoned)] - before[at(kind, band, Field::Abandoned)], 1);
         assert_eq!(after[at(kind, band, Field::Links)], before[at(kind, band, Field::Links)]);
+    }
+
+    /// The offset of the ghost counts of (`kind`, no route end) in [`counts`].
+    fn ghost_at(kind: Kind) -> usize {
+        let ended_n = ENDED_NONE + 1;
+        let before_ghost = Kind::ALL.len() * (BANDS * FIELDS + 5 * 2 + 2 * ended_n);
+        before_ghost + (kind as usize * ended_n + ENDED_NONE) * 4
+    }
+
+    /// A link of a 0.8-1.2 m face given up on is followed for 10 s: the body that climbs it anyway is counted so, one that
+    /// stays at its foot is counted near, with the seconds it spent there.
+    #[test]
+    fn a_link_given_up_on_is_followed_to_see_if_the_body_climbs_it_anyway() {
+        let kind = Kind::Through; // a kind no other test gives up on
+        let foot = Vec3::new(2.5, 0.0, 0.0);
+        let top = Vec3::new(5.4, 1.0, 0.0);
+        let run = |end_feet: Vec3| {
+            let before = counts();
+            let mut watch = Watch::default();
+            watch.begin(0, link(kind, 1.0), foot, 5.0);
+            for t in 1..60 {
+                watch.tick(t, foot, 1.0, Why::Unknown);
+            }
+            for t in 60..60 + GHOST_TICKS + 5 {
+                watch.tick(t, end_feet, 1.0, Why::Unknown);
+            }
+            let after = counts();
+            let d = |s: usize| after[ghost_at(kind) + s] - before[ghost_at(kind) + s];
+            [d(0), d(1), d(2), d(3)]
+        };
+        assert_eq!(run(top)[..3], [1, 0, 0], "climbed anyway");
+        let stayed = run(foot);
+        assert_eq!(stayed[..3], [0, 0, 1], "still at the foot");
+        assert!(stayed[3] > 5_000, "the ms within 3 m of the take-off: {stayed:?}");
+        assert_eq!(run(Vec3::new(40.0, 0.0, 0.0))[..3], [0, 1, 0], "gone elsewhere");
     }
 
     #[test]

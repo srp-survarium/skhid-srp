@@ -84,6 +84,7 @@
     "live_zones": false,
     "price_way_out": false,
     "route_crossing": "off",
+    "run_out": false,
     "zone_intensity": false,
     "zone_pools": "raw"
   },
