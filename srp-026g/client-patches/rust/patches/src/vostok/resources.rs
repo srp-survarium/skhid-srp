@@ -8,9 +8,9 @@
 //! `resources.query_done`); its handler gets [`QueryResults`] and the tag,
 //! and takes what it asked for with [`QueryResults::arrived`].
 
-use core::ffi::{c_void, CStr};
+use core::ffi::CStr;
 use core::num::NonZeroU32;
-use core::ptr::null_mut;
+use core::ptr::null;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::hook::{CallbackEntry, Thread};
@@ -134,22 +134,22 @@ pub fn query_bus(_: &Thread, callback: QueryCallback) {
         *params.proxies() = BUS_PROXIES;
         *params.propagators() = BUS_PROPAGATORS;
         *params.receivers() = BUS_RECEIVERS;
-        *params.itself() = params.address();
+        params.set_itself(Some(params));
         *params.type_id() = raw::engine_scene_params_type();
     }
-    query(c"sound_scene", SOUND_SCENE_CLASS, params.address() as usize as *mut c_void, QueryTag::Bus, callback);
+    query(c"sound_scene", SOUND_SCENE_CLASS, Some(params), QueryTag::Bus, callback);
 }
 
 /// Asks for a track: the single sound (class 256, as the scenes' sounds)
 /// at `path` (`music/lobby_theme`: sounds/single/music/lobby_theme.*).
 pub fn query_track(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallback) {
-    query(path, SINGLE_SOUND_CLASS, null_mut(), QueryTag::Track(serial), callback);
+    query(path, SINGLE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
 }
 
-fn query(path: &CStr, class: u32, user_data: *mut c_void, tag: QueryTag, callback: QueryCallback) {
+fn query(path: &CStr, class: u32, params: Option<raw::SceneParamsVariant>, tag: QueryTag, callback: QueryCallback) {
     let mut request = raw::ResourceRequestStorage::zeroed();
     let mut function = raw::QueryFunctionStorage::zeroed();
-    let mut user = [user_data];
+    let mut user = raw::QueryUserDataStorage::zeroed();
     // SAFETY: one request {path, class} and its user data (a variant or
     // none), a boost function bound to the generated callback and the tag,
     // and the game's allocator, all copied by query_resources before it
@@ -159,10 +159,11 @@ fn query(path: &CStr, class: u32, user_data: *mut c_void, tag: QueryTag, callbac
         r.set_path(path.as_ptr().cast_mut().cast());
         *r.class() = class;
         let f = function.handle();
-        raw::engine_bind_query_callback(Some(f), callback.address() as usize as *const c_void, tag.word());
+        raw::engine_bind_query_callback(Some(f), callback.entry(), tag.word());
+        let u = user.handle();
+        u.set_variant(params);
         let allocator = raw::image::game_allocator().allocator();
-        raw::engine_query_resources(r.address() as usize as *const c_void, 1, f.address() as usize as *mut c_void,
-            allocator.cast(), user.as_mut_ptr().cast(), null_mut(), ASYNCHRONOUS);
+        raw::engine_query_one(Some(r), 1, Some(f), allocator, Some(u), null(), ASYNCHRONOUS);
     }
 }
 

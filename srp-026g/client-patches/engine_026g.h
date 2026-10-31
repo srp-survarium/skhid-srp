@@ -14,9 +14,11 @@ struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_bool;
+struct cc_float;
 struct cc_string;
 struct core_world;
 struct engine_cfg;
+struct game_allocator;
 struct game_material_manager;
 struct game_scene;
 struct game_world_ui;
@@ -35,9 +37,11 @@ struct player_input_handler;
 struct player_params_modifiers_container;
 struct queries_result;
 struct query_function;
+struct query_user_data;
 struct ray_result;
 struct render_model_instance;
 struct render_visual;
+struct resource_request;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
@@ -296,5 +300,14 @@ void __attribute__((cdecl)) engine_store_first_resource(struct queries_result *r
 
 /* 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16 */
 void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode);
+
+/* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
+void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind);
+
+/* 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0 */
+void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag);
+
+/* 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0 */
+void engine_release_emitter(struct sound_emitter **pointer);
 
 #endif

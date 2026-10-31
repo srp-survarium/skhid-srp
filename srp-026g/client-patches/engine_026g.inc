@@ -269,3 +269,12 @@ extern engine_store_first_resource
 ; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
 ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
 extern engine_comment_about_user
+; void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind)
+; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+extern engine_cc_float
+; void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag)
+; 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+extern engine_query_one
+; void engine_release_emitter(struct sound_emitter **pointer)
+; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+extern engine_release_emitter

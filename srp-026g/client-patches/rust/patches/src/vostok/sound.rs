@@ -111,7 +111,7 @@ impl Drop for Emitter {
         let mut slot = Some(self.0);
         // SAFETY: our reference, let go once, by the game's own release of
         // an unmanaged resource (0x11540: count +0D0h, deleted at 0).
-        unsafe { raw::engine_model_instance_release((&raw mut slot).cast()) }
+        unsafe { raw::engine_release_emitter(&mut slot) }
     }
 }
 

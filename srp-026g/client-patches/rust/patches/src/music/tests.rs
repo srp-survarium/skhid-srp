@@ -324,6 +324,21 @@ fn fast_random_screens_never_give_two_voices() {
 }
 
 #[test]
+fn the_music_slider_scales_the_bus_not_its_fade() {
+    let mut bus = Bus::new();
+    bus.scene = Some(());
+    bus.level = Volume::new(0.4);
+    bus.fade(Volume::FULL);
+    let (_, given) = bus.tick(2000).unwrap();
+    assert_eq!(bus.volume, Volume::FULL, "the fade is the fade's");
+    assert!((given.get() - 0.4).abs() < 1e-6, "the bus gets fade x slider");
+    bus.level = Volume::SILENT;
+    bus.fade(Volume::SILENT);
+    bus.tick(10);
+    assert!(!bus.silent(), "a slider at 0 is not a finished fade-out");
+}
+
+#[test]
 fn the_bus_steps_at_a_fade_a_two_seconds() {
     let mut bus = Bus::new();
     bus.scene = Some(());

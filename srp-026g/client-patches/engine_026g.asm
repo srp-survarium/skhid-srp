@@ -86,6 +86,9 @@ global engine_scene_params_type
 global engine_add_active_scene
 global engine_store_first_resource
 global engine_comment_about_user
+global engine_cc_float
+global engine_query_one
+global engine_release_emitter
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1159,6 +1162,62 @@ engine_comment_about_user:
     push dword [esp + 32]   ; nickname -> 8
     push dword [esp + 32]   ; lobby_client -> 4
     call 0x274470
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_float:
+    ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; kind -> 16
+    push dword [esp + 36]   ; saved -> 12
+    push dword [esp + 36]   ; value -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0x1ddb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_query_one:
+    ; 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; flag -> 20
+    push dword [esp + 44]   ; parent -> 16
+    push dword [esp + 44]   ; user -> 12
+    push dword [esp + 44]   ; allocator -> 8
+    push dword [esp + 44]   ; callback -> 4
+    mov eax, [esp + 40]   ; requests
+    mov ecx, [esp + 44]   ; count
+    call 0xe5b60
+    add esp, 20                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_emitter:
+    ; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pointer
+    call 0x11540
     pop edi
     pop esi
     pop ebx

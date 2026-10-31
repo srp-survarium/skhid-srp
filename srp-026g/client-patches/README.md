@@ -3784,11 +3784,15 @@ music; the tracks are the content pack `music@1` and each mode's `ui.loading_mus
 (`music-1.json`), as retail's. The Rust `music` module plays them in a sound scene of its own (the
 bus, class 38) that the game never makes current: the sound thread's tick (`sound_world.tick`,
 0x59AB1) keeps it among the active scenes and steps its volume, which the engine's own fade path
-gives its submix with the general volume. Its events: `game.tick` (the bus asked for, the 15 s,
+gives its submix with the general volume; the volume is the stock Settings' Music slider's
+(`s_music_volume`, which the game's option names but never registered: patch 88 registers it at
+`configs.start`, a saved cc_float of 0 to 100, and the main menu no longer greys the slider out)
+times the fade. Its events: `game.tick` (the bus asked for, the 15 s,
 a fade done), `login_menu.activated`, `lobby_menu.activated`, `level_loading.ui` (the mode's `ui`
 table), `game_world_ui.welcome` (the announcement), `game.clear_resources` (the unload). Its tracks
 are single sounds loaded by `query_resources` (class 256) with a callback of its own
 (`resources.query_done`, a `callback` site: the generated entry handed to a boost function made
 by 0x176D0, no site rewritten). The presentation only: no simulation change.
-`check_music_026g.py` runs every hook from its site and the callback through the game's invoker.
+`check_music_026g.py` runs every hook from its site and the callback through the game's invoker,
+and the slider's variable through the game's lookup and setter.
 

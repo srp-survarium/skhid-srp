@@ -23,13 +23,20 @@
 use core::ffi::CStr;
 
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag, Serial};
+use crate::vostok::settings::ConsoleFloat;
 use crate::vostok::sound::{BusScene, Emitter, LoadingMusic, SoundTick, SoundUser, TrackPath, Voice, Volume};
+use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, clock};
 
 /// A fade's length, in and out (retail's 2000 ms).
 const FADE_MS: f32 = 2000.0;
 /// The map's theme plays on this long past the announcement (the owner's 15 s).
 const HOLD_MS: u64 = 15_000;
+
+/// The Settings' Music slider: the stock option names `s_music_volume`, a
+/// variable stock 0.26g never registered. 0 to 100 as General's (the
+/// slider snaps by 1, options_items 0x262DA6), full at first; saved in user.cfg.
+static MUSIC_VOLUME: ConsoleFloat = ConsoleFloat::new(100.0, 0.0, 100.0);
 
 /// The machine's clock, in ms (QueryPerformanceCounter's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -255,12 +262,18 @@ pub struct Bus<S> {
     commands: u32,
     seen_cuts: u32,
     seen: u32,
+    /// The fade's volume, 0 to 1.
     volume: Volume,
+    /// The Music slider's share, 0 to 1 (the game's thread copies it).
+    level: Volume,
 }
 
 impl<S: Copy> Bus<S> {
     const fn new() -> Bus<S> {
-        Bus { scene: None, target: Volume::SILENT, cuts: 0, commands: 0, seen_cuts: 0, seen: 0, volume: Volume::SILENT }
+        Bus {
+            scene: None, target: Volume::SILENT, cuts: 0, commands: 0, seen_cuts: 0, seen: 0, volume: Volume::SILENT,
+            level: Volume::FULL,
+        }
     }
 
     fn fade(&mut self, to: Volume) {
@@ -278,7 +291,8 @@ impl<S: Copy> Bus<S> {
     }
 
     /// The sound thread's tick, `elapsed` ms after the last: the volume to
-    /// give the bus (None before it is open).
+    /// give the bus, the fade's times the Music slider's (None before it is
+    /// open). The engine multiplies it by General.
     fn tick(&mut self, elapsed: u32) -> Option<(S, Volume)> {
         let scene = self.scene?;
         if self.seen_cuts != self.cuts {
@@ -289,7 +303,7 @@ impl<S: Copy> Bus<S> {
         let (now, to) = (self.volume.get(), self.target.get());
         self.volume = Volume::new(if now < to { (now + step).min(to) } else { (now - step).max(to) });
         self.seen = self.commands;
-        Some((scene, self.volume))
+        Some((scene, Volume::new(self.volume.get() * self.level.get())))
     }
 }
 
@@ -345,9 +359,20 @@ pub enum Glue {
     /// Before the game's first frame: the asked track waits.
     Waiting { asked: Option<Want> },
     /// The bus asked for; the asked track waits.
-    Opening { sound: SoundUser, asked: Option<Want> },
+    Opening { sound: SoundUser, asked: Option<Want>, attempt: Attempt },
+    /// The bus did not load: asked again once, at the next screen's ask.
+    Failed { sound: SoundUser, asked: Option<Want> },
+    /// The bus did not load twice: no music this session (both logged).
+    Off,
     /// The bus open: the machine runs.
     Open { sound: SoundUser, bus: BusScene, music: Music<Emitter, Voice>, serial: Serial },
+}
+
+/// Which query of the bus is out: the first, or the one retry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Attempt {
+    First,
+    Retry,
 }
 
 /// What the glue is told.
@@ -365,11 +390,11 @@ impl Glue {
             Glue::Waiting { asked } => match told {
                 Told::Frame(Some(sound)) => {
                     *query = Some(Query::Bus);
-                    Glue::Opening { sound, asked }
+                    Glue::Opening { sound, asked, attempt: Attempt::First }
                 }
                 told => Glue::Waiting { asked: wait(asked, told, now) },
             },
-            Glue::Opening { sound, asked } => match told {
+            Glue::Opening { sound, asked, attempt } => match told {
                 Told::Arrived(Arrived::Bus(Some(bus))) => {
                     BUS.with(thread, |b| b.scene = Some(bus));
                     let mut serial = Serial::FIRST;
@@ -377,15 +402,36 @@ impl Glue {
                     let music = Music::Silent.step(Event::Ask(asked), &mut game);
                     Glue::Open { sound, bus, music, serial }
                 }
-                told => Glue::Opening { sound, asked: wait(asked, told, now) },
+                Told::Arrived(Arrived::Bus(None)) => {
+                    log::line(&[Text("music: the bus (a sound_scene of class 38) did not load"), Text(match attempt {
+                        Attempt::First => "; asked again at the next screen",
+                        Attempt::Retry => " again; no music this session",
+                    })]);
+                    match attempt {
+                        Attempt::First => Glue::Failed { sound, asked },
+                        Attempt::Retry => Glue::Off,
+                    }
+                }
+                told => Glue::Opening { sound, asked: wait(asked, told, now), attempt },
             },
+            Glue::Failed { sound, asked } => match told {
+                Told::Ask(want) => {
+                    *query = Some(Query::Bus);
+                    Glue::Opening { sound, asked: want, attempt: Attempt::Retry }
+                }
+                told => Glue::Failed { sound, asked: wait(asked, told, now) },
+            },
+            // a sound that arrives now is let go here
+            Glue::Off => Glue::Off,
             Glue::Open { sound, bus, music, mut serial } => {
                 let event = match told {
                     Told::Frame(_) => Event::Frame,
                     Told::Ask(want) => Event::Ask(want),
                     Told::Announced => Event::Announced,
                     Told::Arrived(Arrived::Track(arrived, emitter)) => Event::Arrived(arrived, emitter),
-                    // the bus is open already (a second scene is let go here)
+                    // the bus is open already: never asked twice (one query, or
+                    // a retry after a failure), so none comes; one would keep
+                    // its reference (a scene is never let go)
                     Told::Arrived(Arrived::Bus(_)) => Event::Frame,
                     Told::Unload => Event::Unload,
                 };
@@ -457,9 +503,18 @@ fn tell(thread: &Thread, told: Told) {
     }
 }
 
-/// game::tick (every frame).
+/// game::on_configs_loaded, before user.cfg: the Music slider's variable.
+pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    MUSIC_VOLUME.register(ctx.thread(), c"s_music_volume");
+    Flow::Continue
+}
+
+/// game::tick (every frame): the slider's level to the bus, then the music.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    tell(ctx.thread(), Told::Frame(SoundUser::at_game_tick(ctx)));
+    let thread = ctx.thread();
+    let level = Volume::new(MUSIC_VOLUME.get(thread) / 100.0);
+    BUS.with(thread, |bus| bus.level = level);
+    tell(thread, Told::Frame(SoundUser::at_game_tick(ctx)));
     Flow::Continue
 }
 
@@ -482,6 +537,14 @@ pub fn on_loading(ctx: &mut Context<'_>) -> Flow<NoExit> {
         LoadingMusic::None => None,
     };
     tell(ctx.thread(), Told::Ask(want));
+    Flow::Continue
+}
+
+/// A replay's options read (its chunk 1): a replay has no theme (it never
+/// passes switch_to_level_loading, whose only caller is a live match's
+/// process_static_match_info 0x27BEA0): what plays fades out.
+pub fn on_replay(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    tell(ctx.thread(), Told::Ask(None));
     Flow::Continue
 }
 

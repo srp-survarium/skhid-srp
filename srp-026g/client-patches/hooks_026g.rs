@@ -456,6 +456,21 @@ pub extern "C" fn hook_hud_options_on_replay_options(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- music (patch 88) ----
+
+/// The entry `music_on_replay` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_replay` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -570,6 +585,21 @@ pub extern "C" fn hook_hud_options_on_configs(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_configs(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1366,6 +1396,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
+    let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -1383,6 +1415,8 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     let flow = hook_language_on_configs_start(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_configs(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_music_on_configs(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -1420,7 +1454,7 @@ unsafe extern "C" { fn music_on_query_done(); }
 pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
-    unsafe { super::hook::CallbackEntry::from_address(music_on_query_done as *const () as usize as u32) }
+    unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

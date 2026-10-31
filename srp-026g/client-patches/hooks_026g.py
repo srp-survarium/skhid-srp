@@ -714,7 +714,7 @@ def rs_text(hs, tables=()):
                   f"pub fn {h['entry']}_entry() -> super::hook::CallbackEntry<{h['orig']}> {{",
                   "    // SAFETY: the generated entry lives for the executable's lifetime and takes the",
                   f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
-                  f"    unsafe {{ super::hook::CallbackEntry::from_address({h['entry']} as *const () as usize as u32) }}",
+                  f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
                   "}"]
     for table in tables:
         symbol, count = table["symbol"], table["count"]

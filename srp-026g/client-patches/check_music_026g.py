@@ -37,8 +37,16 @@ thread). Checked:
 - the announcement: the map's theme full until 15 s, then a 2 s fade-out, let
   go when silent, nothing asked after;
 - a callback whose tag nobody waits for: its sound taken and let go at once;
-- the unload: the voice and the sound let go at once.
+- the unload: the voice and the sound let go at once;
+- a bus the engine refuses (a null first result): logged, asked again once
+  at the next screen, a second refusal logged and nothing asked after;
+- the Music slider: `s_music_volume` registered at on_configs_loaded's start
+  (after patches 79's and 83's), found by the console's lookup (0xEB7C0, the
+  stock option's), a saved kind-2 cc_float of 0 to 100 at 100; the game's
+  own setter (0xECB70) takes a line's value within its range; the bus gets
+  fade x slider / 100 from the next frame.
 """
+import pathlib
 import struct
 import sys
 import zlib
@@ -51,12 +59,17 @@ import patch_026g as base
 
 SITES = {  # the site, its span, its handler
     "frame": (0x1EC8EC, 6), "login": (0x21EAC8, 6), "lobby": (0x21D31D, 6), "loading": (0x2204B3, 6),
-    "announced": (0x23B36A, 7), "unload": (0x1ED030, 10), "sound": (0x59AB1, 6),
+    "announced": (0x23B36A, 7), "unload": (0x1ED030, 10), "sound": (0x59AB1, 6), "configs": (0x1EA210, 6),
+    "replay": (0x1F0971, 5),
 }
+LIST_HEAD, FIND, SET_FLOAT, CC_FLOAT_VTABLE = 0x1F1D66C, 0xEB7C0, 0xECB70, 0x9E7C6C
+SSCANF = 0x422B46                       # the CRT's sscanf (cdecl text, format, place): its "%f" made here
+INVALID = 0xEC530                       # on_invalid_syntax (eax the variable; the text, ret 4): the console's message
 QUERY, EMIT, PLAY, FREE_VOICE, RELEASE = 0xE5B60, 0x65630, 0x5ABA0, 0x5B390, 0x11540
 INVOKER = 0x3AAA20                       # the bound cdecl function's invoker (vtable 0x9DB9E0 slot 1)
 FUNCTION_VTABLE, PARAMS_HELPER = 0x9DB9E0, 0x9FC7C0
 QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x870158, 0x870150, 0x870118
+CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040   # the log's kernel32
 FREQUENCY = 10_000_000
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 GAME, WORLD, USER, SCENE, RESULTS, UI = (HEAP + 0x10000 * i for i in range(6))
@@ -94,9 +107,17 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.frequency, begin=STUBS + 0x10, end=STUBS + 0x10)
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        # the log: CreateFileA (a handle, stdcall 7), WriteFile (the bytes kept, stdcall 5), CloseHandle (1)
+        self.logged = b""
+        for slot, stub, code in ((CREATE_FILE_SLOT, STUBS + 0x90, b"\xB8\x07\x00\x00\x00\xC2\x1C\x00"),
+                                 (WRITE_FILE_SLOT, STUBS + 0xA0, b"\xB8\x01\x00\x00\x00\xC2\x14\x00"),
+                                 (CLOSE_SLOT, STUBS + 0xB0, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")):
+            self.word(slot, stub)
+            emu.mem_write(stub, code)
+        emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0xA0, end=STUBS + 0xA0)
         self.calls = []
         self.proxies = 0
-        for stub in (QUERY, EMIT, PLAY, FREE_VOICE, RELEASE):
+        for stub in (QUERY, EMIT, PLAY, FREE_VOICE, RELEASE, SSCANF, INVALID):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=stub, end=stub)
         # the game: its sound world (+5350h) and the world's logic user (+0B0h);
         # the world's active list empty, its general volume byte 50
@@ -123,6 +144,10 @@ class Game:
         self.emu.mem_write(at, text.encode() + b"\0")
         self.texts += (len(text) + 16) & ~15
         return at
+
+    def write_file(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.logged += self.read(self.read(sp + 8), self.read(sp + 12))
 
     def counter(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -161,6 +186,17 @@ class Game:
             pops = 12
         elif address == FREE_VOICE:       # thiscall, ecx the proxy whose count went to 0
             self.calls.append(("release voice", reg(UC_X86_REG_ECX), self.read(reg(UC_X86_REG_ECX) + 0x28)))
+        elif address == INVALID:
+            self.calls.append(("invalid", self.text(arg(1))))
+            pops = 4
+        elif address == SSCANF:           # cdecl (text, "%f", &float): 1 when the text is a number
+            assert self.text(arg(2)) == "%f"
+            try:
+                number = float(self.text(arg(1)))
+                emu.mem_write(arg(3), struct.pack("<f", number))
+                emu.reg_write(UC_X86_REG_EAX, 1)
+            except ValueError:
+                emu.reg_write(UC_X86_REG_EAX, 0)
         else:                             # ecx &resource pointer
             self.calls.append(("release", self.read(reg(UC_X86_REG_ECX))))
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
@@ -186,6 +222,13 @@ class Game:
         self.calls = []
         after, esp = self.go(site, site + span, given, sp)
         return self.calls, after, esp, given, sp
+
+    def call(self, start, regs, args=()):
+        """A function of the game run to its return (stdcall/thiscall/cdecl alike: DONE stops it)."""
+        sp = STACK - 0x600
+        self.emu.mem_write(sp, struct.pack("<I", DONE) + b"".join(struct.pack("<I", a) for a in args))
+        after, _ = self.go(start, DONE, {**STEADY, **regs}, sp)
+        return after
 
     def at(self, ms):
         self.ticks = ms * (FREQUENCY // 1000)
@@ -213,6 +256,11 @@ def replayed(name, after, given, esp, sp, game):
         expect[UC_X86_REG_ESI] = given[UC_X86_REG_ECX]
         expect[UC_X86_REG_ECX] = game.read(given[UC_X86_REG_ECX] + 0x535C)
         return after == expect and esp == sp - 8
+    elif name == "configs":                 # push ebp / mov ebp,esp / and esp,-8 (a chain: patches 79, 83, 88)
+        expect[UC_X86_REG_EBP] = sp - 4
+        return {r: v for r, v in after.items() if r != UC_X86_REG_EBP} == \
+            {r: v for r, v in expect.items() if r != UC_X86_REG_EBP} and after[UC_X86_REG_EBP] == sp - 4 \
+            and esp == (sp - 4) & ~7
     elif name == "sound":                   # mov esi,[edi+48E4h]
         expect[UC_X86_REG_ESI] = game.read(given[UC_X86_REG_EDI] + 0x48E4)
     return after == expect and esp == sp
@@ -252,8 +300,8 @@ def main():
         at = base.file_offset(va)
         new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
         check(opcode == 0xE9 and original[at:at + len(old)] == old and built[at:at + len(new)] == new
-              and (va, len(old)) in SITES.values(), f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
-    check(len(ours) == 8, f"music's eight hooks ({len(ours)})")
+              and any(va == site for site, _ in SITES.values()), f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
+    check(len(ours) == 10, f"music's ten hooks ({len(ours)})")
 
     game = Game(bytes(built))
     clean = True
@@ -287,6 +335,28 @@ def main():
         return game.float(SCENE + 0x2E4)
 
     game.at(1000)
+    # the Music slider's variable, registered at on_configs_loaded's start (after patches 79 and 83)
+    head = game.read(LIST_HEAD)
+    run("configs")
+    name = game.put_text("s_music_volume")
+    node = game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX]
+    music_value = game.read(node + 0x40) if node else 0
+    check(node and game.read(LIST_HEAD) == node and game.read(node) == CC_FLOAT_VTABLE
+          and game.text(game.read(node + 0x10)) == "s_music_volume" and game.read(node + 0x14) == 2
+          and game.read(node + 0x1C, 2)[1] == 1 and (game.float(node + 0x44), game.float(node + 0x48)) == (0.0, 100.0)
+          and game.float(music_value) == 100.0 and head != node,
+          "configs.start: s_music_volume registered last of the chain, found by the console's lookup (0xEB7C0, the "
+          "Settings' Music option's): a cc_float, saved (user.cfg), kind 2, 0 to 100, 100 at first")
+    run("configs")
+    check(game.read(LIST_HEAD) == node, "configs.start again: registered once")
+
+    def slider(text):
+        game.call(SET_FLOAT, {UC_X86_REG_ECX: node}, (game.put_text(text),))
+        return game.float(music_value)
+
+    check((slider("40"), slider("150"), slider("abc"), slider("62.50"), slider("100")) == (40.0, 0.0, 0.0, 62.5, 100.0),
+          "the game's own setter (0xECB70, user.cfg's line and the slider's Apply; sscanf's \"%f\" made here): 40; out of range or not a number "
+          "the least; 62.50; 100")
     check(run("sound", EDI=WORLD, EBX=10) == [] and game.read(WORLD + 0x48E4) == 0,
           "the sound thread's tick before the bus: the world untouched")
     check(run("login", ESI=HEAP + 0x200) == [], "the login screen before the first frame: the theme waits")
@@ -345,6 +415,18 @@ def main():
     v1 = volume()
     sound(1000)
     check(abs(v1 - 0.5) < 0.011 and volume() > 0.999, f"fading in: {v1:.3f} at 1 s, {volume():.4f} at 2 s")
+
+    slider("40")
+    frames(100)
+    at_40 = volume()
+    slider("0")
+    frames(100)
+    at_0 = volume()
+    slider("100")
+    frames(100)
+    check(abs(at_40 - 0.4) < 1e-6 and at_0 == 0.0 and volume() == 1.0,
+          f"the Music slider: the bus at fade x slider (40: {at_40:.3f}, 0: {at_0}, 100: {volume()}) from the next frame "
+          "(General is the engine's, +2E8h)")
 
     calls = run("lobby", EDI=HEAP + 0x300)
     check(calls == [], "the lobby: nothing asked while the main theme fades out")
@@ -411,6 +493,38 @@ def main():
     check([c[0] for c in calls] == ["release voice", "release"] and calls[1][1] == lobby2,
           "the unload: the voice and the sound let go at once")
     check(clean, "every hook returned at its span's end, the registers and ESP the span's own")
+
+    # a bus the engine refuses: logged, asked again at the next screen, then given up (logged too)
+    refused = Game(bytes(built))
+    refused.at(1000)
+
+    def hook(name, **named):
+        regs = {getattr(sys.modules[__name__], "UC_X86_REG_" + k): v for k, v in named.items()}
+        return refused.hook(name, regs)[0]
+
+    first = hook("frame", EBX=GAME)
+    function = STUBS + 0x600
+    refused.emu.mem_write(function, first[0][4])
+    refused.emu.mem_write(RESULTS, bytes(0x400))
+    refused.word(RESULTS + 0x38, 1)
+    calls = refused.callback(function + 8, RESULTS)
+    log_first = refused.logged
+    quiet = [hook("frame", EBX=GAME) for _ in range(3)]
+    retry = hook("login", ESI=HEAP + 0x200)
+    refused.emu.mem_write(function, retry[0][4] if retry else bytes(0x20))
+    refused.callback(function + 8, RESULTS)
+    log_both = refused.logged
+    after = hook("lobby", EDI=HEAP + 0x300) + hook("frame", EBX=GAME)
+    check(calls == [] and b"did not load; asked again at the next screen" in log_first and quiet == [[], [], []]
+          and retry and retry[0][1:3] == ("sound_scene", 38) and len(retry) == 1
+          and b"did not load again; no music this session" in log_both and after == [],
+          "a bus the engine refuses: logged to srp_patches.log, no query until the next screen (the login), "
+          "asked again then, refused again: logged, and no music asked after")
+    tabs = (pathlib.Path(__file__).resolve().parent / ".." / "flash" / "main_menu" / "src" / "main_menu_fla"
+            / "settingsTabs_15.as").read_text(encoding="utf-8")
+    sound_tab = tabs[tabs.index("internal function frame4()"):]
+    check("this._sound_volume." not in sound_tab.split("}")[0] and "this._game_volume.slider.enabled = false;" in sound_tab,
+          "the main menu's sound tab leaves the Music slider (_sound_volume) enabled, In-game and Voice chat greyed out")
 
     if failed:
         sys.exit(f"{failed} check(s) failed")

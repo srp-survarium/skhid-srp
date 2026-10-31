@@ -139,6 +139,12 @@ unsafe extern "C" {
     pub fn engine_add_active_scene(world: Option<SoundWorld>, scene: Option<SoundScene>);
     /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
     pub fn engine_comment_about_user(lobby_client: Option<LobbyClient>, nickname: *const u8, kind: u32, mode: u32);
+    /// 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    pub fn engine_cc_float(object: Option<CcFloat>, name: *const u8, value: *mut f32, saved: u32, kind: u32);
+    /// 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    pub fn engine_query_one(requests: Option<ResourceRequest>, count: u32, callback: Option<QueryFunction>, allocator: Option<GameAllocator>, user: Option<QueryUserData>, parent: *const c_void, flag: u32);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_emitter(pointer: *mut Option<SoundEmitter>);
 }
 
 #[allow(dead_code)]
@@ -5175,13 +5181,22 @@ impl SceneParamsVariant {
         unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
     }
 
-    /// +0x28 (u32): the variant's own address (the lobby's 0x21E538)
+    /// +0x28 (ptr<vostok::sound::scene_params_variant>): the variant's own address (the lobby's 0x21E538)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn itself(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    pub unsafe fn itself(self) -> Option<SceneParamsVariant> {
+        unsafe { self.0.byte_add(0x28).cast::<Option<SceneParamsVariant>>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<vostok::sound::scene_params_variant>): the variant's own address (the lobby's 0x21E538)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_itself(self, value: Option<SceneParamsVariant>) {
+        unsafe { self.0.byte_add(0x28).cast::<Option<SceneParamsVariant>>().write_volatile(value) }
     }
 
     /// +0x2c (u32): the value's type id, type_to_int 0x630F0 (the lobby's 0x21E4EE); sound_scene_cook's translate_query requires it
@@ -5351,13 +5366,174 @@ impl AllocatorSlot {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x0 (ptr<u8>): the allocator
+    /// +0x0 (ptr<vostok::memory::game_allocator>): the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn allocator(self) -> *mut u8 {
-        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    pub unsafe fn allocator(self) -> Option<GameAllocator> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<GameAllocator>>().read_volatile() }
+    }
+}
+
+/// A vostok::console_commands::cc_float (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CcFloat(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CcFloat {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: CC_FLOAT_VTABLE, written after cc_value<bool>::cc_value (which leaves its own), as s_general_volume's (0x84D48D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): the least value its setter (0xECB70, vtable slot 1) stores; a value out of range or not a float stores this
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn least(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x48 (f32): the most value its setter stores
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn most(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x4c bytes: a cc_float console variable's object (s_general_volume's at 0xA7D3C8, made by its static initializer 0x84D440: cc_value<bool>::cc_value's base fields, +40h the value's address, +44h the least, +48h the most)
+    pub const SIZE: usize = 0x4c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::console_commands::cc_floats (0x4c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CcFloatStorage([u8; 0x4c]);
+
+#[allow(dead_code)]
+impl CcFloatStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CcFloat {
+        CcFloat(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CcFloat> {
+        (!rooms.is_empty()).then(|| CcFloat(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::query_user_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryUserData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryUserData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::sound::scene_params_variant>): a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn variant(self) -> Option<SceneParamsVariant> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneParamsVariant>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::sound::scene_params_variant>): a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_variant(self, value: Option<SceneParamsVariant>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneParamsVariant>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: one request's user data pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::query_user_datas (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct QueryUserDataStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl QueryUserDataStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> QueryUserData {
+        QueryUserData(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<QueryUserData> {
+        (!rooms.is_empty()).then(|| QueryUserData(NonNull::from(rooms).cast()))
     }
 }
 
@@ -5511,6 +5687,21 @@ impl WorldUser {
     }
 }
 
+/// A vostok::memory::game_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameAllocator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// The image's data: VAs of the game's (fields_026g.tsv, the kinds ending in ::image).
 #[allow(dead_code)]
 pub mod image {
@@ -5580,6 +5771,9 @@ pub mod image {
         // SAFETY: an image VA, not 0.
         AllocatorSlot(unsafe { NonNull::new_unchecked(0x1f1d9c4 as *mut c_void) })
     }
+
+    /// 0x9e7c6c (u32, vostok::console_commands::image): cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
+    pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;
 }
 
 /// A general-purpose register at a hook's site.

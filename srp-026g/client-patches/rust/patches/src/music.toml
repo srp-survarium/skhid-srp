@@ -4,6 +4,14 @@
 name = "music"
 patch = 88
 
+# game::on_configs_loaded's start, before user.cfg runs: s_music_volume
+# registered, so the stock Settings' Music slider and user.cfg have it
+# (after patch 79's language, order 1, and patch 83's settings, order 2)
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 3
+
 # every frame (the game's thread): the bus asked for, the deadline, a fade done
 [[hook]]
 site = "game.tick"
@@ -23,6 +31,12 @@ handler = "on_lobby"
 [[hook]]
 site = "level_loading.ui"
 handler = "on_loading"
+
+# a replay's options read: no theme in a replay (after patches 65, 86 and 83)
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay"
+order = 3
 
 # the match-start announcement: the map's theme stops 15 s later
 [[hook]]

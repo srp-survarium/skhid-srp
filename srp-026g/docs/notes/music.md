@@ -6,7 +6,7 @@ each mode's theme.
 
 ## The rules
 
-The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time and the mixing):
+The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the mixing and the Music slider):
 
 - **Login screen:** the main theme (`music/main_theme`), looping.
 - **Lobby:** the lobby theme (`music/lobby_theme`), looping. Back from a match, it starts again.
@@ -31,8 +31,14 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time and 
   announcement this game shows (a late joiner's at its first look at the match).
 - **A loading that never reaches a match** (the match lost on the way): the map theme plays on
   until the next screen (the login screen's or the lobby's theme follows the rules above).
-- **Replays:** no map theme of their own; the screens' themes as above.
+- **Replays:** no music. A replay never passes the loading of a live match
+  (`switch_to_level_loading`'s only caller is `process_static_match_info` 0x27BEA0), so its
+  options read (`replay.options_read`, its chunk 1) fades out whatever plays (the lobby's theme,
+  when it is started from the lobby); the lobby's theme comes back with the lobby.
 - **Quitting:** the music stops at once when the game unloads its screens.
+- **The bus not made** (the engine refusing its sound scene): logged to `srp_patches.log`, asked
+  again once at the next screen (the login screen's, the lobby's, a loading's); a second refusal
+  is logged too, and the session has no music.
 - **Nothing a match computes:** presentation only, no `simulation_changes.tsv` row.
 
 ## Mixing and volume
@@ -41,10 +47,20 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time and 
   its XAudio2 submix voice is the music's alone, so the music's fades and level never touch the
   game's sounds, and the game's scene switches (login -> lobby -> match, each a 10 ms cut in
   0.26g) never cut the music. The game's sounds never duck it and it never ducks them.
-- **The volume** follows the game's general volume (`s_general_volume`), which the engine applies
-  to every scene's submix, this one too. The Settings' Music slider (`s_music_volume`) is dead in
-  stock 0.26g: no console variable has that name, so the slider has no range and sets nothing;
-  the same for In-game (`s_ingame_volume`) and Voice chat (`s_chat_volume`). Only General works.
+- **The volume:** the Settings' Music slider times General (the owner, 2026-10-31: "why not tie it
+  to the Music slider?"). Stock 0.26g's Music slider was dead: its option names `s_music_volume`
+  (options_tab 0x262DA1), a console variable the game never registered, so it had no range and set
+  nothing, and the movie greyed it out. Patch 88 registers `s_music_volume` at
+  on_configs_loaded's start (before user.cfg runs; the options are made later, at
+  on_base_resources_created): a cc_float of 0 to 100 as General's (the slider snaps by 1), 100 at
+  first, saved in user.cfg; the stock slider and its Apply/Cancel read and write it, and the main
+  menu's sound tab no longer greys it out. The bus gets fade x slider / 100 (the game's thread
+  copies the slider to the bus every frame); the engine multiplies every scene by General. A
+  slider at 0 is silence, not a stopped track: the track's rules go on.
+- **In-game and Voice chat** (`s_ingame_volume`, `s_chat_volume`) stay dead and greyed out:
+  registering a variable would give each slider a value, but nothing in 0.26g would read it (the
+  game's sounds are one scene's, the voice chat its own), so each needs a consumer as well, not a
+  one-line registration.
 - **Its level.** Each track is set to -24 LUFS (integrated) by its `volume_k` (`.raw_options`):
   the level of the lobby's own room tone (-18.3 LUFS at its `volume_k` 0.5). The game's shots,
   footsteps and interface sounds stay above it (the match-start announcement is the hud's text);
@@ -83,10 +99,12 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time and 
   track / sounding (fading in or full, with the 15 s deadline once announced) / fading out (with
   the track asked for next). One transition function takes each event (a screen asked for a
   track, the announcement, a load done, a frame, the unload) and calls the engine.
+- **The slider's variable** is registered at `configs.start` (on_configs_loaded's start, after
+  patch 79's and patch 83's) with the game's own cc_value constructor, as a cc_float.
 - **Events** (game thread): `login_menu::on_activate`, `lobby_menu::on_activate`,
   `lobby_menu::switch_to_level_loading` (the mode's `ui` table: `loading_music`),
-  `game_world_ui::update_ui`'s welcome message, `game::tick` (every frame: the deadline, a fade
-  done), `game::clear_resources` (the unload). A load is asked of the resource manager
+  `game_world_ui::update_ui`'s welcome message, a replay's options read, `game::tick` (every
+  frame: the deadline, a fade done, the slider), `game::clear_resources` (the unload). A load is asked of the resource manager
   (`query_resources`, class 256 single_sound, as the lobby's own sounds), its result handed back
   by a callback with the request's tag; a result nobody waits for any more is let go at once.
 - **The bus** is a `sound_scene` (class 38, as the lobby's, creation params 8 proxies, 16

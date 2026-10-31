@@ -133,6 +133,12 @@ unsafe extern "C" {
     pub fn engine_add_active_scene(world: *mut c_void, scene: *mut c_void);
     /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
     pub fn engine_comment_about_user(lobby_client: *mut c_void, nickname: *const u8, kind: u32, mode: u32);
+    /// 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    pub fn engine_cc_float(object: *mut c_void, name: *const u8, value: *mut f32, saved: u32, kind: u32);
+    /// 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    pub fn engine_query_one(requests: *const c_void, count: u32, callback: *const c_void, allocator: *mut c_void, user: *mut c_void, parent: *const c_void, flag: u32);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_emitter(pointer: *mut *mut c_void);
 }
 
 #[allow(dead_code)]
