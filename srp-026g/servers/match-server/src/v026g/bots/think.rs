@@ -193,6 +193,13 @@ impl Bots {
             // [recoil] The part of the pitch turn the kick takes, and the
             // tick's shots: the base pitch moves by the rest.
             let taken = bot.reflex.sent(time, keys, turn.1);
+            #[cfg(test)]
+            {
+                if bot.bench_mirror.len() == 8 {
+                    bot.bench_mirror.pop_front();
+                }
+                bot.bench_mirror.push_back((time, bot.reflex.seen()));
+            }
             self.tracker.input(
                 bot.place,
                 time,

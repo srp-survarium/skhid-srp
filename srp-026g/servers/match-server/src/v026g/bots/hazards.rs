@@ -805,6 +805,9 @@ pub mod damage_zone_fixes {
         /// A drive tick whose walking pace was made a run because the body stood on a floor a zone hurts on now
         /// (`HazardTuning::run_out`).
         RunOut,
+        /// A carrier whose way home is shut entered the stranded state (`collect::State::Stranded`), and one that let go of the battery when its time ran out.
+        HomeStranded,
+        HomeLetGo,
     }
 
     /// The events' key suffixes, in order.
@@ -824,9 +827,11 @@ pub mod damage_zone_fixes {
         "cross_cheaper",
         "esc_unreachable",
         "run_out_ticks",
+        "home_stranded",
+        "home_let_go",
     ];
 
-    pub const N: usize = 15;
+    pub const N: usize = 17;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
