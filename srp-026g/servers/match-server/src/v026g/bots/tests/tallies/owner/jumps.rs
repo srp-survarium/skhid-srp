@@ -675,6 +675,31 @@ impl JumpCounts {
             {
                 route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
             }
+            // `SRP_BENCH_JUMP_ROWS` (A187's residual check, local): one row per route jump: the link's rise, sprint held and the
+            // body's speed at the press, a battery carried, where the honest stand-in came down and with which clip, the flags.
+            if std::env::var_os("SRP_BENCH_JUMP_ROWS").is_some()
+                && let Some((from, to)) = p.route
+            {
+                let recs = &run.recs[p.place];
+                let ri = run.index(p.t).min(recs.len().saturating_sub(1));
+                let (keys, speed) = recs.get(ri).map_or((0, 0.0), |r| (r.keys, r.speed));
+                let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
+                eprintln!(
+                    "jumprow\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{:.3}\t{}\t{}\t{:.2}\t{}\t{}\t{}",
+                    p.place,
+                    p.t,
+                    from.x,
+                    from.y,
+                    from.z,
+                    to.y - from.y,
+                    u8::from(keys & key::SPRINT != 0),
+                    u8::from(p.carrying),
+                    speed,
+                    landing.map_or("none", |l| if l.to.y < to.y - UP_SLACK_M { "down" } else { "up" }),
+                    landing.map_or("-", |l| if l.sprint { "sprint" } else { "short" }),
+                    flags.join("+")
+                );
+            }
             if let Some((from, to)) = p.route
                 && to.y - from.y > crate::v026g::bots::motor::WALK_JUMP_TOP_M
             {
