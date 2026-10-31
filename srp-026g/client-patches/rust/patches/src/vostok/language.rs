@@ -2,15 +2,15 @@
 //! docs/notes/language-option.md): the name every dictionary reader takes
 //! (`raw::image::LOCALIZATION`), the console variable that user.cfg keeps a
 //! choice in, the C locale the engine's start-up sets from the name, the
-//! Windows user locale's language, and the Settings' call
-//! (`game_options::scaleform_callback`) with the movie it answers.
+//! Windows user locale's language. The Settings' call and the save of
+//! user.cfg are [`super::settings`]'s.
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
 
-use super::context::Context;
 use super::hook::Thread;
-use super::ui::{TEXT_LIMIT, c_string, movie_of, string_argument};
+use super::settings::Registration;
+use super::ui::c_string;
 use crate::raw;
 
 pub use super::ui::MAX_STRINGS;
@@ -109,19 +109,6 @@ pub fn user_locale(_: &Thread) -> LangId {
     LangId(lcid as u16)
 }
 
-/// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does
-/// when it closes), so a choice survives a crash.
-pub fn save_user_config(_: &Thread) {
-    // SAFETY: the game's own save of every saved console variable.
-    unsafe { raw::engine_save_user_config() }
-}
-
-/// Whether a console variable is in the engine's list yet.
-enum Registration {
-    Unregistered,
-    Registered,
-}
-
 /// The console variable object, a cc_string (cc_string::cc_string 0xEC860),
 /// and its value's buffer.
 #[repr(C)]
@@ -191,66 +178,5 @@ impl<const N: usize> ConsoleString<N> {
 impl<const N: usize> Default for ConsoleString<N> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// The Settings' call to the exe at `options.callback`: the movie's
-/// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
-/// start (0x1FF5D0), before the options match the method's name.
-pub struct OptionsCall<'c> {
-    options: raw::GameOptionsInterface,
-    frame: raw::OptionsCallbackFrame,
-    method: &'c CStr,
-    _thread: &'c Thread,
-}
-
-impl<'c> OptionsCall<'c> {
-    pub fn at(ctx: &'c Context<'_>) -> Option<OptionsCall<'c>> {
-        use raw::site::options_callback as site;
-        // SAFETY: the context is this site's: the options' interface and the
-        // callback's frame, alive for the call, on the game's thread; the
-        // method's name a C string the movie gave.
-        let (options, frame, method) = unsafe {
-            let (options, frame) = (site::options(ctx)?, site::frame(ctx)?);
-            (options, frame, c_string(frame.method(), TEXT_LIMIT)?)
-        };
-        Some(OptionsCall { options, frame, method, _thread: ctx.thread() })
-    }
-
-    pub fn method(&self) -> &CStr {
-        self.method
-    }
-
-    /// The call's argument `index` when it is a string.
-    pub fn string_argument(&self, index: u32) -> Option<&CStr> {
-        // SAFETY: the callback's arguments and their count, alive for the call.
-        unsafe { string_argument(self.frame.arguments(), *self.frame.count(), index) }
-    }
-
-    /// A dictionary text of the running language (text_translator::
-    /// translate_text 0x1FF0F0, the key itself when the dictionary has none)
-    /// into `out`.
-    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
-        out[0] = 0;
-        // SAFETY: the options' game and its text translator, alive for the
-        // call; translate_text copies a text shorter than 200h bytes with its
-        // zero into `out` (0x1FF15D) and leaves it alone otherwise.
-        unsafe {
-            if let Some(game) = self.options.game() {
-                raw::engine_translate_text(Some(game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
-            }
-        }
-        out[0x1FF] = 0;
-        CStr::from_bytes_until_nul(out).unwrap_or(c"")
-    }
-
-    /// Answers the main menu (the movie that called): invokes its `method`
-    /// with these strings (UTF-8, as the dictionaries are), at most
-    /// [`MAX_STRINGS`]; whether the movie took it.
-    pub fn answer(&self, method: &CStr, values: &[&CStr]) -> bool {
-        // SAFETY: the options' menu, a movie holder alive for the call, on the
-        // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
-        let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
-        movie.invoke_strings(method, values)
     }
 }

@@ -33,16 +33,12 @@
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
 //! - **After.** The match over, its players are in the lobby again and in
-//!   the room, whose next vote and wait begin; except those that came by
-//!   Play and played it: they leave the room, as by Leave, after their
-//!   results (the owner's of 2026-10-20: their next Play may put them into
-//!   a room of their level). Who chose the room (a join, a create, its
-//!   queue, a switch) stays.
+//!   the room, whose next vote and wait begin: every member alike, however
+//!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
 //!   Full rooms queue newcomers; six ready Play waiters in the same bracket
-//!   open another room. Explicit room queues stay chosen. A Play member
-//!   (`Rooms::came_by_play`) leaves after its match unless it chooses the room.
+//!   open another room. Explicit room queues stay chosen.
 //!   Only private rooms may be created by a client.
 //! - **Remembered.** A room made by hand (a create, not Play) is its maker's
 //!   next create window, kept with the account (`room_remember`; not the
@@ -818,9 +814,7 @@ impl Core<'_> {
         }
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let result = if let Some(key) = self.room_for_play(who.account_id, gear) {
-            self.rooms.join(who.account_id, gear, key, now).map(|()| {
-                self.rooms.came_by_play(who.account_id);
-            })
+            self.rooms.join(who.account_id, gear, key, now)
         } else if let Some(key) = self.play_queue(who.account_id, gear) {
             self.rooms
                 .enqueue_play(who.account_id, gear, key, now)
@@ -913,7 +907,6 @@ impl Core<'_> {
             },
             now,
         )?;
-        self.rooms.came_by_play(who.account_id);
         Ok(key)
     }
 
@@ -968,9 +961,8 @@ impl Core<'_> {
                     break;
                 };
                 for (who, gear) in waiting.iter().skip(1).take(usize::from(QUICK_SIZE) * 2 - 1) {
-                    if self.rooms.join(who.account_id, *gear, key, now).is_ok() {
-                        self.rooms.came_by_play(who.account_id);
-                    }
+                    // One that cannot join now waits in its queue.
+                    let _ = self.rooms.join(who.account_id, *gear, key, now);
                 }
                 log::info!(
                     "Room {key}: opened for queued Play users, max level {}",
@@ -1399,9 +1391,6 @@ impl Core<'_> {
                         })
                     });
                 if fits && self.rooms.admit(account_id, key) {
-                    if choice == QueueChoice::Play {
-                        self.rooms.came_by_play(account_id);
-                    }
                     log::info!("Account {account_id}: from room {key}'s queue into it");
                     continue;
                 }
@@ -1519,27 +1508,14 @@ impl Core<'_> {
         }
     }
 
-    /// The room's match is over: its players are back in the room, but for
-    /// those that came by Play, who leave it (`Rooms::match_over`, the
-    /// owner's of 2026-10-20). They get their results all the same (sent
-    /// after this, `end_running`), then the lobby with no room: their next
-    /// Play puts them into the room nearest their level.
+    /// The room's match is over: its players are back in the room, every
+    /// member alike, however it came in (`Rooms::match_over`, the owner's of
+    /// 2026-10-31); their results are sent after this (`end_running`).
     pub(super) fn room_match_over(&mut self, match_id: u32) {
         self.room_launching.remove(&match_id);
-        if let Some((key, left)) = self.rooms.match_over(match_id) {
+        if let Some(key) = self.rooms.match_over(match_id) {
             log::info!("Room {key}: its match {match_id:#x} is over; back in the room");
-            for account_id in left {
-                // As by Leave: nothing to tell it but that it is in no room.
-                self.room_codes.remove(&account_id);
-                self.room_join_at.remove(&account_id);
-                log::info!(
-                    "{}: came by Play, played match {match_id:#x}: out of room {key}",
-                    self.name_of(account_id).unwrap_or_default()
-                );
-            }
-            if self.rooms.get(key).is_none() {
-                log::info!("Room {key}: nobody left in it after its match; gone");
-            } else if self.maintenance_is_near() {
+            if self.maintenance_is_near() {
                 // A maintenance is near: the match was played out, and the
                 // room ends with it.
                 self.room_disband(key);

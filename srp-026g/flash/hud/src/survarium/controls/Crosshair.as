@@ -22,6 +22,9 @@ package survarium.controls
       
       protected var _maxDisp:Number = 50;
       
+      // The Settings' "Hide hit markers" (exe patch 83): the hits on enemies are not shown.
+      protected var _hitMarkersHidden:Boolean = false;
+      
       public var crosshair_mc:MovieClip;
       
       public var damage1:MovieClip;
@@ -62,9 +65,28 @@ package survarium.controls
          this.crosshair_mc.gotoAndStop(frame);
       }
       
+      // Hidden, the marker shown is cleared first (a kill's too).
+      public function set hitMarkersHidden(hidden:Boolean) : void
+      {
+         if(hidden && !this._hitMarkersHidden)
+         {
+            _ignoreNewValues = false;
+            this.setDamage(0,0,false,false);
+         }
+         _hitMarkersHidden = hidden;
+      }
+      
+      public function get hitMarkersHidden() : Boolean
+      {
+         return this._hitMarkersHidden;
+      }
+      
       public function setDamage(value:Number, delay:uint, killed:Boolean, debug:Boolean) : void
       {
-
+         if(this._hitMarkersHidden)
+         {
+            return;
+         }
          if(this._ignoreNewValues)
          {
             if(killed)
