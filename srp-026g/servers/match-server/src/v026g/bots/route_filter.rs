@@ -7,7 +7,7 @@
 //! one place to join.
 //!
 //! The filter has a *hard* part, the facts of the body that no search may
-//! ignore (the landings of jumps it gave up, [`super::stuck::Stuck::shut_landings`];
+//! ignore (the landings of jumps and drops it gave up, [`super::stuck::Stuck::shut_landings`];
 //! floors and regions a rule shuts), and a *soft* part, a preference the
 //! plain search keeps and a second search drops when it finds no way or a
 //! much longer one (the spots the body got stuck at,
@@ -33,8 +33,8 @@ type RegionRule = Arc<dyn Fn(u32) -> bool + Send + Sync>;
 /// What a search keeps out ([module](self)).
 #[derive(Clone, Default)]
 pub struct RouteFilter {
-    /// Landings of jumps the body gave up: floors on them are shut (hard).
-    landings: Vec<Vec3>,
+    /// Landings of jumps and drops the body gave up: floors on them are shut (hard).
+    landings: Vec<stuck::Shut>,
     /// Spots the body got stuck at: floors near them are kept out (soft, as
     /// `soft` says).
     spots: Vec<Vec3>,
@@ -130,9 +130,9 @@ impl RouteFilter {
         Self::default()
     }
 
-    /// Keeps out the floors on `landings`, the landings of jumps the body
-    /// gave up.
-    pub fn shutting_landings(landings: Vec<Vec3>) -> Self {
+    /// Keeps out the floors on `landings`, the landings of jumps and drops the
+    /// body gave up.
+    pub fn shutting_landings(landings: Vec<stuck::Shut>) -> Self {
         RouteFilter {
             landings,
             ..Self::default()
@@ -296,7 +296,7 @@ impl RouteFilter {
     pub fn hard_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
         (self.landings.is_empty() || {
             let at = grid.position(node);
-            !self.landings.iter().any(|&landing| stuck::on_landing(landing, at))
+            !self.landings.iter().any(|shut| shut.covers(at))
         }) && self.floors.as_ref().is_none_or(|f| f(node))
     }
 
@@ -307,7 +307,7 @@ impl RouteFilter {
     }
 
     /// The landings the body gave up, for the tests that read them.
-    pub fn landings(&self) -> &[Vec3] {
+    pub fn landings(&self) -> &[stuck::Shut] {
         &self.landings
     }
 
@@ -406,7 +406,7 @@ mod tests {
         let grid = &world.grid;
         let node = nodes(grid).next().unwrap();
         let at = grid.position(node);
-        let filter = RouteFilter::shutting_landings(vec![at]);
+        let filter = RouteFilter::shutting_landings(vec![stuck::Shut::jump(at)]);
         assert!(!filter.floor_open(grid, node) && !filter.hard_open(grid, node));
         let spots = RouteFilter::open().avoiding(vec![at]);
         assert!(spots.has_soft());
