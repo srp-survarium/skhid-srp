@@ -80,7 +80,7 @@ impl Stop {
 /// name, or its archive name or path): `programs` (`game\binaries\x86`,
 /// where the programs it flags are), or `game` (the game folder) for a patch
 /// of resources.db, which is kept there. Never the folder above the game,
-/// which may be the player's Downloads (`Skhid-network-setup.cmd` excludes
+/// which may be the player's Downloads (`Skhid-defender-setup.cmd` excludes
 /// `game\binaries\x86` alone too).
 pub fn exclusion_folder<'a>(file: &str, programs: &'a str, game: &'a str) -> &'a str {
     let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
