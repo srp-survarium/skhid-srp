@@ -178,6 +178,8 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ",
     // 4: preserve wire compatibility when a lobby session survives a restart.
     "ALTER TABLE sessions ADD COLUMN client_revision INTEGER NOT NULL DEFAULT 0;",
+    // 5: existing ignores remain hidden; new mutes can show a placeholder.
+    "ALTER TABLE ignored ADD COLUMN mode INTEGER NOT NULL DEFAULT 1 CHECK (mode IN (1, 2));",
 ];
 
 /// The child tables of an account, children of children first.
@@ -337,7 +339,7 @@ impl AccountRepository for SqliteRepository {
                         next_quest_instance: row.get(11)?,
                     },
                     friends: Vec::new(),
-                    ignored: Vec::new(),
+                    ignored: crate::chat_mutes::ChatMutes::default(),
                     active_profile: row.get(12)?,
                     notices: Vec::new(),
                     ban: row
@@ -636,11 +638,20 @@ fn load_children(
         .query_map([id], |row| row.get(0))?
         .collect::<Result<_, _>>()?;
 
-    let mut statement = transaction
-        .prepare_cached("SELECT ignored_id FROM ignored WHERE account_id = ?1 ORDER BY seq")?;
-    record.ignored = statement
-        .query_map([id], |row| row.get(0))?
-        .collect::<Result<_, _>>()?;
+    let mut statement = transaction.prepare_cached(
+        "SELECT ignored_id, mode FROM ignored WHERE account_id = ?1 ORDER BY seq",
+    )?;
+    for entry in statement.query_map([id], |row| {
+        Ok((row.get::<_, u32>(0)?, row.get::<_, u8>(1)?))
+    })? {
+        let (target, mode) = entry?;
+        let mode = match mode {
+            1 => crate::chat_mutes::ChatMuteMode::Hidden,
+            2 => crate::chat_mutes::ChatMuteMode::Placeholder,
+            _ => return Err(PersistError::BadRow(id, "unknown chat mute mode".into())),
+        };
+        record.ignored.set(target, Some(mode));
+    }
 
     let mut statement = transaction
         .prepare_cached("SELECT kind, text FROM notices WHERE account_id = ?1 ORDER BY seq")?;
@@ -885,10 +896,11 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
         statement.execute(params![id, seq as u32, friend])?;
     }
 
-    let mut statement = transaction
-        .prepare_cached("INSERT INTO ignored (account_id, seq, ignored_id) VALUES (?1, ?2, ?3)")?;
-    for (seq, ignored) in ignored.iter().enumerate() {
-        statement.execute(params![id, seq as u32, ignored])?;
+    let mut statement = transaction.prepare_cached(
+        "INSERT INTO ignored (account_id, seq, ignored_id, mode) VALUES (?1, ?2, ?3, ?4)",
+    )?;
+    for (seq, (ignored, mode)) in ignored.entries().enumerate() {
+        statement.execute(params![id, seq as u32, ignored, mode as u8])?;
     }
 
     let mut statement = transaction.prepare_cached(

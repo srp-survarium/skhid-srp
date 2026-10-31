@@ -1457,7 +1457,7 @@ st_messages_only_from_friends_option	Yksityisviestit vain kavereilta
 st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_minimap	Pienoiskartta
 st_minimap_bottom	Vasen alakulma
-st_minimap_off	Pienoiskartta pois
+st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
 st_minimap_top	Vasen yläkulma
@@ -2145,6 +2145,9 @@ st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Lisävarusteet
+st_srp_crosshair_dynamic	Dynaaminen tähtäin
+st_srp_crosshair_hidden	Piilotettu tähtäin
+st_srp_crosshair_static	Kiinteä tähtäin
 st_srp_equipment029_bm_back_6_desc	Kuvausta ei vielä ole.
 st_srp_equipment029_bm_back_6_name	Vartiomiehen reppu
 st_srp_equipment029_bm_back_8_desc	Kuvausta ei vielä ole.
@@ -2304,6 +2307,80 @@ st_srp_equipment029_scav_torso_8_name	Taistelusuojaliivi
 st_srp_equipment029_scav_torso_8_premium_name	Veteraanin suojaliivi
 st_srp_equipment029_scav_torso_9_desc	Kuvausta ei vielä ole.
 st_srp_equipment029_scav_torso_9_name	Palomiehen suojaliivi
+st_srp_equipment046_blackmarket_boots_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_boots_10_name	Panssarisaappaat
+st_srp_equipment046_blackmarket_boots_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_boots_7_name	Vartiomiehen saappaat
+st_srp_equipment046_blackmarket_gloves_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_gloves_10_name	Panssarikäsineet
+st_srp_equipment046_blackmarket_gloves_5_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_gloves_5_name	Marodeur-käsineet
+st_srp_equipment046_blackmarket_helmet_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_helmet_10_name	Raskas panssarikypärä
+st_srp_equipment046_blackmarket_helmet_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_helmet_7_name	Vartiomiehen kypärä
+st_srp_equipment046_blackmarket_legs_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_legs_10_name	Raskaat panssarihousut
+st_srp_equipment046_blackmarket_legs_4_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_legs_4_name	Motoristin housut
+st_srp_equipment046_blackmarket_torso_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_torso_10_name	Raskas suojaliivi
+st_srp_equipment046_blackmarket_torso_2_premium_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_blackmarket_torso_2_premium_name	Rosvon takki MK II
+st_srp_equipment046_bm_back_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_bm_back_10_name	Ammusreppu
+st_srp_equipment046_bm_mask_10_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_bm_mask_10_name	Panssarinaamari
+st_srp_equipment046_edge_back_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_back_6_name	Stalkerin reppu
+st_srp_equipment046_edge_back_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_back_7_name	Taikakalu
+st_srp_equipment046_edge_boots_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_boots_7_name	Tietäjän saappaat
+st_srp_equipment046_edge_gloves_5_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_gloves_5_name	Soturin käsineet
+st_srp_equipment046_edge_gloves_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_gloves_7_name	Tietäjän käsineet
+st_srp_equipment046_edge_helmet_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_helmet_6_name	Stalkerin kypärä
+st_srp_equipment046_edge_helmet_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_helmet_7_name	Veles-kypärä
+st_srp_equipment046_edge_legs_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_legs_7_name	Veles-housut
+st_srp_equipment046_edge_mask_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_mask_6_name	Pimeänäkölaite
+st_srp_equipment046_edge_torso_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_torso_7_name	Veles-suojaliivi
+st_srp_equipment046_renesanse_boots_3_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_boots_3_name	OZK-UV-saappaat
+st_srp_equipment046_renesanse_boots_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_boots_7_name	Tarkka-ampujan saappaat
+st_srp_equipment046_renesanse_gloves_3_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_gloves_3_name	OZK-UV-käsineet
+st_srp_equipment046_renesanse_gloves_5_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_gloves_5_name	Tiedustelijan käsineet
+st_srp_equipment046_renesanse_gloves_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_gloves_7_name	Tarkka-ampujan käsineet
+st_srp_equipment046_renesanse_helmet_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_helmet_7_name	Tarkka-ampujan kypärä
+st_srp_equipment046_renesanse_legs_3_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_legs_3_name	OZK-UV-housut
+st_srp_equipment046_renesanse_legs_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_legs_7_name	Tarkka-ampujan housut
+st_srp_equipment046_renesanse_mask_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_mask_7_name	Spektr-M-lämpökamera
+st_srp_equipment046_renesanse_torso_3_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_torso_3_name	OZK-UV-suojaliivi
+st_srp_equipment046_renesanse_torso_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_torso_7_name	Tarkka-ampujan suojaliivi
+st_srp_equipment046_scavenger_boots_5_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_scavenger_boots_5_name	Sabotöörin saappaat
+st_srp_equipment046_scavenger_boots_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_scavenger_boots_7_name	Jäljittäjän saappaat
+st_srp_equipment069_leagues_back_2_desc	Kuvausta ei vielä ole.
+st_srp_equipment069_leagues_back_2_name	Lääkintämiehen laukku
+st_srp_equipment069_leagues_back_5_desc	Kuvausta ei vielä ole.
+st_srp_equipment069_leagues_back_5_name	Sotilaan reppu
 st_srp_exchange_balance	Saldo
 st_srp_exchange_button	Vaihda
 st_srp_exchange_gold	Kulta
@@ -2312,9 +2389,21 @@ st_srp_exchange_receive	Saat
 st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
+st_srp_hide_hit_markers_option	Piilota osumamerkit
+st_srp_hide_quests_option	Piilota tehtävät
+st_srp_hide_scores_option	Piilota pelaajien pisteet
+st_srp_hud_add_friend	Lisää kaveriksi
+st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
+st_srp_hud_friend_sent	Kaveripyyntö lähetetty
+st_srp_hud_mute_hide	Piilota chat
+st_srp_hud_mute_mask	Näytä chat muodossa <muted>
+st_srp_hud_mute_not_sent	Ei lähetetty
+st_srp_hud_muted	Chat mykistetty
+st_srp_hud_unmute	Poista mykistys
+st_srp_hud_unmuted	Mykistys poistettu
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
-st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
+st_srp_language_restart	Vaatii uudelleenkäynnistyksen.
 st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle
 st_srp_loadout_block_locked	Tämä profiili on lukittu
 st_srp_loadout_block_maintenance	Palvelinhuolto alkaa %1$s min kuluttua
@@ -2372,6 +2461,7 @@ st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
+st_srp_options_hud	HUD:
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
 st_srp_pvb_busy	%1$s (varattu)
@@ -2464,6 +2554,7 @@ st_srp_rooms_leave_room	Poistu huoneesta
 st_srp_rooms_left_room	%1$s poistui huoneesta
 st_srp_rooms_level	Taso
 st_srp_rooms_map	Kartta
+st_srp_rooms_map_by_vote	Kartta valitaan äänestyksellä
 st_srp_rooms_max	Enimmäistaso
 st_srp_rooms_modes	Pelimuodot
 st_srp_rooms_my_room	Oma huone
@@ -2510,13 +2601,17 @@ st_srp_rooms_teams_owner	Siirrä pelaajia joukkueesta toiseen painikkeilla « ja
 st_srp_rooms_unfit_gear	Varusteesi ylittävät enimmäistason. Laske tasoa tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_unfit_kit	Varustesettisi ei kelpaa peliin (ase puuttuu tai ammuksia on liian vähän). Korjaa se tai poistut huoneesta ottelun alkaessa.
 st_srp_rooms_vote	Äänestä seuraavaa karttaa
-st_srp_rooms_vote_hint	3 korttia valikoimasta. Eniten ääniä saanut voittaa, tasatilanne arvotaan. Vaihda ääntäsi klikkaamalla.
-st_srp_rooms_vote_now	Äänestä seuraavaa karttaa klikkaamalla korttia. Ajan loputtua ottelu alkaa voittajakartalla.
 st_srp_rooms_voting	Äänestys
 st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
+st_srp_scope_slot	Tähtäin
+st_srp_skills	Taidot
+st_srp_speed_label	Nopeus
+st_srp_speed_title	Liikkumisnopeus: %1$s
+st_srp_static_minimap_option	Kiinteä pienoiskartta
+st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
@@ -2550,8 +2645,10 @@ st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
 st_srp_weather_night	yö
 st_srp_weather_rain	sade
+st_srp_weight_base	Perusraja: %1$s
 st_srp_weight_no_sprint_heavyweight	Et voi sprintata: Raskassarjalainen-taito.
 st_srp_weight_no_sprint_limit	Et voi sprintata: kantokyky täynnä.
+st_srp_weight_penalty	%1$s% painohaitta
 st_srp_weight_speed	Liikenopeus: %1$s
 st_srp_weight_sprint_stamina	Kestävyyden kulutus sprintatessa: %1$s
 st_srp_weight_title	Painon vaikutukset

@@ -58,6 +58,14 @@ package
 
       private function loaded(e:Event) : void
       {
+         // The native placement adapter also initializes more of the lobby's
+         // root. Keep that fixture separate from the lightweight rooms tests.
+         if(loaderInfo.parameters.players == "1")
+         {
+            checkPlayerMenus();
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
          var step:String = "the classes";
          try
          {
@@ -107,7 +115,10 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         checkSideStable();
+         checkRoomView();
          checkQueueButton();
+         checkPlayOffer();
          checkCreate();
          checkWindowOrder();
          checkFit();
@@ -255,6 +266,66 @@ package
          queueButton("queue cancelled", "Queue", false);
       }
 
+      // Play's preset offer (presets.md, the owner's of 2026-10-30): Play that would queue is
+      // offered a room of the other bracket as a Join of it is (the same popup and text), its
+      // first button "Queue" (Play as it is) beside "Switch and enter"; Play into the room it
+      // takes keeps "Enter anyway". The first button closes the popup.
+      private function checkPlayOffer():void
+      {
+         playOffer("Play would queue, gear over a lower room", "S1;O;1002;2;2;10;15;10;1", "Queue",
+            "Your gear 15 is over the room's max level 10. Loadout 2 is level 10.");
+         playOffer("Play would queue, a higher room", "S1;O;1003;1;2;14;5;15;1", "Queue",
+            "Room max level 15, your gear 5. Loadout 2 is level 14.");
+         playOffer("Play into its room", "S1;O;1002;1;2;8;5;10;0", "Enter anyway",
+            "Room max level 10, your gear 5. Loadout 2 is level 8.");
+      }
+
+      private function playOffer(what:String, row:String, first:String, why:String):void
+      {
+         tell(["S1;N;0;0;0"]);
+         try
+         {
+            win["quickPlay"]();
+         }
+         catch(err:Error)
+         {
+            failures.push(what + ": Play: " + err.message);
+            return;
+         }
+         tell([row]);
+         var buttons:Array = [];
+         var texts:Array = [];
+         walk(win,[],texts,0,0,buttons);
+         var sw:* = null;
+         var left:* = null;
+         for each(var b:* in buttons)
+            if(b.label == "Switch and enter")
+               sw = b;
+         for each(b in buttons)
+            if(sw != null && b.label == first && b.y == sw.y && b.x < sw.x)
+               left = b;
+         var said:Boolean = texts.some(function(t:*, ... rest):Boolean
+         {
+            return t.text == why;
+         });
+         trace("ROOMS " + what + ": " + (left != null ? left.label : "no " + first) + " | "
+            + (sw != null ? sw.label : "no Switch and enter") + (said ? "" : " (text missing)"));
+         if(sw == null || left == null)
+         {
+            failures.push(what + ": expected " + first + " beside Switch and enter");
+            return;
+         }
+         if(!said)
+            failures.push(what + ": the popup does not say '" + why + "'");
+         var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+         left.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+         buttons = [];
+         walk(win,[],[],0,0,buttons);
+         for each(b in buttons)
+            if(b.label == "Switch and enter")
+               failures.push(what + ": the popup stays after " + first);
+      }
+
       private function queueButton(what:String, expected:String, enabled:Boolean):void
       {
          var buttons:Array = [];
@@ -271,6 +342,79 @@ package
             failures.push(what + ": queue action is above the room list");
          trace("ROOMS " + what + ": " + actions.length + " action(s), "
             + (actions.length ? actions[0].label : "missing"));
+      }
+
+      private function checkPlayerMenus():void
+      {
+         try
+         {
+            var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            var Lobby:Object = domain.getDefinition("LobbyMenu");
+            var Menu:Object = domain.getDefinition("survarium.controls.SrvContextMenu");
+            var Player:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+            var Friends:Object = domain.getDefinition("survarium.friends.FriendsMenu");
+            var friends:Object = new (domain.getDefinition("SrvFriendsMenuReskin") as Class)();
+            Menu.registerStage(stage,this);
+            Menu.setPatternt(new (domain.getDefinition("ContextPattern") as Class)());
+            Player.nickname = "Alice";
+            Player.commander = true;
+            Player.isSquadFull = false;
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            // The menu's names, from the second entry on: the friend action, the two mute entries that
+            // change Bob's state (the server's ignore list: every muted player, a <muted> one's id with
+            // bit 31), then message and squad.
+            var names:Function = function():String
+            {
+               var items:Object = Menu.getInstance().contextList.list.dataProvider;
+               var out:Array = [];
+               for(var i:int = 1; i < items.length; i++)
+                  out.push(items[i].name);
+               return out.join("|");
+            };
+            var self:RoomsHarness = this;
+            var menuFor:Function = function(what:String, want:String):void
+            {
+               Lobby.showPlayerInfoMenu("Bob",17,0,self);
+               var got:String = names();
+               trace("ROOMS player menu, " + what + ": " + got);
+               if(got != want)
+                  failures.push("player menu, " + what + ": " + got + ", not " + want);
+            };
+            menuFor("a stranger not muted", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            friends.setPlayers([{id:123,name:"Bob",status:0}]);
+            friends.setPlayers([{id:456,name:"Bob"}],false);
+            menuFor("a friend hidden", "#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            if(Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
+               failures.push("the pushed friend and ignore lists' ids");
+            friends.setPlayers([{id:uint(456 | 0x80000000),name:"Bob"}],false);
+            menuFor("a friend shown as <muted>", "#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            menuFor("unmuted, no longer a friend", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            Player.commander = false;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+               failures.push("non-commander can invite to squad");
+            Player.commander = true;
+            Player.isSquadFull = true;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+               failures.push("full squad can invite another player");
+            Lobby.showPlayerInfoMenu("Alice",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 1)
+               failures.push("own player menu has social actions");
+            Menu.hide();
+            Lobby.showPlayerInfoMenu("",17,0,this);
+            if(Menu.visisble)
+               failures.push("empty player name opened a menu");
+            Player.isSquadFull = false;
+            trace("ROOMS player menu: friend/remove, the two mute entries of each state, message, squad guards and self");
+         }
+         catch(err:Error)
+         {
+            failures.push("player menus: " + err.getStackTrace());
+         }
       }
 
       // Exercise the lobby's actual recurring layer adjustment. Background
@@ -420,6 +564,89 @@ package
          {
             failures.push(what + ": the facts' Max level " + (factsMax ? "missing" : "shown"));
          }
+      }
+
+      // The room's own view (the owner's of 2026-10-29): a vote card's mode tag as wide as its name,
+      // also after the same card showed a longer one; no vote hint line, none in the banner either
+      // (the owner's of 2026-10-30); in its match, the map and
+      // mode it is played on (the `L` row) under the banner's hint, whole.
+      private function checkRoomView() : void
+      {
+         var tagOf:Function = function(text:String):Object
+         {
+            var found:Array = [];
+            walk(win,[],found,0,0,[]);
+            for each(var t:Object in found)
+               if(t.text == text)
+               {
+                  var cell:* = t.parent;
+                  var tag:* = cell.getChildAt(cell.getChildIndex(t.field) - 1);
+                  return {"tag": tag.width, "text": t.field.textWidth};
+               }
+            return null;
+         };
+         // Card 1 (map 62): Blackout first, then the plain protective device.
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;6;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var long:Object = tagOf("PROTECTIVE DEVICE: BLACKOUT");
+         tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;2;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var short:Object = tagOf("PROTECTIVE DEVICE");
+         trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
+            + ", then short " + (short != null ? short.tag + " for " + short.text : "none"));
+         if(long == null || short == null)
+            failures.push("vote card tags not found");
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20)
+            failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+         {
+            if(String(t.text).indexOf("Most votes wins") >= 0)
+               failures.push("the vote hint line is still shown");
+            if(String(t.text).indexOf("click a card") >= 0)
+               failures.push("the banner's vote hint is still shown");
+         }
+         // In its match on map 62: the map and mode line, not cut.
+         tellRoom(1003, false, false, 2, null, 0, ["L;62"]);
+         var line:String = null;
+         texts = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var u:Object in texts)
+            if(String(u.text).indexOf(" · Protective device") > 0)
+               line = u.text;
+         trace("ROOMS in its match, the banner's map line: " + line);
+         if(line == null || line.indexOf("…") >= 0)
+            failures.push("in its match: no whole map and mode line in the banner (" + line + ")");
+      }
+
+      // The chosen room beside the list keeps one layout through its vote: with no card ahead
+      // (map 0) and with one (map 61), its name, "Map chosen by vote" or the map's line, and its
+      // facts at the same heights (the owner's of 2026-10-29: the card flipped between two).
+      private function checkSideStable() : void
+      {
+         tell(["S1;M;1;0","0;61;5;5;2;0"]);
+         var heights:Function = function(map:int):Object
+         {
+            tell(["S1;L;1;0","1001;8;10;8;9;3;32;" + map + ";0;Kosztinpeter"]);
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var at:Object = {};
+            for each(var t:Object in texts)
+               if(t.text == "Kosztinpeter" || t.text == "State" || t.text == "Players" || t.text == "Map chosen by vote")
+                  at[t.text] = Math.max(at[t.text] != null ? at[t.text] : -1, t.y);
+            return at;
+         };
+         var none:Object = heights(0);
+         var leading:Object = heights(61);
+         trace("ROOMS side card, no map: name " + none["Kosztinpeter"] + ", players " + none["Players"] + ", state " + none["State"]
+            + ", by vote " + none["Map chosen by vote"] + "; a map ahead: name " + leading["Kosztinpeter"] + ", players "
+            + leading["Players"] + ", state " + leading["State"]);
+         if(none["Map chosen by vote"] == null)
+            failures.push("side card without a map: no \"Map chosen by vote\"");
+         for each(var key:String in ["Kosztinpeter", "Players", "State"])
+            if(none[key] == null || none[key] != leading[key])
+               failures.push("side card: " + key + " moves with the map (" + none[key] + " / " + leading[key] + ")");
       }
 
       // Only private rooms can be made: no public sliders, and Create

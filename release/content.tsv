@@ -34,7 +34,7 @@ base	resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a49
 base	resources.db.patch_24	c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4	revision 24: the exoskeleton bodies as armour without oxygen (pack below), the lobby movie with the rooms (the graphics srp-026g/flash/lobby_menu builds on)
 movie	cursor	-	the mouse cursor
 movie	debug_animations	-	the animation debug screen
-movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67)
+movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67; the Double cylinder's quick-slot icon)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
 movie	login_menu	-	the login screen with the login hint
 movie	main_menu	-	the main menu with the FOV slider and the Language choice (exe patch 79)
@@ -95,10 +95,13 @@ edit	medical-cards-1.json	-	bandages and medkit: explicit healing and pain relie
 edit	vegetation-runtime-1.json	-	runtime vegetation for the four supported early ported maps, each in day_2 and day_4: v021d_level_03, v021d_level_06, v011e_level_03, v011e_level_04; discard editor painting chunks 0x4d/0x4e and retain plant positions and normals byte for byte (docs/notes/vegetation-runtime.md)
 edit	weapon-movement-ui-1.json	-	Expose each weapon's own movement-speed parameter in its built-in bonuses, using the native speed icon; presentation only
 edit	weapon-details-ui-1.json	-	Weapon cards: base reload, chambering time and damage falloff, Shift for handling, recoil, spread and sway; presentation only
+edit	weapon-kill-icon-ui-1.json	-	The lobby tooltips show each weapon's kill feed icon: property 161 carries ui_desc/combat_log_icon to the item descriptors (not comparable); presentation only
 edit	weapon-rolls-1.json	-	weapon rolls take effect (the owner, 2026-10-29), the same percentages: recoil (2080-2084, defect 3060) on the six kick keys the game reads, min/max top, left and right recoil, not obsolete first/queue-shoot keys no weapon has; aim time (2070-2074) on the weapon's parameters/aim_time, type 2, not the player modifier aim_time_modifier a weapon never registers (docs/notes/weapon-rolls.md)
 edit	headwear-1.json	-	the eight approved stock helmets and eight 0.29 helmets (Viper, Mercenary, Nomad, Pathfinder, Combat, Metal; Omicron and Warrior whole, collar and guard with them) use a separate render bone for cosmetic fly-off on death (the shared character bind pose gains that bone); Pilgrim excluded, animation skeleton unchanged
 edit	built-in-bonuses-1.json	-	built-in bonuses at the second-strongest strength (the owner, 2026-10-29; docs/notes/built-in-bonuses.md): every equipment item's default of a kind that rolls is raised to that kind's second-strongest row (never lowered), computed from the data; weapons and never-rolling kinds untouched
 edit	exo-suits-buff-1.json	-	the exoskeleton suits' built-in bonuses (the owner, 2026-10-29; docs/notes/exo-suits.md): Freedom movement +4 % (1113), energy costs -8 % (1163) and stamina regeneration +8 % (1103); Duty weight limit +5 kg (1124) and regeneration +15 % (1094)
 edit	artefact-carry-hint-1.json	-	the artifact take hint ("Take artifact (E)") in the existing collection widget; strings in the unified language catalog.
 edit	artefact-carry-flower-1.json	-	held-only Larkspur flower head; original ground model retains its stem
+edit	breakable-lamps-1.json	-	Shootable lamps including v0.11/v0.21 maps: bounds, intact/broken models, linked lights/cones and glass effect material; serialized by the client lamp patch (docs/notes/breakable_lamps.md)
+edit	exo-boots-1.json	-	the Duty and Freedom exoskeleton boots worn under full-length trousers: data/model_type data_long -> data_full, so the trousers are no longer narrowed to a stick above the low exo boots (the owner, 2026-10-30; docs/notes/exo-gear.md)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

@@ -12,8 +12,13 @@ version = "0.1.0"
 dependencies = [
  "artefact-carry",
  "ragdoll",
+ "world-frame",
 ]
 
 [[package]]
 name = "ragdoll"
+version = "0.1.0"
+
+[[package]]
+name = "world-frame"
 version = "0.1.0"

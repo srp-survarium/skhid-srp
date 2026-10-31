@@ -51,6 +51,9 @@ OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 STATIC_START, STATIC_PAST = 0x27B917, 0x27B932       # process_static_match_info: before the pushes, past the site
 REPLAY_START, REPLAY_RET = 0x1F094C, 0x1F0976        # the replay's chunk 1: its reader made, its `ret 8`
 ICONS_SITE, ICONS_PAST, PLAYER_ICONS = 0x23B206, 0x23AA16, 0x23AA10
+# The same site's other hooks' Invokes, which their own checks cover (patch 83, after this
+# patch's in the chain: check_hud_options_026g.py).
+OTHER_PATCHES_INVOKES = ("root.srp_hud_options",)
 TAB_START, SHOW_PLAYER_LIST = 0x25CD26, 0x2384C0
 KEY_ON, KEY_END = 0x25CD41, 0x25CF0D   # on_keyboard_action after its Tab test: the key's way (patch 58's), its end
 INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
@@ -164,7 +167,10 @@ class Run(hide.Run):
 
     # update_ui's `push edi / call` of update_player_icons (0x23B206), the hud in edi, its icons'
     # movie `icons` (0: none), to past update_player_icons' prologue: the Invokes.
-    def icons_fed(self, icons=hide.ICONS_MOVIE):
+    def icons_fed(self, icons=hide.ICONS_MOVIE, others=False):
+        """The site run as the game runs it: whether it went on as the game's,
+        and the Invokes (without the other patches' of the same site unless
+        `others`: patch 83's root.srp_hud_options, check_hud_options_026g.py's)."""
         self.movies(hide.HUD, 1, icons != 0)
         self.word(hide.ICONS_UI + 4, icons or hide.ICONS_MOVIE)
         sp = hide.STACK + 0x8000
@@ -182,7 +188,8 @@ class Run(hide.Run):
         kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and (direct or wrapped) \
             and self.read(frame + 8) == hide.HUD and esp & 7 == 0 and esp <= frame \
             and all(regs[r] == v for r, v in {**hide.GAME, UC_X86_REG_EDI: hide.HUD}.items() if r != UC_X86_REG_EBP)
-        return self.stopped == ICONS_PAST and kept, self.invokes()
+        invoked = [c for c in self.invokes() if others or c[1] not in OTHER_PATCHES_INVOKES]
+        return self.stopped == ICONS_PAST and kept, invoked
 
     # on_keyboard_action from its Tab byte (al, 0x25CD26) through show_player_list (a stub) and the
     # game's Tab test: where the key goes, or None when the run was not as the game's.
@@ -223,7 +230,8 @@ class Run(hide.Run):
                                                       UC_X86_REG_EDX: pair})
             # The carry takes H's events where on_keyboard_action has its
             # action (site carry.key 0x23FE42: EDI the action, the key's state
-            # 1 down / 2 repeat / 3 up at ebp+10h), down and up alike.
+            # at ebp+10h as input::enum_keyboard_action, 1 down / 2 up / 3 hold,
+            # one more than the pushed state), down and up alike.
             frame = hide.STACK + 0xA000
             self.word(frame + 0x10, held + 1)
             self.run(0x23FE42, (0x23FE48,), sp, {**hide.GAME, UC_X86_REG_EDI: 0x23, UC_X86_REG_EBP: frame})

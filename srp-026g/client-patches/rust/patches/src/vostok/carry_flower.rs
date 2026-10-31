@@ -27,6 +27,12 @@ impl Drop for Model {
     }
 }
 struct Flower { item: u32, model: Model }
+// SAFETY: this private owner crosses native callback threads only inside
+// FLOWERS. Its model has a retained, atomic resource reference; no Flower
+// or Model escapes the registry. Rendering stays in the native scene
+// callbacks, and the item's destructor alone removes and drops its owner.
+// The lock serializes query completion, presentation and destruction.
+unsafe impl Send for Flower {}
 // Native artefacts use an 8-bit registry. If construction transiently fills
 // the pool, retain nothing and leave that item using its original model.
 static FLOWERS: Lock<[Option<Flower>; 256]> = Lock::new([const { None }; 256]);

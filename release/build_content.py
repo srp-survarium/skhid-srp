@@ -354,6 +354,25 @@ def type_check(base, base_files, game, world):
     print(f'value types: every key the base has keeps its type across {len(world.bytes)} file(s)')
 
 
+def lamp_check(world):
+    """Every made client_project's breakable-lamp bindings name its own
+    objects (scripts/breakable-lamps/make_edits.py check_built): a wrong
+    index or a moved light, after any later edit, is a Problem."""
+    import importlib.util
+    path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'breakable-lamps' / 'make_edits.py'
+    spec = importlib.util.spec_from_file_location('lamp_edits', str(path))
+    lamps = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lamps)
+    projects = sorted(p for p in world.bytes if p.endswith('/client_project'))
+    problems = [problem for p in projects for problem in lamps.check_built(p, bytearray(world.bytes[p]))]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'LAMPS: {problem}')
+        raise Problem(f'{len(problems)} lamp binding(s) name no object of their map: no patch made')
+    print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
@@ -391,6 +410,7 @@ def main():
         # a key that exists in the base/live version keeps its type, a new key
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(base, base_files, game, world)
+        lamp_check(world)
 
         # What the sources make, against what players have.
         folder = work / 'world'

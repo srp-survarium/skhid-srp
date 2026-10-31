@@ -61,6 +61,10 @@ global engine_setlocale
 global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
+global engine_visual_insert
+global engine_visual_remove
+global engine_light_insert
+global engine_light_remove
 global engine_inventory_remove
 global engine_inventory_take_artefact
 global engine_quick_inventory_slot
@@ -71,6 +75,11 @@ global engine_update_model
 global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
+global engine_explosion_reach
+global engine_show_cursor
+global engine_send_important
+global engine_comment_about_user
+global engine_close_current_match
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -85,6 +94,11 @@ engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP
 engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
 engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
 engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
+engine_visual_insert equ 0x285fa0   ; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -997,6 +1011,81 @@ engine_release_model:
     mov ecx, [esp + 20]   ; object
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_explosion_reach:
+    ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; target -> 16
+    push dword [esp + 36]   ; strength -> 12
+    push dword [esp + 36]   ; centre -> 8
+    push dword [esp + 36]   ; manager -> 4
+    mov eax, [esp + 36]   ; ray
+    call 0x3393f0
+    sub esp, 4
+    movss [esp], xmm0
+    fld dword [esp]
+    add esp, 4
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_cursor:
+    ; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; ui
+    call 0x23a930
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_send_important:
+    ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; type -> 12
+    push dword [esp + 28]   ; target -> 8
+    push dword [esp + 28]   ; messaging -> 4
+    mov edx, [esp + 44]   ; text
+    call 0x26afb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_comment_about_user:
+    ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; mode -> 16
+    push dword [esp + 32]   ; kind -> 12
+    push dword [esp + 32]   ; nickname -> 8
+    push dword [esp + 32]   ; lobby_client -> 4
+    call 0x274470
     pop edi
     pop esi
     pop ebx

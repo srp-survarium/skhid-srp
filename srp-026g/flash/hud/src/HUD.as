@@ -49,8 +49,10 @@ package
    import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
+   import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
    import survarium.controls.ResearchCountdownLayout;
    import survarium.core.Icon;
@@ -105,6 +107,9 @@ package
       public var contextInfo:SrvContextInfo;
       
       public var player_list:SrvPlayerList;
+
+      // A player's menu on the Tab list's rows (Ctrl's cursor, exe patch 86).
+      private var _rowMenu:PlayerRowMenu;
       
       public var critInd:SrvCriticalIndicator;
       
@@ -499,6 +504,8 @@ package
          addChild(this.contextInfo);
          player_list = new SrvPlayerList();
          addChild(this.player_list);
+         _rowMenu = new PlayerRowMenu(this.player_list.players);
+         this.player_list.addChild(this._rowMenu);
          gameInfo = new GameInfo();
          this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
@@ -533,7 +540,8 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         for(i = 28; i < 30; i++)
+         // the exoskeletons' backs and srp's oxygen tanks (QuickSlots.SRP_HUD_ICONS) gray when used up
+         for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;
             icon = _iconContainer.getIcon(index);
@@ -1814,6 +1822,17 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
+      // The Settings' "Hide hit markers", "Hide player scores" and "Hidden crosshair" (exe patch 83, told at
+      // once and again at each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit
+      // marker; the Tab list shows the players' names only; no crosshair at all.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean) : void
+      {
+         this.crosshair.hitMarkersHidden = hideHitMarkers;
+         this.player_list.players.namesOnly = hideScores;
+         // the whole crosshair, its hit marker with it (show_crosshair shows and hides its lines)
+         this.crosshair.visible = !hideCrosshair;
+      }
+      
       public function show_oxygen(bool:Boolean) : void
       {
          this.oxygen_count.visible = false;
@@ -1833,6 +1852,15 @@ package
       public function list_set_players(_players:Array) : void
       {
          this.player_list.players.addPlayersList(_players);
+         this.tabMinimap.setPlayerNames(_players);
+      }
+
+      // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
+      // the movie each change; docs/notes/tab-map-names.md). The map is the Tab list's, so they show
+      // only with it: never in Blackout, whose Tab keeps the list hidden.
+      public function show_map_names(shown:Boolean) : void
+      {
+         this.tabMinimap.namesShown = shown;
       }
       
       public function list_update_player(_player:Object) : void
@@ -1842,6 +1870,10 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         if(!bool)
+         {
+            this._rowMenu.close();
+         }
          // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
          this._forcedView.tab = bool;
          if(this._forcedView.forced)
@@ -1852,6 +1884,23 @@ package
          this.questTaskList.visible = bool && this.questList.visible;
       }
       
+      // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
+      // request or a chat mute sent or not.
+      public function srp_player_menu(place:uint, addFriend:uint, mute:uint, muted:uint) : void
+      {
+         this._rowMenu.offered(place,addFriend != 0,mute != 0,muted);
+      }
+
+      public function srp_friend_request(place:uint, sent:uint) : void
+      {
+         this._rowMenu.requested(place,sent != 0);
+      }
+
+      public function srp_chat_mute(place:uint, sent:uint) : void
+      {
+         this._rowMenu.muted(place,sent != 0);
+      }
+
       public function show_debug_damage(bool:Boolean) : void
       {
          if(!bool)

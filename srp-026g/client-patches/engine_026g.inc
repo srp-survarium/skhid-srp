@@ -20,7 +20,7 @@ extern engine_write_u8
 ; void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x2f5da0 vostok::network_core::buffer_writer::w<unsigned short>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
 extern engine_write_u16
-; void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)
+; void engine_write_u32(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x1f48a0 vostok::network_core::buffer_writer::w<unsigned int>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
 extern engine_write_u32
 ; void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount)
@@ -101,7 +101,7 @@ extern engine_mouse_ray
 ; void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)
 ; 0x263950 survarium::lobby_character::accept_decal_edit: character ESI, host ESP+4, decal ESP+8; pops 8
 extern engine_accept_decal_edit
-; void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
+; void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
 extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
@@ -187,6 +187,22 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
+; void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)
+; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_visual_insert
+; void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)
+; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_visual_remove
+; void engine_light_insert(struct object_light *light)
+; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_light_insert
+; void engine_light_remove(struct object_light *light)
+; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_light_remove
 ; void engine_inventory_remove(struct inventory *inventory, unsigned int slot)
 ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
 extern engine_inventory_remove
@@ -217,3 +233,19 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
+; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+extern engine_explosion_reach
+; void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)
+; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+extern engine_show_cursor
+; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
+; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+extern engine_send_important
+; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
+; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+extern engine_comment_about_user
+; void engine_close_current_match(struct network_client *client, unsigned int reason)
+; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_close_current_match

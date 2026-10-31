@@ -50,6 +50,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 36 | Released 2026-10-27 21:18 UTC (tag `026g-rev36`, `main` f4e1c28). Shipped: #556 Changelog: revision 35 for players; #558 release: ship and check the bots' data files (maps, routes table) with the release; #566 release: the bots' foliage file in the bot data list; #578 Bots at every equipment level, in the top players' kits; #569 Rooms: a private room has no max level; #599 Firewall script: in Russian, and it asks for administrator rights itself; #686 Fix Research markers and countdown layout using Rust; #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending. Without a server sha256 `a948d9635f2d8ba16682016c99634cb47badbd3b3cf7ec6c7a8d2f69f929d985`, with `--server=skhid.link:1234` `70c0abf574b2f10b3fd00d60a86f2591474225f9b234c97fab6a21b43ce12905`. The ZIP: 7176266 bytes, sha256 `1c35aa5395044c89d75bdd77cf05261c4266b7c22d65c613ffc47070efcf7ce9`; the server data: sha256 `66426bd0c8492c20417ef88661d522b9f4c937cbed252cba73f941de74946df1`. No content patch of its own |
 | Revision 37 | Released 2026-10-28 18:37 UTC (tag `026g-rev37`, `main` b61e89c). Shipped: #691 Pay: target farming, cap PvE rewards, and retain solo bot replays; #692 Show enemy capture warnings in Research mode; #463 Patch 58: kit keys pick nothing if pressed before the kits came or in their first 300 ms; #694 Create public rooms on demand and fix queue transitions; #695 Remove editor vegetation data from the four supported ported maps; #696 Avoid downloading every patch again during releases. Without a server sha256 `b8d08857d6bd4aa8b2edad07b21ea8359eb3adf4b78da595a198b6d85381696f`, with `--server=skhid.link:1234` `5c5801af6080b197d9eb754cf1205bbe2745d46689d5ebbf6f7032142d15b7fd`. The ZIP: 7176336 bytes, sha256 `419ead320493e2be811098f56d53044541164681e1e72adb713f798dcd95690c`; the server data: sha256 `66e8799faf6f5e13bb35f5a839e466f3ba8ed97f33d97c7964800c51946c364c`. Its content: `resources.db.patch_37` (54905609 bytes, sha256 `9a0d0b7b9e8ffbdab755baee10cb6f5d481cf3d818dfb2f82a1cb4133cff1a95`) |
 | Revision 38 | Released 2026-10-29 20:32 UTC (tag `026g-rev38`, `main` ff4fe0a). Shipped: #698 Changelog: revision 37 for players, including rewards and solo replays; #727 Add weapons wiki, recoil comparison and detailed game tooltips; #739 Shop: buy an item by dropping it on its slot; #721 Game languages: ten dictionaries as TSVs, Belarusian, Czech/Hungarian/Finnish/Serbian, Language in Settings; #741 Rust patches: typed raw handles, layout only in raw; #745 Weapon rolls: recoil and aim time take effect; chamber time on the card; #716 Flag of Serbia decal: red over blue over white; #746 Site: the wiki takes the calculator and the maps, and gets a modifiers page; #750 Equipment through 0.29: 84 pieces, balanced against native gear; #752 Weapons wiki: shots at their own moments, views hold at their last shot, no Next shot; #699 Detach selected helmets on fatal headshots; #754 Equipment: its texts in all ten languages (release 38 content build); #753 Weapons wiki: sideways kick at a degree a unit; smooth camera shake; #757 Wiki: Equipment, every armour piece with its protection, weight and bonuses; #755 Notes: what the 0.26g armour parameters do; #756 Headwear: the 0.29 helmets fly off on fatal headshots; the knit cap doesn't; #758 Wiki modifiers: Can roll leaves out what an item comes with; #760 Exoskeleton boots and gloves without their black areas (pack exo-gear@1); #763 Exo boots' lobby icons at the stock boots' angle (exo-gear@2); #762 Release: per-release item tables (equipment, weapons) in the record; #761 Wiki equipment: flying off only in the card's details; #759 Built-in bonuses at the second-strongest strength; exoskeleton suits buffed; #751 Carry and share artefacts with animated hand poses and death drops; #765 Match: an anomaly artefact pickup scores 15 (5 with full containers); #770 Equipment 0.29: no donor placeholder descriptions; #771 Equipment 0.29: German placeholder descriptions too; #773 Weapon card: chambering time shows only the new value; #774 Exoskeleton gloves keep their stock icons (exo-gear@3); #775 Equipment 0.29: no shader 0.26g lacks (Watchman gloves crash); #777 Artefact carry: H held, then a quick key, raises the artefact; #779 Artefact carry: H's up comes from the key handler (stuck carry key). Without a server sha256 `955e2208d3b05ddf117ffafc66cca041edb8093ad66c7ef1cfa764e05744032b`, with `--server=skhid.link:1234` `a9da4ad1428b8b6e55cf2ee12c879aecddf247b1cc589072ab9d8fc511608e78`. The ZIP: 7197600 bytes, sha256 `53d273e95594a50ae4a3c86afd2512930d9b0ce55afcebfb064c148c8e435708`; the server data: sha256 `e30f7b12cacbe4147745fb5af0cf95d43e816a74bb9d9f3b8022fa6bf7553c44`. Its content: `resources.db.patch_38` (390848411 bytes, sha256 `307cd527ac6cfaeb1085ba156f4d45f81308e8189def3c18ecb6d0e245850823`) |
+| Revision 39 | Released 2026-10-30 17:44 UTC (tag `026g-rev39`, `main` e3c9a01). Shipped: #804 caddy26: plain TCP only (net.mptcp.enabled=0); #787 Launcher: the language is the game's, every language, kept in user.cfg; #783 Artefact carry: H's key states as the engine defines them; #790 Artefact carry: no gun falls from a carrier's death; #792 Late join: a loaded world puts its alive players into it (patch 82); #806 Equipment from 0.31a2 and 0.46c2: 35 of the owner's 38 picks (pack equipment-046@4); #825 Backpacks from 0.69: the Medic's bag and the Soldier's backpack (pack equipment-069@1), into main; #793 Rooms: the chosen room's card keeps one layout through the vote; #786 Release: build and stage before the go, then the maintenance and a quick swap; #789 Lobby: the kit's movement speed beside the weight; #828 Release: close four gaps found in releases 36-38; #831 Minimap: a late joiner's allies get the ally's icon; #832 Revert #792: the world load already inserts its players (patch 82 never acts); #829 Hud: the Double cylinder's quick-slot icon; #834 Wear the exoskeleton boots under full-length trousers; #781 Artefact carry: the held hand breathes and flexes its fingers; #835 Ragdoll: no headshot launch (exp_neg is 0 from 20); #764 Add breakable map lamps with the Rust patch framework; #838 Wiki icons: read the shop filters from FiltersWindow's list functions. Without a server sha256 `24e6ceb4c2e0897e18e89b7a7fe061e58be7c4dbee53a24967bc54c14f0a3e77`, with `--server=skhid.link:1234` `b0da71a57d786d2d2971bd3fe618ec25a877d68a049f6f08b6e9cca1345a70c9`. The ZIP: 7211382 bytes, sha256 `f1ff487017770366b8275e314dd78da33729ab41a3b370f205637c5443917f46`; the server data: sha256 `a19b64cef5a49374b0b0fce9189834c97c9547a63bb68ca0422800488c402f10`. Its content: `resources.db.patch_39` (355552277 bytes, sha256 `b1fde5c35b09764f8a1292ef3ece295251b975f0516acd73cd397649d6a93036`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -110,6 +111,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -3686,6 +3690,35 @@ skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
 executes the original and redirected callbacks for every game language.
 
+## Breakable lamps (patch 81)
+
+Shooting a configured lamp replaces its model, removes linked lights and
+cones, and queues glass shards and sound once. State survives rollback,
+late joins and replay snapshots; a new match restores the lamps. The content
+covers 92 variants, including the v0.11/v0.21 imports. Legacy Vostok cones
+are bound to their fixtures and aligned to their emitters.
+
+The safe Rust `lamps` module uses typed config, geometry, history and project
+views. One project registry owns renderer membership and native bindings.
+`lamps.toml` declares generated hooks and runtime vtable copies; frame and
+bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
+code. Native Unicorn tests cover all authored maps. Details and test limits:
+`../docs/notes/breakable_lamps.md`.
+
+## The Settings' HUD group (patch 83)
+
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
+crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+`configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
+texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
+tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+or a setting changes, and again after each match's or replay's options read (a new hud can be made
+at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
+only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
+runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
+
 ## Artefact score (patch 80, unreleased)
 
 An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
@@ -3698,3 +3731,71 @@ counts one. srp weighs event 5 5 and event 16 10. A match's computation
 changes: every client of a match needs it. `check_artefact_score_026g.py`
 runs the hook from the game's site and compares it with the game's own count
 of event 5 and `take_artefact`'s own slot search.
+
+## Names on the Tab map (patch 82, unreleased)
+
+While the Tab map is open and an Alt key is held, each player icon on it shows the player's name
+(the owner, 2026-10-30; `docs/notes/tab-map-names.md`). The hud movie draws them
+(`HUD.show_map_names`, the names from the Tab list's rows by place); the Rust `map_names` hook, in
+`game_world::on_keyboard_action` with the input world's keyboard (0x25CD1C, before it asks for
+Tab), reads both Alt keys' state and tells the movie `root.show_map_names` at each change. The
+interface only: no simulation change. `check_map_names_026g.py` runs the game's own
+on_keyboard_action, keyboard getter and is_key_down to past show_player_list in both builds.
+
+## Tab list cursor and friend requests (patch 86, unreleased)
+
+Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
+own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
+buttons stop; the moves go on. That Ctrl press and its held and release
+events are taken from the player, so it does not crouch. A right-click on
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and two chat mute entries. The
+entry sends the lobby's own friend request (`4D` type 0, through
+messaging_client::send_important_message 0x26AFB0) to that place's bare
+name. The rules are in `../docs/notes/tab-cursor-friends.md`.
+
+The Rust `tab_cursor` module has two lohooks of its own, and one more after
+Blackout's at a match's options read (`static_info.options_read`,
+`replay.options_read`, order 1), where the cursor state starts over:
+- `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
+  Its exit `taken` is the function's `ret 0Ch`, with AL 1.
+- `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).
+  It answers `srp_player_menu`, `srp_add_friend` and `srp_chat_mute` itself;
+  any other call goes on to the game's own dispatch.
+
+The client's checks are the lobby's: never the account's own name or a
+friend's; five requests at once, then one every 10 s; and the lobby
+connection up, as the lobby's senders check it. A chat mute
+(`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
+mode), sent by lobby_client::comment_about_user (0x274470): never the own
+name, one of the three choices that changes the state the lobby's ignore list
+gives (a `<muted>` player's id marked with bit 31), the connection up.
+
+Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
+crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code
+beside the original.
+
+## World check (patch 87, unreleased)
+
+A game parses every world it is sent (0xE8) before its own reader takes it,
+with the parse the match server runs on every upload: the crate
+`../crates/world-frame` (`Frame::parse`, no_std, no alloc), a path
+dependency of `rust/patches` and a member of srp-026g's workspace
+(`../docs/notes/world_frame_check.md`). The frame must walk from the front
+to exactly its end, no mask bit may be at or past the game's 20 slots, and
+no section nor player state may be over the game's buffer for it. Each of
+these would kill the game in `game_state_history_item::deserialize`
+(0x324D80) or `mutable_buffer::reallocate` (0x7AB70), and no world a game
+made fails one.
+
+The Rust `world_check` module has two lohooks:
+- `world_load.unpacked` (0x27C0D0): before the load of an unpacked world
+  (0x27C0D9), the world in the frame's mutable buffer at EBP-24h;
+- `world_load.raw` (0x27C0FF): before the load of a raw world (0x27C111),
+  the world the rest of the packet's reader (ESI).
+
+A refused world is never loaded: the packet's reader is read to its end,
+`close_current_match(2)` leaves the match as the leave button does, a line
+goes to `srp_patches.log`, and the exit `refused` is the handler's epilogue
+(0x27C1E0). Nothing a match computes changes. `check_world_check_026g.py`
+runs both loads beside the original exe; `--drift` the client build against
+the server build on kept worlds.

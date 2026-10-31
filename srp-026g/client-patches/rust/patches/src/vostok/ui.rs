@@ -119,6 +119,55 @@ pub(super) const GFX_MANAGED: u32 = 0x40;
 
 /// Up to this many strings in one Invoke.
 pub const MAX_STRINGS: usize = 64;
+/// Up to this many plain unsigned values in one Invoke.
+pub const MAX_UINTS: usize = 4;
+/// The longest text a GFx argument may be here.
+pub(super) const TEXT_LIMIT: usize = 0x200;
+
+/// The C string at `text`, read up to `limit` bytes for its zero (none in
+/// them: not a string here). core's `CStr::from_ptr` would call a strlen the
+/// arena does not have.
+///
+/// # Safety
+/// `text` is readable up to its zero or `limit` bytes, alive for `'a`.
+pub(super) unsafe fn c_string<'a>(text: *const u8, limit: usize) -> Option<&'a CStr> {
+    if text.is_null() {
+        return None;
+    }
+    let mut len = 0;
+    // SAFETY: the caller's: readable up to the zero or `limit`.
+    while len < limit && unsafe { *text.add(len) } != 0 {
+        len += 1;
+    }
+    // SAFETY: as above; `len` bytes and the zero after them.
+    (len < limit).then(|| unsafe { CStr::from_bytes_with_nul_unchecked(core::slice::from_raw_parts(text, len + 1)) })
+}
+
+/// A movie's ExternalInterface call's argument `index` when it is a string
+/// (a scaleform_callback's arguments: `count` GFx values from `values`).
+///
+/// # Safety
+/// `values` holds `count` GFx values, alive for `'a`; a string's text
+/// (managed: its node's) a C string as long.
+pub(super) unsafe fn string_argument<'a>(values: Option<raw::GfxValue>, count: u32, index: u32) -> Option<&'a CStr> {
+    if index >= count {
+        return None;
+    }
+    // SAFETY: the caller's: `index` is below the count.
+    unsafe {
+        let value = values?.at(index as usize);
+        let kind = *value.kind();
+        if kind & 0x3F != GFX_STRING {
+            return None;
+        }
+        let text = if kind & GFX_MANAGED != 0 {
+            value.managed().map_or(core::ptr::null_mut(), |node| node.text())
+        } else {
+            value.text()
+        };
+        c_string(text, TEXT_LIMIT)
+    }
+}
 
 impl Movie<'_> {
     pub fn invoke_text(&self, method: &CStr, value: &CStr) -> bool {
@@ -147,14 +196,22 @@ impl Movie<'_> {
     /// Invokes the movie's `method` with one bool; whether the movie took it
     /// (it has that method: its root is made).
     pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
-        let mut argument = [raw::GfxValueStorage::zeroed()];
-        let gfx = argument[0].handle();
-        // SAFETY: our own value.
-        unsafe {
-            *gfx.kind() = GFX_BOOL;
-            *gfx.value() = u32::from(value);
+        self.invoke_bools(method, [value])
+    }
+
+    /// Invokes the movie's `method` with these bools; whether the movie took
+    /// it.
+    pub fn invoke_bools<const N: usize>(&self, method: &CStr, values: [bool; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, value) in arguments.iter_mut().zip(values) {
+            let gfx = room.handle();
+            // SAFETY: our own value.
+            unsafe {
+                *gfx.kind() = GFX_BOOL;
+                *gfx.value() = u32::from(value);
+            }
         }
-        self.invoke(method, &mut argument)
+        self.invoke(method, &mut arguments)
     }
 
     /// Invokes the movie's `method` with these strings (UTF-8, as the
@@ -174,10 +231,11 @@ impl Movie<'_> {
         self.invoke(method, &mut arguments[..count])
     }
 
-    /// Plain unsigned GFx values.
-    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32; 4]) {
-        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; 4];
-        for (room, &value) in arguments.iter_mut().zip(values) {
+    /// Plain unsigned GFx values, at most [`MAX_UINTS`]; whether the movie took them.
+    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_UINTS];
+        let count = values.len().min(MAX_UINTS);
+        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
             let gfx = room.handle();
             // SAFETY: our own value.
             unsafe {
@@ -185,6 +243,6 @@ impl Movie<'_> {
                 *gfx.value() = value;
             }
         }
-        self.invoke(method, &mut arguments);
+        self.invoke(method, &mut arguments[..count])
     }
 }

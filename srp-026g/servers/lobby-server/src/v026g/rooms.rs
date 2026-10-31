@@ -33,16 +33,12 @@
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
 //! - **After.** The match over, its players are in the lobby again and in
-//!   the room, whose next vote and wait begin; except those that came by
-//!   Play and played it: they leave the room, as by Leave, after their
-//!   results (the owner's of 2026-10-20: their next Play may put them into
-//!   a room of their level). Who chose the room (a join, a create, its
-//!   queue, a switch) stays.
+//!   the room, whose next vote and wait begin: every member alike, however
+//!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
 //!   Full rooms queue newcomers; six ready Play waiters in the same bracket
-//!   open another room. Explicit room queues stay chosen. A Play member
-//!   (`Rooms::came_by_play`) leaves after its match unless it chooses the room.
+//!   open another room. Explicit room queues stay chosen.
 //!   Only private rooms may be created by a client.
 //! - **Remembered.** A room made by hand (a create, not Play) is its maker's
 //!   next create window, kept with the account (`room_remember`; not the
@@ -84,8 +80,9 @@ use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, PoolEntry,
-    RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, OfferRoom,
+    PoolEntry, RoomCode, RoomOffer, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch,
+    RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
@@ -122,6 +119,13 @@ impl PublicBracket {
         match self {
             Self::UpTo10 => 10,
             Self::UpTo15 => 15,
+        }
+    }
+
+    fn other(self) -> Self {
+        match self {
+            Self::UpTo10 => Self::UpTo15,
+            Self::UpTo15 => Self::UpTo10,
         }
     }
 
@@ -600,7 +604,9 @@ impl Core<'_> {
     /// with the highest gear level the room's max level allows. Nothing for
     /// a room of any max level or a private one (unless the kits cannot
     /// play: `presets::offer`), for no room, or while the asker may join
-    /// none (the join then says why).
+    /// none (the join then says why). Play that would queue is offered,
+    /// instead, the Join offer of a room of the other bracket with a place
+    /// ([`Self::room_instead_of_queue`], the owner's of 2026-10-30).
     fn room_offer(&mut self, who: &Who, key: u32) {
         let unix = quests::now();
         let (gear, levels, kits_play, active) = {
@@ -612,17 +618,32 @@ impl Core<'_> {
                 account.active_preset,
             )
         };
-        let target = match key {
+        let (target, about) = match key {
             0 if self.rooms.of(who.account_id).is_none() => {
-                self.room_for_play(who.account_id, gear)
+                match self.room_for_play(who.account_id, gear) {
+                    Some(key) => (Some(key), OfferRoom::Entered),
+                    None => match self.room_instead_of_queue(
+                        who.account_id,
+                        gear,
+                        &levels,
+                        kits_play,
+                        active,
+                    ) {
+                        Some(key) => (Some(key), OfferRoom::InsteadOfQueue),
+                        None => (None, OfferRoom::Entered),
+                    },
+                }
             }
-            0 => None,
-            key => Some(key),
+            0 => (None, OfferRoom::Entered),
+            key => (Some(key), OfferRoom::Entered),
         };
         let room = match self.room_fit(who) {
             Ok(()) => target.and_then(|key| self.rooms.get(key)),
             Err(_) => None,
         };
+        // A join refused at the door (the join then says why) is about no
+        // room Play goes to instead.
+        let about = room.map_or(OfferRoom::Entered, |_| about);
         let max_level = room.map_or(0, model::Room::max_level);
         let offered = match room {
             Some(_) => presets::offer(gear, max_level, &levels, kits_play, active),
@@ -636,19 +657,26 @@ impl Core<'_> {
         };
         if kind != OfferKind::None {
             log::info!(
-                "{}: room {} (max level {max_level}) offers preset {preset} (level {level}; gear {gear})",
+                "{}: room {} (max level {max_level}) offers preset {preset} (level {level}; gear {gear}){}",
                 who.name,
-                target.unwrap_or(0)
+                target.unwrap_or(0),
+                match about {
+                    OfferRoom::Entered => "",
+                    OfferRoom::InsteadOfQueue => ", instead of Play's queue",
+                }
             );
         }
         let answer = wire::room_offer(
             key,
-            target.unwrap_or(0),
-            kind,
-            preset,
-            level,
-            gear,
-            max_level,
+            &RoomOffer {
+                key: target.unwrap_or(0),
+                kind,
+                preset,
+                level,
+                gear,
+                max_level,
+                about,
+            },
         );
         self.send_made(who.addr, answer);
     }
@@ -786,20 +814,8 @@ impl Core<'_> {
         }
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let result = if let Some(key) = self.room_for_play(who.account_id, gear) {
-            self.rooms.join(who.account_id, gear, key, now).map(|()| {
-                self.rooms.came_by_play(who.account_id);
-            })
-        } else if let Some(key) = self
-            .rooms
-            .queue_place(who.account_id)
-            .map(|(key, _)| key)
-            .filter(|key| {
-                self.rooms
-                    .get(*key)
-                    .is_some_and(|room| PublicBracket::of(gear).contains(room))
-            })
-            .or_else(|| self.room_queue_for_play(gear))
-        {
+            self.rooms.join(who.account_id, gear, key, now)
+        } else if let Some(key) = self.play_queue(who.account_id, gear) {
             self.rooms
                 .enqueue_play(who.account_id, gear, key, now)
                 .map(|_| ())
@@ -815,6 +831,50 @@ impl Core<'_> {
                 self.room_codes.insert(who.account_id, code_of(refused));
             }
         }
+    }
+
+    /// The queue Play puts the account in when no room of its bracket takes
+    /// it now: the one it waits in, if of its bracket, else a shortest.
+    /// None: Play makes the bracket's first room.
+    fn play_queue(&self, account_id: u32, gear: u8) -> Option<u32> {
+        self.rooms
+            .queue_place(account_id)
+            .map(|(key, _)| key)
+            .filter(|key| {
+                self.rooms
+                    .get(*key)
+                    .is_some_and(|room| PublicBracket::of(gear).contains(room))
+            })
+            .or_else(|| self.room_queue_for_play(gear))
+    }
+
+    /// For Play that would queue (no room of its bracket takes it now; the
+    /// owner's of 2026-10-30, "exactly the same recommendation when I join a
+    /// room with lower/higher gear"): the room of the other bracket with a
+    /// place whose Join would offer a preset (`presets::offer`, Higher or
+    /// Fits) of that bracket, so that "Switch and enter" (the preset chosen,
+    /// then Play by the new gear) goes there; the room Play would take with
+    /// that gear. None when Play makes a room, or when Join would offer
+    /// nothing (a gear-10 player with no higher preset still queues: Play
+    /// keeps to its bracket).
+    fn room_instead_of_queue(
+        &self,
+        account_id: u32,
+        gear: u8,
+        levels: &[Option<u8>; presets::PRESETS],
+        kits_play: bool,
+        active: u8,
+    ) -> Option<u32> {
+        self.play_queue(account_id, gear)?;
+        let other = PublicBracket::of(gear).other();
+        let level = match presets::offer(gear, other.max_level(), levels, kits_play, active) {
+            Offer::Higher { level, .. } | Offer::Fits { level, .. } => level,
+            Offer::None | Offer::Unfit { .. } => return None,
+        };
+        if PublicBracket::of(level) != other {
+            return None;
+        }
+        self.room_in_bracket(account_id, level, other)
     }
 
     /// Queue in the same bracket. Counts for expansion are across all
@@ -847,7 +907,6 @@ impl Core<'_> {
             },
             now,
         )?;
-        self.rooms.came_by_play(who.account_id);
         Ok(key)
     }
 
@@ -902,9 +961,8 @@ impl Core<'_> {
                     break;
                 };
                 for (who, gear) in waiting.iter().skip(1).take(usize::from(QUICK_SIZE) * 2 - 1) {
-                    if self.rooms.join(who.account_id, *gear, key, now).is_ok() {
-                        self.rooms.came_by_play(who.account_id);
-                    }
+                    // One that cannot join now waits in its queue.
+                    let _ = self.rooms.join(who.account_id, *gear, key, now);
                 }
                 log::info!(
                     "Room {key}: opened for queued Play users, max level {}",
@@ -1265,10 +1323,16 @@ impl Core<'_> {
     /// rooms in its equipment bracket, the one whose level is nearest the
     /// player's, then the fullest, then its key.
     fn room_for_play(&self, account_id: u32, gear: u8) -> Option<u32> {
+        self.room_in_bracket(account_id, gear, PublicBracket::of(gear))
+    }
+
+    /// The room Play would take for `gear` in `bracket`
+    /// ([`Self::room_for_play`]).
+    fn room_in_bracket(&self, account_id: u32, gear: u8, bracket: PublicBracket) -> Option<u32> {
         let mine = i32::from(self.level_of(account_id, quests::now()).min);
         self.rooms
             .open_rooms(account_id, gear)
-            .filter(|room| PublicBracket::of(gear).contains(room))
+            .filter(|room| bracket.contains(room))
             .filter(|room| self.rooms.queue_len(room.key) == 0)
             .min_by_key(|room| {
                 (
@@ -1327,9 +1391,6 @@ impl Core<'_> {
                         })
                     });
                 if fits && self.rooms.admit(account_id, key) {
-                    if choice == QueueChoice::Play {
-                        self.rooms.came_by_play(account_id);
-                    }
                     log::info!("Account {account_id}: from room {key}'s queue into it");
                     continue;
                 }
@@ -1447,27 +1508,14 @@ impl Core<'_> {
         }
     }
 
-    /// The room's match is over: its players are back in the room, but for
-    /// those that came by Play, who leave it (`Rooms::match_over`, the
-    /// owner's of 2026-10-20). They get their results all the same (sent
-    /// after this, `end_running`), then the lobby with no room: their next
-    /// Play puts them into the room nearest their level.
+    /// The room's match is over: its players are back in the room, every
+    /// member alike, however it came in (`Rooms::match_over`, the owner's of
+    /// 2026-10-31); their results are sent after this (`end_running`).
     pub(super) fn room_match_over(&mut self, match_id: u32) {
         self.room_launching.remove(&match_id);
-        if let Some((key, left)) = self.rooms.match_over(match_id) {
+        if let Some(key) = self.rooms.match_over(match_id) {
             log::info!("Room {key}: its match {match_id:#x} is over; back in the room");
-            for account_id in left {
-                // As by Leave: nothing to tell it but that it is in no room.
-                self.room_codes.remove(&account_id);
-                self.room_join_at.remove(&account_id);
-                log::info!(
-                    "{}: came by Play, played match {match_id:#x}: out of room {key}",
-                    self.name_of(account_id).unwrap_or_default()
-                );
-            }
-            if self.rooms.get(key).is_none() {
-                log::info!("Room {key}: nobody left in it after its match; gone");
-            } else if self.maintenance_is_near() {
+            if self.maintenance_is_near() {
                 // A maintenance is near: the match was played out, and the
                 // room ends with it.
                 self.room_disband(key);

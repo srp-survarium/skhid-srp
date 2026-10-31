@@ -23,6 +23,7 @@
 //! It grows with what the patches need, and no further.
 
 pub mod bullet;
+pub mod explosion;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -33,18 +34,22 @@ mod context;
 pub mod draw;
 pub mod headwear;
 mod hook;
+mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
 pub mod language;
+pub mod lobby;
 pub mod log;
 mod options;
 pub mod parse;
 mod rt;
+pub mod settings;
 mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+mod world_load;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -61,6 +66,8 @@ mod generated {
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
     use crate::raw;
+    #[allow(unused_imports)]
+    use super::{RenderVisual, ObjectLight, GameScene};
     include!("../../../../hooks_026g.rs");
 }
 
@@ -69,14 +76,27 @@ pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
-pub use keyboard::TabTest;
+pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
+pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
+pub use hud_input::{Hud, HudCall, HudView};
+pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
+pub use world_load::WorldLoad;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 mod consumable;
 pub use consumable::QuickSlotActivity;
 
+pub mod config;
+pub mod collection;
+
+pub mod geometry;
+pub mod presentation;
+
+pub mod project;
+pub use project::{RenderVisual, ObjectLight, GameScene};
+
+pub mod history;
 mod artefact;
 pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

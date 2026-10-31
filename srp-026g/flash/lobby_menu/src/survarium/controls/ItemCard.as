@@ -15,6 +15,7 @@ package survarium.controls
    import survarium.interfaces.IPlayerProfile;
    import survarium.messages.MessageMoneyExchange;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
@@ -181,7 +182,9 @@ package survarium.controls
             item = this._data;
             profile = parent["player_profile"];
             price = item.category == ItemCategory.BUNDLE ? (item.cost) : (GangShop.getInstance().getItemPrice(item.dictId));
-            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,item.seller,!item.isStack ? this.onItemBuyAccept : null);
+            // No seller: the exe fills in the first price record's (lobby_requests.md, 47 00). It
+            // read item.seller, which ItemData does not have: Scaleform gave undefined, so 0.
+            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,Faction.NONE,!item.isStack ? this.onItemBuyAccept : null);
          }
       }
       

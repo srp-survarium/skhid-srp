@@ -117,6 +117,14 @@ unsafe extern "C" {
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
+    /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
+    pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
+    /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+    pub fn engine_show_cursor(ui: *mut c_void, shown: u32);
+    /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+    pub fn engine_send_important(messaging: *mut c_void, target: *const u8, r#type: u32, text: *const u8);
+    /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    pub fn engine_comment_about_user(lobby_client: *mut c_void, nickname: *const u8, kind: u32, mode: u32);
 }
 
 #[allow(dead_code)]
@@ -143,6 +151,16 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
+    /// 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_insert(visual: *mut c_void, scene: *mut c_void);
+    /// 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
+    pub fn engine_visual_remove(visual: *mut c_void, scene: *mut c_void);
+    /// 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_insert(light: *mut c_void);
+    /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+    pub fn engine_light_remove(light: *mut c_void);
+    /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+    pub fn engine_close_current_match(client: *mut c_void, reason: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
