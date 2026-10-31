@@ -1041,8 +1041,10 @@ mod tests {
         let tuning = crate::v026g::bots::tuning::Tuning::default();
         let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
         prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
-        let mut other = crate::v026g::bots::tuning::Tuning::default();
-        other.grid = GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() };
+        let other = crate::v026g::bots::tuning::Tuning {
+            grid: GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() },
+            ..Default::default()
+        };
         let server = crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other).unwrap();
         wait_ready(&server, project, Duration::from_secs(10));
         assert_eq!(server.made(project).map(|made| made.grid), Some(Source::Built));
