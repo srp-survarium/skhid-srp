@@ -135,10 +135,12 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_HUMAN_TRAPS", "live", "live: the stand-in human carries a trap in the live share of lives (2.6 %) and puts it down as the live players do (standin_trap_habit.rs); carrier: every life is a carrier's (more traps, the same life); off: none"),
     s("SRP_BENCH_HUMAN_TRAPS_KNOWN", "off", "off (live): a trap the stand-in human puts down is not in his team's trap list; his team learns it the way a live team learns a human mate's trap, once seen (within 8 m, in the cone, a clear line: fx-gear A168, LIKELY: the exe builds the trap model for every client of the match, no HUD or minimap marker tells of it); on: it is in the list from the tick it is laid (`Bots::bench_team_knows_trap`), more than a live team has, for a bench of how bots meet a known trap"),
     s("SRP_BENCH_UPGRADES_ONLY", "both", "**model** `0` or `1`: only that team keeps the process's `SRP_BOT_UPGRADES` (the armour modifications, and the weapon the client fires with the skills' reload and aim time); the other team is built as if they were off (its profiles, the arms of its kits, the stand-in's stamina rates and ammo); `both` (unset): both teams as the process. With it the `carrier_deaths` key of the sums splits the carriers' deaths by the killer's and the carrier's upgrade state (C14: own side or enemy side)"),
-    s("SRP_BENCH_STAND_IN_LEVEL", "off", "**model** `on` (or `1`): every stand-in body moves at the movement level of its kit (`bot_skills::profile_movement_level`, 1 + 0.05 - 0.2 x weight cost: about 1.03-1.04 on average, 0.85-0.92 for the heavy kits), and the bots' tracker starts at the same level, as the live server hands it (`game/driven.rs`); the stand-in human goes at `HUMAN_LEVEL` (1.02, PROVEN: the median of 841 live bodies' sprint speed over the nominal); off: every body at the nominal speed, as before (C14)"),
+    s("SRP_BENCH_STAND_IN_LEVEL", "on (live)", "**model** `on` (or `1`, the default): every stand-in body moves at the movement level of its kit (`bot_skills::profile_movement_level`, 1 + 0.05 - 0.2 x weight cost: about 1.03-1.04 on average, 0.85-0.92 for the heavy kits), and the bots' tracker starts at the same level, as the live server hands it (`game/driven.rs`); the stand-in human goes at `HUMAN_LEVEL` (1.02, PROVEN: the median of 841 live bodies' sprint speed over the nominal); `off` (or `0`): every body at the nominal speed, as before the default changed (C14)"),
     s("SRP_BENCH_STAND_IN_LIFT", "on", "**model** `off`: the stand-in body does not lift (the client's sprint lift, `standin_jump.rs`): a sprint run into the face of a jump link up of 1.11 m or less, a top 0.35 m deep, held 0.3 s at the face, takes the body up with no jump; off, only a jump gets it up, as before the lift"),
+    s("SRP_BENCH_SPAWN_POINTS", "free", "**model** `random`: a spawn goes to a random point of the team with replacement and 2 m of jitter (the old stand-in); free: onto a free respawn point of the team, exactly on it, as the game's respawn rule does (`select_respawn_points` 0x3171D0; live 0 of 790 fresh pairs within 1 m)"),
     s("SRP_BENCH_STAND_IN_EDGE", "on", "**model** `off`: the stand-in body falls at a ledge as the lattice has it, at the last floor cell's boundary; on (the client's capsule, `body::SUPPORT_M`): it is held until its feet are 0.435 m past that floor's centre (`bullet_character_controller::step_down` grounds a capsule while its hemisphere reaches the edge)"),
-    s("SRP_BENCH_STAND_IN_CORNER", "off", "**model** `off`: the stand-in body slides along every wall of the lattice at full speed; `on` (the client's capsule, `standin_capsule.rs`): a circle of the capsule's radius 0.38 m in the walker mesh's walls, moved by `step_forward_impl`'s wall slide with the live `cc_wall_full_slide_dot 0.50` and `cc_wall_slide_bouncing_factor 0.08`: held off a wall, a wall met within 60 degrees of its normal takes speed, a jamb met head on stops the body"),
+    s("SRP_BENCH_STAND_IN_FALL", "on", "**model** `off`: a stand-in body held past a ledge's edge moves on only toward a drop link of its floor or along a lip's floor (it can stand there pushing); on (with `SRP_BENCH_STAND_IN_EDGE`): it walks on while a floor of its level within `body::SUPPORT_M` holds it and falls straight down once none does, link or no link, as the client's capsule (`standin_jump::past_edge`)"),
+    s("SRP_BENCH_STAND_IN_CORNER", "on", "**model** `off`: the stand-in body slides along every wall of the lattice at full speed; on (the client's capsule, `standin_capsule.rs`): a circle of the capsule's radius 0.38 m in the walker mesh's walls, moved by `step_forward_impl`'s wall slide with the live `cc_wall_full_slide_dot 0.50` and `cc_wall_slide_bouncing_factor 0.08`: held off a wall, a wall met within 60 degrees of its normal takes speed, a jamb met head on stops the body"),
     s("SRP_BENCH_HUMAN_SMOKE", "on", "off: the stand-in human throws no smoke (otherwise at the live rate, standin_smoke.rs)"),
     s("SRP_BENCH_SMOKE_FAIR_DUMP", "unset", "set: each sighting the smoke fairness counter counts is printed (`FAIR-SEEN`, tallies/owner/smoke.rs), with the clouds near it at the counter's tick and at the sensing's time"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
@@ -217,18 +219,22 @@ pub(crate) fn models_line(settings: &BenchSettings) -> String {
 
 /// The settings a run has the value of a live match for when it does not say otherwise (`off` or `0` turns one off). Each
 /// was off by default before, so a run that did not set them knew nothing of the enemy's weapon, let bodies pass through
-/// each other, drew every weapon in 800 ms and took no enemy for a human; the phase-end sweep set all four itself.
+/// each other, drew every weapon in 800 ms, took no enemy for a human and moved every body at the nominal speed; the phase-end
+/// sweep set the first four itself.
 /// - `SRP_BENCH_WEAPONS`: PROVEN, the server gives every bot its weapon class (`game/driven.rs`, `set_weapons`).
 /// - `SRP_BENCH_BODY_BLOCK_M`: PROVEN, 0.76 m from the J0 matches' bodies files (`standin.rs`).
 /// - `SRP_BENCH_DRAW_TIME`: PROVEN, the weapons' own `show_time` in the configs (`standin.rs`).
 /// - `SRP_BENCH_ENEMY_HUMAN_LANES`: LIKELY, not exact: in a live Player vs Bots match only team 1's bots meet a human
 ///   (`team1`, `player_bots.md` section 8); `on` gives both teams the lanes, as the sweep did (sides swap in a head to
 ///   head, so no team has them alone).
-const LIVE_DEFAULTS: [(&str, &str); 4] = [
+/// - `SRP_BENCH_STAND_IN_LEVEL`: PROVEN, the server hands every bot its kit's movement level (`game/driven.rs`); the stand-in
+///   human goes at 1.02, the median of 841 live bodies (`standin_level.rs`).
+const LIVE_DEFAULTS: [(&str, &str); 5] = [
     ("SRP_BENCH_WEAPONS", "1"),
     ("SRP_BENCH_BODY_BLOCK_M", "0.76"),
     ("SRP_BENCH_DRAW_TIME", "weapon"),
     ("SRP_BENCH_ENEMY_HUMAN_LANES", "on"),
+    ("SRP_BENCH_STAND_IN_LEVEL", "on"),
 ];
 
 /// The read environment: each setting of [`SETTINGS`] (and `SRP_BENCH_<name>` and
@@ -406,7 +412,7 @@ pub(crate) fn bench_settings() -> &'static BenchSettings {
 mod tests {
     use super::*;
 
-    /// A run that says nothing has the live value of each of the four; `off` or `0` turns one off; a value of its own wins.
+    /// A run that says nothing has the live value of each of the five; `off` or `0` turns one off; a value of its own wins.
     #[test]
     fn the_live_defaults_hold_unless_a_run_says_otherwise() {
         let unset = BenchSettings::from_pairs(&[]).with_live_defaults();
@@ -414,6 +420,7 @@ mod tests {
         assert_eq!(unset.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), Some(0.76));
         assert_eq!(unset.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
         assert_eq!(EnemyLanes::parse(unset.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Both));
+        assert!(unset.is_on("SRP_BENCH_STAND_IN_LEVEL"));
         // A reading that does not go through `from_env` (the other tests of this file) has none of them.
         assert!(!BenchSettings::from_pairs(&[]).is_on("SRP_BENCH_WEAPONS"));
         let off = BenchSettings::from_pairs(&[
@@ -421,9 +428,11 @@ mod tests {
             ("SRP_BENCH_BODY_BLOCK_M", "off"),
             ("SRP_BENCH_DRAW_TIME", "off"),
             ("SRP_BENCH_ENEMY_HUMAN_LANES", "off"),
+            ("SRP_BENCH_STAND_IN_LEVEL", "off"),
         ])
         .with_live_defaults();
         assert!(!off.is_on("SRP_BENCH_WEAPONS"));
+        assert!(!off.is_on("SRP_BENCH_STAND_IN_LEVEL"));
         assert_eq!(off.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), None);
         assert_ne!(off.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
         assert_eq!(EnemyLanes::parse(off.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Off));
@@ -442,7 +451,7 @@ mod tests {
             assert!(row.default.starts_with("on") || row.default.contains("live"), "{name}: {}", row.default);
         }
         let line = models_line(&BenchSettings::from_pairs(&[]).with_live_defaults());
-        for part in [" WEAPONS=1", " BODY_BLOCK_M=0.76", " DRAW_TIME=weapon", " ENEMY_HUMAN_LANES=on"] {
+        for part in [" WEAPONS=1", " BODY_BLOCK_M=0.76", " DRAW_TIME=weapon", " ENEMY_HUMAN_LANES=on", " STAND_IN_LEVEL=on"] {
             assert!(line.contains(part), "{part} is not in `{line}`");
         }
     }
