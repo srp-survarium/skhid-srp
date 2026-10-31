@@ -143,6 +143,8 @@ pub struct Maps {
     /// The grids' body and off-mesh links: the server's tuning (`SRP_BOT_TUNING`, read once at its start), which
     /// every match of the server runs on. A grid is the map's, shared by every match on it.
     grid: GridTuning,
+    /// Whether the grids get their table of wall clearances ([`Tuning::needs_wall_clearance`] of the server's tuning).
+    wall_clearance: bool,
     /// At most this many maps in memory ([`AT_ONCE`]).
     at_once: usize,
     cache: Arc<Mutex<Cache>>,
@@ -203,10 +205,24 @@ impl Maps {
         built: Option<PathBuf>,
         grid: GridTuning,
     ) -> Arc<Self> {
+        Self::configured_for(dir, keep, at_once, built, grid, false)
+    }
+
+    /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` (the server derives it from its tuning:
+    /// [`Tuning::needs_wall_clearance`]).
+    pub fn configured_for(
+        dir: Option<PathBuf>,
+        keep: usize,
+        at_once: usize,
+        built: Option<PathBuf>,
+        grid: GridTuning,
+        wall_clearance: bool,
+    ) -> Arc<Self> {
         Arc::new(Self {
             dir,
             built,
             grid,
+            wall_clearance,
             keep: keep.max(1),
             at_once: at_once.max(1),
             cache: Arc::default(),
@@ -288,13 +304,13 @@ impl Maps {
     fn spawn_build(&self, project: &str, path: PathBuf) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
         let (keep, name) = (self.keep, project.to_owned());
-        let (built, grid) = (self.built.clone(), self.grid.clone());
+        let (built, grid, wall_clearance) = (self.built.clone(), self.grid.clone(), self.wall_clearance);
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache, &grid)
+                    build(&path, built.as_deref(), &cache, &grid, wall_clearance)
                 };
                 stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
@@ -496,6 +512,7 @@ fn build(
     built: Option<&Path>,
     cache: &Mutex<Cache>,
     grid_tuning: &GridTuning,
+    wall_clearance: bool,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
     stage::set("reading the map file");
@@ -529,6 +546,10 @@ fn build(
                     || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
+                // The table of wall clearances ([`WalkGrid::wall_clearance`]) only where the tuning in force needs it
+                // ([`Tuning::needs_wall_clearance`]):
+                // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
+                let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)

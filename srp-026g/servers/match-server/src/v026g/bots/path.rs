@@ -108,6 +108,9 @@ pub enum RouteHeight {
     Floor,
 }
 
+mod wall_clear;
+pub use wall_clear::counts as wall_clear_counts;
+
 #[derive(Clone, Debug)]
 pub struct Route {
     points: Vec<Waypoint>,
@@ -1060,6 +1063,28 @@ impl Route {
         route
     }
 
+    /// The floors' heights of this route with the distance to each of its points now `new_at` (one for each point): the
+    /// distances along a leg are scaled to the leg's new length.
+    fn rescaled_floors(&self, new_at: &[f32]) -> Vec<(f32, f32)> {
+        let n = self.points.len();
+        self.floors
+            .iter()
+            .map(|&(d, y)| {
+                let k = self.along.partition_point(|&a| a < d);
+                if k == 0 {
+                    return (d, y);
+                }
+                if k >= n {
+                    return (new_at[n - 1] + (d - self.along[n - 1]), y);
+                }
+                let old_len = self.along[k] - self.along[k - 1];
+                let new_len = new_at[k] - new_at[k - 1];
+                let scale = if old_len > 1e-6 { new_len / old_len } else { 1.0 };
+                (new_at[k - 1] + (d - self.along[k - 1]) * scale, y)
+            })
+            .collect()
+    }
+
     /// This route with the middle of each doorway it crosses as a corner and a gate (`doors::centre_of`, [`Route::gate_within`]):
     /// a walked leg that crosses a doorway gets a corner at its middle, kept where both new legs are straight walks over the
     /// floors. The floors' heights keep their places along the legs. Legs of a jump, a drop or under a low floor are left as
@@ -1090,7 +1115,6 @@ impl Route {
         if corner.iter().all(Option::is_none) {
             return self;
         }
-        // The floors' distances along a leg are scaled to the leg's new length.
         let mut new_at = Vec::with_capacity(n);
         let mut total = 0.0f32;
         for k in 0..n {
@@ -1100,23 +1124,7 @@ impl Route {
             }
             new_at.push(total);
         }
-        let floors: Vec<(f32, f32)> = self
-            .floors
-            .iter()
-            .map(|&(d, y)| {
-                let k = self.along.partition_point(|&a| a < d);
-                if k == 0 {
-                    return (d, y);
-                }
-                if k >= n {
-                    return (new_at[n - 1] + (d - self.along[n - 1]), y);
-                }
-                let old_len = self.along[k] - self.along[k - 1];
-                let new_len = new_at[k] - new_at[k - 1];
-                let scale = if old_len > 1e-6 { new_len / old_len } else { 1.0 };
-                (new_at[k - 1] + (d - self.along[k - 1]) * scale, y)
-            })
-            .collect();
+        let floors = self.rescaled_floors(&new_at);
         let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, planned, below_walk_m, .. } = self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);

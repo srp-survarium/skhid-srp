@@ -1272,3 +1272,59 @@ fn the_reach_of_points() {
         }
     }
 }
+
+/// How near the walls the floors of the exact grid are (A66/A191: a route's waypoints and corners sit on floors, and the client's
+/// capsule holds 0.38 m from a wall): per map, the floors under the capsule's radius 0.38 m and under the controller's hold 0.41 m
+/// from a wall, and what the query costs (`floors_near_walls`: one binned wall search per floor). The grid keeps its floors
+/// [`WalkGrid::exact_clearance`] from walls (0.3175 m), so none is under that.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_floors_by_distance_to_a_wall() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let projects: Vec<String> = match std::env::var("SRP_GRID_TABLE_MAPS") {
+        Ok(list) => list.split(',').map(str::to_owned).collect(),
+        Err(_) => (1..=8)
+            .flat_map(|level| [2, 4].map(|mode| format!("level_{level:02}_day_{mode}")))
+            .collect(),
+    };
+    eprintln!("project\tfloors\tunder_0.3175\tunder_0.38\tunder_0.41\tms_for_the_floors\tus_a_floor");
+    for project in &projects {
+        let Ok(map) = MapData::read(&dir.join(format!("{project}.mapdata"))) else {
+            eprintln!("{project}: no file");
+            continue;
+        };
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let body = Body { erosion: mapdata::Erosion::Exact, ..Body::client() };
+        let triangles = map.walker_triangles();
+        let (grid, _) = WalkGrid::build_kept_with_links(
+            &triangles,
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            body,
+            &map.grid_seeds(),
+            &spawns,
+            mapdata::OffMeshLinks::Gaps,
+        );
+        let started = std::time::Instant::now();
+        let under: Vec<usize> = [grid.exact_clearance() - 1e-3, 0.38, 0.41].map(|r| grid.floors_near_walls(&triangles, r).0).to_vec();
+        let one = started.elapsed().as_secs_f64() / 3.0;
+        let started = std::time::Instant::now();
+        let grid = grid.with_wall_clearance(&triangles);
+        let table_ms = started.elapsed().as_secs_f64() * 1e3;
+        let table_under = |r: f32| (0..grid.len() as u32).filter(|&n| grid.wall_clearance(n).is_some_and(|c| c < r)).count();
+        eprintln!(
+            "{project}	{}	{}	{}	{}	{}	{}	{:.0}	{:.0}",
+            grid.len(),
+            under[0],
+            under[1],
+            under[2],
+            table_under(0.38),
+            table_under(0.41),
+            one * 1e3,
+            table_ms
+        );
+    }
+}

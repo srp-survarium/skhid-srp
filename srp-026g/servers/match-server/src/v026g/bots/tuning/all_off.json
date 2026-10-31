@@ -126,6 +126,7 @@
   "smoke": {
     "anti_sniper": false,
     "cross_lane": false,
+    "forming_client": false,
     "react_watch": false,
     "sight": false,
     "spot_rules": false,
@@ -174,6 +175,7 @@
   },
   "unstick": {
     "blind_stop_ms": null,
+    "home_gate_max_ms": null,
     "home_no_way_ms": null,
     "progress_ms": null,
     "suicide_after_ms": null,

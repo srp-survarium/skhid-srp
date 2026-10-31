@@ -67,6 +67,21 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The lip guard's gaps ([`Feel::lip_guard_full`](super::super::motor::Feel::lip_guard_full)): ticks asked for a glide with no move key
+/// and those changed, ticks asked only for the floors about the reckoned feet and those changed, walks held for the feet to either side,
+/// bots given up and watched again, glide ticks changed while given up.
+pub(super) fn lip_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::counts::lip_gaps().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "lip_glide_asked {} lip_glide_changed {} lip_about_asked {} lip_about_changed {} lip_side_held {} lip_gave_up {} lip_watched_again {} lip_given_up_glide_changed {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
+            ));
+        },
+    )
+}
+
 /// The reflex's own side steps refused at a lip and asked the other side (`drive_tick`, `clear_step_sees_lip`):
 /// the other side clear, or both refused (the bot stands), standing to aim or weaving a walk, from a floor in a
 /// lip's band or out of it; and the steps taken to the other side (`clear_step_slides_along`).
@@ -148,6 +163,38 @@ pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
             ));
         },
     )
+}
+
+/// What `think.wall_clear_corners` did (`path::wall_clear_counts`, A191b): the routes it looked at, the corners under the hold and
+/// how many it moved or kept, the legs dipping under the radius and how many it gave a corner or kept, and the metres it added.
+/// Printed only when it looked at a route.
+pub(super) fn wall_clear() -> Box<dyn RouteTopic> {
+    use super::super::path::wall_clear_counts::{NAMES, counts};
+    Delta::of(counts, |d, line| {
+        if d[0] > 0 {
+            let fields: Vec<String> = NAMES.iter().zip(d).map(|(name, n)| format!("{name} {n}")).collect();
+            line.tail.push(format!("wall_clear {}", fields.join(" ")));
+        }
+    })
+}
+
+/// The places `think.wall_clear_corners` kept a corner or a dipping leg as it was (no floor with room), in half metres, once each:
+/// `wall_clear_kept corner:x,y,z ... leg:x,y,z ...` (A191b: the stuck notes near them are the next cause).
+pub(super) fn wall_clear_kept() -> Box<dyn RouteTopic> {
+    struct Kept;
+    impl RouteTopic for Kept {
+        fn line(&mut self, _run: &RouteRun, line: &mut Line) {
+            let kept = super::super::path::wall_clear_counts::take_kept();
+            if !kept.is_empty() {
+                let places: Vec<String> = kept
+                    .iter()
+                    .map(|(leg, p)| format!("{}:{},{},{}", if *leg { "leg" } else { "corner" }, p[0], p[1], p[2]))
+                    .collect();
+                line.tail.push(format!("wall_clear_kept {}", places.join(" ")));
+            }
+        }
+    }
+    Box::new(Kept)
 }
 
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).

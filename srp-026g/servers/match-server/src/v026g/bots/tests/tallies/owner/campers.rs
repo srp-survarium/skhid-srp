@@ -98,13 +98,21 @@ pub(crate) struct KillSpot {
 }
 
 /// A bot of the victims' team coming into a held line: when, whose,
-/// which bot, in the killed lane.
+/// which bot, in the killed lane, and where: the held spot, the bot's feet,
+/// the kills the spot had made and the line's reach (the `ENTRY` lines of
+/// the owner-test text, one for each entry, to read each entry with the
+/// events: its play, what it knew, the time to death).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Entry {
     pub(crate) t: u32,
     pub(crate) shooter: Place,
     pub(crate) place: Place,
+    pub(crate) team: u8,
     pub(crate) lane: bool,
+    pub(crate) spot: Vec3,
+    pub(crate) at: Vec3,
+    pub(crate) kills: usize,
+    pub(crate) reach: f32,
 }
 
 impl Topic for CamperCounts {
@@ -267,7 +275,12 @@ impl CamperCounts {
                         t: tick,
                         shooter: held.shooter,
                         place,
+                        team: b.team,
                         lane,
+                        spot: held.spot,
+                        at: b.feet,
+                        kills: held.bearings.len(),
+                        reach: held.reach,
                     });
                 }
                 held.in_line[place] = seen;
@@ -309,7 +322,7 @@ pub(crate) fn kills_from_one_spot_and_a_bot_walking_into_the_held_line_are_count
         }
         vec![bot_now(); 6]
     });
-    let (_, json) = tally.finish(&game);
+    let (text, json) = tally.finish(&game);
     assert_eq!(json["camper_runs_3"], 1, "{json}");
     assert_eq!(json["camper_run_kills"], 4);
     assert_eq!(json["camper_run_longest"], 4);
@@ -318,6 +331,8 @@ pub(crate) fn kills_from_one_spot_and_a_bot_walking_into_the_held_line_are_count
     assert_eq!(json["reentries"], 1);
     assert_eq!(json["reentries_fatal"], 1);
     assert_eq!(json["reentries_lane"], 1);
+    let entry = text.lines().find(|line| line.starts_with("ENTRY ")).expect("an ENTRY line");
+    assert!(entry.contains("shooter=1 place=4 team=0 lane=1 fatal=1 kills=3"), "{entry}");
 }
 
 /// `ticks` ticks of `game` with every body at its spot (dead after its
@@ -657,6 +672,25 @@ impl CamperCounts {
         for line in self.row_lines(run, game, &by_team) {
             text.push('\n');
             text.push_str(&line);
+        }
+        for e in &self.entries {
+            text.push_str(&format!(
+                "\nENTRY t={} shooter={} place={} team={} lane={} fatal={} kills={} reach={:.0} spot=({:.1},{:.1},{:.1}) at=({:.1},{:.1},{:.1})",
+                e.t,
+                e.shooter,
+                e.place,
+                e.team,
+                u8::from(e.lane),
+                u8::from(fatal(e)),
+                e.kills,
+                e.reach,
+                e.spot.x,
+                e.spot.y,
+                e.spot.z,
+                e.at.x,
+                e.at.y,
+                e.at.z
+            ));
         }
         Part::new(json, text)
     }

@@ -21,12 +21,13 @@ const UNSTARTED: Duration = Duration::from_secs(120);
 const HOUSEKEEPING: Duration = Duration::from_secs(1);
 /// Where accepted snapshots are kept, for decoding results offline.
 const SNAPSHOT_DIR: &str = "logs/snapshots";
-/// `SRP_SNAPSHOT_DIR` (`off` or empty for none) or [`SNAPSHOT_DIR`].
-fn snapshot_dir() -> Option<std::path::PathBuf> {
-    match std::env::var("SRP_SNAPSHOT_DIR") {
-        Ok(value) if value.trim().is_empty() || value.trim().eq_ignore_ascii_case("off") => None,
-        Ok(value) => Some(value.into()),
-        Err(_) => Some(SNAPSHOT_DIR.into()),
+/// `SRP_SNAPSHOT_DIR` (`off` or empty for none) or [`SNAPSHOT_DIR`], read once at the server's start ([`run`]) and kept in
+/// [`Server::snapshot_dir`]: a game that starts later reads the field, not the environment.
+fn snapshot_dir_from(value: Option<&str>) -> Option<std::path::PathBuf> {
+    match value {
+        Some(value) if value.trim().is_empty() || value.trim().eq_ignore_ascii_case("off") => None,
+        Some(value) => Some(value.into()),
+        None => Some(SNAPSHOT_DIR.into()),
     }
 }
 /// `categories_dict`: rifles, sniper rifles, shotguns, SMGs and pistols.
@@ -51,6 +52,7 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
     let socket = UdpSocket::bind(config.match_server.bind_addr())?;
     socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     let modes = modes_from_env();
+    let snapshot_dir = snapshot_dir_from(std::env::var("SRP_SNAPSHOT_DIR").ok().as_deref());
     log::info!(
         "Match server on {} (modes {modes:?})",
         config.match_server.bind_addr()
@@ -59,6 +61,7 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
         store,
         port: config.match_server.port,
         modes,
+        snapshot_dir,
         games: HashMap::new(),
         pending: HashMap::new(),
         routes: HashMap::new(),
@@ -91,6 +94,8 @@ struct Server {
     store: Arc<SessionStore>,
     port: u16,
     modes: Vec<u8>,
+    /// Where accepted snapshots are kept (`SRP_SNAPSHOT_DIR`, read at the start).
+    snapshot_dir: Option<std::path::PathBuf>,
     games: HashMap<u32, Game>,
     /// Clients not yet placed: their 0x40 hasn't come.
     pending: HashMap<SocketAddr, Transport>,
@@ -285,7 +290,7 @@ impl Server {
                 .collect(),
         };
         let mut game = Game::new(match_id, self.port, info, setup, now);
-        if let Some(dir) = snapshot_dir() {
+        if let Some(dir) = self.snapshot_dir.clone() {
             game.dump_snapshots_to(dir);
         }
         Some(game)
@@ -552,6 +557,7 @@ mod tests {
             store,
             port: 0,
             modes: vec![2],
+            snapshot_dir: None,
             games: HashMap::new(),
             pending: HashMap::new(),
             routes: HashMap::new(),
@@ -617,6 +623,7 @@ mod tests {
             store: store.clone(),
             port: 0,
             modes: vec![2],
+            snapshot_dir: None,
             games: HashMap::new(),
             pending: HashMap::new(),
             routes: HashMap::new(),
@@ -669,6 +676,14 @@ mod tests {
         connect.push(0);
         server.receive(again, &datagram(0, 0x40, &connect), formed);
         assert!(!server.routes.contains_key(&again));
+    }
+
+    #[test]
+    fn the_snapshot_dir_is_the_variable_or_the_default_and_off_means_none() {
+        assert_eq!(snapshot_dir_from(None), Some(SNAPSHOT_DIR.into()));
+        assert_eq!(snapshot_dir_from(Some("/tmp/worlds")), Some("/tmp/worlds".into()));
+        assert_eq!(snapshot_dir_from(Some("off")), None);
+        assert_eq!(snapshot_dir_from(Some("  ")), None);
     }
 
     #[test]
@@ -725,6 +740,7 @@ mod tests {
             store: store.clone(),
             port: 0,
             modes: vec![2],
+            snapshot_dir: None,
             games: HashMap::new(),
             pending: HashMap::new(),
             routes: HashMap::new(),
@@ -801,6 +817,7 @@ mod tests {
             store: store.clone(),
             port: 0,
             modes: vec![3],
+            snapshot_dir: None,
             games: HashMap::new(),
             pending: HashMap::new(),
             routes: HashMap::new(),

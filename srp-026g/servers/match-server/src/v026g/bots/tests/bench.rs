@@ -236,6 +236,12 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
     Some((0..places).map(|_| rng.range(lo, hi.max(lo)) as u32).collect())
 }
 
+/// Whether the bench's worlds need the grids' table of wall clearances: either team's tuning needs it
+/// ([`Tuning::needs_wall_clearance`]; team 1's is its own only in a one-sided run).
+fn bench_wall_clearance() -> bool {
+    bench_tuning().needs_wall_clearance() || (bench_settings().flag("SRP_BENCH_ONE_SIDE") && bench_tuning_of(true).needs_wall_clearance())
+}
+
 /// [`tuning_from`] of the environment.
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     tuning_from(bench_settings(), side1)
@@ -674,7 +680,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
+        let world = Arc::new(World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, bench_wall_clearance()));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {
@@ -934,6 +940,8 @@ pub(crate) fn real_bot_cost() {
             // on a play taken since its last motor tick (no tick yet to plan).
             let mut stood_routing = [0u64; 2];
             let mut stood_by: std::collections::BTreeMap<String, u64> = Default::default();
+            // [diag close] Once a second, for each living bot and each living enemy 4-12 m away: moments, no frag, in a fight (a target in sight), quiet and an enemy track within 3 m, quiet and none.
+            let mut close_truth = [[0u64; 5]; 2];
             // By the bot's play: its searches that found no way (each sets
             // `Bot::no_way` afresh) and its ticks stood at a goal one of them
             // was for, while it is not searched again (`NO_WAY_RETRY_MS`).
@@ -1024,6 +1032,12 @@ pub(crate) fn real_bot_cost() {
             game.set_grenade_kits(&roster.grenades);
             game.set_heal_kits(&roster.profiles);
             game.set_radio_kits(&roster.profiles);
+            // `SRP_BENCH_STAND_IN_LEVEL=on`: the bodies go at their kit's level and the bots' tracker starts there too, as the server hands it.
+            if standin_level::enabled() {
+                let levels = standin_level::levels(&roster.upgrades, bots.bench_human);
+                game.set_speed_levels(&levels);
+                bots.set_speed_levels(&levels);
+            }
             // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
             // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
             // opponent, and a change of the bots' aim does not move him.
@@ -1340,6 +1354,26 @@ pub(crate) fn real_bot_cost() {
                             search_deaths += 1;
                         }
                         was_alive[bot.place] = body.alive;
+                        if clock % 1_000 == 0 && body.alive {
+                            let (has_frag, fight) = (bot.reflex.frags_left() != Some(0), bot.reflex.target().is_some());
+                            for (p, enemy) in game.bodies.iter().enumerate() {
+                                let d = body.feet.distance_xz(enemy.feet);
+                                if p == bot.place || !enemy.alive || enemy.team == body.team || !(4.0..=12.0).contains(&d) {
+                                    continue;
+                                }
+                                let truth = &mut close_truth[usize::from(body.team)];
+                                truth[0] += 1;
+                                if !has_frag {
+                                    truth[1] += 1;
+                                } else if fight {
+                                    truth[2] += 1;
+                                } else if bot.memory.tracks().iter().any(|t| t.own.is_some_and(|(at, _)| at.distance_xz(enemy.feet) < 3.0)) {
+                                    truth[3] += 1;
+                                } else {
+                                    truth[4] += 1;
+                                }
+                            }
+                        }
                         let play_now = || {
                             bot.assignment
                                 .as_ref()
@@ -1696,6 +1730,7 @@ pub(crate) fn real_bot_cost() {
             for line in &game.stolen_log {
                 eprintln!("  stolen log: {line}");
             }
+            eprintln!("  close truth (diag) by team, per bot-second and enemy 4-12 m away [moments, no frag, fight, quiet with a track, quiet and unknown]: {close_truth:?}");
             let mut by: Vec<_> = stood_by.into_iter().collect();
             by.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  stood by play: {:?}", &by[..by.len().min(8)]);
@@ -2210,8 +2245,9 @@ pub(crate) struct BenchRoster {
 /// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
 /// that wear a modification, and the speed level its first kit gives (`bot_skills::profile_movement_level`, the level the
 /// match server hands its bots' tracker in `game/driven.rs`). This is what the profiles hold: the bench's stand-in does not
-/// use it (it never calls `Bots::set_speed_levels`, and its bodies move at the nominal speed), so a bot's moves do not
-/// change with it here. It says that an arm which turns the upgrades on has them on, and how fast the profiles say they run.
+/// use it unless `SRP_BENCH_STAND_IN_LEVEL=on` (`standin_level.rs`; off: the bodies move at the nominal speed, and `Bots::set_speed_levels`
+/// is not called), so a bot's moves do not change with it here. It says that an arm which turns the upgrades on has them on, and how
+/// fast the profiles say they run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Upgrades {
     pub(crate) items: u32,

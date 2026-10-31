@@ -1196,6 +1196,37 @@ impl Tactics {
         self.route_nodes(start, goal, time, side, objective, &RouteFilter::open())
     }
 
+    /// When the way from `from` to `to` opens, if only zones that switch shut it: the way a plain search keeps off no zone
+    /// ([`path::plan_where`] over the spawn rule alone) is walked in 1 m steps, and each floor on it a zone shuts at `time`
+    /// ([`Hazards::allowed`]) gives the soonest the schedule opens it ([`Hazards::gate_end`]); the latest of them is the
+    /// answer. None when the way has no shut floor now (the failure is not a zone's), no way exists even with the zones
+    /// open, or some floor on it is shut by a zone that does not switch, a live field, or a span the prediction does not
+    /// end (no gate to wait for). It is one search over the whole grid: asked once by a bot that stands, not every tick.
+    pub fn gate_opens(&self, from: Vec3, to: Vec3, time: u32, side: Option<i32>) -> Option<u32> {
+        let grid = &self.world.grid;
+        let (a, b) = (grid.locate(from, 1.5)?, grid.locate(to, LOCATE_M)?);
+        let route = path::plan_where(grid, a, b, |node| self.spawn_ok(node, side, false))?;
+        let mut opens = time;
+        let mut prev = from;
+        for waypoint in route.points() {
+            let (here, there) = (prev, waypoint.at);
+            let steps = (here.distance_xz(there).ceil() as u32).max(1);
+            for step in 0..=steps {
+                let t = step as f32 / steps as f32;
+                let at = Vec3::new(
+                    here.x + (there.x - here.x) * t,
+                    here.y + (there.y - here.y) * t,
+                    here.z + (there.z - here.z) * t,
+                );
+                if let Some(node) = grid.locate(at, 1.0) {
+                    opens = opens.max(self.hazards.gate_end(node, time)?);
+                }
+            }
+            prev = there;
+        }
+        (opens > time).then_some(opens)
+    }
+
     /// [`Self::route_for`] between floors, keeping off what `filter` keeps
     /// out too (the spots a bot got stuck at, the landings of the jumps it
     /// gave up).
@@ -1573,8 +1604,26 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
     ) -> Option<Vec3> {
+        self.step_out_where(from, rest, radius, reach_m, time, side, objective, filter, false)
+    }
+
+    /// [`Self::step_out`], with `never_nearer`: a floor nearer `rest` than where the body stands (by more than
+    /// [`STEP_OUT_GAIN_M`]) is not walked over, so the way found never leads toward the blast and back out of it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_out_where(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+        never_nearer: bool,
+    ) -> Option<Vec3> {
         let grid = &self.world.grid;
-        let scan = self.step_out_scan(from, rest, radius, reach_m, time, side, objective, filter, 1);
+        let scan = self.step_out_scan(from, rest, radius, reach_m, time, side, objective, filter, 1, never_nearer);
         match scan.outside.first() {
             Some(&node) => Some(grid.position(node)),
             None => scan.farthest.filter(|&(_, far)| far > scan.start_far + STEP_OUT_GAIN_M).map(|(node, _)| grid.position(node)),
@@ -1601,7 +1650,7 @@ impl Tactics {
         filter: &RouteFilter,
     ) -> Option<(Vec3, StepOutPick)> {
         let grid = &self.world.grid;
-        let scan = self.step_out_scan(from, rest, radius, reach_m.max(far_m), time, side, objective, filter, STEP_OUT_CANDIDATES);
+        let scan = self.step_out_scan(from, rest, radius, reach_m.max(far_m), time, side, objective, filter, STEP_OUT_CANDIDATES, false);
         for (k, &node) in scan.outside.iter().enumerate() {
             let fits = node == from
                 || self
@@ -1629,11 +1678,13 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
         want: usize,
+        never_nearer: bool,
     ) -> StepOutScan {
         use super::view::CHEST;
         let grid = &self.world.grid;
         let up = Vec3::new(0.0, CHEST, 0.0);
         let far = |n: NodeId| (grid.position(n) + up - rest).length();
+        let nearest_allowed = if never_nearer { far(from) - STEP_OUT_GAIN_M } else { f32::NEG_INFINITY };
         let open = |n: NodeId| self.allowed(n, time, side, objective);
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
@@ -1653,7 +1704,7 @@ impl Tactics {
             }
             let at = grid.position(a);
             for (b, _) in grid.links(a) {
-                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) {
+                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) || far(b) < nearest_allowed {
                     continue;
                 }
                 let next = d + grid.position(b).distance_xz(at);

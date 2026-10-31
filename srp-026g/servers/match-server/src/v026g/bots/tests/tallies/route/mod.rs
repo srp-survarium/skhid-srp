@@ -106,6 +106,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),
         side_slides(),
+        lip_gaps(),
         request_gaps(),
         shots_heard(),
         holder_stand_sight(),
@@ -140,6 +141,8 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(probe::Probe::new(bodies)),
         Box::new(fields::Fields::new(bodies)),
         Box::new(passes::Passes::new(bodies)),
+        wall_clear(),
+        wall_clear_kept(),
     ]
 }
 
