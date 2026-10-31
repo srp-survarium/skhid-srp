@@ -172,7 +172,7 @@ fn threat_tick(
     }
     // [smoke.spot_rules] A region a cloud hides from the spot's shooter is not his while it stands: routes cross under it
     // (the detour weighs the lanes) and no lane smoke is planned for it.
-    let planning = view.smoke.planning(now, team);
+    let planning = view.smoke.planning(now, team, super::smoke::Forming::of(&tuning.smoke));
     // [threat.sniper_memory] The sensed snipers' spots kept out of the routes too, unless `keep_out` is off.
     let kept = match tuning.threat.sniper_memory {
         Some(m) if !m.keep_out => threat::KeptOut::KillsOnly,
