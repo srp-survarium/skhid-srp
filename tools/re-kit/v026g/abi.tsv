@@ -2094,3 +2094,5 @@ va	name	source	ret_cleanup	result
 0x0021eab0	survarium::login_menu::on_activate	manual	0	
 0x00220400	survarium::lobby_menu::switch_to_level_loading	manual	8	
 0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	manual	0	
+0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
+0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)

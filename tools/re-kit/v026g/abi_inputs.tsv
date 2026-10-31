@@ -4879,3 +4879,9 @@ va	name	location	role	basis
 0x00220400	survarium::lobby_menu::switch_to_level_loading	entry ESP+4	the lobby menu (kept in EBX)	observed
 0x00220400	survarium::lobby_menu::switch_to_level_loading	entry ESP+8	the maps_dict id: its mode's config (map_descriptor_by_id 0x21F910, +8, its root +108h), whose mode/ui (ESI at 0x2204A2) gives loading_screen_id	observed
 0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	ECX	the proxy whose last reference went (vtable 0x9E0EC0 slot 8, the call of intrusive_ptr::dec 0x56800 at count 0): marks it freed (+78h) and queues its destruction order to the sound thread	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	ECX	lobby_menu receiver	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	entry ESP+4	Flash callback params; +8 points to 24-byte values: nickname, kind, mode	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+4	lobby_client pointer; link at +8	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed

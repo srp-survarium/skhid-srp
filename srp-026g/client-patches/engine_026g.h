@@ -13,6 +13,7 @@ struct buffer_string;
 struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
+struct cc_bool;
 struct cc_string;
 struct core_world;
 struct engine_cfg;
@@ -22,6 +23,7 @@ struct game_world_ui;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
+struct lobby_client;
 struct match_options;
 struct material_pair;
 struct messaging_client;
@@ -149,7 +151,7 @@ void engine_mouse_ray(void *menu, float *direction, float *eye);
 void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal);
 
 /* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
-void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
+void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
@@ -291,5 +293,8 @@ void engine_add_active_scene(struct sound_world *world, struct sound_scene *scen
 
 /* 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly */
 void __attribute__((cdecl)) engine_store_first_resource(struct queries_result *result, void *value);
+
+/* 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16 */
+void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode);
 
 #endif

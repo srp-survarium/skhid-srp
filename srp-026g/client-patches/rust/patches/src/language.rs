@@ -17,8 +17,8 @@
 
 use core::ffi::CStr;
 
-use crate::vostok::language::{ConsoleString, LangId, OptionsCall, PrimaryLanguage, current, save_user_config,
-                              set_current, user_locale};
+use crate::vostok::language::{ConsoleString, LangId, PrimaryLanguage, current, set_current, user_locale};
+use crate::vostok::settings::{OptionsCall, save_user_config};
 use crate::vostok::{Context, Flow, NoExit, LanguageOnOptionsCallExit};
 
 /// A game language: its resource name (`-localization=`,

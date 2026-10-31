@@ -3,7 +3,6 @@ package survarium.gsearch
    import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
-   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
@@ -204,8 +203,6 @@ package survarium.gsearch
       protected var pvbChooseMap:int;
       
       protected var pvbWasVisible:Boolean;
-      
-      protected var pvbPopupDown:Boolean;
       
       protected var pvbOpenHeight:int;
       
@@ -462,7 +459,6 @@ package survarium.gsearch
             this.pvbChoosing = false;
             this.pvbChooseAt = 0;
             this.pvbWasVisible = false;
-            this.pvbPopupDown = false;
             this.pvbDemoStatus = 0;
             this.pvbDemoPlay = 0;
             this.pvbDemoRows = null;
@@ -496,11 +492,6 @@ package survarium.gsearch
             if(play)
             {
                play.addEventListener(ButtonEvent.CLICK,this.onPvbPlay,false,100);
-            }
-            if(stage)
-            {
-               stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onPvbStageDown,true,100);
-               stage.addEventListener(MouseEvent.CLICK,this.onPvbStageClick,false,100);
             }
             addEventListener(Event.ENTER_FRAME,this.onPvbFrame);
             this.pvbReady = true;
@@ -680,18 +671,13 @@ package survarium.gsearch
          return result;
       }
       
+      // The top bar's Play box (its Play and the arrow), told by the top bar: the settings are on
+      // the transient layer while open, not in the bar.
+      public var playContainer:Object;
+
       protected function pvbContainer() : Object
       {
-         var found:Object = null;
-         try
-         {
-            found = public::Object(this.parent).play_container;
-         }
-         catch(e:Error)
-         {
-            found = null;
-         }
-         return found;
+         return this.playContainer;
       }
       
       protected function pvbPlayButton() : Button
@@ -1171,66 +1157,6 @@ package survarium.gsearch
          catch(err:Error)
          {
          }
-      }
-      
-      protected function onPvbStageDown(e:MouseEvent) : void
-      {
-         try
-         {
-            this.pvbPopupDown = false;
-            if(!this.visible || !this.pvbAnyMenuOpen())
-            {
-               return;
-            }
-            if(e.target is DisplayObject && this.contains(e.target as DisplayObject))
-            {
-               return;
-            }
-            this.pvbPopupDown = true;
-         }
-         catch(err:Error)
-         {
-         }
-      }
-      
-      protected function onPvbStageClick(e:MouseEvent) : void
-      {
-         try
-         {
-            if(this.pvbPopupDown)
-            {
-               this.pvbPopupDown = false;
-               e.stopImmediatePropagation();
-            }
-         }
-         catch(err:Error)
-         {
-         }
-      }
-      
-      protected function pvbAnyMenuOpen() : Boolean
-      {
-         if(this.pvbSizeMenu && this.pvbSizeMenu.selected)
-         {
-            return true;
-         }
-         if(this.pvbModeMenu && this.pvbModeMenu.selected)
-         {
-            return true;
-         }
-         if(this.pvbMapMenu && this.pvbMapMenu.selected)
-         {
-            return true;
-         }
-         if(this.pvbDemoStatusMenu && this.pvbDemoStatusMenu.selected)
-         {
-            return true;
-         }
-         if(this.pvbDemoPlayMenu && this.pvbDemoPlayMenu.selected)
-         {
-            return true;
-         }
-         return false;
       }
       
       protected function pvbRequest(start:int, count:int) : void

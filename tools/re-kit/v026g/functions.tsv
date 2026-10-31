@@ -1892,3 +1892,5 @@ va	status	ref_021d	name
 0x0021eab0	reviewed	0x00170034	survarium::login_menu::on_activate
 0x00220400	reviewed	0x001723e0	survarium::lobby_menu::switch_to_level_loading
 0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
+0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
+0x00274470	reviewed		survarium::lobby_client::comment_about_user

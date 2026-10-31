@@ -19,13 +19,13 @@ fn not_found_bytes() -> (u8, Vec<u8>) {
 
 impl World {
     /// How many messages the lobby has pushed to the client so far.
-    fn mark(&self, index: usize) -> usize {
+    pub(super) fn mark(&self, index: usize) -> usize {
         self.core.links[&self.clients[index].0].pushed.len()
     }
 
     /// The messages pushed to the client since `mark`: `(id, body)`. The
     /// online counts (0x9F), repeated every few seconds, are left out.
-    fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
+    pub(super) fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
         self.core.links[&self.clients[index].0].pushed[mark..]
             .iter()
             .filter(|message| message.id_byte() != 0x9F)

@@ -32,7 +32,7 @@ engine_unpack_decal_value	0x263d00	ESP+4:out ESP+8:low ESP+12:high	void *engine_
 engine_decal_value	0x264a10	ESI:lobby_character	unsigned long long engine_decal_value(void *character)	thunk	
 engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray(void *menu, float *direction, float *eye)	thunk	
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)	thunk	
-engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)	thunk	
+engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)	thunk	
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
 engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsigned char engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state)	stdcall	handler: InputHandler, action: Action, state: Out<u32> -> bool
 engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	import	
@@ -80,3 +80,4 @@ engine_bind_query_callback	0x0176d0	ESI:boost ESP+4:f ESP+8:value	void engine_bi
 engine_scene_params_type	0x0630f0	-	unsigned int engine_scene_params_type(void)	thunk	
 engine_add_active_scene	0x059fb0	ECX:world EAX:scene	void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene)	thunk	
 engine_store_first_resource	0x014730	ESP+4:result ESP+8:value	void engine_store_first_resource(struct queries_result *result, void *value)	cdecl	result: QueryResults, tag: QueryTag ->
+engine_comment_about_user	0x274470	ESP+4:lobby_client ESP+8:nickname ESP+12:kind ESP+16:mode	void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)	thunk	

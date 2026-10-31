@@ -1822,6 +1822,17 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
+      // The Settings' "Hide hit markers", "Hide player scores" and "Hidden crosshair" (exe patch 83, told at
+      // once and again at each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit
+      // marker; the Tab list shows the players' names only; no crosshair at all.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean) : void
+      {
+         this.crosshair.hitMarkersHidden = hideHitMarkers;
+         this.player_list.players.namesOnly = hideScores;
+         // the whole crosshair, its hit marker with it (show_crosshair shows and hides its lines)
+         this.crosshair.visible = !hideCrosshair;
+      }
+      
       public function show_oxygen(bool:Boolean) : void
       {
          this.oxygen_count.visible = false;
@@ -1874,15 +1885,20 @@ package
       }
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
-      // request sent or not.
-      public function srp_player_menu(place:uint, addFriend:uint) : void
+      // request or a chat mute sent or not.
+      public function srp_player_menu(place:uint, addFriend:uint, mute:uint, muted:uint) : void
       {
-         this._rowMenu.offered(place,addFriend != 0);
+         this._rowMenu.offered(place,addFriend != 0,mute != 0,muted);
       }
 
       public function srp_friend_request(place:uint, sent:uint) : void
       {
          this._rowMenu.requested(place,sent != 0);
+      }
+
+      public function srp_chat_mute(place:uint, sent:uint) : void
+      {
+         this._rowMenu.muted(place,sent != 0);
       }
 
       public function show_debug_damage(bool:Boolean) : void

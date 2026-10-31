@@ -12,12 +12,13 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
 
-   // A player's menu on the Tab list (docs/notes/tab-cursor-friends.md): a right-click on a row while the
-   // list's cursor is shown (Ctrl, exe patch 86) asks the exe what the row offers
+   // A player's menu on the Tab list (docs/notes/tab-cursor-friends.md, chat-mute.md): a right-click on a
+   // row while the list's cursor is shown (Ctrl, exe patch 86) asks the exe what the row offers
    // (srp_player_menu(place), answered root.srp_player_menu -> offered), and shows those entries at the
-   // mouse. An entry is {key: its text's dictionary key, method: the exe's call with the row's place}; the
-   // exe answers each (root.srp_friend_request -> requested) and the menu shows the answer's line in its
-   // place. The list hidden (Tab let go) or a press elsewhere closes it, the answer's line too.
+   // mouse. An entry is {key: its text's dictionary key, method: the exe's call with the row's place (and
+   // its choice, when it has one)}. The exe answers each call (root.srp_friend_request -> requested,
+   // root.srp_chat_mute -> muted) and the menu shows the answer's line in its place. The list hidden (Tab
+   // let go) or a press elsewhere closes it, the answer's line too.
    public class PlayerRowMenu extends Sprite
    {
       // The menu's states: closed; asking the exe for a row's entries; open; an entry sent, awaiting its
@@ -37,6 +38,13 @@ package survarium.controls
          method:"srp_add_friend"
       };
 
+      // The chat mute entries (chat-mute.md): the lobby's modes, as the lobby's player menu has them
+      // (ChatMute.as): a choice's code is the state it leaves (the exe's `muted`: 0 not muted, 1 hidden,
+      // 2 shown as "<muted>"). The menu offers the two that change the player's state.
+      public static const MUTES:Array = [{key:"st_srp_hud_mute_hide",method:"srp_chat_mute",choice:"1"},
+                                         {key:"st_srp_hud_mute_mask",method:"srp_chat_mute",choice:"2"},
+                                         {key:"st_srp_hud_unmute",method:"srp_chat_mute",choice:"0"}];
+
       private static const ROW:Number = 24;
 
       private static const PAD:Number = 8;
@@ -52,6 +60,9 @@ package survarium.controls
 
       // the row the menu is for (its place, `id`), in every state but CLOSED
       private var _row:Object;
+
+      // the entry sent, while SENDING
+      private var _sent:Object;
 
       private var _format:TextFormat;
 
@@ -116,7 +127,7 @@ package survarium.controls
       }
 
       // The exe's answer to srp_player_menu: what the row at `place` offers.
-      public function offered(place:uint, addFriend:Boolean) : void
+      public function offered(place:uint, addFriend:Boolean, mute:Boolean, muted:uint) : void
       {
          if(this._state != ASKING || uint(this._row.id) != place)
          {
@@ -126,6 +137,16 @@ package survarium.controls
          if(addFriend)
          {
             entries.push(ADD_FRIEND);
+         }
+         if(mute)
+         {
+            for each(var choice:Object in MUTES)
+            {
+               if(choice.choice != String(muted))
+               {
+                  entries.push(choice);
+               }
+            }
          }
          if(entries.length == 0)
          {
@@ -140,11 +161,33 @@ package survarium.controls
       // The exe's answer to srp_add_friend: the request sent or not.
       public function requested(place:uint, sent:Boolean) : void
       {
-         if(this._state != SENDING || uint(this._row.id) != place)
+         if(!this.answered(place,ADD_FRIEND.method))
          {
             return;
          }
-         this.draw([{key:sent ? "st_srp_hud_friend_sent" : "st_srp_hud_friend_not_sent"}]);
+         this.tell(sent ? "st_srp_hud_friend_sent" : "st_srp_hud_friend_not_sent");
+      }
+
+      // The exe's answer to srp_chat_mute: the choice sent or not.
+      public function muted(place:uint, sent:Boolean) : void
+      {
+         if(!this.answered(place,"srp_chat_mute"))
+         {
+            return;
+         }
+         this.tell(!sent ? "st_srp_hud_mute_not_sent" : this._sent.choice == "0" ? "st_srp_hud_unmuted" : "st_srp_hud_muted");
+      }
+
+      // An answer is the menu's when it waits for that call's answer for that place.
+      private function answered(place:uint, method:String) : Boolean
+      {
+         return this._state == SENDING && uint(this._row.id) == place && this._sent.method == method;
+      }
+
+      private function tell(key:String) : void
+      {
+         this.draw([{key:key}]);
+         this._sent = null;
          this._state = TOLD;
       }
 
@@ -153,6 +196,7 @@ package survarium.controls
          this.listen(false);
          this._state = CLOSED;
          this._row = null;
+         this._sent = null;
          visible = false;
          this.clear();
       }
@@ -173,7 +217,15 @@ package survarium.controls
             return;
          }
          this._state = SENDING;
-         this.call(entry.method,String(this._row.id));
+         this._sent = entry;
+         if(entry.choice != undefined)
+         {
+            this.call(entry.method,String(this._row.id),entry.choice);
+         }
+         else
+         {
+            this.call(entry.method,String(this._row.id));
+         }
       }
 
       // The entries (an entry without a method is a line of text), one row each.

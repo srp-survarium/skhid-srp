@@ -113,6 +113,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -3704,6 +3706,20 @@ bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
 code. Native Unicorn tests cover all authored maps. Details and test limits:
 `../docs/notes/breakable_lamps.md`.
 
+## The Settings' HUD group (patch 83)
+
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
+crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+`configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
+texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
+tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+or a setting changes, and again after each match's or replay's options read (a new hud can be made
+at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
+only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
+runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
+
 ## Artefact score (patch 80, unreleased)
 
 An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
@@ -3733,7 +3749,7 @@ Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
 own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
 buttons stop; the moves go on. That Ctrl press and its held and release
 events are taken from the player, so it does not crouch. A right-click on
-a row opens the hud movie's `PlayerRowMenu` with "Add to friends". The
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and two chat mute entries. The
 entry sends the lobby's own friend request (`4D` type 0, through
 messaging_client::send_important_message 0x26AFB0) to that place's bare
 name. The rules are in `../docs/notes/tab-cursor-friends.md`.
@@ -3744,12 +3760,16 @@ Blackout's at a match's options read (`static_info.options_read`,
 - `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
   Its exit `taken` is the function's `ret 0Ch`, with AL 1.
 - `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).
-  It answers `srp_player_menu` and `srp_add_friend` itself; any other call
-  goes on to the game's own dispatch.
+  It answers `srp_player_menu`, `srp_add_friend` and `srp_chat_mute` itself;
+  any other call goes on to the game's own dispatch.
 
 The client's checks are the lobby's: never the account's own name or a
 friend's; five requests at once, then one every 10 s; and the lobby
-connection up, as the lobby's senders check it.
+connection up, as the lobby's senders check it. A chat mute
+(`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
+mode), sent by lobby_client::comment_about_user (0x274470): never the own
+name, one of the three choices that changes the state the lobby's ignore list
+gives (a `<muted>` player's id marked with bit 31), the connection up.
 
 Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
 crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code

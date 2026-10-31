@@ -243,6 +243,9 @@ survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, af
 survarium::explosion_params	splash_pierce	0x34	f32	its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
 survarium::explode_frame	manager	0x4	ptr<survarium::bullet_manager>	bullet_manager::explode's first stack argument: the core world's bullet manager (game_world_core +18F58h; 0x30A4CF, 0x305711)
 survarium::explode_frame	centre	0x8	ptr<f32>	its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)
+vostok::console_commands::cc_bool	size	0x48	size	a cc_bool console variable's object (cc_value<bool>::cc_value 0x1DDB0: +0Ch the list's next, +10h the name, +14h the kind, +1Dh saved, +40h the value's address; the hud's show_quests_progress 0x2339C9)
+vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, written after cc_value<bool>::cc_value (which leaves its base's), as the hud's show_quests_progress does (0x2339E8) and patch 58's variable
+vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
 survarium::game_world_key_frame	key	0x8	u32	game_world::on_keyboard_action's second argument at its start (0x25CD00, by the site's ESP): the DirectInput key (0Fh Tab, 1Dh/9Dh the Ctrl keys)
 survarium::game_world_key_frame	state	0xC	u32	its third: the key's kind, 1 down, 2 up, 3 held (as keyboard_action_frame's state; match_keys_026g.asm)
 survarium::game_world_input	ui	0x4	obj<survarium::game_world_ui>	the hud inside the game world's input handler (game_world+1F8h, on_keyboard_action's ECX): its +4 (lea esi,[edi+4] at 0x25CD30, show_player_list's ESI)
@@ -262,7 +265,10 @@ survarium::lobby_client	name	0x1E55D0	u8	the account's name, a C string (the lob
 survarium::lobby_client	messaging	0x1E56C4	obj<survarium::messaging_client>	the messaging client (constructed at 0x26F149..0x26F151; the network client's vtable +44h, 0x21BD80, gives it: +1E58A4h = +1E0h + 1E56C4h)
 survarium::messaging_client	friends_begin	0xC	ptr<survarium::listed_account>	the friend list's first element (A3 07's reader 0x26C540 fills the vector at +0Ch; update_friends_status 0x26C4FF reads +0Ch begin, +10h end)
 survarium::messaging_client	friends_end	0x10	ptr<survarium::listed_account>	the friend list's end (0x26C4FF)
+survarium::messaging_client	ignored_begin	0x1C	ptr<survarium::listed_account>	the ignore list's first element (A3 08's reader 0x26C620 fills the vector at +1Ch; lobby_menu::set_ignored_list 0x28B910 reads +1Ch begin, +20h end)
+survarium::messaging_client	ignored_end	0x20	ptr<survarium::listed_account>	the ignore list's end (0x28B95E)
 survarium::listed_account	size	0x5C	size	a friend, ignored or found player's record: 5Ch bytes (0x26C54E, the lookup's add ecx,5Ch at 0x26C03B)
+survarium::listed_account	id	0x4	u32	its account id as the lobby sent it (A3 08's reader at 0x26C683; srp marks a `<muted>` player's with bit 31, chat-mute.md)
 survarium::listed_account	name	0x8	u8	its name, 64 bytes with its zero (social.md 1.3: +4 the account id, +8 the name)
 survarium::hud_callback_frame	method	0x8	ptr<u8>	the hud movie's ExternalInterface call at game_world_ui::scaleform_callback's start (0x233D30, by the site's ESP): the method's name, a C string
 survarium::hud_callback_frame	arguments	0xC	ptr<scaleform::gfx_value>	its GFx arguments (24 bytes each; profile_changed reads the first's +8, 0x233F16)

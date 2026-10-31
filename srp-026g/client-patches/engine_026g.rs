@@ -131,6 +131,8 @@ unsafe extern "C" {
     pub fn engine_scene_params_type() -> u32;
     /// 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0
     pub fn engine_add_active_scene(world: *mut c_void, scene: *mut c_void);
+    /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    pub fn engine_comment_about_user(lobby_client: *mut c_void, nickname: *const u8, kind: u32, mode: u32);
 }
 
 #[allow(dead_code)]

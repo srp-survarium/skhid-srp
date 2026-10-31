@@ -101,7 +101,7 @@ extern engine_mouse_ray
 ; void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)
 ; 0x263950 survarium::lobby_character::accept_decal_edit: character ESI, host ESP+4, decal ESP+8; pops 8
 extern engine_accept_decal_edit
-; void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
+; void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
 extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
@@ -266,3 +266,6 @@ extern engine_add_active_scene
 ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_store_first_resource
+; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
+; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+extern engine_comment_about_user
