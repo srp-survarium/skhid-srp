@@ -50,7 +50,6 @@
     "hold_to_arrival": false
   },
   "cover": {
-    "hold_exposure": null,
     "pierce": null,
     "spot_cost": null
   },
