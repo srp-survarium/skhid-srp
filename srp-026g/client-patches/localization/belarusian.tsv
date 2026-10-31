@@ -880,7 +880,7 @@ st_decorations_options	Якасць дэкарацый
 st_default_profile_name1	Профіль 1
 st_default_profile_name2	Профіль 2
 st_default_profile_name3	Профіль 3
-st_default_scope_name	Стандарт. прыцэл
+st_default_scope_name	Штатны прыцэл
 st_defeat	Паражэнне
 st_defuse_trap	Абясшкодзіць ({USE})
 st_disband_clan_message	Вы ўпэўнены, што хочаце распусціць клан?
@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Прымаць асабістыя паве�
 st_microphone_sensitivity_option	Адчувальнасць мікрафона
 st_minimap	Мінікарта
 st_minimap_bottom	Ніжні левы вугал
-st_minimap_off	Мінікарта выключана
+st_minimap_off	Схаваная мінікарта
 st_minimap_position	Пазіцыя мінікарты
 st_minimap_rotable_option	Фіксаваць мінікарту
 st_minimap_top	Верхні левы вугал
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Схаваць ачкі гульцоў
 st_srp_hud_add_friend	Дадаць у сябры
 st_srp_hud_friend_not_sent	Заяўка ў сябры не адпраўлена
 st_srp_hud_friend_sent	Заяўка ў сябры адпраўлена
+st_srp_hud_mute_hide	Схаваць чат
+st_srp_hud_mute_mask	Паказваць чат як <muted>
+st_srp_hud_mute_not_sent	Не адпраўлена
+st_srp_hud_muted	Чат заглушаны
+st_srp_hud_unmute	Уключыць чат
+st_srp_hud_unmuted	Чат уключаны
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
@@ -2454,6 +2460,7 @@ st_srp_mode_research	Даследаванне
 st_srp_mode_team_deathmatch	Камандны бой
 st_srp_optics	Оптыка
 st_srp_options_hud	Інтэрфейс бою:
+st_srp_play_in_squad	У атрадзе
 st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
 st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну
 st_srp_pvb_busy	%1$s (занята)
@@ -2511,6 +2518,7 @@ st_srp_rooms_code_12	Ваш рыштунак вышэй за макс. узро�
 st_srp_rooms_code_13	Ваш камплект не мог гуляць (няма зброі або мала патронаў): вас вывелі з пакоя.
 st_srp_rooms_code_14	Не ўдалося выбраць камплект.
 st_srp_rooms_code_16	Націсніце «Гуляць», каб увайсці ў адкрыты пакой.
+st_srp_rooms_code_17	Пакой выбірае камандзір атрада.
 st_srp_rooms_code_2	Гэтага пакоя больш няма.
 st_srp_rooms_code_3	Няправільны PIN.
 st_srp_rooms_code_4	Пакой запоўнены.
@@ -2598,6 +2606,7 @@ st_srp_rooms_waiting	Чакаем гульцоў
 st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_scope_slot	Прыцэл
 st_srp_skills	Навыкі
 st_srp_speed_label	Хуткасць
 st_srp_speed_title	Хуткасць руху: %1$s

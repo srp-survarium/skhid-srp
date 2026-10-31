@@ -85,6 +85,18 @@ TYPES = {
         "null": "{a}",
     },
 }
+# A query's callback (`callback` kind, handed to the game at run time): the
+# results the game passes and the word the patch bound to its query.
+TYPES["QueryResults"] = {
+    "raw": "Option<QueriesResult>",
+    "binding": "let {n} = unsafe {{ QueryResults::from_raw(&thread, {a}) }};",
+    "orig_type": "&QueryResults", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
+TYPES["QueryTag"] = {
+    "raw": "*mut c_void",
+    "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
+    "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
 for _view in ("RenderVisual", "GameScene", "ObjectLight"):
@@ -582,6 +594,37 @@ def rs_text(hs, tables=()):
             ]
             continue
         result = RESULTS[h["returns"]]
+        if h["kind"] == "callback":
+            # A callback the patch hands the game: no Original to call (the
+            # callee only names the convention), so the handler gets the typed
+            # arguments alone; the marker type names the entry's convention.
+            lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
+            if h["orig"] not in originals:
+                originals[h["orig"]] = ("callback",)
+                lines += [f"/// The convention of {h['function']} ({h['target']:#x}), a callback's: a marker for",
+                          "/// the callback entries made in it (no function of the game is called through it).",
+                          f"pub struct {h['orig']};", ""]
+            elif originals[h["orig"]] != ("callback",):
+                raise Bad(f"{h['orig']}: a callback's marker and an Original have the same generated name")
+            lines += [
+                f"/// The entry `{h['entry']}` (a callback in {h['function']}'s convention, {h['what']})",
+                f"/// calls this with its {len(h['args'])} arguments, typed by the row (the `raw` layer's).",
+                "///",
+                "/// # Safety",
+                f"/// Called only by the entry `{h['entry']}`.",
+                "#[unsafe(no_mangle)]",
+                f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) -> u32 {{",
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, when the game calls the callback",
+                f"    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.",
+                "    let thread = unsafe { Thread::new() };",
+            ]
+            for i, (n, v) in enumerate(h["args"]):
+                if TYPES[v].get("fallible"):
+                    raise Bad(f"{h['patch']}: a callback's {v} must be a binding, not fallible (no Original to fall back on)")
+                lines.append("    " + TYPES[v]["binding"].format(n=n, a=f"a{i}"))
+            passed = ", ".join(TYPES[v]["pass"].format(n=n) for n, v in h["args"])
+            lines += ["    " + result["to_u32"].format(v=f"crate::{h['patch']}::{h['handler']}({passed})"), "}"]
+            continue
         # the function to call: itself (`call`, convention entries) or the
         # splice trampoline (its start now jumps to us, so calling it would
         # recurse); the trampoline runs the relocated prologue and the rest.
@@ -662,6 +705,17 @@ def rs_text(hs, tables=()):
         for member in h["chain"]:
             lines += [f"    let flow = {member['shim']}(frame);", "    if flow != 0 { return flow; }"]
         lines += ["    0", "}"]
+    for h in hs:
+        if h["kind"] != "callback":
+            continue
+        lines += ["", f'unsafe extern "C" {{ fn {h["entry"]}(); }}',
+                  f"/// The entry `{h['entry']}`, in {h['function']}'s convention ({h['what']}): a",
+                  "/// callback the patch hands the game (no site is rewritten).",
+                  f"pub fn {h['entry']}_entry() -> super::hook::CallbackEntry<{h['orig']}> {{",
+                  "    // SAFETY: the generated entry lives for the executable's lifetime and takes the",
+                  f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
+                  f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
+                  "}"]
     for table in tables:
         symbol, count = table["symbol"], table["count"]
         lines += ["", f'unsafe extern "C" {{ static {symbol}: [u32; {count + 1}]; }}',
@@ -724,8 +778,8 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
         vtable_words(table, exe)
     for h in hs:
         how, opcode = h["install"]
-        if how == "vtable":
-            continue  # the declared runtime copy is audited above
+        if how in ("vtable", "callback"):
+            continue  # a runtime copy (audited above) or a callback handed at run time: no write
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
@@ -760,7 +814,7 @@ def install_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
-            if row.get("site") in sites and sites[row["site"]]["kind"] != "vtable"]
+            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback")]
 
 
 def stale():

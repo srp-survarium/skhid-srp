@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Yksityisviestit vain kavereilta
 st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_minimap	Pienoiskartta
 st_minimap_bottom	Vasen alakulma
-st_minimap_off	Pienoiskartta pois
+st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
 st_minimap_top	Vasen yläkulma
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Piilota pelaajien pisteet
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
+st_srp_hud_mute_hide	Piilota chat
+st_srp_hud_mute_mask	Näytä chat muodossa <muted>
+st_srp_hud_mute_not_sent	Ei lähetetty
+st_srp_hud_muted	Chat mykistetty
+st_srp_hud_unmute	Poista mykistys
+st_srp_hud_unmuted	Mykistys poistettu
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
 st_srp_language_restart	Vaatii uudelleenkäynnistyksen.
@@ -2454,6 +2460,7 @@ st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Ryhmässä
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
 st_srp_pvb_busy	%1$s (varattu)
@@ -2511,6 +2518,7 @@ st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.
 st_srp_rooms_code_13	Varustesettisi ei kelvannut peliin (ase puuttui tai ammuksia oli liian vähän), joten sinut poistettiin huoneesta.
 st_srp_rooms_code_14	Varustesetin valinta epäonnistui.
 st_srp_rooms_code_16	Liity julkiseen huoneeseen painamalla Pelaa.
+st_srp_rooms_code_17	Ryhmän johtaja valitsee huoneen.
 st_srp_rooms_code_2	Huonetta ei enää ole.
 st_srp_rooms_code_3	Väärä PIN-koodi.
 st_srp_rooms_code_4	Huone on täynnä.
@@ -2598,6 +2606,7 @@ st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
+st_srp_scope_slot	Tähtäin
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s

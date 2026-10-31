@@ -880,7 +880,7 @@ st_decorations_options	Jakość dekoracji
 st_default_profile_name1	Profil 1
 st_default_profile_name2	Profil 2
 st_default_profile_name3	Profil 3
-st_default_scope_name	Fabryczny celownik optyczny
+st_default_scope_name	Celownik seryjny
 st_defeat	Porażka
 st_defuse_trap	Wyłącz ({USE})
 st_disband_clan_message	Czy na pewno chcesz rozwiązać klan?
@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Przyjmuj wiadomości prywatne tylko od znaj
 st_microphone_sensitivity_option	Czułość mikrofonu
 st_minimap	Minimapa
 st_minimap_bottom	Dolny lewy róg
-st_minimap_off	Minimapa wyłączona
+st_minimap_off	Minimapa ukryta
 st_minimap_position	Pozycja minimapy
 st_minimap_rotable_option	Ustal pozycję minimapy
 st_minimap_top	Górny lewy róg
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Ukryj wyniki graczy
 st_srp_hud_add_friend	Dodaj do znajomych
 st_srp_hud_friend_not_sent	Zaproszenie do znajomych nie zostało wysłane
 st_srp_hud_friend_sent	Zaproszenie do znajomych wysłane
+st_srp_hud_mute_hide	Ukryj czat
+st_srp_hud_mute_mask	Pokaż czat jako <muted>
+st_srp_hud_mute_not_sent	Nie wysłano
+st_srp_hud_muted	Czat wyciszony
+st_srp_hud_unmute	Włącz czat
+st_srp_hud_unmuted	Czat włączony
 st_srp_inventory_search	Szukaj
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
@@ -2454,6 +2460,7 @@ st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	W oddziale
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
 st_srp_pvb_busy	%1$s (zajęte)
@@ -2511,6 +2518,7 @@ st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
 st_srp_rooms_code_13	Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju.
 st_srp_rooms_code_14	Nie udało się wybrać zestawu.
 st_srp_rooms_code_16	Naciśnij Graj, aby wejść do pokoju publicznego.
+st_srp_rooms_code_17	Pokój wybiera dowódca brygady.
 st_srp_rooms_code_2	Ten pokój już nie istnieje.
 st_srp_rooms_code_3	Błędny PIN.
 st_srp_rooms_code_4	Pokój jest pełny.
@@ -2598,6 +2606,7 @@ st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
+st_srp_scope_slot	Optyka
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

@@ -43,12 +43,15 @@ pub mod lobby;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod resources;
 mod rt;
+pub mod sound;
 pub mod settings;
 mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+mod world_load;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -67,6 +70,10 @@ mod generated {
     use crate::raw;
     #[allow(unused_imports)]
     use super::{RenderVisual, ObjectLight, GameScene};
+    #[allow(unused_imports)]
+    use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
 
@@ -74,12 +81,13 @@ pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{Handle, Out, Regs, Thread};
+pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
-pub use lobby::{Lobby, NotConnected};
+pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
+pub use world_load::WorldLoad;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 

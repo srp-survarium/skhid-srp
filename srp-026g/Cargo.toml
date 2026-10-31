@@ -10,6 +10,7 @@ members = [
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",
+  "crates/world-frame",
 
   "servers/lobby-server",
   "servers/login-server",
@@ -72,6 +73,7 @@ session = { path = "crates/session" }
 survarium = { path = "crates/survarium" }
 udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }
+world-frame = { path = "crates/world-frame" }
 
 # Password hashing runs in srp's debug build too: unoptimized, argon2 takes
 # seconds a sign-in.

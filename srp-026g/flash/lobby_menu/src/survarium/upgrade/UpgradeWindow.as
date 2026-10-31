@@ -400,7 +400,7 @@ package survarium.upgrade
                   this._page = this._hasAttachments ? PAGE_ATTACHMENTS : PAGE_APPEARANCE;
                }
                this.placeWeaponSlots();
-               this.camoSlot.label = Boolean(stockScopes[hostDictId]) ? LocalizationData.getName("default_scope") : LocalizationData.getName("scope_slot");
+               this.camoSlot.label = Boolean(stockScopes[hostDictId]) ? LocalizationData.getName("default_scope") : LocalizationData.getName("st_srp_scope_slot");
                this.decalSlot2.label = LocalizationData.getName("camo_slot");
                this.decalSlot2.contentCanvas.scaleX = this.decalSlot2.contentCanvas.scaleY = 1;
             }

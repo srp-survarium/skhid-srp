@@ -1,11 +1,9 @@
 //! What a player counts for when the sides of a match are made
-//! (`session::v026g::balance`), and squads switched off (`SRP_SQUADS`).
+//! (`session::v026g::balance`).
 
 use super::*;
-use crate::v026g::DEFAULT_SQUADS_OFF_TEXT;
 use session::STRENGTH_SCALE;
 use session::v026g::balance::{Balance, UNIT, Weights};
-use survarium::v026g::lobby::requests::id;
 
 /// Five players press Play, which puts them into one room, and get its
 /// match; the side of each, by client.
@@ -126,63 +124,3 @@ fn a_player_counts_for_its_gear_its_level_and_its_trusted_rating() {
     assert_eq!(strengths_in_a_match(&mut world), [0, 0]);
 }
 
-#[test]
-fn squads_are_on_unless_the_server_is_told_otherwise() {
-    let settings = Settings::local("127.0.0.1:0");
-    assert!(settings.squads);
-    assert_eq!(settings.squads_off_text, DEFAULT_SQUADS_OFF_TEXT);
-}
-
-#[test]
-fn with_squads_off_an_invite_is_refused_and_its_sender_told() {
-    let mut world = World::new();
-    world.core.settings.squads = false;
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    world.take(alice);
-    world.take(bob);
-
-    world.ask(alice, request::important("Bob", 2, "invite"));
-    // Alice is told, in the message box of `84 49`; Bob gets nothing.
-    assert_eq!(
-        denial(&world.take(alice), id::PROFILE).as_deref(),
-        Some(DEFAULT_SQUADS_OFF_TEXT)
-    );
-    assert!(importants(&world.take(bob), 2, "Alice").is_empty());
-
-    // A client that says it was invited and adds the player all the same.
-    world.ask(bob, request::important("Alice", 3, "membership accepted"));
-    assert!(importants(&world.take(alice), 3, "Bob").is_empty());
-    world.ask(alice, request::add_squad_member("Bob"));
-    assert!(world.store.squads().of(world.ids[alice].0).is_none());
-    assert!(world.store.squads().of(world.ids[bob].0).is_none());
-    // Nothing was said for the client's own messages.
-    assert_eq!(denial(&world.take(alice), id::PROFILE), None);
-    assert_eq!(denial(&world.take(bob), id::PROFILE), None);
-
-    // The text is a setting: a key of the game, or a sentence.
-    world.core.settings.squads_off_text = "No squads here.".to_owned();
-    world.ask(bob, request::important("Alice", 2, "invite"));
-    assert_eq!(
-        denial(&world.take(bob), id::PROFILE).as_deref(),
-        Some("No squads here.")
-    );
-    world.assert_clean();
-}
-
-#[test]
-fn with_squads_off_two_friends_play_as_players_alone() {
-    let mut world = World::new();
-    world.core.settings.squads = false;
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    world.ask(alice, request::important("Bob", 2, "invite"));
-    world.ask(alice, request::add_squad_member("Bob"));
-    world.ask(alice, request::play(1));
-    world.ask(bob, request::play(1));
-    world.advance(PLAY_TO_MATCH);
-    // Two players, two sides: a squad of two is one side.
-    let a = sent_to_match(&world.take(alice)).expect("a match").1;
-    let b = sent_to_match(&world.take(bob)).expect("a match").1;
-    assert_ne!(a, b);
-}

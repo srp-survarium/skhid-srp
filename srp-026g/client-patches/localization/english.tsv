@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Accept private messages from friends only
 st_microphone_sensitivity_option	Microphone sensitivity
 st_minimap	Minimap
 st_minimap_bottom	Lower left corner
-st_minimap_off	Minimap off
+st_minimap_off	Hidden minimap
 st_minimap_position	Minimap position
 st_minimap_rotable_option	Fix minimap
 st_minimap_top	Upper left corner
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Hide player scores
 st_srp_hud_add_friend	Add to friends
 st_srp_hud_friend_not_sent	Friend request not sent
 st_srp_hud_friend_sent	Friend request sent
+st_srp_hud_mute_hide	Hide chat
+st_srp_hud_mute_mask	Show chat as <muted>
+st_srp_hud_mute_not_sent	Not sent
+st_srp_hud_muted	Chat muted
+st_srp_hud_unmute	Unmute chat
+st_srp_hud_unmuted	Chat unmuted
 st_srp_inventory_search	Search
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
@@ -2454,6 +2460,7 @@ st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
 st_srp_pvb_busy	%1$s (busy)
@@ -2511,6 +2518,7 @@ st_srp_rooms_code_12	Your equipment is above the max level.
 st_srp_rooms_code_13	Your kit could not play (no weapon or too little ammo): you were taken out of the room.
 st_srp_rooms_code_14	The loadout could not be chosen.
 st_srp_rooms_code_16	Press Play to enter a public room.
+st_srp_rooms_code_17	Your squad leader chooses the room.
 st_srp_rooms_code_2	That room is gone.
 st_srp_rooms_code_3	Wrong PIN.
 st_srp_rooms_code_4	That room is full.
@@ -2598,6 +2606,7 @@ st_srp_rooms_waiting	Waiting for players
 st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_scope_slot	Optics
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

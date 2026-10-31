@@ -880,7 +880,7 @@ st_decorations_options	Dekorationen Qualität
 st_default_profile_name1	Profil 1
 st_default_profile_name2	Profil 2
 st_default_profile_name3	Profil 3
-st_default_scope_name	Standardzielfernrohr
+st_default_scope_name	Standardoptik
 st_defeat	Verlust 
 st_defuse_trap	Entschärfen ({USE})
 st_disband_clan_message	Sind Sie sicher, dass Sie den Klan aufläsen wollen?
@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freu
 st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
 st_minimap	Minikarte
 st_minimap_bottom	untere linke Winkel
-st_minimap_off	Minikarte AUS
+st_minimap_off	Versteckte Minikarte
 st_minimap_position	Position der Minikarte
 st_minimap_rotable_option	Minikarte fixieren
 st_minimap_top	Der obere linke Winkel.
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
+st_srp_hud_mute_hide	Chat ausblenden
+st_srp_hud_mute_mask	Chat als <muted> zeigen
+st_srp_hud_mute_not_sent	Nicht gesendet
+st_srp_hud_muted	Chat stummgeschaltet
+st_srp_hud_unmute	Chat freigeben
+st_srp_hud_unmuted	Chat freigegeben
 st_srp_inventory_search	Suche
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
@@ -2454,6 +2460,7 @@ st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)
@@ -2511,6 +2518,7 @@ st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
 st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
 st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
 st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_17	Den Raum wählt der Anführer deiner Abteilung.
 st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
 st_srp_rooms_code_3	Falsche PIN.
 st_srp_rooms_code_4	Der Raum ist voll.
@@ -2598,6 +2606,7 @@ st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_scope_slot	Optik
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
