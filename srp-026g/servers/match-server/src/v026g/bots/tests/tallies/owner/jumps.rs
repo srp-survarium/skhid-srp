@@ -687,25 +687,26 @@ impl JumpCounts {
                 let keys = recs.get(ri).map_or(0, |r| r.keys);
                 let speed = recs.get(ri.saturating_sub(1)).map_or(0.0, |r| r.speed);
                 let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
-                // `SRP_BENCH_JUMP_TRACE=x,z;x,z`: the records of the failed presses (came down, or nowhere) at those take-offs
-                // (within 0.6 m), 1 s before to 2 s after, the first 3 at each a run.
+                // `SRP_BENCH_JUMP_TRACE=x,z;x,z`: the records of the presses at those take-offs (within 0.6 m), 1 s before to
+                // 2 s after, the first 6 failed (came down, or nowhere) and the first 6 up at each, a run.
                 if let Ok(spots) = std::env::var("SRP_BENCH_JUMP_TRACE")
-                    && landing.is_none_or(|l| l.to.y < to.y - UP_SLACK_M)
                     && let Some(spot) = spots.split(';').position(|s| {
                         let v: Vec<f32> = s.split(',').filter_map(|n| n.trim().parse().ok()).collect();
                         v.len() == 2 && (from.x - v[0]).hypot(from.z - v[1]) <= 0.6
                     })
                 {
-                    static TRACED: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+                    static TRACED: std::sync::Mutex<Vec<[u32; 2]>> = std::sync::Mutex::new(Vec::new());
                     let mut traced = TRACED.lock().unwrap_or_else(|e| e.into_inner());
                     if traced.len() <= spot {
-                        traced.resize(spot + 1, 0);
+                        traced.resize(spot + 1, [0; 2]);
                     }
-                    if traced[spot] < 3 {
-                        traced[spot] += 1;
+                    let up = usize::from(landing.is_some_and(|l| l.to.y >= to.y - UP_SLACK_M));
+                    if traced[spot][up] < 6 {
+                        traced[spot][up] += 1;
                         eprintln!(
-                            "jumptrace\t{spot}\t{}\t{}\tlink ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}); came down {}",
+                            "jumptrace\t{spot}\t{}\t{}\tlink ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}); {} {}",
                             p.place, p.t, from.x, from.y, from.z, to.x, to.y, to.z,
+                            if up == 1 { "up" } else { "down" },
                             landing.map_or("nowhere".into(), |l| format!("at ({:.2}, {:.2}, {:.2}) {}", l.to.x, l.to.y, l.to.z, if l.sprint { "sprint clip" } else { "short clip" }))
                         );
                         for k in ri.saturating_sub(20)..(ri + 40).min(recs.len()) {
