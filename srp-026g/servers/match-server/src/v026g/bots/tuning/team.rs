@@ -65,14 +65,18 @@ pub struct SniperMemory {
     /// ... but to no less than this share of it (a cost, never a block: humans do not avoid a revealed sniper's lane,
     /// `human25`). GUESS.
     pub way_floor: Share,
-    /// The routes keep out of the sensed snipers' lanes, as of a held spot of kills (`threat::Covered`). Off: only the
-    /// plays read the spots (the objectives' ways, the smoke's `bot.lanes`), the routes keep out of kill spots alone.
-    pub keep_out: bool,
+    /// The routes (the detours, A3's replans) keep out of the sensed snipers' lanes, as of a held spot of kills
+    /// (`threat::Covered`). Off: they keep out of kill spots alone.
+    pub routes: bool,
+    /// K1: a walking bot in a sensed sniper's lanes runs (`threat.sprint`), as in a kill spot's. Off: kill spots alone.
+    pub sprint: bool,
+    /// A smoke across a sensed sniper's lanes (`smoke.cross_lane`), as across a kill spot's. Off: kill spots alone.
+    pub smoke: bool,
 }
 
 impl Default for SniperMemory {
     fn default() -> Self {
-        Self { memory_s: 120.0, way_cut_per_10m: Share::of(0.1), way_floor: Share::of(0.5), keep_out: true }
+        Self { memory_s: 120.0, way_cut_per_10m: Share::of(0.1), way_floor: Share::of(0.5), routes: true, sprint: true, smoke: true }
     }
 }
 
@@ -328,9 +332,11 @@ pub struct ThreatTuning {
     pub sniper_lanes: bool,
     /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
     /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
-    /// objective play weighs them. OFF by default (176 pairs by side, 2026-10-31): with `keep_out` the stand-in sniper's kills
-    /// a crossing 6.1 % -> 4.8 % (z -1.4) but score -1.6 % (z -1.3), the ON team dying +14.5 % more to snipers in TDM;
-    /// without `keep_out` score +0.4 % (z +0.4) and no protection (5.8 % -> 6.8 %). The cost is not named yet.
+    /// objective play weighs them. ON by default (the coordinator's rule, 2026-10-31: TDM's deaths to snipers settled, no
+    /// cost in batteries or by the stand-in sniper; by side, memory with all its consumers vs off): TDM deaths to snipers
+    /// -6 % (120 pairs, z -2.4; score +3.0 % z +2.0 on the 84 fresh), batteries score +0.2 % (120 pairs, z +0.2), the
+    /// stand-in cell -0.4 % (384 pairs over both camper placements and two seed sets). An earlier -1.6 % on one seed set
+    /// did not replicate. Its detours (+46-59 %) pass known enemies no more than the ways they replace, and die no more.
     pub sniper_memory: Option<SniperMemory>,
 }
 
@@ -445,7 +451,7 @@ impl Default for ThreatTuning {
             pin_from_cover: None,
             answer_sniper: false,
             sniper_lanes: false,
-            sniper_memory: None,
+            sniper_memory: Some(SniperMemory::default()),
         }
     }
 }

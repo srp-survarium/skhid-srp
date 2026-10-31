@@ -746,7 +746,10 @@ impl Game {
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(bench_tier(), gun),
-            stamina: standin_stamina::Stamina::new(0, bench_tier(), gun.item),
+            stamina: {
+                let _kit = super::team_kit::scope(team);
+                standin_stamina::Stamina::new(0, bench_tier(), gun.item)
+            },
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -901,6 +904,8 @@ impl Game {
         let tick = self.tick;
         let tier = self.damage.tier;
         let body = &mut self.bodies[place];
+        // The team's kit switches (`SRP_BENCH_UPGRADES_ONLY`): its arms, ammo and stamina rates are built under them.
+        let _kit = super::team_kit::scope(body.team);
         body.feet = feet;
         body.node = node;
         // Facing the other side.
@@ -1013,6 +1018,7 @@ impl Game {
                 body.target = target;
                 // Another weapon taken, or a reload: no kick.
                 if gun.item != body.gun.item {
+                    let _kit = super::team_kit::scope(body.team);
                     body.gun = gun;
                     body.recoil = Recoil::new(kick_of(gun.item));
                     body.recoil.update(tick);

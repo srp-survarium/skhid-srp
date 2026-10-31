@@ -348,8 +348,7 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
-                bot_tuning.tuning().grid.clone(),
-                bot_tuning.tuning().needs_wall_clearance(),
+                bot_tuning.tuning(),
             ),
             bot_tuning,
             timing: {
@@ -459,14 +458,14 @@ fn parse_snapshot_dir(value: Option<&str>) -> Option<PathBuf> {
 /// `SRP_MAPDATA_DIR`: unset, empty or `off` for none; `keep` built worlds
 /// kept (`SRP_MAPDATA_KEEP`), `at_once` in memory at most
 /// (`SRP_MAPDATA_AT_ONCE`); the built files in `built`
-/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none).
-fn parse_mapdata_dir(
+/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none); the grids as the server's `tuning` says
+/// ([`bot_maps`]).
+pub(crate) fn parse_mapdata_dir(
     value: Option<&str>,
     keep: u32,
     at_once: u32,
     built: Option<&str>,
-    grid: bots::tuning::GridTuning,
-    wall_clearance: bool,
+    tuning: &bots::tuning::Tuning,
 ) -> Option<Arc<bots::maps::Maps>> {
     let dir = value
         .map(str::trim)
@@ -489,12 +488,19 @@ fn parse_mapdata_dir(
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bots::maps::Maps::configured_for(
-        Some(dir.into()),
-        keep as usize,
-        at_once as usize,
-        built,
-        grid,
-        wall_clearance,
-    ))
+    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning))
+}
+
+/// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
+/// body and off-mesh links, and their table of wall clearances when the tuning needs it. The one way a store is made for
+/// the server ([`parse_mapdata_dir`]) and for the maps built ahead of a release (`srp-build-maps`), so the files the one
+/// writes have the keys the other looks for.
+pub fn bot_maps(
+    dir: std::path::PathBuf,
+    keep: usize,
+    at_once: usize,
+    built: Option<std::path::PathBuf>,
+    tuning: &bots::tuning::Tuning,
+) -> Arc<bots::maps::Maps> {
+    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance())
 }

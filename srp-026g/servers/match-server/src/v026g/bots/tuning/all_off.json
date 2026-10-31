@@ -50,6 +50,7 @@
     "hold_to_arrival": false
   },
   "cover": {
+    "hold_exposure": null,
     "pierce": null,
     "spot_cost": null
   },
@@ -62,6 +63,7 @@
     "drop_walk": false,
     "landing_cancel_deg": 0.0,
     "landing_cancel_drops": false,
+    "lip_guard_full": false,
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "sprint_gaps": false,
@@ -97,6 +99,7 @@
     "on": false
   },
   "kin": {
+    "edge": "lattice",
     "jump_snap": "any",
     "pitch_scale": "radian"
   },
@@ -144,6 +147,7 @@
     "lanes_pierce": false,
     "pair_up_hidden": false,
     "recast": false,
+    "sniper_memory": null,
     "trade_out_of_lines": false,
     "whole_route": false,
     "whole_route_booked": false

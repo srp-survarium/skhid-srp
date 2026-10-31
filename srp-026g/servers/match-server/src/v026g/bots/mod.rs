@@ -249,6 +249,10 @@ pub struct Bot {
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
+    /// The regions K1's sprint and the lane smoke read: [`Self::threat`]'s, or (a `SniperMemory` switch apart from the
+    /// routes') those of the other held spots.
+    sprint_threat: Arc<threat::Covered>,
+    smoke_threat: Arc<threat::Covered>,
     /// [smoke] The team's held lanes, told at the commander's ticks while `smoke.cross_lane` is on.
     lanes: Arc<[threat::HeldLane]>,
     personality: usize,
@@ -461,6 +465,8 @@ impl Bot {
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
+            sprint_threat: Arc::default(),
+            smoke_threat: Arc::default(),
             lanes: Arc::from(Vec::new()),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -568,6 +574,9 @@ impl Bot {
     /// Its kits are those of `equipment` (its role's): each full, the first
     /// in hand. For a bot made before its life begins.
     fn arm(&mut self, equipment: BotEquipment) {
+        // The bench's upgrades for one team only (`SRP_BENCH_UPGRADES_ONLY`): the team that has none gets its arms as if they were off.
+        #[cfg(test)]
+        let _kit = tests::team_kit_scope(self.team);
         let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
