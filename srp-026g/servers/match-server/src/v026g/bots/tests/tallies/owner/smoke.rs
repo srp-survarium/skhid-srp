@@ -301,7 +301,7 @@ impl SmokeCounts {
             let moved = him.feet.distance_xz(plan.eye) > SNIPER_MOVED_M;
             let chest = plan.crossing + Vec3::new(0.0, 1.3, 0.0);
             let line = crate::v026g::bots::aimpoint::sight_line(at.sight, Game::eye(him), chest);
-            let covered = Clouds::new(self.clouds.clone()).planning(plan.time, plan.team).covers(plan.time, &SmokeTuning::default(), plan.eye, chest);
+            let covered = Clouds::new(self.clouds.clone()).planning(plan.time, plan.team, smoke::Forming::Client).covers(plan.time, &client_eyes(), plan.eye, chest);
             let second = plans.iter().any(|p| {
                 p.team == plan.team && p.who == plan.who && p.time < plan.time && plan.time - p.time <= SNIPER_SECOND_MS
             });

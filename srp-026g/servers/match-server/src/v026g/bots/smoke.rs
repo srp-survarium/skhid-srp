@@ -317,14 +317,15 @@ impl Clouds {
     /// [planning] The clouds a smoke plan of `team`'s counts at `clock`, each at its full size from now (the owner: "they
     /// shouldnt throw smoke if smoke is already there"): every cloud live or forming, of either team (a puff is seen by
     /// all), and the team's own still in the air (thrown, and told: its thrower's mates know it), until it ends.
-    pub fn planning(&self, clock: u32, team: u8) -> Self {
+    /// Full under the team's forming rule `forming` (`smoke.forming_client`).
+    pub fn planning(&self, clock: u32, team: u8, forming: Forming) -> Self {
         let at = MatchMs(clock);
         Self(
             self.0
                 .iter()
                 .filter(|c| at < c.ends() && (at >= c.pours || c.team == team))
                 // Full now: poured at least its forming time ago (one already older keeps its age).
-                .map(|c| Cloud { pours: MatchMs(c.pours.0.min(clock.saturating_sub(c.shape.forming_ms))), ..*c })
+                .map(|c| Cloud { pours: MatchMs(c.pours.0.min(clock.saturating_sub(forming.ms(&c.shape)))), ..*c })
                 .collect(),
         )
     }
@@ -1156,7 +1157,7 @@ mod tests {
     #[test]
     fn a_line_through_a_full_cloud_is_inside_it_for_its_width_and_a_graze_is_thin() {
         let c = cloud(Vec3::ZERO);
-        let full = MatchMs(c.pours.0 + c.shape.forming_ms + 100);
+        let full = MatchMs(c.pours.0 + Forming::of(&SmokeTuning::default()).ms(&c.shape) + 100);
         let r = c.shape.radius_m;
         // Through the middle at eye height: the whole diameter.
         let m = c.inside_m(Vec3::new(-20.0, 1.6, 0.0), Vec3::new(20.0, 1.6, 0.0), full);
@@ -1186,7 +1187,7 @@ mod tests {
             sight: false,
             ..SmokeTuning::default()
         };
-        let full = c.pours.0 + c.shape.forming_ms;
+        let full = c.pours.0 + Forming::of(&on).ms(&c.shape);
         assert!(!clouds.veil(full, &on).is_clear());
         assert!(clouds.veil(full, &off).is_clear());
         assert!(clouds.veil(c.thrown.0, &on).is_clear(), "still in the air");
@@ -1247,7 +1248,8 @@ mod tests {
         let two = Clouds::new(vec![behind, screen]);
         let thin = SmokeTuning::default();
         let mut through = KnownClouds::default();
-        let learnt = through.update(who, &two, two.veil(pop + 1_000, &thin), pop + 1_000, &thin, |_| true);
+        let formed = pop + Forming::of(&thin).ms(&screen.shape) + 300;
+        let learnt = through.update(who, &two, two.veil(formed, &thin), formed, &thin, |_| true);
         assert!(through.knows(screen.key()) && !through.knows(behind.key()), "{learnt:?}");
         // The enemy cloud's edge facing the bot, on its floor, 22 m off (8 m radius at 30 m), within the 40 m watch.
         let now = pop + 1_000;
@@ -1396,7 +1398,9 @@ mod scenarios {
         // Across the line, 4 m to its side: the line runs 13.9 m through it at the full 8 m radius.
         let cloud = [Vec3::new(4.0, 0.0, 15.0)];
         assert_eq!(looks(&view(me, him, &cloud, 500)), SEEN, "forming: not dense yet");
-        assert_eq!(looks(&view(me, him, &cloud, 700)), SMOKED);
+        let formed = Forming::of(&SmokeTuning::default()).ms(&SmokeGrenade::RDG_M.cloud);
+        assert_eq!(looks(&view(me, him, &cloud, formed - 50)), SEEN, "still forming");
+        assert_eq!(looks(&view(me, him, &cloud, formed)), SMOKED);
         assert_eq!(looks(&view(me, him, &cloud, 17_000)), SMOKED);
         // Thinning: the radius is 5.6 m at 20 s, still over the line; 3.8 m at 22 s, off it.
         assert_eq!(looks(&view(me, him, &cloud, 20_000)), SMOKED);
@@ -1637,7 +1641,7 @@ mod scenarios {
         };
         let t = SmokeTuning::default();
         let (eye, point) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(20.0, 1.3, 0.0));
-        let covers = |c: Cloud, team: u8, clock: u32| Clouds::new(vec![c]).planning(clock, team).covers(clock, &t, eye, point);
+        let covers = |c: Cloud, team: u8, clock: u32| Clouds::new(vec![c]).planning(clock, team, Forming::of(&t)).covers(clock, &t, eye, point);
         // In the air (pours later): its team's counts, the other's not; live clouds miss it.
         assert!(covers(cloud(0, 5_000), 0, 2_000), "own in the air");
         assert!(!covers(cloud(0, 5_000), 1, 2_000), "the other team's in the air");
