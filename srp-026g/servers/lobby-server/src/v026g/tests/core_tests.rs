@@ -1279,6 +1279,60 @@ fn chat_reaches_who_it_is_for() {
 }
 
 #[test]
+fn player_menu_mute_by_name_and_unmute_filter_incoming_chat() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    for client in [alice, bob, carol] {
+        world.ask(client, request::subscribe());
+        world.take(client);
+    }
+    let lines = |decoded: Vec<Decoded>| {
+        decoded
+            .into_iter()
+            .filter(|message| matches!(message, Decoded::ChatText { .. }))
+            .count()
+    };
+    // add_ignore_name is what the room/ranking menu sends: action 4, string.
+    world.ask(bob, (0x4E, vec![4, 5, b'A', b'l', b'i', b'c', b'e']));
+    let alice_id = world.ids[alice].0;
+    assert!(matches!(
+        &world.take(bob)[..],
+        [Decoded::Friendship(FriendshipPush::Ignored(ignored))]
+            if ignored[..] == [(alice_id, "Alice".to_owned())]
+    ));
+    world.ask(alice, request::chat(2, "", channel::GENERAL, "muted"));
+    world.ask(
+        alice,
+        request::chat(0, "Bob", channel::PRIVATE, "also muted"),
+    );
+    assert_eq!(lines(world.take(bob)), 0);
+    assert_eq!(lines(world.take(carol)), 1);
+    world.ask(
+        carol,
+        request::chat(2, "", channel::GENERAL, "still visible"),
+    );
+    assert_eq!(lines(world.take(bob)), 1);
+
+    // remove_ignored takes the account id from the pushed list, not the row id.
+    let mut unmute = vec![5];
+    unmute.extend(alice_id.to_le_bytes());
+    world.ask(bob, (0x4E, unmute));
+    assert!(matches!(
+        &world.take(bob)[..],
+        [Decoded::Friendship(FriendshipPush::Ignored(ignored))] if ignored.is_empty()
+    ));
+    world.ask(alice, request::chat(2, "", channel::GENERAL, "unmuted"));
+    world.ask(
+        alice,
+        request::chat(0, "Bob", channel::PRIVATE, "private too"),
+    );
+    assert_eq!(lines(world.take(bob)), 2);
+    world.assert_clean();
+}
+
+#[test]
 fn players_in_a_match_talk_on_its_channels() {
     let mut world = World::new();
     let alice = world.connect("Alice");
@@ -2664,6 +2718,7 @@ fn the_operators_text_reaches_everyone_and_who_signs_in_later() {
 
 mod away_tests;
 mod balance_tests;
+mod chat_mute_tests;
 mod clan_tests;
 mod feedback_tests;
 mod gear_tests;

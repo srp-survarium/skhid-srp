@@ -15,17 +15,26 @@ package
    import flash.system.fscommand;
    import flash.text.TextField;
 
-   // The Tab list's player menu (docs/notes/tab-cursor-friends.md) with the hud movie's own classes: its
-   // scoreboard (SrvPlayerList, its PlayerListz and row renderers) and srp's PlayerRowMenu over it, the
-   // exe's two answers made here as patch 86 makes them (root.srp_player_menu, root.srp_friend_request):
+   // The Tab list's player menu (docs/notes/tab-cursor-friends.md, chat-mute.md) with the hud movie's own
+   // classes: its scoreboard (SrvPlayerList, its PlayerListz and row renderers) and srp's PlayerRowMenu
+   // over it, the exe's answers made here as patch 86 makes them (root.srp_player_menu,
+   // root.srp_friend_request, root.srp_chat_mute):
    // - a right-click (Scaleform's MouseEventEx CLICK, buttonIdx 1) on another player's row asks the exe
-   //   (srp_player_menu with the row's place) and opens the menu at the mouse with "Add to friends";
+   //   (srp_player_menu with the row's place) and opens the menu at the mouse with "Add to friends" and the
+   //   two chat mute entries that change the player's state (a friend's row: the two alone): not muted
+   //   "Hide chat", "Show chat as <muted>"; hidden "Show chat as <muted>", "Unmute chat"; shown as <muted>
+   //   "Hide chat", "Unmute chat" (the exe's `muted`, from the lobby's ignore list, which the server
+   //   pushes after each change: made here as the choice sent);
+   // - each sends srp_chat_mute with the place and its choice (1, 2, 0) and shows the answer's line
+   //   ("Chat muted", "Chat unmuted", "Not sent"); a friend request's answer then changes nothing;
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on that entry sends srp_add_friend
    //   with the place, and the answer's line ("Friend request sent") shows until a press elsewhere;
-   // - the own row (isLocal) asks nothing; a row the exe offers nothing for (a friend) opens nothing;
+   // - the own row (isLocal) asks nothing; a row the exe offers nothing for opens nothing;
    //   a left click on a row opens nothing; an answer for another place, or one that comes when the menu
    //   is not waiting, changes nothing; "not sent" shows its own line; a press elsewhere and the list
-   //   hidden (close, HUD.show_player_list(false)) close the menu.
+   //   hidden (close, HUD.show_player_list(false)) close the menu;
+   // - the match's chat (the hud's SrvGameChat) shows a line the lobby masked for this player as
+   //   "Name: <muted>", the brackets as text (match and team channels).
    // Prints "MENU ..." lines (trace) and ends with "MENU RESULT pass" or "MENU RESULT fail: ...".
    public class RowMenuHarness extends Sprite
    {
@@ -42,8 +51,11 @@ package
       // the exe's calls the menu made: "method place"
       private var calls:Array = [];
 
-      // the places the exe offers nothing for (friends), and the requests' answer
+      // the places the exe offers no friend request for (friends), and the requests' answer
       private var friends:Array = [2];
+
+      // each place's mute state as the lobby's ignore list gives it (0 not muted, 1 hidden, 2 <muted>)
+      private var mutes:Object = {};
 
       private var sent:Boolean = true;
 
@@ -93,7 +105,13 @@ package
          (domain.getDefinition("survarium.data.LocalizationData") as Class).setData({
             st_srp_hud_add_friend:"Add to friends",
             st_srp_hud_friend_sent:"Friend request sent",
-            st_srp_hud_friend_not_sent:"Friend request not sent"
+            st_srp_hud_friend_not_sent:"Friend request not sent",
+            st_srp_hud_mute_hide:"Hide chat",
+            st_srp_hud_mute_mask:"Show chat as <muted>",
+            st_srp_hud_unmute:"Unmute chat",
+            st_srp_hud_muted:"Chat muted",
+            st_srp_hud_unmuted:"Chat unmuted",
+            st_srp_hud_mute_not_sent:"Not sent"
          });
          Ex = domain.getDefinition("scaleform.gfx.MouseEventEx") as Class;
          var List:Class = domain.getDefinition("SrvPlayerList") as Class;
@@ -105,20 +123,28 @@ package
          menu = new Menu(list.players);
          list.addChild(DisplayObject(menu));
          // patch 86's answers, as the exe gives them inside the call
-         menu.call = function(method:String, place:String):void
+         menu.call = function(method:String, place:String, ... choice):void
          {
-            calls.push(method + " " + place);
+            calls.push([method,place].concat(choice).join(" "));
             if(!answering)
             {
                return;
             }
             if(method == "srp_player_menu")
             {
-               menu.offered(uint(place),friends.indexOf(uint(place)) < 0);
+               menu.offered(uint(place),friends.indexOf(uint(place)) < 0,true,uint(mutes[place] || 0));
             }
             else if(method == "srp_add_friend")
             {
                menu.requested(uint(place),sent);
+            }
+            else if(method == "srp_chat_mute")
+            {
+               if(sent)
+               {
+                  mutes[place] = uint(choice[0]);
+               }
+               menu.muted(uint(place),sent);
             }
          };
          addEventListener(Event.ENTER_FRAME,this.tick);
@@ -192,21 +218,60 @@ package
             click(enemy,0);
             expect("a left click on a row",'closed',"",[]);
             click(friend,1);
-            expect("a friend's row: nothing offered",'closed',"",["srp_player_menu 2"]);
+            expect("a friend's row: the two mute entries alone",'open',"Hide chat|Show chat as <muted>",
+               ["srp_player_menu 2"]);
+            menu.close();
             click(enemy,1);
-            expect("another player's row",'open',"Add to friends",["srp_player_menu 3"]);
-            menu.offered(3,true);
+            expect("a stranger's row, not muted",'open',"Add to friends|Hide chat|Show chat as <muted>",
+               ["srp_player_menu 3"]);
+            menu.offered(3,true,true,0);
             menu.requested(3,true);
-            expect("answers that come unasked",'open',"Add to friends",[]);
+            menu.muted(3,true);
+            expect("answers that come unasked",'open',"Add to friends|Hide chat|Show chat as <muted>",[]);
             stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true));
             expect("a press elsewhere",'closed',"",[]);
             answering = false;
             click(enemy,1);
-            menu.offered(5,true);
+            menu.offered(5,true,true,0);
             expect("an answer for another place",'asking',"",["srp_player_menu 3"]);
-            menu.offered(3,true);
-            expect("then its own answer",'open',"Add to friends",[]);
+            menu.offered(3,false,false,0);
+            expect("a place that offers nothing",'closed',"",[]);
+            click(enemy,1);
+            menu.offered(3,true,true,0);
+            expect("then its own answer",'open',"Add to friends|Hide chat|Show chat as <muted>",["srp_player_menu 3"]);
+            click(entryAt(1),0);
+            menu.requested(3,true);
+            expect("Hide chat, a friend request's answer",'sending',"Add to friends|Hide chat|Show chat as <muted>",
+               ["srp_chat_mute 3 1"]);
+            menu.muted(3,true);
+            expect("then the mute's answer",'told',"Chat muted",[]);
+            mutes[3] = 1;
             answering = true;
+            menu.close();
+            click(enemy,1);
+            expect("a hidden player",'open',"Add to friends|Show chat as <muted>|Unmute chat",["srp_player_menu 3"]);
+            click(entryAt(1),0);
+            expect("Show chat as <muted>",'told',"Chat muted",["srp_chat_mute 3 2"]);
+            menu.close();
+            click(enemy,1);
+            expect("a player shown as <muted>",'open',"Add to friends|Hide chat|Unmute chat",["srp_player_menu 3"]);
+            click(entryAt(2),0);
+            expect("Unmute chat",'told',"Chat unmuted",["srp_chat_mute 3 0"]);
+            menu.close();
+            click(enemy,1);
+            expect("unmuted: Unmute gone",'open',"Add to friends|Hide chat|Show chat as <muted>",["srp_player_menu 3"]);
+            menu.close();
+            mutes[2] = 2;
+            click(friend,1);
+            expect("a friend shown as <muted>",'open',"Hide chat|Unmute chat",["srp_player_menu 2"]);
+            sent = false;
+            click(entryAt(0),0);
+            expect("a friend's mute not sent",'told',"Not sent",["srp_chat_mute 2 1"]);
+            sent = true;
+            menu.close();
+            click(friend,1);
+            expect("not sent: the state as it was",'open',"Hide chat|Unmute chat",["srp_player_menu 2"]);
+            checkMutedChat();
             menu.close();
             click(enemy,1);
             menu.close();
@@ -227,7 +292,7 @@ package
          {
             phase = 2;
             click(enemy,1);
-            expect("the menu for the click",'open',"Add to friends",["srp_player_menu 3"]);
+            expect("the menu for the click",'open',"Add to friends|Hide chat|Show chat as <muted>",["srp_player_menu 3"]);
             var entry2:DisplayObject = DisplayObjectContainer(menu).getChildAt(0);
             target = entry2.localToGlobal(new Point(entry2.width / 2,12));
             clicked = null;
@@ -255,6 +320,36 @@ package
          {
             failures.push("the real click on the entry did nothing (" + menu.state + ")");
             finish("fail: " + failures.join("; "));
+         }
+      }
+
+      private function entryAt(i:int) : DisplayObject
+      {
+         return DisplayObjectContainer(menu).getChildAt(i);
+      }
+
+      // The lobby sends a muted player's line to this player with the body "<muted>" (chat-mute.md): the
+      // hud's chat shows it as its text, brackets and all, on the match and the team channels.
+      private function checkMutedChat() : void
+      {
+         try
+         {
+            var chat:Object = new (domain.getDefinition("SrvGameChat") as Class)();
+            chat.setLocalPlayer("me");
+            chat.test_message({name:"Wolf",text:"<muted>",type:5,color:"White"});
+            chat.test_message({name:"Bear",text:"<muted>",type:6,color:"Green"});
+            var count:int = chat.messageContainer.numChildren;
+            var match:String = chat.messageContainer.getChildAt(count - 2).textContainer.textField.text;
+            var team:String = chat.messageContainer.getChildAt(count - 1).textContainer.textField.text;
+            trace("MENU the match's chat: " + match.replace(/\s+$/,"") + " | " + team.replace(/\s+$/,""));
+            if(match.indexOf("Wolf: <muted>") < 0 || team.indexOf("Bear: <muted>") < 0)
+            {
+               failures.push("the chat does not show Name: <muted> (" + match + " | " + team + ")");
+            }
+         }
+         catch(err:Error)
+         {
+            failures.push("the match's chat: " + err.getStackTrace());
          }
       }
 

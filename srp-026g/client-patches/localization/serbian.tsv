@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Primaj privatne poruke samo od prijatelja
 st_microphone_sensitivity_option	Osetljivost mikrofona
 st_minimap	Mini-mapa
 st_minimap_bottom	Donji levi ugao
-st_minimap_off	Isključena mini-mapa
+st_minimap_off	Skrivena mini-mapa
 st_minimap_position	Položaj mini-mape
 st_minimap_rotable_option	Fiksiraj mini-mapu
 st_minimap_top	Gornji levi ugao
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Sakrij poene igrača
 st_srp_hud_add_friend	Dodaj u prijatelje
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
 st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
+st_srp_hud_mute_hide	Sakrij čet
+st_srp_hud_mute_mask	Prikaži čet kao <muted>
+st_srp_hud_mute_not_sent	Nije poslato
+st_srp_hud_muted	Čet utišan
+st_srp_hud_unmute	Uključi čet
+st_srp_hud_unmuted	Čet uključen
 st_srp_inventory_search	Pretraga
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.

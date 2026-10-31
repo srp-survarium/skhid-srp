@@ -9,7 +9,8 @@
 //!   sent to the same match (and team); squad to the squad; srp's room
 //!   channel (10) to the room's members (`room_chat`). Who that is
 //!   the server knows itself, so the channel id a client sends is not
-//!   trusted. A player who ignores the sender is not sent the line. A
+//!   trusted. Hidden senders produce no line; placeholder mutes receive
+//!   only the sender's name and `<muted>`, never the original body. A
 //!   player may send [`CHAT_BURST`] lines at once and one a second after
 //!   [choice: 0.21d had no limit; one flooding client must not fill the
 //!   others' links].
@@ -39,7 +40,9 @@
 //!   `ignored`: kept in `srp.db` as for 0.21d). The client never asks for
 //!   them: they are pushed at sign-in and after each change (`A3 07`,
 //!   `A3 08`), and the friends' statuses when one changes (`A3 09`, with
-//!   exactly the friends of the last `A3 07`). The old `u8 result`
+//!   exactly the friends of the last `A3 07`). `A3 08` lists every muted
+//!   player; a `<muted>` one's id is marked (`lobby::SHOWN_MUTED`), so the
+//!   client's own filter passes its `<muted>` lines (chat-mute.md). The old `u8 result`
 //!   answers are gone: the client would read them as a search list. A
 //!   player may send [`FRIEND_REQUEST_BURST`] friend requests at once and
 //!   one every [`FRIEND_REQUEST_EVERY`] after (the client keeps the same
@@ -192,6 +195,58 @@ impl Core<'_> {
             .is_some_and(|account| account.locked().ignored.contains(&sender))
     }
 
+    /// Apply the recipient's policy before constructing a packet. Placeholder
+    /// recipients never receive the original text, on any chat channel.
+    pub(super) fn chat_body<'a>(
+        &self,
+        recipient: u32,
+        sender: u32,
+        body: &'a str,
+    ) -> Option<&'a str> {
+        let mode = self
+            .store
+            .account(recipient)
+            .and_then(|account| account.locked().ignored.mode(sender));
+        match mode {
+            None => Some(body),
+            Some(lobby::ChatMuteMode::Hidden) => None,
+            Some(lobby::ChatMuteMode::Placeholder) => Some(lobby::MUTED_CHAT_TEXT),
+        }
+    }
+
+    pub(super) fn set_chat_mute(
+        &mut self,
+        who: &Who,
+        name: &str,
+        mode: Option<lobby::ChatMuteMode>,
+        now: Instant,
+    ) {
+        if name == who.name {
+            return;
+        }
+        let Some(target) = self.account_named(name, who.account_id) else {
+            // From a match (the Tab list's menu: a bot's place has no
+            // account) the lobby's message box would come up only back in
+            // the lobby, for a player long gone: none.
+            if self.player(who.addr).is_some_and(|player| player.in_match.is_none()) {
+                self.player_not_found(who, name, now);
+            }
+            return;
+        };
+        if let Some(account) = self.store.account(who.account_id) {
+            let mut account = account.locked();
+            if mode.is_none()
+                || account.ignored.contains(&target)
+                || account.ignored.len() < MAX_LISTED
+            {
+                account.ignored.set(target, mode);
+                self.store.mark_dirty(who.account_id);
+            }
+        }
+        // Both menus offer the choices by the mode this list gives them.
+        self.push_ignored(who);
+    }
+
     /// Tell the player that `name` is no player it can reach: the game's
     /// "Player not found." in its message box (`84 49 00
     /// st_player_not_found`; the client shows `84 49` whatever it was
@@ -298,21 +353,22 @@ impl Core<'_> {
             return;
         }
         let tag = self.clan_tag_of(who.account_id);
-        let line = lobby::chat_text(
-            sender::ACCOUNT,
-            who.account_id,
-            &who.name,
-            &tag,
-            channel,
-            body,
-        );
         let mut reached = 0;
         for (addr, account_id) in recipients {
-            // Its client would drop the line itself.
-            if self.ignores(account_id, who.account_id) {
+            let Some(body) = self.chat_body(account_id, who.account_id, body) else {
                 continue;
-            }
-            self.send(addr, line.clone());
+            };
+            self.send(
+                addr,
+                lobby::chat_text(
+                    sender::ACCOUNT,
+                    who.account_id,
+                    &who.name,
+                    &tag,
+                    channel,
+                    body,
+                ),
+            );
             reached += 1;
         }
         log::info!(
@@ -649,16 +705,17 @@ impl Core<'_> {
         }
     }
 
-    /// `A3 08`: the whole ignore list.
+    /// `A3 08`: every muted player, a `<muted>` one's id marked
+    /// (`lobby::SHOWN_MUTED`) so that its lines pass the client's filter.
     pub(super) fn push_ignored(&mut self, who: &Who) {
         let ids = self
             .store
             .account(who.account_id)
             .map(|account| account.locked().ignored.clone())
             .unwrap_or_default();
-        let ignored: Vec<(u32, String)> = ids
-            .iter()
-            .filter_map(|&account_id| Some((account_id, self.name_of(account_id)?)))
+        let ignored: Vec<(u32, String, lobby::ChatMuteMode)> = ids
+            .entries()
+            .filter_map(|(account_id, mode)| Some((account_id, self.name_of(account_id)?, mode)))
             .collect();
         self.send_made(who.addr, lobby::ignore_list(&ignored));
     }
@@ -703,8 +760,10 @@ impl Core<'_> {
                 return;
             }
             let mut account = account.locked();
-            if !account.ignored.contains(&target) && account.ignored.len() < MAX_LISTED {
-                account.ignored.push(target);
+            if account.ignored.contains(&target) || account.ignored.len() < MAX_LISTED {
+                account
+                    .ignored
+                    .set(target, Some(lobby::ChatMuteMode::Hidden));
                 self.store.mark_dirty(me);
             }
         };
@@ -734,7 +793,7 @@ impl Core<'_> {
                 }
             }
             FriendshipAction::StopIgnoring { account_id: target } => {
-                account.locked().ignored.retain(|id| id != target);
+                account.locked().ignored.set(*target, None);
                 self.store.mark_dirty(me);
                 self.push_ignored(who);
             }

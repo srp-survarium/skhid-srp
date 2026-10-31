@@ -14,6 +14,26 @@ fn read(text: &str) -> ClientMessage {
 use ClientMessage as M;
 
 #[test]
+fn chat_mute_extension_is_typed_and_rejects_unknown_modes() {
+    use super::super::ChatMuteMode::{Hidden, Placeholder};
+    for (wire, mode) in [
+        ("49 05 'Bob' FE 00", None),
+        ("49 05 'Bob' FE 01", Some(Hidden)),
+        ("49 05 'Bob' FE 02", Some(Placeholder)),
+    ] {
+        assert_eq!(
+            read(wire),
+            M::SetChatMute {
+                nickname: "Bob".into(),
+                mode
+            }
+        );
+    }
+    let bytes = h("49 05 'Bob' FE 03");
+    assert!(parse(bytes[0], &bytes[1..]).is_err());
+}
+
+#[test]
 fn sign_in_and_play() {
     assert_eq!(
         read("2E 78563412 FF"),
@@ -251,7 +271,12 @@ fn shop_actions() {
         }
     );
     assert_eq!(read("47 04 64000000"), M::ExchangePremium { amount: 100 });
-    assert_eq!(read("47 04 FFFFFF3F"), M::ExchangePremium { amount: 0x3FFF_FFFF });
+    assert_eq!(
+        read("47 04 FFFFFF3F"),
+        M::ExchangePremium {
+            amount: 0x3FFF_FFFF
+        }
+    );
     assert_eq!(read("47 04 05000040"), M::BuyPremium { gold: 5 });
     assert_eq!(read("47 04 00000040"), M::BuyPremium { gold: 0 });
     assert_eq!(

@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Прымаць асабістыя паве�
 st_microphone_sensitivity_option	Адчувальнасць мікрафона
 st_minimap	Мінікарта
 st_minimap_bottom	Ніжні левы вугал
-st_minimap_off	Мінікарта выключана
+st_minimap_off	Схаваная мінікарта
 st_minimap_position	Пазіцыя мінікарты
 st_minimap_rotable_option	Фіксаваць мінікарту
 st_minimap_top	Верхні левы вугал
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Схаваць ачкі гульцоў
 st_srp_hud_add_friend	Дадаць у сябры
 st_srp_hud_friend_not_sent	Заяўка ў сябры не адпраўлена
 st_srp_hud_friend_sent	Заяўка ў сябры адпраўлена
+st_srp_hud_mute_hide	Схаваць чат
+st_srp_hud_mute_mask	Паказваць чат як <muted>
+st_srp_hud_mute_not_sent	Не адпраўлена
+st_srp_hud_muted	Чат заглушаны
+st_srp_hud_unmute	Уключыць чат
+st_srp_hud_unmuted	Чат уключаны
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.

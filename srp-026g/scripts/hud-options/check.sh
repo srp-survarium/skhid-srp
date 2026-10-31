@@ -4,11 +4,12 @@
 # virtual display:
 # - SettingsHarness.as: the HUD group (its heading, the two checkboxes) from the exe's answers, the
 #   Gameplay tab's two columns (Friends, HUD; Crosshair, Language, Quest progress), a toggle of each
-#   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs);
+#   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs)
+#   and its crosshair and minimap position choices (inside their lists);
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive).
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
-# enabled), settings-crosshair-open.png, list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
+# enabled), settings-crosshair-open.png, settings-minimap-open.png, list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 menu=$(readlink -f "$1")
@@ -29,7 +30,7 @@ sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
 keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
-        'st_srp_crosshair_hidden', 'st_srp_static_minimap_option')
+        'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -80,6 +81,7 @@ run SettingsHarness
 wait_for SettingsHarness 'SETTINGS SHOT settings' && shot settings.png
 wait_for SettingsHarness 'SETTINGS SHOT checked' && shot settings-checked.png
 wait_for SettingsHarness 'SETTINGS SHOT open' && shot settings-crosshair-open.png
+wait_for SettingsHarness 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
 kill $ruffle_pid 2>/dev/null || true
 run HudHarness
 wait_for HudHarness 'HUD SHOT scores' && shot list-scores.png
