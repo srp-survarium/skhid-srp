@@ -4959,3 +4959,10 @@ va	name	location	role	basis
 0x00202dd0	survarium::player_cook::on_subresources_loaded	entry ESP+8	the stage (27Ch; creation data at +9Ch: profile, place +A0h, game world +A4h, kit +B0h, lobby flag +B1h)	observed
 0x00202dd0	survarium::player_cook::on_subresources_loaded	entry ESP+12	the inventory recipe, freed at 0x202E04	observed
 0x001f2100	survarium::player::~player	ECX	the player (its profile +6B8h, kit +115h still set at entry)	observed
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	EDI	the callback to fill (a boost::function, 20h bytes)	observed
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	entry ESP+4	the member function (thiscall: ECX this, entry ESP+4 the queries_result, ret 4)	observed
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	entry ESP+8	the this-adjustment, added to ECX	observed
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	entry ESP+12	the object, the call's ECX (never read through by the invoker)	observed
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	entry ESP+16	padding, 0 (copied, unread)	observed
+0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+4	the functor buffer (the callback +8)	observed
+0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+8	the queries_result	observed

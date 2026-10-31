@@ -1922,3 +1922,6 @@ va	status	ref_021d	name
 0x0030a800	inferred-high		survarium::weapon_core_cook::weapon_core_cook
 0x002d7570	observed		survarium::base_player::set_bullet_manager
 0x002954d0	observed		survarium::resupply_zone::finish_use
+0x0027d280	observed		boost::function<void (vostok::resources::queries_result &)>::assign_member
+0x00202300	observed		boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke
+0x000e5ab0	observed	0x000b13ab	vostok::resources::dispatch_callbacks
