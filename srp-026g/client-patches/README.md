@@ -3722,6 +3722,39 @@ computes. `check_weapon_pickup_026g.py` runs the hooks with the game's own
 profile code, binder and invoker. The design, the evidence and the next
 stages: `docs/notes/weapon_pickup.md`.
 
-The rest of dropped-weapon pickup (the install, the record, the prompt, the
-crate) is designed, not built: `docs/notes/weapon_pickup.md`.
+## Dropped-weapon pickup: the record, the pickup, the restore, the crate (patch 83, stage 2a)
+
+What a match computes, the same on every client, in replays, rollbacks and
+late joins. Each player state carries its 12-byte pickup record
+(`weapon_pickup::Record`: its drop, open with kit, slot and death time, or
+taken; the gun it borrows) after the two kit indices: written at
+`pickup.save` (0x2DAF70, base_player::serialize before its first field),
+read at `pickup.load` (0x2DB4CF, deserialize before its first read), kept
+by place; a record that does not decode is logged and read as empty. The
+server reads the native fields from `FIELDS_AT` (players.rs, motion.rs). At
+the input's apply point (artefact_carry's `carry.filter` calls
+`weapon_pickup::on_filter` with the raw actions first) a pickup command
+(patch 78's bit 29 with two or more quick bits) is decided by
+`weapon_pickup::decide`, the death's cooked gun found (or cooked and waited
+for) and installed by `vostok/pickup.rs`: the game's inventory::set_item
+(0x2FC620) swaps the held own gun with the cooked one, its ammunition goes
+to free ammunition slots of the picker (remove_item 0x2FC680, set_item) and
+the gun's +5ACh is rebound to them, the gun is bound to the core (+4,
++258h, the own gun's registry id +0Ch and core+18B4Ch's entry, the bullet
+manager +5A0h, no autoload +5F4h), the switch is replayed (deactivate(1),
+forget_active_object 0x3919E0, held = pending, set_user, initialize,
+activate(1)) with the donor's magazine and chamber and one magazine in
+reserve. base_player::remove(1) (`pickup.remove`, 0x2DA790), the player's
+destruction and a loaded record without the borrow put everything back
+before the native code runs (held left to remove / the reader); a loaded
+record naming a borrow that is not installed installs it without the
+switch (0x2DB62B switches the held object itself). The crate's checks and
+use (`pickup.can_use` 0x2F809C, `pickup.use_hint` 0x2F80E4,
+`pickup.resupply` 0x2F81B8, `pickup.client_resupply` 0x2954EF) hand the
+native resupply a 188h view with the own gun in its slot; the borrowed
+reserve is refilled to a magazine for free and is "available" while below.
+Every refusal is logged to `srp_patches.log`. `check_weapon_pickup_026g.py`
+runs it on the game's own set_item, remove_item and set_owner. A row of
+`simulation_changes.tsv`. The prompt, the ragdoll's gun and the input
+builder's encoding are stage 2b: `docs/notes/weapon_pickup.md`.
 

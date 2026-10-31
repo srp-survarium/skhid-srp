@@ -24,11 +24,131 @@
   state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
+- My picks for stage 2a (the owner: "just don't overcomplicate the
+  feature", smallest version everywhere):
+  - the records are kept by place, not by kit player object: a state is a
+    place's (its current kit's player), so a drop survives a respawn with
+    another kit; the borrow is the current player's;
+  - the borrowed gun's ammunition goes to free ammunition slots of the
+    picker (8, 9, 11, 12, 19..22, first free first) and the gun is rebound
+    to them, so the native inventory snapshots its reserve; no free slot
+    for it: the pickup is refused (deterministic, logged);
+  - the magazine and chamber are those of the donor's gun in its slot when
+    the donor's current player is of the drop's kit, else a full magazine;
+    the reserve is one magazine; any other bound stack of the gun is empty;
+  - a refused pickup changes nothing and is logged; the client cannot
+    install a gun its cook failed to make (logged loudly: that client
+    then differs);
+  - the crate's free refill sets the reserve to one magazine when below,
+    and its checks say "available" while it is below;
+  - a gun given back (its holder's death, respawn, destruction, a rollback)
+    stays cooked until its death's window and margin end (a rollback can
+    take it again); a loaded world's gun is freed at the next frame.
 - Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
-  server's check and the instance (a gun cooked at each death) are built;
-  the install, the record, the prompt and the crate are not.
+  server's check and record shift, the instance (a gun cooked at each
+  death), the record, the pickup, its restore and the crate are built
+  (stage 2a, not run in a game); the input builder's encoding, the prompt
+  and the ragdoll's gun (stage 2b) are not.
 
-## How a pickup would be installed (read in the exe, not built)
+## How a pickup is installed (patch 83, stage 2a, built, not run in a game)
+
+`rust/patches/src/weapon_pickup.rs` (the records, the decision, the log)
+over `vostok/pickup.rs` (the native moves) and `vostok/gun_cook.rs` (the
+cooked gun).
+
+- **The record** (`weapon_pickup::Record`, 12 bytes) after the two kit
+  indices of each player state: `pickup.save` 0x2DAF70 writes it with the
+  native byte writer (0x1F3DE0), `pickup.load` 0x2DB4CF reads it (the
+  reader's begin/cursor/size); a record that does not decode (bad bytes, a
+  short state) is logged and read as empty. Kept by place of the match
+  (its world core): the death sets the place's drop (open with kit, slot
+  and the tick's +324h when it held one of its own two guns; none when it
+  held a borrowed gun, which vanishes, or anything else), a pickup the
+  picker's borrow and the donor's drop taken, base_player::remove(1) and
+  the player's destruction the borrow none. The server reads the native
+  fields from `FIELDS_AT = 2 + Record::BYTES`.
+- **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
+  calls `weapon_pickup::on_filter` before patch 78 filters the actions):
+  the command (`weapon_pickup::command` of +330h); the rule
+  (`weapon_pickup::decide`: alive, no borrow, its own gun held and pending
+  in slot 7 or 10, another place's open drop within 5 s at the picker's
+  +324h) first without the gun; the gun of that death from the cache, or
+  (a death this client did not see) cooked from the donor's profile, waited
+  for if not in; the kind (+5E9h of both); then the install:
+  - every check before the first write: the own gun a client weapon in its
+    slot, held and pending; the cooked slot a client weapon; each bound
+    ammunition slot (+5ACh, +5B0h) holding a stack; a free ammunition slot
+    of the picker for each;
+  - the gun bound to the world: +4 and +258h the core (player+120h), +0Ch
+    the own gun's registry id, +5A0h the own gun's bullet manager, +5F4h 0;
+    core+18B4Ch begin[id] = the gun (bind_to_game_core 0x2E30F0 never
+    called: it appends);
+  - each stack moved (one reference more across: remove_item 0x2FC680 from
+    the cooked inventory, set_item 0x2FC620 into the free slot, its +248h
+    the core) and the gun's +5ACh index rewritten to it;
+  - the guns swapped by set_item (the borrowed one into the picker's slot,
+    the own one into the cooked slot; both held by one reference more
+    across), each owner set by the item's own set_owner (vtable+28h);
+  - the switch replayed as tick_active_object 0x2D76D0..0x2D772F does it:
+    the own gun's deactivate(1) (client 0x244860), forget_active_object
+    0x3919E0 (EAX player+750h, EDX the own gun), held +128h = pending +12Ch
+    = the gun, set_user 0x2445E0, initialize 0x2449E0 (binds +538h), the
+    magazine (+5E5h, the chamber +5F1h) and the reserve (the retained
+    stack's +260h = the capacity +5E4h), activate(1) 0x244610.
+- **The restore** (`vostok::pickup::restore`): everything back as cooked
+  (the gun's saved +4, +0Ch, +258h, +5A0h, the stacks and +5ACh back in the
+  cooked inventory, the own gun in its slot and its registry entry); the
+  held object is left as it is. At base_player::remove(1) (`pickup.remove`
+  0x2DA790; flag 0, a snapshot's same-kit removal, is left alone) remove
+  then deactivates the borrowed gun itself and unloads the own loadout into
+  the profile; at the player's destruction (`player.destroy`) the
+  destructor sees the own gun.
+- **A loaded record** (rollback, late join, resync): at `pickup.load`,
+  before the native readers, the borrow is made what the record says: an
+  installed borrow the record does not name is restored; a borrow the
+  record names and nobody installed is installed without the switch (its
+  gun found or cooked from the donor's profile and waited for; set_user and
+  initialize only, held left: 0x2DB62B deactivates the old held object and
+  set_users the new one when they differ, and the inventory reader then
+  finds the slots as the snapshot has them).
+- **The crate**: `pickup.can_use` 0x2F809C and `pickup.use_hint` 0x2F80E4
+  (before check_resupply's `mov ecx,[eax+10Ch]`): a borrowed reserve below
+  a magazine exits to "available" (0x2F80B3, 0x2F8116); else ECX is a 188h
+  view of the inventory with the own gun in its slot and the moved slots
+  empty, the loadout the profile names (what check_weapon_pickup.py proves
+  check_resupply and resupply_from_profile read). `pickup.resupply` 0x2F81B8
+  and `pickup.client_resupply` 0x2954EF (before resupply_from_profile's
+  inventory): the borrowed reserve to a magazine, free, the real
+  inventory's weight marked, EAX the view.
+- **The cache**: a gun installed is lent (never freed by the window or its
+  donor's destruction); given back, it is kept until its death's window and
+  margin end, so a rollback that takes it again finds it.
+- **For stage 2b**: `weapon_pickup::available_drop(thread, viewer, place)`
+  (open, within 5 s at the viewer's time, its gun made on this client: the
+  local prompt), `drop_taken(thread, viewer, place)` (hide the ragdoll's
+  gun), `borrowing(thread, player)` (its ragdoll drops none),
+  `instance(thread, place, died)`.
+- **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe, the
+  game's own set_item, remove_item and set_owner; the switch's calls and
+  the byte writer recorded): the records written at a death and read back;
+  a gun of another kind, the picker's own place, a second command, a
+  command after 5 s refused with nothing changed; the pickup's slots,
+  owners, references, bindings, switch calls, magazine and reserve; the
+  crate's view, its "available" exits and its refill at both finish_use
+  sites; a loaded record without and with the borrow; remove(0) and
+  remove(1); a record that does not decode; a lent gun kept past its
+  window and freed once given back; no branch into the new spans.
+  `check_artefact_carry_026g.py` (the composed filter), cargo test and
+  clippy of `client-patches/rust`, `weapon-pickup`, `survarium`,
+  `match-server`, `session`.
+- **Risks, not covered**: the native weapon calls (deactivate, set_user,
+  initialize, activate, forget) are recorded, not run; a cooked gun's
+  inventory item header names the donor's place and kit in snapshots (the
+  inventory reader was not traced for it); a client whose cook failed, or
+  whose wait was refused (a late joiner whose players were made this
+  frame), refuses a pickup the others accept and then differs.
+
+## The facts the install was built from (read in the exe)
 
 - **Snapshot record.** A 12-byte record (`weapon_pickup::Record`) after the
   two kit indices of each player's state: written at 0x2DAF70
@@ -151,11 +271,12 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   join's guarded as above. A loaded world's gun is freed by `give_back` or
   its donor's destruction.
 - **The interface for the later stages** (`weapon_pickup.rs`):
-  `instance(place, spawned) -> Cooking | Ready(inventory) | Failed |
-  Missing`; `wait(place, spawned) -> Result<inventory, Refused>`;
+  `instance(place, died) -> Cooking | Ready(inventory) | Failed |
+  Missing` (by the death's time, which the record carries; stage 2a);
   `need(donor, kit, slot) -> Result<inventory, Refused>`;
-  `give_back(Source { place, kit, slot })`. A refusal is a refused pickup
-  (logged), never a crash.
+  `give_back(Source { place, kit, slot })` (a gun nobody holds). The wait
+  is inside the pickup and the record's reader (stage 2a). A refusal is a
+  refused pickup (logged), never a crash.
 - **The log** (`srp_patches.log`, each line with the process id): `pickup:
   asked for the gun of place P kit K slot S (death at T ms): address space A
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
