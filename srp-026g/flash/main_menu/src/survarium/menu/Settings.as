@@ -77,8 +77,9 @@ package survarium.menu
       // of the tab as its options are, saved by Apply.
       protected var _language:SrpLanguage;
       
-      // The gameplay tab's group of checkboxes the exe keeps in user.cfg (patch
-      // 83: "Hide hit markers", "Hide player scores"), under "Friends:". A
+      // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
+      // (patch 83: "Hide hit markers", "Hide player scores"), with the stock
+      // quest progress and minimap controls under them (layoutGameplay). A
       // toggle is a change of the tab as the Language pick is, saved by Apply.
       protected var _hudGroup:SrpCheckGroup;
       
@@ -715,11 +716,13 @@ package survarium.menu
          this.checkButtons();
       }
       
-      // The gameplay tab's groups in its two columns, each group's heading over
-      // its controls, at the tab's own spacing: "Friends:", then srp's HUD
-      // group; "Crosshair:", then the Language choice, then "Quest progress:"
-      // (moved down by it). The bottom panel (the seeding and statistics
-      // options', hidden) is not shown there: the columns run on over it.
+      // The gameplay tab's groups in its two columns, each group's heading over its controls, at the
+      // tab's own spacing (the timeline's, read once): on the left "Friends:", "Crosshair:" (the static
+      // crosshair) and the Language choice; on the right srp's "HUD:" group: Hide hit markers, Hide
+      // player scores, then the stock quest progress (its checkbox and transparency slider) and minimap
+      // (fixed minimap, its position) controls, moved here with their own bindings, the "Quest
+      // progress:" heading not shown. The bottom panel (the seeding and statistics options', hidden)
+      // is not shown there: the columns run on over it.
       protected function layoutGameplay() : void
       {
          var c:MovieClip = this.settings_content;
@@ -739,20 +742,32 @@ package survarium.menu
             space = {"leftFirst":c._setter_invite.y - c.s_friends.y,"step":c._setter_message.y - c._setter_invite.y,
                "rightFirst":c._setter_static_cross.y - c.s_cross.y,
                "gap":c.s_quest_propgress.y - c._setter_static_minimap_position.y,
-               "questBox":c._setter_static_show_quests.y - c.s_quest_propgress.y,
-               "questSlider":c._slider_quest_alpha.y - c.s_quest_propgress.y};
+               "slider":c._slider_quest_alpha.y - c._setter_static_show_quests.y,
+               "dropdown":c._setter_static_minimap_position.y - c._setter_static_minimap.y,
+               "dropdownX":c._setter_static_minimap_position.x - c._setter_static_minimap.x,
+               "top":c.s_friends.y,
+               "leftHeading":c.s_friends.x,"leftControl":c._setter_invite.x,
+               "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
             _gameplaySpacing = space;
          }
-         // the left column: under the friends' last checkbox
-         var hudTop:Number = c._hide_spam.y + space.gap;
-         this._hudGroup.layout(c.s_friends,c.s_friends.x,c._setter_invite.x,hudTop,space.leftFirst,space.step);
-         // the right column: under the crosshair's last control
-         var languageTop:Number = c._setter_static_minimap_position.y + space.gap;
-         var lastRow:Number = this._language.layout(c.s_cross,c.s_cross.x,c._setter_static_minimap_position.x,languageTop,space.rightFirst);
-         var questTop:Number = lastRow + space.gap;
-         c.s_quest_propgress.y = questTop;
-         c._setter_static_show_quests.y = questTop + space.questBox;
-         c._slider_quest_alpha.y = questTop + space.questSlider;
+         // the left column: Friends (as the timeline has it), then Crosshair, then Language
+         c.s_cross.x = space.leftHeading;
+         c.s_cross.y = c._hide_spam.y + space.gap;
+         c._setter_static_cross.x = space.leftControl;
+         c._setter_static_cross.y = c.s_cross.y + space.rightFirst;
+         this._language.layout(c.s_cross,space.leftHeading,space.leftControl + space.dropdownX,
+            c._setter_static_cross.y + space.gap,space.rightFirst);
+         // the right column: the HUD group
+         var last:Number = this._hudGroup.layout(c.s_friends,space.rightHeading,space.rightControl,space.top,space.rightFirst,
+            space.step);
+         c._setter_static_show_quests.x = c._slider_quest_alpha.x = c._setter_static_minimap.x = space.rightControl;
+         c._setter_static_show_quests.y = last + space.step;
+         c._slider_quest_alpha.y = c._setter_static_show_quests.y + space.slider;
+         // the slider's bar is its row (its label is drawn above its origin): the next row a step under it
+         c._setter_static_minimap.y = c._slider_quest_alpha.y + space.step;
+         c._setter_static_minimap_position.x = space.rightControl + space.dropdownX;
+         c._setter_static_minimap_position.y = c._setter_static_minimap.y + space.dropdown;
+         c.s_quest_propgress.visible = false;
          c.bottomContainer.visible = false;
       }
       

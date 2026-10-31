@@ -22,12 +22,13 @@ else
     work=$(mktemp -d)
 fi
 
-# Every dictionary's two labels, the group's heading and "Language:", as JSON.
+# Every dictionary's two labels, the group's heading, "Language:" and its restart note, as JSON.
 texts=$("${PYTHON:-python3}" - "$here/../../client-patches" <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
-keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option')
+keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
+        'st_srp_language_restart')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

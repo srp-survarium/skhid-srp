@@ -8,17 +8,26 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 ## The options
 
-- **Where:** Settings, Gameplay, a group of its own, "HUD:", right under "Friends:" in the left
-  column: "Hide hit markers", "Hide player scores" (`../images/hide-options-settings.png`). The
-  tab's own look: the heading as "Friends:" is, plain checkboxes, the same spacing.
-- **The tab's groups** (the owner, 2026-10-31): left "Friends:", "HUD:"; right "Crosshair:",
-  "Language:", "Quest progress:". Each column's headings share its left edge, its controls the
-  stock controls' edge; the gap before each group is the tab's own (the timeline's, read once).
-  Language (patch 79's list) is a group under "Crosshair:" now, its label a heading; its "Applies
-  after restart." note shows under the list and moves "Quest progress:" down while it shows. The
-  old bottom panel (the hidden seeding and statistics options') is not drawn on this tab: the
-  columns run on over it. One column for all four did not fit the window (about 700 px of groups
-  for 400). The column divider is the timeline's and stops where the panel began.
+- **Where:** Settings, Gameplay, a group of its own, "HUD:", at the top of the right column
+  (`../images/hide-options-settings.png`): "Hide hit markers", "Hide player scores", then the
+  stock quest progress controls ("Show quest progress in match" and its "Transparency" slider) and
+  the stock minimap controls ("Fix minimap" and the minimap position list). The tab's own look:
+  the heading as "Friends:" is, plain checkboxes, the same spacing.
+- **The tab's groups** (the owner, 2026-10-31: "quest progress I think is part of the HUD too",
+  "and map"): left "Friends:", "Crosshair:" (now only "Static crosshair"), "Language:"; right
+  "HUD:". The stock controls keep their own bindings (the exe binds them by name); only their
+  places change, and the "Quest progress:" heading is not shown. Each column's headings share its
+  left edge, its controls the stock controls' edge (a list one pixel further, as the timeline has
+  it); the spacing is the timeline's own, read once: the gap before a group, a heading's first
+  control, the checkbox step, the slider's distance from its checkbox (its bar is its row, the
+  next control a step under it), the minimap list's under its checkbox. Language (patch 79's list)
+  is a group under "Crosshair:", its label a heading, its "Applies after restart." note under the
+  list while it shows. The old bottom panel (the hidden seeding and statistics options') is not
+  drawn on this tab. One column for all of it did not fit the window; the column divider is the
+  timeline's and stops where that panel began.
+- **The map settings:** the game has two, both from the stock "Crosshair:" group of this tab:
+  "Fix minimap" (`_setter_static_minimap`) and the minimap position list
+  (`_setter_static_minimap_position`: off, lower left, upper left). No other tab has map settings.
 - **Texts:** dictionary keys in all ten languages: the heading `st_srp_options_hud` ("HUD:";
   Russian, Ukrainian, Belarusian "Интерфейс боя:"/"Інтерфейс бою:"/"Інтэрфейс бою:", not
   "Interface", which the Interface level selector may take), the labels

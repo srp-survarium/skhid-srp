@@ -27,6 +27,10 @@ package
     {
         private static const NAMES:Array = ["srp_hide_hit_markers", "srp_hide_scores"];
 
+        private static const STOCK_LABELS:Array = ["Invitations from friends only", "Notify when friends are online",
+            "Enable message censorship", "Accept private messages from friends only", "Hide chat in match", "Hide spam",
+            "", "Static crosshair", "Fix minimap", "", "Show quest progress in match", "Transparency"];
+
         private var loader:Loader = new Loader();
         private var frames:int = 0;
 
@@ -106,36 +110,41 @@ package
                 return [item.y, item.y + TextField(item).textHeight + 4];
             if (item.hasOwnProperty("textField") && item.textField != null && item.hasOwnProperty("selected"))
                 return [item.y, item.y + Math.max(item.textField.y + item.textField.textHeight + 4, 26)];
-            return [item.y, item.y + item.height];
+            var bounds:Rectangle = item.getBounds(item.parent);
+            return [bounds.top, bounds.bottom];
         }
 
-        // The gameplay tab's two columns: "Friends:" then the HUD group on the left, "Crosshair:" then
-        // Language then "Quest progress:" on the right; each group's heading at its column's heading x,
-        // its controls at the column's controls' x, spaced as the tab's own groups; nothing overlapping
-        // in a column, everything above the window's bottom; every dictionary's texts inside its column.
-        private function checkLayout(content:MovieClip, boxes:Array, texts:Array, when:String):void
+        // The gameplay tab's two columns: on the left "Friends:", "Crosshair:" (the static crosshair),
+        // Language; on the right "HUD:": Hide hit markers, Hide player scores, the quest progress
+        // checkbox and its slider, the fixed minimap checkbox and the minimap position list, no "Quest
+        // progress:" heading. Each heading at its column's heading x, the controls at its controls' x
+        // (a list one further, as the timeline has them), spaced as the tab's own; nothing overlapping
+        // in a column, everything above the window's bottom; every dictionary's texts inside their
+        // column. `stock` is the timeline's places before anything moved.
+        private function checkLayout(content:MovieClip, boxes:Array, texts:Array, stock:Object, when:String):void
         {
             var c:* = content;
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             var menu:* = content.getChildByName("_srp_language");
-            var language:TextField = null;
+            var language:TextField = null, note:TextField = null;
             for (var i:int = 0; i < content.numChildren; ++i)
             {
                 var t:TextField = content.getChildAt(i) as TextField;
                 if (t != null && t.visible && t.text == texts[0][3]) language = t;
+                if (t != null && t.text == "Applies after restart.") note = t;
             }
-            require(language != null, when + ": the Language heading shown");
+            require(language != null && note != null, when + ": the Language heading and note there");
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
-                c._hide_spam, heading, boxes[0], boxes[1]];
-            var right:Array = [c.s_cross, c._setter_static_cross, c._setter_static_minimap, c._setter_static_minimap_position,
-                language, menu, c.s_quest_propgress, c._setter_static_show_quests, c._slider_quest_alpha];
+                c._hide_spam, c.s_cross, c._setter_static_cross, language, menu];
+            if (note.visible) left.push(note);
+            var right:Array = [heading, boxes[0], boxes[1], c._setter_static_show_quests, c._slider_quest_alpha,
+                c._setter_static_minimap, c._setter_static_minimap_position];
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
             {
                 for (i = 0; i < column.length; ++i)
                 {
-                    require(column[i] != null, when + ": item " + i + " of a column there (" + column.map(function(x:*, ...r):String { return x ? x.name : "null"; }).join() + ")");
-                    require(column[i].visible, when + ": " + column[i].name + " shown");
+                    require(column[i] != null && column[i].visible, when + ": item " + i + " of a column shown");
                     var here:Array = span(column[i]);
                     require(here[1] <= bottom, when + ": " + column[i].name + " above the window's bottom (" + bottom + "): " + here[1]);
                     if (i + 1 < column.length)
@@ -145,34 +154,31 @@ package
                     }
                 }
             }
-            // alignment: the headings, the controls
-            require(heading.x == c.s_friends.x && language.x == c.s_cross.x, when + ": the headings at their columns' x");
-            require(boxes[0].x == c._setter_invite.x && boxes[1].x == c._setter_invite.x, when + ": the checkboxes at the friends' x");
-            require(menu.x == c._setter_static_minimap_position.x, when + ": the Language list at the minimap list's x");
-            // spacing: as the tab's own groups
-            var first:Number = c._setter_invite.y - c.s_friends.y, step:Number = c._setter_message.y - c._setter_invite.y;
-            require(boxes[0].y - heading.y == first && boxes[1].y - boxes[0].y == step, when + ": the HUD group spaced as Friends");
-            require(menu.y - language.y == c._setter_static_cross.y - c.s_cross.y, when + ": the Language list under its heading as Crosshair's");
-            var gap:Number = heading.y - c._hide_spam.y;
-            require(language.y - c._setter_static_minimap_position.y == gap, when + ": the same gap before each group: " + gap
-                + ", " + (language.y - c._setter_static_minimap_position.y));
-            var note:TextField = null;
-            for (i = 0; i < content.numChildren; ++i)
+            require(!c.s_quest_propgress.visible, when + ": no \"Quest progress:\" heading");
+            // alignment
+            require(near(c.s_cross.x, c.s_friends.x) && near(language.x, c.s_friends.x), when + ": the left headings at Friends' x");
+            require(near(c._setter_static_cross.x, c._setter_invite.x) && near(menu.x, c._setter_invite.x + stock.dropdownX),
+                when + ": the left controls at the friends' x (a list one further)");
+            require(near(heading.x, stock.rightHeading) && near(heading.y, c.s_friends.y), when + ": the HUD heading where Crosshair's was");
+            for each (var control:* in [boxes[0], boxes[1], c._setter_static_show_quests, c._slider_quest_alpha, c._setter_static_minimap])
             {
-                t = content.getChildAt(i) as TextField;
-                if (t != null && t.text == "Applies after restart.") note = t;
+                require(near(control.x, stock.rightControl), when + ": " + control.name + " at the right controls' x");
             }
-            require(note != null, when + ": the Language note there");
-            var lastRow:Number = note.visible ? note.y : menu.y;
-            require(c.s_quest_propgress.y - lastRow == gap, when + ": Quest progress the same gap under Language's last row ("
-                + (note.visible ? "the note" : "the list") + "): " + (c.s_quest_propgress.y - lastRow));
-            if (note.visible)
-            {
-                require(span(menu)[1] <= note.y && span(note)[1] <= c.s_quest_propgress.y, when + ": the note between the list and Quest progress");
-            }
+            require(near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX), when + ": the minimap list one further");
+            // spacing: as the tab's own
+            require(near(c.s_cross.y - c._hide_spam.y, stock.gap) && near(language.y - c._setter_static_cross.y, stock.gap),
+                when + ": the tab's gap before Crosshair and Language");
+            require(near(c._setter_static_cross.y - c.s_cross.y, stock.rightFirst) && near(menu.y - language.y, stock.rightFirst)
+                && near(boxes[0].y - heading.y, stock.rightFirst), when + ": each group's first control as Crosshair's was");
+            require(near(boxes[1].y - boxes[0].y, stock.step) && near(c._setter_static_show_quests.y - boxes[1].y, stock.step),
+                when + ": the HUD checkboxes a step apart");
+            require(near(c._slider_quest_alpha.y - c._setter_static_show_quests.y, stock.slider)
+                && near(c._setter_static_minimap.y - c._slider_quest_alpha.y, stock.step)
+                && near(c._setter_static_minimap_position.y - c._setter_static_minimap.y, stock.dropdown),
+                when + ": the slider and the minimap list at their stock distances");
             require(!c.bottomContainer.visible, when + ": no bottom panel across the columns");
             // every dictionary's texts inside their columns
-            var leftEnd:Number = c.s_friends.x + c.s_friends.width, rightEnd:Number = c.s_cross.x + c.s_cross.width;
+            var leftEnd:Number = stock.rightHeading - 10, rightEnd:Number = stock.rightHeading + c.s_friends.width;
             for each (var row:Array in texts)
             {
                 for (i = 0; i < 2; ++i)
@@ -183,25 +189,56 @@ package
                     var end:Number = boxes[i].x + boxes[i].textField.x + boxes[i].textField.textWidth;
                     boxes[i].label = shown;
                     boxes[i].validateNow();
-                    require(end < leftEnd, when + ": " + row[i] + " ends in the left column (" + leftEnd + "): " + end);
+                    require(end < rightEnd, when + ": " + row[i] + " ends in the right column (" + rightEnd + "): " + end);
                 }
                 var was:String = heading.text;
                 heading.text = row[2];
-                require(heading.x + heading.textWidth < leftEnd, when + ": " + row[2] + " ends in the left column");
+                require(heading.x + heading.textWidth < rightEnd, when + ": " + row[2] + " ends in the right column");
                 heading.text = was;
                 was = language.text;
                 language.text = row[3];
-                require(language.x + language.textWidth < rightEnd, when + ": " + row[3] + " ends in the right column");
+                require(language.x + language.textWidth < leftEnd, when + ": " + row[3] + " ends in the left column");
                 language.text = was;
+                if (note.visible)
+                {
+                    was = note.text;
+                    note.text = row[4];
+                    require(note.y + note.textHeight + 4 <= bottom, when + ": the note (" + row[4] + ") above the window's bottom: "
+                        + (note.y + note.textHeight + 4));
+                    note.text = was;
+                }
             }
-            trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", HUD " + heading.y + " (" + boxes[0].y + ", "
-                + boxes[1].y + "); right Crosshair " + c.s_cross.y + ", Language " + language.y + " (" + menu.y + "), Quest progress "
-                + c.s_quest_propgress.y + " (slider to " + span(c._slider_quest_alpha)[1] + "); bottom " + bottom);
+            trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Crosshair " + c.s_cross.y + ", Language "
+                + language.y + " (list " + menu.y + (note.visible ? ", note " + note.y : "") + "); right HUD " + heading.y + " ("
+                + boxes[0].y + ", " + boxes[1].y + ", quests " + c._setter_static_show_quests.y + ", slider " + c._slider_quest_alpha.y
+                + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y + ", to "
+                + span(c._setter_static_minimap_position)[1] + "); bottom " + bottom);
+        }
+
+        // Equal places (x and y are kept in twips, 1/20 px).
+        private static function near(a:Number, b:Number):Boolean
+        {
+            return Math.abs(a - b) < 0.1;
+        }
+
+        // The timeline's own places of the gameplay tab, from a new instance of its class (Settings has
+        // moved the shown one's).
+        private function stockOf(content:MovieClip):Object
+        {
+            var fresh:* = new (Object(content).constructor as Class)();
+            fresh.gotoAndStop(1);
+            return {gap: fresh.s_quest_propgress.y - fresh._setter_static_minimap_position.y,
+                step: fresh._setter_message.y - fresh._setter_invite.y,
+                rightFirst: fresh._setter_static_cross.y - fresh.s_cross.y,
+                slider: fresh._slider_quest_alpha.y - fresh._setter_static_show_quests.y,
+                dropdown: fresh._setter_static_minimap_position.y - fresh._setter_static_minimap.y,
+                dropdownX: fresh._setter_static_minimap_position.x - fresh._setter_static_minimap.x,
+                rightHeading: fresh.s_cross.x, rightControl: fresh._setter_static_cross.x};
         }
 
         private function check():void
         {
-            // [[hit markers' label, scores' label, the group's heading, "Language:"], ...] for every dictionary
+            // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note], ...] for every dictionary
             var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
@@ -224,7 +261,8 @@ package
             var values:Array = [];
             for (var i:int = 0; i < 16; ++i)
             {
-                settingsList.push({label: "option " + i});
+                // the stock English texts (the exe's st_*_option keys), for the screenshots
+                settingsList.push({label: STOCK_LABELS[i] || "option " + i});
                 // every option's value, as the exe binds them (the quests' alpha slider, 11, at 1)
                 values.push({id: i, value: i == 11 ? 1 : 0});
             }
@@ -254,14 +292,14 @@ package
             root.srp_check_option("srp_no_such", "x", "1", "y");
             require(!boxes[0].selected && !boxes[1].selected && !settings.btn_accept.enabled, "another name changes nothing");
 
-            checkLayout(content, boxes, texts, "at rest");
+            checkLayout(content, boxes, texts, stockOf(content), "at rest");
             // the restart note shown (a saved language not the running one): the groups under it move down
             root.srp_language(texts[0][3], "Applies after restart.", "ukrainian", "english", "english", "English",
                 "ukrainian", "Українська");
-            checkLayout(content, boxes, texts, "the restart note shown");
+            checkLayout(content, boxes, texts, stockOf(content), "the restart note shown");
             root.srp_language(texts[0][3], "Applies after restart.", "english", "english", "english", "English",
                 "ukrainian", "Українська");
-            checkLayout(content, boxes, texts, "the note hidden again");
+            checkLayout(content, boxes, texts, stockOf(content), "the note hidden again");
             var invite:DisplayObject = content["_setter_invite"];
             for each (box in boxes)
             {
@@ -314,7 +352,7 @@ package
             require(content.getChildIndex(boxes[0]) > panelIndex && content.getChildIndex(boxes[1]) > panelIndex,
                 "the boxes over the bottom panel after a tab change");
 
-            checkLayout(content, boxes, texts, "after a tab change");
+            checkLayout(content, boxes, texts, stockOf(content), "after a tab change");
             trace("SETTINGS tabs pass");
 
             var fontName:String = boxes[0].textField.getTextFormat().font;
