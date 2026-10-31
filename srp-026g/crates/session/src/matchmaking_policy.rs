@@ -8,6 +8,8 @@
 
 use std::time::Duration;
 
+use crate::Strength;
+
 /// A match takes late joiners until this is left of it (the owner's of
 /// 2026-10-19); one who comes in its last seconds waits in the room for the
 /// next. A joiner still loading when the match ends is safe: its loading
@@ -36,12 +38,11 @@ pub enum Closed {
 }
 
 /// A side of a match being played, or a joiner: its players and what they
-/// count for together beside being there (their strengths, in
-/// `crate::matchmaking::STRENGTH_SCALE`s).
+/// count for together beside being there (their K/Ds, `crate::Strength`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Worth {
     pub players: usize,
-    pub strength: i64,
+    pub strength: Strength,
 }
 
 /// How a player is put into a match being played ([`place_joiner`]).
@@ -52,9 +53,9 @@ pub struct LateRule {
     /// The roster places the match has left.
     pub room: usize,
     /// What a player counts for by being there.
-    pub player_value: i64,
+    pub player_value: Strength,
     /// What each side's lead counts for; nothing for the side that trails.
-    pub lead: [i64; 2],
+    pub lead: [Strength; 2],
     /// Each side's places whose players are not in the match now but keep
     /// them (a game that broke: Play takes it back there). They count
     /// against `capacity`, not as players of the side: a joiner never
@@ -72,8 +73,8 @@ pub struct LatePlacement {
     /// What the sides count for apart, side 0 less side 1, before and with
     /// them: players, strengths and the lead together (for the log; the
     /// side is chosen by players first, [`place_joiner`]).
-    pub apart_before: i64,
-    pub apart_after: i64,
+    pub apart_before: Strength,
+    pub apart_after: Strength,
 }
 
 /// Where a match being played, whose sides are `sides` now, takes `joiner`
@@ -95,7 +96,7 @@ pub fn place_joiner(
     rule: &LateRule,
 ) -> Option<LatePlacement> {
     let worth = |sides: &[Worth; 2], side: usize| {
-        rule.player_value * sides[side].players as i64 + sides[side].strength + rule.lead[side]
+        rule.player_value.times(sides[side].players) + sides[side].strength + rule.lead[side]
     };
     let key = |side: usize| {
         (
@@ -139,7 +140,7 @@ pub fn place_joiner_beside(
 /// no place.
 fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Option<LatePlacement> {
     let worth = |sides: &[Worth; 2], side: usize| {
-        rule.player_value * sides[side].players as i64 + sides[side].strength + rule.lead[side]
+        rule.player_value.times(sides[side].players) + sides[side].strength + rule.lead[side]
     };
     let mut after = sides;
     after[side].players += joiner.players;
@@ -163,15 +164,18 @@ mod tests {
     use super::*;
 
     fn side(players: usize, strength: i64) -> Worth {
-        Worth { players, strength }
+        Worth {
+            players,
+            strength: Strength::from_milli(strength),
+        }
     }
 
     fn rule() -> LateRule {
         LateRule {
             capacity: 10,
             room: 20,
-            player_value: 1200,
-            lead: [0, 0],
+            player_value: Strength::from_milli(1200),
+            lead: [Strength::ZERO; 2],
             kept: [0, 0],
         }
     }
@@ -222,14 +226,20 @@ mod tests {
         // Four against three, the three far stronger and leading: the three
         // get the joiner (live, 2026-10-19: a match went to 4 v 8 by value).
         let led = LateRule {
-            lead: [0, 5000],
+            lead: [Strength::ZERO, Strength::from_milli(5000)],
             ..rule()
         };
         let placed = place_joiner([side(4, -3000), side(3, 3000)], one, None, &led).unwrap();
         assert_eq!(placed.assignments, [(0, 1)]);
         assert_eq!(placed.sides, [side(4, -3000), side(4, 3300)]);
-        assert_eq!(placed.apart_before, 1200 - 3000 - 3000 - 5000);
-        assert_eq!(placed.apart_after, -3000 - 3300 - 5000);
+        assert_eq!(
+            placed.apart_before,
+            Strength::from_milli(1200 - 3000 - 3000 - 5000)
+        );
+        assert_eq!(
+            placed.apart_after,
+            Strength::from_milli(-3000 - 3300 - 5000)
+        );
         let placed = place_joiner([side(3, 3000), side(4, -3000)], one, None, &rule()).unwrap();
         assert_eq!(placed.assignments, [(0, 0)]);
     }
@@ -243,7 +253,7 @@ mod tests {
         assert_eq!(placed.sides, [side(3, 1000), side(4, 400)]);
         // The lead counts: side 0 leads by more than side 1 is stronger.
         let led = LateRule {
-            lead: [1000, 0],
+            lead: [Strength::from_milli(1000), Strength::ZERO],
             ..rule()
         };
         let placed = place_joiner([side(3, 0), side(3, 500)], one, None, &led).unwrap();

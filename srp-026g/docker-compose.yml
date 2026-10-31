@@ -109,6 +109,8 @@ services:
       - SRP_REGISTRATION
       - SRP_SIGN_INS_PER_MINUTE
       - SRP_REGISTRATIONS_PER_DAY
+      - SRP_BALANCE_PLAYER_KD
+      # No longer read (kd-balance.md): passed so a left-over value is logged.
       - SRP_BALANCE_PLAYER
       - SRP_BALANCE_PLAYER_LEVEL
       - SRP_BALANCE_RATING
