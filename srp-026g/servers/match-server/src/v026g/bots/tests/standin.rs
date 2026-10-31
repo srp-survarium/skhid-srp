@@ -604,6 +604,8 @@ pub(crate) struct Game {
     /// The walls' horizontal cross-sections for the capsule rule ([`standin_capsule`]), built at the first move.
     pub(crate) sections: Option<Arc<standin_capsule::Sections>>,
     pub(crate) landings: Vec<Landing>,
+    /// The height the bodies gained, by way, against what the client's body can climb ([`standin_climb`]).
+    pub(crate) climbs: standin_climb::Climbs,
     /// Every press of a quick-use key ([`standin_heal::press_keys`]), and the
     /// bodies' pools and drugs in the worlds of the last two seconds
     /// ([`Game::seen_at`]).
@@ -868,6 +870,7 @@ impl Game {
             walls: None,
             sections: None,
             landings: Vec::new(),
+            climbs: standin_climb::Climbs::default(),
             drug_log: Vec::new(),
             seen: VecDeque::new(),
             traps: standin_traps::Traps::default(),
@@ -1141,6 +1144,7 @@ impl Game {
             if let Some(node) = body.node {
                 let grid = &self.world.grid;
                 let before = body.feet;
+                self.climbs.alive_ticks += 1;
                 if !self.honest {
                     let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
                     // In the air, walking into a floor the jump clears: up
@@ -1158,7 +1162,12 @@ impl Game {
                 } else if body.flight.is_some() {
                     // Keys held in the air do not steer it (no air control).
                     let walls = self.walls.as_deref().expect("built at the press");
+                    let took_off = body.flight.map(|f| f.from);
                     if let Some(landing) = fly(grid, walls, body, place, tick) {
+                        if let Some(from) = took_off {
+                            let way = if landing.sprint { standin_climb::Way::SprintJump } else { standin_climb::Way::ShortJump };
+                            self.climbs.note(way, tick, place, body.team, from, landing.to, "");
+                        }
                         self.landings.push(landing);
                     }
                 } else {
@@ -1195,12 +1204,14 @@ impl Game {
                             lift_count(rise, LiftOutcome::SlowContact);
                         }
                     }
+                    let mut lifted = false;
                     if let Some((since, rise)) = body.lift_since
                         && tick >= since + LIFT_HOLD_MS
                     {
                         match lift_check(grid, node, feet, to) {
                             Ok(up) => {
                                 lift_count(rise, LiftOutcome::Made);
+                                lifted = true;
                                 node = up;
                                 feet = grid.position(up);
                             }
@@ -1222,6 +1233,8 @@ impl Game {
                         })
                     });
                     if !blocked {
+                        let way = if lifted { standin_climb::Way::Lift } else { standin_climb::Way::Walk };
+                        self.climbs.note(way, tick, place, body.team, body.feet, feet, "");
                         body.node = Some(node);
                         body.feet = feet;
                         if let Some(stood) = standing.get_mut(place) {
