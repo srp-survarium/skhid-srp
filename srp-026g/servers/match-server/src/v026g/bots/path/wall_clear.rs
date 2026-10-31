@@ -240,7 +240,7 @@ impl Route {
         }
         add(Count::AddedMm, ((total - self.along[n - 1]).max(0.0) * 1000.0) as u64);
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, gates, planned, below_walk_m, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, gates, planned, below_walk_m, past_drop, .. } = self;
         let mut route = Self::with_floors(with_corners, floors);
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
@@ -248,6 +248,7 @@ impl Route {
         route.gates = gates;
         route.planned = planned;
         route.below_walk_m = below_walk_m;
+        route.past_drop = past_drop;
         route
     }
 }
