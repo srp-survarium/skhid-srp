@@ -1,7 +1,9 @@
-# Lobby scenes
+# Lobby packs: the STK2 bomb shelter
 
-What a lobby project must give and how the lobby is chosen: the selection's notes
-(feat/lobby-select, patch 81). Each lobby has its section.
+The lobby project resource-porter makes from S.T.A.L.K.E.R. 2's (2011-12) bomb shelter, pack
+lobby-stk2-bunker (build-stk2-lobby-026, ports/stk2-bunker-lobby-to-026g.json): its source, the
+manifest's choices and each version. What a lobby project must give, the lobby window and the
+upgrade view are the lobby selection's (lobby-scenes.md, #778).
 
 ## STK2 lighting (the bomb shelter; the blockpost as at @2)
 
