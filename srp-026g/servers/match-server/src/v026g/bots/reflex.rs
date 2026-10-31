@@ -1017,7 +1017,7 @@ pub struct WaitRow {
 }
 
 /// A row of the best players' pause between two bursts at the same target (register C2): from `from_m` on, the quartiles of the
-/// pause, ms (`q1`, median, `q3`; `player_bots_weapons.md` and `fact-fire-human-rule.md` ง1, rifle and SMG in the owner's bands).
+/// pause, ms (`q1`, median, `q3`; `player_bots_weapons.md` and `fact-fire-human-rule.md` ยง1, rifle and SMG in the owner's bands).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PauseRow {
