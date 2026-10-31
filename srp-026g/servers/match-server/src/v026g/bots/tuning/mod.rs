@@ -150,8 +150,8 @@ pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;
-pub use unstick::SUICIDE_AFTER_OWNER_MS;
 pub use unstick::DropShut;
+pub use unstick::SUICIDE_AFTER_OWNER_MS;
 pub use unstick::UnstickTuning;
 
 /// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything

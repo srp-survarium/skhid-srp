@@ -1371,7 +1371,7 @@ mod tests {
     #[test]
     fn a_held_drops_landings_are_shut_for_their_time_and_the_top_is_a_fall() {
         let top = Vec3::new(108.6, 11.5, 73.8);
-        let landings = [Vec3::new(108.4, 6.6, 73.6), Vec3::new(108.4, 6.6, 73.9)];
+        let landings = [Vec3::new(108.4, 6.6, 73.4), Vec3::new(108.4, 6.6, 73.9)];
         let mut stuck = Stuck::default();
         stuck.failed_jump(1_000, top, Some(landings[0]));
         stuck.failed_drop(2_000, top, &landings, 45_000);
