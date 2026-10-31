@@ -39,6 +39,14 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "advance_forward_seconds": 0,
         "advance_moved_sum": 0.0,
         "advance_seconds": 0,
+        "all_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          4,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
         "by_life": [
           {
             "mates_alive": 160,
@@ -264,6 +272,13 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
+        "lane_unsafe_body_nofloor_body_edge_nofloor_edge_otherfloor": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "mates_near": 640,
         "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": [
           [
@@ -381,13 +396,84 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
-        "samples": 360
+        "samples": 360,
+        "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied": [
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "young_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          4,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "young_1m_cause_target_goal_follow_still_file_other": [
+          0,
+          0,
+          0,
+          5,
+          0,
+          0
+        ],
+        "young_1m_kind_opening_mixed_respawn": [
+          0,
+          5,
+          0
+        ],
+        "young_1m_origin_together_adjacent_together_apart_different": [
+          0,
+          0,
+          5
+        ],
+        "young_1m_shape_file_abreast_crossing_standing": [
+          0,
+          0,
+          0,
+          5
+        ],
+        "young_near_pairs_and_1m_by_spawn_m_lt3_6_13_25_up": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            8,
+            0
+          ],
+          [
+            56,
+            5
+          ],
+          [
+            112,
+            0
+          ]
+        ]
       },
       "1": {
         "advance_back_seconds": 0,
         "advance_forward_seconds": 0,
         "advance_moved_sum": 0.0,
         "advance_seconds": 0,
+        "all_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "by_life": [
           {
             "mates_alive": 80,
@@ -613,6 +699,13 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
+        "lane_unsafe_body_nofloor_body_edge_nofloor_edge_otherfloor": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "mates_near": 720,
         "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": [
           [
@@ -730,7 +823,70 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
-        "samples": 360
+        "samples": 360,
+        "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "young_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "young_1m_cause_target_goal_follow_still_file_other": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "young_1m_kind_opening_mixed_respawn": [
+          0,
+          0,
+          0
+        ],
+        "young_1m_origin_together_adjacent_together_apart_different": [
+          0,
+          0,
+          0
+        ],
+        "young_1m_shape_file_abreast_crossing_standing": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "young_near_pairs_and_1m_by_spawn_m_lt3_6_13_25_up": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            218,
+            0
+          ]
+        ]
       }
     },
     "overlap_plays": [

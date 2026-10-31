@@ -114,7 +114,21 @@ struct Young {
     origin: [u64; 3],
     /// By what the step apart did, as [`TeamSpacing::apart_state`].
     apart: [u64; 7],
+    /// Who could give way: one body has the other ahead (within [`AHEAD_RAD`] of its walk) and not the reverse, each has the other ahead (head-on), neither, a body with no walk.
+    ahead: [u64; 4],
+    /// The rates' denominators: the young pairs on one floor by kind (as `kind`), and the young pairs within [`NEAR_WIDTH_M`] by width (as `width`).
+    kind_pairs: [u64; 3],
+    width_near: [u64; WIDTH_EDGES_M.len() + 2],
 }
+
+/// A teammate is ahead of a walking body within this of its walk's direction, radians.
+const AHEAD_RAD: f32 = std::f32::consts::FRAC_PI_3;
+/// The young pairs this close (m) are the width's denominator: where the bodies walk near each other.
+const NEAR_WIDTH_M: f32 = 4.0;
+/// The opening's first moves (A212): a body's first tick 0.5 m from where its life began, as the live table reads it (`A175/live_opening.py`); the spread after the team's earliest
+/// by upper edges (s; the last bin is later). Live players (10 recordings, 31 bodies): median 0.25 s, p75 0.75, p90 2.4.
+const FIRST_MOVE_M: f32 = 0.5;
+const SPREAD_EDGES_S: [f32; 4] = [0.25, 0.75, 1.5, 3.0];
 
 /// The walkable width across the unit heading `(ux, uz)` at `p`, m: see [`WIDTH_EDGES_M`].
 fn free_width(grid: &mapdata::WalkGrid, p: Vec3, (ux, uz): (f32, f32)) -> f32 {
@@ -276,6 +290,9 @@ pub(super) struct SpacingCounts {
     lane_unsafe: Vec<Option<crate::v026g::bots::apart::Unsafe>>,
     /// Where each body's life began (its feet at its first sample alive).
     spawned_at: Vec<Option<Vec3>>,
+    /// The tick of each body's first move ([`FIRST_MOVE_M`]) in its life from the match's opening, and its team.
+    first_move: Vec<Option<usize>>,
+    team_of: Vec<u8>,
     /// What the commander gave each bot to do (its target).
     target: Vec<crate::v026g::bots::plays::TargetRef>,
     /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
@@ -311,6 +328,8 @@ impl SpacingCounts {
             lane: vec![0; n],
             lane_unsafe: vec![None; n],
             spawned_at: vec![None; n],
+            first_move: vec![None; n],
+            team_of: vec![0; n],
             target: vec![crate::v026g::bots::plays::TargetRef::None; n],
             overlap_plays: Default::default(),
             born: vec![None; n],
@@ -411,6 +430,14 @@ impl Topic for SpacingCounts {
             if !self.was_alive[place] && body.alive {
                 self.born[place] = (tick > 0).then_some(second);
                 self.spawned_at[place] = Some(body.feet);
+            }
+            self.team_of[place] = body.team;
+            if body.alive
+                && self.born[place].is_none()
+                && self.first_move[place].is_none()
+                && self.spawned_at[place].is_some_and(|from| from.distance_xz(body.feet) > FIRST_MOVE_M)
+            {
+                self.first_move[place] = Some(tick);
             }
             self.was_alive[place] = body.alive;
             if !body.alive {
@@ -537,6 +564,30 @@ impl SpacingCounts {
                 if let Some(bin) = spawn_bin {
                     self.by_team[team].young.spawn[bin][0] += 1;
                 }
+                // The pair's heading: their walk keys' (the first that has one), else the way to a goal; the walkable width across it at their midpoint, for every 1 m pair and for the
+                // young pairs within NEAR_WIDTH_M (the width's denominator).
+                let (wa, wb) = (ra.and_then(walk_direction), rb.and_then(walk_direction));
+                let width_bin = (same_floor && (d < OVERLAP_M || (young && d < NEAR_WIDTH_M))).then(|| {
+                    let to_goal = |goal: Option<Vec3>, from: Vec3| {
+                        goal.and_then(|g| {
+                            let (dx, dz) = (g.x - from.x, g.z - from.z);
+                            let len = dx.hypot(dz);
+                            (len > 0.5).then(|| (dx / len, dz / len))
+                        })
+                    };
+                    let heading = wa.or(wb).or_else(|| to_goal(self.goal[i], a.feet)).or_else(|| to_goal(self.goal[j], b.feet));
+                    heading.map_or(WIDTH_EDGES_M.len() + 1, |h| {
+                        let mid = Vec3::new(0.5 * (a.feet.x + b.feet.x), a.feet.y.max(b.feet.y), 0.5 * (a.feet.z + b.feet.z));
+                        bin_of(free_width(&game.world.grid, mid, h), &WIDTH_EDGES_M)
+                    })
+                });
+                if young && same_floor {
+                    let y = &mut self.by_team[team].young;
+                    y.kind_pairs[usize::from(self.born[i].is_some()) + usize::from(self.born[j].is_some())] += 1;
+                    if let Some(bin) = width_bin.filter(|_| d < NEAR_WIDTH_M) {
+                        y.width_near[bin] += 1;
+                    }
+                }
                 if same_floor && d < FILE_MAX_M {
                     let ts = &mut self.by_team[team];
                     ts.near_pairs[bin_of(d, &GAP_EDGES_M)] += 1;
@@ -597,20 +648,7 @@ impl SpacingCounts {
                 };
                 let apart_state = worst(self.apart[i], self.apart[j]);
                 ts.apart_state[apart_state] += 1;
-                // The pair's heading: their walk keys' (the first that has one), else the way to a goal; the walkable width across it, the shape of the pair along it.
-                let (wa, wb) = (ra.and_then(walk_direction), rb.and_then(walk_direction));
-                let to_goal = |goal: Option<Vec3>, from: Vec3| {
-                    goal.and_then(|g| {
-                        let (dx, dz) = (g.x - from.x, g.z - from.z);
-                        let len = dx.hypot(dz);
-                        (len > 0.5).then(|| (dx / len, dz / len))
-                    })
-                };
-                let heading = wa.or(wb).or_else(|| to_goal(self.goal[i], a.feet)).or_else(|| to_goal(self.goal[j], b.feet));
-                let width_bin = heading.map_or(WIDTH_EDGES_M.len() + 1, |h| {
-                    let mid = Vec3::new(0.5 * (a.feet.x + b.feet.x), a.feet.y.max(b.feet.y), 0.5 * (a.feet.z + b.feet.z));
-                    bin_of(free_width(&game.world.grid, mid, h), &WIDTH_EDGES_M)
-                });
+                let width_bin = width_bin.unwrap_or(WIDTH_EDGES_M.len() + 1);
                 ts.young.width_all[width_bin] += 1;
                 if young {
                     let y = &mut ts.young;
@@ -633,6 +671,18 @@ impl SpacingCounts {
                     let adjacent = matches!((self.spawned_at[i], self.spawned_at[j]), (Some(p), Some(q)) if p.distance_xz(q) < ADJACENT_SPAWN_M);
                     y.origin[if !together { 2 } else if adjacent { 0 } else { 1 }] += 1;
                     y.apart[apart_state] += 1;
+                    let ahead_of = |walk: Option<(f32, f32)>, from: Vec3, to: Vec3| {
+                        walk.map(|(fx, fz)| {
+                            let (dx, dz) = (to.x - from.x, to.z - from.z);
+                            (dx * fx + dz * fz) > dx.hypot(dz) * AHEAD_RAD.cos()
+                        })
+                    };
+                    y.ahead[match (ahead_of(wa, a.feet, b.feet), ahead_of(wb, b.feet, a.feet)) {
+                        (Some(true), Some(false)) | (Some(false), Some(true)) => 0,
+                        (Some(true), Some(true)) => 1,
+                        (Some(false), Some(false)) => 2,
+                        _ => 3,
+                    }] += 1;
                 }
                 if sa >= MOVING_MPS && sb >= MOVING_MPS {
                     let bound = [(self.goal[i], b.feet), (self.goal[j], a.feet)]
@@ -653,8 +703,21 @@ impl SpacingCounts {
     fn part(&self) -> Part {
         let team = |t: usize| {
             let c = &self.by_team[t];
+            // The opening's first moves of the team's bodies: the spread after the earliest, and the first moves' ticks summed with their count.
+            let firsts: Vec<usize> = (0..self.first_move.len()).filter(|&p| usize::from(self.team_of[p] & 1) == t).filter_map(|p| self.first_move[p]).collect();
+            let mut spread = [0u64; SPREAD_EDGES_S.len() + 1];
+            if let Some(&earliest) = firsts.iter().min() {
+                for &first in &firsts {
+                    spread[bin_of((first - earliest) as f32 * TICK_MS as f32 / 1000.0, &SPREAD_EDGES_S)] += 1;
+                }
+            }
             // The A212 keys in an object of their own (one `json!` of every key passes the macro's recursion limit), merged into the team's.
             let young = serde_json::json!({
+                "opening_first_move_spread_s_lt025_075_15_3_up": spread,
+                "opening_first_move_ticks_sum_and_n": [firsts.iter().sum::<usize>(), firsts.len()],
+                "young_1m_ahead_one_both_neither_nowalk": c.young.ahead,
+                "young_pairs_by_kind_opening_mixed_respawn": c.young.kind_pairs,
+                "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": c.young.width_near,
                 "lane_unsafe_body_nofloor_body_edge_nofloor_edge_otherfloor": c.lane_unsafe,
                 "young_1m_cause_target_goal_follow_still_file_other": c.young.cause,
                 "young_1m_kind_opening_mixed_respawn": c.young.kind,
@@ -873,7 +936,8 @@ pub(crate) fn the_young_overlap_is_split_by_kind_spawn_distance_width_and_origin
     play(&mut game, &mut tally, 120, |k, game| {
         let x = 5.5 + 0.08 * k.saturating_sub(30) as f32;
         put(game, 0, x, 10.0, key::FORWARD);
-        put(game, 1, x, 10.6, key::FORWARD);
+        // Place 1 stands far off until it dies, so no pair-second is of two opening lives.
+        put(game, 1, if k < 10 { 30.0 } else { x }, 10.6, key::FORWARD);
         put(game, 2, 75.0, 30.0, 0);
         game.bodies[1].alive = !(10..30).contains(&k);
         vec![bot_now(); 3]
@@ -884,7 +948,13 @@ pub(crate) fn the_young_overlap_is_split_by_kind_spawn_distance_width_and_origin
     let young = sum("young_1m_cause_target_goal_follow_still_file_other");
     assert!(young >= 3, "{json}");
     assert_eq!(team0["young_1m_kind_opening_mixed_respawn"][1].as_u64().unwrap(), young, "one opening life and one respawn: {json}");
-    for key in ["young_1m_by_width_m_lt15_25_4_75_open_noheading", "young_1m_shape_file_abreast_crossing_standing", "young_1m_origin_together_adjacent_together_apart_different", "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied"] {
+    // The pairs' denominator holds every young pair-second of one opening and one respawned life (all on one floor), the overlap's among them.
+    assert!(team0["young_pairs_by_kind_opening_mixed_respawn"][1].as_u64().unwrap() >= young, "{json}");
+    // Only place 0's life is of the opening (place 1's is a respawn, place 2 never moves): one first move, the team's earliest.
+    assert_eq!(team0["opening_first_move_ticks_sum_and_n"][1], 1, "{json}");
+    assert_eq!(team0["opening_first_move_spread_s_lt025_075_15_3_up"][0], 1, "{json}");
+    assert_eq!(json["spacing"]["by_team"]["1"]["opening_first_move_ticks_sum_and_n"][1], 0, "{json}");
+    for key in ["young_1m_by_width_m_lt15_25_4_75_open_noheading", "young_1m_shape_file_abreast_crossing_standing", "young_1m_origin_together_adjacent_together_apart_different", "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied", "young_1m_ahead_one_both_neither_nowalk"] {
         assert_eq!(sum(key), young, "{key}: {json}");
     }
     assert_eq!(sum("all_1m_by_width_m_lt15_25_4_75_open_noheading"), team0["overlap_1m_pair_s"].as_u64().unwrap(), "{json}");
