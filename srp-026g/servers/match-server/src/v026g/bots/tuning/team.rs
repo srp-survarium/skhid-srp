@@ -508,6 +508,11 @@ pub struct AvoidTuning {
     pub ahead_ms: u32,
     /// How often a bot that is not stepping looks again at the grenades, ms.
     pub look_ms: u32,
+    /// A step out of a blast is walked as a person walks out of one (register #30): the floor is the nearest outside the radius whose
+    /// planned route fits what the legs can count on over the fuse that is left (`hazards::escape_reach_m`, not the sprint over
+    /// all of it), the walk is `Pace::Escape(EscapeWhy::Grenade)` (the sprint on any route, the sights, crouch, side steps and
+    /// trigger let go). Off: the nearest floor by link distance at 5 m/s, `Pace::Run` with the sights up.
+    pub escape: bool,
 }
 
 impl Default for AvoidTuning {
@@ -524,6 +529,7 @@ impl Default for AvoidTuning {
             margin_m: 0.5,
             ahead_ms: 1_000,
             look_ms: 200,
+            escape: false,
         }
     }
 }
