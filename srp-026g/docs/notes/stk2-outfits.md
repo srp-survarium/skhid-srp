@@ -247,6 +247,16 @@ against 10.1.
   researcher's gloves (the cuffs cover the forearms), and over the Loner's pants, the
   jeans, the track pants and three stock trousers from the side and from below (the hem
   over every waist, no gap). Pack `stk2-bandit@12`.
+- "It shines through ... not in the elbow, the waist" (from below, aiming): the bomber is
+  a short loose jacket with no body inside (its own T-shirt ends 0.98 to 1.15 m up, its
+  hem 0.92), and the native torso's waist faces that had filled it by mistake were gone;
+  from below, between the hem and the trousers, the background showed. It is now closed
+  inside its hem: a floor from the hem's inner side in to the native hips, both ways, with
+  the hem's leather (skin blending from the hem's to the hips'); every trousers' top comes
+  through it. Counted from below (six views, aiming, sprinting and crouching, against a
+  probe body inside): see-through pixels at the waist 27-669 before, 0-35 after, with the
+  Loner's pants, the jeans, the track pants and three stock trousers; the cuffs, armpits
+  and open front show none. Pack `stk2-bandit@13`.
 - "Let's make them buyable the same way the beanie is": sold by seller 0 to everyone at
   no rank at their prices, and still dropped (srp's `prices`, no pack change).
 - "The sweater is seen through the leather jacket": the bomber's bare forearms were the
@@ -286,7 +296,7 @@ against 10.1.
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@12`, `stk2-novice@12`,
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@13`, `stk2-novice@12`,
   `stk2-loner@12` (their pack.json sha256s). `release/build-content` composes them; the
   release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
