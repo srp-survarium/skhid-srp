@@ -248,6 +248,10 @@ pub struct Bot {
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
+    /// The regions K1's sprint and the lane smoke read: [`Self::threat`]'s, or (a `SniperMemory` switch apart from the
+    /// routes') those of the other held spots.
+    sprint_threat: Arc<threat::Covered>,
+    smoke_threat: Arc<threat::Covered>,
     /// [smoke] The team's held lanes, told at the commander's ticks while `smoke.cross_lane` is on.
     lanes: Arc<[threat::HeldLane]>,
     personality: usize,
@@ -460,6 +464,8 @@ impl Bot {
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
+            sprint_threat: Arc::default(),
+            smoke_threat: Arc::default(),
             lanes: Arc::from(Vec::new()),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,

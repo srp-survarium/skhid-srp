@@ -638,8 +638,8 @@ fn drive_tick_inner(
         && over.legs.is_none()
         && intent.pace == Pace::Walk
         && !intent.crouch
-        && !bot.threat.is_empty()
-        && bot.threat.exposed_at(&tactics.world.grid, me.feet)
+        && !bot.sprint_threat.is_empty()
+        && bot.sprint_threat.exposed_at(&tactics.world.grid, me.feet)
     {
         intent.pace = Pace::Run;
     }

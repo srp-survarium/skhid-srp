@@ -857,8 +857,8 @@ impl Sense {
     }
 }
 
-/// Which held spots the routes keep out of ([`Covered`]): all, or (`SniperMemory::keep_out` off) those of kills only, the
-/// sensed snipers' spots read by the plays alone (the objectives' ways, `bot.lanes`).
+/// Which held spots a consumer of [`Covered`] (the routes, K1's sprint, the lane smoke) reads: all, or (its
+/// `SniperMemory` switch off) those of kills only, the sensed snipers' spots then read by the others alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeptOut {
     All,
@@ -2309,7 +2309,12 @@ pub struct HeldLane {
 impl ThreatSpots {
     /// The spots held at `now`, as lanes.
     pub fn lanes(&self, now: u32) -> Vec<HeldLane> {
-        self.held(now)
+        self.lanes_kept(now, KeptOut::All)
+    }
+
+    /// [`Self::lanes`] of the spots `kept` keeps (`SniperMemory::smoke`).
+    pub fn lanes_kept(&self, now: u32, kept: KeptOut) -> Vec<HeldLane> {
+        self.kept(now, kept)
             .map(|s| HeldLane {
                 at: s.at,
                 shooter: s.shooter,
@@ -2328,6 +2333,9 @@ pub struct TeamThreat {
     pub spots: ThreatSpots,
     /// The regions his line covers now.
     pub covered: Option<std::sync::Arc<Covered>>,
+    /// [threat.sniper_memory] The regions of the kill spots' lines alone, while a consumer's switch keeps the sensed
+    /// snipers' spots out of it.
+    pub covered_kills: Option<std::sync::Arc<Covered>>,
     /// The team jobs on held spots (K2).
     pub jobs: Vec<Job>,
     /// Spots whose job ended, resting until then.
@@ -2674,7 +2682,9 @@ mod tests {
         seen.sort_unstable();
         assert_eq!(seen, vec![0, 1, 2, 3], "all round him");
         assert_eq!(spots.sniper_regions(1_500), vec![0, 1, 2, 3]);
-        assert!(spots.covered_regions_kept(1_500, KeptOut::KillsOnly).is_empty(), "keep_out off: the routes do not keep out of it");
+        assert!(spots.covered_regions_kept(1_500, KeptOut::KillsOnly).is_empty(), "routes off: the routes do not keep out of it");
+        assert!(spots.lanes_kept(1_500, KeptOut::KillsOnly).is_empty(), "smoke off: no lane of his for a smoke");
+        assert_eq!(spots.lanes_kept(1_500, KeptOut::All).len(), 1);
         assert!(spots.held_lines(1_500, NEW).is_empty(), "the jobs and the plays read no sniper spot");
         assert!(spots.held_of(5, 1_500, 1).is_empty(), "no kill behind it: no holder");
         assert_eq!(spots.held(1_000 + SEEN_MS + 1_000).count(), 0, "not sensed for a while: not held");
