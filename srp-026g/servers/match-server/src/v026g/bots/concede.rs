@@ -10,7 +10,7 @@
 //! One state per area ([`SpotState`]), one transition ([`step`]) over the events ([`SpotEvent`]), total. With the switch
 //! off (`ThreatTuning::concede` is `None`) nothing is recorded and every try is offered.
 
-use super::threat::{AREA_M, Role, TeamThreat};
+use super::threat::{AREA_M, Picture, Role, TeamThreat};
 use super::view::Place;
 use mapdata::Vec3;
 
@@ -86,6 +86,9 @@ pub enum SpotState {
 pub enum SpotEvent {
     /// A try failed.
     Failed { kind: TryKind, from: Vec3, why: Failed },
+    /// A death to him before his spot was a hold (how the team found him, not a try on him): it counts toward no concede,
+    /// but it is the last try, so the next must differ from it (`camper-decision-map.md` §2).
+    Found { from: Vec3 },
     /// Its shooter was killed: the area is open again.
     Succeeded,
 }
@@ -176,6 +179,9 @@ pub enum Tally {
     /// play: never refused, item 13).
     PlayRefused,
     ObjectiveWeighed,
+    /// The same for a target on a tried area whose try would be like the last ([`like_last`]).
+    PlayRefusedLike,
+    ObjectiveWeighedLike,
     /// A play taken whose target lies in a conceded area: an objective play (the objective's cost, item 13), another.
     TakenObjective,
     TakenOther,
@@ -188,7 +194,7 @@ pub enum Tally {
 }
 
 /// The [`Tally`]s, in order, and their names in the tally.
-pub const TALLIES: [(Tally, &str); 18] = [
+pub const TALLIES: [(Tally, &str); 20] = [
     (Tally::DeathBeforeHold, "deaths_before_hold"),
     (Tally::DeathPeek, "deaths_peek"),
     (Tally::DeathJob, "deaths_job"),
@@ -201,6 +207,8 @@ pub const TALLIES: [(Tally, &str); 18] = [
     (Tally::JobRefusedLike, "job_refused_like_last"),
     (Tally::PlayRefused, "play_refused"),
     (Tally::ObjectiveWeighed, "objective_weighed"),
+    (Tally::PlayRefusedLike, "play_refused_like_last"),
+    (Tally::ObjectiveWeighedLike, "objective_weighed_like_last"),
     (Tally::TakenObjective, "taken_objective_into_conceded"),
     (Tally::TakenOther, "taken_other_into_conceded"),
     (Tally::PeekWaitBegun, "peek_wait_begun"),
@@ -260,25 +268,24 @@ pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &Conc
         SpotState::Conceded { until, .. } if now >= until => SpotState::Open,
         s => s,
     };
-    match event {
-        SpotEvent::Succeeded => SpotState::Open,
-        SpotEvent::Failed { kind, from, why } => {
-            let last = Try { kind, bearing: bearing(at, from), at: now };
-            let add = u8::from(why.counts());
-            let fails = match state {
-                SpotState::Open => add,
-                SpotState::Tried { fails, .. } => fails.saturating_add(add),
-                // A failure while conceded (a lone bot's own try): a death concedes it again from now; else it stays as it
-                // was, with this try the last.
-                SpotState::Conceded { until, .. } if add == 0 => return SpotState::Conceded { until, last },
-                SpotState::Conceded { .. } => rules.fails,
-            };
-            if fails >= rules.fails {
-                SpotState::Conceded { until: now.saturating_add(rules.concede_ms), last }
-            } else {
-                SpotState::Tried { fails, last }
-            }
-        }
+    let (kind, from, add) = match event {
+        SpotEvent::Succeeded => return SpotState::Open,
+        SpotEvent::Found { from } => (TryKind::Peek, from, 0),
+        SpotEvent::Failed { kind, from, why } => (kind, from, u8::from(why.counts())),
+    };
+    let last = Try { kind, bearing: bearing(at, from), at: now };
+    let fails = match state {
+        SpotState::Open => add,
+        SpotState::Tried { fails, .. } => fails.saturating_add(add),
+        // A failure while conceded (a lone bot's own try): a death concedes it again from now; else it stays as it was, with
+        // this try the last.
+        SpotState::Conceded { until, .. } if add == 0 => return SpotState::Conceded { until, last },
+        SpotState::Conceded { .. } => rules.fails,
+    };
+    if fails >= rules.fails {
+        SpotState::Conceded { until: now.saturating_add(rules.concede_ms), last }
+    } else {
+        SpotState::Tried { fails, last }
     }
 }
 
@@ -309,6 +316,33 @@ pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shoote
         Change::ConcededAgain => tally(team, Tally::ConcededAgain),
         _ => {}
     }
+}
+
+/// A bot of team `team` died at `from` to `shooter`, sensed at `at`, before his spot was a hold: how the team found him,
+/// counted toward no concede, but the last try on his area, so the next must differ ([`SpotEvent::Found`]).
+pub fn found(threat: &mut TeamThreat, team: u8, from: Vec3, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) {
+    let memory = &mut threat.spot_memory;
+    let area = memory.area_of(at, Some(shooter), now);
+    memory.apply(area, SpotEvent::Found { from }, now, rules);
+    tally(team, Tally::DeathBeforeHold);
+}
+
+/// design-p1c §3 "each retry must differ from the last": whether a try of `kind` aimed at `to` by a bot at `feet` is like
+/// the last failed try on a tried held line of `picture` it aims into (within the line's area, or in its lanes): the same
+/// kind, within `retry_deg` of its bearing, sooner than `retry_ms` after it. A try aimed at his area comes from where the
+/// bot stands; one at a point of his lanes, from that point.
+pub fn like_last(picture: &Picture, to: Vec3, feet: Vec3, kind: TryKind, now: u32, rules: &ConcedeRules) -> bool {
+    picture.held.iter().any(|line| {
+        let Some(last) = picture.concede.last_try(line.id) else {
+            return false;
+        };
+        let into_area = line.at.distance_xz(to) <= AREA_M;
+        if !into_area && !line.covers(to) {
+            return false;
+        }
+        let from = if into_area { feet } else { to };
+        !differs(&last, &Try { kind, bearing: bearing(line.at, from), at: now }, rules)
+    })
 }
 
 /// Enemy `shooter` died at `now`: team `team`'s areas of his are open again.
@@ -563,6 +597,39 @@ mod tests {
         shooter_died(&mut threat, 1, 7, 7_000, &RULES);
         assert!(!threat.spot_memory.conceded_at(SPOT, 7_000), "his death opens it");
         assert_eq!(threat.spot_memory.offers(threat.spot_memory.area_at(SPOT).expect("kept"), 7_000), Offer::Any);
+    }
+
+    #[test]
+    fn deaths_that_find_him_concede_nothing_but_are_the_last_try() {
+        let mut threat = TeamThreat::default();
+        for (k, at) in [(1_000, 0.0), (2_000, 1.0), (3_000, 2.0)] {
+            found(&mut threat, 0, Vec3::new(0.0, 0.0, 20.0), 7, Vec3::new(at, 0.0, 0.0), k, &RULES);
+        }
+        let area = threat.spot_memory.area_at(SPOT).expect("kept");
+        assert!(matches!(threat.spot_memory.state(area, 3_000), SpotState::Tried { fails: 0, .. }));
+        assert!(matches!(threat.spot_memory.last_try(area), Some((TryKind::Peek, _, 3_000))));
+        died(&mut threat, 0, 3, Vec3::new(0.0, 0.0, 20.0), 7, SPOT, TryKind::Peek, 4_000, &RULES);
+        assert!(!threat.spot_memory.conceded(area, 4_000), "one counted death");
+        died(&mut threat, 0, 4, Vec3::new(20.0, 0.0, 0.0), 7, SPOT, TryKind::Peek, 5_000, &RULES);
+        assert!(threat.spot_memory.conceded(area, 5_000));
+    }
+
+    #[test]
+    fn a_try_into_a_tried_lane_is_like_the_last_until_its_angle_or_time_differs() {
+        use crate::v026g::bots::threat::HeldLine;
+        let victim = Vec3::new(0.0, 0.0, 20.0);
+        let line = HeldLine::for_test(7, 9, SPOT, &[victim], Some(0));
+        let last = Try { kind: TryKind::Peek, bearing: bearing(SPOT, victim), at: 10_000 };
+        let picture = Picture { held: vec![line], concede: Offers { conceded: Vec::new(), tried: vec![(7, last)] }, ..Picture::default() };
+        let lane = Vec3::new(0.0, 0.0, 25.0);
+        let far = Vec3::new(60.0, 0.0, 60.0);
+        assert!(like_last(&picture, lane, far, TryKind::Peek, 20_000, &RULES), "a point of his lane, 10 s after");
+        assert!(!like_last(&picture, lane, far, TryKind::Peek, 40_000, &RULES), "30 s after");
+        assert!(!like_last(&picture, lane, far, TryKind::Answer, 20_000, &RULES), "another kind");
+        assert!(!like_last(&picture, far, far, TryKind::Peek, 20_000, &RULES), "not into his area or lanes");
+        // At him: from where the bot stands, in the lane (like) or off it by 90 deg (not).
+        assert!(like_last(&picture, Vec3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 30.0), TryKind::Peek, 20_000, &RULES));
+        assert!(!like_last(&picture, Vec3::new(1.0, 0.0, 1.0), Vec3::new(30.0, 0.0, 0.0), TryKind::Peek, 20_000, &RULES));
     }
 
     #[test]

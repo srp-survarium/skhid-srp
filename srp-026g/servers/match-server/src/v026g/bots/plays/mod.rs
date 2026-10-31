@@ -1036,27 +1036,41 @@ impl Ctx<'_> {
     /// elsewhere; an objective or alarm play is weighed by `Concede::objective_weight`, never refused, so another objective
     /// goes first and the only one is not stalled (item 13). 1 with the switch off, nothing conceded, no place for the
     /// target, or a play for the bot itself (Retreat, Heal, Resupply).
+    ///
+    /// The same holds on a tried area for a try like the last (`concede::like_last`, design-p1c §3 "each retry must differ
+    /// from the last"): the same lane within `retry_s` of a death there. A K2 job's play (its target the spot) is not a
+    /// lone try: its job was checked against the last try when it opened.
     fn concede_weight(&self, kind: PlayKind, target: TargetRef, rank: Rank) -> f32 {
+        use super::concede::{Tally, TryKind, like_last, tally};
         let Some(concede) = self.tuning.threat.concede else {
             return 1.0;
         };
-        if self.team.threat.concede.conceded.is_empty() || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply) {
+        let offers = &self.team.threat.concede;
+        if (offers.conceded.is_empty() && offers.tried.is_empty())
+            || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply)
+        {
             return 1.0;
         }
         let Some(to) = self.point_of(target) else {
             return 1.0;
         };
-        if self.team.threat.conceded_at(to).is_none() {
+        let try_kind = if kind == PlayKind::Answer { TryKind::Answer } else { TryKind::Peek };
+        let (refused, weighed) = if self.team.threat.conceded_at(to).is_some() {
+            (Tally::PlayRefused, Tally::ObjectiveWeighed)
+        } else if !matches!(target, TargetRef::ThreatSpot(_))
+            && like_last(&self.team.threat, to, self.me.feet, try_kind, self.now, &concede.rules())
+        {
+            (Tally::PlayRefusedLike, Tally::ObjectiveWeighedLike)
+        } else {
             return 1.0;
-        }
-        use super::concede::{Tally, tally};
+        };
         match rank {
             Rank::Objective | Rank::Alarm => {
-                tally(self.me.team, Tally::ObjectiveWeighed);
+                tally(self.me.team, weighed);
                 concede.objective_weight()
             }
             Rank::Fight | Rank::Roam => {
-                tally(self.me.team, Tally::PlayRefused);
+                tally(self.me.team, refused);
                 0.0
             }
         }

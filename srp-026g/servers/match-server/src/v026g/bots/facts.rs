@@ -199,7 +199,7 @@ impl Bots {
                             let play = if answering { super::concede::TryKind::Answer } else { super::concede::TryKind::Peek };
                             super::concede::died(&mut self.teams[team].features.threat, team as u8, a.place, death.at, killer, at, play, time, &concede.rules());
                         } else {
-                            super::concede::tally(team as u8, super::concede::Tally::DeathBeforeHold);
+                            super::concede::found(&mut self.teams[team].features.threat, team as u8, death.at, killer, at, time, &concede.rules());
                         }
                     }
                 }

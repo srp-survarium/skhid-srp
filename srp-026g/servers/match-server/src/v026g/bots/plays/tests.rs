@@ -545,6 +545,8 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     use crate::v026g::bots::tuning::Concede;
     let battery = Vec3::new(30.0, 0.0, 35.0);
     let mut s = Scenario::field(Mode::Batteries);
+    // Late enough for a try 40 s before.
+    s.view.clock = s.view.clock.max(60_000);
     s.tuning.threat.concede = Some(Concede::default());
     s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
     s.battery(BatteryState::Free(battery));
@@ -564,10 +566,25 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     assert_eq!(collect(&s), Some(clear), "held, not conceded");
     assert_eq!(roam(&s), Some(roam_clear));
     let concede = crate::v026g::bots::concede::Offers { conceded: vec![7], tried: Vec::new() };
-    s.team.threat = Arc::new(Picture { held: vec![line], concede, ..Picture::default() });
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
     let weighed = collect(&s).expect("weighed, not refused");
     assert!((weighed - clear * Concede::default().objective_weight()).abs() < 1e-4, "{weighed} vs {clear}");
     assert_eq!(roam(&s), None, "a roam into his lane is refused");
+    // Tried, not conceded: his last victim died on this lane 10 s ago, so a roam into it is like the last try and refused,
+    // the Collect weighed; 40 s after, it differs by its time.
+    let now = s.view.clock;
+    let last = crate::v026g::bots::concede::Try {
+        kind: crate::v026g::bots::concede::TryKind::Peek,
+        bearing: crate::v026g::bots::concede::bearing(line.at, battery),
+        at: now.saturating_sub(10_000),
+    };
+    let concede = crate::v026g::bots::concede::Offers { conceded: Vec::new(), tried: vec![(7, last)] };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    assert_eq!(roam(&s), None, "like the last try");
+    assert!(collect(&s).is_some_and(|w| (w - weighed).abs() < 1e-4));
+    let concede = crate::v026g::bots::concede::Offers { conceded: Vec::new(), tried: vec![(7, crate::v026g::bots::concede::Try { at: now.saturating_sub(40_000), ..last })] };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    assert_eq!(roam(&s), Some(roam_clear), "30 s past it");
     // Off: as it was.
     s.tuning.threat.concede = None;
     assert_eq!(collect(&s), Some(clear));
