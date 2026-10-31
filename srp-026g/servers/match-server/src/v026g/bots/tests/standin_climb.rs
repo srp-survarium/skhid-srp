@@ -61,6 +61,10 @@ pub(crate) struct Climbs {
     pub(crate) made: [u32; 4],
     /// Of those, the ones over the way's [`Way::limit_m`].
     pub(crate) over: [u32; 4],
+    /// The ticks a jump walked on the floor before leaving it, and those whose move the client's capsule would have held at a wall
+    /// (`SRP_BENCH_STAND_IN_CORNER=on` only; held for real with `SRP_BENCH_STAND_IN_JUMP_WALL=on`).
+    pub(crate) prewalk_ticks: u32,
+    pub(crate) prewalk_held: u32,
     lines: Vec<String>,
 }
 
@@ -99,6 +103,7 @@ impl Climbs {
             .map(|(i, w)| format!("{} {}/{}", w.name(), self.over[i], self.made[i]))
             .collect();
         let hours = self.alive_ticks as f64 * f64::from(survarium::v026g::match_msgs::TICK_MS) / 3_600_000.0;
+        parts.push(format!("jump_prewalk_held {}/{}", self.prewalk_held, self.prewalk_ticks));
         parts.push(format!("body_hours {hours:.2}"));
         format!("climbs (over limit/made): {}", parts.join(" "))
     }
@@ -112,6 +117,8 @@ impl Climbs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::tests::standin_jump;
+    use crate::v026g::drive::key;
 
     #[test]
     fn a_rise_over_the_ways_limit_is_kept_and_a_small_one_is_not_counted() {
@@ -126,5 +133,169 @@ mod tests {
         assert_eq!(c.lines().len(), 1);
         assert!(c.lines()[0].contains("lift rise 1.14"), "{}", c.lines()[0]);
         assert!(c.line().contains("lift 1/1") && c.line().contains("walk 0/1"), "{}", c.line());
+    }
+
+    /// A ledge 3 m up from x 10, and a slab's face over it that the lattice does not know (x 10.6, 3.65 to 4.14 m, the proportions of the real
+    /// slab over the real ledge; the grid is built without it, as the real grid has the ledge's cells up to the platform's edge): a body that
+    /// presses jump at the face walks off the edge and falls unless the jump's walk is held by the capsule rule, and then it jumps in place
+    /// (A199, Chemical Plant day 4's pipe-top ledge under the side-1 platform).
+    #[test]
+    fn a_jump_at_a_slab_over_an_edge_does_not_walk_through_it_when_held() {
+        use crate::v026g::bots::body::tests::wall_x;
+        use crate::v026g::bots::tests::standin_capsule::Sections;
+        let ledge = standin_jump::ledge_triangles(3.0, mapdata::WalkerBehaviour::BySlope);
+        // The face looks east (toward the body), as the walker mesh's faces look out of their objects.
+        let slab: Vec<_> = wall_x(10.6, 0.0, 10.0)
+            .map(|mut t| {
+                t.v.iter_mut().for_each(|v| v.y = 3.65 + v.y * 0.49 / 3.0);
+                t.v.swap(1, 2);
+                t
+            })
+            .to_vec();
+        let all: Vec<_> = ledge.iter().chain(&slab).copied().collect();
+        let grid = mapdata::WalkGrid::build(&ledge, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::client());
+        let walls = mapdata::RayTree::build(&all);
+        let sections = Sections::new(&all, grid.body().min_ground_normal_y);
+        let mut body = standin_jump::honest_body(&grid, Vec3::new(11.1, 3.0, 5.0));
+        body.yaw = std::f32::consts::FRAC_PI_2;
+        let jump = key::FORWARD | key::JUMP;
+        let (free, _) = standin_jump::honest_jump_in(&grid, &walls, None, body.clone(), jump, 0.0);
+        let (held, _) = standin_jump::honest_jump_in(&grid, &walls, Some(&sections), body, jump, 0.0);
+        assert!(free.y < 0.5, "unheld, the body walks off the edge and falls: {free:?}");
+        assert!((held.y - 3.0).abs() < 0.1 && held.x > 10.9, "held, it stays on the ledge: {held:?}");
+    }
+
+    /// A measurement (A199): the lattice's floors and walk links around a point of a real map, how high a chain of walk links (each at most the
+    /// grid body's step) reaches within a radius, and the height a body walking straight west from the point makes on `slide_supported` and
+    /// `slide_capped`. `SRP_MAPDATA_DIR=<mapdata folder> SRP_CLIMB_PROJECT=level_04/day_4 SRP_CLIMB_AT=108.62,11.54,73.82 SRP_CLIMB_DIR=-1,0
+    /// cargo test -p match-server --release climb_probe -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
+    fn climb_probe() {
+        use crate::v026g::bots::body::{slide_capped, slide_supported};
+        use crate::v026g::bots::tests::bench_tuning;
+        use mapdata::World;
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        let project = std::env::var("SRP_CLIMB_PROJECT").unwrap_or_else(|_| "level_04/day_4".to_owned());
+        let nums = |name: &str, default: &str| -> Vec<f32> {
+            std::env::var(name).unwrap_or_else(|_| default.to_owned()).split(',').map(|s| s.trim().parse().unwrap()).collect()
+        };
+        let at = nums("SRP_CLIMB_AT", "108.62,11.54,73.82");
+        let dir_xz = nums("SRP_CLIMB_DIR", "-1,0");
+        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
+        let links = bench_tuning().off_mesh_links();
+        let world = World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, false);
+        let grid = &world.grid;
+        let start = grid.locate(Vec3::new(at[0], at[1], at[2]), 0.3).expect("a floor at the point");
+        let p0 = grid.position(start);
+        println!("grid body step {} cell {}; start floor {:.3} {:.3} {:.3}", grid.body().step, grid.cell_size(), p0.x, p0.y, p0.z);
+        // The highest floor a chain of walk links, each of a rise within the step, reaches within 2.5 m of the start.
+        let mut seen = std::collections::HashMap::new();
+        let mut queue = std::collections::VecDeque::from([(start, 0u32)]);
+        seen.insert(start, (start, 0u32));
+        while let Some((node, depth)) = queue.pop_front() {
+            let a = grid.position(node);
+            for (next, kind) in grid.links(node) {
+                if kind.is_leap() || seen.contains_key(&next) {
+                    continue;
+                }
+                let b = grid.position(next);
+                if b.distance_xz(p0) > 2.5 || b.y - a.y > grid.body().step {
+                    continue;
+                }
+                seen.insert(next, (node, depth + 1));
+                queue.push_back((next, depth + 1));
+            }
+        }
+        let mut top = start;
+        for &n in seen.keys() {
+            if grid.position(n).y > grid.position(top).y {
+                top = n;
+            }
+        }
+        let t = grid.position(top);
+        println!("walk-chain reach within 2.5 m: {} floors, the highest {:.3} {:.3} {:.3} (+{:.2} m)", seen.len(), t.x, t.y, t.z, t.y - p0.y);
+        let mut chain = vec![top];
+        while let Some(&(from, _)) = seen.get(chain.last().unwrap()) {
+            if from == *chain.last().unwrap() {
+                break;
+            }
+            chain.push(from);
+        }
+        for n in chain.iter().rev() {
+            let p = grid.position(*n);
+            println!("  chain floor {:.3} {:.3} {:.3}", p.x, p.y, p.z);
+        }
+        // A body walking along `dir`, 0.2 m a tick, 30 ticks.
+        let (len, ) = (dir_xz[0].hypot(dir_xz[1]),);
+        let step = Vec3::new(0.2 * dir_xz[0] / len, 0.0, 0.2 * dir_xz[1] / len);
+        for (name, supported) in [("slide_supported", true), ("slide_capped", false)] {
+            let (mut node, mut feet) = (start, p0);
+            let mut line = String::new();
+            for tick in 0..30 {
+                let to = feet + step;
+                (node, feet, _) = if supported {
+                    slide_supported(grid, node, feet, to, grid.body().step, crate::v026g::bots::body::SUPPORT_M)
+                } else {
+                    slide_capped(grid, node, feet, to, grid.body().step)
+                };
+                if tick % 3 == 2 {
+                    line.push_str(&format!(" ({:.2},{:.2})", feet.x, feet.y));
+                }
+            }
+            println!("{name} walking {dir_xz:?}:{line}");
+        }
+        // The same walk under the client's capsule rule (`SRP_BENCH_STAND_IN_CORNER=on`): the move the walker mesh lets the body make, then the lattice.
+        {
+            use crate::v026g::bots::tests::standin_capsule::{RADIUS_M, Sections, Seg, client_move};
+            let sections = Sections::new(&world.map.walker_triangles(), grid.body().min_ground_normal_y);
+            let (mut node, mut feet) = (start, p0);
+            let (mut line, mut segs) = (String::new(), Vec::<Seg>::new());
+            for tick in 0..30 {
+                let mv = (step.x, step.z);
+                let reach = mv.0.hypot(mv.1) + RADIUS_M + 0.6;
+                sections.near((feet.x, feet.z), feet.y, false, reach, &mut segs);
+                let held = client_move(&segs, (feet.x, feet.z), mv, RADIUS_M);
+                let target = Vec3::new(held.to.0, feet.y, held.to.1);
+                (node, feet, _) = slide_supported(grid, node, feet, target, grid.body().step, crate::v026g::bots::body::SUPPORT_M);
+                if tick % 3 == 2 {
+                    line.push_str(&format!(" ({:.2},{:.2})", feet.x, feet.y));
+                }
+            }
+            println!("capsule + slide_supported walking {dir_xz:?}:{line}");
+        }
+        // The honest jump from the point: eight ways, the short jump (forward + jump, at rest) and the sprint jump (at 5 m/s).
+        let walls = mapdata::RayTree::build(&world.map.walker_triangles());
+        let mut from_body = super::super::standin_jump::honest_body(grid, p0);
+        from_body.feet = p0;
+        for (name, keys, speed) in [
+            ("short", key::FORWARD | key::JUMP, 0.0),
+            ("sprint", key::FORWARD | key::SPRINT | key::JUMP, 5.0),
+            ("in place", key::JUMP, 0.0),
+        ] {
+            let mut line = String::new();
+            for k in 0..8 {
+                let mut body = from_body.clone();
+                body.yaw = k as f32 * std::f32::consts::FRAC_PI_4;
+                let (to, top) = super::super::standin_jump::honest_jump(grid, &walls, body, keys, speed);
+                line.push_str(&format!(" [yaw {k}: ({:.2},{:.2},{:.2}) top {top:.2}]", to.x, to.y, to.z));
+            }
+            println!("jump {name}:{line}");
+        }
+        // The same jumps with the walk before them held by the capsule rule (`SRP_BENCH_STAND_IN_JUMP_WALL=on`).
+        let sections = crate::v026g::bots::tests::standin_capsule::Sections::new(&world.map.walker_triangles(), grid.body().min_ground_normal_y);
+        for (name, keys, speed) in [("short", key::FORWARD | key::JUMP, 0.0), ("sprint", key::FORWARD | key::SPRINT | key::JUMP, 5.0)] {
+            let mut line = String::new();
+            for k in 0..8 {
+                let mut body = from_body.clone();
+                body.yaw = k as f32 * std::f32::consts::FRAC_PI_4;
+                let (to, top) = super::super::standin_jump::honest_jump_in(grid, &walls, Some(&sections), body, keys, speed);
+                line.push_str(&format!(" [yaw {k}: ({:.2},{:.2},{:.2}) top {top:.2}]", to.x, to.y, to.z));
+            }
+            println!("jump held {name}:{line}");
+        }
     }
 }
