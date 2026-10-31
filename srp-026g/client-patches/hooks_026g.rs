@@ -1119,7 +1119,7 @@ pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
 
 // ---- lobby_scene (patch 81) ----
 
-/// The entry `lobby_scene_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction) calls this with the saved machine.
+/// The entry `lobby_scene_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_lobby_scene_on_squad(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `lobby_scene_on_squad` calls this, from the game's jump at 0x2748bc,

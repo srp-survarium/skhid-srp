@@ -137,7 +137,7 @@ impl<'t> LobbyCamera<'t> {
     /// side angle 0, the distance and its target 1.96 m), when patch 45's camera is the stock one
     /// (no weapon at the bench, no flight): a new lobby's first view (patch 81).
     pub fn to_stock_pose(&mut self) {
-        if !WeaponTableState::of(self._thread).at_stock() {
+        if WeaponTableState::of(self._thread).camera() != TableCamera::Stock {
             return;
         }
         let t = self.ticker;
@@ -249,6 +249,16 @@ pub enum FlightWord {
     Resting = 2,
 }
 
+/// Whose the lobby camera is, by patch 45's state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TableCamera {
+    /// The stock camera's: the table off and no flight.
+    Stock,
+    /// The table's: a weapon at the lobby's spot (read from the lobby's
+    /// project when the table turned on), or the flight there or back.
+    Table,
+}
+
 /// Patch 45's state (weapon_table_026g.asm's STATE, `.srpd`).
 pub struct WeaponTableState<'t> {
     state: raw::WeaponTable,
@@ -277,10 +287,11 @@ impl<'t> WeaponTableState<'t> {
         }
     }
 
-    /// Whether patch 45's camera is the stock one: the table off and no flight.
-    pub fn at_stock(&self) -> bool {
+    /// Whose the camera is: the stock camera's with the table off and no flight.
+    pub fn camera(&self) -> TableCamera {
         // SAFETY: as request.
-        unsafe { *self.state.table() == 0 && *self.state.flight() == FlightWord::Stock as u32 }
+        let stock = unsafe { *self.state.table() == 0 && *self.state.flight() == FlightWord::Stock as u32 };
+        if stock { TableCamera::Stock } else { TableCamera::Table }
     }
 
     pub fn set_flight(&mut self, word: FlightWord) {

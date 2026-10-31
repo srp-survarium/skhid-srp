@@ -7513,7 +7513,7 @@ pub mod site {
         }
     }
 
-    /// lobby_client.squad_read (0x2748bc): read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction
+    /// lobby_client.squad_read (0x2748bc): read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none)
     pub mod lobby_client_squad_read {
         #[allow(unused_imports)]
         use super::*;
