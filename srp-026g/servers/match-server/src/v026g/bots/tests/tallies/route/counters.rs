@@ -150,6 +150,19 @@ pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// What `think.wall_clear_corners` did (`path::wall_clear_counts`, A191b): the routes it looked at, the corners under the hold and
+/// how many it moved or kept, the legs dipping under the radius and how many it gave a corner or kept, and the metres it added.
+/// Printed only when it looked at a route.
+pub(super) fn wall_clear() -> Box<dyn RouteTopic> {
+    use super::super::path::wall_clear_counts::{NAMES, counts};
+    Delta::of(counts, |d, line| {
+        if d[0] > 0 {
+            let fields: Vec<String> = NAMES.iter().zip(d).map(|(name, n)| format!("{name} {n}")).collect();
+            line.tail.push(format!("wall_clear {}", fields.join(" ")));
+        }
+    })
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

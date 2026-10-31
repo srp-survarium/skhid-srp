@@ -139,6 +139,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(probe::Probe::new(bodies)),
         Box::new(fields::Fields::new(bodies)),
         Box::new(passes::Passes::new(bodies)),
+        wall_clear(),
     ]
 }
 
