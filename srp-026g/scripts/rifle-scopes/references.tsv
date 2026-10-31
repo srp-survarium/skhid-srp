@@ -1,0 +1,10 @@
+# 0.69d0 modules our sold optics' variants are made of (patch 19's 0.51c5 modules, placed by locfit.py): make_pack.py
+# finds, in each variant, a module's surfaces moved by the weapon's mount translation (picatinny optics only: their
+# origin is the rail's)
+collimators/aimpoint_compm4_collimator
+collimators/eotech_552_collimator
+collimators/docter_red_dot_sight_collimator
+collimators/leupold_dppro_collimator
+collimators/walther_competition2_collimator
+scopes/acog_ta31_4x32_scope
+scopes/elcan_specterdr01_1x4x_scope
