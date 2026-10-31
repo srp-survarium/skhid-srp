@@ -1482,7 +1482,8 @@ fn drive_tick_inner(
             pose.gait = match intent.pace {
                 Pace::Run => motor::Gait::Run,
                 Pace::Escape(_) => motor::Gait::Escape,
-                _ => motor::Gait::Walk,
+                Pace::Cruise | Pace::Arrive => motor::Gait::Cruise,
+                Pace::Walk | Pace::Sneak => motor::Gait::Walk,
             };
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
