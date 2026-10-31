@@ -1,40 +1,23 @@
-# Lobby scenes
+# Lobby packs: the 0.46c2 hangar and the 0.69d camp
 
-The project the lobby menu loads behind the character. 0.26g loads `projects/lobby_scene/day`
-(`client_patch.md` section 3.42); choosing another one is separate work (exe + Flash). The scenes
-below are content only: each is a project of its own next to the classic one, which stays as it is.
+The two lobby projects resource-porter makes from the 0.46c2 and 0.69d lobbies, packs
+lobby-hangar-046 and lobby-camp-069: their sources, the manifests' choices and each version. What
+a lobby project must give, the lobby window and the upgrade view are the lobby selection's
+(`lobby-scenes.md`, #778).
 
-## Common to every lobby scene
+## Both packs
 
-- The character stands at the origin facing -z (yaw pi): the exe puts him there
-  (lobby menu+694h, 0x21CCD2). Both donors' `gameplay/lobby_menu.options` agree:
-  `local_player` at (0, 0, 0), `rotation_y` 180. So each scene keeps its donor's coordinates.
-- The stock camera always looks at (0, height, 0) from distance 1.5..4.6 (the wheel); its eye is
-  `point - distance * forward`, forward = (-sin yaw * cos pitch, sin pitch, cos yaw * cos pitch).
-- The project is a client project only (`client_project`, no `.lua`, no server project). Its
-  vegetation files are in `projects/lobby_scene/vegetation/<scene>/`: all lobbies share the level
-  folder `projects/lobby_scene/`.
-- What the lobby choice (client patch 81) takes from it, in each pack's project:
-  - the classic lobby's camera `track` (copied: a project without one is refused) and the root
-    `camera`;
-  - `srp_lobby = { weapon = float3(...), weapon_view = <radians> }`, patch 45's weapon spot;
-    `weapon_view = atan2(-dx, dz)` of the donor's own view direction there (the 0.26 camera's
-    convention, forward = (-sin yaw, 0, cos yaw));
-  - collision on every wall the camera's orbit (1.5..4.6 m) can cross: its distance is cut by a
-    ray against the project's static collision. Where a wall's own collision is open (a window,
-    a doorway) the pack adds an invisible box (0.26's unit box `editor/walker_collision`, scaled;
-    the classic's static groups, cgroup 8, cmask 16).
-- Sounds: the classic lobby's `sounds/background` and `sounds/lobby_room_tone` (the donors' sound
-  environments have no 0.26 counterpart).
+- Each is a client project of its own beside the classic `lobby_scene/day`, which stays as it
+  is: `client_project` with no `.lua` and no server project; its vegetation files in
+  `projects/lobby_scene/vegetation/<scene>/`.
 - Made by resource-porter (`vostok-port build-survarium-later-scene`, branch
   `feat/lobby-scenes-046-069`; its `docs/survarium-069d-to-026.md`, "Lobby scenes"), shipped as
   one content pack per scene, so either can ship or change alone.
-- To see one before the choice exists: locally only, a test patch with the scene in place of the
-  classic one (`vostok-port pack patch ... --replace
-  projects/lobby_scene/day/client_project=<the scene's client_project>`). Never committed.
-- Display spots: the stock weapon display (client patch 45) is BENCH (4.25, 1.30, 3.05) of the
-  classic scene. Each scene's own spots are below; heights are of the surface under them, read
-  from the meshes.
+- Sounds: the classic lobby's `sounds/background` and `sounds/lobby_room_tone` (the donors' sound
+  environments have no 0.26 counterpart).
+- To see one locally: a test patch with the scene in place of the classic one (`vostok-port pack
+  patch ... --replace projects/lobby_scene/day/client_project=<the scene's client_project>`), or
+  the lobby window of #778. Never committed.
 
 ## lobby_scene/hangar_046 (pack lobby-hangar-046@8)
 
@@ -192,13 +175,14 @@ below are content only: each is a project of its own next to the classic one, wh
   (scene_changed, then parameters_changed) take the scene view's final parameters, and their
   timing did not follow the state.
 - @10 (the owner, 2026-10-31: "I think in room the door got lost"): the right wall's doorway
-  (door_01's frame, x 1.65, z 2.1..3.4) showed a dark hole. Nothing was dropped: both donor doors
+  (door_01's frame, x 1.65, z 2.1..3.4) was a black hole. Nothing was dropped: both donor doors
   are in the project (`props/door/wood_door_01` at (1.76, 0, 2.1), its leaf swung open behind the
-  wall, and the double door `wood_door_02` beyond the doorway). Their leaves are one-sided panels
-  (material `hq/door/wood_door_01`, two_sided false in 0.69d too) that face away from the room:
-  0.69d's fixed camera never saw their back, 0.26 culls it. The porter's new
-  `two_sided_materials` draws that material from both sides (its own template and textures), so
-  the doorway shows the panelled door again.
+  wall, and the double door `props/door/wood_door_02` beyond the doorway). The donor placed the
+  double door at rotation (-pi, -1.453, -pi), facing out of the room; 0.69d's fixed camera never
+  showed it, and 0.26's orbit sees its one-sided leaves from behind, unlit. The manifest's
+  `instance_rotations` turns it to (0, 1.689, 0): its panelled leaf fills the doorway, lit
+  (captured in a game, before and after). Drawing the leaves two-sided did not help (their backs
+  are unlit).
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
