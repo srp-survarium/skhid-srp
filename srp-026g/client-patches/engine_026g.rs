@@ -123,6 +123,8 @@ unsafe extern "C" {
     pub fn engine_show_cursor(ui: *mut c_void, shown: u32);
     /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
     pub fn engine_send_important(messaging: *mut c_void, target: *const u8, r#type: u32, text: *const u8);
+    /// 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+    pub fn engine_medkit_set_active(medkit: *mut c_void, active: u32, time: u32);
 }
 
 #[allow(dead_code)]

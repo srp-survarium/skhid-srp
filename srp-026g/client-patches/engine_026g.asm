@@ -78,6 +78,7 @@ global engine_release_model
 global engine_explosion_reach
 global engine_show_cursor
 global engine_send_important
+global engine_medkit_set_active
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1065,6 +1066,23 @@ engine_send_important:
     push dword [esp + 28]   ; messaging -> 4
     mov edx, [esp + 44]   ; text
     call 0x26afb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_medkit_set_active:
+    ; 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; time -> 8
+    push dword [esp + 24]   ; medkit -> 4
+    mov eax, [esp + 32]   ; active
+    call 0x33d390
     pop edi
     pop esi
     pop ebx

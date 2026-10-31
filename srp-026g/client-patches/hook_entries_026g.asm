@@ -1155,6 +1155,45 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
+global drug_interrupt_on_hit_applied
+extern hook_drug_interrupt_on_hit_applied
+drug_interrupt_on_hit_applied:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_drug_interrupt_on_hit_applied
+    mov edx, drug_interrupt_on_hit_applied_replay
+    cmp eax, 0
+    je drug_interrupt_on_hit_applied_go
+    mov edx, 0x2d9cb7
+    cmp eax, 1
+    je drug_interrupt_on_hit_applied_go
+    ud2
+drug_interrupt_on_hit_applied_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+drug_interrupt_on_hit_applied_replay:
+    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
+    jmp 0x2d9cb7
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain

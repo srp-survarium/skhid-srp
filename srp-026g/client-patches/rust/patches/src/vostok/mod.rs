@@ -96,5 +96,6 @@ pub mod project;
 pub use project::{RenderVisual, ObjectLight, GameScene};
 
 pub mod history;
+pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

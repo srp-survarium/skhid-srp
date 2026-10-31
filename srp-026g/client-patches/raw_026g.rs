@@ -129,6 +129,8 @@ unsafe extern "C" {
     pub fn engine_show_cursor(ui: Option<GameWorldUi>, shown: u32);
     /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
     pub fn engine_send_important(messaging: Option<MessagingClient>, target: *const u8, r#type: u32, text: *const u8);
+    /// 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+    pub fn engine_medkit_set_active(medkit: Option<Medkit>, active: u32, time: u32);
 }
 
 #[allow(dead_code)]
@@ -2180,6 +2182,15 @@ impl Medkit {
     #[inline(always)]
     pub unsafe fn use_delay(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x2a4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x288 (u8): data/influences' count, the pools it heals (medkit::tick's loop 0x33D8BB; 0 for the painkiller, which only protects)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn influences(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x288).cast::<u8>().as_ptr() }
     }
 }
 
@@ -4914,6 +4925,39 @@ impl KeyStateStorage {
     }
 }
 
+/// A survarium::hit_info (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HitInfo(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HitInfo {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (u32): the hit type, hit_type_enum (survarium::hit_type 0x304370 indexes the names at 0x9257E0: 0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock); hit_info::hit_info 0x32BA0E; a bullet's is its ammo_data +4Ch (damage_type, 0 when the config has none: ammo_data::load 0x332725), try_pierce 0x32D9FD
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x3c (u32): the hit's simulation milliseconds (hit_info::hit_info 0x32BA4F, a bullet's +60h from try_pierce 0x32DA33; generate_killed_event's time 0x2D9F0E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x3c).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -6202,6 +6246,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldInput)
+        }
+    }
+
+    /// player.hit_applied (0x2d9cb1): base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation
+    pub mod player_hit_applied {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// ESI: a survarium::hit_info (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitInfo)
         }
     }
 }

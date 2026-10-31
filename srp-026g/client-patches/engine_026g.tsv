@@ -73,3 +73,4 @@ engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(s
 engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	
 engine_show_cursor	0x23a930	EDI:hud ESP+4:shown	void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)	thunk	
 engine_send_important	0x26afb0	ESP+4:messaging ESP+8:target ESP+12:type EDX:text	void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)	thunk	
+engine_medkit_set_active	0x33d390	ESP+4:medkit AL:active ESP+8:time	void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)	thunk	

@@ -242,3 +242,6 @@ extern engine_show_cursor
 ; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
 ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
 extern engine_send_important
+; void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)
+; 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+extern engine_medkit_set_active

@@ -2538,6 +2538,61 @@ places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
 
+### A bullet stops a drug (patch 84)
+
+`drug_interrupt` (Rust, `vostok::drug`) is a lohook at 0x2D9CB1 in
+`base_player::hit_impl` (0x2D9B90): `mov edi,esi / cmp dword [edi+40h],0` (6
+bytes, replayed; the je at 0x2D9CB7 takes their flags), right after
+`damage_model::hit_body_part` (0x2E5080) returned 1. It returns 1 when the
+hit's damage, (1 - invulnerability) x hit+34h through the part's protectors
+and armour (`body_part_parameters::hit_by_type` 0x329FF0), is above 0.0;
+hit_impl leaves at once otherwise (no slow, no listeners, no death). EBX the
+victim, ESI the `hit_info` (built by `hit_info::hit_info` 0x32B9F0: +1Ch the
+hit type, +3Ch the time, +20h the damage source, +40h the weapon, +44h the
+attacker's place). A dead, dying or fully invulnerable victim never gets
+there (0x2D9BA3, 0x2D9BB0, 0x2D9BCB).
+
+The hit type is `hit_type_enum`, the index of its name in 0x9257E0
+(`survarium::hit_type` 0x304370, 0.21d 0x1E8DA3: ranged, blunt, slash,
+explosive, toxic, radiation, fire, shock). A bullet's is its ammo data's +4Ch
+(`ammo_data::load` 0x332440: `damage_type`, 0 when absent; try_pierce passes
+`[[bullet+40h]+4Ch]` to `base_player::hit` 0x2D9A60): every 0.26g round has
+none, so ranged; a weapon's melee data (weapon+53Ch) says blunt. The suicide
+key's brain hit is ranged too (0x2D8C44). A bullet never hits its
+`m_ignorable_object` (+50h, a player; 0x32D9DD).
+
+For a ranged hit, each of the victim's 23 slots ([player+10Ch]+10Ch) holding
+a drug (vtable 0xA1C79C, all of gameplay/items/drugs/) in use (+2B0h, set
+from the press through the use time and the active time) whose
+data/influences count (+288h) is not 0 gets `medkit::set_active(0, drug,
+[hit+3Ch])` (0x33D390: AL, then medkit and time on the stack, `ret 8`; the
+library's `engine_medkit_set_active`). That is the game's own end of a drug
+(medkit::tick 0x33D7C1 for a dead holder, 0x33DA3C when the activity is
+spent): it clears +2B0h; unlinks the drug_activity node +2B4h from the kit's
+modifiers only when +2ACh is 0 and +2A8h is below the duration (the active
+time began, 0x33D52B..0x33D583); tells the holder's listeners (0x2E5950)
+and the match statistics handler ([world+18FA8h] vtable+20h, as at the press); zeroes the healed-so-far floats
+(+284h); unlinks the tick node +268h from the world's list 6 (0x2D2DB0), so
+no tick heals again; and unlinks its damage protectors (+294h, count +298h).
++2A8h and +2ACh stay as they were; nothing reads them while +2B0h is 0
+(action 0x33D700 sets them again; patch 77 reads the flag first). The unit
+was taken at the press (0x33D765). The painkiller (no influences, only a
+ranged pain protection) is left running.
+
+Simulation: hit_impl runs in every game for every hit, and the drug's state
+is the game's own (serialized: `m_active`, `m_activity_time_ms`, `m_delay_ms`,
+`m_applied_influence`), so a rollback, a late joiner and a replay agree; the
+patch keeps no state. With 256 bullets or more, bullet_manager::tick
+(0x321D10) runs bullets as tasks on several threads (0x3226F0), hits and all:
+the stops take a `vostok::Lock`, since every drug shares the world's list 6.
+`check_drug_interrupt_026g.py` runs the installed hook to the je on made-up
+objects (set_active stubbed: each healing drug in use stopped in slot order,
+in its use time and its active time; not a drug out of use, the painkiller,
+another item, any other or unnamed hit type, no inventory; the replay's EDI
+and ZF, every other register, the stack and the objects unchanged), and the
+game's own set_active(0) in the original exe in the use time, the active time
+and between them.
+
 ### Names on the Tab map (patch 82)
 
 `map_names` (Rust, `vostok::GameWorldKeys`) is a lohook at 0x25CD1C in

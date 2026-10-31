@@ -1210,7 +1210,7 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
-0x002e5080	survarium::damage_model::hit_body_part	manual	0	
+0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
@@ -2081,3 +2081,4 @@ va	name	source	ret_cleanup	result
 0x0026afb0	survarium::messaging_client::send_important_message	manual	12	
 0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16	
 0x0021bd80	survarium::network_client::messaging_client	manual	0	EAX: the messaging client, network client +1E58A4h (the lobby client +1E0h, its +1E56C4h)
+0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
