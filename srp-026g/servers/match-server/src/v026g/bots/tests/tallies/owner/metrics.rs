@@ -93,6 +93,8 @@ impl Engage {
 pub(super) struct Metrics {
     /// The thread's counts and the tick when the match began (the tally's first tick).
     start: Option<Baseline>,
+    /// [A192 diagnosis] The thread's place and near reads by play when the match began.
+    by_play_start: Option<fairness::ByPlay>,
     /// By place: the bot has a live sight of an enemy now (read before the tick's bodies).
     sighted: Vec<bool>,
     engage: Vec<Engage>,
@@ -154,6 +156,7 @@ impl Topic for Metrics {
     fn begin(&mut self, _run: &Run, game: &mut Game) {
         self.grow(game.bodies.len());
         self.start.get_or_insert_with(|| Baseline { reads: fairness::counts(), work: bench_work::totals(), tick: game.tick });
+        self.by_play_start.get_or_insert_with(fairness::by_play);
     }
 
     fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
@@ -235,6 +238,28 @@ pub(super) fn round3(x: f64) -> f64 {
 
 impl Metrics {
     fn reads_part(&self) -> Part {
+        // [A192 diagnosis] The place and near reads by the play being scored, a line of the log apart (not in the part).
+        {
+            let now = fairness::by_play();
+            let before = self.by_play_start.unwrap_or(now);
+            let names: Vec<String> = crate::v026g::bots::plays::PlayKind::ALL
+                .iter()
+                .map(|k| format!("{k:?}"))
+                .chain(std::iter::once("none".to_owned()))
+                .collect();
+            let mut rows = Vec::new();
+            for (site, site_name) in ["place", "near"].iter().enumerate() {
+                for (play, name) in names.iter().enumerate() {
+                    let row: Vec<Vec<u64>> = (0..2)
+                        .map(|team| (0..fairness::BASES).map(|b| now[team][site][play][b] - before[team][site][play][b]).collect())
+                        .collect();
+                    if row.iter().flatten().any(|&v| v > 0) {
+                        rows.push(format!("{site_name} {name} {:?} {:?}", row[0], row[1]));
+                    }
+                }
+            }
+            println!("  a192-reads-by-play: {}", rows.join("; "));
+        }
         let now = fairness::counts();
         let before = self.start.map_or(now, |start| start.reads);
         const SITES: [&str; fairness::SITES] = ["place", "near", "threats", "push", "glance"];
