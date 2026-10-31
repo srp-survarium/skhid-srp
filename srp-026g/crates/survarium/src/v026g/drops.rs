@@ -675,51 +675,52 @@ mod tests {
         }
     }
 
-    /// On a server game data file as `release/build-content` makes it
-    /// (`SRP_TEST_GAME_DATA`), with the STK2 outfits' packs (stk2-outfits.md):
-    /// each of their 14 items has no faction (the Independent traders'), is
-    /// sold by no one (no `prices` exception names it), and drops after a
-    /// match at its level: a drop weight, a category of the generic table,
-    /// and a level row of it that rolls its item level.
+    /// The STK2 outfits' 14 items on game data with their packs
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// stk2-bandit, stk2-novice and stk2-loner): no faction and no seller
+    /// (the owner, 2026-10-31: the new equipment only drops), each at the
+    /// owner's level and in the generic table's pool of its category at that
+    /// level, by its donor's drop weight. It makes that data the process's:
+    /// run it alone.
     #[test]
-    #[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
-    fn the_stk2_outfits_only_drop() {
-        use super::super::game_data::GameData;
-        use super::super::item_params::derive;
-        use super::super::prices::sellers_of;
-        let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
-        let data = GameData::open(std::path::Path::new(&path)).unwrap();
-        let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
-        let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
-        let params = derive(&data, &dictionary).unwrap();
-        let drops = Drops::parse(file(PATH)).unwrap();
-        // (id, item level): the owner's levels (2026-10-31).
-        let items: [(u16, u8); 14] = [
-            (1864, 6), (1865, 6), (1866, 6),
-            (1822, 4), (1867, 4), (1868, 4), (1869, 4), (1870, 4), (1871, 4), (1872, 4),
-            (1873, 6), (1874, 6), (1875, 6), (1876, 6),
+    #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
+    fn the_stk2_outfits_drop_and_are_sold_by_no_one() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let generic = &Drops::shared().generic;
+        // (item, the owner's level, the stock piece whose numbers it copies)
+        let items: [(&str, u8, &str); 14] = [
+            ("stk2_bandit_026_torso", 6, "torso/edge_torso_1"),
+            ("stk2_bandit_026_legs", 6, "legs/edge_legs_1"),
+            ("stk2_bandit_026_boots", 6, "boots/edge_boots_1"),
+            ("stk2_novice_026_hood", 4, "helmet/scavenger_helmet_5"),
+            ("stk2_novice_026_torso", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_torso_v2", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_back", 4, "back/bm_back_1"),
+            ("stk2_novice_026_legs", 4, "legs/scavenger_legs_3"),
+            ("stk2_novice_026_boots", 4, "boots/scavenger_boots_3"),
+            ("stk2_novice_026_hand", 4, "gloves/eq046_blackmarket_gloves_5"),
+            ("stk2_loner_026_torso", 6, "torso/renesanse_torso_8"),
+            ("stk2_loner_026_legs", 6, "legs/renesanse_legs_8"),
+            ("stk2_loner_026_boots", 6, "boots/renesanse_boots_1"),
+            ("stk2_loner_026_hand", 6, "gloves/scavenger_gloves_5"),
         ];
-        for (dict_id, level) in items {
-            let item = dictionary.item(dict_id).unwrap();
-            let row = params.iter().find(|row| row.dict_id == dict_id).unwrap();
-            assert!(item.name.starts_with("stk2_"), "{}", item.name);
-            assert_eq!(row.faction, 0, "{}", item.name);
-            assert_eq!(row.item_level, level, "{}", item.name);
-            assert!(row.drop_weight > 0, "{}", item.name);
-            assert!(sellers_of(&dictionary, item, row).is_empty(), "{} is sold", item.name);
-            let table = &drops.generic;
-            assert!(
-                table.categories.iter().any(|group| group.weight > 0 && group.categories.contains(&item.category)),
-                "{}: its category {} never drops",
-                item.name,
-                item.category
-            );
-            assert!(
-                table.level_independent.contains(&item.category)
-                    || table.levels.iter().any(|row| row.get(usize::from(level)).is_some_and(|&w| w > 0)),
-                "{}: no match level rolls item level {level}",
-                item.name
-            );
+        for (name, level, donor) in items {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let template = dictionary.items.iter().find(|i| i.cfg_name == cfg).unwrap();
+            let template = item_params(template.dict_id).unwrap();
+            assert_eq!(params.faction, 0, "{name}");
+            assert_eq!(params.item_level, level, "{name}");
+            assert_eq!(params.drop_weight, template.drop_weight, "{name}");
+            assert!(params.drop_weight > 0, "{name}");
+            assert_eq!(prices::sellers_of(dictionary, item, params), [], "{name}");
+            assert!(!generic.level_independent.contains(&item.category), "{name}");
+            let pool = generic.candidates(dictionary, item.category, level);
+            assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
         }
     }
 }

@@ -53,7 +53,7 @@ item's faction (none), level, slots and drop weight from its config in the serve
   one sells them: srp sells gear of no faction only through a named `prices` exception, and
   none names them (nor a bundle or the start kit). They drop after matches: each has its
   donor's drop weight, its category is in the generic drop table, and the table's level rows
-  roll its item level (`drops::tests::the_stk2_outfits_only_drop`, on the built server data).
+  roll its item level (`prices::tests::the_stk2_outfits_are_sold_by_no_one`; on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_by_no_one`).
   Drops are rolled after a match, so nothing a match computes changes (no
   `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.

@@ -886,6 +886,53 @@ mod tests {
     }
 
     #[test]
+    fn the_stk2_outfits_are_sold_by_no_one() {
+        // The STK2 outfits' 14 items (packs stk2-bandit, stk2-novice,
+        // stk2-loner; docs/notes/stk2-outfits.md): each a stock piece's
+        // numbers with no faction, the Independent traders' as the Novice's
+        // knit cap, but never sold (the owner, 2026-10-31: the new equipment
+        // only drops). No row names them, so the rule, which sells a piece of
+        // armour by its config's faction, sells them nowhere; the pieces they
+        // copy are sold.
+        let dictionary = Dictionary::shared();
+        let items: [(u16, &str, &str); 14] = [
+            (1864, "stk2_bandit_026_torso", "torso/edge_torso_1"),
+            (1865, "stk2_bandit_026_legs", "legs/edge_legs_1"),
+            (1866, "stk2_bandit_026_boots", "boots/edge_boots_1"),
+            (1867, "stk2_novice_026_hood", "helmet/scavenger_helmet_5"),
+            (1822, "stk2_novice_026_torso", "torso/blackmarket_torso_5"),
+            (1868, "stk2_novice_026_torso_v2", "torso/blackmarket_torso_5"),
+            (1869, "stk2_novice_026_back", "back/bm_back_1"),
+            (1870, "stk2_novice_026_legs", "legs/scavenger_legs_3"),
+            (1871, "stk2_novice_026_boots", "boots/scavenger_boots_3"),
+            (1872, "stk2_novice_026_hand", "gloves/eq046_blackmarket_gloves_5"),
+            (1873, "stk2_loner_026_torso", "torso/renesanse_torso_8"),
+            (1874, "stk2_loner_026_legs", "legs/renesanse_legs_8"),
+            (1875, "stk2_loner_026_boots", "boots/renesanse_boots_1"),
+            (1876, "stk2_loner_026_hand", "gloves/scavenger_gloves_5"),
+        ];
+        for (dict_id, name, donor) in items {
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let Some(template) = dictionary.items.iter().find(|item| item.cfg_name == cfg) else {
+                // equipment-046's gloves are not in the test archive.
+                continue;
+            };
+            let params = *item_params(template.dict_id).unwrap();
+            assert_ne!(params.faction, 0, "{donor}");
+            assert!(!sellers_of(dictionary, template, &params).is_empty(), "{donor}");
+            let piece = Item {
+                dict_id,
+                name: name.to_owned(),
+                cfg_name: format!("gameplay/items/armour/{}/{name}.options", donor.split('/').next().unwrap()),
+                ..template.clone()
+            };
+            let no_faction = ItemParams { dict_id, faction: 0, ..params };
+            assert_eq!(sellers_of(dictionary, &piece, &no_faction), [], "{name}");
+            assert!(!EXCEPTIONS.iter().any(|(row, _)| *row == piece.name), "{name}");
+        }
+    }
+
+    #[test]
     fn the_bandit_balaclava_goes_by_the_rule() {
         // No exception (owner, 2026-10-16): Black Market at its item level,
         // within the faction's ranks 0 to 5. The test patch 15 makes it item
