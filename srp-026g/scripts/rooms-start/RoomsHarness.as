@@ -1,10 +1,12 @@
 package
 {
    import flash.display.DisplayObject;
+   import flash.display.BitmapData;
    import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
@@ -25,6 +27,10 @@ package
    //   an open room's has both;
    // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
    //   clearing it shows them again.
+   // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows a
+   //   tag with its number after each name, ours green and another's tan, in the room's view and
+   //   the list's side panel; every name keeps its place with and without the tags; every
+   //   language's texts fit with them (checkFit).
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
@@ -113,6 +119,7 @@ package
          checkPlayOffer();
          checkCreate();
          checkWindowOrder();
+         checkSquads();
          checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
@@ -144,7 +151,10 @@ package
                ["open, in match", 1003, false, false, 2, null, 0, []],
                ["open, joining in", 1003, false, false, 2, null, 0, ["J;25"]],
                ["open, kit unfit", 1003, false, false, 0, null, 1, []],
-               ["open, gear unfit", 1003, false, false, 0, null, 2, []]];
+               ["open, gear unfit", 1003, false, false, 0, null, 2, []],
+               ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
+               ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
+               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
             for(var why:int = 1; why <= 7; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
@@ -200,6 +210,139 @@ package
          {
             failures.push(key + ": " + err.message);
          }
+      }
+
+      // A squad's tags (RoomsLook.squadTag): a sprite of one text, its number, 14 wide.
+      private function squadTags(texts:Array) : Array
+      {
+         var tags:Array = [];
+         for each(var t:Object in texts)
+         {
+            var box:Sprite = t.parent as Sprite;
+            if(box == null || box.numChildren != 1 || Math.round(box.width) != 14 || !/^[1-9a]$/.test(t.text))
+               continue;
+            var shot:BitmapData = new BitmapData(14,Math.max(1,Math.ceil(box.height)),true,0);
+            shot.draw(box);
+            tags.push({"text":t.text, "x":t.x - t.field.x, "y":t.y - t.field.y, "colour":shot.getPixel(1,int(box.height / 2))});
+         }
+         return tags;
+      }
+
+      // Where each of WHO's names is drawn (its field's place, and its text's right end).
+      private static function namePlaces(texts:Array) : Object
+      {
+         var at:Object = {};
+         for each(var t:Object in texts)
+         {
+            // The owner's name with its tag: "Alice  (owner)".
+            var name:String = String(t.text).split("  (")[0];
+            if(WHO.indexOf(name) >= 0)
+               at[name] = {"x":t.x, "y":t.y, "right":t.x + 2 + t.field.textWidth};
+         }
+         return at;
+      }
+
+      // The tags `tags` against the names: `want` gives each name's tag ("" none) and whether it
+      // is ours (green, 0xB3EA97) or another's (tan, 0x9D7E57); each right of its name, on its
+      // line; and every name where `plain` had it.
+      private function checkTags(what:String, texts:Array, plain:Object, want:Object) : void
+      {
+         var names:Object = namePlaces(texts);
+         var tags:Array = squadTags(texts);
+         var said:Array = [];
+         for(var who:String in want)
+         {
+            var name:Object = names[who];
+            if(name == null || plain[who] == null)
+            {
+               failures.push(what + ": " + who + " not shown");
+               continue;
+            }
+            if(name.x != plain[who].x || name.y != plain[who].y)
+               failures.push(what + ": " + who + " moved with the squad tags");
+            var tag:Object = null;
+            for each(var t:Object in tags)
+               if(t.x >= name.right - 1 && t.x <= name.right + 30 && Math.abs(t.y - name.y) < 12)
+                  tag = t;
+            var expected:Array = want[who];
+            said.push(who + " " + (tag != null ? tag.text + "/" + tag.colour.toString(16) : "-"));
+            if(expected[0] == "")
+            {
+               if(tag != null)
+                  failures.push(what + ": " + who + " has a squad tag");
+               continue;
+            }
+            if(tag == null || tag.text != expected[0])
+            {
+               failures.push(what + ": " + who + "'s squad tag " + expected[0] + " missing");
+               continue;
+            }
+            var green:Boolean = (tag.colour >> 8 & 0xFF) > (tag.colour >> 16 & 0xFF);
+            if(green != expected[1])
+               failures.push(what + ": " + who + "'s tag is not " + (expected[1] ? "ours (green)" : "another's (tan)"));
+         }
+         trace("ROOMS " + what + ": " + said.join(", "));
+      }
+
+      private function checkSquads() : void
+      {
+         tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+         // The room's view: Bob (the asker) and Carol a pair, Dave and Erin another.
+         var want:Object = {"Alice":["",false], "Bob":["1",true], "Carol":["1",true], "Dave":["2",false], "Erin":["2",false]};
+         var texts:Array = [];
+         tellRoom(1003, false, false, 0, null, 0, []);
+         walk(win,[],texts,0,0,[]);
+         var plain:Object = namePlaces(texts);
+         texts = [];
+         tellRoom(1003, false, false, 0, null, 0, ["S;01122"]);
+         walk(win,[],texts,0,0,[]);
+         checkTags("squads in the room", texts, plain, want);
+         // A private room's two teams, its owner Alice: Alice and Bob a pair on team 1.
+         texts = [];
+         tellRoom(1001, true, true, 0, "00110", 0, []);
+         walk(win,[],texts,0,0,[]);
+         plain = namePlaces(texts);
+         texts = [];
+         tellRoom(1001, true, true, 0, "00110", 0, ["S;11220"]);
+         walk(win,[],texts,0,0,[]);
+         checkTags("squads in a private room", texts, plain,
+            {"Alice":["1",true], "Bob":["1",true], "Carol":["2",false], "Dave":["2",false], "Erin":["",false]});
+         // The list's side panel, its room chosen: the members' list (`S1;G`) with the marks.
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1003;2;15;8;5;0;0;0;0;Alice"]);
+         var rows:Array = [];
+         walk(win,[],[],0,0,[]);
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == "1003")
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         var members:Function = function(marks:Array):Array
+         {
+            var names:Array = ["S1;G;1003;5"];
+            for(var i:int = 0; i < WHO.length; i++)
+            {
+               names.push(["P",i,15,i == 0 ? 1 : 0,i == 1 ? 1 : 0,0,0,0,0,11 + i,marks[i]].join(";"));
+               names.push(WHO[i]);
+            }
+            tell(names);
+            var seen:Array = [];
+            walk(win,[],seen,0,0,[]);
+            return seen;
+         };
+         plain = namePlaces(members([0,0,0,0,0]));
+         checkTags("squads in the list's side panel", members([0,1,1,2,2]), plain, want);
+      }
+
+      // The list's rows (their sprites are named by their rooms' keys).
+      private static function findRows(at:DisplayObject, rows:Array) : void
+      {
+         var box:DisplayObjectContainer = at as DisplayObjectContainer;
+         if(box == null)
+            return;
+         if(box is Sprite && Sprite(box).buttonMode && /^\d+$/.test(box.name))
+            rows.push(box);
+         for(var i:int = 0; i < box.numChildren; i++)
+            findRows(box.getChildAt(i), rows);
       }
 
       // What `what` shows: every shown text's drawn extent (its alignment in its field, the margin

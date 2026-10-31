@@ -44,7 +44,8 @@
 //!   player may send [`FRIEND_REQUEST_BURST`] friend requests at once and
 //!   one every [`FRIEND_REQUEST_EVERY`] after (the client keeps the same
 //!   allowance: exe patch 86's Tab list menu, `docs/notes/tab-cursor-friends.md`).
-//! - **Squads** are the store's (`session::Squads`), formed as in 0.21d:
+//! - **Squads** are the store's (`session::Squads`), of two at most
+//!   (`docs/notes/squads.md`), formed as in 0.21d:
 //!   invite (`4D` type 2); the invited client's "membership accepted"
 //!   back (`4D` type 3) and then its answer (`50`), in that order
 //!   (`important_message_read` 0x28C5E0: the `4D` sender at 0x28C698, the
@@ -487,7 +488,15 @@ impl Core<'_> {
                     );
                     return;
                 }
-                if kind == important::SQUAD_INVITE {
+                // A squad of two takes nobody more (the owner's of
+                // 2026-10-31): the invite goes nowhere. The movie offers
+                // none then; the game has no text for it (§9.2).
+                if kind == important::SQUAD_INVITE && self.store.squads().is_full(who.account_id) {
+                    log::info!(
+                        "{}: squad invite to {target_name} not sent: its squad is full",
+                        who.name
+                    );
+                } else if kind == important::SQUAD_INVITE {
                     self.request(request(target));
                 } else if self.store.squads().has_accepted(target, who.account_id) {
                     // The inviter's client answers it by itself and adds
@@ -852,7 +861,7 @@ impl Core<'_> {
                     kit_revision,
                     name,
                     online: self.by_account.contains_key(&member),
-                    ready: squad.is_ready(member),
+                    ready: self.squad_ready(member),
                 }
             })
             .collect();

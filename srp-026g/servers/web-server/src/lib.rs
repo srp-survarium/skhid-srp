@@ -1836,12 +1836,17 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
         ),
     ];
-    if !squads {
-        items.push(lang.tr(
+    items.push(if squads {
+        lang.tr(
+            "Squads are of two: Play or Join takes your squad mate along, into the same room and team; a room with one free place puts you both in its queue.",
+            "Загони — по двоє: «Грати» чи приєднання бере напарника з собою, у ту саму кімнату й команду; якщо в кімнаті одне вільне місце, ви обоє стаєте в її чергу.",
+        )
+    } else {
+        lang.tr(
             "Squads are off: everyone plays alone.",
             "Загони вимкнено: кожен грає сам.",
-        ));
-    }
+        )
+    });
     items
         .iter()
         .map(|item| format!("<li>{item}</li>"))
@@ -2988,6 +2993,7 @@ mod tests {
 
         let squads = room_rules(Lang::En, true);
         assert!(!squads.contains("Squads are off"));
+        assert!(squads.contains("Squads are of two"));
 
         let uk = room_rules(Lang::Uk, false);
         assert!(uk.contains("15 с голосують за одну з 3 мап"));

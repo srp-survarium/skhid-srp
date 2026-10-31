@@ -23,6 +23,11 @@
 //!   vote at all are drawn at random.
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
+//! - A squad (two at most) comes together: a join or a queue takes the
+//!   mate along when it may come ([`Rooms::join_with`]), lists it right
+//!   after its mate (in a private room on its mate's team), and a queue
+//!   lets a pair in only at two free places ([`Rooms::next_ready_in_queue`];
+//!   the owner's of 2026-10-31, `docs/notes/squads.md`).
 //! - After the match everyone is back in the room, and the next vote and
 //!   wait begin, however each came in (Play or a join; the owner's of
 //!   2026-10-31, [`Rooms::match_over`]).
@@ -242,15 +247,29 @@ impl Room {
         [on(0), on(1)]
     }
 
-    /// A member comes: last in the list; in a private room on the side with
-    /// fewer (side 0 of two alike).
-    fn add_member(&mut self, account_id: u32) {
+    /// The places not taken.
+    pub fn free_places(&self) -> usize {
+        self.capacity().saturating_sub(self.members.len())
+    }
+
+    /// A member comes: last in the list, or right after its squad mate
+    /// `beside` when that one is in; in a private room on its mate's side
+    /// while that has a place, else on the side with fewer (side 0 of two
+    /// alike).
+    fn add_member(&mut self, account_id: u32, beside: Option<u32>) {
         if self.members.is_empty() {
             self.owner = account_id;
         }
-        self.members.push(account_id);
+        let at = beside
+            .and_then(|mate| self.members.iter().position(|member| *member == mate))
+            .map_or(self.members.len(), |at| at + 1);
+        self.members.insert(at, account_id);
         if !self.is_open() {
-            let side = u8::from(self.side_count(1) < self.side_count(0));
+            let fewer = u8::from(self.side_count(1) < self.side_count(0));
+            let side = beside
+                .and_then(|mate| self.sides.get(&mate).copied())
+                .filter(|&side| self.side_count(side) < usize::from(PRIVATE_SIZE))
+                .unwrap_or(fewer);
             self.sides.insert(account_id, side);
         }
         if matches!(self.stage, Stage::InMatch { .. }) {
@@ -571,7 +590,7 @@ impl Rooms {
             sides: HashMap::new(),
             came_in_match: HashSet::new(),
         };
-        room.add_member(owner);
+        room.add_member(owner, None);
         self.rooms.insert(key, room);
         self.of_account.insert(owner, key);
         self.dequeue(owner);
@@ -588,8 +607,27 @@ impl Rooms {
         key: u32,
         now: Instant,
     ) -> Result<(), Refused> {
+        self.join_with(account_id, gear, None, key, now)
+    }
+
+    /// [`Self::join`] with the account's squad mate and its equipment level
+    /// (the owner's of 2026-10-31: a pair starts together). The mate comes
+    /// along when the room lets it in (its max level, not turned out); one
+    /// it does not let in stays where it is. Places for every one who comes,
+    /// or nobody moves ([`Refused::Full`]). The PIN is the account's. Each
+    /// comes right after its mate in the list (and on its team in a private
+    /// room), leaving the room and the queue it was in. A mate in the room
+    /// already takes no place: the account comes beside it.
+    pub fn join_with(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        mate: Option<(u32, u8)>,
+        key: u32,
+        now: Instant,
+    ) -> Result<(), Refused> {
         let pin = self.take_pin(account_id, now);
-        let room = self.rooms.get_mut(&key).ok_or(Refused::Unknown)?;
+        let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
         if room.members.contains(&account_id) {
             return Ok(());
         }
@@ -602,29 +640,52 @@ impl Rooms {
         if !room.lets_in(gear) {
             return Err(Refused::GearTooHigh);
         }
-        if room.is_full() {
+        let beside = mate
+            .map(|(mate, _)| mate)
+            .filter(|mate| room.members.contains(mate));
+        let comes = mate.filter(|&(mate, gear)| {
+            mate != account_id
+                && !room.members.contains(&mate)
+                && room.lets_in(gear)
+                && !room.kicked.contains(&mate)
+        });
+        if room.free_places() < 1 + usize::from(comes.is_some()) {
             return Err(Refused::Full);
         }
+        self.enter(account_id, key, beside);
+        if let Some((mate, _)) = comes {
+            self.enter(mate, key, Some(account_id));
+        }
+        Ok(())
+    }
+
+    /// The account leaves its room and queue and comes into room `key`
+    /// (which has a place), beside `beside`.
+    fn enter(&mut self, account_id: u32, key: u32, beside: Option<u32>) {
         self.leave(account_id);
         let serial = self.next_serial();
         let Some(room) = self.rooms.get_mut(&key) else {
-            return Err(Refused::Unknown);
+            return;
         };
-        room.add_member(account_id);
+        room.add_member(account_id, beside);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         // In a room: no queue any more.
         self.dequeue(account_id);
-        Ok(())
     }
 
-    /// The rooms Play may put the account into: no PIN, a place free, its
-    /// max level not under the account's equipment level `gear`, not one
-    /// that turned it out.
-    pub fn open_rooms(&self, account_id: u32, gear: u8) -> impl Iterator<Item = &Room> {
+    /// The rooms Play may put the account into: no PIN, `places` free (its
+    /// squad's), its max level not under the account's equipment level
+    /// `gear`, not one that turned it out.
+    pub fn open_rooms(
+        &self,
+        account_id: u32,
+        gear: u8,
+        places: usize,
+    ) -> impl Iterator<Item = &Room> {
         self.rooms.values().filter(move |room| {
             room.is_open()
-                && !room.is_full()
+                && room.free_places() >= places.max(1)
                 && room.lets_in(gear)
                 && !room.kicked.contains(&account_id)
         })
@@ -803,29 +864,53 @@ impl Rooms {
     /// The first of the room's queue, while it has a place free: out of the
     /// queue, for the lobby to put in (`admit`) if it still may come.
     pub fn next_in_queue(&mut self, key: u32) -> Option<u32> {
-        self.next_ready_in_queue(key, &|_| true)
-            .map(|(account_id, _)| account_id)
+        self.next_ready_in_queue(key, &|_| true, &|_| None)
+            .first()
+            .map(|(account_id, _)| *account_id)
     }
 
-    /// [`next_in_queue`](Self::next_in_queue), the first that `ready` takes:
-    /// those before it stay in their places.
+    /// The first of the room's queue that `ready` takes, out of the queue:
+    /// with its squad mate (`mate_of`) when that one waits in the same
+    /// queue and `ready` takes it too, then the two need two free places.
+    /// A pair passed over for a place too few keeps its places; one alone
+    /// behind it may take that place. Those before it stay in their places.
     pub fn next_ready_in_queue(
         &mut self,
         key: u32,
         ready: &dyn Fn(u32) -> bool,
-    ) -> Option<(u32, QueueChoice)> {
-        let room = self.rooms.get(&key)?;
-        if room.is_full() {
-            return None;
+        mate_of: &dyn Fn(u32) -> Option<u32>,
+    ) -> Vec<(u32, QueueChoice)> {
+        let Some(free) = self.rooms.get(&key).map(Room::free_places) else {
+            return Vec::new();
+        };
+        let Some(queue) = self.queues.get(&key) else {
+            return Vec::new();
+        };
+        let party = queue
+            .iter()
+            .copied()
+            .filter(|&account_id| ready(account_id))
+            .find_map(|first| {
+                let mate = mate_of(first).filter(|&mate| queue.contains(&mate) && ready(mate));
+                let party: Vec<u32> = std::iter::once(first).chain(mate).collect();
+                (party.len() <= free).then_some(party)
+            });
+        let Some(party) = party else {
+            return Vec::new();
+        };
+        let mut taken = Vec::new();
+        for account_id in party {
+            if let Some(queue) = self.queues.get_mut(&key) {
+                queue.retain(|waiting| *waiting != account_id);
+            }
+            if let Some(queued) = self.queued.remove(&account_id) {
+                taken.push((account_id, queued.choice));
+            }
         }
-        let queue = self.queues.get_mut(&key)?;
-        let at = queue.iter().position(|&account_id| ready(account_id))?;
-        let first = queue.remove(at)?;
-        let choice = self.queued.remove(&first)?.choice;
         if self.queues.get(&key).is_some_and(VecDeque::is_empty) {
             self.queues.remove(&key);
         }
-        Some((first, choice))
+        taken
     }
 
     /// The rooms with a queue and a place free.
@@ -839,7 +924,8 @@ impl Rooms {
 
     /// The first of a queue goes in: its checks were made when it queued
     /// (PIN, turned out) and by the lobby now (in the lobby, its level).
-    pub fn admit(&mut self, account_id: u32, key: u32) -> bool {
+    /// Right after its squad mate `beside` when that one is in.
+    pub fn admit(&mut self, account_id: u32, key: u32, beside: Option<u32>) -> bool {
         if self.of_account.contains_key(&account_id) {
             return false;
         }
@@ -850,7 +936,7 @@ impl Rooms {
         if room.is_full() {
             return false;
         }
-        room.add_member(account_id);
+        room.add_member(account_id, beside);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         true
@@ -1660,7 +1746,7 @@ mod tests {
         rooms.leave(5);
         assert!(rooms.with_queue_and_place().contains(&key));
         assert_eq!(rooms.next_in_queue(key), Some(30));
-        assert!(rooms.admit(30, key));
+        assert!(rooms.admit(30, key, None));
         assert_eq!(rooms.next_in_queue(key), None);
         assert_eq!(rooms.queue_place(32), Some((key, 1)));
         // Joining a room takes one out of its queue.
@@ -1818,7 +1904,7 @@ mod tests {
             .create(1, 5, capped, &POOL, &POOL, 50, now, &mut first)
             .unwrap();
         assert_eq!(rooms.join(2, 6, key, now), Err(Refused::GearTooHigh));
-        assert!(rooms.open_rooms(2, 6).next().is_none());
+        assert!(rooms.open_rooms(2, 6, 1).next().is_none());
         assert_eq!(rooms.join(2, 5, key, now), Ok(()));
         let any = room_of(&mut rooms, 3, 8, None, now);
         assert_eq!(rooms.join(4, 15, any, now), Ok(()));
@@ -1844,7 +1930,7 @@ mod tests {
         assert_eq!(rooms.get(key).unwrap().members, [1, 2, 3]);
         rooms.give_pin(4, 42, now);
         assert_eq!(rooms.enqueue(4, 15, key, now), Ok(1));
-        assert!(rooms.open_rooms(5, 0).next().is_none());
+        assert!(rooms.open_rooms(5, 0, 1).next().is_none());
     }
 
     #[test]
@@ -1939,5 +2025,128 @@ mod tests {
         assert!(rooms.get(key).is_none());
         let again = room_of(&mut rooms, 2, 6, None, now);
         assert!(rooms.get(again).unwrap().chat.is_empty());
+    }
+
+    /// A pair joins whole or not at all; the mate comes right after the one
+    /// who joined; a mate the room does not let in stays where it is.
+    #[test]
+    fn a_pair_joins_together_or_not_at_all() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, None, now);
+        for account in 2..=11 {
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        // One place left: the pair is refused, nobody of it moves.
+        let other = room_of(&mut rooms, 20, 6, None, now);
+        rooms.join(21, 0, other, now).unwrap();
+        assert_eq!(
+            rooms.join_with(20, 0, Some((21, 0)), key, now),
+            Err(Refused::Full)
+        );
+        assert_eq!(rooms.key_of(20), Some(other));
+        assert_eq!(rooms.key_of(21), Some(other));
+        // A place frees: both come, together in the list, out of their room.
+        rooms.leave(5);
+        rooms.join_with(20, 0, Some((21, 0)), key, now).unwrap();
+        let members = &rooms.get(key).unwrap().members;
+        assert_eq!(members.len(), 12);
+        assert_eq!(&members[members.len() - 2..], &[20, 21]);
+        assert!(rooms.get(other).is_none());
+        // A mate in the room already: the other comes beside it.
+        rooms.leave(20);
+        rooms.leave(2);
+        rooms.join_with(20, 0, Some((21, 0)), key, now).unwrap();
+        let members = &rooms.get(key).unwrap().members;
+        let at = members.iter().position(|member| *member == 21).unwrap();
+        assert_eq!(members[at + 1], 20);
+        // A mate over the max level stays where it is; the other comes.
+        let capped = rooms
+            .create(
+                40,
+                3,
+                Spec {
+                    door: Door::Open { max_level: 5 },
+                    ..spec(6, None)
+                },
+                &POOL,
+                &POOL,
+                50,
+                now,
+                &mut first,
+            )
+            .unwrap();
+        rooms.join_with(42, 3, Some((43, 6)), capped, now).unwrap();
+        assert_eq!(rooms.key_of(42), Some(capped));
+        assert_eq!(rooms.key_of(43), None);
+        assert_eq!(
+            rooms
+                .open_rooms(50, 0, 2)
+                .map(|room| room.key)
+                .collect::<Vec<_>>(),
+            [capped]
+        );
+    }
+
+    /// In a private room the mate comes on its mate's team, while that team
+    /// has a place.
+    #[test]
+    fn a_pair_comes_on_one_team_of_a_private_room() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        rooms.give_pin(2, 1234, now);
+        rooms.join(2, 0, key, now).unwrap();
+        // Teams 1 v 1: the pair goes on one of them, not one on each.
+        rooms.give_pin(3, 1234, now);
+        rooms.join_with(3, 0, Some((4, 0)), key, now).unwrap();
+        let room = rooms.get(key).unwrap();
+        assert_eq!(room.sides.get(&3), room.sides.get(&4));
+        assert_eq!(room.arranged().map(|side| side.len()), [3, 1]);
+    }
+
+    /// A pair in a queue goes in at two free places, together; one alone
+    /// behind it takes a single place, the pair keeping its places.
+    #[test]
+    fn a_queued_pair_waits_for_two_places() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, None, now);
+        for account in 2..=12 {
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        for account in [30, 31, 32] {
+            rooms.enqueue(account, 0, key, now).unwrap();
+        }
+        let mate_of = |account: u32| match account {
+            30 => Some(31),
+            31 => Some(30),
+            _ => None,
+        };
+        // One place: not the pair, the one alone behind it.
+        rooms.leave(12);
+        assert_eq!(
+            rooms.next_ready_in_queue(key, &|_| true, &mate_of),
+            [(32, QueueChoice::Chosen)]
+        );
+        assert!(rooms.admit(32, key, None));
+        assert_eq!(rooms.queue_place(30), Some((key, 1)));
+        assert_eq!(rooms.queue_place(31), Some((key, 2)));
+        // Two places: the pair, together.
+        rooms.leave(32);
+        rooms.leave(11);
+        assert_eq!(
+            rooms.next_ready_in_queue(key, &|_| true, &mate_of),
+            [(30, QueueChoice::Chosen), (31, QueueChoice::Chosen)]
+        );
+        assert_eq!(rooms.queued_total(), 0);
+        // A mate that may not come (`ready`) leaves the other to go alone.
+        rooms.enqueue(30, 0, key, now).unwrap();
+        rooms.enqueue(31, 0, key, now).unwrap();
+        assert_eq!(
+            rooms.next_ready_in_queue(key, &|account| account != 31, &mate_of),
+            [(30, QueueChoice::Chosen)]
+        );
+        assert_eq!(rooms.queue_place(31), Some((key, 1)));
     }
 }

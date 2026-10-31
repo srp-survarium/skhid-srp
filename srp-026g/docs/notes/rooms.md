@@ -193,6 +193,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   room when the match starts without it (code 13 / 12); it may rejoin.
 - **Sides:** drawn at the start, as even as can be (every split by the same count), squads
   together; a room of one squad plays it on both sides.
+- **Squads** (of two, the owner's of 2026-10-31): Play and Join take the mate along, a room
+  with one place queues the pair, the late join keeps it on one side, and the room's lists
+  mark each pair: `squads.md`.
 - **Late joins:** a member who comes during the room's match (by Play, Join, its queue or a
   switch) sees the room first: who is in it and at what levels, to switch or make its own;
   it goes into the match 15 s later, or at once with "Join match". It goes in on the

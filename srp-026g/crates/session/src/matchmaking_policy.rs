@@ -117,6 +117,18 @@ pub fn place_joiner_on(
     placed(sides, joiner, side, rule).or_else(|| placed(sides, joiner, 1 - side, rule))
 }
 
+/// Where a match being played takes `joiner` beside its squad mate (the
+/// owner's of 2026-10-31: a squad plays on one side): `side` while it has
+/// a place, else nowhere (it waits for the next match).
+pub fn place_joiner_beside(
+    sides: [Worth; 2],
+    joiner: Worth,
+    side: u8,
+    rule: &LateRule,
+) -> Option<LatePlacement> {
+    placed(sides, joiner, usize::from(side.min(1)), rule)
+}
+
 /// `joiner` on `side`, unless that side is full with it or the match has
 /// no place.
 fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Option<LatePlacement> {

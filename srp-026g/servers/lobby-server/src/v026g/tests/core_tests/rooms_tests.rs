@@ -16,6 +16,7 @@ use super::*;
 use crate::v026g::LiveView;
 
 mod scaling;
+mod squads;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
 /// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>;<next map>;
@@ -1724,16 +1725,16 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
 
 /// The members of a member list (`S1;G;<key>;<members>`, then two rows a
 /// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
-/// <account>` and its whole name) that the asker gets for the room of
-/// `key`: the header's fields, then each member's fields with its name
-/// last (index 10).
+/// <account>;<squad>` and its whole name) that the asker gets for the room
+/// of `key`: the header's fields, then each member's fields with its name
+/// last (index 11).
 fn members(world: &mut World, index: usize, key: u32) -> Vec<Vec<String>> {
     let rows = rows(world, index, ROOM_MEMBERS_BASE + key, 1);
     let mut seen = vec![rows[0].split(';').map(str::to_owned).collect::<Vec<_>>()];
     assert_eq!(rows.len() % 2, 1, "{rows:?}");
     for pair in rows[1..].chunks(2) {
         let mut fields: Vec<String> = pair[0].split(';').map(str::to_owned).collect();
-        assert_eq!(fields.len(), 10, "{pair:?}");
+        assert_eq!(fields.len(), 11, "{pair:?}");
         fields.push(pair[1].clone());
         seen.push(fields);
     }
@@ -1755,7 +1756,7 @@ fn anyone_sees_who_is_in_a_room_with_a_pin_too() {
     // Carol is in no room and gave no PIN.
     let seen = members(&mut world, carol, key);
     assert_eq!(seen[0], ["S1", "G", &key.to_string(), "2"], "{seen:?}");
-    let names: Vec<&str> = seen[1..].iter().map(|row| row[10].as_str()).collect();
+    let names: Vec<&str> = seen[1..].iter().map(|row| row[11].as_str()).collect();
     assert_eq!(names, ["Alice", "Bob"]);
     for (i, row) in seen[1..].iter().enumerate() {
         assert_eq!(row[0], "P");
@@ -1775,7 +1776,7 @@ fn anyone_sees_who_is_in_a_room_with_a_pin_too() {
     // Bob's game is gone: grey, its place kept.
     world.silent_for(bob, Duration::from_secs(40));
     let lost = members(&mut world, carol, key);
-    assert_eq!(lost[2][10], "Bob");
+    assert_eq!(lost[2][11], "Bob");
     assert_eq!(lost[2][7], "1", "away: {lost:?}");
     assert_eq!(lost[1][7], "0", "{lost:?}");
     // The room gone: nobody; a key no room ever had the same.
@@ -1816,7 +1817,7 @@ fn a_member_list_says_the_side_of_each_player_in_the_match() {
     rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
     let now = members(&mut world, eve, key);
     let row = &now[5];
-    assert_eq!(row[10], "Frank");
+    assert_eq!(row[11], "Frank");
     assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{now:?}");
 }
 
@@ -1841,8 +1842,8 @@ fn a_member_list_gives_long_names_whole() {
     assert_eq!(seen.len(), 21, "{seen:?}");
     for (i, row) in seen[1..].iter().enumerate() {
         let name = world.account(players[i]).name.clone();
-        assert_eq!(row[10], name);
-        assert_eq!(row[10].len(), 63, "{name}");
+        assert_eq!(row[11], name);
+        assert_eq!(row[11].len(), 63, "{name}");
     }
     let state = state(&mut world, players[0]);
     let cut = state

@@ -387,7 +387,11 @@ package survarium.rooms
                 look.text(row, "!", 31, top, 12, size - 2, 0xFFFFFF, "center");
                 nameX = 46;
             }
-            RoomsLook.fitName(look.text(row, "", nameX, top, w - nameX, size, RoomsLook.memberColour(m)), m.name, "");
+            // A squad's tag after the name: the name gives it its room.
+            var tagW:Number = m.squad > 0 ? RoomsLook.SQUAD_TAG_W + 8 : 0;
+            var nameField:TextField = look.text(row, "", nameX, top, w - nameX - tagW, size, RoomsLook.memberColour(m));
+            RoomsLook.fitName(nameField, m.name, "");
+            look.squadTag(row, nameField, m.squad, m.squad == RoomsLook.ourSquad(win._seen.members), Math.min(14, rowH - 4));
             _listHits.push({"control": row, "name": m.name, "how": LobbyMenu.PLAYER_INFO_BY_ACCOUNT,
                 "player": m.account});
         }

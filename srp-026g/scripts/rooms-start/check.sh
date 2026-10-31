@@ -5,9 +5,11 @@
 # move buttons (» «) for a private room's owner only, never for a member, an open room or a room
 # playing its match; its two team columns, a member in the other after a move; no "N v N" and no
 # max level for a private room (its info line, its list row, the facts beside the list); the create
-# window's sliders hidden once a PIN is typed, Max level too. Then in every language (the dictionaries'
-# texts): the list, a room in each phase and hint, and the create window, no text cut by its field
-# and no two on one line meeting (a "ROOMS OVERLAP" line each).
+# window's sliders hidden once a PIN is typed, Max level too; squads' tags (docs/notes/squads.md)
+# after their names in the room and the list's side panel, ours green, the names not moved. Then in
+# every language (the dictionaries' texts): the list, a room in each phase and hint (with squads
+# too), and the create window, no text cut by its field and no two on one line meeting (a
+# "ROOMS OVERLAP" line each).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

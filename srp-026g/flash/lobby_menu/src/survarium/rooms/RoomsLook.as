@@ -561,6 +561,52 @@ package survarium.rooms
             return m.away ? 0x5E6E7A : m.fit != 0 ? RED : m.me ? 0xFFFFFF : (m.inMatch ? GOLD : LIGHT);
         }
 
+        // A squad's mark (the owner's of 2026-10-31: squads seen in the room):
+        // the pairs both in a room numbered 1, 2, ... in its list, shown as a
+        // small tag with that number after each one's name. Our own squad's
+        // in the green the game's results list gives our squad (0xB3EA97),
+        // another's in its tan for another squad (0x9D7E57,
+        // PlayerListRenderer). No glyph but digits: the font has them.
+        internal static const SQUAD_TAG_W:int = 14;
+        internal static const OUR_SQUAD:uint = 0xB3EA97;
+        internal static const OTHER_SQUAD:uint = 0x9D7E57;
+
+        // The state's `S;<marks>` row onto its members: a character each, in
+        // base 36 (0 none).
+        internal static function markSquads(members:Array, marks:String):void
+        {
+            for (var i:int = 0; i < members.length; i++)
+                members[i].squad = i < marks.length ? int(parseInt(marks.charAt(i), 36)) : 0;
+        }
+
+        // The squad mark of our own squad in a list of members (0: none).
+        internal static function ourSquad(members:Array):int
+        {
+            for (var i:int = 0; i < members.length; i++)
+                if (members[i].me)
+                    return int(members[i].squad);
+            return 0;
+        }
+
+        // The tag of mark `squad` right after `name` (its text as drawn), in
+        // `box`, `h` high at y. The name's field leaves SQUAD_TAG_W + 4 for
+        // it, so nothing else moves.
+        internal function squadTag(box:Sprite, name:TextField, squad:int, ours:Boolean, h:Number):void
+        {
+            if (squad <= 0)
+                return;
+            var tag:Sprite = new Sprite();
+            tag.mouseEnabled = false;
+            tag.mouseChildren = false;
+            tag.x = int(name.x + Math.min(name.textWidth + 4, name.width) + 4);
+            tag.y = int(name.y + (name.height - h) / 2);
+            tag.graphics.beginFill(ours ? OUR_SQUAD : OTHER_SQUAD, 1);
+            tag.graphics.drawRoundRect(0, 0, SQUAD_TAG_W, h, 4, 4);
+            tag.graphics.endFill();
+            text(tag, String(squad), 0, int((h - 17) / 2), SQUAD_TAG_W, 11, 0x10161B, "center");
+            box.addChild(tag);
+        }
+
         // The click the game's buttons make (ButtonClick: sound_play 0).
         internal static function clickSound():void
         {

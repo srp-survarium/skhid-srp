@@ -1012,6 +1012,7 @@ package survarium.rooms
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
                     "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null};
+                var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
                 // may sound again (`alertNear`).
@@ -1024,7 +1025,7 @@ package survarium.rooms
                         _room.cards.push({"map": int(r[2]), "votes": int(r[3]), "mine": r[4] == "1"});
                     else if (r[0] == "P")
                         _room.members.push({"gear": int(r[2]), "owner": r[3] == "1", "me": r[4] == "1",
-                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1",
+                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1", "squad": 0,
                             "name": r.slice(8).join(";")});
                     else if (r[0] == "J")
                     {
@@ -1038,12 +1039,16 @@ package survarium.rooms
                     // A private room's teams, a digit a member (its owner's).
                     else if (r[0] == "A")
                         _room.teams = String(r[1]);
+                    // Its squads' marks, a character a member (0: none).
+                    else if (r[0] == "S")
+                        squads = String(r[1]);
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
+                RoomsLook.markSquads(_room.members, squads);
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
@@ -1127,8 +1132,8 @@ package survarium.rooms
         }
 
         // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
-        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>` and its
-        // whole name. Drawn when it is the chosen room's and something
+        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>;<squad>` and
+        // its whole name (`squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
         // changed (only its box: the view under the mouse keeps its clicks
         // and the PIN typed).
         private function takeMembers(head:Array, rows:Array):void
@@ -1148,7 +1153,7 @@ package survarium.rooms
                 sig += String(rows[i].nickname) + "|" + name + "|";
                 list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
                     "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
-                    "name": name});
+                    "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
                 return;
