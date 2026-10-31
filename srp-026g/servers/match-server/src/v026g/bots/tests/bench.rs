@@ -938,6 +938,7 @@ pub(crate) fn real_bot_cost() {
             // `Bot::no_way` afresh) and its ticks stood at a goal one of them
             // was for, while it is not searched again (`NO_WAY_RETRY_MS`).
             let mut no_way_by: std::collections::BTreeMap<String, [u64; 2]> = Default::default();
+            let mut no_way_lines = vec![0u8; teams.len()];
             let mut no_way_seen: Vec<Option<u32>> = vec![None; teams.len()];
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
@@ -1340,11 +1341,30 @@ pub(crate) fn real_bot_cost() {
                                 .as_ref()
                                 .map_or("none".to_owned(), |a| format!("{:?}", a.kind))
                         };
-                        if let Some((_, until)) = bot.no_way
+                        if let Some((goal, until)) = bot.no_way
                             && no_way_seen[bot.place] != Some(until)
                         {
                             no_way_seen[bot.place] = Some(until);
                             no_way_by.entry(play_now()).or_default()[0] += 1;
+                            // The first three failed searches of each bot: who, doing what, to where (the give-up of a goal with no way).
+                            if no_way_lines[bot.place] < 3 {
+                                no_way_lines[bot.place] += 1;
+                                eprintln!(
+                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                    game.tick,
+                                    bot.place,
+                                    body.team,
+                                    play_now(),
+                                    bot.assignment.as_ref().map(|a| &a.target),
+                                    body.carrying.is_some(),
+                                    body.feet.x,
+                                    body.feet.y,
+                                    body.feet.z,
+                                    goal.x,
+                                    goal.y,
+                                    goal.z
+                                );
+                            }
                         }
                         if let Some(Go::To { at, within_m }) = bot.bench_go
                             && body.alive
