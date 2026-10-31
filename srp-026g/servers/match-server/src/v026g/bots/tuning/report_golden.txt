@@ -19,6 +19,7 @@ switches ON threat: area crossfire_out_of_lines detour job job_line_by_id job_ob
 switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump react.on react.pass react.shot
 switches ON unstick: blind_stop_ms=4500 home_no_way_ms=20000 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
 switches OFF aim: combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
+switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift floor_height_clear
