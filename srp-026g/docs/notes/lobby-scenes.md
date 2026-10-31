@@ -158,7 +158,10 @@ against the original's code on the same objects; captured in a game, below):
 ## What a lobby project must give (for the content packs)
 
 A lobby is an ordinary `projects/lobby_scene/<id>/client_project` (and `.lua`), made as the
-classic's. What the exe and our patches take from it:
+classic's. This file is the one spec of every lobby; each pack's own notes (its source, the
+manifest's choices, each version) are the pack's: `lobby-packs-046-069.md` (the hangar and the
+camp, #776) and `lobby-packs-stk2.md` (the bunker, #802). What the exe and our patches take from
+it:
 
 - **The character stands at the origin, facing yaw pi** (looking along -z), as in the classic.
   The lobby's own character is made at (0, 0, 0) (0x21CCD2), the squad panels' at (1, 0, 0.5) and
