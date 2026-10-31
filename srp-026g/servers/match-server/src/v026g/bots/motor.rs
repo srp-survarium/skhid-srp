@@ -292,8 +292,28 @@ pub struct Pose {
     /// In a fight or a rush ([`Feel::fight_lift`]): the body runs and an enemy is known near it or it is bound for the enemy
     /// base. Set by the driver; a calm body's low tops are jumped.
     pub urgent: bool,
+    /// What the legs are asked to do, from the play's pace (`Pace`), for the sprint rules.
+    pub gait: Gait,
+}
+
+/// The gait the driver asks of the motor, one state for the legs' pace (not a pair of flags).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Gait {
+    /// Walking: the sprint only on a long straight stretch ([`Feel::sprint_from_m`]) the walk is not aimed at.
+    #[default]
+    Walk,
     /// The legs run (`Pace::Run`): the sprint is the body's pace where the way allows ([`Feel::sprint_through`]).
-    pub running: bool,
+    Run,
+    /// Out of a blast (`Pace::Escape`): [`Gait::Run`], and the sprint on any route: no long straight stretch to wait for, no
+    /// facing time, and not let go at a corner.
+    Escape,
+}
+
+impl Gait {
+    /// The legs run or escape: the sprint is the pace where the way allows.
+    pub fn runs(self) -> bool {
+        matches!(self, Self::Run | Self::Escape)
+    }
 }
 
 /// Why the client takes no sprint (so no sprint jump) now: the conditions of `base_player::can_sprint` and the
@@ -823,19 +843,40 @@ struct Ahead {
     failed: Option<Vec3>,
     /// How it is pressed.
     leap: Leap,
-    /// A sprint jump: walked into with sprint held, pressed at speed.
-    sprint: bool,
+    /// How the face is approached.
+    approach: Approach,
     /// The jump's rise, metres; over [`WALK_JUMP_TOP_M`] only the sprint jump gets up ([`Feel::band_jump_gate`]).
     rise: f32,
-    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
-    /// line up, and `before` is the route's distance to the take-off.
-    run_through: bool,
     /// A walking jump up a short top is pressed this far before the take-off ([`Route::ledge_lead`]); 0 is the usual lead.
     lead_m: f32,
+}
+
+/// How the body approaches the face of a jump link: one of these, never a mixture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Approach {
+    /// A walking jump: lined up at a walk and pressed near the take-off.
+    Walk,
+    /// A sprint jump of a ledge (the grid's label): walked into with sprint held, pressed at speed.
+    Sprint,
+    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
+    /// line up, and `before` is the route's distance to the take-off.
+    SprintGap,
     /// The sprint lift: run into the face at a sprint, no press ([`Feel::fight_lift`]).
-    lift: bool,
+    Lift,
     /// A walking jump kept at a sprint ([`Feel::sprint_through`]).
-    through: bool,
+    Through,
+}
+
+impl Approach {
+    /// The sprint is held into the face.
+    fn sprints(self) -> bool {
+        self != Approach::Walk
+    }
+
+    /// The sprint gap link's run through the turn.
+    fn runs_through(self) -> bool {
+        self == Approach::SprintGap
+    }
 }
 
 /// Why the motor pressed jump.
@@ -1234,7 +1275,7 @@ impl Motor {
         // only for a way behind it (it turns on the spot), and on a jump's
         // line for a turn off its way: it stands and turns to it first.
         let lined = jump.is_some_and(|jump| jump.lined);
-        let run_through = jump.is_some_and(|jump| jump.run_through);
+        let run_through = jump.is_some_and(|jump| jump.approach.runs_through());
         if lined && run_through {
             // A sprint gap link: the run goes on while the view turns onto the jump's way.
             self.walking = true;
@@ -1263,12 +1304,19 @@ impl Motor {
         } else {
             self.facing_ticks = 0;
         }
-        let settled = self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s;
-        if !self.sprinting && settled && straight >= self.feel.sprint_from_m {
+        // Out of a blast the sprint needs neither the facing time nor a long straight (the walks are 2-10 m), only the way
+        // faced as for any sprint.
+        let escaping = pose.gait == Gait::Escape;
+        let settled = if escaping {
+            self.walking && still < self.feel.sprint_facing
+        } else {
+            self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
+        };
+        if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
             self.sprinting = true;
         } else if self.sprinting
             && (!self.walking
-                || straight < self.feel.sprint_until_m
+                || (straight < self.feel.sprint_until_m && !escaping)
                 || still > 2.0 * self.feel.sprint_facing)
         {
             self.sprinting = false;
@@ -1284,7 +1332,7 @@ impl Motor {
         self.sprint_by_the_bar(route, s);
         // A planned drop is a link too: timed from the lining up to it.
         if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
-            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing };
+            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
             if self.links.idle() {
                 self.links.begin(self.clock, link, pose.feet, pose.speed);
             }
@@ -1331,8 +1379,8 @@ impl Motor {
         // A sprint jump is walked into at a sprint, on its line and facing its way, unless the bar is spent: a tired body
         // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
-            && j.sprint
-            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.run_through && self.walking))
+            && j.approach.sprints()
+            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.approach.runs_through() && self.walking))
             && !pose.no_jump
         {
             if self.tired {
@@ -1762,12 +1810,9 @@ impl Motor {
                 going: false,
                 failed: Some(take_off),
                 leap,
-                sprint,
+                approach: if sprint { Approach::Sprint } else { Approach::Walk },
                 rise: landing.y - take_off.y,
-                run_through: false,
                 lead_m: 0.0,
-                lift: false,
-                through: false,
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
@@ -1805,7 +1850,7 @@ impl Motor {
         // A running body keeps its sprint into a walking jump up a deep top: the sprint jump carries it up and on.
         let through = self.feel.sprint_through
             && !lifting
-            && pose.running
+            && pose.gait.runs()
             && !pose.no_jump
             && pose.sprint_block.is_none()
             && leap == Leap::Ledge
@@ -1937,7 +1982,8 @@ impl Motor {
             Leap::SprintGap(_) if self.feel.sprint_gaps => link_time::Kind::SprintGap,
             Leap::Gap(_) | Leap::SprintGap(_) => link_time::Kind::Gap,
         };
-        self.links.begin(self.clock, link_time::Link { kind, take_off, landing }, feet, pose.speed);
+        let top = route.ledge_top(k);
+        self.links.begin(self.clock, link_time::Link { kind, take_off, landing, top }, feet, pose.speed);
         Some(Ahead {
             aim,
             lined,
@@ -1946,12 +1992,19 @@ impl Motor {
             going,
             failed: None,
             leap,
-            sprint,
+            approach: if lifting {
+                Approach::Lift
+            } else if through {
+                Approach::Through
+            } else if sprint_gap {
+                Approach::SprintGap
+            } else if sprint {
+                Approach::Sprint
+            } else {
+                Approach::Walk
+            },
             rise: landing.y - take_off.y,
-            run_through: sprint_gap,
             lead_m,
-            lift: lifting,
-            through,
         })
     }
 
@@ -1972,15 +2025,15 @@ impl Motor {
             return 0;
         }
         // The sprint lift is no press: the sprint into the face carries the body up.
-        if ahead.lift {
+        if ahead.approach == Approach::Lift {
             return 0;
         }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
-        let band = self.feel.band_jump_gate && ahead.sprint && !ahead.run_through && self.over_walk_top(ahead.rise);
+        let band = self.feel.band_jump_gate && ahead.approach.sprints() && !ahead.approach.runs_through() && self.over_walk_top(ahead.rise);
         let block = pose.sprint_block.or(aimed.then_some(SprintBlock::Aiming));
         let aligned = !band || press_aligned(pose.velocity, ahead.way);
         let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned));
-        if ahead.sprint && !sprinted && (ahead.before > 0.0 || band) {
+        if ahead.approach.sprints() && !sprinted && (ahead.before > 0.0 || band) {
             if band && ahead.before.abs() <= BAND_FACE_M && pose.speed < STILL_MS {
                 band_jumps::face_tick();
             }
@@ -2046,7 +2099,7 @@ impl Motor {
         jump.pressed = Some(self.clock);
         jump.back = true;
         self.jump_try = Some(jump);
-        self.links.pressed(self.clock);
+        self.links.pressed(self.clock, pose.feet, pose.speed);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
@@ -2059,7 +2112,7 @@ impl Motor {
         if matches!(ahead.leap, Leap::Ledge | Leap::SprintLedge) && ahead.rise <= LIFT_MAX_RISE_M {
             lifts::jumped(ahead.rise, pose.urgent);
         }
-        if ahead.sprint && !ahead.run_through && !ahead.through {
+        if ahead.approach == Approach::Sprint {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
             if self.over_walk_top(ahead.rise) {
                 band_jumps::pressed(speed, self.sprinting);
@@ -2084,7 +2137,7 @@ impl Motor {
                 }
             }
         }
-        if ahead.run_through {
+        if ahead.approach.runs_through() {
             sprint_gaps::pressed(speed);
             sprint_gaps::sprint_held(self.sprinting);
         }
@@ -3343,7 +3396,7 @@ mod tests {
         for tick in 0..ticks {
             pose.no_jump = tick < hurt_ticks;
             pose.urgent = urgent;
-            pose.running = true;
+            pose.gait = Gait::Run;
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
             } else {
@@ -4761,9 +4814,34 @@ mod tests {
         assert_ne!(decision.keys & key::CROUCH, 0, "aiming too");
     }
 
+    /// Out of a blast (register #30) the sprint is taken on a 6 m route, facing the way, with no 10 m straight stretch and no
+    /// facing time to wait for; the same route at a walk, or a run (`Gait::Run`), is not sprinted before its end.
+    #[test]
+    fn an_escape_sprints_on_a_short_route_and_a_walk_does_not() {
+        let sprinted = |gait: Gait| {
+            let mut route = route(&[(0.0, 0.0), (6.0, 0.0)]);
+            let (decisions, _) = walk_as(&mut route, Vec3::new(0.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 80, gait);
+            decisions.iter().filter(|d| d.keys & key::SPRINT != 0).count()
+        };
+        assert!(sprinted(Gait::Escape) >= 5, "an escape sprints: {}", sprinted(Gait::Escape));
+        assert_eq!(sprinted(Gait::Walk), 0);
+        assert_eq!(sprinted(Gait::Run), 0, "a run needs the long straight too");
+    }
+
+    /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
+    #[test]
+    fn an_escape_and_a_run_both_run() {
+        assert!(Gait::Escape.runs() && Gait::Run.runs() && !Gait::Walk.runs());
+    }
+
     /// Walks a body that does what the keys and turns say, with the
     /// movement model, until it arrives; returns the decisions.
     fn walk(route: &mut Route, start: Vec3, yaw: f32, ticks: usize) -> (Vec<Decision>, Pose) {
+        walk_as(route, start, yaw, ticks, Gait::Walk)
+    }
+
+    /// [`walk`] with the legs asked to `gait`.
+    fn walk_as(route: &mut Route, start: Vec3, yaw: f32, ticks: usize, gait: Gait) -> (Vec<Decision>, Pose) {
         let kin = Kinematics::default();
         let mut rng = Rng::new(7);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -4772,6 +4850,7 @@ mod tests {
             yaw,
             pitch: 0.0,
             speed: 0.0,
+            gait,
             ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();

@@ -73,6 +73,7 @@ mod hump_deck;
 mod jump_pool;
 mod kits;
 mod live_zones;
+mod neck;
 mod no_way;
 mod opening;
 mod pace_gate;

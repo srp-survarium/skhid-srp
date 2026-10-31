@@ -342,9 +342,9 @@ pub fn assign_trapped(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
-    gang: Option<&GangUp>,
+    pass: Pass,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky, gang)
+    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky, pass)
 }
 
 /// [`assign`] with the bands given.
@@ -354,7 +354,7 @@ pub fn assign_with(
     bands: &Bands,
     gap: f32,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, bands, gap, &[], &[], None)
+    assign_given_up(asking, now, bands, gap, &[], &[], Pass::default())
 }
 
 /// The plays aimed at one enemy that the gang-up cap counts together (PairUp on a top, Crossfire on his last
@@ -396,6 +396,16 @@ impl GangTally {
     }
 }
 
+/// The rules of one team's pass that its tuning sets (the commander's).
+#[derive(Clone, Copy, Default)]
+pub struct Pass<'a> {
+    /// The gang-up cap (`threat.gang_up`), or none.
+    pub gang: Option<&'a GangUp<'a>>,
+    /// [A192] `commit.held_in_pass`: a slot held at the start of the pass is
+    /// free for the rest of it once its holder is given another play.
+    pub held_in_pass: bool,
+}
+
 /// What the gang-up cap needs of the team (the commander builds it for a team whose tuning has the switch on).
 pub struct GangUp<'a> {
     pub rule: GangRule,
@@ -431,8 +441,9 @@ fn assign_given_up(
     gap: f32,
     given_up: &[Place],
     shaky: &[Place],
-    gang: Option<&GangUp>,
+    pass: Pass,
 ) -> Vec<(Place, Assignment, bool)> {
+    let gang = pass.gang;
     let behind = gap < 0.0;
     for bot in &mut asking {
         bot.candidates.sort_by(|a, b| bands.better(a, b, behind));
@@ -449,7 +460,7 @@ fn assign_given_up(
         rb.cmp(&ra).then(sb.total_cmp(&sa))
     });
     // Slots held by running plays still asked for.
-    let held: Vec<Held> = asking
+    let mut held: Vec<Held> = asking
         .iter()
         .filter(|bot| !given_up.contains(&bot.place))
         .filter_map(|bot| {
@@ -580,6 +591,12 @@ fn assign_given_up(
         }
         if let Some(slot) = choice.slot {
             taken.push(slot);
+        }
+        // [A192] Its held slot, left for another play, is free for the bots
+        // after it in this pass (off: held until the next pass, where a bot
+        // that lost a slot to it took a filler for one pass).
+        if pass.held_in_pass {
+            held.retain(|h| h.holder != bot.place || choice.slot == Some(h.slot));
         }
         given.push((choice.kind, choice.target));
         let since = match (changed, bot.current) {
@@ -807,7 +824,7 @@ mod tests {
                     committed: false,
                 });
             }
-            let out = assign_trapped(asking, now, 0.0, &[], shaky, None);
+            let out = assign_trapped(asking, now, 0.0, &[], shaky, Pass::default());
             out.iter().find(|(p, _, _)| *p == 2).unwrap().1.kind
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
@@ -1035,13 +1052,55 @@ mod tests {
                     committed: false,
                 },
             ];
-            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], None);
+            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[], Pass::default());
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
         let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
         assert_eq!(run(&[]), (collect, roam));
         assert_eq!(run(&[1]), (roam, collect));
+    }
+
+    /// [A192] A holder that leaves its slot for a higher band frees it for
+    /// the bots after it in the same pass with `commit.held_in_pass`; off,
+    /// the slot stays held to the next pass and the teammate takes a filler.
+    #[test]
+    fn a_slot_left_earlier_in_the_pass_is_free_for_the_rest_of_it_with_the_switch() {
+        let current = Assignment {
+            kind: PlayKind::Collect,
+            target: TargetRef::Battery(0),
+            slot: Some(SlotKey { kind: PlayKind::Collect, key: 0 }),
+            score: 0.6,
+            since: 900,
+            reason: "the best play",
+        };
+        let run = |held_in_pass: bool| {
+            let asking = vec![
+                Asking {
+                    place: 2,
+                    candidates: vec![
+                        c(PlayKind::Collect, Rank::Objective, 0.5, Some(0), 0),
+                        c(PlayKind::Crossfire, Rank::Fight, 0.9, None, 8),
+                    ],
+                    current: None,
+                    committed: false,
+                },
+                Asking {
+                    place: 1,
+                    candidates: vec![
+                        c(PlayKind::Collect, Rank::Objective, 0.6, Some(0), 0),
+                        c(PlayKind::Trade, Rank::Alarm, 0.9, None, 5),
+                    ],
+                    current: Some(&current),
+                    committed: false,
+                },
+            ];
+            let out = assign_trapped(asking, 1_000, 0.0, &[], &[], Pass { gang: None, held_in_pass });
+            let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
+            (of(1), of(2))
+        };
+        assert_eq!(run(false), (PlayKind::Trade, PlayKind::Crossfire), "off: a filler for one pass");
+        assert_eq!(run(true), (PlayKind::Trade, PlayKind::Collect));
     }
 
     #[test]
@@ -1433,7 +1492,7 @@ mod tests {
 
     fn capped(asking: Vec<Asking>, partners: &[(Place, Place)], tally: &GangTally) -> Vec<(Place, Assignment, bool)> {
         let gang = GangUp { rule: rule(), partners, tally };
-        assign_given_up(asking, 1_000, &Bands::default(), 0.0, &[], &[], Some(&gang))
+        assign_given_up(asking, 1_000, &Bands::default(), 0.0, &[], &[], Pass { gang: Some(&gang), held_in_pass: false })
     }
 
     /// Three bots that each prefer enemy 10 (0.9) to enemy 11 (0.6), as a PairUp, Intercept and Flank.
@@ -1472,7 +1531,7 @@ mod tests {
         assert_eq!(tally.chosen_on[pair_up].each_ref().map(|c| c.load(Relaxed)), [1, 0, 0, 0]);
         // Passes, enemies aimed at and enemies with 3+ at the end of the pass: 2 enemies, none with 3.
         assert_eq!([&tally.passes, &tally.enemies_aimed, &tally.enemies_3plus].map(|c| c.load(Relaxed)), [1, 2, 0]);
-        let today = assign_given_up(three_on_a_top(), 1_000, &Bands::default(), 0.0, &[], &[], None);
+        let today = assign_given_up(three_on_a_top(), 1_000, &Bands::default(), 0.0, &[], &[], Pass::default());
         assert!(targets(&today).iter().all(|&(_, t)| t == TargetRef::Place(10)), "without the cap all three go");
     }
 

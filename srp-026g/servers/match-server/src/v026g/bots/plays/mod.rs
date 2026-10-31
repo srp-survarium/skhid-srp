@@ -266,6 +266,19 @@ pub enum Pace {
     Arrive,
     /// Crouched.
     Sneak,
+    /// Out of somewhere first (a grenade's blast, a damage zone's floor): the sprint wherever the way allows, on a short route and with
+    /// no wait to face it (`motor::Gait::Escape`), and what of the reflex's wish slows the legs is let go by the reason
+    /// ([`super::drive`], `escape_legs`).
+    Escape(EscapeWhy),
+}
+
+/// Why a body is escaping ([`Pace::Escape`]): the reason decides what the reflex keeps while the legs run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EscapeWhy {
+    /// Out of a grenade's blast.
+    Grenade,
+    /// Off a floor a damage zone hurts.
+    Zone,
 }
 
 /// Where a body looks.
@@ -1047,12 +1060,16 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
+        #[cfg(test)]
+        fairness::scoring(Some(kind));
         let (score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
+        #[cfg(test)]
+        fairness::scoring(None);
         (!score.is_zero()).then(|| Candidate {
             kind,
             target,
@@ -1155,7 +1172,7 @@ impl Running {
     pub fn travelling(&self) -> bool {
         matches!(
             self,
-            Self::Crossfire(crossfire::State::Going { .. })
+            Self::Crossfire(crossfire::State::Going { .. } | crossfire::State::PeekGoing { .. })
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
         )
