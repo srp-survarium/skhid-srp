@@ -805,6 +805,12 @@ impl Tactics {
         &self.base
     }
 
+    /// The map's regions, for the tests that follow the regions' walk.
+    #[cfg(test)]
+    pub fn regions(&self) -> &Regions {
+        &self.base.regions
+    }
+
     /// The human routes of this map and mode, put on its floors; a route
     /// left with no point is dropped.
     pub fn set_routes(&mut self, routes: Vec<super::routes::HumanRoute>) {
