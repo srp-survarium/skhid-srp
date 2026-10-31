@@ -49,6 +49,7 @@ package
    import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
    import survarium.controls.QuickSlots;
@@ -106,6 +107,9 @@ package
       public var contextInfo:SrvContextInfo;
       
       public var player_list:SrvPlayerList;
+
+      // A player's menu on the Tab list's rows (Ctrl's cursor, exe patch 86).
+      private var _rowMenu:PlayerRowMenu;
       
       public var critInd:SrvCriticalIndicator;
       
@@ -500,6 +504,8 @@ package
          addChild(this.contextInfo);
          player_list = new SrvPlayerList();
          addChild(this.player_list);
+         _rowMenu = new PlayerRowMenu(this.player_list.players);
+         this.player_list.addChild(this._rowMenu);
          gameInfo = new GameInfo();
          this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
@@ -1853,6 +1859,10 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         if(!bool)
+         {
+            this._rowMenu.close();
+         }
          // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
          this._forcedView.tab = bool;
          if(this._forcedView.forced)
@@ -1863,6 +1873,18 @@ package
          this.questTaskList.visible = bool && this.questList.visible;
       }
       
+      // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
+      // request sent or not.
+      public function srp_player_menu(place:uint, addFriend:uint) : void
+      {
+         this._rowMenu.offered(place,addFriend != 0);
+      }
+
+      public function srp_friend_request(place:uint, sent:uint) : void
+      {
+         this._rowMenu.requested(place,sent != 0);
+      }
+
       public function show_debug_damage(bool:Boolean) : void
       {
          if(!bool)

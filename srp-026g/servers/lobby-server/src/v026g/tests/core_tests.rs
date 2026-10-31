@@ -1434,6 +1434,41 @@ fn a_friend_request_waits_for_a_player_who_is_away() {
     world.assert_clean();
 }
 
+/// A friend request is sent within the sender's allowance: five at once,
+/// then one more every ten seconds (the Tab list's menu keeps the same on
+/// the client, exe patch 86); one over it is dropped.
+#[test]
+fn friend_requests_come_five_at_once_then_one_every_ten_seconds() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let names = ["Bob", "Carol", "Dave", "Erin", "Frank", "Grace"];
+    let others: Vec<usize> = names.iter().map(|name| world.connect(name)).collect();
+    world.take(alice);
+    for &other in &others {
+        world.take(other);
+    }
+    let asked = |world: &mut World, other: usize| {
+        world.take(other).iter().any(|message| {
+            matches!(message, Decoded::Important { kind: 0, sender_name, .. } if sender_name == "Alice")
+        })
+    };
+    for (name, &other) in names.iter().zip(&others).take(5) {
+        world.ask(alice, request::important(name, 0, ""));
+        assert!(asked(&mut world, other), "{name}");
+    }
+    let grace = others[5];
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "the sixth at once");
+    // (the asks themselves took a little of the test's time)
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "five seconds after");
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(asked(&mut world, grace), "ten seconds after");
+    world.assert_clean();
+}
+
 /// Alice invites Bob into her squad, as the clients do it.
 fn form_squad(world: &mut World, alice: usize, bob: usize) {
     world.take(alice);

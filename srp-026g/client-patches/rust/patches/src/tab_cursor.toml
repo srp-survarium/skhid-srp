@@ -1,0 +1,25 @@
+# Patch 86: a cursor over the Tab list (Ctrl) and a friend request from its
+# rows (docs/notes/tab-cursor-friends.md). Only the decisions: which sites,
+# and the handlers. The sites are sites_026g.tsv's; the logic is tab_cursor.rs.
+name = "tab_cursor"
+patch = 86
+
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+
+[[hook]]
+site = "hud.callback"
+handler = "on_hud_call"
+
+# A match's (or a replay's) options read, after Blackout's: the cursor of the
+# match before is forgotten.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 1
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 1

@@ -2385,6 +2385,9 @@ st_srp_exchange_receive	Saat
 st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
+st_srp_hud_add_friend	Lisää kaveriksi
+st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
+st_srp_hud_friend_sent	Kaveripyyntö lähetetty
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
 st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.

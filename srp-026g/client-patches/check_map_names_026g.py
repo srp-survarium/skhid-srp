@@ -16,8 +16,12 @@ state at +4 + 4 x key), so Tab is asked as in the game. Checked, each key in
 both builds:
 
 - the original invokes nothing; the patched build stops at 0x25CD39 with
-  every register, the stack and the frame as the original's, show_player_list
-  given the same Tab byte;
+  every register (ECX its low byte: patch 86's hook at the function's start
+  leaves its upper bytes, which the game does not read), the stack and the
+  frame as the original's, show_player_list given the same Tab byte. The
+  frame's bytes the original never writes (its uninitialised locals, where
+  the hooks at the start leave their own) are not compared: they are the
+  bytes two runs of the original with other stack contents give otherwise;
 - the hud movie ([[[handler+4]+8]+108h]+4) is told root.show_map_names(held),
   held = left or right Alt down (bit 80h of its state; the other bits are not
   it), at the first key and at each change, not again while it holds; Tab
@@ -72,9 +76,10 @@ class Run(hide.Run):
         if address == hide.INVOKE and self.refusing:
             emu.reg_write(UC_X86_REG_EAX, 0)
 
-    def key(self, down=(), key=W, kind=DOWN, movie=hide.HUD_MOVIE, vtable=KEYBOARD_VTABLE, states=None):
-        """One key the game world is given, the keys `down` held (or the raw `states`): where it stopped,
-        the registers, the stack and frame bytes, the Tab byte given and the Invokes."""
+    def key(self, down=(), key=W, kind=DOWN, movie=hide.HUD_MOVIE, vtable=KEYBOARD_VTABLE, states=None, fill=0):
+        """One key the game world is given, the keys `down` held (or the raw `states`), the stack's
+        unwritten bytes `fill`: where it stopped, the registers, the stack and frame bytes, the Tab byte
+        given and the Invokes."""
         self.emu.mem_write(KEYBOARD, bytes(0x404))
         self.word(KEYBOARD, vtable)
         for dik, state in (states or {k: 0x80 for k in down}).items():
@@ -83,7 +88,7 @@ class Run(hide.Run):
         self.movies(hide.HANDLER + 4, movie != 0, False)
         self.word(hide.HUD_UI + 4, movie or hide.HUD_MOVIE)
         sp = hide.STACK + 0x8000
-        self.emu.mem_write(sp - 0x100, bytes(0x200))
+        self.emu.mem_write(sp - 0x100, bytes([fill]) * 0x200)
         for i, value in enumerate((hide.SENTINEL, INPUT_WORLD, key, kind)):
             self.word(sp + 4 * i, value)
         self.given = []
@@ -138,8 +143,14 @@ def main():
         patched.refusing = refusing
         a = stock.key(down, key, kind, movie, vtable, states)
         b = patched.key(down, key, kind, movie, vtable, states)
+        # the frame's bytes the original never writes: another stack fill changes them
+        unwritten = stock.key(down, key, kind, movie, vtable, states, fill=0xA5)[3]
+        written = [i for i, (x, y) in enumerate(zip(a[3], unwritten)) if x == y]
+        frame = lambda run: [run[3][i] for i in written]
+        regs = lambda run: {r: v & 0xFF if r == UC_X86_REG_ECX else v for r, v in run[1].items()}
         tab = int(TAB in down or (states or {}).get(TAB, 0) & 0x80 != 0)
-        same = a[:5] == b[:5] and a[0] == PAST and a[4] == [tab] and a[1][UC_X86_REG_ESI] == hide.HANDLER + 4
+        same = (a[0] == b[0] == PAST and regs(a) == regs(b) and a[2] == b[2] and frame(a) == frame(b)
+                and a[4] == b[4] == [tab] and a[1][UC_X86_REG_ESI] == hide.HANDLER + 4)
         report(same and a[5] == [] and b[5] == want,
                f"{name}: " + (f"show_map_names({want[0][2][0]})" if want else "nothing told")
                + "; the registers, stack, frame and Tab byte as the original's")

@@ -119,6 +119,10 @@ unsafe extern "C" {
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
     /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
     pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
+    /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+    pub fn engine_show_cursor(ui: *mut c_void, shown: u32);
+    /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+    pub fn engine_send_important(messaging: *mut c_void, target: *const u8, r#type: u32, text: *const u8);
 }
 
 #[allow(dead_code)]

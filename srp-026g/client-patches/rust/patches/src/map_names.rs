@@ -32,7 +32,7 @@ fn shown(down: impl Fn(Dik) -> bool) -> bool {
 /// on_keyboard_action with the input world's keyboard (0x25CD1C).
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(keys) = GameWorldKeys::at_key_state(ctx) else { return Flow::Continue };
-    let Some(movie) = keys.hud_movie() else { return Flow::Continue };
+    let Some(movie) = keys.hud().movie() else { return Flow::Continue };
     let now = Told { movie: movie.id(), shown: shown(|key| keys.down(key)) };
     let thread = ctx.thread();
     if TOLD.get(thread) != Some(now) && movie.invoke_bool(c"root.show_map_names", now.shown) {

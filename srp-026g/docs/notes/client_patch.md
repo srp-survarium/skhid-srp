@@ -2577,3 +2577,45 @@ state bits other than 80h), a refusing movie told again until it takes it,
 another movie told at once, none without a movie or with another keyboard's
 vtable. `tools/actionscript/tests/TabMapNamesHarness.as` (Ruffle) the movie's
 part. Not run: a game.
+
+### Tab list cursor and friend requests (patch 86)
+
+Written 2026-10-30; the rules are in `tab-cursor-friends.md`. PROVEN in the code, and both sites run
+with Unicorn from the game's code (`check_tab_cursor_026g.py`). Not run in a game.
+
+- **The keys.** `game_world::on_keyboard_action` (0x25CD00, the game world's input handler in ECX,
+  priority 7, before the player's handler at 10) gets every key. It asks the keyboard for Tab at
+  every key and gives the answer to `show_player_list` (0x2384C0, hud +0BAh). While Tab is down it
+  then returns AL 0 at 0x25CF0D, so the player's handler still gets every key: Ctrl (crouch, hold,
+  DIK 1Dh/9Dh) crouches with Tab held. The patch's lohook (`tab_cursor.key`) is on the first nine
+  bytes, with no branch: `push ebp`, `mov ebp,esp`, `and esp,-8`, `sub esp,0Ch`. The arguments
+  are at the site's ESP+8 (the key) and +0Ch (its kind). Its exit `taken` is the function's own
+  `ret 0Ch` (0x25CF15), with AL set to 1. The list after a key is the key's own up or down for
+  Tab, and hud +0BAh for any other key: on_keyboard_action asks at every key, so +0BAh is the key
+  before this one.
+- **The cursor.** `game_world_ui::show_cursor` (0x23A930: EDI the hud, a byte on the stack,
+  `ret 4`) writes hud +2DCh. The game world's `on_mouse_move` (0x25D0E0, `setnz al` of handler
+  +2E0h = hud +2DCh) then takes every move, so the player's look gets none. `set_pointer`
+  (0x25D160, gw +4D8h) moves the hud movies' pointer. `on_mouse_key_action` (0x25CF60) gives the
+  buttons to the hud's movies (0x2AF610, a GFx mouse event: 151h is button 0, 152h is 1, the
+  right) and takes them. The kits show and hide the same cursor (`show_profiles_selector`
+  0x2383B0, hud +2DFh), so the patch does not hide it while the kits are shown.
+- **The movie's calls.** `game_world_ui::scaleform_callback` (0x233D30: ECX the hud, then the
+  movie, the method's name, the GFx arguments and their count; `ret 10h`) compares the name
+  against the hud's callbacks. The lohook (`hud.callback`) is on its first six bytes: `push ebx`,
+  `push esi`, `mov esi,[esp+10h]`. Its exit `done` is the `ret 10h` at 0x233D73, which leaves ESP
+  as it was at the entry.
+- **The friend request.** The lobby's `add_friend_name` (0x28C150) gets the network client's
+  messaging client (vtable 0x9FFB14 +44h, 0x21BD80: network client +1E58A4h, which is the lobby
+  client +1E0h, then +1E56C4h). It checks the lobby connection (`[lobby client +1E55C8h]`, its
+  connection's state at +0B01F4h is 0 or 4), then calls
+  `messaging_client::send_important_message` (0x26AFB0). That function takes the messaging client,
+  the target and the type byte on the stack, takes the text in EDX, and pops 0Ch. The patch does
+  the same. The game's network client is reached from the hud: +18h the world, then +9Ch the game,
+  then +53ACh the network client.
+- **The places.** The match's options are `[network client +1F1C48h]+0Ch` (0x219990). The places
+  start there, 45FCh bytes each: initialize_match 0x234EEF. A place's name is at +8 (64 bytes)
+  and its clan at +48h. The count is at +577B5h. A row's `id` is its place, and a row's name is
+  `[clan] name`. The friend list is the messaging client's vector at +0Ch (its begin) and +10h
+  (its end), 5Ch bytes per friend with the name at +8. A3 07's reader (0x26C540) fills it, and
+  0x26C4FF reads it.

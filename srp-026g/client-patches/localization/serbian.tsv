@@ -2385,6 +2385,9 @@ st_srp_exchange_receive	Primi
 st_srp_exchange_short_gold	Nema dovoljno zlata
 st_srp_exchange_short_silver	Nema dovoljno srebra
 st_srp_exchange_title	Razmeni
+st_srp_hud_add_friend	Dodaj u prijatelje
+st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
+st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
 st_srp_inventory_search	Pretraga
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
