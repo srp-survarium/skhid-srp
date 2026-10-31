@@ -26,6 +26,9 @@ package survarium.controls
 
       // This owner combines native inventory descriptions with native effect
       // snapshots. Neither callback can erase the other's presentation state.
+      // Phases: 0 none, 1 waiting (the use time), 2 active, 3 stopped by a
+      // bullet (patch 84; the hook sends it for a second of game time).
+      public static const ACTIVITY_INTERRUPTED:uint = 3;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
@@ -46,7 +49,8 @@ package survarium.controls
          for(var key:String in nativeSlot) result[key] = nativeSlot[key];
          var activity:Object = _activities[uint(nativeSlot.slot_id)];
          // An exhausted stack still owns its ongoing native effect. Keep its
-         // gray icon and native radial sweep during activation, then seconds only.
+         // gray icon and native radial sweep during activation, then seconds only;
+         // a stopped one keeps its icon, red, while the hook says so.
          if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
          {
             result.enabled = true;

@@ -86,3 +86,4 @@ engine_cc_float	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:k
 engine_query_one	0x0e5b60	EAX:requests ECX:count ESP+4:callback ESP+8:allocator ESP+12:user ESP+16:parent ESP+20:flag	void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag)	thunk	
 engine_release_emitter	0x011540	ECX:pointer	void engine_release_emitter(struct sound_emitter **pointer)	thunk	
 engine_set_listener	0x0587d0	ESI:scene EAX:position ESP+4:front ESP+8:top	void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)	thunk	
+engine_medkit_set_active	0x33d390	ESP+4:medkit AL:active ESP+8:time	void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)	thunk	
