@@ -1626,6 +1626,13 @@ fn drive_tick_inner(
     } else {
         None
     };
+    // [feel.straight_jumps] On a route jump's line no side key: the jump goes the way of the keys.
+    let jump_line = bot.motor.on_jump_line();
+    let straight = tuning.feel.straight_jumps && jump_line;
+    if jump_line && over.strafe != 0 && stepped.is_some() {
+        motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::WeaveHeld } else { motor::straight_jumps::Slot::WeaveAdded });
+    }
+    let stepped = stepped.filter(|_| !straight);
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let (side, objective) = (bot.side, intent.objective);
         let ask = |keys: u32, strafe: u32| {
@@ -1680,6 +1687,11 @@ fn drive_tick_inner(
             let follows = !tuning.spacing.apart_follow
                 && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
             let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
+            // [feel.straight_jumps] Not on a route jump's line.
+            if jump_line && !held_off {
+                motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::ApartHeld } else { motor::straight_jumps::Slot::ApartAdded });
+            }
+            let held_off = held_off || straight;
             let keys = decision.keys | away;
             let to = me.feet + side_step(keys, away, me.yaw, tactics.clear_step_sees_lip);
             let clear = !held_off && tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);

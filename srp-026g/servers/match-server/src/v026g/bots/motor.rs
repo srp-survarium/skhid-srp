@@ -229,6 +229,12 @@ pub struct Feel {
     /// 88 % of those). The sprint jump carries the body about 3 m past the face (the 8f rows, PROVEN), which that top holds.
     /// Off: a walking jump is lined up at a walk, as before.
     pub sprint_through: bool,
+    /// No side key is added to the walk on a route jump's line ([`Motor::on_jump_line`]): the reflex's side step woven into
+    /// a walk that aims (`combat.strafe_walking`) and the step apart from a teammate (`spacing.apart`) are held off from
+    /// [`STRAIGHT_JUMP_M`] before the take-off until the jump's landing. A jump pressed with forward and a side key goes the
+    /// diagonal, off the jump's line: at Vostok Radar Station's take-off 17 of 31 failed bench presses held a side key,
+    /// against 5 of 40 that got up (A198). Off: the side keys as before (counted, `straight_jumps`).
+    pub straight_jumps: bool,
 }
 
 impl Default for Feel {
@@ -276,6 +282,7 @@ impl Default for Feel {
             drop_truth: DropTruth::Links,
             fight_lift: false,
             sprint_through: true,
+            straight_jumps: false,
         }
     }
 }
@@ -462,6 +469,10 @@ pub const WALK_JUMP_TOP_M: f32 = 1.09;
 /// The highest rise the sprint lift carries a body up, metres: the owner's sprint-step limit (2026-10-26), a margin under
 /// the client's ceiling (the J0 box +1.00 lifted 19 of 20, a +1.12 face failed about 1 in 4 at any run-in, PROVEN).
 pub const LIFT_MAX_RISE_M: f32 = 1.11;
+/// A route jump's line is kept free of side keys from this far before its take-off, metres ([`Feel::straight_jumps`]): the
+/// press lead is up to 0.85 m at a walk (`JUMP_LEAD_S` x 3.5 + `PRESS_M`) and the live players press about 1 m before
+/// (fx-cover, A198); 2 m is the lining up's last stretch.
+pub const STRAIGHT_JUMP_M: f32 = 2.0;
 /// The least depth of a top the lift is tried up, metres: a 0.33 m rail head-on lifted 0 of 20 (PROVEN); 0.35 is the owner's
 /// bar (LIKELY).
 pub const LIFT_TOP_M: f32 = 0.35;
@@ -696,6 +707,8 @@ pub struct Motor {
     jump: Option<JumpBy>,
     /// This tick's walk aims at a point (`walk_aiming`): the sprint is let go of and the view is the aim's off the jump's line.
     aimed_walk: bool,
+    /// This tick's route jump being lined up for: how far before its take-off along its way the feet are ([`Motor::on_jump_line`]).
+    jump_line: Option<f32>,
     /// The link being timed ([`link_time`]), and what the last tick's walk was doing with the body in its approach.
     links: super::link_time::Watch,
     link_why: link_time::Why,
@@ -937,6 +950,7 @@ impl Motor {
             hopped: None,
             jump: None,
             aimed_walk: false,
+            jump_line: None,
             links: super::link_time::Watch::default(),
             link_why: link_time::Why::Unknown,
             key_hold: None,
@@ -999,6 +1013,16 @@ impl Motor {
         self.jump
     }
 
+    /// Whether this tick's body is on a route jump's line ([`Feel::straight_jumps`]): lined up for it within
+    /// [`STRAIGHT_JUMP_M`] of its take-off, or in a route jump pressed within [`CARRY_S`]. A side key then turns the jump
+    /// off its way: the client's jump goes the way of the keys at the press, and the air control follows the keys after it
+    /// (`get_air_control_vector` 0x2D7990).
+    pub fn on_jump_line(&self) -> bool {
+        self.jump_line.is_some_and(|before| before <= STRAIGHT_JUMP_M)
+            || self.jump == Some(JumpBy::Route)
+            || self.last_press.is_some_and(|press| press.from == LandingFrom::Jump && self.since(press.at) < CARRY_S)
+    }
+
     /// The route jump this tick's decision pressed, if any: where, which
     /// try, how lined up.
     pub fn route_press(&self) -> Option<RoutePress> {
@@ -1024,6 +1048,7 @@ impl Motor {
         self.pressed = None;
         self.lining = Lining::No;
         self.aimed_walk = false;
+        self.jump_line = None;
     }
 
     /// Whether this tick's lining up for a jump keeps the sprint (a sprint ledge under [`Feel::band_jump_gate`]): the
@@ -1248,6 +1273,7 @@ impl Motor {
             return (Decision::default(), Walked::Off(off));
         }
         let jump = self.jump_ahead(route, pose, s, &clear);
+        self.jump_line = jump.filter(|jump| jump.lined).map(|jump| jump.before);
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
@@ -1617,6 +1643,7 @@ impl Motor {
             return (Decision { keys: 0, turn }, Walked::Off(off));
         }
         let jump = self.jump_ahead(route, pose, s, &clear);
+        self.jump_line = jump.filter(|jump| jump.lined).map(|jump| jump.before);
         // On a jump's line the view turns to the jump's way: a jump goes
         // the way the body faces and its keys push (the jump branch of the
         // client's `bullet_character_controller::player_step`, 0x7BF80..
@@ -2624,6 +2651,32 @@ pub mod drop_walks {
         (HEAD + T_EDGE + D_EDGE, T_SPRINT),
         (HEAD + T_EDGE + D_EDGE + T_SPRINT, T_SPRINT),
     ];
+}
+
+/// The side keys on a route jump's line ([`Feel::straight_jumps`], [`Motor::on_jump_line`]), ticks: the reflex's side step
+/// woven into the walk and the step apart from a teammate, each added (the switch off) and held off (on).
+pub mod straight_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// What a tick's side key on a jump's line was.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Slot {
+        WeaveAdded,
+        WeaveHeld,
+        ApartAdded,
+        ApartHeld,
+    }
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn add(slot: Slot) {
+        COUNTS[slot as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The weave added / held off, the step apart added / held off.
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
 }
 
 /// The sprint gap links of routes ([`Leap::SprintGap`], `Feel::sprint_gaps`): presses by the speed at the press (under
@@ -4708,6 +4761,33 @@ mod tests {
                 aiming,
             );
             assert!(held.presses.is_empty(), "aiming {aiming}");
+        }
+    }
+
+    /// [`Motor::on_jump_line`] ([`Feel::straight_jumps`]): far back from a ledge's take-off the body is not on its line; lined
+    /// up within [`STRAIGHT_JUMP_M`] of it, it is, and so it stays through the press and the air (within [`CARRY_S`]); the
+    /// motor's own keys there are forward alone.
+    #[test]
+    fn a_body_lined_up_near_a_take_off_is_on_the_jumps_line_through_the_air() {
+        let (mut route, ledge) = up_a_ledge(false);
+        let mut rng = Rng::new(31);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.walk(&mut route, &facing_x(Vec3::new(0.5, 0.0, 0.0)), 5.0, |_| true);
+        assert!(!motor.on_jump_line(), "4.1 m before the take-off");
+        let climb = climb_ledge(&mut route, &ledge, Vec3::new(2.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 300, false);
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        // Replay to the press: on the line from 2 m before it, forward alone, and still on it a few ticks after.
+        let (mut route, _) = up_a_ledge(false);
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let press = climb.presses[0].0;
+        for (tick, pose) in climb.poses.iter().enumerate().take(press + 5) {
+            let (decision, _) = motor.walk(&mut route, pose, 5.0, |_| true);
+            let before = ledge.take_off.x - pose.feet.x;
+            if tick >= press || (motor.jump_line.is_some() && before <= STRAIGHT_JUMP_M - 0.05) {
+                assert!(motor.on_jump_line(), "tick {tick}, {before:.2} m before");
+                assert_eq!(decision.keys & (key::LEFT | key::RIGHT), 0, "tick {tick}");
+            }
         }
     }
 
