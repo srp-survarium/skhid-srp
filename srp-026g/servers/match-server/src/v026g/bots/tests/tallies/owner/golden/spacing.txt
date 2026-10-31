@@ -1,4 +1,4 @@
-owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m 6 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [nearest mate mean 4.7 m, under 6 m 76 %, beyond 40 m 0 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]
+owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m 6 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [nearest mate mean 4.7 m, under 6 m 76 %, beyond 40 m 0 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; hot cells of 5 1 m pair-seconds: (21,9) 5
 {
   "spacing": {
     "by_play": {
@@ -61,6 +61,152 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             "samples": 0
           }
         ],
+        "by_mates": [
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 10,
+            "mates_near": 640,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              10,
+              20,
+              0,
+              242,
+              58,
+              10,
+              20
+            ],
+            "pairs": 720,
+            "pairs_within_1m": 10,
+            "samples": 360
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          }
+        ],
         "clumped_samples": 0,
         "crowd_enemies": 24,
         "crowded_deaths": 8,
@@ -110,7 +256,47 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             0
           ]
         ],
+        "lane_seconds_centre_over_idle_applied_noroom_unsafe_routebusy": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "mates_near": 640,
+        "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": [
+          [
+            0,
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            0,
+            7
+          ],
+          [
+            1,
+            0,
+            1,
+            4
+          ]
+        ],
         "nearest_mate_bins_lt1_3_6_12_22_40_up": [
           10,
           20,
@@ -125,6 +311,8 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "overlap_05m_pair_s": 5,
         "overlap_1m_apart_none_taken_refused_heldoff": [
           5,
+          0,
+          0,
           0,
           0,
           0,
@@ -146,7 +334,45 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "overlap_1m_pair_s": 5,
+        "pack_deaths_window_last_all": [
+          0,
+          0,
+          8
+        ],
+        "pack_samples_all_and_5plus_within_60m": [
+          360,
+          0
+        ],
         "pairs": 360,
+        "pairs_and_within_1m_by_younger_age_lt10_20_40_80_up": [
+          [
+            150,
+            5
+          ],
+          [
+            150,
+            0
+          ],
+          [
+            60,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "pairs_by_distance_lt1_2_4_8_16": [
+          5,
+          10,
+          0,
+          0,
+          191
+        ],
         "progress_level_sum": 0.0,
         "progress_levels_fifths": [
           0,
@@ -181,6 +407,152 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           {
             "mates_alive": 0,
             "mates_near": 0,
+            "samples": 0
+          }
+        ],
+        "by_mates": [
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 720,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              36,
+              236,
+              88,
+              0,
+              0,
+              0
+            ],
+            "pairs": 720,
+            "pairs_within_1m": 0,
+            "samples": 360
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
+            "samples": 0
+          },
+          {
+            "bodies_within_1m": 0,
+            "mates_near": 0,
+            "nearest_bins_lt1_3_6_12_22_40_up": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pairs": 0,
+            "pairs_within_1m": 0,
             "samples": 0
           }
         ],
@@ -233,7 +605,47 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             0
           ]
         ],
+        "lane_seconds_centre_over_idle_applied_noroom_unsafe_routebusy": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "mates_near": 720,
+        "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            3,
+            5
+          ],
+          [
+            0,
+            1,
+            1,
+            2
+          ]
+        ],
         "nearest_mate_bins_lt1_3_6_12_22_40_up": [
           0,
           36,
@@ -247,6 +659,8 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "nearest_mate_samples": 360,
         "overlap_05m_pair_s": 0,
         "overlap_1m_apart_none_taken_refused_heldoff": [
+          0,
+          0,
           0,
           0,
           0,
@@ -269,7 +683,45 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "overlap_1m_pair_s": 0,
+        "pack_deaths_window_last_all": [
+          0,
+          0,
+          4
+        ],
+        "pack_samples_all_and_5plus_within_60m": [
+          360,
+          0
+        ],
         "pairs": 360,
+        "pairs_and_within_1m_by_younger_age_lt10_20_40_80_up": [
+          [
+            110,
+            0
+          ],
+          [
+            110,
+            0
+          ],
+          [
+            60,
+            0
+          ],
+          [
+            40,
+            0
+          ],
+          [
+            40,
+            0
+          ]
+        ],
+        "pairs_by_distance_lt1_2_4_8_16": [
+          0,
+          0,
+          36,
+          201,
+          120
+        ],
         "progress_level_sum": 0.0,
         "progress_levels_fifths": [
           0,
