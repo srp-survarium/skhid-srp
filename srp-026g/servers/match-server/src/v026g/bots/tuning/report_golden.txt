@@ -22,7 +22,7 @@ switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
-switches OFF feel: fight_lift floor_height_clear
+switches OFF feel: fight_lift floor_height_clear lip_guard_full
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause

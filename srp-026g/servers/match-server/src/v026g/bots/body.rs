@@ -98,7 +98,7 @@ impl Estimate {
 }
 
 /// How far off its reckoned place the body may be (m): the median of the bench is 0.17, the 90th percentile 0.33.
-const RECKONING_M: f32 = 0.3;
+pub const RECKONING_M: f32 = 0.3;
 /// A fall within this of a landing of the route's own drops (m) is planned.
 const PLANNED_LANDING_M: f32 = 1.0;
 
