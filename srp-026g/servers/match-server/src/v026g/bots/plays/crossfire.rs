@@ -43,6 +43,9 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("partner_m", 35.0),
     // Higher ground: weight per metre above the choke.
     ("prefer_high", 0.3),
+    // A spot seen from many bearings by the enemy's way is scored down by this per bearing (30-degree sector, the anchor's
+    // own not counted); 0: the order is by height and nearness (A195).
+    ("exposure_w", 0.0),
     // Spots on the storeys over the anchor are looked at up to this many metres
     // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
     // a storey or two (the players' heights span 9-18 m a map); V-S2a.
@@ -354,6 +357,7 @@ fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
         down_m: if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 },
         side: cx.bot.side,
         samples: num("samples") as usize,
+        exposure: super::goals::exposure_of(cx, PlayKind::Crossfire),
         ..SpotQuery::ring(choke, min_m, max_m)
     }
 }

@@ -164,7 +164,7 @@ impl OutrangedCounts {
         let all = self.totals();
         let d = &self.deaths;
         let one = |s: &OutrangedStats, d: &Deaths, l: &crate::v026g::bots::threat::SniperLaneStats, w: &[u64; 3]| {
-            serde_json::json!({
+            let mut json = serde_json::json!({
                 "lane_spots": l.made,
                 "lane_made_by_seen_heard_told": l.made_by,
                 "lane_held_ticks_within_past_15s": l.held_by_age,
@@ -189,15 +189,29 @@ impl OutrangedCounts {
                 "sniper_kills": d.sniper_kills,
                 "deaths_to_camper": d.to_camper,
                 "deaths_to_camper_at_objective": d.to_camper_at_objective,
-            })
+            });
+            // The kill hold's counts (`CombatTuning::kill_hold`), only when it did anything: the key is not there with it off.
+            if s.kill_hold != [0; 6] {
+                json["kill_hold"] = serde_json::json!(s.kill_hold);
+            }
+            json
         };
         let json = serde_json::json!({
             "outranged_sightings": all[0].sightings + all[1].sightings,
             "outranged_hides": all[0].hides + all[1].hides,
             "outranged": { "by_team": { "0": one(&all[0], &d[0], &self.lanes[0], &self.ways[0]), "1": one(&all[1], &d[1], &self.lanes[1], &self.ways[1]) } },
         });
+        let held = |k: usize| all[0].kill_hold[k] + all[1].kill_hold[k];
+        let kill_hold = if (0..6).any(|k| held(k) > 0) {
+            format!(
+                "; kill hold [kills, with a stream known, holds begun, no hide spot, ended clear, ended at the latest] {:?}",
+                [0, 1, 2, 3, 4, 5].map(held)
+            )
+        } else {
+            String::new()
+        };
         let text = format!(
-            "owner-test outranged: a sniper seen beyond the weapon's band {} ticks in {} episodes (ticks facing it {}, in the open {}), breaks of sight begun {}, a carrier kept its way {} ticks; kills by snipers {} (team 0 {} / team 1 {}), deaths to a sniper {} of which within 10 s of a sighting {}; sniper spots made by [seen, heard, told] {:?}, held ticks [within 15 s of a sense, past it] {:?}, objective ways weighed {} of which scored down {} ({} m in his lanes); deaths to the stand-in camper {} of which within 25 m of an objective {}; FAIR (0) moved by a sense older than 15 s {}",
+            "owner-test outranged: a sniper seen beyond the weapon's band {} ticks in {} episodes (ticks facing it {}, in the open {}), breaks of sight begun {}, a carrier kept its way {} ticks; kills by snipers {} (team 0 {} / team 1 {}), deaths to a sniper {} of which within 10 s of a sighting {}; sniper spots made by [seen, heard, told] {:?}, held ticks [within 15 s of a sense, past it] {:?}, objective ways weighed {} of which scored down {} ({} m in his lanes); deaths to the stand-in camper {} of which within 25 m of an objective {}; FAIR (0) moved by a sense older than 15 s {}{}",
             all[0].sightings + all[1].sightings,
             d[0].episodes + d[1].episodes,
             all[0].facing + all[1].facing,
@@ -217,6 +231,7 @@ impl OutrangedCounts {
             d[0].to_camper + d[1].to_camper,
             d[0].to_camper_at_objective + d[1].to_camper_at_objective,
             self.lanes[0].unfair + self.lanes[1].unfair,
+            kill_hold,
         );
         Part::new(json, text)
     }

@@ -308,6 +308,18 @@ impl Ctx<'_> {
 /// takes a perch by its weight. A perch that proves no way is repicked
 /// by the play (`repick_if_shut`), which asks this again. No table, no perch in range, or the switch
 /// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
+/// [A195] The exposure term of a hold play's spot query (`exposure_w` in the play's numbers): none at 0, the spots are ranked by
+/// height and nearness as they were.
+pub fn exposure_of(cx: &Ctx, kind: PlayKind) -> Option<crate::v026g::bots::tactics::Exposure> {
+    let weight = cx.num(kind, "exposure_w");
+    (weight > 0.0).then_some(crate::v026g::bots::tactics::Exposure {
+        weight,
+        near_m: 20.0,
+        far_m: 60.0,
+        anchor_deg: 45.0,
+    })
+}
+
 pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
     #[cfg(test)]
     let ring = fine.clone();

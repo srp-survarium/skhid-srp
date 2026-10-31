@@ -25,6 +25,9 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("spot_max_m", 30.0),
     // Higher ground: weight per metre above the exit.
     ("prefer_high", 0.5),
+    // A spot seen from many bearings by the enemy's way is scored down by this per bearing (30-degree sector, the anchor's
+    // own not counted); 0: the order is by height and nearness (A195).
+    ("exposure_w", 0.0),
     // Spots on the storeys over the anchor are looked at up to this many metres
     // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
     // a storey or two (the players' heights span 9-18 m a map); V-S2a.
@@ -161,6 +164,7 @@ fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
             up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
+            exposure: goals::exposure_of(cx, PlayKind::HoldExit),
             ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
         };
         let mut rng = Rng::new(key ^ u64::from(cx.now));

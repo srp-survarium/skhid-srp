@@ -259,6 +259,12 @@ pub struct CoverTally {
     pub spot_share_filter_milli: std::sync::atomic::AtomicU64,
     /// The share (thousandths) that reaches the spot given, summed over `spot_weighed`.
     pub spot_share_weighed_milli: std::sync::atomic::AtomicU64,
+    /// [A195] Spot lists ranked with an [`Exposure`] term; those whose best is not the best by height and nearness; the
+    /// bearings (other than the anchor's) of the best by height and nearness, and of the best given, summed over the lists.
+    pub exposure_lists: std::sync::atomic::AtomicU64,
+    pub exposure_changed: std::sync::atomic::AtomicU64,
+    pub exposure_other_filter: std::sync::atomic::AtomicU64,
+    pub exposure_other_weighed: std::sync::atomic::AtomicU64,
     spot_events: std::sync::Mutex<Vec<SpotEvent>>,
     /// All of them, drained or not.
     pub events_seen: std::sync::atomic::AtomicU64,
@@ -426,6 +432,9 @@ fn region_walks_to(regions: &Regions, goal: u32) -> Vec<f32> {
     dist
 }
 
+/// At most this many of the enemy's route points are cast to for one spot's exposure.
+const EXPOSURE_POINTS: usize = 160;
+
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpotQuery {
@@ -460,6 +469,23 @@ pub struct SpotQuery {
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
     pub samples: usize,
+    /// Prefer spots the enemy's way does not see from many bearings ([`Exposure`]); none: the order is by height and nearness.
+    pub exposure: Option<Exposure>,
+}
+
+/// [A195] A hold spot is scored down by the bearings the enemy's human routes can see it from, besides the one it is held
+/// for: the holders' killers come down the same line (53-57 % within 30 degrees of the entrant's bearing), but the height
+/// preference alone makes a spot see 0.4 more of the 12 sectors than a spot with the same sight and none (register A195).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Exposure {
+    /// Score taken off for each sector (30 degrees) the spot is seen from.
+    pub weight: f32,
+    /// The enemy's route points that count are this far from the spot ...
+    pub near_m: f32,
+    /// ... to this far, metres.
+    pub far_m: f32,
+    /// Sectors whose centre is within this of the bearing to the query's anchor are the line it is held for: not counted.
+    pub anchor_deg: f32,
 }
 
 impl SpotQuery {
@@ -478,6 +504,7 @@ impl SpotQuery {
             down_m: 0.0,
             side: None,
             samples: 48,
+            exposure: None,
         }
     }
 }
@@ -2292,8 +2319,19 @@ impl Tactics {
         // tried, the first to pass in the base order is what the filter alone gives.
         let mut shares: Vec<f32> = Vec::new();
         let cost = query.cover.and_then(|rule| rule.spot_cost).filter(|_| query.out_of_fire_of.is_some());
+        // The enemy's route points the exposure is cast to, when the query asks for it and the map has them.
+        let approach: Vec<Vec3> = match (query.exposure, query.side) {
+            (Some(_), Some(side)) => {
+                let enemy = self.world.map.spawns.iter().map(|s| s.team).find(|team| *team != side);
+                enemy.map_or_else(Vec::new, |enemy| self.routes_of(enemy).flat_map(|r| r.points.iter().copied()).collect())
+            }
+            _ => Vec::new(),
+        };
+        let weighing = query.exposure.filter(|_| !approach.is_empty());
+        // The bearings of each spot in `out`, when weighed.
+        let mut seen_from: Vec<u8> = Vec::new();
         for mut spot in found {
-            if out.len() >= n && cost.is_none() {
+            if out.len() >= n && cost.is_none() && weighing.is_none() {
                 break;
             }
             // A spot on a storey over the anchor is one a walk up gets to (stairs,
@@ -2336,7 +2374,26 @@ impl Tactics {
                     None => {}
                 }
             }
+            if let Some(exposure) = &weighing {
+                let bearings = self.spot_exposure(spot.at, query.around, &approach, exposure);
+                spot.score -= exposure.weight * f32::from(bearings);
+                seen_from.push(bearings);
+            }
             out.push(spot);
+        }
+        if weighing.is_some() && cost.is_none() && !out.is_empty() {
+            use std::sync::atomic::Ordering::Relaxed;
+            // `seen_from[i]` is `out[i]`'s; `out[0]` is what height and nearness alone give first.
+            let mut ranked: Vec<(Spot, u8)> = out.into_iter().zip(seen_from).collect();
+            let first = ranked[0];
+            ranked.sort_by(|a, b| b.0.score.total_cmp(&a.0.score));
+            let tally = &self.cover_tally;
+            tally.exposure_lists.fetch_add(1, Relaxed);
+            tally.exposure_changed.fetch_add(u64::from(ranked[0].0.node != first.0.node), Relaxed);
+            tally.exposure_other_filter.fetch_add(u64::from(first.1), Relaxed);
+            tally.exposure_other_weighed.fetch_add(u64::from(ranked[0].1), Relaxed);
+            ranked.truncate(n);
+            out = ranked.into_iter().map(|(spot, _)| spot).collect();
         }
         if cost.is_some() && !out.is_empty() {
             use std::sync::atomic::Ordering::Relaxed;
@@ -2364,6 +2421,36 @@ impl Tactics {
             out = ranked.into_iter().map(|(spot, _)| spot).collect();
         }
         out
+    }
+
+    /// [A195] The sectors (30 degrees) of `approach` seen from `spot`, not counting those within `exposure.anchor_deg` of the
+    /// bearing to `anchor`: a clear line from the spot's crouched eye to the standing eye of a point `near_m` to `far_m` off.
+    /// At most [`EXPOSURE_POINTS`] points are cast to (every k-th of those in range).
+    pub fn spot_exposure(&self, spot: Vec3, anchor: Vec3, approach: &[Vec3], exposure: &Exposure) -> u8 {
+        const SECTORS: usize = 12;
+        let eye = still_eye(spot, true);
+        let in_range: Vec<Vec3> = approach
+            .iter()
+            .copied()
+            .filter(|p| (exposure.near_m..=exposure.far_m).contains(&p.distance_xz(spot)))
+            .collect();
+        let stride = in_range.len().div_ceil(EXPOSURE_POINTS).max(1);
+        let mut seen = [false; SECTORS];
+        for p in in_range.iter().step_by(stride) {
+            if self.sees(eye, still_eye(*p, false)) {
+                let angle = (p.z - spot.z).atan2(p.x - spot.x).to_degrees().rem_euclid(360.0);
+                seen[((angle / (360.0 / SECTORS as f32)) as usize).min(SECTORS - 1)] = true;
+            }
+        }
+        let anchor_deg = (anchor.z - spot.z).atan2(anchor.x - spot.x).to_degrees().rem_euclid(360.0);
+        seen.iter()
+            .enumerate()
+            .filter(|&(i, &seen)| {
+                let centre = (i as f32 + 0.5) * (360.0 / SECTORS as f32);
+                let off = (centre - anchor_deg).rem_euclid(360.0);
+                seen && off.min(360.0 - off) > exposure.anchor_deg
+            })
+            .count() as u8
     }
 
     /// The floors within `radius` (on the ground plane) of `around` that a
@@ -3382,6 +3469,64 @@ pub(super) mod tests {
     /// The floor [`Tactics::step_out_routes`] gives for a reach of 3 m from `from`.
     fn routed_floor(tactics: &Tactics, from: NodeId, rest: Vec3) -> Vec3 {
         tactics.step_out_routes(from, rest, 10.5, 3.0, 3.0, 0, Some(0), false, &RouteFilter::open()).unwrap().0
+    }
+
+    /// [A195] `Tactics::spot_exposure` counts the 30-degree sectors the enemy's route points 20-60 m off can see a spot from, not
+    /// the anchor's own; behind the wall none, in the open some. A query with an `Exposure` ranks the spots seen from fewer
+    /// bearings first and counts the lists; without one the order is as it was.
+    #[test]
+    fn a_spot_seen_from_fewer_bearings_ranks_first_with_an_exposure_term() {
+        let world = field_with(|_| {});
+        let mut tactics = Tactics::new(world, 1.0);
+        // The enemy's (side 1) human route: east of the wall across x = 40 (z 0..25), along z = 10 and z = 35.
+        let points: Vec<Vec3> = (0..=15)
+            .flat_map(|k| {
+                let x = 60.0 + k as f32;
+                [Vec3::new(x, 0.0, 10.0), Vec3::new(x, 0.0, 35.0)]
+            })
+            .collect();
+        tactics.set_routes(vec![super::super::routes::HumanRoute {
+            team: 1,
+            lives: 5,
+            points: points.clone(),
+            ..Default::default()
+        }]);
+        let exposure = Exposure {
+            weight: 5.0,
+            near_m: 20.0,
+            far_m: 60.0,
+            anchor_deg: 45.0,
+        };
+        let anchor = Vec3::new(30.0, 0.0, 30.0);
+        let behind = tactics.spot_exposure(Vec3::new(30.0, 0.0, 10.0), anchor, &points, &exposure);
+        let open = tactics.spot_exposure(Vec3::new(30.0, 0.0, 35.0), anchor, &points, &exposure);
+        assert!(open > behind, "open {open} against behind the wall {behind}");
+        // The ranking: the best given is seen from no more bearings than the best by nearness alone.
+        let plain = SpotQuery {
+            side: Some(0),
+            ..SpotQuery::ring(Vec3::new(30.0, 0.0, 20.0), 6.0, 14.0)
+        };
+        let weighed = SpotQuery {
+            exposure: Some(exposure),
+            ..plain
+        };
+        let seen = |at: Vec3| tactics.spot_exposure(at, plain.around, &points, &exposure);
+        let by_nearness = tactics.spots(&plain, 0, 6, &mut Rng::new(4));
+        assert_eq!(tactics.cover_tally.exposure_lists.load(std::sync::atomic::Ordering::Relaxed), 0);
+        let ranked = tactics.spots(&weighed, 0, 6, &mut Rng::new(4));
+        assert_eq!(tactics.cover_tally.exposure_lists.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert!(!by_nearness.is_empty() && ranked.len() == by_nearness.len());
+        assert!(seen(ranked[0].at) <= seen(by_nearness[0].at));
+        assert!(seen(ranked[0].at) < seen(by_nearness.iter().map(|s| s.at).max_by_key(|at| seen(*at)).unwrap()) || by_nearness.iter().all(|s| seen(s.at) == seen(ranked[0].at)));
+        // Every candidate is weighed, not the first n to pass: the list is the best n of them, so it is no worse in bearings.
+        let total = |spots: &[Spot]| spots.iter().map(|s| u32::from(seen(s.at))).sum::<u32>();
+        assert!(total(&ranked) <= total(&by_nearness));
+        // No route points of the enemy: the order is as it was.
+        let mut bare = Tactics::new(field_with(|_| {}), 1.0);
+        bare.set_routes(Vec::new());
+        let same: Vec<_> = bare.spots(&weighed, 0, 6, &mut Rng::new(4)).iter().map(|s| s.node).collect();
+        let plain_order: Vec<_> = bare.spots(&plain, 0, 6, &mut Rng::new(4)).iter().map(|s| s.node).collect();
+        assert_eq!(same, plain_order);
     }
 
     /// From a mild zone the way out costs what it takes: not the nearest

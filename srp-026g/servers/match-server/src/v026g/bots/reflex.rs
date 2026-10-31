@@ -232,6 +232,45 @@ pub struct ClosePace {
     pub chance: f32,
 }
 
+/// [kill_hold] After a kill with a stream of enemies known down the line it fired along, the bot goes out of fire of that line
+/// and waits for it to clear (`CombatTuning::kill_hold`). The bot's holders die to the entrant's mates down the same line
+/// about 5 s after the entry (register A195), and the death share rises with the enemies near: 29 % at four bodies within
+/// 60 m, 44.5 % at five or more (the players' 19 and 30 %).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct KillHold {
+    /// Enemy tracks in the cone, at least, for the hold to begin; it ends when fewer than one less are left for `clear_ms`.
+    pub min_known: u8,
+    /// The cone: within this of the bot, metres ...
+    pub line_m: f32,
+    /// ... and within a cone of this width (degrees) round its view at the kill.
+    pub line_deg: f32,
+    /// A track counts when the bot's own senses (seen, heard, told) gave its place no longer ago than this, ms.
+    pub fresh_ms: u32,
+    /// The ring round the bot the hide spot is looked for in, metres.
+    pub hide_m: (f32, f32),
+    /// The cone clear this long ends the hold, ms.
+    pub clear_ms: u32,
+    /// The hold ends at the latest this long after the kill, ms (the players leave within 3-5 s).
+    pub max_ms: u32,
+}
+
+impl Default for KillHold {
+    /// The numbers a bench arm starts from (GUESS from the players: they leave within 3-5 s of a kill; four known enemies
+    /// is where the holder's death share passes 29 %).
+    fn default() -> Self {
+        Self {
+            min_known: 4,
+            line_m: 60.0,
+            line_deg: 90.0,
+            fresh_ms: 3_000,
+            hide_m: (4.0, 10.0),
+            clear_ms: 1_000,
+            max_ms: 5_000,
+        }
+    }
+}
+
 /// The reflex's numbers besides the aim (`AimTuning::combat`). None of
 /// them is mixed by skill but the pull against the kick (`recoil_pull_low`
 /// to `recoil_pull`): play 23 changes only aim and reaction.
@@ -611,6 +650,10 @@ pub struct CombatTuning {
     /// `grenade_roll_ms` and chance). An enemy 4-12 m off out of sight is not where the track says 4 s later, and a "no" of the
     /// chance costs the whole lockout.
     pub grenade_close_pace: Option<ClosePace>,
+    /// [kill_hold] After a kill with at least `min_known` enemies known in the cone it was firing along, the bot hides out of
+    /// fire of that line instead of walking on to its play's goal, and goes on when the line is clear or after `max_ms`.
+    /// Not for a carrier. None: off.
+    pub kill_hold: Option<KillHold>,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -1330,6 +1373,7 @@ impl Default for CombatTuning {
             grenade_close_margin_m: 2.0,
             grenade_close_fresh_ms: 1_500,
             grenade_close_pace: None,
+            kill_hold: None,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1729,6 +1773,44 @@ pub struct HealNote {
     pub cover_m: Option<f32>,
 }
 
+/// [kill_hold] The enemies the bot's own senses placed in the cone round `yaw` (within `hold.line_m`, `hold.line_deg` wide) no
+/// longer than `hold.fresh_ms` ago, alive in the view, and the centre of their places; none: no centre.
+fn stream_known(me: &PlaceView, sit: &Situation, memory: &Memory, now: u32, yaw: f32, hold: &KillHold) -> (usize, Option<Vec3>) {
+    let mut sum = Vec3::ZERO;
+    let mut n = 0usize;
+    for track in memory.tracks() {
+        let Some((at, sensed)) = track.own else {
+            continue;
+        };
+        if now.saturating_sub(sensed) > hold.fresh_ms
+            || at.distance_xz(me.feet) > hold.line_m
+            || !super::sense::in_view(me.feet, yaw, at, hold.line_deg)
+            || sit.view.place(track.who).is_some_and(|p| !p.alive)
+        {
+            continue;
+        }
+        sum = sum + at;
+        n += 1;
+    }
+    (n, (n > 0).then(|| sum * (1.0 / n as f32)))
+}
+
+/// How a hide ends (`Cover::Hiding`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum HideEnd {
+    /// Play 7: the wait at the spot, ms; then open.
+    Wait { ms: u32 },
+    /// Play 7: the wait at the spot, ms; then back at another angle.
+    Repeek { ms: u32 },
+    /// [kill_hold] Until fewer enemies than `KillHold::min_known - 1` are known in the cone round `yaw` for
+    /// `KillHold::clear_ms` (`clear_since`: since when they have been), at the latest at `until`.
+    LineClear {
+        yaw: f32,
+        until: u32,
+        clear_since: Option<u32>,
+    },
+}
+
 /// Play 7's steps.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Cover {
@@ -1739,9 +1821,7 @@ enum Cover {
         enemy: Vec3,
         started: u32,
         arrived: Option<u32>,
-        wait_ms: u32,
-        /// Back at another angle after the wait (else only the wait).
-        repeek: bool,
+        end: HideEnd,
     },
     Peeking {
         at: Vec3,
@@ -2867,11 +2947,14 @@ pub struct OutrangedStats {
     pub exposed: u32,
     pub hides: u32,
     pub task_kept: u32,
+    /// [kill_hold] Kills; kills with a stream known down the line; holds begun; no hide spot; holds ended by a clear line;
+    /// holds ended at `max_ms`.
+    pub kill_hold: [u32; 6],
 }
 
 impl OutrangedStats {
     pub fn total(&self) -> u32 {
-        self.sightings + self.facing + self.exposed + self.hides + self.task_kept
+        self.sightings + self.facing + self.exposed + self.hides + self.task_kept + self.kill_hold.iter().sum::<u32>()
     }
 
     pub fn add(&mut self, other: &Self) {
@@ -2880,6 +2963,9 @@ impl OutrangedStats {
         self.exposed += other.exposed;
         self.hides += other.hides;
         self.task_kept += other.task_kept;
+        for (sum, n) in self.kill_hold.iter_mut().zip(other.kill_hold) {
+            *sum += n;
+        }
     }
 }
 
@@ -3007,6 +3093,8 @@ pub struct Reflex {
     through_stats: ThroughStats,
     /// [measure] What the outranged rule saw and did this life.
     outranged_stats: OutrangedStats,
+    /// [kill_hold] The kills it has seen so far this life; none before the first think.
+    kills_seen: Option<u32>,
     /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
     /// worth of the others (`worth.hurter_keep_ms`).
     hurter: Option<(Place, u32)>,
@@ -3739,7 +3827,8 @@ impl Reflex {
             self.break_sight(me, sit, memory, now, false, true, c.hide_m, c, rng);
             self.reload_here = !matches!(self.cover, Cover::Hiding { .. });
         }
-        self.cover_steps(me, sit, now, c, rng);
+        self.kill_watch(me, sit, memory, now, c, rng);
+        self.cover_steps(me, sit, memory, now, c, rng);
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
         // keeps its way home.
@@ -4834,8 +4923,7 @@ impl Reflex {
                 enemy: threat.at,
                 started: now,
                 arrived: None,
-                wait_ms: still_wait(rng),
-                repeek: false,
+                end: HideEnd::Wait { ms: still_wait(rng) },
             };
             return Sought::Began;
         }
@@ -4881,19 +4969,19 @@ impl Reflex {
                 enemy,
                 started: now,
                 arrived: None,
-                wait_ms,
-                repeek,
+                end: if repeek { HideEnd::Repeek { ms: wait_ms } } else { HideEnd::Wait { ms: wait_ms } },
             };
             return Sought::Began;
         }
         Sought::NoSpot
     }
 
-    /// Play 7 on: there, waited, then back at another angle.
+    /// Play 7 on: there, waited, then back at another angle. A [`KillHold`] hide ends when its cone is clear.
     fn cover_steps(
         &mut self,
         me: &PlaceView,
         sit: &Situation,
+        memory: &Memory,
         now: u32,
         c: &CombatTuning,
         rng: &mut Rng,
@@ -4905,25 +4993,60 @@ impl Reflex {
                 enemy,
                 started,
                 arrived,
-                wait_ms,
-                repeek,
-            } => match arrived {
-                None if me.feet.distance_xz(at) <= 1.2 => {
+                end,
+            } => match (arrived, end) {
+                (
+                    _,
+                    HideEnd::LineClear {
+                        yaw,
+                        until,
+                        clear_since,
+                    },
+                ) => {
+                    // The hold ends by the cone, not by the spot: at the latest at `until`, arrived or not.
+                    let Some(hold) = c.kill_hold else {
+                        self.cover = Cover::Open;
+                        return;
+                    };
+                    let left = stream_known(me, sit, memory, now, yaw, &hold).0;
+                    let clear = left < usize::from(hold.min_known.saturating_sub(1));
+                    let since = if clear { clear_since.or(Some(now)) } else { None };
+                    if now >= until {
+                        self.cover = Cover::Open;
+                        self.outranged_stats.kill_hold[5] += 1;
+                    } else if since.is_some_and(|since| now >= since + hold.clear_ms) {
+                        self.cover = Cover::Open;
+                        self.outranged_stats.kill_hold[4] += 1;
+                    } else {
+                        let arrived = arrived.or_else(|| (me.feet.distance_xz(at) <= 1.2).then_some(now));
+                        self.cover = Cover::Hiding {
+                            at,
+                            enemy,
+                            started,
+                            arrived,
+                            end: HideEnd::LineClear {
+                                yaw,
+                                until,
+                                clear_since: since,
+                            },
+                        };
+                    }
+                }
+                (None, _) if me.feet.distance_xz(at) <= 1.2 => {
                     self.cover = Cover::Hiding {
                         at,
                         enemy,
                         started,
                         arrived: Some(now),
-                        wait_ms,
-                        repeek,
+                        end,
                     };
                 }
-                None if now >= started + c.hide_give_up_ms => self.cover = Cover::Open,
-                None => {}
-                Some(arrived) if now >= arrived + wait_ms => {
+                (None, _) if now >= started + c.hide_give_up_ms => self.cover = Cover::Open,
+                (None, _) => {}
+                (Some(arrived), HideEnd::Wait { ms } | HideEnd::Repeek { ms }) if now >= arrived + ms => {
                     self.cover = Cover::Open;
                     // Dry: nothing to peek for; only the wait asked.
-                    if self.dry() || !repeek {
+                    if self.dry() || matches!(end, HideEnd::Wait { .. }) {
                         return;
                     }
                     let Some(tactics) = sit.tactics else {
@@ -4947,13 +5070,62 @@ impl Reflex {
                         };
                     }
                 }
-                Some(_) => {}
+                (Some(_), _) => {}
             },
             Cover::Peeking { at, until } => {
                 if now >= until || me.feet.distance_xz(at) <= 1.0 {
                     self.cover = Cover::Open;
                 }
             }
+        }
+    }
+
+    /// [kill_hold] A kill since the last think, with at least `min_known` enemies known down the line it fired along: out of
+    /// fire of that line instead of on to the play's goal (the legs are the hide's, [`LegsWhy::BreakSight`]). Not a carrier,
+    /// not while already hiding.
+    fn kill_watch(&mut self, me: &PlaceView, sit: &Situation, memory: &Memory, now: u32, c: &CombatTuning, rng: &mut Rng) {
+        let before = self.kills_seen.replace(me.kills);
+        let (Some(hold), Some(before)) = (c.kill_hold, before) else {
+            return;
+        };
+        if me.kills <= before {
+            return;
+        }
+        self.outranged_stats.kill_hold[0] += 1;
+        if matches!(self.cover, Cover::Hiding { .. }) || sit.view.objective().is_actor(me) {
+            return;
+        }
+        let (known, centre) = stream_known(me, sit, memory, now, me.yaw, &hold);
+        let Some(centre) = centre.filter(|_| known >= usize::from(hold.min_known)) else {
+            return;
+        };
+        self.outranged_stats.kill_hold[1] += 1;
+        let Some(tactics) = sit.tactics else {
+            return;
+        };
+        let query = SpotQuery {
+            out_of_fire_of: Some(centre),
+            cover: sit.cover,
+            side: sit.side,
+            samples: 48,
+            ..SpotQuery::ring(me.feet, hold.hide_m.0, hold.hide_m.1)
+        };
+        match tactics.spots(&query, now, 1, rng).first() {
+            Some(spot) => {
+                self.outranged_stats.kill_hold[2] += 1;
+                self.cover = Cover::Hiding {
+                    at: spot.at,
+                    enemy: centre,
+                    started: now,
+                    arrived: None,
+                    end: HideEnd::LineClear {
+                        yaw: me.yaw,
+                        until: now + hold.max_ms,
+                        clear_since: None,
+                    },
+                };
+            }
+            None => self.outranged_stats.kill_hold[3] += 1,
         }
     }
 
@@ -9544,6 +9716,144 @@ mod tests {
         let slow = start(None, 5_000, Some(Retreat { margin_m: 0.5, told_ms: 3_500 }));
         assert!(slow.throw.is_none());
         assert_eq!(slow.grenade_stats().close, [1, 1, 0, 0, 1, 0, 0]);
+    }
+
+    /// [kill_hold] A kill with `min_known` enemies known down the line the bot fired along, by its own senses and no older than
+    /// `fresh_ms`, begins a hide out of fire of the line; with fewer, stale tracks, tracks behind it or a carrier, it walks on.
+    /// The hide ends when fewer than `min_known - 1` are left in the cone for `clear_ms`, and at the latest at `max_ms`.
+    #[test]
+    fn a_kill_with_a_stream_known_down_the_line_hides_until_the_line_is_clear() {
+        use crate::v026g::bots::know::Track;
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let hold = KillHold::default();
+        let combat = CombatTuning {
+            kill_hold: Some(hold),
+            ..combat_off()
+        };
+        // The bot east of the wall across x = 40, looking west; the enemies west of it in front of it.
+        let yaw = crate::v026g::bots::kin::yaw_of([-1.0, 0.0]);
+        let feet = Vec3::new(45.0, 0.0, 10.0);
+        let ahead = [(30.0, 8.0), (28.0, 10.0), (26.0, 12.0), (24.0, 10.0), (22.0, 9.0)];
+        let track = |who: Place, at: Vec3, sensed: u32| Track {
+            who,
+            at,
+            error_m: 0.0,
+            time: sensed,
+            source: Source::Seen,
+            sight_since: None,
+            notice_ms: 0,
+            own: Some((at, sensed)),
+            missed: None,
+            held_until: 0,
+        };
+        // (tracks, the bot's carrying, the kill)
+        let kill = |tracks: Vec<Track>, carrying: bool| {
+            let mut me = body(0, 0, feet, yaw);
+            let mut places = vec![me.clone()];
+            for (k, t) in tracks.iter().enumerate() {
+                places.push(body(1 + k, 1, t.at, 0.0));
+            }
+            let view = MatchView {
+                clock: 10_000,
+                ..view_of(places)
+            };
+            let memory = Memory::with_tracks(tracks);
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                ..Situation::of(&view)
+            };
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(5);
+            // The first think only reads the kills; the kill comes after.
+            reflex.kill_watch(&me, &sit, &memory, 9_900, &combat, &mut rng);
+            me.kills = 1;
+            me.carrying = carrying.then_some(0);
+            reflex.kill_watch(&me, &sit, &memory, 10_000, &combat, &mut rng);
+            (reflex, me, view)
+        };
+        let stream = |sensed: u32, n: usize| -> Vec<Track> {
+            ahead[..n]
+                .iter()
+                .enumerate()
+                .map(|(k, &(x, z))| track(1 + k, Vec3::new(x, 0.0, z), sensed))
+                .collect()
+        };
+        // Four known, fresh, in front: a hide, counted.
+        let (reflex, ..) = kill(stream(9_500, 4), false);
+        assert!(
+            matches!(
+                reflex.cover,
+                Cover::Hiding {
+                    end: HideEnd::LineClear { until: 15_000, clear_since: None, .. },
+                    ..
+                }
+            ),
+            "{:?}",
+            reflex.cover
+        );
+        assert_eq!(reflex.outranged_stats.kill_hold, [1, 1, 1, 0, 0, 0]);
+        // Three, stale ones (older than fresh_ms), a carrier: walks on.
+        for (tracks, carrying) in [(stream(9_500, 3), false), (stream(5_000, 4), false), (stream(9_500, 4), true)] {
+            let (reflex, ..) = kill(tracks, carrying);
+            assert!(matches!(reflex.cover, Cover::Open), "{:?}", reflex.cover);
+            assert_eq!(reflex.outranged_stats.kill_hold[2], 0);
+        }
+        // Behind the bot (east of it): not in the cone.
+        let behind: Vec<Track> = (0..4).map(|k| track(1 + k, Vec3::new(55.0 + k as f32, 0.0, 10.0), 9_500)).collect();
+        let (reflex, ..) = kill(behind, false);
+        assert!(matches!(reflex.cover, Cover::Open));
+        // Off, a kill is only read.
+        let off = CombatTuning {
+            kill_hold: None,
+            ..combat.clone()
+        };
+        let (mut reflex, me, view) = kill(stream(9_500, 4), false);
+        reflex.cover = Cover::Open;
+        reflex.kill_watch(&me, &Situation::of(&view), &Memory::default(), 10_100, &off, &mut Rng::new(1));
+        assert!(matches!(reflex.cover, Cover::Open));
+
+        // The end: the cone still full at 11 s: held; empty from 11.5 s, ended 1 s later; and at the latest at 15 s.
+        let (mut reflex, me, view) = kill(stream(9_500, 4), false);
+        let sit = Situation {
+            tactics: Some(&tactics),
+            side: Some(0),
+            ..Situation::of(&view)
+        };
+        let mut rng = Rng::new(6);
+        let full = Memory::with_tracks(stream(11_000, 4));
+        reflex.cover_steps(&me, &sit, &full, 11_000, &combat, &mut rng);
+        assert!(matches!(reflex.cover, Cover::Hiding { .. }));
+        let empty = Memory::default();
+        reflex.cover_steps(&me, &sit, &empty, 11_500, &combat, &mut rng);
+        assert!(matches!(
+            reflex.cover,
+            Cover::Hiding { end: HideEnd::LineClear { clear_since: Some(11_500), .. }, .. }
+        ));
+        reflex.cover_steps(&me, &sit, &empty, 12_400, &combat, &mut rng);
+        assert!(matches!(reflex.cover, Cover::Hiding { .. }), "not yet clear_ms");
+        reflex.cover_steps(&me, &sit, &empty, 12_500, &combat, &mut rng);
+        assert!(matches!(reflex.cover, Cover::Open));
+        assert_eq!(reflex.outranged_stats.kill_hold, [1, 1, 1, 0, 1, 0]);
+        // Never clear: ended at `max_ms` after the kill.
+        let (mut reflex, me, view) = kill(stream(9_500, 4), false);
+        let sit = Situation {
+            tactics: Some(&tactics),
+            side: Some(0),
+            ..Situation::of(&view)
+        };
+        let busy = Memory::with_tracks(stream(14_900, 4));
+        reflex.cover_steps(&me, &sit, &busy, 14_900, &combat, &mut rng);
+        assert!(matches!(reflex.cover, Cover::Hiding { .. }));
+        reflex.cover_steps(&me, &sit, &busy, 15_000, &combat, &mut rng);
+        assert!(matches!(reflex.cover, Cover::Open));
+        assert_eq!(reflex.outranged_stats.kill_hold[5], 1);
+    }
+
+    /// [kill_hold] The switch is off by default.
+    #[test]
+    fn the_kill_hold_is_off_by_default() {
+        assert!(CombatTuning::default().kill_hold.is_none());
     }
 
     /// [close] A roll with only a close place waits `grenade_close_pace.roll_ms` for the next and says yes at its chance; with the
