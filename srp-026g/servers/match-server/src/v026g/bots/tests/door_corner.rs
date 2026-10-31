@@ -303,14 +303,16 @@ fn capsule_spot_report() {
             let mut row = String::new();
             for i in 0..=50 {
                 let px = x - 2.5 + i as f32 * 0.1;
-                let floor = grid.floors_in([px, pz, px, pz]).map(|n| grid.position(n).y).find(|fy| (fy - y).abs() <= 1.0);
+                let floor = grid.floors_in([px, pz, px, pz]).map(|n| grid.position(n).y).find(|fy| (fy - y).abs() <= 2.0);
                 row.push(match floor {
                     None => ' ',
                     Some(fy) if clearance(px, pz, fy) >= standin_capsule::RADIUS_M => '.',
                     Some(_) => 'x',
                 });
             }
-            println!("{pz:7.1} {row}");
+            if !row.trim().is_empty() {
+                println!("{pz:7.1} {row}");
+            }
         }
         if let Ok(humans) = std::env::var("SRP_HUMAN_DIR") {
             let stem = project.replace('/', "_");
