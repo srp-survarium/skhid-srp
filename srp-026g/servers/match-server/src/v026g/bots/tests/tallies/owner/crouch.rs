@@ -196,9 +196,9 @@ impl Topic for CrouchCounts {
 mod tests {
     use super::*;
 
-    /// Feeds one body the (crouch, fire) ticks, alive, then padding that gives the last of them its ticks ahead and its place in the ring.
+    /// Feeds one body the (crouch, fire) ticks, alive, then padding that gives the last of them its ticks ahead (the padding itself is not counted).
     fn feed(topic: &mut CrouchCounts, ticks: &[(bool, bool)]) {
-        for &(crouch, fire) in ticks.iter().chain(&[(false, false); 2 * NEAR_TICKS]) {
+        for &(crouch, fire) in ticks.iter().chain(&[(false, false); NEAR_TICKS]) {
             topic.tick(0, Seen { alive: true, crouch, fire });
         }
     }
