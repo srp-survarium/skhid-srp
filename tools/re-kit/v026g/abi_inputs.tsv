@@ -4970,3 +4970,11 @@ va	name	location	role	basis
 0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+4	the functor buffer (the callback +8)	observed
 0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+8	the queries_result	observed
 0x00286410	survarium::fill_items_dictionary_impl	at 0x286475..0x2865F9	the dictionary entries (EDI+130h, 3A0h each; count +134h): entry+114h its config holder, [holder+108h] the root (EBX); value_exists(root, "ui_desc") first (0x2864B0), then operator[] ui_desc / text_descriptions / name (0x2865C9..0x2865E4, no checks) and translate_text of the name value's string [value+0] (0x2865F9); entry+22Ah the stack flag (0x28649C). Patch 83's prompt reads a gun's name this way	observed
+0x00279e10	vostok::memory::multi_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::node>::allocate	EAX	the policy (the allocator +20h): +0 the free list head (8 bytes, tagged, cmpxchg8b), +8 allocations, +0Ch deallocations	observed
+0x00279d80	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::malloc_impl	ESI	the allocator: +20h the policy, +30h nodes in use, +34h capacity (in use >= capacity calls 0x10E2A0 first)	observed
+0x00279c40	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator	EAX	the arena's size in bytes	observed
+0x00279c40	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator	entry ESP+4	this (match_client_impl+0B0000h)	observed
+0x00279c40	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator	entry ESP+8	the arena (match_client_impl+0)	observed
+0x00385910	vostok::network::match_client_impl::match_client_impl	entry ESP+4	this: +0..+0AFFFFh the packet arena, +0B0000h its single_size_buffer_allocator<704> (1024 packets, ctor 0x279C40 at 0x385934)	observed
+0x00019ff0	vostok::engine::engine_world::logic_dispatch_callbacks	ECX	the engine world	observed
+0x0001a390	vostok::engine::engine_world::logic	ECX	the engine world (+2B8h render world, +2ECh logic frame, +2F8h destruction started)	observed

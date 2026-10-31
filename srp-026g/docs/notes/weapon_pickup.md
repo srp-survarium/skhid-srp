@@ -428,6 +428,73 @@ query, `check_pickup_cooks.py` runs that gate):
 - **Expected:** a cooked gun costs the per-instance objects (weapon, states, pose,
   ammo) and not the mesh or textures. The cook's log measures it.
 
+## 83b's freeze and 83c's trace (2026-10-31)
+
+The first game test of 83b (one client, Player vs Bots, rev40 data) froze. What the logs show:
+
+- the death of place 10 at 53700 ms (about 05:41:03.75Z): `asked for the gun of place 10 kit 0
+  slot 7`, the last line of srp_patches.log (06:41:04.76 local); no `cook of ... made`, no panic
+  line (a panic logs before its `ud2`);
+- the client's last message to the server 05:41:07.25Z (the match packet log); the game log's
+  5 s line stops at 06:41:06.9; 60 s later the server ends the match (no world uploaded);
+- 19.6 min later the game log's `single_size_buffer_allocator<704> - out of memory!` asserts: that
+  pool is the network match client's packets, not items (`allocate` 0x279E10, `malloc_impl`
+  0x279D80; built by `match_client_impl::match_client_impl` 0x385910 at this+0B0000h over the
+  object's own 0xB0000-byte arena, ctor 0x279C40: 1024 packets). The network thread kept receiving
+  and nothing took the packets: a symptom of the frozen game, not its cause.
+
+So the game stopped about 3.5 s after the cook was asked, about when the spike's cooks completed
+(1.9 to 2.4 s).
+
+Static review of the cook's path (threads, locks, waits):
+
+- The death hook (0x1F28E0 from base_player::tick) runs on the logic thread
+  (`engine_world::logic` 0x1A390 -> logic_tick 0x1A030). The query is that thread's; its
+  completion runs in that thread's `logic_dispatch_callbacks` 0x19FF0 (resources::dispatch_callbacks
+  0xE5AB0 -> resources_manager::dispatch_callbacks 0x102370 -> the boost invoker 0x202300 ->
+  `cooked_entry`), at the start of the next logic tick: the same thread, never inside a tick.
+- `start` holds no lock across `query_resources` (the ticket is Waiting before the query; a
+  completion inside the call finds it), and `died` is called holding none. The completion takes
+  TABLE alone; the cache's readers take CACHE then TABLE (`log_finished`); nothing takes TABLE then
+  CACHE. No closure of patch 83 calls the game while it holds a lock. No lock is re-taken on its
+  own thread (that panics, and logs).
+- The wait (`wait_for`, 2 s) runs only for a pickup command: none was sent.
+- What can still stop the game silently: the logic thread waits for the renderer (logic frame
+  > renderer frame + 1: a loop of dispatches and Sleep(1), 0x1A2B0..0x1A35F), so a render thread
+  that stops stops the logic thread too. On the render side, patch 83 runs `ragdoll_gun` (carry.weapon,
+  every frame of a dead body: RECORDS, HOLDERS, SEEN, and `drawn_gun`'s raw pointer chain), and
+  patch 78 holds HIDDEN across the native visibility change (on_weapon, on_weapon_hide).
+  No deadlock of ours is found; the trace says where it stops.
+
+83c changes nothing but the log (srp_patches.log, each line written and the file closed at once,
+so a frozen game loses nothing written). Every line of patch 83 is `pid P tid T pickup: ...`
+(GetCurrentThreadId). Lines:
+
+- always: the death hook (entry, `done`); the issue (the profile copy, recipe, `query_resources`
+  called / returned); the completion (entered, result count, the inventory, TABLE taken and
+  released, freeing, left); a cook given back (Gun::drop), the native inventory release before
+  and after; `restoring` before a restore; each free of the cache (`freeing the cook of`,
+  `freed`); the locks of the death, the issue, the completion and the stores (RECORDS, CACHE,
+  HOLDERS, TABLE: `trace: lock X in f: taking` / `released`).
+- while a budget lasts (6000 traced uses, armed at each ask and each completion: about 6 s of
+  frames): after_move, the cache's per-frame locks, `cooked`, `dispatch_callbacks` in a wait,
+  ragdoll_gun (drawn_gun before/after, SEEN), a dead body's HIDDEN in on_weapon, the prompt's
+  steps (offer, handedness, ray_test, gun_name).
+- never: the record's per-tick writers (pickup.save/load, every player, every tick).
+
+A frozen game's backtrace (winedbg) shows arena addresses (the `.srpx` arena at 0xA42D000). The
+block is the one of `arena_026g.lock.json` whose `va`/`size` hold it; the lock keeps only global
+symbols, so for the function link the arena again (the same sources give the same bytes, which
+`--check` proves) and take the nearest symbol below, locals too:
+
+    cd srp-026g/client-patches && nix develop .. --command python -c "import sys, link_026g as l, \
+    patch_026g as b; x = l.link(b.ARENA, b.ARENA_VA, b.ARENA_LIMIT); a = int(sys.argv[1], 16); \
+    v, n, h, _ = max(s for s in ((v, n, h, g) for n, v, h, g in x.every) if s[0] <= a); \
+    print(hex(v), n, h, '+%#x' % (a - v))" 0xA457123
+
+(SRP_026G_EXE set; the names are Rust's v0 mangling: `rustfilt` or `c++filt` reads them.) The
+exe's own addresses: `tools/re-kit/v026g/lookup.py`.
+
 ## Codex's research (evidence; its code is removed)
 
 The Unicorn checks named here are in `tools/re-kit/v026g/`.

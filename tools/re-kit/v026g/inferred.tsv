@@ -3133,3 +3133,8 @@ va	status	ref_021d	name
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
 0x001e8b50	inferred-medium		survarium::initialize_allocators
+0x00279d80	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::malloc_impl
+0x00279c40	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator
+0x00019ff0	inferred-high		vostok::engine::engine_world::logic_dispatch_callbacks
+0x0001a390	inferred-high		vostok::engine::engine_world::logic
+0x0001a030	inferred-medium		vostok::engine::engine_world::logic_tick
