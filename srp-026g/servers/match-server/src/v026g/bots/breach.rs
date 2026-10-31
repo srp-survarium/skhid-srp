@@ -475,9 +475,9 @@ pub enum Event {
     Opened { spot: u32, pinner: bool, objective: bool },
     /// A due spot got none: no plan (and why), too few free crossers, the team's cap, or the spot memory refused it.
     NotOpened { spot: u32, why: NotOpened },
-    /// A phase change of the Breach on `spot` (his spot `at` when it opened, its try from `from`), its first crosser death so
-    /// far.
-    Stepped { spot: u32, shooter: Place, at: Vec3, from: Vec3, step: Step, life_ms: u32, first_death: Option<u32> },
+    /// A phase change of the Breach on `spot` (his spot `at` when it opened, its try from `from`) from phase `was`, its first
+    /// crosser death so far, and its bots.
+    Stepped { spot: u32, shooter: Place, at: Vec3, from: Vec3, was: Phase, step: Step, life_ms: u32, first_death: Option<u32>, bots: [Option<Place>; 3] },
 }
 
 impl Event {
@@ -565,7 +565,8 @@ pub fn tick(
             _ => false,
         };
         let facts = Facts { crossers, pinner, shooter, objective_worse };
-        let (shooter, at, from, life_ms) = (b.shooter, b.at, b.from(), now.saturating_sub(b.since));
+        let (shooter, at, from, was, life_ms) = (b.shooter, b.at, b.from(), b.phase, now.saturating_sub(b.since));
+        let bots = [Some(b.crossers[0].holder.place), Some(b.crossers[1].holder.place), b.pinner.map(|p| p.place)];
         let mut first_death = match b.phase {
             Phase::Hold { first_death, .. } => first_death,
             _ => None,
@@ -574,7 +575,7 @@ pub fn tick(
             if let Step::FirstDeath { at } = step {
                 first_death = Some(at);
             }
-            events.push(Event::Stepped { spot, shooter, at, from, step, life_ms, first_death });
+            events.push(Event::Stepped { spot, shooter, at, from, was, step, life_ms, first_death, bots });
         }
     }
     breaches.retain(|b| !b.phase.ended());

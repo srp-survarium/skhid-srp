@@ -157,8 +157,10 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
-            // [threat.breach] The killing team's kill feed: the enemy it killed, and its killer when one's kills rose.
-            if self.tunings.of(1 - team as u8).threat.breach.is_some() {
+            // [threat.breach, traps.at_cleared] The killing team's kill feed: the enemy it killed, and its killer when one's
+            // kills rose.
+            let winners = self.tunings.of(1 - team as u8);
+            if winners.threat.breach.is_some() || winners.traps.at_cleared.is_some() {
                 let killers: Vec<Place> = after
                     .places
                     .iter()

@@ -1261,14 +1261,43 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         }
         None => Vec::new(),
     };
-    let wish = t
-        .at_defeated
-        .filter(|_| !wished_spots.is_empty())
-        .map(|d| Wish {
+    // [A145, at_cleared] The death point of a camper a team job just killed, wished of this bot (the job's placer), when its route
+    // passes it or it stands by it: it goes before the defeated holders' spots.
+    let cleared_spots: Vec<Vec3> = match t.at_cleared {
+        Some(c) => {
+            let keep_ms = (c.keep_s * 1000.0) as u32;
+            let route = &ahead[..(c.ahead_m as usize).min(ahead.len())];
+            state
+                .knowledge
+                .cleared
+                .iter()
+                .filter(|w| w.placer == bot.place && due.now.saturating_sub(w.time) <= keep_ms)
+                .map(|w| w.at)
+                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= c.within_m))
+                .filter(|at| {
+                    if staying {
+                        me.feet.distance_xz(*at) <= c.within_m + reach_m
+                    } else {
+                        off_route_m(route, *at) <= c.within_m
+                    }
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    let wish = match t.at_cleared.filter(|_| !cleared_spots.is_empty()) {
+        Some(c) => Some(Wish {
+            spots: &cleared_spots,
+            within_m: c.within_m,
+            friend_m: c.friend_m,
+        }),
+        None => t.at_defeated.filter(|_| !wished_spots.is_empty()).map(|d| Wish {
             spots: &wished_spots,
             within_m: d.within_m,
             friend_m: d.friend_m,
-        });
+        }),
+    };
+    let on_cleared = !cleared_spots.is_empty();
     let search = Search {
         t,
         reach_m,
@@ -1289,10 +1318,18 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
     if let Some(wish) = wish {
         #[cfg(test)]
-        defeated::count_team(me.team, defeated::THINKS);
+        if on_cleared {
+            cleared::count(me.team, cleared::THINKS);
+        } else {
+            defeated::count_team(me.team, defeated::THINKS);
+        }
         if !chosen.is_some_and(|c| c.wished) && wish.spots.iter().any(|at| me.feet.distance_xz(*at) > wish.within_m + reach_m + 1.0) {
             #[cfg(test)]
-            defeated::count_team(me.team, defeated::WAITED);
+            if on_cleared {
+                cleared::count(me.team, cleared::WAITED);
+            } else {
+                defeated::count_team(me.team, defeated::WAITED);
+            }
             return;
         }
     }
@@ -1333,8 +1370,14 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
     if let Some(chosen) = chosen {
         #[cfg(test)]
-        if chosen.wished {
+        if chosen.wished && on_cleared {
+            cleared::placed(me.team, bot.place, due.now);
+        } else if chosen.wished {
             defeated::count_team(me.team, defeated::PLACED);
+        }
+        // [A145] A death point wished of this bot is spent once it plans its trap there.
+        if chosen.wished && on_cleared {
+            state.knowledge.cleared.retain(|w| !(w.placer == bot.place && w.at.distance_xz(chosen.spot) <= t.at_cleared.map_or(0.0, |c| c.within_m) + 0.5));
         }
         #[cfg(test)]
         {
@@ -1510,6 +1553,48 @@ pub mod defeated {
             n(R_BODY),
             n(R_FRIEND)
         )
+    }
+}
+
+/// [A145, at_cleared] The bench's counts of the traps at cleared campers' death points, by team: points noted after a
+/// Breach's or a flanker's kill, kills with no job bot that had a trap, thinks with such a point wished (past the gate),
+/// waits for it along the route, plans placed on it; and the plans (placer, time) to match the catches by.
+#[cfg(test)]
+pub mod cleared {
+    pub const NOTED_BREACH: usize = 0;
+    pub const NOTED_FLANK: usize = 1;
+    pub const NO_PLACER: usize = 2;
+    pub const THINKS: usize = 3;
+    pub const WAITED: usize = 4;
+    pub const PLACED: usize = 5;
+    pub const NAMES: [&str; 6] = ["noted_breach", "noted_flank", "no_placer", "thinks", "waited", "placed"];
+
+    thread_local! {
+        static TEAM: std::cell::Cell<[[u64; 6]; 2]> = const { std::cell::Cell::new([[0; 6]; 2]) };
+        static PLANS: std::cell::RefCell<Vec<(usize, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    pub fn count(team: u8, kind: usize) {
+        TEAM.with(|cell| {
+            let mut all = cell.get();
+            all[usize::from(team & 1)][kind] += 1;
+            cell.set(all);
+        });
+    }
+
+    /// A trap planned on a cleared point by `placer` at `now`.
+    pub fn placed(team: u8, placer: usize, now: u32) {
+        count(team, PLACED);
+        PLANS.with(|p| p.borrow_mut().push((placer, now)));
+    }
+
+    pub fn counted() -> [[u64; 6]; 2] {
+        TEAM.with(|cell| cell.get())
+    }
+
+    /// The plans so far, from the `from`th on.
+    pub fn plans(from: usize) -> Vec<(usize, u32)> {
+        PLANS.with(|p| p.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
     }
 }
 

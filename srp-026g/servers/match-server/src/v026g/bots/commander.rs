@@ -16,7 +16,8 @@ pub(super) struct TeamState {
 /// [threat.breach] The team's Breaches at its commander tick (`breach.rs`): the due spots (its Flanks' failures) tried, the
 /// running ones stepped; a Flank job a Breach takes over ends (`JobEnd::Breached`); with the spot memory on
 /// (`threat.concede`), a spot it concedes or a try like the last is refused, and an end is recorded (his death by anyone opens
-/// the area, a failure counts); a note per event. `lines`: the holds (the spots a job opens on) and every held line.
+/// the area, a failure counts); a note per event. `lines`: the holds (the spots a job opens on) and every held line. Returns
+/// the campers its jobs killed after their go (his place, his spot, the job's bots), for the trap on his death point.
 #[allow(clippy::too_many_arguments)]
 fn breach_tick(
     tactics: &Tactics,
@@ -32,8 +33,9 @@ fn breach_tick(
     objective: objective::ObjectiveMap,
     side: Option<i32>,
     notes: &mut Vec<Note>,
-) {
+) -> Vec<(Place, Vec3, [Option<Place>; 3])> {
     use super::concede::{JobKind, Offer, SpotEvent, Try, TryKind};
+    let mut killed = Vec::new();
     let (holds, held) = lines;
     threat.kills.retain(|k| now.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
     let concede = tuning.threat.concede.map(|c| c.rules());
@@ -80,7 +82,12 @@ fn breach_tick(
                     notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {ended}") });
                 }
             }
-            breach::Event::Stepped { at, from, step: breach::Step::Ended(phase), shooter, .. } => {
+            breach::Event::Stepped { at, from, was, step: breach::Step::Ended(phase), shooter, bots, .. } => {
+                if matches!(phase, breach::Phase::Done { done: breach::Done::ShooterDied { by_job: true }, .. })
+                    && matches!(was, breach::Phase::Go { .. } | breach::Phase::Hold { .. })
+                {
+                    killed.push((shooter, at, bots));
+                }
                 if let Some(c) = concede {
                     let area = threat.spot_memory.area_of(at, Some(shooter), now);
                     match phase {
@@ -94,6 +101,59 @@ fn breach_tick(
         }
         notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {}", event.note()) });
     }
+    killed
+}
+
+/// [traps.at_cleared] A camper a team job killed (`by`) after his spot `spot`: his death point (the view's death, else the spot)
+/// is wished a trap by the job's bot (`holders`) nearest it that has one to place, alive and not carrying; none: nothing.
+#[allow(clippy::too_many_arguments)]
+fn note_cleared(
+    bots: &[Option<Bot>],
+    knowledge: &mut TeamKnowledge,
+    view: &MatchView,
+    tuning: &Tuning,
+    team: u8,
+    killed: (Place, Vec3),
+    holders: &[Option<Place>],
+    by: know::ClearedBy,
+    now: u32,
+    notes: &mut Vec<Note>,
+) {
+    let Some(c) = tuning.traps.at_cleared else {
+        return;
+    };
+    let (shooter, spot) = killed;
+    let at = view.deaths.iter().rev().find(|d| d.place == shooter).map_or(spot, |d| d.at);
+    let placer = holders
+        .iter()
+        .flatten()
+        .filter_map(|&p| {
+            let body = view.place(p).filter(|b| b.alive && b.carrying.is_none())?;
+            let bot = bots.iter().flatten().find(|b| b.place == p)?;
+            matches!(bot.features.traps.habit.may_plan(&tuning.traps), Ok(()) | Err(traps::Refusal::Busy)).then_some((p, body.feet.distance_xz(at)))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(p, _)| p);
+    #[cfg(test)]
+    traps::cleared::count(
+        team,
+        match (placer, by) {
+            (None, _) => traps::cleared::NO_PLACER,
+            (Some(_), know::ClearedBy::Breach) => traps::cleared::NOTED_BREACH,
+            (Some(_), know::ClearedBy::Flank) => traps::cleared::NOTED_FLANK,
+        },
+    );
+    let Some(placer) = placer else {
+        return;
+    };
+    let keep_ms = (c.keep_s * 1000.0) as u32;
+    knowledge.cleared.retain(|w| now.saturating_sub(w.time) <= keep_ms);
+    knowledge.cleared.push(know::Cleared { at, time: now, shooter, placer, by });
+    notes.push(Note {
+        place: usize::MAX,
+        time: now,
+        text: format!("team {team}: camper {shooter} cleared by a {by:?} job at ({:.1}, {:.1}, {:.1}): bot {placer} is to trap his point", at.x, at.y, at.z),
+    });
 }
 
 /// A team's threat spots at its commander tick ([`threat`]): the
@@ -211,6 +271,12 @@ fn threat_tick(
         // A role's bot stands out of every held line, or of the holds' only (the switch off).
         let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
         let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
+        // [traps.at_cleared] The Flank jobs' bots before the tick: a job its flanker's kill ends names who traps the point.
+        let flank_bots: Vec<(u32, [Option<Place>; 2])> = if tuning.traps.at_cleared.is_some() {
+            threat.jobs.iter().map(|j| (j.spot, [j.flanker.map(|h| h.place), j.pinner.map(|h| h.place)])).collect()
+        } else {
+            Vec::new()
+        };
         let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, lanes, opening, &job_team, &unheld, now);
         threat.deaths.retain(|d| now.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
         for event in events {
@@ -251,6 +317,14 @@ fn threat_tick(
                 }
                 threat::JobEvent::Passed { .. } => {}
             }
+            // [traps.at_cleared] A Flank job its flanker's kill ended: its bots trap his death point.
+            if let threat::JobEvent::Ended { spot, shooter, end: threat::JobEnd::ShooterDied, .. } = event
+                && let Some(&(_, holders)) = flank_bots.iter().find(|(s, _)| *s == spot)
+                && threat.kills.iter().any(|k| k.victim == shooter && k.killer.is_some() && k.killer == holders[0])
+            {
+                let at = held.iter().find(|l| l.id == spot).map_or(Vec3::ZERO, |l| l.at);
+                note_cleared(bots, &mut state.knowledge, view, tuning, team, (shooter, at), &holders, know::ClearedBy::Flank, now, notes);
+            }
             // [threat.breach] A Flank that failed (a holder down, its time, nobody to hold it) or whose flanker did not take
             // the play (no flank spot): its spot is due a Breach.
             if breach_rules.is_some() {
@@ -273,7 +347,10 @@ fn threat_tick(
         }
         if let Some(rules) = breach_rules {
             let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
-            breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &areas, objective, side, notes);
+            let killed = breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &areas, objective, side, notes);
+            for (shooter, at, holders) in killed {
+                note_cleared(bots, &mut state.knowledge, view, tuning, team, (shooter, at), &holders, know::ClearedBy::Breach, now, notes);
+            }
         }
     }
     if *state.knowledge.breaches != threat.breaches {
