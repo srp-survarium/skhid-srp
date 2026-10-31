@@ -174,6 +174,11 @@ struct Rec {
     walk: u8,
     why: u16,
     has_route: bool,
+    /// The motor's own keys, the side step, the step apart and the lip guard of the tick ([`run::Doing`]).
+    motor_keys: u32,
+    stepped: u8,
+    apart: u8,
+    guard: u8,
 }
 
 /// The owner counts: the run's record ([`Run`]) and the topics that count from it ([`Topic`], [`topics`]).

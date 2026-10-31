@@ -1605,6 +1605,10 @@ fn drive_tick_inner(
             }
         }
     };
+    #[cfg(test)]
+    {
+        bot.bench_motor_keys = decision.keys;
+    }
     // A lift at its face asks sprint and forward held: where those keys go (`lifts::keys`).
     let lift_face = bot.motor.lift_at_face();
     let lift_wants = key::SPRINT | key::FORWARD;
