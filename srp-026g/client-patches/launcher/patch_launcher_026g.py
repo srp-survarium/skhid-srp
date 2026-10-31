@@ -114,14 +114,25 @@ PATCHES = [
     # service would start the old updater as SYSTEM).
     (0x15521, "7420", "eb20",
      "run_survarium_executable_as_administrator: je (no service asked) becomes jmp"),
-    # 4. The installer's values are looked for in the user's own key, which
-    # the launcher makes itself for its language setting, not in the
-    # machine's, which only an installer could write. (The values themselves
-    # come from the new code: patch 5.)
-    (0x15231, "6802000080", "6801000080", "get_local_version: HKLM becomes HKCU"),
-    (0x159A4, "6802000080", "6801000080", "start_updater, update server: HKLM becomes HKCU"),
-    (0x16301, "6802000080", "6801000080", "restart_launcher: HKLM becomes HKCU"),
-    (0x170AD, "6802000080", "6801000080", "get_game_launch_parameters: HKLM becomes HKCU"),
+    # 4. The installer's values come from the new code (patch 5), which
+    # never looks at the key they are read through, and every name these
+    # four functions read is one it answers: they open no key. Each jumps
+    # from where it built the key's path straight to its first read, past
+    # RegOpenKeyExW and its failure branch, and each RegCloseKey is jumped
+    # over with the push of its handle. (A key that must open was the bug of
+    # revision 39: nothing makes HKCU's product key once the language is in
+    # user.cfg, and start_updater said "Can't open survarium registry key".)
+    (0x15223, "e858eeffff", "eb2d909090", "get_local_version: jmp 0x15252, its read, past the open"),
+    (0x153FE, "ff75ec", "eb0790", "get_local_version, no version: jmp 0x15407, past RegCloseKey"),
+    (0x1541E, "ff75ec", "eb0790", "get_local_version, a version: jmp 0x15427, past RegCloseKey"),
+    (0x15997, "e8e4e6ffff", "eb38909090", "start_updater: jmp 0x159D1, its read of update server"),
+    (0x15A4D, "ff7508", "eb0790", "start_updater, its end: jmp 0x15A56, past RegCloseKey"),
+    (0x162F4, "e887ddffff", "eb27909090", "restart_launcher: jmp 0x1631D, its read of launcher"),
+    (0x16338, "ff75f884c07568", "84c07571eb0790",
+     "restart_launcher: test al / jne 0x163AD / jmp 0x16345, past both RegCloseKey"),
+    (0x1709F, "e8dccfffff", "eb2d909090", "get_game_launch_parameters: jmp 0x170CE, its reads"),
+    (0x17123, "ff75fc", "eb0790", "get_game_launch_parameters, failed: jmp 0x1712C, past RegCloseKey"),
+    (0x1714F, "ff75fc", "eb0790", "get_game_launch_parameters, done: jmp 0x17158, past RegCloseKey"),
     # 6. Buttons that led to the game's old sites, and SHOP, whose exchange
     # is in the lobby now: they do nothing (and are moved out of sight below).
     (0x1BBEF, "55", "c3", "SHOP click: ret"),
