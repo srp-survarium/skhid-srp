@@ -9,6 +9,9 @@ use super::*;
 #[derive(Default)]
 pub(super) struct PierceCounts {
     cover: [u64; 10],
+    /// [A195] Hold-spot lists ranked with an exposure term: lists, those whose best changed, and the bearings (other than the
+    /// anchor's) of the best by height and nearness and of the best given, summed.
+    exposure: [u64; 4],
 }
 
 impl Topic for PierceCounts {
@@ -31,6 +34,12 @@ impl Topic for PierceCounts {
                 t.spot_changed.load(Relaxed),
                 t.spot_share_filter_milli.load(Relaxed),
                 t.spot_share_weighed_milli.load(Relaxed),
+            ];
+            self.exposure = [
+                t.exposure_lists.load(Relaxed),
+                t.exposure_changed.load(Relaxed),
+                t.exposure_other_filter.load(Relaxed),
+                t.exposure_other_weighed.load(Relaxed),
             ];
         }
     }
@@ -56,7 +65,7 @@ impl PierceCounts {
             self.cover;
         // The mean share of a bullet that reaches the hiding spot given, in thousandths: by the filter alone, and as weighed.
         let mean = |milli: u64| milli.checked_div(weighed).unwrap_or(0);
-        let json = serde_json::json!({
+        let mut json = serde_json::json!({
             "pierce_strikes_open": stats.strikes_open,
             "pierce_strikes_partial": stats.strikes_partial,
             "pierce_strikes_stopped": stats.strikes_stopped,
@@ -81,12 +90,27 @@ impl PierceCounts {
             "pierce_spots_share_filter_milli": mean(filter_milli),
             "pierce_spots_share_weighed_milli": mean(weighed_milli),
         });
+        // The exposure term's counts (`SpotQuery::exposure`), only when a play used it: the keys are not there with it off.
+        if self.exposure[0] > 0 {
+            json["exposure_spot_lists"] = self.exposure[0].into();
+            json["exposure_spot_lists_changed"] = self.exposure[1].into();
+            json["exposure_bearings_by_height"] = self.exposure[2].into();
+            json["exposure_bearings_weighed"] = self.exposure[3].into();
+        }
+        let exposure = if self.exposure[0] > 0 {
+            format!(
+                "; hold-spot lists with an exposure term {} (the best changed in {}; bearings of the best by height {} / as weighed {})",
+                self.exposure[0], self.exposure[1], self.exposure[2], self.exposure[3]
+            )
+        } else {
+            String::new()
+        };
         let walled = |team: usize| {
             let b = stats.walled_bands[team];
             format!("stopped {} / <=0.25 {} / <=0.5 {} / <1 {} / all {}", b[0], b[1], b[2], b[3], b[4])
         };
         let text = format!(
-            "owner-test pierce: bullet mesh {} faces ({} with armor, {} free, {} no material = unknown, stops all); strikes' lines open {} through cover {} stopped {} (by armor {:?}), {} faces crossed; shots into cover by the share kept, team 0 [{}], team 1 [{}]; hits through cover {:?} kills {:?}; cover tests: sight-only {} clear {} opened by the pierce {} shut with some damage {} shut and stopped {} ({} opened lines noted); hiding spots weighed {} (the pick changed {}; share reaching the spot, thousandths: filter {} weighed {})",
+            "owner-test pierce: bullet mesh {} faces ({} with armor, {} free, {} no material = unknown, stops all); strikes' lines open {} through cover {} stopped {} (by armor {:?}), {} faces crossed; shots into cover by the share kept, team 0 [{}], team 1 [{}]; hits through cover {:?} kills {:?}; cover tests: sight-only {} clear {} opened by the pierce {} shut with some damage {} shut and stopped {} ({} opened lines noted); hiding spots weighed {} (the pick changed {}; share reaching the spot, thousandths: filter {} weighed {}){}",
             census.total,
             census.armored,
             census.free,
@@ -110,6 +134,7 @@ impl PierceCounts {
             changed,
             mean(filter_milli),
             mean(weighed_milli),
+            exposure,
         );
         Part::new(json, text)
     }

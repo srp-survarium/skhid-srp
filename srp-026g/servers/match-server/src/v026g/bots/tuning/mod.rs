@@ -102,6 +102,8 @@ pub use aim::TierSkill;
 pub use cover::BulletPierce;
 pub use cover::CoverRule;
 pub use cover::CoverTuning;
+pub use cover::Exposure;
+pub use cover::ExposureWeight;
 pub use cover::PierceCover;
 pub use cover::Share;
 pub use cover::SpotCost;

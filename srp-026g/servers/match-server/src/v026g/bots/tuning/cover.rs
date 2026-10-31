@@ -105,6 +105,74 @@ impl From<SpotCost> for f32 {
     }
 }
 
+/// What a hold spot pays, in spot score, for each bearing (30-degree sector) the enemy's way can see it from
+/// ([`Exposure`]): positive and finite, or the file is refused with the reason. The spot score is metres-scale (`0.5` a
+/// metre of rise, `-0.01` a metre of walk), so 2.0 means a spot seen from one more bearing costs as much as 4 m of rise.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "f32", into = "f32")]
+pub struct ExposureWeight(f32);
+
+impl ExposureWeight {
+    /// For a default: a value out of range does not compile.
+    pub const fn of(value: f32) -> Self {
+        assert!(value > 0.0 && value < f32::INFINITY, "an exposure weight is positive and finite");
+        Self(value)
+    }
+
+    pub const fn get(self) -> f32 {
+        self.0
+    }
+}
+
+impl TryFrom<f32> for ExposureWeight {
+    type Error = String;
+
+    fn try_from(value: f32) -> Result<Self, String> {
+        if value > 0.0 && value.is_finite() {
+            Ok(Self(value))
+        } else {
+            Err(format!("{value} is not an exposure weight (positive and finite)"))
+        }
+    }
+}
+
+impl From<ExposureWeight> for f32 {
+    fn from(weight: ExposureWeight) -> Self {
+        weight.0
+    }
+}
+
+/// [A195] A hold spot is scored down by the bearings the enemy's human routes can see it from, besides the one it is held
+/// for: the holders' killers come down the same line (53-57 % within 30 degrees of the entrant's bearing), but the height
+/// preference alone makes a spot see 0.4 more of the 12 sectors than a spot with the same sight and none. The default is
+/// what the by-side bench measured ([`Exposure::measured`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Exposure {
+    /// Score taken off for each sector (30 degrees) the spot is seen from.
+    pub weight: ExposureWeight,
+    /// The enemy's route points that count are this far from the spot ...
+    pub near_m: f32,
+    /// ... to this far, metres.
+    pub far_m: f32,
+    /// Sectors whose centre is within this of the bearing to the query's anchor are the line it is held for: not counted.
+    pub anchor_deg: f32,
+}
+
+impl Exposure {
+    /// The numbers the bench read (smoke, 12 seeds, sides swapped): 2.0 a bearing, the enemy's route points 20 to 60 m
+    /// off, the 45 degrees round the held line not counted.
+    pub const fn measured() -> Self {
+        Self { weight: ExposureWeight::of(2.0), near_m: 20.0, far_m: 60.0, anchor_deg: 45.0 }
+    }
+}
+
+impl Default for Exposure {
+    fn default() -> Self {
+        Self::measured()
+    }
+}
+
 /// Cover that stops bullets, by the game's own rule: a bullet of this `pierce` goes through crates, cars,
 /// sandbags, thin metal and most building walls at full or high damage (`bullet::try_pierce`, an-sight 2.2), so
 /// a spot behind them is in the line of fire.
@@ -152,11 +220,14 @@ pub struct CoverTuning {
     /// (off): every spot under `max_share` is as good as the next, the nearest first. Reads `pierce`: with that off
     /// there is no share to weigh. On by default.
     pub spot_cost: Option<SpotCost>,
+    /// The spots HoldExit and Crossfire hold are weighed by how many bearings the enemy's human routes can see them
+    /// from (A195, `SpotQuery::exposure`). `None` (off): the order is by height and nearness, as it was.
+    pub hold_exposure: Option<Exposure>,
 }
 
 impl Default for CoverTuning {
     fn default() -> Self {
-        Self { pierce: Some(PierceCover::default()), spot_cost: Some(SpotCost::of(0.5)) }
+        Self { pierce: Some(PierceCover::default()), spot_cost: Some(SpotCost::of(0.5)), hold_exposure: None }
     }
 }
 
@@ -168,5 +239,26 @@ impl CoverTuning {
             max_share: cover.max_share.get(),
             spot_cost: self.spot_cost,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [A195] The exposure term is off by default; a file that names it with no numbers gets the measured ones, a weight that
+    /// is not positive and finite, or a name it does not know, is refused.
+    #[test]
+    fn the_hold_exposure_is_off_by_default_and_a_file_gets_the_measured_numbers() {
+        assert!(CoverTuning::default().hold_exposure.is_none());
+        let on: CoverTuning = serde_json::from_str(r#"{"hold_exposure": {}}"#).unwrap();
+        assert_eq!(on.hold_exposure, Some(Exposure::measured()));
+        let tuned: CoverTuning = serde_json::from_str(r#"{"hold_exposure": {"weight": 1.0}}"#).unwrap();
+        assert_eq!(tuned.hold_exposure.map(|e| e.weight.get()), Some(1.0));
+        for bad in [r#"{"hold_exposure": {"weight": 0.0}}"#, r#"{"hold_exposure": {"weight": -1.0}}"#, r#"{"hold_exposure": {"wait": 1.0}}"#] {
+            assert!(serde_json::from_str::<CoverTuning>(bad).is_err(), "{bad}");
+        }
+        let off: CoverTuning = serde_json::from_str(r#"{"hold_exposure": null}"#).unwrap();
+        assert!(off.hold_exposure.is_none());
     }
 }
