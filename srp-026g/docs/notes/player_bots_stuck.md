@@ -1370,3 +1370,51 @@ faces that are not ground (steeper than the client's slope, or `dont_walk`) are 
 height is 0.80: lower faces are steps), the body is a circle of radius 0.38 m in those sections, pushed out of a wall it overlaps (at
 most 0.15 m a tick) and moved by the rule above; the lattice then walks it to where the rule put it (ledges, floors and the
 sprint lift stay the lattice's and the intended move's). Tests-only: the bots' reckoning does not know it.
+
+**Against live players (A191).** The hold is the capsule's radius: of the live alive samples of the 12+ human matches (the reach record's
+`human/*.tsv`, 250 ms apart, on the ground), measured to the walker mesh's wall sections at the same four heights
+(`live_wall_clearance` in `standin_capsule.rs`), the first percentile of the distance to a wall is 0.376-0.385 m on levels 02, 03 and 07
+and the days of 04 (nearly every file), the fifth 0.41-0.44 m (players walk along walls). Levels 01, 06 and 08 have a thinner tail (first
+percentile 0.13-0.38 m) and level 05 a thick one (0.03-0.23 m, 2-5 % of its samples under 0.30 m): faces the sections count as walls that
+a player stands through (LIKELY thin or non-colliding faces; not read). The grid keeps its floors 0.3175 m from a wall (`exact_clearance`,
+A66), so the stand-in's lattice put bodies where a live capsule never stands.
+
+**717 door on Chemical Plant** (`door_corner.rs`, the A66 walk of fx-struct without the door gates, 12 starts that climb the ramp and
+turn 68 degrees, both days; `SRP_BENCH_STAND_IN_CORNER` off against on):
+
+| | closest jamb | ms under the controller's 0.41 m | ms under the radius 0.38 m | ms under 1 m/s | ms within 4 m of the door | stuck notes | reached |
+|---|---|---|---|---|---|---|---|
+| lattice (off) | 0.32 m | 1200 | 500 | 450 | 22500 | 0 | 12 of 12 |
+| capsule (on) | 0.37 m | 200 | 50 | 1200 | 23800 | 0 | 12 of 12 |
+
+The capsule keeps the body off the jamb (the 0.30 m crossing of the route becomes 0.37-0.52 m, the body slides round the corner) and the
+pass takes 110 ms longer; it does not stall for long. So the wall slide alone does not hold a body at this door the way the live bots'
+stalls 0.5-0.9 m south of its line were seen: that needs the bot's steering (A66's look-ahead into the jamb) on top. NOT shown here.
+
+**Bench** (`real_bot_cost`, TDM and batteries, 10v10, tiers 4-5, 9-10 and 13-15, seeds 1 and 2, `SRP_BENCH_VIEW_ERROR=1`; one
+binary, `SRP_BENCH_STAND_IN_CORNER` off against on; 6 runs a map and arm; contacts are the `contact::contacts` counter of A66, stuck the
+route stuck notes):
+
+| map | contacts off / on | contact seconds off / on | stuck off / on |
+|---|---|---|---|
+| level_01 day 2 | 288 / 266 | 243 / 225 | 58 / 94 |
+| level_01 day 4 | 286 / 286 | 238 / 236 | 43 / 61 |
+| level_02 day 2 | 601 / 605 | 565 / 539 | 162 / 237 |
+| level_02 day 4 | 325 / 317 | 291 / 278 | 66 / 111 |
+| level_03 day 3 | 339 / 278 | 285 / 243 | 46 / 93 |
+| level_04 day 2 | 488 / 562 | 457 / 524 | 105 / 305 |
+| level_05 day 2 | 569 / 464 | 498 / 389 | 84 / 123 |
+| level_05 day 4 | 387 / 333 | 339 / 282 | 69 / 75 |
+| level_06 day 2 | 499 / 500 | 451 / 437 | 156 / 206 |
+| level_06 day 4 | 425 / 438 | 400 / 384 | 138 / 329 |
+| level_07 day 4 | 670 / 661 | 637 / 553 | 224 / 266 |
+| level_08 day 4 | 274 / 260 | 216 / 221 | 74 / 92 |
+| all (72 runs) | 5151 / 4970 | 4620 / 4311 | 1225 / 1992 |
+
+Of 4.1 million moves of walking bodies with the capsule on, 6.5 % met a wall, 2.0 % made under a tenth of the move (stopped), 3.2 % under
+nine tenths (slowed), and 1.4 % began inside a wall's radius (pushed out, at most 0.15 m a tick). The bench takes as long as before (a
+TDM run 328 s with and without). Stuck notes rise on every map (+63 % over the 72 runs), contacts barely move (−4 %): the walls that
+catch the capsule are walls the lattice passed at the grid's slack. The new stuck places are, where looked at (level_04 day 2 and level_06
+day 4), nooks live players do not use (no live samples within 1.5 m of two of four) or a corridor 1.1 m wide with floors the capsule does
+not fit (`capsule_spot_report`); a live path that crosses one (level_06 day 4, −23 / 142, 18 samples over 1 m/s) stands 0.73 m from the
+walls at its nearest.
