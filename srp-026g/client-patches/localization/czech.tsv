@@ -1377,6 +1377,7 @@ st_level_10_name	Radarová stanice Vostok (v0.21)
 st_level_11_name	Mamajova mohyla (v0.21)
 st_level_12_name	Chemička (v0.11)
 st_level_13_name	Radarová stanice Vostok (v0.11)
+st_level_14_name	Rudňa (v0.69)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
@@ -2431,6 +2432,7 @@ st_srp_map_london	Londýn
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
 st_srp_map_rudnya	Rudňa
+st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola
 st_srp_map_tarakanovsky_fort	Tarakanovská pevnost
 st_srp_map_vector	Laboratoř Vektor

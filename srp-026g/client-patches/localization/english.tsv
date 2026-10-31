@@ -1377,6 +1377,7 @@ st_level_10_name	Vostok Radar Station (v0.21)
 st_level_11_name	Mamayev Kurgan (v0.21)
 st_level_12_name	Chemical Plant (v0.11)
 st_level_13_name	Vostok Radar Station (v0.11)
+st_level_14_name	Rudnya (v0.69)
 st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! Health restored!
 st_lifebone_pickup_hint	Larkspur artifact. Increases health regeneration. 
 st_lightning_quality_option	Lighting quality
@@ -2431,6 +2432,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamayev Kurgan
 st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	School
 st_srp_map_tarakanovsky_fort	Tarakanovsky Fort
 st_srp_map_vector	Vector Laboratory

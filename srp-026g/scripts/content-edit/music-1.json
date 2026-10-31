@@ -1,5 +1,5 @@
 {
- "_about": "The music's map themes (exe patch 88; srp-026g/docs/notes/music.md): every playable mode file names its map's loading theme as retail 0.69d's do (mode.ui.loading_music, read when the loading starts: lobby_menu::switch_to_level_loading's mode/ui). Levels 1 to 9 their own (music/level_0N_loading, pack music@1); the ported maps their original's: Vostok Radar Station v0.21 and v0.11 level_03's, Mamayev Kurgan v0.21 level_06's, Chemical Plant v0.11 level_04's; Research's (mode 5) its level's. Not the test, loopback and gather_server_resources modes. A new map adds its files here; a mode without the key has no theme.",
+ "_about": "The music's map themes (exe patch 88; srp-026g/docs/notes/music.md): every playable mode file names its map's loading theme as retail 0.69d's do (mode.ui.loading_music, read when the loading starts: lobby_menu::switch_to_level_loading's mode/ui). Levels 1 to 9 their own (music/level_0N_loading, pack music@1); the ported maps their original's: Rudnya v0.69 level_01's, Vostok Radar Station v0.21 and v0.11 level_03's, Mamayev Kurgan v0.21 level_06's, Chemical Plant v0.11 level_04's; Research's (mode 5) its level's. Not the test, loopback and gather_server_resources modes. A new map adds its files here; a mode without the key has no theme.",
  "add_value": [
   {
    "files": [
@@ -14,7 +14,11 @@
     "gameplay/game_modes/level_01_rain_2.options",
     "gameplay/game_modes/level_01_rain_3.options",
     "gameplay/game_modes/level_01_rain_4.options",
-    "gameplay/game_modes/level_01_rain_5.options"
+    "gameplay/game_modes/level_01_rain_5.options",
+    "gameplay/game_modes/v069d_level_01_day_2.options",
+    "gameplay/game_modes/v069d_level_01_day_3.options",
+    "gameplay/game_modes/v069d_level_01_day_4.options",
+    "gameplay/game_modes/v069d_level_01_day_5.options"
    ],
    "table": "mode/ui",
    "key": "loading_music",

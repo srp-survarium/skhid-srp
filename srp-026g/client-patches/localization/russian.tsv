@@ -1377,6 +1377,7 @@ st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
+st_level_14_name	Рудня (v0.69)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -2431,6 +2432,7 @@ st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
 st_srp_map_tarakanovsky_fort	Таракановский форт
 st_srp_map_vector	Лаборатория "Вектор"

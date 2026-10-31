@@ -1377,6 +1377,7 @@ st_level_10_name	Radarska stanica Vostok (v0.21)
 st_level_11_name	Mamajev kurgan (v0.21)
 st_level_12_name	Hemijska fabrika (v0.11)
 st_level_13_name	Radarska stanica Vostok (v0.11)
+st_level_14_name	Rudnja (v0.69)
 st_lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su izlečene! Zdravlje je obnovljeno!
 st_lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
 st_lightning_quality_option	Kvalitet osvetljenja
@@ -2431,6 +2432,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev kurgan
 st_srp_map_mamayev_kurgan_v021	Mamajev kurgan (v0.21)
 st_srp_map_rudnya	Rudnja
+st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Škola
 st_srp_map_tarakanovsky_fort	Tarakanovski fort
 st_srp_map_vector	Laboratorija Vektor
