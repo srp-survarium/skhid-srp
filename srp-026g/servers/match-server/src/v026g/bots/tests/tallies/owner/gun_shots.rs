@@ -116,6 +116,8 @@ struct Acc {
     shots: u32,
     hits: u32,
     by_band: [[u32; 2]; 6],
+    /// The same by the SHOOTER's team (0, 1): a head-to-head's ON side is one team (C2: the far hits of the ON side).
+    by_band_team: [[[u32; 2]; 6]; 2],
     /// Hip, aiming in, aimed in.
     by_aim: [[u32; 2]; 3],
     /// The shooter holding a move key / not; the target holding one / not.
@@ -385,6 +387,9 @@ impl Topic for GunShots {
             a.hits += h as u32;
             let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
             tally(&mut a.by_band[band]);
+            if let Some(shooter) = game.bodies.get(fact.shooter) {
+                tally(&mut a.by_band_team[usize::from(shooter.team != 0)][band]);
+            }
             if let (Some(t), Some(s)) = (game.bodies.get(target), game.bodies.get(fact.shooter)) {
                 let velocity = t.step_vec * (1.0 / TICK_S);
                 let across = across_speed(s.feet, t.feet, velocity);
@@ -482,6 +487,7 @@ impl Topic for GunShots {
                     "shots": a.shots,
                     "hits": a.hits,
                     "by_band": a.by_band,
+                    "by_band_team": a.by_band_team,
                     "by_aim": a.by_aim,
                     "by_shooter_moving": a.by_shooter_moving,
                     "by_target_moving": a.by_target_moving,
