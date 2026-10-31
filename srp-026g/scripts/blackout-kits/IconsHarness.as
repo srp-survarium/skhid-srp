@@ -12,11 +12,11 @@ package
    import flash.system.fscommand;
 
    // Blackout's markers over heads (docs/notes/blackout.md) with the player icons movie itself (its
-   // root, MainTimeline, as the game loads it): a player's icon (id 1) and a match object's (id 40,
-   // HUDIconLayer.FIRST_OBJECT on), fed as update_player_icons feeds them, then the states
-   // Blackout (patch 65) tells: not forced, both shown; forced, none; forced with Tab held, the player's only
-   // (F11, hide_interface, doing nothing then);
-   // Tab let go, none; not forced again, both.
+   // root, MainTimeline, as the game loads it): a teammate's icon (id 1), an enemy's (id 2, in
+   // set_enemy_icon_ids) and a match object's (id 40, HUDIconLayer.FIRST_OBJECT on), fed as
+   // update_player_icons feeds them, then the states Blackout (patch 65) tells: not forced, the
+   // teammate's and the object's shown; forced, the teammate's only (F11, hide_interface, doing
+   // nothing then); not forced again, the teammate's and the object's. The enemy's never.
    // Prints "ICONS ..." lines (trace) and ends with "ICONS RESULT pass" or "ICONS RESULT fail: ...".
    public class IconsHarness extends Sprite
    {
@@ -55,11 +55,13 @@ package
       // layer can also contain Research's container; remember each icon when it is made.
       private var player:DisplayObject;
 
+      private var enemy:DisplayObject;
+
       private var objectMarker:DisplayObject;
 
       private function shown(id:uint) : Boolean
       {
-         var icon:DisplayObject = id == 1 ? player : objectMarker;
+         var icon:DisplayObject = id == 1 ? player : id == 2 ? enemy : objectMarker;
          for(var at:DisplayObject = icon; at != null && at != movie; at = at.parent)
          {
             if(!at.visible)
@@ -74,12 +76,15 @@ package
       {
          // the feed, as every frame
          movie.set_player_icons_props([{id:1,visible:true,x:100,y:100,z:1,name:"teammate",name_visible:true},
+            {id:2,visible:true,x:150,y:100,z:1,name:"enemy",name_visible:true},
             {id:40,visible:true,x:200,y:100,z:1}]);
-         var p:Boolean = shown(1), o:Boolean = shown(40);
-         trace("ICONS " + what + ": the player's " + (p ? "shown" : "hidden") + ", the object's " + (o ? "shown" : "hidden"));
-         if(p != player || o != object)
+         var p:Boolean = shown(1), e:Boolean = shown(2), o:Boolean = shown(40);
+         trace("ICONS " + what + ": the teammate's " + (p ? "shown" : "hidden") + ", the enemy's "
+            + (e ? "shown" : "hidden") + ", the object's " + (o ? "shown" : "hidden"));
+         if(p != player || e || o != object)
          {
-            failures.push(what + ": player " + p + " (want " + player + "), object " + o + " (want " + object + ")");
+            failures.push(what + ": teammate " + p + " (want " + player + "), enemy " + e + " (want false), object "
+               + o + " (want " + object + ")");
          }
       }
 
@@ -95,22 +100,18 @@ package
             }
             movie.create_player_icon(1,0,1);
             player = movie.iconControl.getChildAt(movie.iconControl.numChildren - 1);
+            movie.create_player_icon(2,0,1);
+            enemy = movie.iconControl.getChildAt(movie.iconControl.numChildren - 1);
+            movie.set_enemy_icon_ids([2]);
             movie.create_player_icon(40,1,1);
             objectMarker = movie.iconControl.getChildAt(movie.iconControl.numChildren - 1);
             movie.set_player_icon_type(40,1);
             expect("a plain match",true,true);
             movie.force_interface_hidden(true);
-            expect("Blackout",false,false);
-            movie.force_interface_tab(true);
-            expect("Blackout, Tab held",true,false);
+            expect("Blackout",true,false);
             movie.hide_interface(true);
-            expect("Blackout, Tab held, F11 (hide_interface) pressed: it does nothing",true,false);
-            movie.force_interface_tab(false);
-            expect("Blackout, Tab let go",false,false);
-            movie.force_interface_tab(true);
+            expect("Blackout, F11 (hide_interface) pressed: it does nothing",true,false);
             movie.force_interface_hidden(false);
-            expect("the next plain match (Tab held)",true,true);
-            movie.force_interface_tab(false);
             expect("the next plain match",true,true);
             finish(failures.length ? "fail: " + failures.join("; ") : "pass");
          }

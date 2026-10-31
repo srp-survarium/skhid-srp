@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Onneksi olkoon! Olet nyt Mustan pörssin taistelij
 st_blackmarket_level_unlock_3	Onneksi olkoon! Olet nyt Mustan pörssin työnjohtaja!
 st_blackmarket_level_unlock_4	Onneksi olkoon! Sinut ylennettiin Mustan pörssin sadanpäämieheksi!
 st_blackmarket_level_unlock_5	Onneksi olkoon! Kuulut nyt Mustan pörssin eliittiin!
+st_blackmarket_medkit_description	Parantaa vartalon ja pään täysin ja poistaa kivun. Ei hoida käsiä eikä jalkoja.
+st_blackmarket_medkit_name	Mustan pörssin ensiapupakkaus
 st_blackmarket_meele_kill_descr	Jos homma ei hoidu siististi, on liattava kädet. Se erottaa meidät muista. Näytä, että kuulut joukkoon: hoida homma omin käsin.
 st_blackmarket_meele_kill_name	Likainen työ
 st_blackmarket_meele_kill_obj	Tapa vihollisia lähitaistelussa:
@@ -1455,6 +1457,8 @@ st_message_reroll_text	Kumotaanko taitomuutokset?
 st_messages_censor_option	Ota viestisuodatus käyttöön
 st_messages_only_from_friends_option	Yksityisviestit vain kavereilta
 st_microphone_sensitivity_option	Mikrofonin herkkyys
+st_military_medkit_description	Parantaa kädet ja jalat täysin. Palauttaa 60% vartalon ja pään terveydestä ja vähentää kipua 50%.
+st_military_medkit_name	Sotilasensiapupakkaus
 st_minimap	Pienoiskartta
 st_minimap_bottom	Vasen alakulma
 st_minimap_off	Piilotettu pienoiskartta
@@ -2026,6 +2030,8 @@ st_scavengers_win_score_obj	Voita ottelu ja tuo akkuja:
 st_scavengers_win_x_games_descr	Elämme julmassa maailmassa. Voittaja saa kaiken, häviäjä tyytyy tähteisiin. Muista, että voittajajoukkue saa suuremman palkinnon.
 st_scavengers_win_x_games_name	Voiton maku
 st_scavengers_win_x_games_obj	Voita otteluita:
+st_science_medkit_description	Parantaa kädet, jalat, vartalon ja pään täysin. Vähentää kipua 50%. Parantaa myrkytyksen ja säteilysairauden.
+st_science_medkit_name	Tieteellinen ensiapupakkaus
 st_scientists_faction	Instituutti
 st_search_label	Hae
 st_search_range	Ottelun taso

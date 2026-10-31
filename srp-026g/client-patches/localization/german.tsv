@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Wir gratulieren! Sie sind jetzt ein Kämpfer des s
 st_blackmarket_level_unlock_3	Wir gratulieren! Sie sind jetzt Aufseher des schwarzen Marktes!
 st_blackmarket_level_unlock_4	Wir gratulieren! Sie sind jetzt Zenturio des schwarzen Marktes!
 st_blackmarket_level_unlock_5	Wir gratulieren! Sie sind jetzt Elite des schwarzen Marktes.
+st_blackmarket_medkit_description	Heilt Körper, Kopf und Schmerz vollständig. Behandelt keine Arme und Beine.
+st_blackmarket_medkit_name	Schwarzmarkt-Kit
 st_blackmarket_meele_kill_descr	Wenn du schafst die Arbeit sauber zu machen - sei bereit, die Hände zu beschmutzen. Gerade dadurch unterscheiden wir uns von anderen. Beweise, dass du bist einer von uns - arbeite mit den Händen.
 st_blackmarket_meele_kill_name	schmutzige Arbeit
 st_blackmarket_meele_kill_obj	Gegner im Nahkampf töten:
@@ -1455,6 +1457,8 @@ st_message_reroll_text	Die Fertigkeiten rücksetzen?
 st_messages_censor_option	Die Zensur der Mitteilungen aufzunehmen. 
 st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freunden zu nehmen
 st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
+st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
+st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
 st_minimap_bottom	untere linke Winkel
 st_minimap_off	Versteckte Minikarte
@@ -2026,6 +2030,8 @@ st_scavengers_win_score_obj	Das Feld zu behaupten mit der Anzahl der gebrachten 
 st_scavengers_win_x_games_descr	Wir leben in der grausamen Welt. Dem Sieger fällt alles zu, und den Verlierern ist erzwungen, sich nur mit den Knirpsen zu begnügen. Merke dir, die in den Kampf siegende Mannschaft bekommt die großere Belohnung.
 st_scavengers_win_x_games_name	Sieg Geschmack
 st_scavengers_win_x_games_obj	Kämpfe zu gewinnen:
+st_science_medkit_description	Heilt Arme, Beine, Körper und Kopf vollständig. Stellt 50% von Schmerz wieder her. Heilt Vergiftungen und Strahlenkrankheit.
+st_science_medkit_name	Wissenschafts-Kit
 st_scientists_faction	Institut
 st_search_label	Such
 st_search_range	Match Level

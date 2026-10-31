@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Congrats! You are a Black Market Fighter now!
 st_blackmarket_level_unlock_3	Congratulations! You are a Black Market Foreman now!
 st_blackmarket_level_unlock_4	Congrats! You've been promoted to the Black Market Centurion now!
 st_blackmarket_level_unlock_5	Congratulations! You are a Black Market Elite now!
+st_blackmarket_medkit_description	Fully heals body, head and pain. Does not treat arms and legs.
+st_blackmarket_medkit_name	Black Market Medkit
 st_blackmarket_meele_kill_descr	When you can't do the job cleanly - be prepared to get your hands dirty. That's what differs us from the rest. Prove that you're one of us - work with your hands.
 st_blackmarket_meele_kill_name	Dirty work
 st_blackmarket_meele_kill_obj	Kill enemies using melee:
@@ -1455,6 +1457,8 @@ st_message_reroll_text	Undo skills?
 st_messages_censor_option	Enable message censorship
 st_messages_only_from_friends_option	Accept private messages from friends only
 st_microphone_sensitivity_option	Microphone sensitivity
+st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
+st_military_medkit_name	Military Medkit
 st_minimap	Minimap
 st_minimap_bottom	Lower left corner
 st_minimap_off	Hidden minimap
@@ -2026,6 +2030,8 @@ st_scavengers_win_score_obj	Win a match with batteries brought:
 st_scavengers_win_x_games_descr	We live in a cruel world. The Winner takes everything while the loser is forced to be content with leftovers. Remember, the winning team receives the greater reward.
 st_scavengers_win_x_games_name	Taste of victory
 st_scavengers_win_x_games_obj	Win matches:
+st_science_medkit_description	Fully heals arms, legs, body and head. Restores 50% of pain. Cures intoxication and radiation sickness.
+st_science_medkit_name	Science Medkit
 st_scientists_faction	Institute
 st_search_label	Search
 st_search_range	Match level
