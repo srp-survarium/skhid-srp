@@ -193,3 +193,43 @@ fn stuck_causes() {
     keys.sort();
     println!("ALL: {}", keys.iter().map(|k| format!("{} {:?} {} (humans use the spot {})", k.0, k.1, totals[k], human_totals.get(k).copied().unwrap_or(0))).collect::<Vec<_>>().join(", "));
 }
+
+/// How many of a map's floors the capsule does not fit, and how many live players stood on such floors (`SRP_PROJECTS="level_04/day_2;.."`,
+/// `SRP_MAPDATA_DIR`, `SRP_HUMAN_DIR`): the floors by their wall clearance (under 0.30, 0.30-0.36, 0.36-0.38, 0.38 and over), the
+/// live ground samples by the clearance of the floor under them (the nearest within 0.5 m). A measurement.
+#[test]
+#[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_PROJECTS"]
+fn grid_floor_clearance() {
+    let (Some(maps), Ok(projects)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var("SRP_PROJECTS")) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR or SRP_PROJECTS is not set");
+        return;
+    };
+    let band = |c: f32| usize::from(c >= 0.30) + usize::from(c >= 0.36) + usize::from(c >= RADIUS_M);
+    for project in projects.split(';').filter(|p| !p.trim().is_empty()) {
+        let map = mapdata::MapData::read(&std::path::Path::new(&maps).join(mapdata::format::file_name(project))).unwrap();
+        let sections = Sections::new(&map.walker_triangles(), mapdata::Body::client().min_ground_normal_y);
+        let links = Tuning::default().grid.off_mesh_links();
+        let world = World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links);
+        let grid = &world.grid;
+        let mut segs = Vec::new();
+        let (mut floors, mut sample_bands) = ([0u32; 4], [0u32; 4]);
+        let mut clear_of: Vec<Option<f32>> = Vec::new();
+        for f in 0..grid.len() as u32 {
+            let p = grid.position(f);
+            let c = clearance(&sections, &mut segs, (p.x, p.z), p.y);
+            floors[band(c)] += 1;
+            clear_of.push(Some(c));
+        }
+        for h in humans_of(project) {
+            let near = grid.floors_in([h[0] - 0.5, h[2] - 0.5, h[0] + 0.5, h[2] + 0.5]).filter(|&f| (grid.position(f).y - h[1]).abs() <= 1.0).min_by(|&a, &b| grid.position(a).distance_xz(Vec3::new(h[0], 0.0, h[2])).total_cmp(&grid.position(b).distance_xz(Vec3::new(h[0], 0.0, h[2]))));
+            if let Some(c) = near.and_then(|f| clear_of[f as usize]) {
+                sample_bands[band(c)] += 1;
+            }
+        }
+        let share = |a: [u32; 4]| {
+            let t: u32 = a.iter().sum();
+            a.map(|n| format!("{:.2} %", 100.0 * f64::from(n) / f64::from(t.max(1)))).join(" / ")
+        };
+        println!("{project}: floors {} (<0.30 / 0.30-0.36 / 0.36-0.38 / >=0.38): {}; live samples on them: {}", grid.len(), share(floors), share(sample_bands));
+    }
+}
