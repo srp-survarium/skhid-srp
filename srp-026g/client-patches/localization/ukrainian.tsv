@@ -2789,6 +2789,7 @@ st_wasted	Витрати
 st_weapon_aim_action	Прицілювання (утрим.)
 st_weapon_could_not_be_used	Поранення рук! Неможливо використовувати зброю
 st_weapon_fire_action	Вогонь
+st_weapon_pick_up	Підібрати %1$s ({USE})
 st_weapon_reload_action	Перезарядка
 st_wear	Одягти
 st_weight_booster_description	Потеїн, що містить необхідні речовини для росту м'язів і збільшення сили. Однак без фізичного навантаження вживати безглуздо.

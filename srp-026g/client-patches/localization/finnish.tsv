@@ -2789,6 +2789,7 @@ st_wasted	Kulutus
 st_weapon_aim_action	Tähtää (pidä)
 st_weapon_could_not_be_used	Kädet haavoittuneet! Aseita ei voi käyttää
 st_weapon_fire_action	Ammu
+st_weapon_pick_up	Poimi %1$s ({USE})
 st_weapon_reload_action	Lataa
 st_wear	Käytä
 st_weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.

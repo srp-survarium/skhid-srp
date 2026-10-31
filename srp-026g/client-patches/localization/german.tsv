@@ -2789,6 +2789,7 @@ st_wasted	Kosten
 st_weapon_aim_action	Zielen (halt.)
 st_weapon_could_not_be_used	Verwundung der Hände! Es ist unmöglich, die Waffen zu verwenden
 st_weapon_fire_action	Schießen
+st_weapon_pick_up	%1$s aufheben ({USE})
 st_weapon_reload_action	Nachladen
 st_wear	Anziehen
 st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.

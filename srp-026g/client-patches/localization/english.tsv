@@ -2789,6 +2789,7 @@ st_wasted	Consumption
 st_weapon_aim_action	Aim (hold)
 st_weapon_could_not_be_used	Arms wounded! Unable to use weapons
 st_weapon_fire_action	Shoot
+st_weapon_pick_up	Pick up %1$s ({USE})
 st_weapon_reload_action	Reload
 st_wear	Apply
 st_weight_booster_description	Protein containing essential nutrients for muscle growth and strength improvement. However using it without physical exertion is ineffective.

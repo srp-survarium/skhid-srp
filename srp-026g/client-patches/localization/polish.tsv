@@ -2789,6 +2789,7 @@ st_wasted	Koszt
 st_weapon_aim_action	Celowanie (przytrzymaj)
 st_weapon_could_not_be_used	Rana rąk! Nie można użyć broni
 st_weapon_fire_action	Strzał
+st_weapon_pick_up	Podnieś %1$s ({USE})
 st_weapon_reload_action	Przeładowanie
 st_wear	Zastosuj
 st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.

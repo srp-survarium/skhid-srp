@@ -2789,6 +2789,7 @@ st_wasted	Расход
 st_weapon_aim_action	Прицеливание (удерж.)
 st_weapon_could_not_be_used	Ранение рук! Невозможно использовать оружие
 st_weapon_fire_action	Стрельба
+st_weapon_pick_up	Подобрать %1$s ({USE})
 st_weapon_reload_action	Перезарядка
 st_wear	Надеть
 st_weight_booster_description	Протеин, содержащий необходимые вещества для роста мышц и повышения силы. Однако без физической нагрузки употреблять бессмысленно.

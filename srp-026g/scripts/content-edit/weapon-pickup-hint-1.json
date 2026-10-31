@@ -1,0 +1,15 @@
+{
+  "_about": "Map the dropped-weapon pickup prompt (\"Pick up <gun> (E)\", patch 83) into the hud's strings; the hud shows it in the collection widget through show_artefact_offer with the gun's name. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
+  "append_rows": [
+    {
+      "file": "localization/flash_movies_localizations.options",
+      "path": "hud_strings",
+      "rows": [
+        [
+          "st_weapon_pick_up",
+          "st_weapon_pick_up"
+        ]
+      ]
+    }
+  ]
+}

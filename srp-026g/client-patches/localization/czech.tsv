@@ -2789,6 +2789,7 @@ st_wasted	Spotřeba
 st_weapon_aim_action	Míření (držet)
 st_weapon_could_not_be_used	Ruce zraněny! Nelze používat zbraně
 st_weapon_fire_action	Střílet
+st_weapon_pick_up	Sebrat %1$s ({USE})
 st_weapon_reload_action	Přebít
 st_wear	Nasadit
 st_weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.

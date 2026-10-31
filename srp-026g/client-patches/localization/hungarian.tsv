@@ -2789,6 +2789,7 @@ st_wasted	Fogyasztás
 st_weapon_aim_action	Célzás (nyomva tartva)
 st_weapon_could_not_be_used	Sérült karok! Nem használhatsz fegyvert
 st_weapon_fire_action	Lövés
+st_weapon_pick_up	%1$s felvétele ({USE})
 st_weapon_reload_action	Újratöltés
 st_wear	Alkalmazás
 st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.
