@@ -68,8 +68,10 @@ pub struct UnstickTuning {
     pub home_gate_max_ms: Option<u32>,
     /// A body held at the top of a drop its route goes down (the stuck ladder fires there, the route's next point a
     /// lip's height or more below) shuts the drops off where it stands to its own searches, as a jump it gave up
-    /// (`stuck::Stuck::failed_drop`), and tells its team the top as a fall's spot. None: the searches hand it the same
-    /// drop again (A199, Chemical Plant's spawn ledge: 9 live bots held 1-9 minutes).
+    /// (`stuck::Stuck::failed_drop`), and tells its team the top as a fall's spot; a search that then finds no way proves
+    /// nothing for the team (`Stuck::no_way_is_proof`). None: the searches hand it the same drop again (A199, Chemical
+    /// Plant's spawn ledge: 9 live bots held 1-9 minutes). On by default: the by-side bench of the 16 offered maps (192
+    /// pairs) had 16.6 stuck notes a bot-hour against 19.6 (z -4.8), no self-kill either side, no cost to score or deliveries.
     pub drop_shut: Option<DropShut>,
 }
 
@@ -109,7 +111,7 @@ impl Default for UnstickTuning {
             blind_stop_ms: Some(4_500),
             home_no_way_ms: Some(20_000),
             home_gate_max_ms: Some(90_000),
-            drop_shut: None,
+            drop_shut: Some(DropShut::default()),
         }
     }
 }
