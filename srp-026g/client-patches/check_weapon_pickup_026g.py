@@ -299,8 +299,15 @@ def main():
             assert slot_word(copied, kit, slot) == want, (kit, slot)
     words = struct.unpack("<%dI" % (PROFILE_SIZE // 4), copied[:PROFILE_SIZE // 4 * 4])
     assert not [hex(4 * n) for n, w in enumerate(words) if PROFILE <= w < PROFILE + PROFILE_SIZE]
-    assert any("pid 4242 pickup: asked for the gun of place 5 kit 1 slot 10 (death at 12350 ms)" in l
+    assert any("pid 4242 tid 7 pickup: asked for the gun of place 5 kit 1 slot 10 (death at 12350 ms)" in l
                for l in r.log), r.log
+    # 83c's diagnostic trace: the death hook, the issue around the native query, each lock.
+    trace = [l.split("pickup: ", 1)[1] for l in r.log if "pickup: " in l]
+    assert all("tid 7 pickup: " in l for l in r.log if "pickup: " in l), r.log
+    for want in ("death hook: place 5 life", "trace: issue: ticket 0 generation 1, query_resources (0x0E5B60) called",
+                 "trace: issue: ticket 0: query_resources returned", "trace: lock CACHE in ask: released",
+                 "death hook: place 5 done"):
+        assert any(l.startswith(want) for l in trace), (want, trace)
     print("ok a death holding slot 10's gun: one query of one inventory, the match's recipe, a deep copy of the "
           "profile keeping slot 10 and the ammunition; the boost callback; registers and stack kept")
 
@@ -310,6 +317,11 @@ def main():
 
     r.complete(q, COOKED)
     assert r.read(COOKED + 0xD0) == 2 and recipe in r.frees and copy in r.live
+    done = [l.split("trace: ", 1)[1] for l in r.log if "trace: completion" in l or "trace: lock TABLE in completion" in l]
+    assert done == ["completion: entered for ticket 0, result 0x%08x" % RESULT,
+                    "completion: result count 1", "completion: inventory 0x%08x" % COOKED,
+                    "lock TABLE in completion: taking", "lock TABLE in completion: released",
+                    "completion: freeing the recipe", "completion: left"], done
     r.step(DIED + 100)
     assert any("cook of the gun of place 5 kit 1 slot 10 (death at 12350 ms): made, inventory 0x%08x" % COOKED in l
                for l in r.log), r.log

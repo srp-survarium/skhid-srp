@@ -48,8 +48,8 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use weapon_pickup::{Borrow, Drop as DropState, Handedness, Kit, Ms, Picker, Place, Record, WeaponSlot, PLACES};
 
-use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, InventoryId, Refusal, TICKETS};
-use crate::vostok::log::{line, Piece::{self, Dec, Hex, Text}};
+use crate::vostok::gun_cook::{self, traced, CookId, Cooked, Gun, InventoryId, Refusal, Trace, TICKETS};
+use crate::vostok::log::Piece::{self, Dec, Hex, Text};
 use crate::vostok::pickup::{self as native, GunPose, Installed, Mode, NameKey, Site};
 use crate::vostok::world::{GameWorld, Player, PlayerId};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread};
@@ -225,14 +225,23 @@ fn record_at(thread: &Thread, world: u32, place: Place) -> Record {
 
 /// The place's record and its last death's body.
 fn placed_at(thread: &Thread, world: u32, place: Place) -> (Record, Option<Body>) {
-    RECORDS.with(thread, |records| match records[usize::from(place.get())] {
+    placed_traced(Trace::Budget, thread, world, place)
+}
+
+fn placed_traced(trace: Trace, thread: &Thread, world: u32, place: Place) -> (Record, Option<Body>) {
+    traced(trace, "RECORDS", "placed_at", &RECORDS, thread, |records| match records[usize::from(place.get())] {
         Some(p) if p.world == world => (p.record, p.body),
         _ => (Record::EMPTY, None),
     })
 }
 
 fn update_placed(thread: &Thread, world: u32, place: Place, f: impl FnOnce(&mut Record, &mut Option<Body>)) {
-    RECORDS.with(thread, |records| {
+    update_traced(Trace::Always, thread, world, place, f);
+}
+
+fn update_traced(trace: Trace, thread: &Thread, world: u32, place: Place,
+                 f: impl FnOnce(&mut Record, &mut Option<Body>)) {
+    traced(trace, "RECORDS", "update_placed", &RECORDS, thread, |records| {
         let slot = &mut records[usize::from(place.get())];
         let (mut record, mut body) = match *slot {
             Some(p) if p.world == world => (p.record, p.body),
@@ -253,11 +262,15 @@ fn located(player: &Player<'_>) -> Option<(u32, Place)> {
 }
 
 fn holder_of(thread: &Thread, player: PlayerId) -> Option<Holder> {
-    HOLDERS.with(thread, |holders| holders.iter().flatten().find(|h| h.player == player).copied())
+    holder_traced(Trace::Budget, thread, player)
+}
+
+fn holder_traced(trace: Trace, thread: &Thread, player: PlayerId) -> Option<Holder> {
+    traced(trace, "HOLDERS", "holder_of", &HOLDERS, thread, |holders| holders.iter().flatten().find(|h| h.player == player).copied())
 }
 
 fn set_holder(thread: &Thread, player: PlayerId, holder: Option<Holder>) -> bool {
-    HOLDERS.with(thread, |holders| {
+    traced(Trace::Always, "HOLDERS", "set_holder", &HOLDERS, thread, |holders| {
         let at = holders.iter().position(|h| h.is_some_and(|h| h.player == player))
             .or_else(|| holders.iter().position(|h| h.is_none()));
         match at {
@@ -271,7 +284,7 @@ fn set_holder(thread: &Thread, player: PlayerId, holder: Option<Holder>) -> bool
 }
 
 fn set_use(thread: &Thread, cook: CookId, using: Use) {
-    CACHE.with(thread, |cache| {
+    traced(Trace::Always, "CACHE", "set_use", &CACHE, thread, |cache| {
         if let Some(entry) = cache.iter_mut().flatten().find(|e| e.gun.id() == cook) {
             entry.using = using;
         }
@@ -281,7 +294,9 @@ fn set_use(thread: &Thread, cook: CookId, using: Use) {
 /// `pickup.save` (base_player::serialize's start): the player's record.
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, Site::Save) {
-        let record = located(&player).map_or(Record::EMPTY, |(world, place)| record_at(ctx.thread(), world, place));
+        // Every player, every tick (the history capture): never traced.
+        let record = located(&player)
+            .map_or(Record::EMPTY, |(world, place)| placed_traced(Trace::Off, ctx.thread(), world, place).0);
         native::write_record(ctx, &record.encode());
     }
     Flow::Continue
@@ -303,7 +318,7 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     };
     let thread = ctx.thread();
     if let Some((world, place)) = located(&player) {
-        update_record(thread, world, place, |r| *r = record);
+        update_traced(Trace::Off, thread, world, place, |r, _| *r = record);
     }
     reconcile(&player, thread, record.borrow);
     Flow::Continue
@@ -312,7 +327,7 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// The installed borrow made `want`: restored, installed (without the
 /// switch: the native reader switches the held object), or left.
 fn reconcile(player: &Player<'_>, thread: &Thread, want: Option<Borrow>) {
-    let have = holder_of(thread, player.id());
+    let have = holder_traced(Trace::Off, thread, player.id());
     if have.map(|h| h.borrow) == want {
         return;
     }
@@ -340,6 +355,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, want: Option<Borrow>) {
 /// Restores `holder`'s install and gives its gun back to the cache (kept
 /// for a rollback's pickup again until its body has left the world and the margin passed).
 fn give_back_from(player: &Player<'_>, thread: &Thread, holder: Holder, why: &str) {
+    log_borrow("restoring", player, holder.borrow, why);
     let outcome = native::restore(player, &holder.installed);
     set_holder(thread, player.id(), None);
     set_use(thread, holder.installed.cook(), Use::Kept);
@@ -377,7 +393,7 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     let (donor, spawned, at) = (player.id(), player.spawned(), Ms(player.time()));
-    CACHE.with(thread, |cache| {
+    traced(Trace::Always, "CACHE", "on_remove", &CACHE, thread, |cache| {
         for entry in cache.iter_mut().flatten().filter(|e| e.donor == donor) {
             if let Origin::Death { spawned: s, died, gone: None } = entry.origin
                 && s == spawned {
@@ -395,7 +411,9 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// (its cook asked for, unless this life's is: a rollback replaying the
 /// death); none when it held a borrowed gun (it vanishes) or anything else.
 pub fn died(player: &Player<'_>, thread: &Thread) {
-    let held = if holder_of(thread, player.id()).is_some() { None } else { gun_cook::held_gun(player) };
+    log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
+          Text(" at "), Dec(player.time()), Text(" ms")]);
+    let held = if holder_traced(Trace::Always, thread, player.id()).is_some() { None } else { gun_cook::held_gun(player) };
     let died = Ms(player.time());
     let drop = match (held, player.kit()) {
         (Some(slot), Some(kit)) => DropState::Open { kit, slot, died },
@@ -410,12 +428,13 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
     }
     let (DropState::Open { kit, slot, .. }, Some(place)) = (drop, Place::new(player.place())) else { return };
     let spawned = player.spawned();
-    let known = CACHE.with(thread, |cache| {
+    let known = traced(Trace::Always, "CACHE", "died", &CACHE, thread, |cache| {
         cache.iter().flatten().any(|e| e.source.place == place && matches!(e.origin, Origin::Death { spawned: s, .. } if s == spawned))
     });
     if !known {
         ask(player, thread, Source { place, kit, slot }, Origin::Death { spawned, died, gone: None });
     }
+    log(&[Text("death hook: place "), Dec(u32::from(place.get())), Text(" done")]);
 }
 
 /// The input's apply point (composed from artefact_carry's `carry.filter`,
@@ -480,6 +499,7 @@ fn picker_of(player: &Player<'_>, place: Place, borrow: Option<Borrow>) -> Optio
 /// Asks for `source`'s gun from `player`'s profile and keeps it in the cache.
 fn ask(player: &Player<'_>, thread: &Thread, source: Source, origin: Origin) -> Option<CookId> {
     let memory = gun_cook::memory(thread).map(|(used, _)| used);
+    gun_cook::trace_more();
     let gun = match gun_cook::start(player, source.kit, source.slot) {
         Ok(gun) => gun,
         Err(refusal) => {
@@ -489,7 +509,7 @@ fn ask(player: &Player<'_>, thread: &Thread, source: Source, origin: Origin) -> 
     };
     let id = gun.id();
     let entry = Entry { source, origin, donor: player.id(), gun, report: Report::Asked { memory }, using: Use::Kept };
-    let leftover = CACHE.with(thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
+    let leftover = traced(Trace::Always, "CACHE", "ask", &CACHE, thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
         Some(free) => {
             *free = Some(entry);
             None
@@ -505,7 +525,7 @@ fn ask(player: &Player<'_>, thread: &Thread, source: Source, origin: Origin) -> 
 
 /// The cook of `source`'s death at `died`, if this client saw it and nobody holds it.
 fn death_cook(thread: &Thread, source: Source, died: Ms) -> Option<CookId> {
-    CACHE.with(thread, |cache| {
+    traced(Trace::Budget, "CACHE", "death_cook", &CACHE, thread, |cache| {
         cache.iter().flatten()
             .find(|e| e.source == source && e.using == Use::Kept
                   && matches!(e.origin, Origin::Death { died: d, .. } if d == died))
@@ -516,7 +536,7 @@ fn death_cook(thread: &Thread, source: Source, died: Ms) -> Option<CookId> {
 /// The instance for the drop of `place`'s death at `died` (ready or not):
 /// what the local prompt (stage 2b) asks.
 pub fn instance(thread: &Thread, place: Place, died: Ms) -> Instance {
-    let found = CACHE.with(thread, |cache| {
+    let found = traced(Trace::Budget, "CACHE", "instance", &CACHE, thread, |cache| {
         cache.iter().flatten()
             .find(|e| e.source.place == place && matches!(e.origin, Origin::Death { died: d, .. } if d == died))
             .map(|e| e.gun.id())
@@ -535,7 +555,7 @@ pub fn instance(thread: &Thread, place: Place, died: Ms) -> Instance {
 fn need_cook(thread: &Thread, donor: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<CookId, Refused> {
     let place = Place::new(donor.place()).ok_or(Refused::Missing)?;
     let source = Source { place, kit, slot };
-    let known = CACHE.with(thread, |cache| {
+    let known = traced(Trace::Always, "CACHE", "need_cook", &CACHE, thread, |cache| {
         cache.iter().flatten().find(|e| e.source == source && e.using == Use::Kept).map(|e| e.gun.id())
     });
     let id = match known {
@@ -597,9 +617,14 @@ fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
     loop {
         // One at a time, each dropped outside the lock (the cooked
         // inventory's own teardown).
-        let taken = CACHE.with(thread, |cache| cache.iter_mut().find(|e| e.as_ref().is_some_and(&mut gone))?.take());
+        let taken = traced(Trace::Budget, "CACHE", "release_where", &CACHE, thread,
+                           |cache| cache.iter_mut().find(|e| e.as_ref().is_some_and(&mut gone))?.take());
         match taken {
-            Some(entry) => drop(entry),
+            Some(entry) => {
+                log_source("freeing the cook of", entry.source, entry.origin, &[]);
+                drop(entry);
+                log(&[Text("freed")]);
+            }
             None => break,
         }
     }
@@ -611,6 +636,7 @@ fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
 /// [`MARGIN_MS`] after its body left the world (a loaded record's at once).
 pub fn after_move(ctx: &Context<'_>) {
     let thread = ctx.thread();
+    gun_cook::trace(Trace::Budget, &[Text("after_move")]);
     PLAYER_MADE.store(false, Ordering::Release);
     log_finished(thread);
     let Some(now) = GameWorld::at_after_move(ctx).as_ref().and_then(gun_cook::world_time) else { return };
@@ -623,7 +649,7 @@ pub fn after_move(ctx: &Context<'_>) {
 
 fn log_finished(thread: &Thread) {
     loop {
-        let found = CACHE.with(thread, |cache| {
+        let found = traced(Trace::Budget, "CACHE", "log_finished", &CACHE, thread, |cache| {
             cache.iter_mut().flatten().find_map(|e| {
                 let Report::Asked { memory } = e.report else { return None };
                 let cooked = gun_cook::cooked(thread, e.gun.id());
@@ -782,8 +808,13 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
     match record.drop {
         DropState::Taken => RagdollGun::Hidden,
         DropState::Open { .. } => {
+            gun_cook::trace(Trace::Budget, &[Text("ragdoll_gun: place "), Dec(u32::from(place.get())),
+                                             Text(", drawn_gun reading")]);
             let pose = native::drawn_gun(ctx, player);
-            SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
+            gun_cook::trace(Trace::Budget, &[Text("ragdoll_gun: drawn_gun read, "),
+                                             Text(if pose.is_some() { "a pose" } else { "none" })]);
+            traced(Trace::Budget, "SEEN", "ragdoll_gun", &SEEN, thread,
+                   |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
             RagdollGun::Shown
         }
         DropState::None => RagdollGun::Shown,
@@ -828,10 +859,12 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
         return None;
     }
     // Most frames see no drop: nothing else is read then.
+    // Not traced: every frame of every match.
     let seen = SEEN.with(thread, |seen| *seen);
     if seen.iter().all(Option::is_none) {
         return None;
     }
+    gun_cook::trace(Trace::Budget, &[Text("aim: a drop seen")]);
     let (world, sender) = located(viewer)?;
     let physics = viewer.physics_world()?;
     let (eye, forward) = viewer.carry_eye();
@@ -843,8 +876,12 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
         if best.is_some_and(|(nearest, ..)| nearest <= distance) {
             continue;
         }
+        gun_cook::trace(Trace::Budget, &[Text("aim: place "), Dec(u32::from(target.get())), Text(" in reach, offer")]);
         let Some((cook, slot)) = offer(thread, viewer, world, sender, target, seen.body) else { continue };
-        if distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some() {
+        gun_cook::trace(Trace::Budget, &[Text("aim: ray_test calling")]);
+        let blocked = distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some();
+        gun_cook::trace(Trace::Budget, &[Text("aim: ray_test returned")]);
+        if blocked {
             continue;
         }
         best = Some((distance, target, cook, slot));
@@ -852,7 +889,10 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
     let (_, target, cook, slot) = best?;
     let places = GameWorldUi::at_update_icons(ctx)?.places()?;
     weapon_pickup::allowed(sender, target, places).then_some(())?;
-    Some((Aimed { target, sender, places }, native::gun_name(thread, cook, slot).unwrap_or(NameKey::EMPTY)))
+    gun_cook::trace(Trace::Budget, &[Text("aim: gun_name reading")]);
+    let name = native::gun_name(thread, cook, slot).unwrap_or(NameKey::EMPTY);
+    gun_cook::trace(Trace::Budget, &[Text("aim: gun_name read")]);
+    Some((Aimed { target, sender, places }, name))
 }
 
 /// What a pickup of `target`'s drop by `viewer` would take now: its cook
@@ -871,7 +911,10 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target:
         return None;
     }
     let picker = picker_of(viewer, place, record_at(thread, world, place).borrow)?;
-    let incoming = native::handedness(thread, cook, slot)?;
+    gun_cook::trace(Trace::Budget, &[Text("offer: handedness reading")]);
+    let incoming = native::handedness(thread, cook, slot);
+    gun_cook::trace(Trace::Budget, &[Text("offer: handedness read")]);
+    let incoming = incoming?;
     let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming).ok()?;
     Some((cook, take.borrow.slot))
 }
@@ -986,18 +1029,9 @@ fn memory_pieces(memory: Option<u32>) -> [Piece<'static>; 3] {
     [Text(": address space "), Dec(memory.unwrap_or(0)), Text(" MiB")]
 }
 
-/// A line `pid P pickup: ...`.
+/// A line `pid P tid T pickup: ...` (gun_cook::line).
 fn log(rest: &[Piece<'_>]) {
-    let mut pieces = [Text(""); 28];
-    let head = [Text("pid "), Dec(gun_cook::process_id()), Text(" pickup: ")];
-    let mut at = 0;
-    for piece in head.iter().chain(rest) {
-        if let Some(slot) = pieces.get_mut(at) {
-            *slot = *piece;
-            at += 1;
-        }
-    }
-    line(&pieces[..at]);
+    gun_cook::line(rest);
 }
 
 fn log_borrow(what: &str, player: &Player<'_>, borrow: Borrow, why: &str) {
