@@ -465,7 +465,7 @@ mod tests {
             let mut dists: Vec<f32> = Vec::new();
             let mut segs = Vec::new();
             for line in std::fs::read_to_string(&path).unwrap().lines().skip(1) {
-                let f: Vec<&str> = line.split('	').collect();
+                let f: Vec<&str> = line.split('\t').collect();
                 if f.len() < 10 || f[8] != "0" {
                     continue;
                 }
