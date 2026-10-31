@@ -3719,7 +3719,7 @@ the Room (`lobby_scene/camp_069`, the default), the Basement (the classic,
 `lobby_scene/day`), the Bunker (`lobby_scene/stk2_bunker`) and the Hangar
 (`lobby_scene/hangar_046`). The pick is kept in user.cfg as `srp_lobby`
 (registered at game::on_configs_loaded's start in the site's chain after
-patch 79's handler; user.cfg written when it changed), and the start's query
+patch 79's and patch 83's handlers; user.cfg written when it changed), and the start's query
 asks its project in the classic's place (0x21E5CC). The four lobbies ship
 with the game: a project without its camera track is a bug, logged in
 srp_patches.log. Patch 45 takes the weapon's spot from the lobby project's `srp_lobby` table
