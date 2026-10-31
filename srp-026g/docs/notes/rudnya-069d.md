@@ -1,7 +1,7 @@
 # Rudnya (v0.69)
 
 0.69d's Rudnya (its `level_01`, day) as a map of its own beside 0.26g's Rudnya, in content
-pack `rudnya-069d@1`. The owner's asks: port it "with the same sharp look" (2026-10-29);
+pack `rudnya-069d@2`. The owner's asks: port it "with the same sharp look" (2026-10-29);
 "add batteries there", "and artefact spawners", "and research points and battery chargers",
 "we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30).
 
@@ -17,12 +17,18 @@ pack `rudnya-069d@1`. The owner's asks: port it "with the same sharp look" (2026
   and loading id 30 are the next free on main. The parked branch `feat/stalker-maps` claims
   levels 14-19 and loading ids 30-35 too: the second of the two to land renumbers.
 - The look: every imported texture at its full size with all its mips, the authored LOD0
-  geometry kept (only far LODs and terrain tiles simplified); materials on 0.26
-  templates, which have no metalness, parallax, detail maps or 0.69d's exposure and
-  colour grading. The sky, fog, sun colour, global probe and ambient sounds are native
-  Rudnya's (the two maps share coordinates), the sun's direction 0.69d's.
+  geometry kept with 0.69d's own LOD switching, the terrain at full density (simplified
+  tiles left the blend overlays up to 2 m off: seams and holes in trenches); materials on
+  0.26 templates, which have no metalness, parallax, detail maps or 0.69d's colour grading.
+  35.6 MiB of geometry (team deathmatch), 40.9 MiB (charging stations); native maps 43-48.
+- The light is 0.69d's (resource-porter `lighting.rs`): its probes re-encoded for 0.26 with
+  their multipliers and full rotations, its fill lights as probe volumes, its darkening
+  lights as 0.26 ambient lights (at least x0.25, no cylinders), its sun, clouds and the
+  pond's mist; interiors raised to what 0.69d's exposure shows, the church, the tractor
+  station's annex and the bus stop per area (`area_gains`). 0.26's atmosphere and the
+  ambient sounds are native Rudnya's (the two maps share coordinates).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
-  team 1: 92); each point's own invulnerability time and check radii. No 0.69d ambient lights.
+  team 1: 92); each point's own invulnerability time and check radii.
 - Names: `st_level_14_name` (the game's texts) and `st_srp_map_rudnya_v069` (the rooms and
   the Matches window), "Rudnya (v0.69)" in each language as the v0.11 ports name theirs.
 - Lobby: the rooms' tile and the loading picture are 0.69d's own loading image for its
@@ -75,8 +81,23 @@ vostok-port build-survarium-069d-map --manifest ports/survarium-069d-rudnya-to-0
   --donor-db donor-069d.split --target-db <stock 0.26g resources.db> \
   --published-patch resources.db.patch_30 --output <bundle>
 vostok-port pack from-bundle --base-db <stock 0.26g resources.db> --bundle <bundle> \
-  --output <packs>/rudnya-069d-1 --id rudnya-069d --version 1
+  --output <packs>/rudnya-069d-2 --id rudnya-069d --version 2
 ```
+
+The pack's folder goes in `$SKHID_PACKS_DIR` (`private/content-packs/rudnya-069d-2`), where
+`release/build-content` composes it from; `pack.json`'s sha256 is its row in
+`release/content.tsv`. The skill `map-port` has the whole procedure.
+
+## Checked against 0.69d
+
+The reference rig (`private/rudnya-ref069/tool`), 112 fixed poses against 0.69d's own frames
+(its shots taken once and kept; 7 poses with none checked from the port alone), region flags on
+an 8 x 6 grid (`report-modes7`): no black volumes, missing walls or holes left. Mean frame
+brightness, 0.69d / the port: church inside 57 / 51, nave 54 / 65, bell 48 / 45; under the
+tractor station's annex roof 63 / 58; bus stop 54 / 67; school 54 / 70, houses 57 / 69 (the
+port's interiors with sun run brighter). Left flagged: the power plant on the horizon and the
+distance are darker and bluer (0.69d's haze over the map is not reproduced), the bus stop's
+corner by its round window darker.
 
 ## Before a release
 
@@ -85,3 +106,7 @@ vostok-port pack from-bundle --base-db <stock 0.26g resources.db> --bundle <bund
 - The site: a top-down render for /maps and /damage
   (`scripts/damage-calc/assets/maps/tools/build_all.py`), or `release/build-site` stops.
 - Bots: no `.mapdata` and not in Player vs Bots.
+- Rooms: the maps are in no pool yet (`SRP_MATCH_MAPS`, or `SRP_ROOMS_EXTRA_MAPS` for rooms).
+- Open: 0.69d's reeds and pond grass are golden; the port's are grey-green. The textures and
+  material are 0.69d's, and 0.26's own material for the same reeds draws them the same: it
+  is 0.69d's grass lighting (a shader change), not the conversion.
