@@ -894,7 +894,7 @@ impl MoveCounts {
                 let lip = grid.locate(e.at, 1.5).is_some_and(|f| grid.near_lip(f) || grid.is_lip(f));
                 let seconds = e.t1 - e.t0;
                 let place_name = if lip { "lip" } else { "off_lip" };
-                let mut bump = |map: &mut BTreeMap<String, (u32, f32)>, name: String| {
+                let bump = |map: &mut BTreeMap<String, (u32, f32)>, name: String| {
                     let c = map.entry(name).or_default();
                     c.0 += 1;
                     c.1 += seconds;
