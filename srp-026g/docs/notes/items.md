@@ -96,7 +96,9 @@ u32 its dict id** (`movzx eax, word [item+4]`), **the u64 the value the
 decal editor sets** (`46 05`), **`param` the slot**: 0 and 1 for decals
 (the lobby shows two for `decal_available`, `and esi, 2` at 0x2877A6), 3
 for the camouflage (`DragRegion.as`: `relocate_upgrade_item(item, camo,
-3)`). Three at most (the inline capacity): one camouflage and two decals.
+3)`). Three at most (the inline capacity): one camouflage and two decals. A
+weapon's (srp's, client patch 68) are sent packed into those three: the
+weapon kit, `weapon-kit.md`.
 
 `repair_time` and `reroll_time` are **seconds left** (PROVEN in the UI:
 `InventoryItem.updateRepairTime` counts `repairTime - delta` down with its

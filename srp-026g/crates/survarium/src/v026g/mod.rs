@@ -20,6 +20,7 @@ pub mod skills;
 pub mod tables;
 pub mod ui_properties;
 pub mod weapon;
+pub mod weapon_kit;
 
 // Wire helpers.
 pub mod lzma2;

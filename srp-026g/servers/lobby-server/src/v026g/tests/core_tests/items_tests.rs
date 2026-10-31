@@ -100,7 +100,7 @@ fn give(world: &mut World, index: usize, name: &str, modifications: &[u32]) -> u
 type Held = (u32, Vec<(u32, bool)>, Vec<(u32, u8)>);
 
 /// The client holds the account's items: the same ids, modifications and
-/// upgrades.
+/// upgrades (a weapon's as they are sent, packed: the weapon kit).
 #[track_caller]
 fn assert_same_items(world: &mut World, index: usize) {
     let mut held: Vec<Held> = world
@@ -111,7 +111,10 @@ fn assert_same_items(world: &mut World, index: usize) {
             (
                 item.item_id,
                 item.modifications.clone(),
-                item.upgrades.iter().map(|u| (u.id, u.param)).collect(),
+                session::v026g::wire::upgrades_descr(item)
+                    .iter()
+                    .map(|u| (u.id, u.param))
+                    .collect(),
             )
         })
         .collect();
@@ -215,7 +218,11 @@ fn a_camouflage_and_decals_go_on_a_vest() {
         denial(&decoded, 0x46).as_deref(),
         Some("st_cannot_upgrade_item")
     );
-    assert!(decoded.iter().any(|m| matches!(m, Decoded::Inventory { .. })));
+    assert!(
+        decoded
+            .iter()
+            .any(|m| matches!(m, Decoded::Inventory { .. }))
+    );
     assert_same_items(&mut world, alice);
     // A place for a cosmetic that is not on the item.
     world.ask(alice, ask::place(vest, 999, 1));
@@ -268,7 +275,11 @@ fn a_decal_placed_on_a_weapon_sends_the_account() {
     });
     world.ask(alice, ask::place(rifle, decal, 0x1122_3344_5566_7788));
     let decoded = world.take(alice);
-    assert!(decoded.iter().any(|m| matches!(m, Decoded::Inventory { .. })));
+    assert!(
+        decoded
+            .iter()
+            .any(|m| matches!(m, Decoded::Inventory { .. }))
+    );
     assert_eq!(
         world.account(alice).item(rifle).unwrap().upgrades[0].value,
         0x1122_3344_5566_7788
@@ -567,6 +578,101 @@ fn a_client_without_patch_30_takes_an_upgrade_off_its_first_holder() {
     world.assert_clean();
 }
 
+/// A weapon's upgrades are the weapon kit's (`items_rules`,
+/// `survarium::v026g::weapon_kit`): up to six in the account, at most three
+/// records on the wire, and a change is answered with the inventory and the
+/// account alone: no `83 46 02` (or `83 46 01`) whose own copy the client
+/// would write into the item. The four the account holds here (two decals,
+/// a camouflage, the game's 1P69 standing for a scope variant) reach the
+/// client as the decals and the kit; taking the camouflage off leaves the
+/// decals and a kit of the scope alone.
+#[test]
+fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
+    use survarium::v026g::weapon_kit::{self, KIT_MAGIC};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let rifle = give(&mut world, alice, "ak_74m", &[]);
+    let camo = give(&mut world, alice, "camo_city", &[]);
+    let scope = give(&mut world, alice, "scope_leupold", &[]);
+    let decals: Vec<String> = Dictionary::shared()
+        .items
+        .iter()
+        .filter(|item| item.category == 26)
+        .take(2)
+        .map(|item| item.name.clone())
+        .collect();
+    let first = give(&mut world, alice, &decals[0], &[]);
+    let second = give(&mut world, alice, &decals[1], &[]);
+    let (camo_dict, first_dict, second_dict) =
+        (dict("camo_city"), dict(&decals[0]), dict(&decals[1]));
+    world.change(alice, |account| {
+        account.item_mut(rifle).unwrap().upgrades = vec![
+            Upgrade {
+                id: camo,
+                a: camo_dict.into(),
+                value: 0,
+                param: 2,
+            },
+            Upgrade {
+                id: first,
+                a: first_dict.into(),
+                value: 0x0102,
+                param: 0,
+            },
+            Upgrade {
+                id: scope,
+                a: 362,
+                value: 0,
+                param: 3,
+            },
+            Upgrade {
+                id: second,
+                a: second_dict.into(),
+                value: 0x0304,
+                param: 1,
+            },
+        ];
+    });
+    world.take(alice);
+    let sent = session::v026g::wire::upgrades_descr(world.account(alice).item(rifle).unwrap());
+    assert_eq!(sent.len(), 3);
+    assert_eq!(
+        (sent[2].id, sent[2].a, sent[2].value, sent[2].param),
+        (
+            scope,
+            362,
+            u64::from(KIT_MAGIC) << 56 | 3 << 48 | u64::from(camo_dict),
+            3
+        )
+    );
+    assert_eq!(weapon_kit::unpack(&sent).map(|logical| logical.len()), Ok(4));
+
+    world.ask(alice, ask::detach(rifle, camo));
+    assert_eq!(world.client(alice).ids, [0x89, 0x87, 0x8B]);
+    world.take(alice);
+    assert_same_items(&mut world, alice);
+    let held = world
+        .client(alice)
+        .model
+        .inventory()
+        .iter()
+        .find(|item| item.item_id == rifle)
+        .cloned();
+    let held = held.expect("the rifle");
+    assert_eq!(
+        held.upgrades
+            .iter()
+            .map(|u| (u.id, u.value, u.param))
+            .collect::<Vec<_>>(),
+        [
+            (first, 0x0102, 0),
+            (second, 0x0304, 1),
+            (scope, u64::from(KIT_MAGIC) << 56 | 3 << 48, 3)
+        ]
+    );
+    world.assert_clean();
+}
+
 /// The players' game data before the release patch has no scope variant
 /// (`survarium::v026g::scopes`): no scope goes on a weapon, the stock
 /// scope items are not sold, and a `46 01` for one is refused with the
@@ -672,10 +778,11 @@ fn a_modification_is_rerolled_and_chosen() {
         denial(&decoded, 0x46).as_deref(),
         Some("st_cannot_select_rerolled_modification")
     );
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::Permitted(Permitted::RerollWindow { .. })
-    )));
+    assert!(
+        decoded
+            .iter()
+            .any(|message| matches!(message, Decoded::Permitted(Permitted::RerollWindow { .. })))
+    );
 
     world.ask(alice, ask::choose(rifle, 2000, 2));
     let decoded = world.take(alice);
@@ -937,11 +1044,10 @@ fn an_item_is_crafted_with_a_donor() {
     let decoded = world.take(alice);
     let Decoded::Permitted(Permitted::Crafted {
         item_id,
-        crafted:
-            Crafted::Added {
-                consumed_item_id,
-                modification,
-            },
+        crafted: Crafted::Added {
+            consumed_item_id,
+            modification,
+        },
     }) = decoded[0]
     else {
         panic!("{:?}", decoded[0]);
@@ -998,7 +1104,11 @@ fn defects_are_repaired_in_time_or_at_once() {
     let held = world.client(alice).model.inventory().to_vec();
     let seen = held.iter().find(|item| item.item_id == rifle).unwrap();
     assert_eq!(seen.condition_or_stack, FULL_CONDITION);
-    assert!((350..=360).contains(&seen.repair_time), "{}", seen.repair_time);
+    assert!(
+        (350..=360).contains(&seen.repair_time),
+        "{}",
+        seen.repair_time
+    );
     // Not again while it lasts.
     world.ask(alice, request::repair(rifle, 0));
     assert_eq!(
@@ -1040,7 +1150,10 @@ fn defects_are_repaired_in_time_or_at_once() {
             }
         })
     );
-    assert_eq!(world.account(alice).item(kits).unwrap().condition_or_stack, 1);
+    assert_eq!(
+        world.account(alice).item(kits).unwrap().condition_or_stack,
+        1
+    );
     assert_same_items(&mut world, alice);
     // No kit for an item with no defect; gold neither.
     world.ask(alice, ask::repair_with_kit(spare, kits));
