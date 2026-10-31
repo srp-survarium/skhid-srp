@@ -63,8 +63,8 @@ const AMMO: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 const SLOTS: u8 = 23;
 const EMPTY_SLOT: u16 = 0xFFFF;
 const LABEL: &CStr = c"srp pickup gun";
-/// Cooks running or kept at once (20 places, a death each within a window
-/// and its margin, and the guns of a loaded world).
+/// Cooks running or kept at once (20 places, a body each in the world, its
+/// margin after it, and the guns of a loaded world).
 pub const TICKETS: usize = 48;
 
 /// The resources' allocator (the global every query passes).

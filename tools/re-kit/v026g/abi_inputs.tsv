@@ -2699,6 +2699,7 @@ va	name	location	role	basis
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	player_params_modifiers_enum index (22 change_weapon_speed)	observed
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+4	float B, the value modified	observed
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+8	float k, the modifier's weight (1.0 at the weapon draw)	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	25 use_two_double_handed_weapons and 64 disable_second_weapon are additive (the list at 0x927E08: 5, 10, 14..17, 25, 28, 29, 31, 32, 37, 43..48, 50, 53, 62, 64): B 0 with k 1 gives the kit sum S (patch 83 reads the carry rule so)	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+8	configuration object pointer copied to EBX	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+4	destination parameter object; only present keys overwrite its scalar fields	observed
 0x002d77c0	survarium::base_player::on_player_death	ECX	live base player; entry precedes remove_alive2D99C0 and inventory on_death2FCA50; same profile+6B8/life+328 as client player	observed
@@ -4677,6 +4678,7 @@ va	name	location	role	basis
 0x002fdc10	survarium::inventory::resupply_from_profile	entry ESP+4	inventory	observed
 0x002fdc10	survarium::inventory::resupply_from_profile	entry ESP+8	player_profile	observed
 0x002fdc10	survarium::inventory::resupply_from_profile	entry ESP+12	kit index (low byte)	observed
+0x002fdc10	survarium::inventory::resupply_from_profile	entry ESP+8	per slot n of the kit: profile + kit x 704h + 98h + 4n the item u16 (FFFFh none: skipped) and +9Ah + 4n the allowance u16 (0: skipped, 0x2FDD56..0x2FDD71); the selected stack of slot 7's and slot 10's gun (+5ACh[+5B1h]) counts that gun's magazine +5E5h and chamber +5F1h against it (0x2FDCA9..0x2FDD36)	observed
 0x002fdf50	survarium::inventory::check_resupply	AL	kit index	observed
 0x002fdf50	survarium::inventory::check_resupply	entry ESP+4	inventory	observed
 0x002fdf50	survarium::inventory::check_resupply	entry ESP+8	player_profile	observed
@@ -4730,6 +4732,7 @@ va	name	location	role	basis
 0x002ff4a0	survarium::weapon_controller_core::deactivate	entry ESP+4	clear_user flag	observed
 0x002da790	survarium::base_player::remove	ECX	player	observed
 0x002da790	survarium::base_player::remove	entry ESP+4	full removal flag (low byte); snapshot same-kit removal passes zero	observed
+0x002da790	survarium::base_player::remove	entry ESP+4	1 from the respawn tick (0x316999..0x3169A0, the place's player in the world, before its spawn), a departure (0x316BE0) and the snapshot apply when the place's kit changes (0x2D2A58..0x2D2A68, before the new kit's deserialize 0x2D2AA0); the death (0x2D77C0) calls remove_alive 0x2D99C0 instead, so a dead player's body and held gun stay until that removal	observed
 0x002e44f0	vostok::inventory_item_ptr::assign	ESI	destination item-pointer cell	observed
 0x002e44f0	vostok::inventory_item_ptr::assign	ECX	source item-pointer cell	observed
 0x00244a00	survarium::weapon::serialize	stack+4	simulation writer forwarded to weapon_core::serialize	observed

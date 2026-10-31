@@ -274,3 +274,4 @@ vostok::configs::engine_cfg	text	0x0	ptr<u8>	a string value's text, a C string (
 vostok::render::model_instance	skeleton	0x0	obj<vostok::render::skeleton_render_model_instance>	only for a client weapon's model (weapon+1810h), a skeleton_render_model_instance
 vostok::render::skeleton_render_model_instance	resource	0x62B4	ptr<vostok::render::skeleton_render_model>	the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
 vostok::render::skeleton_render_model	bounds	0x108	f32	the authored model box, 6 f32: min xyz, max xyz (update_render_matrices 0x15A5B0 copies it to the instance's +62B8h turned by Y(pi): [-maxx, miny, -maxz, -minx, maxy, -minz])
+survarium::kit_slot	allowance	0x2	u16	the rounds the slot is refilled to (resupply_from_profile 0x2FDC10: kit descriptor +42h + 4 x slot, from profile +98h + kit x 704h): allowance less the stack, the magazine and the chamber of the gun bound to it

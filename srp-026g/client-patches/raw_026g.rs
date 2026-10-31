@@ -5078,6 +5078,15 @@ impl KitSlot {
         unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
     }
 
+    /// +0x2 (u16): the rounds the slot is refilled to (resupply_from_profile 0x2FDC10: kit descriptor +42h + 4 x slot, from profile +98h + kit x 704h): allowance less the stack, the magazine and the chamber of the gun bound to it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allowance(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x2).cast::<u16>().as_ptr() }
+    }
+
     /// 0x4 bytes: a slot word
     pub const SIZE: usize = 0x4;
 

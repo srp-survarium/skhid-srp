@@ -23,8 +23,8 @@ on a made-up player, game world, game, network client, match and profile:
 - the completion (the game's invoker 0x202300 with the queries_result): the
   inventory kept (one reference more), the recipe freed; the frame's step
   (game_world.after_move 0x1F7C3C, ragdoll's handler composing
-  weapon_pickup::after_move) logs it made; past the window and its margin
-  the gun is given back (0x0E0210 at its last reference), the profile copy
+  weapon_pickup::after_move) logs it made; kept while the body is in the world,
+  3 s after base_player::remove(1) takes it out the gun is given back (0x0E0210 at its last reference), the profile copy
   destroyed and freed;
 - an empty result: FAILED, the recipe and the profile given back;
 - the donor destroyed (player.destroy 0x1F2100) while the cook runs: the cook
@@ -247,6 +247,15 @@ class Run(hide.Run):
         _, sp = self.run(DESTROY_SITE, (DESTROY_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: PLAYER})
         assert self.stopped == DESTROY_AFTER
 
+    def remove(self, player, at, flag=1):
+        """base_player::remove(flag) of `player` at its tick time `at` (the respawn tick's 0x3169A0
+        takes a dead player out of the world with 1: its body and gun leave it)."""
+        self.word(player + 0x324, at)
+        sp = hide.STACK + 0x9000
+        self.word(sp + 4, flag)
+        self.run(0x2DA790, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: player})
+        assert self.stopped == 0x2DA796, hex(self.stopped or 0)
+
 
 def slot_word(snapshot, kit, slot):
     at = SLOTS + kit * KIT_STRIDE + 4 * slot
@@ -305,13 +314,20 @@ def main():
     assert any("cook of the gun of place 5 kit 1 slot 10 (death at 12350 ms): made, inventory 0x%08x" % COOKED in l
                for l in r.log), r.log
     assert any("ms after it was asked for, address space 9" in l for l in r.log), r.log
-    r.step(DIED + 7_900)
+    r.step(DIED + 60_000)
+    assert r.read(COOKED + 0xD0) == 2, "freed while its body is in the world"
+    gone = DIED + 61_000
+    r.remove(PLAYER, gone)
+    assert any("place 5 at %d ms: its body left the world, the drop of its kit 1 slot 10 ends" % gone in l
+               for l in r.log), r.log
+    r.step(gone + 2_999)
     assert r.read(COOKED + 0xD0) == 2, "freed inside the margin"
-    r.step(DIED + 8_000)
+    r.step(gone + 3_000)
     assert r.read(COOKED + 0xD0) == 1 and copy not in r.live and r.releases == []
     assert r.live == {}, {hex(k): v for k, v in r.live.items()}
     print("ok the completion through the game's boost invoker 0x202300: the gun kept (one reference), the recipe freed, logged made with its ms and memory; "
-          "past the window and margin given back, every allocation freed once")
+          "kept while its body is in the world (60 s), given back 3 s after base_player::remove(1) takes the body out, "
+          "every allocation freed once")
 
     # The last reference: the native release; a new life dies again: a new cook.
     r.player(spawned=SPAWNED + 9000)
@@ -474,9 +490,10 @@ class Pick(Run):
         self.emu.mem_write(item + 0x260, struct.pack("<H", count))
         return item
 
-    def setup(self, double_handed=1):
+    def setup(self, double_handed=1, own_double_handed=1):
         """The donor of stage 1 (place 5, kit 1, its gun in slot 10: 17 rounds and a chambered one)
-        dies; its cook completes with the cooked inventory; the picker at place 3."""
+        dies; its cook completes with the cooked inventory; the picker at place 3 (kit 0) holds its
+        own gun in slot 10, bound to its ammunition in slot 8, slot 7 empty."""
         self.match()
         self.player()
         self.registry = self.blk(0x40)
@@ -498,7 +515,7 @@ class Pick(Run):
         self.picker = p = self.blk(0x10000)
         self.roster[3] = p
         self.inventory = self.blk(0x200)
-        self.own_gun = self.gun(ammo_slot=8, loaded=12)
+        self.own_gun = self.gun(double_handed=own_double_handed, ammo_slot=8, loaded=12)
         self.own_ammo = self.stack(90)
         self.emu.mem_write(self.own_gun + 0xC, bytes([GUN_ID]))
         self.word(self.own_gun + 0x4, CORE)
@@ -523,6 +540,18 @@ class Pick(Run):
 
     def slot(self, inventory, n):
         return self.read(inventory + 0x10C + 4 * n)
+
+    def second(self, double_handed=1):
+        """A gun of the picker's in slot 7 (its ammunition in slot 12)."""
+        gun = self.gun(double_handed=double_handed, ammo_slot=12)
+        self.word(self.inventory + 0x10C + 4 * 7, gun + 0x10)
+        self.word(gun + 0x10 + 0x250, self.inventory)
+        self.word(gun + 0x10 + 0x254, 7)
+        return gun
+
+    def modifier(self, index, value):
+        """The picker's kit 0's modifier `index` (profile +0F4h, a float each), as a skill sets it."""
+        self.emu.mem_write(PROFILE + 0xF4 + 4 * index, struct.pack("<f", value))
 
     def lohook(self, site, after, regs, stops=None, sp=None):
         top = sp or hide.STACK + 0x9000
@@ -552,34 +581,39 @@ class Pick(Run):
         return self.read(reader + 4) - bytes_at
 
     def installed(self):
-        """The borrowed gun is in the picker's slot 10 and its ammunition in slot 9, the own gun in
-        the cooked slot 10, each item's owner and slot set by the game's set_owner; the gun bound."""
+        """The borrowed gun is in the picker's slot 10 and its ammunition in slot 8, where the own
+        gun's was ("your ammo is replaced"); the own gun in the cooked slot 10 and the own stack
+        parked in the cooked slot 11, each item's owner and slot set by the game's set_owner; the
+        gun bound to slot 8."""
         inv, cooked, gun, own = self.inventory, self.cooked, self.new_gun, self.own_gun
-        assert self.slot(inv, 10) == gun + 0x10 and self.slot(inv, 9) == self.new_ammo
-        assert self.slot(inv, 8) == self.own_ammo and self.slot(cooked, 10) == own + 0x10
-        assert self.slot(cooked, 11) == 0
+        assert self.slot(inv, 10) == gun + 0x10 and self.slot(inv, 8) == self.new_ammo
+        assert self.slot(inv, 9) == 0 and self.slot(inv, 11) == 0
+        assert self.slot(cooked, 10) == own + 0x10 and self.slot(cooked, 11) == self.own_ammo
         assert (self.read(gun + 0x10 + 0x250), self.read(gun + 0x10 + 0x254)) == (inv, 10)
-        assert (self.read(self.new_ammo + 0x250), self.read(self.new_ammo + 0x254)) == (inv, 9)
+        assert (self.read(self.new_ammo + 0x250), self.read(self.new_ammo + 0x254)) == (inv, 8)
         assert (self.read(own + 0x10 + 0x250), self.read(own + 0x10 + 0x254)) == (cooked, 10)
-        assert [self.read(x + 0xD0) for x in (gun + 0x10, own + 0x10, self.new_ammo)] == [1, 1, 1]
+        assert (self.read(self.own_ammo + 0x250), self.read(self.own_ammo + 0x254)) == (cooked, 11)
+        assert [self.read(x + 0xD0) for x in (gun + 0x10, own + 0x10, self.new_ammo, self.own_ammo)] == [1] * 4
         assert self.read(gun + 4) == CORE and self.read(gun + 0xC, 1)[0] == GUN_ID
         assert self.read(gun + 0x10 + 0x248) == CORE and self.read(self.new_ammo + 0x248) == CORE
         assert self.read(gun + 0x5A0) == BULLETS and self.read(gun + 0x5F4, 1)[0] == 0
-        assert self.read(self.read(gun + 0x5AC)) == 9
+        assert self.read(self.read(gun + 0x5AC)) == 8 and self.read(gun + 0x5B0, 2) == b"\1\0"
         assert self.read(self.registry + 4 * GUN_ID) == gun
 
     def restored(self):
-        """Everything as before the pickup: the cooked inventory as cooked, the own gun back."""
+        """Everything as before the pickup: the cooked inventory as cooked, the own gun and its
+        ammunition back."""
         inv, cooked, gun, own = self.inventory, self.cooked, self.new_gun, self.own_gun
         assert self.slot(inv, 10) == own + 0x10 and self.slot(inv, 9) == 0 and self.slot(inv, 8) == self.own_ammo
         assert self.slot(cooked, 10) == gun + 0x10 and self.slot(cooked, 11) == self.new_ammo
         assert (self.read(own + 0x10 + 0x250), self.read(own + 0x10 + 0x254)) == (inv, 10)
+        assert (self.read(self.own_ammo + 0x250), self.read(self.own_ammo + 0x254)) == (inv, 8)
         assert (self.read(gun + 0x10 + 0x250), self.read(gun + 0x10 + 0x254)) == (cooked, 10)
         assert (self.read(self.new_ammo + 0x250), self.read(self.new_ammo + 0x254)) == (cooked, 11)
-        assert [self.read(x + 0xD0) for x in (gun + 0x10, own + 0x10, self.new_ammo)] == [1, 1, 1]
+        assert [self.read(x + 0xD0) for x in (gun + 0x10, own + 0x10, self.new_ammo, self.own_ammo)] == [1] * 4
         assert self.read(gun + 4) == 0 and self.read(gun + 0xC, 1)[0] == 0 and self.read(gun + 0x5A0) == 0
         assert self.read(gun + 0x10 + 0x248) == 0 and self.read(self.new_ammo + 0x248) == 0
-        assert self.read(self.read(gun + 0x5AC)) == 11
+        assert self.read(self.read(gun + 0x5AC)) == 11 and self.read(gun + 0x5B0, 2) == b"\1\0"
         assert self.read(self.registry + 4 * GUN_ID) == own
 
 
@@ -606,15 +640,35 @@ def stage2(patched, original):
     print("ok the donor's death opens its drop (kit 1, slot 10, its time) in its record; the picker's is empty; "
           "each written by the native byte writer at base_player::serialize's start")
 
-    # A pickup of another kind: refused, nothing changed.
-    other = Pick(patched)
-    other.setup(double_handed=0)
-    other.pick()
-    assert other.slot(other.inventory, 10) == other.own_gun + 0x10 and other.native == []
-    assert any("refused, the gun is not of the held gun's kind" in l for l in other.log), other.log
-    other.pick(target=3)
-    assert any("refused, no drop to take" in l for l in other.log), other.log
-    print("ok a gun of another kind, or the picker's own place: refused and logged, nothing changed")
+    # The carry rules: any gun for the held one, as the skill modifiers allow.
+    pistol = Pick(patched)
+    pistol.setup(own_double_handed=0)
+    pistol.pick()
+    pistol.installed()
+    print("ok a rifle replaces the held pistol (slot 7 empty): any gun for any gun, the held one replaced")
+
+    beside = Pick(patched)
+    beside.setup(own_double_handed=0)
+    beside.second(double_handed=1)
+    beside.pick()
+    assert beside.slot(beside.inventory, 10) == beside.own_gun + 0x10 and beside.native == []
+    assert any("refused, a second double-handed gun without modifier 25" in l for l in beside.log), beside.log
+    beside.modifier(25, 1.0)
+    beside.pick()
+    beside.installed()
+    print("ok a rifle for the held pistol beside a rifle in slot 7: refused and logged, nothing changed; with "
+          "use_two_double_handed_weapons (modifier 25, the game's apply_modifier 0x2D5AE0): taken")
+
+    one = Pick(patched)
+    one.setup()
+    one.modifier(64, 1.0)
+    one.pick()
+    assert one.slot(one.inventory, 10) == one.own_gun + 0x10 and one.native == []
+    assert any("refused, its kit carries one gun only, in slot 7 (modifier 64)" in l for l in one.log), one.log
+    one.pick(target=3)
+    assert any("refused, no drop to take" in l for l in one.log), one.log
+    print("ok disable_second_weapon (modifier 64): a gun held in slot 10 is not replaced; the picker's own "
+          "place: refused; each logged, nothing changed")
 
     # The pickup.
     r.pick()
@@ -630,7 +684,7 @@ def stage2(patched, original):
     assert r.save(r.picker) == record(borrow=(PLACE, KIT, 1, 1))
     assert r.save(PLAYER) == record("taken")
     print("ok the pickup at set_input's apply point (carry.filter): the slots swapped by the game's set_item, the "
-          "ammunition moved to a free slot (9) and rebound, the gun bound (core, registry id and entry, bullet "
+          "ammunition into the own gun's slot (8, the own stack parked in the cooked inventory) and rebound, the gun bound (core, registry id and entry, bullet "
           "manager, autoload off), the switch replayed (deactivate, forget, held = pending, set_user, initialize, "
           "activate), the donor's magazine and chamber with one magazine in reserve; picker borrows, drop taken")
 
@@ -639,28 +693,35 @@ def stage2(patched, original):
     r.installed()
     print("ok a second command: refused (it borrows already)")
 
-    # The crate.
-    _, _ = r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker})
-    view = r.emu.reg_read(UC_X86_REG_ECX)
-    assert view not in (r.inventory, hide.GAME[UC_X86_REG_ECX])
-    assert r.slot(view, 10) == r.own_gun + 0x10 and r.slot(view, 9) == 0 and r.slot(view, 8) == r.own_ammo
-    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 4))
+    # The crate: each borrowed stack refilled to the picker's allowance for its slot (kit 0 slot 8:
+    # 108) less the magazine and chamber (17 + 1), for free; the own parked stack in the view.
+    storage = r.read(PROFILE + ITEMS, 0xB4 * 69)
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(CAN_USE_AFTER, CAN_USE_AVAILABLE))
-    assert r.stopped == CAN_USE_AVAILABLE
+    assert r.stopped == CAN_USE_AVAILABLE, "30 of 90: available"
     r.lohook(HINT, HINT_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(HINT_AFTER, HINT_AVAILABLE))
     assert r.stopped == HINT_AVAILABLE
     r.emu.mem_write(r.inventory + 0x184, b"\0")
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
-    assert r.emu.reg_read(UC_X86_REG_EAX) == view and r.slot(view, 10) == r.own_gun + 0x10
-    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY) and r.read(r.inventory + 0x184, 1) == b"\1"
+    view = r.emu.reg_read(UC_X86_REG_EAX)
+    assert view not in (r.inventory, hide.GAME[UC_X86_REG_EAX])
+    assert r.slot(view, 10) == r.own_gun + 0x10 and r.slot(view, 8) == r.own_ammo and r.slot(view, 9) == 0
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 108 - 18) and r.read(r.inventory + 0x184, 1) == b"\1"
+    assert r.read(PROFILE + ITEMS, 0xB4 * 69) == storage, "a storage charged"
+    r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker})
+    assert r.emu.reg_read(UC_X86_REG_ECX) == view, "full: check_resupply gets the view"
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 4))
     r.lohook(CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
-    assert r.emu.reg_read(UC_X86_REG_EAX) == view and r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY)
+    assert r.emu.reg_read(UC_X86_REG_EAX) == view and r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 90)
+    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 95))
+    r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 95), "never below what it has"
+    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: PLAYER})
     assert r.emu.reg_read(UC_X86_REG_ECX) == INVENTORY, "a player without a borrow: the native inventory"
-    print("ok the crate: check_resupply gets the view (the own gun in slot 10, the moved slot empty); a reserve "
-          "below a magazine is available (can_use, use_hint); its use refills it to a magazine for free and the "
-          "native resupply gets the view (both finish_use sites)")
+    print("ok the crate: a borrowed stack below the picker's allowance for its slot (108) less the magazine and "
+          "chamber (18) is available (can_use, use_hint); its use refills it to 90, charging no storage, never "
+          "lowering it, and the native resupply and check_resupply get the view (the own gun in slot 10, the own "
+          "parked stack in slot 8; both finish_use sites)")
 
     # A loaded record without the borrow: restored before the native readers.
     assert r.load(r.picker, record()) == 12
@@ -674,21 +735,26 @@ def stage2(patched, original):
     print("ok a loaded record without the borrow: the install restored (held left to the reader); with it: "
           "installed again from the kept gun, without the switch's calls")
 
-    # A lent gun outlives its window; the frame's step keeps it.
-    r.step(DIED + 9_000)
+    # The donor's body leaves the world (its respawn: base_player::remove(1)) while its gun is lent:
+    # the drop ends, the lent gun stays.
+    gone = DIED + 8_000
+    r.remove(PLAYER, gone)
+    assert r.save(PLAYER) == record(), "the drop ends with the body"
+    r.step(gone + 3_500)
     assert r.read(r.cooked + 0xD0) == 2 and r.releases == []
     r.installed()
-    print("ok a borrowed gun is kept past its death's window and margin while it is held")
+    print("ok the donor's body leaves the world (base_player::remove(1)): its record's drop ends; a borrowed gun "
+          "is kept past it while it is held")
 
-    # The removal: flag 0 (a snapshot's) leaves it, flag 1 (death, respawn) restores.
+    # The removal: flag 0 (a snapshot's) leaves it, flag 1 (respawn, departure) restores.
     r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(0))
     r.installed()
     r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
     r.restored()
     assert r.read(r.picker + 0x128) == r.new_gun, "held left for remove to deactivate"
     assert r.save(r.picker) == record(), "the borrow ends with the life"
-    print("ok base_player::remove: flag 0 leaves the borrow; flag 1 puts the own gun back first (its unload "
-          "charges the own profile), held left for remove to deactivate; the record borrows nothing")
+    print("ok base_player::remove: flag 0 leaves the borrow; flag 1 puts the own gun and its ammunition back first "
+          "(its unload charges the own profile), held left for remove to deactivate; the record borrows nothing")
 
     # A record that does not decode: logged, read as empty, the reader past it.
     r.load(r.picker, record(borrow=(PLACE, KIT, 1, 1)))
@@ -700,17 +766,23 @@ def stage2(patched, original):
     assert any("the state is too short" in l for l in r.log)
     print("ok a record that does not decode (bad bytes, a short state): logged loudly, read as empty (the borrow "
           "restored), never a crash")
-    r.step(DIED + 9_100)
-    assert r.read(r.cooked + 0xD0) == 1, "given back once nobody holds it, past the window"
-    print("ok given back, the gun is freed at the next frame's step past its window")
+    r.step(gone + 3_600)
+    assert r.read(r.cooked + 0xD0) == 1, "given back once nobody holds it, 3 s after the body left"
+    print("ok given back, the gun is freed at the next frame's step 3 s after its body left the world")
 
-    # The window: past 5 s nothing to take.
+    # Availability ends when the body leaves the world: a command after the donor's removal.
     late = Pick(patched)
     late.setup()
-    late.pick(now=DIED + 5_000)
-    assert any("refused, no drop to take" in l for l in late.log) and late.native == []
-    print("ok a command 5 s after the death: refused")
-
+    late.pick(now=DIED + 60_000)
+    late.installed()
+    early = Pick(patched)
+    early.setup()
+    early.remove(PLAYER, DIED + 8_000)
+    early.pick(now=DIED + 8_000)
+    assert any("refused, no drop to take" in l for l in early.log) and early.native == []
+    assert early.slot(early.inventory, 10) == early.own_gun + 0x10
+    print("ok a command 60 s after the death with the body still there: taken; after base_player::remove(1) of "
+          "the body (the same tick on every client): refused")
 
 
 # ---- stage 2b: the ragdoll's gun, the prompt, the command -----------------------------------------
@@ -858,11 +930,11 @@ def stage2b(patched):
     for case, change in (("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.])),
                          ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9])),
                          ("a wall between", lambda g: setattr(g, "wall", True)),
-                         ("5 s after the death", lambda g: g.word(g.picker + 0x324, DIED + 5_000)),
-                         ("a gun of another kind", None),
+                         ("a second double-handed gun", lambda g: g.second(double_handed=1)),
+                         ("modifier 64 with the gun in slot 10", lambda g: g.modifier(64, 1.0)),
                          ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"))):
         g = Prompt(patched)
-        g.setup(double_handed=0 if change is None else 1)
+        g.setup()
         if change:
             change(g)
         assert g.draw()
@@ -870,11 +942,18 @@ def stage2b(patched):
         assert g.build(USE) == USE, case
     g = Prompt(patched)
     g.setup()
+    g.word(g.picker + 0x324, DIED + 60_000)
+    assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], "60 s after the death, the body still there"
+    g.remove(PLAYER, DIED + 61_000)
+    assert g.hud() == [("",)] and g.hud() == [] and g.build(USE) == USE, "its body out of the world"
+    g = Prompt(patched)
+    g.setup()
     g.eye([0., -1., 0.], [0.09, 2.0, 1.2])
     g.draw()
     assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
-    print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, 5 s after the death, for a "
-          "gun of another kind, or a place the match does not have; the box padded by 5 cm")
+    print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
+          "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 5 cm; offered 60 s after the death while the body is there, "
+          "gone with base_player::remove(1) of the body")
 
 
 def frame_for(run, flag):

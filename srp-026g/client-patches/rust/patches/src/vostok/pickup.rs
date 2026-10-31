@@ -4,8 +4,9 @@
 //!
 //! - [`install`] swaps the picker's held own gun (its weapon slot) with a
 //!   cooked gun (its slot of the cooked inventory), moves the gun's bound
-//!   ammunition into free ammunition slots of the picker's inventory and
-//!   rebinds the gun to them, binds the gun to the world (the core, the own
+//!   ammunition into the own gun's ammunition slots (the own stacks parked
+//!   in the cooked inventory), then free ones, and rebinds the gun to them
+//!   (its selected stack first), binds the gun to the world (the core, the own
 //!   gun's registry id and the core's entry for it, the bullet manager), and
 //!   either replays the weapon switch (deactivate, forget, held = pending,
 //!   set_user, initialize, the magazine, activate) or, for a loaded world's
@@ -15,9 +16,10 @@
 //!   its slot and its registry entry; the held object is left to the caller
 //!   (remove deactivates it, the reader switches it).
 //! - every check is made before the first write: a refusal changes nothing.
-//! - the crate: [`crate_view`], a copy of the inventory with the own gun in
-//!   its place and the moved ammunition's slots empty, what the native
-//!   resupply reads; [`refill`] and [`reserve_low`] the borrowed reserve.
+//! - the crate: [`crate_view`], a copy of the inventory with the own gun and
+//!   the own parked stacks in their places, what the native resupply reads;
+//!   [`refill`] and [`reserve_low`] the borrowed stacks (to the picker's
+//!   allowance for their slots).
 //!
 //! Every reference count change is the native set_item's/remove_item's; a
 //! moved item is held by one more reference across the move.
@@ -25,7 +27,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, WeaponSlot};
+pub use weapon_pickup::{Ammo, CarryRule, Handedness, WeaponSlot};
 
 use super::gun_cook::{self, CookId};
 use super::world::{read, Player};
@@ -35,6 +37,8 @@ use crate::raw;
 /// The slots a weapon's ammunition is bound to (cook 0x2C7855..0x2C79E5).
 const AMMO: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 const SLOTS: u32 = 23;
+/// A profile kit slot naming no item (translate_query 0x2C7301..0x2C730C).
+const NO_ITEM: u16 = 0xFFFF;
 /// Bound ammunition stacks a gun can have (its +5B0h, a cooked gun's from the
 /// eight slots).
 const MOVES: usize = 8;
@@ -50,8 +54,6 @@ pub enum Refusal {
     NoCookedGun,
     /// A bound ammunition slot of the cooked gun is empty or out of range.
     BadAmmo,
-    /// Not enough free ammunition slots in the picker's inventory.
-    NoAmmoSlot,
     /// What is in the slots is not what the install put there.
     Changed,
 }
@@ -63,7 +65,6 @@ impl Refusal {
             Refusal::NotInHands => "its own gun is not held in its slot",
             Refusal::NoCookedGun => "the cooked gun is gone or not a weapon",
             Refusal::BadAmmo => "a bound ammunition slot of the cooked gun is empty",
-            Refusal::NoAmmoSlot => "no free ammunition slot for the gun's ammunition",
             Refusal::Changed => "the slots no longer hold what the install put there",
         }
     }
@@ -77,6 +78,20 @@ struct Moved {
     from: u8,
     to: u8,
     world: u32,
+    /// The picker's own stack that was in `to`, parked in the cooked
+    /// inventory's `from` until the restore (the owner: "your ammo is
+    /// replaced").
+    displaced: Option<u32>,
+}
+
+/// The cooked gun's ammunition binding as cooked (+5ACh's indices, +5B0h,
+/// +5B1h), put back at the restore: the install binds the stacks it placed,
+/// the selected one first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Binding {
+    indices: [u32; MOVES],
+    count: u8,
+    selected: u8,
 }
 
 /// An installed borrowed gun, as values (compared, never read through):
@@ -92,6 +107,7 @@ pub struct Installed {
     /// The cooked gun's own core, registry id, world (+258h) and bullet
     /// manager, put back at the restore.
     saved: (u32, u8, u32, u32),
+    cooked: Binding,
 }
 
 impl Installed {
@@ -235,19 +251,54 @@ unsafe fn cooked_gun(inventory: raw::Inventory, slot: WeaponSlot) -> Option<(raw
     }
 }
 
-/// Whether the cooked gun is of the held own gun's kind (both two-handed
-/// or both not, +5E9h). None: either is missing.
-pub fn same_kind(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot) -> Option<bool> {
-    let inventory = gun_cook::inventory(player.thread, cook)?;
-    // SAFETY: the live player's inventory and the made cooked inventory.
+/// The cooked gun's handedness (+5E9h). None: it is missing.
+pub fn handedness(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<Handedness> {
+    let inventory = gun_cook::inventory(thread, cook)?;
+    // SAFETY: the made cooked inventory, its gun read as a weapon after its vtable.
     unsafe {
         let (_, gun) = cooked_gun(inventory, slot)?;
-        let item = player.this.inventory()?.slots().at(usize::from(own.slot())).item()?;
-        let own_gun = item.active_object();
-        if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
-            return None;
+        Some(Handedness::from_double_handed(read(gun.weapon().double_handed()) != 0))
+    }
+}
+
+/// The client weapon in `inventory`'s `slot`, if one is there.
+///
+/// # Safety
+/// `inventory` is live.
+unsafe fn weapon_in(inventory: raw::Inventory, slot: WeaponSlot) -> Option<raw::Item> {
+    unsafe {
+        let gun = inventory.slots().at(usize::from(slot.slot())).item()?.active_object();
+        (read(gun.vtable()) == raw::image::WEAPON_VTABLE).then_some(gun)
+    }
+}
+
+impl Player<'_> {
+    /// The handedness of its `slot`'s client weapon, if one is there.
+    pub fn weapon_handedness(&self, slot: WeaponSlot) -> Option<Handedness> {
+        // SAFETY: the live player's inventory, its gun read after its vtable.
+        unsafe {
+            let gun = weapon_in(self.this.inventory()?, slot)?;
+            Some(Handedness::from_double_handed(read(gun.weapon().double_handed()) != 0))
         }
-        Some((read(gun.weapon().double_handed()) != 0) == (read(own_gun.weapon().double_handed()) != 0))
+    }
+
+    /// Its current kit's carry rule: modifiers 64 (`disable_second_weapon`)
+    /// and 25 (`use_two_double_handed_weapons`) of the kit's modifiers
+    /// (profile +0F4h + kit x 704h), summed by the native apply_modifier
+    /// (both additive: of 0 with weight 1, the sum). None: no profile.
+    pub fn carry_rule(&self) -> Option<CarryRule> {
+        // SAFETY: the live player's profile and current kit (+115h, below 3
+        // for a match player: checked), the kit's modifiers container.
+        unsafe {
+            let kit = usize::from(read(self.this.kit()));
+            if kit >= 3 {
+                return None;
+            }
+            let modifiers = Some(self.this.profile()?.kits().at(kit).modifiers());
+            let disabled = raw::engine_apply_modifier(modifiers, 64, 0.0, 1.0);
+            let two = raw::engine_apply_modifier(modifiers, 25, 0.0, 1.0);
+            Some(CarryRule::from_modifiers(disabled, two))
+        }
     }
 }
 
@@ -307,24 +358,48 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
         }
         let (gun_item, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
         let (w, ow) = (gun.weapon(), own_gun.weapon());
-        // The ammunition: each bound slot's stack to a free slot of ours.
-        let mut moved = [None; MOVES];
-        let count = usize::from(read(w.ammo_count()));
-        if count > MOVES {
-            return Err(Refusal::BadAmmo);
+        // The ammunition (the owner: "your ammo is replaced"): the gun's
+        // bound stacks, its selected one first, each into a slot the own
+        // gun's ammunition is in (that stack parked in the cooked slot it
+        // came from; not a slot the other weapon binds too), then into a free
+        // ammunition slot; a stack with no room left stays cooked and the gun
+        // binds the ones placed.
+        let cooked_binding = binding(w).ok_or(Refusal::BadAmmo)?;
+        let count = usize::from(cooked_binding.count);
+        let selected = usize::from(cooked_binding.selected);
+        let order = |k: usize| match k {
+            0 => selected,
+            k if k <= selected => k - 1,
+            k => k,
+        };
+        let mut targets = [0u8; MOVES];
+        let mut targets_len = 0;
+        let other = weapon_in(inventory, own.other()).and_then(|g| binding(g.weapon()));
+        let candidates = binding(ow).into_iter().flat_map(|b| b.indices.into_iter().take(usize::from(b.count)))
+            .filter(|&slot| AMMO.iter().any(|&a| u32::from(a) == slot))
+            .filter(|&slot| !other.is_some_and(|o| o.indices[..usize::from(o.count)].contains(&slot)))
+            .map(|slot| slot as u8)
+            .chain(AMMO.into_iter().filter(|&slot| inventory.slots().at(usize::from(slot)).item().is_none()));
+        for slot in candidates {
+            if targets_len < MOVES && !targets[..targets_len].contains(&slot) {
+                targets[targets_len] = slot;
+                targets_len += 1;
+            }
         }
-        let indices = w.ammo_slots();
-        let mut free = AMMO.into_iter().filter(|&s| inventory.slots().at(usize::from(s)).item().is_none());
-        for (n, room) in moved.iter_mut().enumerate().take(count) {
-            let from = read(indices.ok_or(Refusal::BadAmmo)?.at(n).slot());
+        let placed = count.min(targets_len);
+        let mut moved = [None; MOVES];
+        for (k, room) in moved.iter_mut().enumerate().take(placed) {
+            let from = cooked_binding.indices[order(k)];
             if from >= SLOTS {
                 return Err(Refusal::BadAmmo);
             }
             let item = cooked.slots().at(from as usize).item().ok_or(Refusal::BadAmmo)?;
-            let to = free.next().ok_or(Refusal::NoAmmoSlot)?;
+            let to = targets[k];
+            let displaced = inventory.slots().at(usize::from(to)).item().map(|i| i.address());
             *room = Some(Moved { item: item.address(), from: from as u8, to,
-                                 world: item.world().map_or(0, |c| c.address()) });
+                                 world: item.world().map_or(0, |c| c.address()), displaced });
         }
+        let indices = w.ammo_slots();
         let id = read(ow.registry_id());
         let objects = core.objects().ok_or(Refusal::NoPlayerState)?;
         let saved = (w.core().map_or(0, |c| c.address()), read(w.registry_id()),
@@ -335,17 +410,28 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
         gun_item.set_world(Some(core));
         *w.bullet_manager() = read(ow.bullet_manager());
         *w.load_on_initialize() = 0;
-        for (n, m) in moved.iter().enumerate() {
+        for (k, m) in moved.iter().enumerate() {
             let Some(m) = m else { continue };
             let Some(item) = cooked.slots().at(usize::from(m.from)).item() else { continue };
             let _hold = Hold::new(item);
-            raw::engine_inventory_remove(Some(cooked), u32::from(m.from));
-            set(inventory, m.to, item);
+            match inventory.slots().at(usize::from(m.to)).item() {
+                Some(own) => {
+                    let _own = Hold::new(own);
+                    set(inventory, m.to, item);
+                    set(cooked, m.from, own);
+                }
+                None => {
+                    raw::engine_inventory_remove(Some(cooked), u32::from(m.from));
+                    set(inventory, m.to, item);
+                }
+            }
             item.set_world(Some(core));
             if let Some(indices) = indices {
-                *indices.at(n).slot() = u32::from(m.to);
+                *indices.at(k).slot() = u32::from(m.to);
             }
         }
+        *w.ammo_count() = placed as u8;
+        *w.ammo_selected() = 0;
         {
             let (_own, _gun) = (Hold::new(own_item), Hold::new(gun_item));
             set(inventory, own.slot(), gun_item);
@@ -370,7 +456,30 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
                 raw::engine_weapon_initialize(Some(gun));
             }
         }
-        Ok(Installed { cook, own, slot, own_gun: own_gun.address(), gun: gun.address(), moved, saved })
+        Ok(Installed { cook, own, slot, own_gun: own_gun.address(), gun: gun.address(), moved, saved,
+                       cooked: cooked_binding })
+    }
+}
+
+/// A weapon's ammunition binding (+5ACh's first +5B0h indices, +5B1h);
+/// None when it binds more than [`MOVES`], or the selected one is past them.
+///
+/// # Safety
+/// `w` is a live weapon.
+unsafe fn binding(w: raw::Weapon) -> Option<Binding> {
+    unsafe {
+        let (count, selected) = (read(w.ammo_count()), read(w.ammo_selected()));
+        if usize::from(count) > MOVES || (count > 0 && selected >= count) {
+            return None;
+        }
+        let mut indices = [0u32; MOVES];
+        if count > 0 {
+            let at = w.ammo_slots()?;
+            for (n, index) in indices.iter_mut().enumerate().take(usize::from(count)) {
+                *index = read(at.at(n).slot());
+            }
+        }
+        Some(Binding { indices, count, selected })
     }
 }
 
@@ -422,7 +531,7 @@ pub fn restore(player: &Player<'_>, installed: &Installed) -> Result<(), Refusal
         }
         for m in installed.moved.iter().flatten() {
             if inventory.slots().at(usize::from(m.to)).item().map(|i| i.address()) != Some(m.item)
-                || cooked.slots().at(usize::from(m.from)).item().is_some() {
+                || cooked.slots().at(usize::from(m.from)).item().map(|i| i.address()) != m.displaced {
                 return Err(Refusal::Changed);
             }
         }
@@ -435,17 +544,30 @@ pub fn restore(player: &Player<'_>, installed: &Installed) -> Result<(), Refusal
             set(inventory, installed.own.slot(), own_item);
             set(cooked, installed.slot.slot(), gun_item);
         }
-        for (n, m) in installed.moved.iter().enumerate() {
-            let Some(m) = m else { continue };
+        for m in installed.moved.iter().flatten() {
             let Some(item) = inventory.slots().at(usize::from(m.to)).item() else { continue };
             let _hold = Hold::new(item);
-            raw::engine_inventory_remove(Some(inventory), u32::from(m.to));
-            set(cooked, m.from, item);
+            match cooked.slots().at(usize::from(m.from)).item() {
+                Some(own) => {
+                    let _own = Hold::new(own);
+                    set(cooked, m.from, item);
+                    set(inventory, m.to, own);
+                }
+                None => {
+                    raw::engine_inventory_remove(Some(inventory), u32::from(m.to));
+                    set(cooked, m.from, item);
+                }
+            }
             item.set_world(world_of(m.world, core));
-            if let Some(indices) = indices {
-                *indices.at(n).slot() = u32::from(m.from);
+        }
+        let binding = installed.cooked;
+        if let Some(indices) = indices {
+            for (n, &index) in binding.indices.iter().enumerate().take(usize::from(binding.count)) {
+                *indices.at(n).slot() = index;
             }
         }
+        *w.ammo_count() = binding.count;
+        *w.ammo_selected() = binding.selected;
         objects.at(usize::from(read(own_gun.weapon().registry_id()))).set_item(Some(own_gun));
         let (saved_core, saved_id, saved_world, saved_bullets) = installed.saved;
         w.set_core(world_of(saved_core, core));
@@ -462,39 +584,58 @@ fn world_of(saved: u32, core: raw::CoreWorld) -> Option<raw::CoreWorld> {
     (saved == core.address()).then_some(core)
 }
 
-/// The installed gun's retained reserve and its magazine's capacity.
+/// Each borrowed stack in the picker's inventory and the reserve the crate
+/// refills it to ([`weapon_pickup::crate_reserve`]: the picker's profile's
+/// allowance for that slot, less the gun's magazine and chamber when it is
+/// the gun's selected stack).
 ///
 /// # Safety
 /// `player` is live.
-unsafe fn reserve(player: &Player<'_>, installed: &Installed) -> Option<(raw::Item, u16, u8)> {
+unsafe fn borrowed_stacks(player: &Player<'_>, installed: &Installed, mut each: impl FnMut(raw::Item, u16)) {
     unsafe {
-        let item = player.this.inventory()?.slots().at(usize::from(installed.own.slot())).item()?;
+        let p = player.this;
+        let (Some(inventory), Some(profile)) = (p.inventory(), p.profile()) else { return };
+        let kit = read(p.kit());
+        if kit >= 3 {
+            return;
+        }
+        let Some(item) = inventory.slots().at(usize::from(installed.own.slot())).item() else { return };
         let gun = item.active_object();
         if gun.address() != installed.gun {
-            return None;
+            return;
         }
         let w = gun.weapon();
-        let stack = w.retained_ammo()?;
-        Some((stack, read(stack.count()), read(w.capacity())))
+        let retained = w.retained_ammo();
+        let magazine = (read(w.loaded()), read(w.has_chamber()) != 0 && read(w.chamber()) != 0);
+        for m in installed.moved.iter().flatten() {
+            let Some(stack) = inventory.slots().at(usize::from(m.to)).item() else { continue };
+            if stack.address() != m.item {
+                continue;
+            }
+            // The native refill's: none for a slot the profile names no item in.
+            let word = profile.kit_slots().at(usize::from(kit)).slots().at(usize::from(m.to));
+            let allowance = if read(word.item()) == NO_ITEM { 0 } else { read(word.allowance()) };
+            let held = (retained == Some(stack)).then_some(magazine);
+            each(stack, weapon_pickup::crate_reserve(allowance, read(stack.count()), held));
+        }
     }
 }
 
-/// Whether the borrowed gun's reserve is below one magazine.
+/// Whether a borrowed stack is below what the crate refills it to.
 pub fn reserve_low(player: &Player<'_>, installed: &Installed) -> bool {
+    let mut low = false;
     // SAFETY: the live player.
-    unsafe { reserve(player, installed) }.is_some_and(|(_, count, capacity)| count < u16::from(capacity))
+    unsafe { borrowed_stacks(player, installed, |stack, target| low |= read(stack.count()) < target) };
+    low
 }
 
-/// The crate's use: the borrowed reserve to one magazine, free, and the
-/// real inventory's weight marked to be summed again (the native resupply
-/// marks its view's).
+/// The crate's use: each borrowed stack to what [`borrowed_stacks`] says,
+/// free (nobody's storage), and the real inventory's weight marked to be
+/// summed again (the native resupply marks its view's).
 pub fn refill(player: &Player<'_>, installed: &Installed) {
-    // SAFETY: the live player's inventory, its installed gun's retained stack.
+    // SAFETY: the live player's inventory and its borrowed stacks.
     unsafe {
-        if let Some((stack, count, capacity)) = reserve(player, installed)
-            && count < u16::from(capacity) {
-                *stack.count() = u16::from(capacity);
-            }
+        borrowed_stacks(player, installed, |stack, target| *stack.count() = target);
         if let Some(inventory) = player.this.inventory() {
             *inventory.weight_dirty() = 1;
         }
@@ -508,7 +649,8 @@ pub struct View(u32);
 static VIEW: Lock<raw::InventoryStorage> = Lock::new(raw::InventoryStorage::zeroed());
 
 /// A copy of `player`'s inventory (188h) with its own gun in its slot and
-/// the moved ammunition's slots empty: the loadout the profile names, what
+/// its own parked stacks where the borrowed ones are (a free slot's empty):
+/// the loadout the profile names, what
 /// resupply_from_profile and check_resupply read (slots +10Ch..+167h; they
 /// write +184h only).
 pub fn crate_view(player: &Player<'_>, installed: &Installed, thread: &Thread) -> Option<View> {
@@ -526,8 +668,11 @@ pub fn crate_view(player: &Player<'_>, installed: &Installed, thread: &Thread) -
             core::ptr::copy_nonoverlapping(inventory.address() as usize as *const u8, view.address() as usize as *mut u8,
                                            raw::Inventory::SIZE);
             view.slots().at(usize::from(installed.own.slot())).set_item(Some(own_item));
+            // The picker's own stack where a borrowed one is (the native
+            // refill needs an item in every slot the profile names), or none.
             for m in installed.moved.iter().flatten() {
-                view.slots().at(usize::from(m.to)).set_item(None);
+                let own = cooked.slots().at(usize::from(m.from)).item().filter(|i| Some(i.address()) == m.displaced);
+                view.slots().at(usize::from(m.to)).set_item(own);
             }
             View(view.address())
         }))
