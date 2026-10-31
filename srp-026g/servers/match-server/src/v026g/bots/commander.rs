@@ -167,7 +167,9 @@ fn threat_tick(
         }
     }
     let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
-    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions };
+    // [threat.answer_sniper, A210] Play 28 answers a sniper the team remembers, not only one the bot sensed lately.
+    let snipers = if tuning.threat.answer_sniper { threat.spots.sniper_spots(now) } else { Vec::new() };
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, snipers };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }
