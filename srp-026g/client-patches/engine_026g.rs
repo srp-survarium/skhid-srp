@@ -157,6 +157,8 @@ unsafe extern "thiscall" {
     pub fn engine_light_insert(light: *mut c_void);
     /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_light_remove(light: *mut c_void);
+    /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+    pub fn engine_close_current_match(client: *mut c_void, reason: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
