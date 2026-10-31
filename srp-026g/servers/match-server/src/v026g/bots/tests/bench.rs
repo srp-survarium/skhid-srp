@@ -1,4 +1,5 @@
 use super::*;
+use super::team_kit::CarrierDeaths;
 
 /// The real-map bench's events (`SRP_BENCH_EVENTS=<dir>`): the run's notes,
 /// its kills (shooter, killed) and each bot's place and play once a world,
