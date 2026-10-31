@@ -50,6 +50,30 @@ owner-test moves: stuck 15 (565 s, 1.270 a bot-minute) by kind {"nohead":[8,204.
       52.0
     ]
   },
+  "stuck_by_team": {
+    "team0": [
+      10,
+      232.0
+    ],
+    "team1": [
+      5,
+      333.0
+    ]
+  },
+  "stuck_end": {
+    "off_lip_went_on": [
+      15,
+      565.0
+    ],
+    "team0_off_lip_went_on": [
+      10,
+      232.0
+    ],
+    "team1_off_lip_went_on": [
+      5,
+      333.0
+    ]
+  },
   "stuck_per_bot_min": 1.27,
   "stuck_play": {
     "Collect": 2,

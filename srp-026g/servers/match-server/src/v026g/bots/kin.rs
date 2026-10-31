@@ -86,11 +86,12 @@ pub enum JumpSnap {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Edge {
-    /// At the grid's cell boundary, 0.125 m past the last floor cell's centre (the server's picture of the lattice).
-    #[default]
+    /// At the grid's cell boundary, 0.125 m past the last floor cell's centre (the lattice's picture, the bots' reckoning
+    /// before the client edge).
     Lattice,
     /// As the client's capsule: held until [`super::body::SUPPORT_M`] past the centre of the floor it stands on, so a
     /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
+    #[default]
     Client,
 }
 
@@ -104,7 +105,7 @@ impl Default for Kinematics {
             sprint: 5.0,
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
-            edge: Edge::Lattice,
+            edge: Edge::Client,
             pitch_scale: PitchScale::Client,
         }
     }
