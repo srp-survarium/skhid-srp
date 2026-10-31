@@ -174,6 +174,12 @@ item's faction (none), level, slots and drop weight from its config in the serve
   icons cut at the shin as the stock ones (from the waist down to the stock icons' width to
   height, 77 by 81); the Novice glove's cuff edge smoothed. Packs `stk2-bandit@7`,
   `stk2-novice@8`, `stk2-loner@8`.
+- The trousers' icons cut at the ankle (the owner: "cut at the ankles"), as the stock ones
+  show them: 93 % of the waist-to-floor height, fitted to the stock 81 px, the width
+  following (41-45 px), not cropped to a ratio; the open waist's inside (an unlit black
+  band over the front) left out of them. The Novice jeans' grown waist ends in a 4 cm
+  waistband painted in a free strip of their map (lighter denim, stitched seams, the belt
+  line under it). Packs `stk2-bandit@8`, `stk2-novice@9`, `stk2-loner@9`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -195,8 +201,8 @@ item's faction (none), level, slots and drop weight from its config in the serve
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@7`, `stk2-novice@8`,
-  `stk2-loner@8` (their pack.json sha256s). `release/build-content` composes them; the
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@8`, `stk2-novice@9`,
+  `stk2-loner@9` (their pack.json sha256s). `release/build-content` composes them; the
   release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
