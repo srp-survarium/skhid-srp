@@ -155,6 +155,12 @@ item's faction, level, slots and drop weight from its config in the server game 
   left loner boot is the right shoe mirrored (bones swapped Left/Right), with the same
   finished collar; the loner's shoes' icon 20 % under the boots' fill, as the sneakers'.
   Packs `stk2-bandit@5`, `stk2-novice@6`, `stk2-loner@6`.
+- The Novice glove's cuff still rose in a dark spike (its black end band and inside, kept
+  and recoloured, stand past the cloth): the glove icons now leave out the faces wholly on
+  that band or inside the cuff (all three corners black), so the glove ends along the
+  band's edge loop, smooth. The sneakers' icon is back to its first render (the owner's
+  pick: the camera a little above, the collar and tongue whole), 28 % smaller. Packs
+  `stk2-bandit@6`, `stk2-novice@7`, `stk2-loner@7`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -176,8 +182,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@5`, `stk2-novice@6`,
-  `stk2-loner@6` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-5`, `stk2-novice-6`, `stk2-loner-6`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@6`, `stk2-novice@7`,
+  `stk2-loner@7` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-6`, `stk2-novice-7`, `stk2-loner-7`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
