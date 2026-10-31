@@ -20,6 +20,12 @@ pub(super) struct Doing {
     pub(super) walk: u8,
     pub(super) why: u16,
     pub(super) has_route: bool,
+    /// The motor's own keys, the side step, the step apart and the lip guard of the tick (`Bot::bench_motor_keys`,
+    /// `bench_stepped`, `bench_apart`, `bench_guard`): where a side key came from (A198).
+    pub(super) motor_keys: u32,
+    pub(super) stepped: u8,
+    pub(super) apart: u8,
+    pub(super) guard: u8,
 }
 
 impl Doing {
@@ -44,6 +50,10 @@ impl Doing {
             walk: bot.bench_walk,
             why: bot.bench_why,
             has_route: bot.route.is_some(),
+            motor_keys: bot.bench_motor_keys,
+            stepped: bot.bench_stepped,
+            apart: bot.bench_apart,
+            guard: bot.bench_guard,
             after_landing: watch.and_then(|w| w.route).and_then(|jump| {
                 bot.route.as_ref().map(|(route, goal)| {
                     let mut r = route.clone();
@@ -207,6 +217,10 @@ impl Run {
             walk: doing.map_or(0, |d| d.walk),
             why: doing.map_or(0, |d| d.why),
             has_route: doing.is_some_and(|d| d.has_route),
+            motor_keys: doing.map_or(0, |d| d.motor_keys),
+            stepped: doing.map_or(0, |d| d.stepped),
+            apart: doing.map_or(0, |d| d.apart),
+            guard: doing.map_or(0, |d| d.guard),
         };
         self.recs[place].push(rec);
         // A bot's jump pressed: why, from its watch of it.

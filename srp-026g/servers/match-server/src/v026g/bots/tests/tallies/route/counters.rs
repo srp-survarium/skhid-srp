@@ -280,6 +280,24 @@ pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The side keys on a route jump's line (`motor::straight_jumps`, `Feel::straight_jumps`), ticks: the reflex's side step woven
+/// in, added (off) / held off (on); the step apart asked (off) / held off (on).
+pub(super) fn straight_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::straight_jumps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("jump_line_weave_added/held {}/{} jump_line_apart_asked/held {}/{}", d[0], d[1], d[2], d[3]));
+/// The ledge jumps whose landing was out of reach of the press from the feet (`motor::low_presses`, `Feel::press_in_reach`):
+/// pressed so (off), ticks held from the press and jumps given up under the take-off (on).
+pub(super) fn low_presses() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::low_presses::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("low_press_pressed/held_ticks/gave_up {}/{}/{}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
 /// (`rest::stops`): the owner's symptom, on and off.
 pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
