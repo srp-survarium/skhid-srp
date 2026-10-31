@@ -61,6 +61,22 @@ pub mod counts {
     pub fn counts() -> Vec<u64> {
         COUNTS.iter().map(|c| c.load(Ordering::Relaxed)).collect()
     }
+
+    /// Where a corner or a dipping leg was kept as it was (no floor with room), in half metres, each place once, for the
+    /// bench's tally to print with the stuck notes of the same run.
+    static KEPT: std::sync::Mutex<Vec<(bool, [i32; 3])>> = std::sync::Mutex::new(Vec::new());
+
+    pub fn kept(leg: bool, at: super::Vec3) {
+        let key = (leg, [(at.x * 2.0).round() as i32, (at.y * 2.0).round() as i32, (at.z * 2.0).round() as i32]);
+        let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+        if kept.len() < 4000 && !kept.contains(&key) {
+            kept.push(key);
+        }
+    }
+
+    pub fn take_kept() -> Vec<(bool, [i32; 3])> {
+        std::mem::take(&mut *KEPT.lock().unwrap_or_else(|e| e.into_inner()))
+    }
 }
 use counts::{Count, add};
 
@@ -142,7 +158,10 @@ impl Route {
                     points[k] = Waypoint { at: grid.position(c), node: c, ..p };
                     add(Count::CornersMoved, 1);
                 }
-                None => add(Count::CornersKept, 1),
+                None => {
+                    add(Count::CornersKept, 1);
+                    counts::kept(false, p.at);
+                }
             }
         }
         // 2. The legs: a corner put in the one that dips.
@@ -184,7 +203,10 @@ impl Route {
                     corner[k] = Some(Waypoint { at: grid.position(c), node: c, jump: None, low: false });
                     add(Count::LegsCorner, 1);
                 }
-                None => add(Count::LegsKept, 1),
+                None => {
+                    add(Count::LegsKept, 1);
+                    counts::kept(true, at);
+                }
             }
         }
         if points.iter().zip(&self.points).all(|(a, b)| a.at == b.at) && corner.iter().all(Option::is_none) {
