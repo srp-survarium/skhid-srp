@@ -1464,6 +1464,11 @@ pub enum State {
     Bring {
         via: Option<Vec<Vec3>>,
     },
+    /// Home with the battery, and every search for the way home fails (`Ctx::no_way_lately`): waits for a way until `until` (ms), then lets go
+    /// (`UnstickTuning::home_no_way_ms`); a way found in the time puts it back to `Bring`.
+    Stranded {
+        until: u32,
+    },
     /// Trapped in a pocket, its escape given up (`escape.rs`): lets go of
     /// the battery (pressed at `pressed`) so it may fight from where it
     /// stands; then the play ends.
@@ -1698,6 +1703,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
+            // Every search for the way home fails: wait for a way for a bound, then let go (`Stranded`).
+            if let Some(wait_ms) = cx.tuning.unstick.home_no_way_ms
+                && cx.no_way_lately(home)
+            {
+                *state = State::Stranded { until: cx.now.saturating_add(wait_ms) };
+                #[cfg(test)]
+                crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || {
+                    crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeStranded)
+                });
+                return step(state, target, cx, _rng);
+            }
             // In zones on all match with no way out (a crossing's take):
             // out first by the cheapest crossing, in a line. Not while its
             // motor walks a crossing or a ring's walk out home (`crossing.rs`):
@@ -1757,6 +1773,27 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .within(num("reach_m"))
                     .hold_fire(),
             )
+        }
+        State::Stranded { until } => {
+            if cx.me.carrying.is_none() {
+                return Step::Done(carry_ended(cx, target, "stranded: the battery is gone"));
+            }
+            let Some(home) = home else {
+                return Step::Failed("no container of ours");
+            };
+            if !cx.no_way_lately(home) {
+                *state = State::Bring { via: None };
+                return step(state, target, cx, _rng);
+            }
+            if cx.now >= *until {
+                *state = State::LetGo { pressed: cx.now };
+                #[cfg(test)]
+                crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || {
+                    crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeLetGo)
+                });
+                return Step::Continue(Intent::stay().pressing(key::DROP).let_go());
+            }
+            Step::Continue(Intent::to(home, Pace::Walk).within(num("reach_m")).hold_fire())
         }
         State::LetGo { pressed } => {
             if cx.me.carrying.is_none() {
@@ -4358,6 +4395,68 @@ mod tests {
         // That one may have begun a put: the next waits for it.
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "the put waited for");
+    }
+
+    /// A carrier whose way home every search finds shut waits `home_no_way_ms` for one (`Stranded`), then lets go of the battery; a way found in the time puts it back to
+    /// `Bring`.
+    #[test]
+    fn a_carrier_with_no_way_home_waits_a_bound_and_lets_go_and_a_way_found_puts_it_back() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, home + Vec3::new(30.0, 0.0, 0.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let at = s.view.container_of(0).map(|c| c.at).expect("our container");
+        s.tuning.unstick.home_no_way_ms = Some(20_000);
+        let wait = 20_000;
+        let mut state = State::Bring { via: None };
+        // Every search for the way home failed lately: stranded, with its end.
+        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        let start = s.view.clock;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded { until: start + wait });
+        // Inside the bound it goes on trying for home.
+        s.view.clock = start + wait - 100;
+        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        let still = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Stranded { .. }), "{state:?}");
+        assert!(matches!(&still, Step::Continue(i) if matches!(i.go, Go::To { .. })), "{still:?}");
+        // A way found: back to Bring.
+        s.no_way_to = Vec::new();
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Bring { .. }), "{state:?}");
+        // The time out with the way still shut: it lets go.
+        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Stranded { .. }), "{state:?}");
+        s.view.clock += wait;
+        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        let drop = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::LetGo { .. }), "{state:?}");
+        assert!(intent_of(drop).press & key::DROP != 0, "the drop is pressed");
+        // Off: it stands as before.
+        s.tuning.unstick.home_no_way_ms = None;
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Bring { .. }), "{state:?}");
     }
 
     /// A raised box (its middle 3 m over the floor, which the old 1.6 m
