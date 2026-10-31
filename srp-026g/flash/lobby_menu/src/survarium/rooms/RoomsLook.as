@@ -561,15 +561,17 @@ package survarium.rooms
             return m.away ? 0x5E6E7A : m.fit != 0 ? RED : m.me ? 0xFFFFFF : (m.inMatch ? GOLD : LIGHT);
         }
 
-        // A squad's mark (the owner's of 2026-10-31: squads seen in the room):
-        // the pairs both in a room numbered 1, 2, ... in its list, shown as a
-        // small tag with that number after each one's name. Our own squad's
-        // in the green the game's results list gives our squad (0xB3EA97),
-        // another's in its tan for another squad (0x9D7E57,
-        // PlayerListRenderer). No glyph but digits: the font has them.
-        internal static const SQUAD_TAG_W:int = 14;
+        // A squad's mark (the owner's of 2026-10-31: squads seen in the room,
+        // with the match's own squad icon): the pairs both in a room numbered
+        // 1, 2, ... in its list, each shown as the match's Tab list shows a
+        // squad: its squad_icon's frame of that number (a letter in a ring:
+        // A, B, G, D, E; the hud has five, a sixth pair is A again), tinted
+        // as the hud tints it, our own squad green (0xB3EA97), another tan
+        // (0x9D7E57; the hud's enemy red has no room side to go by).
+        internal static const SQUAD_ICON_W:int = 16;
         internal static const OUR_SQUAD:uint = 0xB3EA97;
         internal static const OTHER_SQUAD:uint = 0x9D7E57;
+        private static const SQUAD_ICONS:Array = [SquadIcon1, SquadIcon2, SquadIcon3, SquadIcon4, SquadIcon5];
 
         // The state's `S;<marks>` row onto its members: a character each, in
         // base 36 (0 none).
@@ -588,23 +590,24 @@ package survarium.rooms
             return 0;
         }
 
-        // The tag of mark `squad` right after `name` (its text as drawn), in
-        // `box`, `h` high at y. The name's field leaves SQUAD_TAG_W + 4 for
-        // it, so nothing else moves.
-        internal function squadTag(box:Sprite, name:TextField, squad:int, ours:Boolean, h:Number):void
+        // The squad icon of mark `squad` right after `name` (its text as
+        // drawn), in `box`, `h` high. The name's field leaves SQUAD_ICON_W + 8
+        // for it, so nothing else moves.
+        internal function squadIcon(box:Sprite, name:TextField, squad:int, ours:Boolean, h:Number):void
         {
             if (squad <= 0)
                 return;
-            var tag:Sprite = new Sprite();
-            tag.mouseEnabled = false;
-            tag.mouseChildren = false;
-            tag.x = int(name.x + Math.min(name.textWidth + 4, name.width) + 4);
-            tag.y = int(name.y + (name.height - h) / 2);
-            tag.graphics.beginFill(ours ? OUR_SQUAD : OTHER_SQUAD, 1);
-            tag.graphics.drawRoundRect(0, 0, SQUAD_TAG_W, h, 4, 4);
-            tag.graphics.endFill();
-            text(tag, String(squad), 0, int((h - 17) / 2), SQUAD_TAG_W, 11, 0x10161B, "center");
-            box.addChild(tag);
+            var kind:Class = SQUAD_ICONS[(squad - 1) % SQUAD_ICONS.length] as Class;
+            var icon:Bitmap = new Bitmap(new kind() as BitmapData, "auto", true);
+            var side:Number = Math.min(SQUAD_ICON_W, h);
+            icon.width = side;
+            icon.height = side;
+            icon.x = int(name.x + Math.min(name.textWidth + 4, name.width) + 4);
+            icon.y = int(name.y + (name.height - side) / 2);
+            var tint:ColorTransform = new ColorTransform();
+            tint.color = ours ? OUR_SQUAD : OTHER_SQUAD;
+            icon.transform.colorTransform = tint;
+            box.addChild(icon);
         }
 
         // The click the game's buttons make (ButtonClick: sound_play 0).

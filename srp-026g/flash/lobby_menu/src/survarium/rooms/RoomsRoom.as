@@ -288,12 +288,12 @@ package survarium.rooms
             // A long name cut to its place, the owner's tag kept whole.
             // Away (its game gone for now): grey until it is back, or out
             // of the room after about 90 s (`memberColour`).
-            // A squad's tag after the name: the name gives it its room.
-            var tagW:Number = member.squad > 0 ? RoomsLook.SQUAD_TAG_W + 8 : 0;
+            // A squad's icon after the name: the name gives it its room.
+            var iconW:Number = member.squad > 0 ? RoomsLook.SQUAD_ICON_W + 8 : 0;
             var nameField:TextField = look.text(inner, "", nameX, my + mid,
-                colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34) - tagW, 16, RoomsLook.memberColour(member));
+                colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34) - iconW, 16, RoomsLook.memberColour(member));
             RoomsLook.fitName(nameField, member.name, member.owner ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
-            look.squadTag(inner, nameField, member.squad, member.squad == RoomsLook.ourSquad(room.members), 16);
+            look.squadIcon(inner, nameField, member.squad, member.squad == RoomsLook.ourSquad(room.members), 16);
             var bx:Number = mx + colW - 44;
             // A private room's teams: small buttons inside the row (its rows
             // are lower than the game's button).

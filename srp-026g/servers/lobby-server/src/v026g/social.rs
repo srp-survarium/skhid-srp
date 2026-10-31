@@ -511,18 +511,6 @@ impl Core<'_> {
                 }
                 self.request(request(target));
             }
-            important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED if !self.settings.squads => {
-                // The invite is the player's own act: it is told. The
-                // acceptance (type 3) is its client's.
-                log::info!(
-                    "{}: squad message {kind} to {target_name} refused: squads are off",
-                    who.name
-                );
-                if kind == important::SQUAD_INVITE {
-                    let text = self.settings.squads_off_text.clone();
-                    self.deny(who.addr, id::PROFILE, &text);
-                }
-            }
             important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED => {
                 let target = target.filter(|target| self.by_account.contains_key(target));
                 let Some(target) = target else {
@@ -830,11 +818,6 @@ impl Core<'_> {
         let me = who.account_id;
         let result = match message {
             ClientMessage::DisbandSquad => squads.disband(me),
-            // Squads are off (`SRP_SQUADS`): nobody is added, whatever a
-            // client says of an invite.
-            ClientMessage::AddSquadMember { .. } if !self.settings.squads => {
-                Err(SquadError::NotInvited)
-            }
             ClientMessage::AddSquadMember { name } => match self.account_named(name, me) {
                 Some(member) => squads.add(me, member).map(drop),
                 None => Err(SquadError::NotInvited),

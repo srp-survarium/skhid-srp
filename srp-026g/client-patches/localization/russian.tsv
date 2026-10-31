@@ -2460,6 +2460,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
+st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
 st_srp_pvb_busy	%1$s (занято)

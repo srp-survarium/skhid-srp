@@ -1,6 +1,7 @@
 package
 {
    import flash.display.DisplayObject;
+   import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
@@ -12,6 +13,7 @@ package
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
    import flash.text.TextField;
+   import flash.utils.getQualifiedClassName;
 
    // A private room's Start and teams (docs/notes/rooms.md, the owner's of 2026-10-26) with the
    // lobby movie's own rooms window (survarium.rooms.RoomsWindow over the movie's bottom bar), told
@@ -27,12 +29,13 @@ package
    //   an open room's has both;
    // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
    //   clearing it shows them again.
-   // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows a
-   //   tag with its number after each name, ours green and another's tan, in the room's view and
-   //   the list's side panel; every name keeps its place with and without the tags; every
-   //   language's texts fit with them (checkFit);
+   // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows
+   //   the match's squad icon (its frame by the pair's number) after each name, ours green and
+   //   another's tan, in the room's view and the list's side panel; every name keeps its place
+   //   with and without the icons; every language's texts fit with them (checkFit);
    // - a squad's soldier (in a squad, not its leader): the list's Join and New room greyed, its
-   //   commander's not (it goes into no room on its own; the server refuses it too).
+   //   commander's not (it goes into no room on its own; the server refuses it too); the top bar's
+   //   Play says "IN SQUAD" for the soldier, whole in every language, and PLAY for its leader.
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
@@ -131,6 +134,7 @@ package
          checkWindowOrder();
          checkSquads();
          checkSoldier();
+         checkInSquad();
          checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
@@ -223,20 +227,33 @@ package
          }
       }
 
-      // A squad's tags (RoomsLook.squadTag): a sprite of one text, its number, 14 wide.
+      // The squad icons in the window (RoomsLook.squadIcon: the hud's squad_icon frames, the
+      // classes SquadIcon1..5): each one's frame, where it is and its tint.
       private function squadTags(texts:Array) : Array
       {
          var tags:Array = [];
-         for each(var t:Object in texts)
-         {
-            var box:Sprite = t.parent as Sprite;
-            if(box == null || box.numChildren != 1 || Math.round(box.width) != 14 || !/^[1-9a]$/.test(t.text))
-               continue;
-            var shot:BitmapData = new BitmapData(14,Math.max(1,Math.ceil(box.height)),true,0);
-            shot.draw(box);
-            tags.push({"text":t.text, "x":t.x - t.field.x, "y":t.y - t.field.y, "colour":shot.getPixel(1,int(box.height / 2))});
-         }
+         findIcons(win, 0, 0, tags);
          return tags;
+      }
+
+      private static function findIcons(at:DisplayObject, x:Number, y:Number, tags:Array) : void
+      {
+         if(!at.visible)
+            return;
+         var icon:Bitmap = at as Bitmap;
+         if(icon != null && icon.bitmapData != null)
+         {
+            var kind:String = getQualifiedClassName(icon.bitmapData);
+            if(kind.indexOf("SquadIcon") == 0)
+               tags.push({"text":kind.substr(9), "x":x + at.x, "y":y + at.y, "colour":icon.transform.colorTransform.color,
+                  "w":icon.width});
+            return;
+         }
+         var box:DisplayObjectContainer = at as DisplayObjectContainer;
+         if(box == null)
+            return;
+         for(var i:int = 0; i < box.numChildren; i++)
+            findIcons(box.getChildAt(i), x + at.x, y + at.y, tags);
       }
 
       // Where each of WHO's names is drawn (its field's place, and its text's right end).
@@ -270,7 +287,7 @@ package
                continue;
             }
             if(name.x != plain[who].x || name.y != plain[who].y)
-               failures.push(what + ": " + who + " moved with the squad tags");
+               failures.push(what + ": " + who + " moved with the squad icons");
             var tag:Object = null;
             for each(var t:Object in tags)
                if(t.x >= name.right - 1 && t.x <= name.right + 30 && Math.abs(t.y - name.y) < 12)
@@ -280,12 +297,12 @@ package
             if(expected[0] == "")
             {
                if(tag != null)
-                  failures.push(what + ": " + who + " has a squad tag");
+                  failures.push(what + ": " + who + " has a squad icon");
                continue;
             }
             if(tag == null || tag.text != expected[0])
             {
-               failures.push(what + ": " + who + "'s squad tag " + expected[0] + " missing");
+               failures.push(what + ": " + who + "'s squad icon " + expected[0] + " missing");
                continue;
             }
             var green:Boolean = (tag.colour >> 8 & 0xFF) > (tag.colour >> 16 & 0xFF);
@@ -379,6 +396,55 @@ package
             failures.push("soldier: the list's Join or New room not found");
          else if(soldier[0] || soldier[1] || !leader[0] || !leader[1])
             failures.push("soldier: Join and New room must be greyed for a soldier only");
+      }
+
+      // The top bar's Play (the lobby's StatusPanel, its symbol SrvTopMenuContainer): a soldier's
+      // greyed Play says "In squad" (in capitals, as the game's PLAY), whole in every language;
+      // its leader's is the game's own PLAY.
+      private function checkInSquad() : void
+      {
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Info:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+         var Loc:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var panel:*;
+         try
+         {
+            panel = new (domain.getDefinition("SrvTopMenuContainer") as Class)();
+         }
+         catch(err:Error)
+         {
+            failures.push("in squad: the top bar: " + err);
+            return;
+         }
+         var btn:* = panel.playBtn;
+         btn.label = "PLAY";
+         btn.validateNow();
+         var said:Array = [];
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            Info.isInSquad = true;
+            Info.commander = false;
+            panel.showRoomsPlay(false,false,false,false,false,"");
+            btn.validateNow();
+            var want:String = String(say.st_srp_play_in_squad).toUpperCase();
+            var field:TextField = btn.textField as TextField;
+            said.push(language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width) : ""));
+            if(btn.label != want)
+               failures.push("in squad, " + language + ": Play says " + btn.label + ", not " + want);
+            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
+               failures.push("in squad, " + language + ": \"" + btn.label + "\" does not fit Play");
+            if(btn.enabled)
+               failures.push("in squad, " + language + ": Play lit for a soldier");
+            Info.commander = true;
+            panel.showRoomsPlay(false,false,false,false,true,"");
+            if(btn.label != "PLAY")
+               failures.push("in squad, " + language + ": the leader's Play says " + btn.label);
+         }
+         Info.isInSquad = false;
+         Loc.setData(HarnessText.DATA.english);
+         trace("ROOMS a soldier's Play: " + said.join(", "));
       }
 
       // The list's rows (their sprites are named by their rooms' keys).

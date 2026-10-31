@@ -2460,6 +2460,7 @@ st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
 st_srp_pvb_busy	%1$s (zauzeto)

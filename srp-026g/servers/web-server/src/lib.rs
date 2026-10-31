@@ -1803,10 +1803,10 @@ fn file_size(bytes: u64) -> String {
 /// The list under "How matches start" for 0.26g: every match is a room's,
 /// the players' "servers" (`lobby_server::v026g::rooms`; the owner's of
 /// 2026-10-17).
-fn room_rules(lang: Lang, squads: bool) -> String {
+fn room_rules(lang: Lang) -> String {
     let vote = session::v026g::rooms::VOTE.as_secs();
     let cards = session::v026g::rooms::CARDS;
-    let mut items = vec![
+    let items = [
         lang.tr(
             "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
             "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
@@ -1835,18 +1835,11 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Private rooms (with a PIN) give no rewards. Their creator starts the match, with any number of players.",
             "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
         ),
+        lang.tr(
+            "Squads are of two, led by their leader: the leader's Play or Join takes the squad mate along, into the same room and team; a room without two places on one team puts both in its queue.",
+            "Загони — по двоє, веде їх командир: його «Грати» чи приєднання бере напарника з собою, у ту саму кімнату й команду; якщо в кімнаті немає двох місць в одній команді, обоє стають у її чергу.",
+        ),
     ];
-    items.push(if squads {
-        lang.tr(
-            "Squads are of two: Play or Join takes your squad mate along, into the same room and team; a room with one free place puts you both in its queue.",
-            "Загони — по двоє: «Грати» чи приєднання бере напарника з собою, у ту саму кімнату й команду; якщо в кімнаті одне вільне місце, ви обоє стаєте в її чергу.",
-        )
-    } else {
-        lang.tr(
-            "Squads are off: everyone plays alone.",
-            "Загони вимкнено: кожен грає сам.",
-        )
-    });
     items
         .iter()
         .map(|item| format!("<li>{item}</li>"))
@@ -2029,17 +2022,8 @@ fn home(lang: Lang, stats: Stats) -> String {
     let fill = session::fill_from_env();
     let quiet = session::quiet_from_env().as_secs();
     let max = session::MAX_PLAYERS_PER_MATCH;
-    // 0.26g's lobby can be told to refuse squads (`SRP_SQUADS`).
-    let squads = !v026g
-        || !matches!(
-            std::env::var("SRP_SQUADS")
-                .ok()
-                .map(|value| value.trim().to_ascii_lowercase())
-                .as_deref(),
-            Some("off" | "0" | "false" | "no")
-        );
     let rules = if v026g {
-        room_rules(lang, squads)
+        room_rules(lang)
     } else {
         format!(
             "<li>{}</li><li>{}</li><li>{}</li><li>{}</li>",
@@ -2070,17 +2054,10 @@ fn home(lang: Lang, stats: Stats) -> String {
     format!(
         "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section> <section class=card><h2>{}</h2><ul class=rules>{rules}</ul></section>",
         lang.tr("Skhid", "Схід"),
-        if squads {
-            lang.tr(
-                &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
-                &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.")
-            )
-        } else {
-            lang.tr(
-                &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade and play matches again."),
-                &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати й грати матчі.")
-            )
-        },
+        lang.tr(
+            &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
+            &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.")
+        ),
         lang.tr(
             "Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
             "Discord проєкту: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"
@@ -2981,23 +2958,19 @@ mod tests {
 
     #[test]
     fn the_rooms_are_told_as_they_are() {
-        let en = room_rules(Lang::En, false);
+        let en = room_rules(Lang::En);
         assert!(en.contains("vote for 15 s between 3 maps"));
         assert!(en.contains("until its last 30 s"));
-        assert!(en.contains("Squads are off"));
+        assert!(en.contains("Squads are of two, led by their leader"));
         assert!(en.contains("Private rooms (with a PIN) give no rewards."));
         // Nothing of the queue's rules is left in it.
         assert!(!en.contains("countdown"));
         assert!(!en.contains("JOIN"));
         assert!(!en.contains("minutes are left"));
 
-        let squads = room_rules(Lang::En, true);
-        assert!(!squads.contains("Squads are off"));
-        assert!(squads.contains("Squads are of two"));
-
-        let uk = room_rules(Lang::Uk, false);
+        let uk = room_rules(Lang::Uk);
         assert!(uk.contains("15 с голосують за одну з 3 мап"));
-        assert!(uk.contains("Загони вимкнено"));
+        assert!(uk.contains("Загони — по двоє"));
         assert!(uk.contains("Приватні кімнати (з PIN) не дають нагород."));
         assert_eq!(en.matches("<li>").count(), uk.matches("<li>").count());
     }

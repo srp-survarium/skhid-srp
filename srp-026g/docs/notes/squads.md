@@ -30,7 +30,8 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   should be able to queue in squads"; "others have greyed out PLAY button and they cannot enter
   rooms"): its Play, Join (the list, a friend's menu, a PIN), Queue and Switch take the soldier
   along. The soldier goes into no room on its own: its Play is greyed all the time while in the
-  squad, and Join, Queue, a friend's "Join room", a PIN join and New room are greyed in the
+  squad and says "IN SQUAD" instead of PLAY (`st_srp_play_in_squad`, ten languages, in the
+  game's capitals, in Play's own label), and Join, Queue, a friend's "Join room", a PIN join and New room are greyed in the
   movie (`LocalPlayerProfile.squadSoldier`: in a squad, not its leader; the greyed buttons' tip
   says "Your squad leader chooses the room."); the server refuses them too (code 17, the same
   text), "Switch and enter" before its loadout changes, and offers it no Switch. Leaving its
@@ -106,13 +107,17 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   Play while its commander is ready, so the soldier's Play is greyed all the time. The soldier is
   ready while the commander's actions take it (`room_mate`); the panel says "Ready" / "Not
   ready" by that.
-- **Marked in the rooms' lists:** each pair whose two members are both in a room is numbered
-  1, 2, ... in the room's order, and each of the two shows a small tag with that number after
-  its name, in the room's view and the list's side panel: ours in the green the game's results
-  give our squad (0xB3EA97), another's in the tan of another squad (0x9D7E57). Only digits are
-  drawn (the font has them), so every language fits; the name keeps its place and is cut a
-  tag's width earlier (no layout jump). Wire: the state's `S;<marks>` row, the members list's
-  `squad` field (`lobby.md` §2.16.3).
+- **Marked in the rooms' lists, with the match's squad icon** (the owner's of 2026-10-31): the
+  match's Tab list marks every squad with its squad_icon (the hud's sprite 518: a letter in a
+  ring, A, B, G, D, E, a frame by squad id), tinted green for our squad (0xB3EA97), tan for
+  another of our team (0x9D7E57), red for the enemy's. The rooms do the same: each pair whose
+  two members are both in a room is numbered 1, 2, ... in the room's order and shows that
+  frame (a sixth pair is A again) after both names, in the room's view, both columns of a
+  private room and the list's side panel: ours green, another tan (a room has no enemy side).
+  The five frames are the hud's own, carried as the kill feed's icons were (`bitmaps/SquadIcon<n>.png`,
+  classes `SquadIcon<n>`): no new art. No text, so every language fits; the name keeps its
+  place and is cut an icon's width earlier (no layout jump). Wire: the state's `S;<marks>`
+  row, the members list's `squad` field (`lobby.md` §2.16.3).
 - **The scale-out** (six waiting Play users open a room, a pair counting two): the queue's
   order, a pair together or not at all: at its cut both stay queued.
 - **Known, not done** (the review of #884, for later):
@@ -120,5 +125,6 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
     put the first on, even when its owner split the two;
   - Play's loadout offer is for the room the asker alone would take; a pair's Play may go to
     another room (its bracket the higher gear of the two).
-- **Release:** the live `.env` has `SRP_SQUADS=off`; squads are back with `SRP_SQUADS=on`
-  (or the line removed) and the lobby movie of this change.
+- **Always on** (the owner's of 2026-10-31): `SRP_SQUADS` and `SRP_SQUADS_OFF_TEXT` are gone,
+  there is no off mode. The live `.env`'s `SRP_SQUADS=off` is ignored now (no setting reads
+  it); remove it at the release for tidiness. The lobby movie of this change ships with it.
