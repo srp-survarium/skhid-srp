@@ -21,6 +21,11 @@ drug he is using (docs/notes/drug-interrupt.md).
    (it was never linked); in the active time it unlinks that node too;
    between the end of the use time and the first active tick it does not;
    the healed-so-far floats zeroed, the time counters left.
+3. Two bullet tasks hitting one holder (the hook in the patched exe, the
+   game's own set_active): the second saw the drug in use, then the first
+   stopped it before the second took the lock. The second reads the use flag
+   again under it and leaves the drug: set_active once, the tick list and
+   the kit's drug_activity list as the first stop left them.
 apply_modifier (0x2D5AE0) is stubbed to return its value (no modifier set),
 the holder's two virtual calls to return the made-up damage model and
 player, the listener (0x3FE2C0) and the node unlink (0x2D5D00) to record.
@@ -28,7 +33,7 @@ player, the listener (0x3FE2C0) and the node unlink (0x2D5D00) to record.
 import struct
 import sys
 
-from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_PROT_ALL
+from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_PROT_ALL
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
                                UC_X86_REG_EDX, UC_X86_REG_EFLAGS, UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP,
                                UC_X86_REG_XMM0)
@@ -210,6 +215,50 @@ class Game(Run):
         return self.calls
 
 
+class Race(Game):
+    """The patched exe at the site, the game's own set_active: a drug in the
+    active time in the victim's first slot."""
+
+    def __init__(self, data):
+        super().__init__(data, stub_set_active=False)
+        self.emu.hook_add(UC_HOOK_CODE, self.entered, begin=SET_ACTIVE, end=SET_ACTIVE)
+        self.emu.hook_add(UC_HOOK_MEM_READ, self.flag_read, begin=DRUGS + 0x2B0, end=DRUGS + 0x2B0)
+        self.flag_reads, self.between = 0, None
+
+    def setup(self, time):
+        drug = super().setup(0, 1200)
+        self.word(PLAYER + 0x10C, INVENTORY)
+        self.emu.mem_write(PLAYER + 0x33C, b"\x01")
+        self.word(INVENTORY + 0x10C, drug)
+        self.word(HIT + 0x3C, time)
+        self.word(HIT + 0x40, 0x55)
+        return drug
+
+    def entered(self, emu, address, size, _):
+        self.calls.append(("set_active",))
+
+    def flag_read(self, emu, access, address, size, value, _):
+        """The use flag's reads in this hit: the slots' walk's, then the stop's
+        under the lock. `between` (the memory another task's stop left) lands
+        before the second, as if that task took the lock first."""
+        self.flag_reads += 1
+        if self.flag_reads == 2 and self.between is not None:
+            data, world = self.between
+            emu.mem_write(DATA, data)
+            emu.mem_write(WORLD, world)
+
+    def memory(self):
+        return self.read(DATA, 0x40000), self.read(WORLD, 0x20000)
+
+    def hit(self, between=None):
+        self.flag_reads, self.between = 0, between
+        regs = {**GAME, UC_X86_REG_EBX: PLAYER, UC_X86_REG_ESI: HIT}
+        after, sp = self.run(SITE, (AFTER,), STACK + 0x8000, regs)
+        assert self.stopped == AFTER and sp == STACK + 0x8000, (hex(self.stopped or 0), hex(sp))
+        assert after == {**regs, UC_X86_REG_EDI: HIT}, {hex(k): hex(v) for k, v in after.items()}
+        return self.calls
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -266,6 +315,24 @@ def main():
         assert g.read(drug + 0x268 + 0x14, 1) == b"\xff", label
         print(f"  ok {label}: the use ended, the tick node out of list 6, the listener told,"
               f" healed-so-far zeroed, the drug_activity node {'unlinked' if unlinked else 'left (never linked)'}")
+
+    print("two bullet tasks hit one holder (patched exe, the game's own set_active)")
+    r = Race(bytes(built))
+    drug = r.setup(time=31)
+    first = r.hit()
+    kit_list = PROFILE + 0x704 * 1 + 20 * 3 + 0x204
+    assert first.count(("set_active",)) == 1 and ("unlink", kit_list, drug + 0x2B4) in first, first
+    assert r.read(drug + 0x2B0, 1) == b"\x00"
+    stopped = r.memory()
+    r.setup(time=32)
+    second = r.hit(between=stopped)
+    assert r.flag_reads == 2, r.flag_reads
+    assert second == [], second
+    assert r.memory() == stopped, "the second stop wrote"
+    assert (r.read(WORLD + 0x188A0), r.read(WORLD + 0x188A4), r.read(WORLD + 0x188A8)) == (0, 0, 0)
+    assert r.read(drug + 0x268 + 0x14, 1) == b"\xff"
+    print("  ok the second, stopped by the first since its look: the flag read again under the lock,"
+          " set_active once, the tick list and the kit's drug_activity list left as the first stop left them")
 
 
 if __name__ == "__main__":

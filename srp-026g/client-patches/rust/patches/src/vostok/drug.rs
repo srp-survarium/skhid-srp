@@ -6,8 +6,9 @@
 //! is there. Every game runs it for every hit of every player in its
 //! simulation, so what is decided there is decided alike everywhere.
 //!
-//! A drug is a `survarium::medkit` (all four of gameplay/items/drugs/, the
-//! one vtable MEDKIT_VTABLE). Its use is set_active's flag (+2B0h): set at
+//! A drug is a `survarium::medkit` (the one vtable MEDKIT_VTABLE, whatever
+//! folder its item's options are in); it heals when its data/influences
+//! names a pool. Its use is set_active's flag (+2B0h): set at
 //! the press (medkit::action 0x33D700, which takes the unit then), through
 //! its use time (+2ACh counting down) and its active time (+2A8h counting
 //! down, healing each tick); medkit::tick ends it with set_active(0) when

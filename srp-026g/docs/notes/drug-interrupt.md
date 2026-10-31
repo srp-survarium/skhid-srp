@@ -3,8 +3,10 @@
 The owner (2026-10-31): "Patch the game so that if a bullet hits a person while (use/active), the
 healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs`).
 
-- **A drug** is an item of `gameplay/items/drugs/`: the medkit (use 2 s, active 3 s), bandages
-  (1 s, 1 s), antitoxin (1 s, 10 s), painkiller (1 s, 10 s). After the press it is in its use time
+- **A drug** is an item the game makes a `survarium::medkit` (its vtable 0xA1C79C), wherever its
+  options file lies: the medkit (use 2 s, active 3 s), bandages (1 s, 1 s), antitoxin (1 s,
+  10 s), painkiller (1 s, 10 s). One heals when its `data/influences` names a pool (count above
+  0); the patch checks those two, never a folder. After the press it is in its use time
   (`activation_delay_sec`, nothing yet), then its active time (`activity_time_sec`, healing each
   tick).
 - **Hit in the use time:** the healing never starts. Hand and leg injuries stay (they go at the
@@ -56,7 +58,8 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   use flag again under it: two bullets of two tasks that hit one holder in one tick stop the drug
   once (set_active(0) twice would unlink its tick and drug_activity nodes again).
 - Check: `client-patches/check_drug_interrupt_026g.py` (Unicorn: the hook in the patched exe,
-  and the game's own set_active(0) in the use time, the active time and between them).
+  the game's own set_active(0) in the use time, the active time and between them, and two
+  bullet tasks on one holder: set_active once).
 
 ## The red second (display only)
 

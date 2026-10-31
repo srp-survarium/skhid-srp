@@ -2572,7 +2572,8 @@ key's brain hit is ranged too (0x2D8C44). A bullet never hits its
 `m_ignorable_object` (+50h, a player; 0x32D9DD).
 
 For a ranged hit, each of the victim's 23 slots ([player+10Ch]+10Ch) holding
-a drug (vtable 0xA1C79C, all of gameplay/items/drugs/) in use (+2B0h, set
+a drug (vtable 0xA1C79C, the game's medkit class, whatever folder its options
+file is in) in use (+2B0h, set
 from the press through the use time and the active time) whose
 data/influences count (+288h) is not 0 gets `medkit::set_active(0, drug,
 [hit+3Ch])` (0x33D390: AL, then medkit and time on the stack, `ret 8`; the
@@ -2594,14 +2595,18 @@ is the game's own (serialized: `m_active`, `m_activity_time_ms`, `m_delay_ms`,
 `m_applied_influence`), so a rollback, a late joiner and a replay agree; the
 patch keeps no state. With 256 bullets or more, bullet_manager::tick
 (0x321D10) runs bullets as tasks on several threads (0x3226F0), hits and all:
-the stops take a `vostok::Lock`, since every drug shares the world's list 6.
+the stops take a `vostok::Lock`, since every drug shares the world's list 6,
+and each reads +2B0h again under it (a second set_active(0) would unlink the
+nodes again: the kit's drug_activity list emptied, list 6 with byte 0FFh).
 `check_drug_interrupt_026g.py` runs the installed hook to the je on made-up
 objects (set_active stubbed: each healing drug in use stopped in slot order,
 in its use time and its active time; not a drug out of use, the painkiller,
 another item, any other or unnamed hit type, no inventory; the replay's EDI
 and ZF, every other register, the stack and the objects unchanged), and the
 game's own set_active(0) in the original exe in the use time, the active time
-and between them.
+and between them; and two bullet tasks on one holder, the second stopped by
+the first between its look and the lock (patched exe, the game's set_active):
+set_active once, both lists as the first stop left them.
 
 The hit player's quick slot of the stopped drug shows red for a second of game
 time (display only): patch 77's `consumable_activity` tells a stopped drug
