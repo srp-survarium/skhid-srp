@@ -4882,7 +4882,7 @@ mod tests {
         for on in [false, true] {
             let feel = Feel { press_in_reach: on, ..Feel::default() };
             let (mut route, ledge) = high();
-            let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, false, 0, feel);
+            let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, false, 0, feel.clone());
             assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "on {on}: {:?}", climb.poses.last());
             if on {
                 assert!(climb.presses.is_empty(), "{:?}", climb.presses);
