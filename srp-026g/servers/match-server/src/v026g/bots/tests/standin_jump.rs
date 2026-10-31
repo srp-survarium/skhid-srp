@@ -127,8 +127,21 @@ pub(crate) fn stand_in_edge() -> bool {
 /// falls once it does not (`step_down` 0x7E1B0: no contact in the sweep, airborne; PROVEN; the landing straight below the
 /// capsule, LIKELY).
 pub(crate) fn stand_in_fall() -> bool {
+    if let Some(on) = FALL_FORCED.with(std::cell::Cell::get) {
+        return on;
+    }
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_FALL").map_or(true, |v| v != "off"))
+}
+
+thread_local! {
+    /// A test's word on [`stand_in_fall`], for its own thread (the tests run one to a thread).
+    static FALL_FORCED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts [`stand_in_fall`] on or off for its own thread (`None`: as the run says): the pinned soaks predate it.
+pub(crate) fn force_fall(on: Option<bool>) {
+    FALL_FORCED.with(|f| f.set(on));
 }
 
 /// What [`past_edge`] did: walked on past the boundary, fell to the floor below, found no floor below.
