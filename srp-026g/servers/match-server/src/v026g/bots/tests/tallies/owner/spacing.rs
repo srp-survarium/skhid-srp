@@ -29,6 +29,19 @@ const SAME_GOAL_M: f32 = 2.0;
 const STILL_MPS: f32 = 0.3;
 const MOVING_MPS: f32 = 1.0;
 
+/// The ground direction a body's walk keys take it, a unit vector (x, z), none with no walk key down or two that cancel: forward along the view, left a quarter turn from it.
+/// The live worlds' keys are read the same way (`A175/human_file.py`), so a body that looks aside as it walks is not read as walking where it looks.
+fn walk_direction(rec: &Rec) -> Option<(f32, f32)> {
+    use crate::v026g::drive::key;
+    let axis = |plus: u32, minus: u32| f32::from(i8::from(rec.keys & plus != 0) - i8::from(rec.keys & minus != 0));
+    let (f, l) = (axis(key::FORWARD, key::BACK), axis(key::LEFT, key::RIGHT));
+    let [fx, fz] = crate::v026g::bots::kin::forward(rec.yaw);
+    let [lx, lz] = crate::v026g::bots::kin::forward(rec.yaw + std::f32::consts::FRAC_PI_2);
+    let (x, z) = (f * fx + l * lx, f * fz + l * lz);
+    let len = x.hypot(z);
+    (len > 0.1).then(|| (x / len, z / len))
+}
+
 /// Whether two bodies move the same way (their yaws within 45 degrees; the walk keys are forward).
 fn heading_alike(a: Option<&Rec>, b: Option<&Rec>) -> bool {
     match (a, b) {
@@ -49,6 +62,42 @@ const LEVEL_BINS: usize = 5;
 
 /// Crowded: this many distinct enemies near in the window.
 const CROWD: u32 = 3;
+
+/// A pack: this many distinct enemies within [`PACK_M`] of a body in the window before its death, or of a living body (A195: attackers come as packs of 5 or more within 60 m).
+const PACK: u32 = 5;
+const PACK_M: f32 = 60.0;
+
+/// The living mates a body has, one stratum each up to this many (the live table of `A175/human_normalised.py` reads the same strata: a team of 10 and one of 4 have different
+/// distances, so bots and humans are compared at the same number of mates).
+const MATES_STRATA: usize = 9;
+
+/// A pair moving the same way is in file at a gap (m along the heading, upper edges; the last bin is farther up to [`FILE_MAX_M`]) and a lateral offset (m, upper edges).
+const GAP_EDGES_M: [f32; 4] = [1.0, 2.0, 4.0, 8.0];
+const LATERAL_EDGES_M: [f32; 3] = [0.5, 1.0, 2.0];
+const FILE_MAX_M: f32 = 16.0;
+
+/// The age of the younger of two bodies (s since each came alive, the opening counting from the match's start), upper edges of the buckets; the last is older.
+const AGE_EDGES_S: [usize; 4] = [10, 20, 40, 80];
+
+/// The cell of the map (m) that the 1 m pair-seconds are gathered in, for the hot cells of the per-match line.
+const CELL_M: f32 = 6.0;
+
+/// One stratum of [`TeamSpacing::by_mates`]: the body-seconds with that many living mates, the mates within 30 m, the pairs (a body's living mates, summed), those within 1 m, the
+/// bodies with a mate within 1 m, and the nearest mate by [`NEAREST_EDGES_M`].
+#[derive(Clone, Copy, Default)]
+struct Stratum {
+    samples: u64,
+    mates_near: u64,
+    pairs: u64,
+    pairs_1: u64,
+    body_1: u64,
+    nearest: [u64; NEAREST_EDGES_M.len() + 1],
+}
+
+/// The bin of `value` among upper `edges` (the last bin is farther).
+fn bin_of(value: f32, edges: &[f32]) -> usize {
+    edges.iter().position(|&edge| value < edge).unwrap_or(edges.len())
+}
 
 /// The life-age buckets of the samples (s since the body came alive, respawns only): 0-10, 10-20, 20-30, 30 and more. The 10-20 s bucket
 /// is the respawn clump's line (fx-cover's clump split: bots 0.51 mates near per available mate there, live 0.36).
@@ -88,7 +137,21 @@ struct TeamSpacing {
     advance: Advance,
     /// The 1 m pair-seconds by what the step apart did on the pair's two bodies that tick (the worse of the two): nothing asked (no mate inside in the bot's picture), taken, refused (no clear
     /// ground that side), held off (the reflex strafes or fires, a use is held, a side key down).
-    apart_state: [u64; 5],
+    apart_state: [u64; 7],
+    /// The living bot-seconds by lane (`spacing.lane`): in the centre, and over with what the lane did that tick ([`apart::LaneUse`]: idle, applied, no room, unsafe floor, route busy).
+    lane_seconds: [u64; 6],
+    /// Spacing per number of living mates (1 to [`MATES_STRATA`], the last 9 and more).
+    by_mates: [Stratum; MATES_STRATA],
+    /// The living pairs and those within 1 m by the age of the younger body ([`AGE_EDGES_S`]): [pairs, within 1 m].
+    by_age: [[u64; 2]; AGE_EDGES_S.len() + 1],
+    /// The pairs moving the same way (both over [`MOVING_MPS`], yaws within 45 degrees, on one floor) within [`FILE_MAX_M`], by the gap along the heading
+    /// ([`GAP_EDGES_M`], and farther) and the lateral offset ([`LATERAL_EDGES_M`], and more).
+    file: [[u64; LATERAL_EDGES_M.len() + 1]; GAP_EDGES_M.len() + 1],
+    /// Every living pair on one floor within 16 m by the ground distance (under 1, 2, 4, 8 and 16 m): the pair-seconds.
+    near_pairs: [u64; GAP_EDGES_M.len() + 1],
+    /// Packs (A195): the living body-seconds with [`PACK`] or more enemies within [`PACK_M`], the samples, and the deaths with a pack in the window or at the last sample before.
+    pack_samples: [u64; 2],
+    pack_deaths: [u64; 3],
     /// The 1 m pair-seconds of two moving bodies by the distance of the nearer's route end from the other's feet (under 5 m, 5-20, 20 and more, no route): where the pair is bound.
     in_file_goals: [u64; 4],
     killed_by: [[u64; 2]; 2],
@@ -136,6 +199,11 @@ fn nearest_bin(d: f32) -> usize {
 pub(super) struct SpacingCounts {
     by_team: [TeamSpacing; 2],
     window: Vec<[u64; WINDOW_S]>,
+    /// The same for the enemies within [`PACK_M`] (a bit by place), and the count at each body's last sample.
+    window_pack: Vec<[u64; WINDOW_S]>,
+    last_pack: Vec<u32>,
+    /// The 1 m pair-seconds by cell of the map ([`CELL_M`]): where the bodies overlap.
+    cells: BTreeMap<(i32, i32), u64>,
     was_alive: Vec<bool>,
     /// The hits each body took in the last 3 s (tick, shooter), the position a second ago of each body and the seconds it has stood within
     /// [`STILL_M`] of it.
@@ -148,6 +216,8 @@ pub(super) struct SpacingCounts {
     goal: Vec<Option<Vec3>>,
     /// The step apart each bot took (or not) on its last tick.
     apart: Vec<u8>,
+    /// Each bot's lane now: 0 the centre, 1 + the lane's use when over.
+    lane: Vec<u8>,
     /// What the commander gave each bot to do (its target).
     target: Vec<crate::v026g::bots::plays::TargetRef>,
     /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
@@ -170,6 +240,9 @@ impl SpacingCounts {
         Self {
             by_team: Default::default(),
             window: vec![[0; WINDOW_S]; n],
+            window_pack: vec![[0; WINDOW_S]; n],
+            last_pack: vec![0; n],
+            cells: BTreeMap::new(),
             was_alive: vec![false; n],
             hits: vec![Vec::new(); n],
             last_pos: vec![None; n],
@@ -177,6 +250,7 @@ impl SpacingCounts {
             last_killer: vec![None; n],
             goal: vec![None; n],
             apart: vec![0; n],
+            lane: vec![0; n],
             target: vec![crate::v026g::bots::plays::TargetRef::None; n],
             overlap_plays: Default::default(),
             born: vec![None; n],
@@ -202,6 +276,12 @@ impl Topic for SpacingCounts {
         }
         if let Some(apart) = self.apart.get_mut(place) {
             *apart = bot.map_or(0, |b| b.bench_apart);
+        }
+        if let Some(lane) = self.lane.get_mut(place) {
+            *lane = bot.map_or(0, |b| match b.lane {
+                crate::v026g::bots::apart::Lane::Centre => 0,
+                crate::v026g::bots::apart::Lane::Over { .. } => 1 + b.bench_lane,
+            });
         }
         if let Some(target) = self.target.get_mut(place) {
             *target = bot.and_then(|b| b.assignment.as_ref().map(|a| a.target)).unwrap_or(crate::v026g::bots::plays::TargetRef::None);
@@ -254,7 +334,12 @@ impl Topic for SpacingCounts {
                     let d = game.bodies[killer].feet.distance_xz(body.feet);
                     ts.killer_m[crowded][if d < 10.0 { 0 } else if d < 30.0 { 1 } else { 2 }] += 1;
                 }
+                let pack: u32 = self.window_pack[place].iter().fold(0u64, |all, mask| all | mask).count_ones();
+                ts.pack_deaths[0] += u64::from(pack >= PACK);
+                ts.pack_deaths[1] += u64::from(self.last_pack[place] >= PACK);
+                ts.pack_deaths[2] += 1;
                 self.window[place] = [0; WINDOW_S];
+                self.window_pack[place] = [0; WINDOW_S];
                 self.hits[place].clear();
             }
             if !self.was_alive[place] && body.alive {
@@ -279,11 +364,16 @@ impl Topic for SpacingCounts {
                 continue;
             }
             let (mut mates, mut enemy_mask, mut alive_mates) = (0u64, 0u64, 0u64);
+            let (mut pack_mask, mut within_1) = (0u64, 0u64);
             let mut nearest = f32::INFINITY;
             for (other_place, other) in game.bodies.iter().enumerate() {
                 if other_place != place && other.alive && other.team == body.team {
                     alive_mates += 1;
                     nearest = nearest.min(other.feet.distance_xz(body.feet));
+                    within_1 += u64::from(other.feet.distance_xz(body.feet) < OVERLAP_M && (other.feet.y - body.feet.y).abs() < OVERLAP_DY_M);
+                }
+                if other_place != place && other.alive && other.team != body.team && other_place < 64 && other.feet.distance_xz(body.feet) <= PACK_M {
+                    pack_mask |= 1u64 << other_place;
                 }
                 if other_place == place || !other.alive || other.feet.distance_xz(body.feet) > NEAR_M {
                     continue;
@@ -299,6 +389,20 @@ impl Topic for SpacingCounts {
             ts.mates += mates;
             ts.enemies += u64::from(enemy_mask.count_ones());
             ts.clumped += u64::from(mates >= 3);
+            if self.side[place].is_some() {
+                ts.lane_seconds[usize::from(self.lane[place]).min(5)] += 1;
+            }
+            ts.pack_samples[0] += 1;
+            ts.pack_samples[1] += u64::from(pack_mask.count_ones() >= PACK);
+            if alive_mates > 0 {
+                let st = &mut ts.by_mates[(alive_mates as usize).min(MATES_STRATA) - 1];
+                st.samples += 1;
+                st.mates_near += mates;
+                st.pairs += alive_mates;
+                st.pairs_1 += within_1;
+                st.body_1 += u64::from(within_1 > 0);
+                st.nearest[nearest_bin(nearest)] += 1;
+            }
             if nearest.is_finite() {
                 ts.nearest_n += 1;
                 ts.nearest_m += f64::from(nearest);
@@ -318,9 +422,11 @@ impl Topic for SpacingCounts {
                 entry[2] += u64::from(mates >= 3);
             }
             self.window[place][second % WINDOW_S] = enemy_mask;
+            self.window_pack[place][second % WINDOW_S] = pack_mask;
+            self.last_pack[place] = pack_mask.count_ones();
         }
         if sample {
-            self.overlap(run, game);
+            self.overlap(run, game, second);
         }
     }
 
@@ -331,7 +437,7 @@ impl Topic for SpacingCounts {
 
 impl SpacingCounts {
     /// The overlap of the living teammates this second: see [`TeamSpacing::pairs`].
-    fn overlap(&mut self, run: &Run, game: &Game) {
+    fn overlap(&mut self, run: &Run, game: &Game, second: usize) {
         let n = game.bodies.len().min(self.goal.len());
         let mut near = vec![false; n];
         for i in 0..n {
@@ -347,10 +453,34 @@ impl SpacingCounts {
                 let team = usize::from(a.team & 1);
                 self.by_team[team].pairs += 1;
                 let d = a.feet.distance_xz(b.feet);
-                if d >= OVERLAP_M || (a.feet.y - b.feet.y).abs() >= OVERLAP_DY_M {
+                let same_floor = (a.feet.y - b.feet.y).abs() < OVERLAP_DY_M;
+                let age = |p: usize| second.saturating_sub(self.born[p].unwrap_or(0));
+                let age_bin = AGE_EDGES_S.iter().position(|&edge| age(i).min(age(j)) < edge).unwrap_or(AGE_EDGES_S.len());
+                self.by_team[team].by_age[age_bin][0] += 1;
+                if same_floor && d < FILE_MAX_M {
+                    let ts = &mut self.by_team[team];
+                    ts.near_pairs[bin_of(d, &GAP_EDGES_M)] += 1;
+                    if let (Some(ra), Some(rb)) = (ra, rb)
+                        && ra.speed >= MOVING_MPS
+                        && rb.speed >= MOVING_MPS
+                        && let (Some((fx, fz)), Some((gx, gz))) = (walk_direction(ra), walk_direction(rb))
+                        && fx * gx + fz * gz > std::f32::consts::FRAC_PI_4.cos()
+                    {
+                        let (hx, hz) = (fx + gx, fz + gz);
+                        let h = hx.hypot(hz).max(1e-6);
+                        let (ux, uz) = (hx / h, hz / h);
+                        let (dx, dz) = (b.feet.x - a.feet.x, b.feet.z - a.feet.z);
+                        let (along, lateral) = ((dx * ux + dz * uz).abs(), (dx * -uz + dz * ux).abs());
+                        ts.file[bin_of(along, &GAP_EDGES_M)][bin_of(lateral, &LATERAL_EDGES_M)] += 1;
+                    }
+                }
+                if d >= OVERLAP_M || !same_floor {
                     continue;
                 }
+                let key = ((a.feet.x / CELL_M).floor() as i32, (a.feet.z / CELL_M).floor() as i32);
+                *self.cells.entry(key).or_default() += 1;
                 let ts = &mut self.by_team[team];
+                ts.by_age[age_bin][1] += 1;
                 ts.overlap_1 += 1;
                 ts.overlap_05 += u64::from(d < OVERLAP_HALF_M);
                 near[i] = true;
@@ -378,6 +508,7 @@ impl SpacingCounts {
                 let worst = |x: u8, y: u8| -> usize {
                     match (x, y) {
                         (4, _) | (_, 4) => 4,
+                        (5, _) | (_, 5) => 5,
                         (2, _) | (_, 2) => 2,
                         (3, _) | (_, 3) => 3,
                         (1, _) | (_, 1) => 1,
@@ -427,11 +558,18 @@ impl SpacingCounts {
                 "progress_level_sum": c.advance.level_sum,
                 "progress_levels_fifths": c.advance.levels,
                 "overlap_1m_apart_none_taken_refused_heldoff": c.apart_state,
+                "lane_seconds_centre_over_idle_applied_noroom_unsafe_routebusy": c.lane_seconds,
                 "overlap_1m_moving_pair_goal_under5_5_20_20up_none": c.in_file_goals,
                 "killed_by_bullet_or_other": c.killed_by,
                 "killed_by_shooters_1_2_3": c.shooters,
                 "killed_by_killer_still_no_yes": c.killer_still,
                 "killed_by_killer_m_10_30_up": c.killer_m,
+                "by_mates": c.by_mates.iter().map(|st| serde_json::json!({ "samples": st.samples, "mates_near": st.mates_near, "pairs": st.pairs, "pairs_within_1m": st.pairs_1, "bodies_within_1m": st.body_1, "nearest_bins_lt1_3_6_12_22_40_up": st.nearest })).collect::<Vec<_>>(),
+                "pairs_and_within_1m_by_younger_age_lt10_20_40_80_up": c.by_age,
+                "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": c.file,
+                "pairs_by_distance_lt1_2_4_8_16": c.near_pairs,
+                "pack_samples_all_and_5plus_within_60m": c.pack_samples,
+                "pack_deaths_window_last_all": c.pack_deaths,
                 "by_life": c.by_life.iter().map(|[n, mates, alive]| serde_json::json!({ "samples": n, "mates_near": mates, "mates_alive": alive })).collect::<Vec<_>>(),
             })
         };
@@ -481,7 +619,15 @@ impl SpacingCounts {
                 ages.join(", "),
             )
         };
-        Part::new(json, format!("owner-test spacing: team 0 [{}]; team 1 [{}]", line(0), line(1)))
+        let mut cells: Vec<((i32, i32), u64)> = self.cells.iter().map(|(&cell, &n)| (cell, n)).collect();
+        cells.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+        let total: u64 = self.cells.values().sum();
+        let hot: Vec<String> = cells
+            .iter()
+            .take(5)
+            .map(|&((x, z), n)| format!("({:.0},{:.0}) {n}", (x as f32 + 0.5) * CELL_M, (z as f32 + 0.5) * CELL_M))
+            .collect();
+        Part::new(json, format!("owner-test spacing: team 0 [{}]; team 1 [{}]; hot cells of {total} 1 m pair-seconds: {}", line(0), line(1), hot.join(", ")))
     }
 }
 

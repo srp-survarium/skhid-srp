@@ -1529,6 +1529,12 @@ impl Route {
         a + (b - a) * t
     }
 
+    /// Whether the route's next point is a lip's height ([`mapdata::grid::LIP_DROP_M`]) or more under `feet`: the body
+    /// has a drop down ahead of it (the route's own, or one the route was planned past from a reckoning already down).
+    pub fn heads_down_from(&self, feet: Vec3) -> bool {
+        self.points.get(self.segment + 1).is_some_and(|next| feet.y - next.at.y >= mapdata::grid::LIP_DROP_M)
+    }
+
     /// From `s` on: the distance to the next corner that turns by more than
     /// `angle` radians (or to the end), and that corner's waypoint index.
     pub fn straight_ahead(&self, s: f32, angle: f32) -> (f32, Option<usize>) {

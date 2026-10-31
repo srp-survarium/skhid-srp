@@ -239,10 +239,12 @@ pub struct Stuck {
     pub zone_out: Option<(Vec3, u32)>,
     /// Its escape from the pocket it is in (`escape.rs`).
     pub escape: Option<super::escape::Escape>,
-    /// The landings of the jumps the motor gave up (`motor::JUMP_TRIES`), and
-    /// till when every search of this body keeps off them
-    /// ([`JUMP_SHUT_MS`]).
-    shut_landings: Vec<(Vec3, u32)>,
+    /// The landings it gave up, and till when every search of this body keeps off them: of the jumps the motor gave up
+    /// (`motor::JUMP_TRIES`, [`JUMP_SHUT_MS`]) and of the drops it was held at the top of ([`Self::failed_drop`]).
+    shut_landings: Vec<Shut>,
+    /// The drops it shut last, watched for what followed (the bench's counts, [`drop_shuts`]): when, and where it was held.
+    #[cfg(test)]
+    drop_watch: Option<(u32, Vec3)>,
     /// The worlds' heights of the last [`FALL_WINDOW_MS`] (time, y), for [`Self::track_fall`].
     heights: Vec<(u32, f32)>,
     /// A hard fall locks the body till this time ([`HARD_FALL_M`]): it is not stuck while it cannot move.
@@ -613,25 +615,79 @@ impl Stuck {
     pub fn failed_jump(&mut self, time: u32, at: Vec3, landing: Option<Vec3>) {
         self.fell(time, at);
         if let Some(landing) = landing {
-            self.shut_landings.retain(|&(_, until)| until > time);
-            match self
-                .shut_landings
-                .iter_mut()
-                .find(|(shut, _)| on_landing(*shut, landing))
-            {
-                Some((_, until)) => *until = time + JUMP_SHUT_MS,
-                None => self.shut_landings.push((landing, time + JUMP_SHUT_MS)),
-            }
+            self.shut(Shut { kind: ShutKind::Jump, landing, until: time + JUMP_SHUT_MS }, time);
         }
     }
 
-    /// The landings of the jumps given up that every search keeps off at
-    /// `time`.
-    pub fn shut_landings(&self, time: u32) -> impl Iterator<Item = Vec3> + '_ {
-        self.shut_landings
-            .iter()
-            .filter(move |&&(_, until)| until > time)
-            .map(|&(landing, _)| landing)
+    /// A body held at the top of its route's drop down (the stuck ladder fired there while the route goes on below):
+    /// the drops off where it stands (`landings`, [`drops_off`]) are shut to every search of this body for `kept_ms`, as
+    /// a jump it gave up ([`Self::failed_jump`]), and the spot is a fall's for it and its team ([`Self::fell`]). The
+    /// grid's drop takes the landing's ceiling at the cell's centre only, so a drop whose body does not fit over its
+    /// landing at the top's height is a link the client never takes (Chemical Plant's spawn ledge, A199: a slot of
+    /// 0.2-0.3 m under the platform's edge, 9 live bots held 1-9 minutes, each search handing back the same drop).
+    pub fn failed_drop(&mut self, time: u32, at: Vec3, landings: &[Vec3], kept_ms: u32) {
+        self.fell(time, at);
+        for &landing in landings {
+            self.shut(Shut { kind: ShutKind::Drop, landing, until: time + kept_ms }, time);
+        }
+        #[cfg(test)]
+        {
+            drop_shuts::count(drop_shuts::FIRES);
+            drop_shuts::add(drop_shuts::LANDINGS, landings.len() as u64);
+            self.drop_watch = Some((time, at));
+        }
+    }
+
+    /// Keeps `shut` (a landing within an earlier one of its kind lengthens that one) and lets the ended ones go.
+    fn shut(&mut self, shut: Shut, time: u32) {
+        self.shut_landings.retain(|old| old.until > time);
+        match self.shut_landings.iter_mut().find(|old| old.kind == shut.kind && old.covers(shut.landing)) {
+            Some(old) => old.until = old.until.max(shut.until),
+            None => self.shut_landings.push(shut),
+        }
+    }
+
+    /// Whether a search of this body that finds no way at `time` proves the goal has none (`Bot::no_way_to`, which its
+    /// team learns for [`super::search::TEAM_NO_WAY_KEEP_MS`]): not while it holds a drop it shut ([`Self::failed_drop`]),
+    /// as the search failed for this body's own landings, not for the goal (A199: 47 of the ON side's 95 Collect "no way
+    /// to it" ends came within 45 s after that bot's own shut, 1.2 m from its spot at the median). A jump's shut keeps
+    /// today's rule.
+    pub fn no_way_is_proof(&self, time: u32) -> bool {
+        !self.shut_landings(time).any(|shut| shut.kind == ShutKind::Drop)
+    }
+
+    /// The landings given up that every search keeps off at `time`.
+    pub fn shut_landings(&self, time: u32) -> impl Iterator<Item = Shut> + '_ {
+        self.shut_landings.iter().copied().filter(move |shut| shut.until > time)
+    }
+
+    /// The bench's watch of a drop shut ([`drop_shuts`]): a world at `time` showed the body at `feet`, `stuck` if the
+    /// ladder fired on it. Stuck again at the spot within [`drop_shuts::AGAIN_MS`], or off it (gone down, or
+    /// [`SPOT_M`] away), or neither within [`drop_shuts::WATCH_MS`].
+    #[cfg(test)]
+    pub fn watch_drop(&mut self, time: u32, feet: Vec3, stuck: bool) {
+        let Some((since, at)) = self.drop_watch else {
+            return;
+        };
+        let outcome = if stuck && near(at, feet) && time <= since + drop_shuts::AGAIN_MS && time > since {
+            drop_shuts::AGAIN
+        } else if feet.distance_xz(at) > SPOT_M || feet.y < at.y - mapdata::grid::LIP_DROP_M {
+            drop_shuts::LEFT
+        } else if time > since + drop_shuts::WATCH_MS {
+            drop_shuts::STILL
+        } else {
+            return;
+        };
+        drop_shuts::count(outcome);
+        self.drop_watch = None;
+    }
+
+    /// The bench's watch of a drop shut: the bot killed itself first.
+    #[cfg(test)]
+    pub fn drop_watch_self_kill(&mut self) {
+        if self.drop_watch.take().is_some() {
+            drop_shuts::count(drop_shuts::SELF_KILL);
+        }
     }
 
     /// Its stucks and falls since the team last heard, for [`TeamSpots::learn`].
@@ -707,9 +763,95 @@ pub fn unstick_keys(recovery: Recovery, ledge: bool, escape: u32, jump: u32) -> 
     }
 }
 
-/// Whether `point` is on the shut landing `landing`.
-pub fn on_landing(landing: Vec3, point: Vec3) -> bool {
-    landing.distance_xz(point) < LANDING_SHUT_M && (landing.y - point.y).abs() < LANDING_SHUT_UP_M
+/// What a landing was shut for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShutKind {
+    /// A jump the motor gave up ([`Stuck::failed_jump`]).
+    Jump,
+    /// A drop the body was held at the top of ([`Stuck::failed_drop`]).
+    Drop,
+}
+
+/// A landing every search of a body keeps off, and till when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shut {
+    pub kind: ShutKind,
+    pub landing: Vec3,
+    pub until: u32,
+}
+
+impl Shut {
+    /// A jump's landing shut for good, for the tests.
+    #[cfg(test)]
+    pub fn jump(landing: Vec3) -> Self {
+        Self { kind: ShutKind::Jump, landing, until: u32::MAX }
+    }
+
+    /// Whether floor `point` is on the landing: within [`LANDING_SHUT_M`] across (the motor takes a jump or a drop
+    /// 0.3 m from the one it gave up as the same one) and [`LANDING_SHUT_UP_M`] up or down.
+    pub fn covers(&self, point: Vec3) -> bool {
+        self.landing.distance_xz(point) < LANDING_SHUT_M && (self.landing.y - point.y).abs() < LANDING_SHUT_UP_M
+    }
+}
+
+/// The landings of the drops off where a body stands (`feet`): every Drop and GapDrop link of the floors within
+/// `near_m` across and [`DROP_TOP_M`] up or down of the feet that goes [`mapdata::grid::LIP_DROP_M`] or more down.
+/// The drop the route took is among them, and those beside it that end on the same ground (a ledge's drops land
+/// side by side, a cell apart).
+pub fn drops_off(grid: &mapdata::grid::WalkGrid, feet: Vec3, near_m: f32) -> Vec<Vec3> {
+    let mut landings: Vec<Vec3> = Vec::new();
+    for node in grid.floors_in([feet.x - near_m, feet.z - near_m, feet.x + near_m, feet.z + near_m]) {
+        let top = grid.position(node);
+        if top.distance_xz(feet) > near_m || (top.y - feet.y).abs() > DROP_TOP_M {
+            continue;
+        }
+        for (to, kind) in grid.links(node) {
+            let landing = grid.position(to);
+            if matches!(kind, mapdata::grid::LinkKind::Drop | mapdata::grid::LinkKind::GapDrop)
+                && top.y - landing.y >= mapdata::grid::LIP_DROP_M
+                && !landings.contains(&landing)
+            {
+                landings.push(landing);
+            }
+        }
+    }
+    landings
+}
+
+/// A floor this far up or down of the feet is the one they stand on, for [`drops_off`], metres: a step.
+pub const DROP_TOP_M: f32 = 0.8;
+
+/// The bench's counts of the drops shut ([`Stuck::failed_drop`]) and what followed in the watch: stuck again at the
+/// spot within [`AGAIN_MS`], off the spot (down, or [`SPOT_M`] away), still there after [`WATCH_MS`], or killed
+/// itself first. Fires less the four are the watches a new life or a new shut ended.
+#[cfg(test)]
+pub mod drop_shuts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const FIRES: usize = 0;
+    pub const LANDINGS: usize = 1;
+    pub const AGAIN: usize = 2;
+    pub const LEFT: usize = 3;
+    pub const STILL: usize = 4;
+    pub const SELF_KILL: usize = 5;
+    /// Stuck again at the spot this soon, ms: the coordinator's 10 s.
+    pub const AGAIN_MS: u32 = 10_000;
+    /// Neither within this, ms: still there.
+    pub const WATCH_MS: u32 = 30_000;
+
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    pub fn count(kind: usize) {
+        add(kind, 1);
+    }
+
+    pub fn add(kind: usize, n: u64) {
+        COUNTS[kind].fetch_add(n, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 6] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
 }
 
 /// Whether `point` is near the spot `spot`: within [`SPOT_M`] across and
@@ -1214,12 +1356,13 @@ mod tests {
         let mut stuck = Stuck::default();
         assert_eq!(stuck.shut_landings(1_000).count(), 0);
         stuck.failed_jump(1_000, take_off, Some(landing));
-        let shut: Vec<Vec3> = stuck.shut_landings(1_000 + JUMP_SHUT_MS - 1).collect();
-        assert_eq!(shut, [landing]);
-        assert!(on_landing(landing, landing));
-        assert!(on_landing(landing, landing + Vec3::new(0.25, 0.1, 0.0)));
-        assert!(!on_landing(landing, landing + Vec3::new(0.5, 0.0, 0.0)), "another cell");
-        assert!(!on_landing(landing, landing + Vec3::new(0.0, 1.0, 0.0)), "another floor");
+        let shut: Vec<Shut> = stuck.shut_landings(1_000 + JUMP_SHUT_MS - 1).collect();
+        assert_eq!(shut, [Shut { kind: ShutKind::Jump, landing, until: 1_000 + JUMP_SHUT_MS }]);
+        let on = shut[0];
+        assert!(on.covers(landing));
+        assert!(on.covers(landing + Vec3::new(0.25, 0.1, 0.0)));
+        assert!(!on.covers(landing + Vec3::new(0.5, 0.0, 0.0)), "another cell");
+        assert!(!on.covers(landing + Vec3::new(0.0, 1.0, 0.0)), "another floor");
         assert_eq!(stuck.shut_landings(1_000 + JUMP_SHUT_MS).count(), 0, "the lockout ends");
         // The motor's lockout is the same number of seconds.
         assert_eq!(JUMP_SHUT_MS as f32 / 1000.0, super::super::motor::TRY_KEPT_S);
@@ -1229,6 +1372,50 @@ mod tests {
         other.failed_jump(1_000, take_off, None);
         assert_eq!(other.shut_landings(1_000).count(), 0);
         assert_eq!(other.tell(), [(take_off, true)]);
+    }
+
+    /// A drop the body was held at the top of: its landings shut for the tuned time, beside a jump's of the same place
+    /// (a kind of its own: one does not lengthen the other), the top a fall's spot for the team; the watch counts what
+    /// followed.
+    #[test]
+    fn a_held_drops_landings_are_shut_for_their_time_and_the_top_is_a_fall() {
+        let top = Vec3::new(108.6, 11.5, 73.8);
+        let landings = [Vec3::new(108.4, 6.6, 73.4), Vec3::new(108.4, 6.6, 73.9)];
+        let mut stuck = Stuck::default();
+        stuck.failed_jump(1_000, top, Some(landings[0]));
+        stuck.failed_drop(2_000, top, &landings, 45_000);
+        let shut: Vec<Shut> = stuck.shut_landings(2_000).collect();
+        assert_eq!(shut.len(), 3, "the jump's landing and the two drops'");
+        assert_eq!(shut.iter().filter(|s| s.kind == ShutKind::Drop).count(), 2);
+        assert_eq!(stuck.shut_landings(1_000 + JUMP_SHUT_MS).count(), 2, "the jump's ends first");
+        assert_eq!(stuck.shut_landings(47_000).count(), 0, "the drops' after their time");
+        // Shut again: the time is lengthened, not a second entry.
+        stuck.failed_drop(30_000, top, &landings[..1], 45_000);
+        assert_eq!(stuck.shut_landings(74_999).count(), 1);
+        assert!(stuck.tell().iter().all(|&(at, fell)| at == top && fell));
+        // The watch: stuck again at the spot within 10 s.
+        let before = drop_shuts::counts();
+        stuck.watch_drop(31_000, top, true);
+        assert_eq!(drop_shuts::counts()[drop_shuts::AGAIN] - before[drop_shuts::AGAIN], 1);
+        // Down off the top: left.
+        stuck.failed_drop(40_000, top, &landings, 45_000);
+        stuck.watch_drop(41_000, top + Vec3::new(0.0, -5.0, 0.0), false);
+        assert!(drop_shuts::counts()[drop_shuts::LEFT] > before[drop_shuts::LEFT]);
+    }
+
+    /// A body that holds a drop it shut proves no goal has no way (its search failed for its own landings); one with only a
+    /// jump's shut, or none, does, as before.
+    #[test]
+    fn a_held_drops_shut_makes_no_no_way_proof() {
+        let top = Vec3::new(108.6, 11.5, 73.8);
+        let mut stuck = Stuck::default();
+        assert!(stuck.no_way_is_proof(1_000));
+        stuck.failed_jump(1_000, top, Some(Vec3::new(108.6, 12.7, 73.0)));
+        assert!(stuck.no_way_is_proof(1_000), "a jump's shut keeps today's rule");
+        stuck.failed_drop(2_000, top, &[Vec3::new(108.4, 6.6, 73.6)], 45_000);
+        assert!(!stuck.no_way_is_proof(2_000));
+        assert!(!stuck.no_way_is_proof(46_999));
+        assert!(stuck.no_way_is_proof(47_000), "the drop's shut has ended");
     }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the

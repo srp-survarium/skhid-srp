@@ -4,6 +4,7 @@
       "aim_last_known": false,
       "band_carrier_seen_ms": 0,
       "fire": {
+        "burst_pause": null,
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,
@@ -117,7 +118,9 @@
     "ring_radar": false
   },
   "spacing": {
-    "apart": false
+    "apart": false,
+    "apart_tie": false,
+    "lane": null
   },
   "sense": {
     "bush_notice": 0.0,
@@ -181,6 +184,7 @@
   },
   "unstick": {
     "blind_stop_ms": null,
+    "drop_shut": null,
     "home_gate_max_ms": null,
     "home_no_way_ms": null,
     "progress_ms": null,
