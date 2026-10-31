@@ -1162,9 +1162,22 @@ impl Game {
                 } else if body.flight.is_some() {
                     // Keys held in the air do not steer it (no air control).
                     let walls = self.walls.as_deref().expect("built at the press");
-                    let took_off = body.flight.map(|f| f.from);
-                    if let Some(landing) = fly(grid, walls, body, place, tick) {
-                        if let Some(from) = took_off {
+                    let took_off = body.flight.map(|f| (f.from, f.base));
+                    let sections = stand_in_corner().then(|| {
+                        self.sections
+                            .get_or_insert_with(|| Arc::new(standin_capsule::Sections::new(&self.world.map.walker_triangles(), grid.body().min_ground_normal_y)))
+                            .clone()
+                    });
+                    let wall = sections.as_deref().map(|sections| standin_jump::JumpWall {
+                        sections,
+                        hold: stand_in_jump_wall(),
+                        ticks: &mut self.climbs.prewalk_ticks,
+                        held: &mut self.climbs.prewalk_held,
+                    });
+                    if let Some(landing) = fly(grid, walls, wall, body, place, tick) {
+                        if let Some((from, base)) = took_off {
+                            // The rise is from the floor the body left (the walk before the jump is the walk's), not from the press.
+                            let from = Vec3::new(from.x, base.unwrap_or(from.y), from.z);
                             let way = if landing.sprint { standin_climb::Way::SprintJump } else { standin_climb::Way::ShortJump };
                             self.climbs.note(way, tick, place, body.team, from, landing.to, "");
                         }
