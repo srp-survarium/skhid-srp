@@ -1038,7 +1038,7 @@ pub(crate) fn real_bot_cost() {
             let camper_options = camper::CamperOptions::from_env();
             bots.bench_camper = bench_settings()
                 .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
-                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(human_tuning())));
+                .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, Arc::new(human_tuning())));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
