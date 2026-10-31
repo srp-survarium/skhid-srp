@@ -1,0 +1,12 @@
+[package]
+name = "world-frame"
+version.workspace = true
+edition.workspace = true
+description = "The frame of a 0.26g world (0xE8) as a game reads it, checked against the game's fixed buffers; shared by the match server and the client's arena (no_std, no alloc)"
+
+[lints]
+workspace = true
+
+# No dependencies, and no path dev-dependency: link_026g.py builds every
+# crate this manifest names by path into the game's arena.
+[dependencies]

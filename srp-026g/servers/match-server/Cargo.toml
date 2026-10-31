@@ -20,6 +20,9 @@ session = { workspace = true }
 survarium = { workspace = true }
 udp-transport = { workspace = true }
 vostok = { workspace = true }
+# What a game could load of an uploaded world (`game.rs::uploaded`): the
+# check the game itself runs (exe patch 87), one crate for both.
+world-frame = { workspace = true }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]

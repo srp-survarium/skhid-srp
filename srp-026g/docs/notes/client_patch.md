@@ -2619,3 +2619,30 @@ with Unicorn from the game's code (`check_tab_cursor_026g.py`). Not run in a gam
   `[clan] name`. The friend list is the messaging client's vector at +0Ch (its begin) and +10h
   (its end), 5Ch bytes per friend with the name at +8. A3 07's reader (0x26C540) fills it, and
   0x26C4FF reads it.
+
+### World check (patch 87)
+
+Written 2026-10-31; the rules are in `world_frame_check.md`. PROVEN in the code, and both sites run
+with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a game.
+
+- **The loads.** `process_dynamic_match_info` (0x27BFF0: EDI the network client, ESI the packet's
+  reader `{begin, cursor, size}`) stores the generation (0x27C040), reads the flag, and loads the
+  world with `game_world_core::deserialize` (0x2D0B70; the core `[EDI+1F1C40h]+1F8h`, the reader,
+  1, 8; `ret 10h`) at two calls.
+- **Unpacked** (the flag not 0): 0x8000 bytes of the stack (0x27C05E), a mutable buffer at EBP-24h
+  `{allocator 0, begin, capacity 8000h, size}` (0x27C06D..0x27C084), the codec of `[EDI+4Ch]`
+  (vtable +4) into it, `mutable_buffer::resize` (0x7AB30) to its size, the packet's reader read to
+  its end (0x27C0B7), the four arguments pushed, a reader at EBP-14h. The lohook
+  `world_load.unpacked` is on the nine bytes 0x27C0D0..0x27C0D8 (`mov [ebp-14h],esi`,
+  `mov [ebp-10h],esi`, `mov [ebp-0Ch],edx`), before the call at 0x27C0D9; it reads the world from
+  the mutable buffer.
+- **Raw:** the lohook `world_load.raw` is on the six bytes at 0x27C0FF (`mov ecx,[edi+1F1C40h]`,
+  the target of the `je` at 0x27C053), before the pushes and the call at 0x27C111; the world is
+  the packet's reader from its cursor to its end.
+- **The exit `refused`** is the handler's epilogue 0x27C1E0 (`lea esp,[ebp-30h]` restores the
+  stack, the pushed arguments and the 0x8000 bytes with it). It skips the post-load steps
+  (0x27C116..0x27C1DF) and, on the unpacked path, the buffer's destructor (0x27C0DE..0x27C0FB),
+  which frees nothing with a null allocator. The generation stays stored: the match link is
+  closed.
+- **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
+  `engine_close_current_match`) with reason 2, as match.md section 25 has it.

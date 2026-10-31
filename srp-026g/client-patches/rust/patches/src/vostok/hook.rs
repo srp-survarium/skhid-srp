@@ -21,6 +21,7 @@
 //!   callback the game is handed;
 //! - `write`, `code`: bytes the build writes.
 
+use core::ffi::c_void;
 use core::marker::PhantomData;
 
 /// The registers at a `lohook` entry, as `pushfd` then `pushad` left them;
@@ -91,6 +92,37 @@ impl<'t, T: Copy> Out<'t, T> {
     /// to the game's own function.
     pub(in crate::vostok) fn at(&self) -> *mut T {
         self.at
+    }
+}
+
+/// A generated entry that a patch hands the game as a callback (a `callback`
+/// site's, in the convention its marker `F` names). Only the generated glue
+/// makes one (`<patch>_<handler>_entry()`), so a callback the game calls is
+/// always an entry of ours in the convention the game calls it in.
+pub struct CallbackEntry<F> {
+    entry: *const c_void,
+    convention: PhantomData<fn() -> F>,
+}
+
+impl<F> Clone for CallbackEntry<F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<F> Copy for CallbackEntry<F> {}
+
+impl<F> CallbackEntry<F> {
+    /// # Safety
+    /// `entry` is a generated entry in `F`'s convention, alive as long as
+    /// the executable.
+    pub unsafe fn from_entry(entry: *const c_void) -> CallbackEntry<F> {
+        CallbackEntry { entry, convention: PhantomData }
+    }
+
+    /// The entry, for the game function it is handed to.
+    pub(in crate::vostok) fn entry(self) -> *const c_void {
+        self.entry
     }
 }
 

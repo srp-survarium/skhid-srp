@@ -168,6 +168,7 @@ va	status	ref_021d	name
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
+0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
 0x000804e0	reviewed	0x00158d51	vostok::network_core::buffer_writer::w<float>
 0x00080fa0	reviewed	0x00159507	vostok::network_core::buffer_writer::w<bool>
@@ -1879,3 +1880,19 @@ va	status	ref_021d	name
 0x0025cb10	reviewed	0x0019400b	vostok::math::create_rotation
 0x00322ab0	reviewed	0x001fee95	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push
 0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
+0x00014730	reviewed		vostok::resources::store_first_unmanaged_resource
+0x00059fb0	reviewed		vostok::sound::sound_world::add_scene_to_active
+0x00059a60	reviewed	0x00040549	vostok::sound::sound_world::tick
+0x0005aba0	reviewed	0x000411e4	vostok::sound::sound_instance_proxy_internal::play
+0x00056800	reviewed	0x0003e13d	vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy>::dec
+0x000630f0	reviewed		vostok::type_to_int<vostok::sound::sound_scene_creation_params>
+0x00065630	reviewed		vostok::sound::sound_emitter::emit_hud_sound
+0x000176d0	reviewed		boost::function1<void,vostok::resources::queries_result &>::assign_to<boost::_bi::bind_t<void,void (__cdecl*)(vostok::resources::queries_result &,void *),boost::_bi::list2<boost::arg<1>,boost::_bi::value<void *> > > >
+0x001ec890	reviewed	0x001536f4	survarium::game::tick
+0x001ed030	reviewed	0x00153ec0	survarium::game::clear_resources
+0x0021eab0	reviewed	0x00170034	survarium::login_menu::on_activate
+0x00220400	reviewed	0x001723e0	survarium::lobby_menu::switch_to_level_loading
+0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
+0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
+0x00274470	reviewed		survarium::lobby_client::comment_about_user
+0x000587d0	reviewed		vostok::sound::sound_scene::set_listener_properties

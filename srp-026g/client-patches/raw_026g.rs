@@ -129,6 +129,24 @@ unsafe extern "C" {
     pub fn engine_show_cursor(ui: Option<GameWorldUi>, shown: u32);
     /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
     pub fn engine_send_important(messaging: Option<MessagingClient>, target: *const u8, r#type: u32, text: *const u8);
+    /// 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX
+    pub fn engine_emit_hud_sound(emitter: Option<SoundEmitter>, scene: *mut Option<SoundScene>, user: Option<WorldUser>, out: *mut Option<SoundInstanceProxy>) -> *mut Option<SoundInstanceProxy>;
+    /// 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8
+    pub fn engine_bind_query_callback(boost: Option<QueryFunction>, f: *const c_void, value: u32);
+    /// 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX
+    pub fn engine_scene_params_type() -> u32;
+    /// 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0
+    pub fn engine_add_active_scene(world: Option<SoundWorld>, scene: Option<SoundScene>);
+    /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    pub fn engine_comment_about_user(lobby_client: Option<LobbyClient>, nickname: *const u8, kind: u32, mode: u32);
+    /// 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    pub fn engine_cc_float(object: Option<CcFloat>, name: *const u8, value: *mut f32, saved: u32, kind: u32);
+    /// 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    pub fn engine_query_one(requests: Option<ResourceRequest>, count: u32, callback: Option<QueryFunction>, allocator: Option<GameAllocator>, user: Option<QueryUserData>, parent: *const c_void, flag: u32);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_emitter(pointer: *mut Option<SoundEmitter>);
+    /// 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    pub fn engine_set_listener(scene: Option<SoundScene>, position: *const f32, front: *const f32, top: *const f32);
 }
 
 #[allow(dead_code)]
@@ -145,6 +163,8 @@ unsafe extern "cdecl" {
     pub fn engine_setlocale(category: u32, locale: *const u8) -> *mut u8;
     /// 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
     pub fn engine_save_user_config();
+    /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+    pub fn engine_store_first_resource(result: Option<QueriesResult>, value: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -163,6 +183,12 @@ unsafe extern "thiscall" {
     pub fn engine_light_insert(light: Option<ObjectLight>);
     /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_light_remove(light: Option<ObjectLight>);
+    /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
+    pub fn engine_play_voice(proxy: Option<SoundInstanceProxy>, mode: u32, producer: *const c_void, receiver: *const c_void);
+    /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
+    pub fn engine_free_voice(proxy: Option<SoundInstanceProxy>);
+    /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+    pub fn engine_close_current_match(client: Option<NetworkClient>, reason: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -279,6 +305,15 @@ impl Game {
     #[inline(always)]
     pub unsafe fn text_translator(self) -> TextTranslator {
         TextTranslator(unsafe { self.0.byte_add(0x52a8) })
+    }
+
+    /// +0x5350 (ptr<vostok::sound::sound_world>): the sound world (play_ui_sound 0x1EDC54, object_sound::insert 0x294951, game_world::clear_resources 0x1F9684)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sound_world(self) -> Option<SoundWorld> {
+        unsafe { self.0.byte_add(0x5350).cast::<Option<SoundWorld>>().read_volatile() }
     }
 }
 
@@ -2602,6 +2637,24 @@ impl EngineCfg {
         unsafe { self.0.byte_add(0x16).cast::<u16>().as_ptr() }
     }
 
+    /// +0x0 (ptr<u8>): a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn text(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_text(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// 0x18 bytes: binary config record stride, cfg_child 0xF6B10
     pub const SIZE: usize = 0x18;
 
@@ -4703,6 +4756,24 @@ impl MessagingClient {
     pub unsafe fn friends_end(self) -> Option<ListedAccount> {
         unsafe { self.0.byte_add(0x10).cast::<Option<ListedAccount>>().read_volatile() }
     }
+
+    /// +0x1c (ptr<survarium::listed_account>): the ignore list's first element (A3 08's reader 0x26C620 fills the vector at +1Ch; lobby_menu::set_ignored_list 0x28B910 reads +1Ch begin, +20h end)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ignored_begin(self) -> Option<ListedAccount> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ListedAccount>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<survarium::listed_account>): the ignore list's end (0x28B95E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ignored_end(self) -> Option<ListedAccount> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<ListedAccount>>().read_volatile() }
+    }
 }
 
 /// A survarium::listed_account (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4717,6 +4788,15 @@ impl ListedAccount {
     #[inline(always)]
     pub fn address(self) -> u32 {
         self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its account id as the lobby sent it (A3 08's reader at 0x26C683; srp marks a `<muted>` player's with bit 31, chat-mute.md)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
     }
 
     /// +0x8 (u8): its name, 64 bytes with its zero (social.md 1.3: +4 the account id, +8 the name)
@@ -4914,6 +4994,619 @@ impl KeyStateStorage {
     }
 }
 
+/// A vostok::mutable_buffer (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MutableBuffer(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MutableBuffer {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<u8>): a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xc (u32): the bytes used, from begin
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::dynamic_info_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DynamicInfoFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DynamicInfoFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unpacked(self) -> MutableBuffer {
+        MutableBuffer(unsafe { self.0.byte_sub(0x24) })
+    }
+}
+
+/// A vostok::sound::sound_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xb0 (ptr<vostok::sound::world_user>): the logic world user: get_logic_world_user is vtable 0x9E0C60 slot 2, 0x9F7E0 (mov eax,[ecx+0B0h]), which every game sound call asks (0x1EDC7E, 0x294975)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn logic_user(self) -> Option<WorldUser> {
+        unsafe { self.0.byte_add(0xb0).cast::<Option<WorldUser>>().read_volatile() }
+    }
+}
+
+/// A vostok::sound::sound_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundScene(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundScene {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its resource count, atomic (lock xadd at 0x220B55 and 0x11554)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2e4 (f32): its fade volume: the submix gets volume x general (+2E8h) at every process_fade 0x5C060 of a fade state, and at add_scene_to_active 0x59FB0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn volume(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2e4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x2ec (u32): the fade-in's ms (10, the constructor 0x57935): process_fade adds elapsed / it to the volume (unsigned, 0x5C080)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fade_in_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2ec).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2f9 (u8): in the world's active scenes (set_active_sound_scene_impl 0x5A067; cleared by a finished fade-out 0x5C18C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2f9).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2fc (u32): 0 none, 1 fading in, 2 fading out (process_fade 0x5C061, set_active_sound_scene_impl 0x5A043 and 0x5A06E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fade_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2fc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2fa (u8): its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener_set(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2fa).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::sound::sound_emitter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundEmitter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundEmitter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its resource count, atomic (emit_hud_sound 0x65654)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::sound::sound_instance_proxy (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundInstanceProxy(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundInstanceProxy {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2c (u32): its playback mode: 0 once, 1 looped (play 0x5ABA8), 2 stopped (stop 0x5B021)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (u32): its references, not atomic (single_threading_policy: intrusive_ptr::dec 0x56807; at 0 free_object 0x5B390)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::sound::scene_params_variant (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneParamsVariant(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SceneParamsVariant {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a variant's type helper (concrete_type_helper<sound_scene_creation_params>, survarium::image scene_params_helper), the lobby's at 0x21E559
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn helper(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): sound_scene_creation_params.proxies_count (the lobby's 64, 0x21E524)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxies(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): its propagators_count (the lobby's 64)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn propagators(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): its receivers_count (the lobby's 2, 0x21E553)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn receivers(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (ptr<vostok::sound::scene_params_variant>): the variant's own address (the lobby's 0x21E538)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn itself(self) -> Option<SceneParamsVariant> {
+        unsafe { self.0.byte_add(0x28).cast::<Option<SceneParamsVariant>>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<vostok::sound::scene_params_variant>): the variant's own address (the lobby's 0x21E538)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_itself(self, value: Option<SceneParamsVariant>) {
+        unsafe { self.0.byte_add(0x28).cast::<Option<SceneParamsVariant>>().write_volatile(value) }
+    }
+
+    /// +0x2c (u32): the value's type id, type_to_int 0x630F0 (the lobby's 0x21E4EE); sound_scene_cook's translate_query requires it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn type_id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x30 bytes: a variant<32>, as the lobby's at its [ebp-0B0h] and patch 44's
+    pub const SIZE: usize = 0x30;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::sound::scene_params_variants (0x30 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct SceneParamsVariantStorage([u8; 0x30]);
+
+#[allow(dead_code)]
+impl SceneParamsVariantStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x30])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> SceneParamsVariant {
+        SceneParamsVariant(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<SceneParamsVariant> {
+        (!rooms.is_empty()).then(|| SceneParamsVariant(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::query_function (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryFunction(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryFunction {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x20 bytes: a boost::function1<void, queries_result&>: +0 vtable or 1, +8 its functor (0x176D0 fills it; query_resources copies it)
+    pub const SIZE: usize = 0x20;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::query_functions (0x20 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct QueryFunctionStorage([u8; 0x20]);
+
+#[allow(dead_code)]
+impl QueryFunctionStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x20])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> QueryFunction {
+        QueryFunction(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<QueryFunction> {
+        (!rooms.is_empty()).then(|| QueryFunction(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::queries_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueriesResult(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueriesResult {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x38 (u32): its m_size, the requests (constructor 0xE70B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x38).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x12c (ptr<vostok::sound::sound_scene>): the first query's unmanaged resource, a sound scene for a class 38 request (lobby_menu::on_render_scenes_ready 0x220C68 reads its third, +6ECh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<vostok::sound::sound_emitter>): the first query's unmanaged resource, a single sound for a class 256 request (store_first_unmanaged_resource 0x14735)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn emitter(self) -> Option<SoundEmitter> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<SoundEmitter>>().read_volatile() }
+    }
+}
+
+/// A survarium::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllocatorSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AllocatorSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::memory::game_allocator>): the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> Option<GameAllocator> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<GameAllocator>>().read_volatile() }
+    }
+}
+
+/// A vostok::console_commands::cc_float (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CcFloat(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CcFloat {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: CC_FLOAT_VTABLE, written after cc_value<bool>::cc_value (which leaves its own), as s_general_volume's (0x84D48D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): the least value its setter (0xECB70, vtable slot 1) stores; a value out of range or not a float stores this
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn least(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x48 (f32): the most value its setter stores
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn most(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x4c bytes: a cc_float console variable's object (s_general_volume's at 0xA7D3C8, made by its static initializer 0x84D440: cc_value<bool>::cc_value's base fields, +40h the value's address, +44h the least, +48h the most)
+    pub const SIZE: usize = 0x4c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::console_commands::cc_floats (0x4c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CcFloatStorage([u8; 0x4c]);
+
+#[allow(dead_code)]
+impl CcFloatStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CcFloat {
+        CcFloat(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CcFloat> {
+        (!rooms.is_empty()).then(|| CcFloat(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::query_user_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryUserData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryUserData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::sound::scene_params_variant>): a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn variant(self) -> Option<SceneParamsVariant> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneParamsVariant>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::sound::scene_params_variant>): a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_variant(self, value: Option<SceneParamsVariant>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneParamsVariant>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: one request's user data pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::query_user_datas (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct QueryUserDataStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl QueryUserDataStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> QueryUserData {
+        QueryUserData(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<QueryUserData> {
+        (!rooms.is_empty()).then(|| QueryUserData(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -5049,6 +5742,36 @@ impl StaticModelInstance {
     }
 }
 
+/// A vostok::sound::world_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldUser(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WorldUser {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A vostok::memory::game_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameAllocator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// The image's data: VAs of the game's (fields_026g.tsv, the kinds ending in ::image).
 #[allow(dead_code)]
 pub mod image {
@@ -5108,6 +5831,19 @@ pub mod image {
 
     /// 0xa25478 (u32, survarium::image): vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
     pub const KEYBOARD_VTABLE: u32 = 0xa25478;
+
+    /// 0x9fc7c0 (u32, survarium::image): concrete_type_helper<sound_scene_creation_params>'s vtable (its copy_helper 0x1FA690), the variant helper of a sound scene's request (lobby_menu::query_resources 0x21E559)
+    pub const SCENE_PARAMS_HELPER: u32 = 0x9fc7c0;
+
+    /// 0x1f1d9c4 (obj<survarium::allocator_slot>, survarium::image): the game's allocator's slot (the lobby's query 0x21E5D6, the late join's)
+    #[inline(always)]
+    pub fn game_allocator() -> AllocatorSlot {
+        // SAFETY: an image VA, not 0.
+        AllocatorSlot(unsafe { NonNull::new_unchecked(0x1f1d9c4 as *mut c_void) })
+    }
+
+    /// 0x9e7c6c (u32, vostok::console_commands::image): cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
+    pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;
 }
 
 /// A general-purpose register at a hook's site.
@@ -6202,6 +6938,123 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldInput)
+        }
+    }
+
+    /// world_load.unpacked (0x27c0d0): process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h])
+    pub mod world_load_unpacked {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// EBP: a survarium::dynamic_info_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DynamicInfoFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(DynamicInfoFrame)
+        }
+    }
+
+    /// world_load.raw (0x27c0ff): process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue
+    pub mod world_load_raw {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
+        }
+    }
+
+    /// game.tick (0x1ec8ec): game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game
+    pub mod game_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::game (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn game(machine: &impl Machine) -> Option<Game> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Game)
+        }
+    }
+
+    /// level_loading.ui (0x2204b3): lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui
+    pub mod level_loading_ui {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EngineCfg)
+        }
+    }
+
+    /// game.clear_resources (0x1ed030): game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world
+    pub mod game_clear_resources {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::game (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn game(machine: &impl Machine) -> Option<Game> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Game)
+        }
+    }
+
+    /// sound_world.tick (0x59ab1): sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick
+    pub mod sound_world_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::sound::sound_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<SoundWorld> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SoundWorld)
+        }
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn elapsed(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
         }
     }
 }

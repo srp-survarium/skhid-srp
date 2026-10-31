@@ -1,15 +1,19 @@
 package
 {
    import flash.display.DisplayObject;
+   import flash.display.Bitmap;
+   import flash.display.BitmapData;
    import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
    import flash.text.TextField;
+   import flash.utils.getQualifiedClassName;
 
    // A private room's Start and teams (docs/notes/rooms.md, the owner's of 2026-10-26) with the
    // lobby movie's own rooms window (survarium.rooms.RoomsWindow over the movie's bottom bar), told
@@ -25,6 +29,13 @@ package
    //   an open room's has both;
    // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
    //   clearing it shows them again.
+   // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows
+   //   the match's squad icon (its frame by the pair's number) after each name, ours green and
+   //   another's tan, in the room's view and the list's side panel; every name keeps its place
+   //   with and without the icons; every language's texts fit with them (checkFit);
+   // - a squad's soldier (in a squad, not its leader): the list's Join and New room greyed, its
+   //   commander's not (it goes into no room on its own; the server refuses it too); the top bar's
+   //   Play says "IN SQUAD" for the soldier, whole in every language, and PLAY for its leader.
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
@@ -58,6 +69,14 @@ package
 
       private function loaded(e:Event) : void
       {
+         // The native placement adapter also initializes more of the lobby's
+         // root. Keep that fixture separate from the lightweight rooms tests.
+         if(loaderInfo.parameters.players == "1")
+         {
+            checkPlayerMenus();
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
          var step:String = "the classes";
          try
          {
@@ -113,6 +132,9 @@ package
          checkPlayOffer();
          checkCreate();
          checkWindowOrder();
+         checkSquads();
+         checkSoldier();
+         checkInSquad();
          checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
@@ -144,7 +166,10 @@ package
                ["open, in match", 1003, false, false, 2, null, 0, []],
                ["open, joining in", 1003, false, false, 2, null, 0, ["J;25"]],
                ["open, kit unfit", 1003, false, false, 0, null, 1, []],
-               ["open, gear unfit", 1003, false, false, 0, null, 2, []]];
+               ["open, gear unfit", 1003, false, false, 0, null, 2, []],
+               ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
+               ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
+               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
             for(var why:int = 1; why <= 7; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
@@ -200,6 +225,238 @@ package
          {
             failures.push(key + ": " + err.message);
          }
+      }
+
+      // The squad icons in the window (RoomsLook.squadIcon: the hud's squad_icon frames, the
+      // classes SquadIcon1..5): each one's frame, where it is and its tint.
+      private function squadTags(texts:Array) : Array
+      {
+         var tags:Array = [];
+         findIcons(win, 0, 0, tags);
+         return tags;
+      }
+
+      private static function findIcons(at:DisplayObject, x:Number, y:Number, tags:Array) : void
+      {
+         if(!at.visible)
+            return;
+         var icon:Bitmap = at as Bitmap;
+         if(icon != null && icon.bitmapData != null)
+         {
+            var kind:String = getQualifiedClassName(icon.bitmapData);
+            if(kind.indexOf("SquadIcon") == 0)
+               tags.push({"text":kind.substr(9), "x":x + at.x, "y":y + at.y, "colour":icon.transform.colorTransform.color,
+                  "w":icon.width});
+            return;
+         }
+         var box:DisplayObjectContainer = at as DisplayObjectContainer;
+         if(box == null)
+            return;
+         for(var i:int = 0; i < box.numChildren; i++)
+            findIcons(box.getChildAt(i), x + at.x, y + at.y, tags);
+      }
+
+      // Where each of WHO's names is drawn (its field's place, and its text's right end).
+      private static function namePlaces(texts:Array) : Object
+      {
+         var at:Object = {};
+         for each(var t:Object in texts)
+         {
+            // The owner's name with its tag: "Alice  (owner)".
+            var name:String = String(t.text).split("  (")[0];
+            if(WHO.indexOf(name) >= 0)
+               at[name] = {"x":t.x, "y":t.y, "right":t.x + 2 + t.field.textWidth};
+         }
+         return at;
+      }
+
+      // The tags `tags` against the names: `want` gives each name's tag ("" none) and whether it
+      // is ours (green, 0xB3EA97) or another's (tan, 0x9D7E57); each right of its name, on its
+      // line; and every name where `plain` had it.
+      private function checkTags(what:String, texts:Array, plain:Object, want:Object) : void
+      {
+         var names:Object = namePlaces(texts);
+         var tags:Array = squadTags(texts);
+         var said:Array = [];
+         for(var who:String in want)
+         {
+            var name:Object = names[who];
+            if(name == null || plain[who] == null)
+            {
+               failures.push(what + ": " + who + " not shown");
+               continue;
+            }
+            if(name.x != plain[who].x || name.y != plain[who].y)
+               failures.push(what + ": " + who + " moved with the squad icons");
+            var tag:Object = null;
+            for each(var t:Object in tags)
+               if(t.x >= name.right - 1 && t.x <= name.right + 30 && Math.abs(t.y - name.y) < 12)
+                  tag = t;
+            var expected:Array = want[who];
+            said.push(who + " " + (tag != null ? tag.text + "/" + tag.colour.toString(16) : "-"));
+            if(expected[0] == "")
+            {
+               if(tag != null)
+                  failures.push(what + ": " + who + " has a squad icon");
+               continue;
+            }
+            if(tag == null || tag.text != expected[0])
+            {
+               failures.push(what + ": " + who + "'s squad icon " + expected[0] + " missing");
+               continue;
+            }
+            var green:Boolean = (tag.colour >> 8 & 0xFF) > (tag.colour >> 16 & 0xFF);
+            if(green != expected[1])
+               failures.push(what + ": " + who + "'s tag is not " + (expected[1] ? "ours (green)" : "another's (tan)"));
+         }
+         trace("ROOMS " + what + ": " + said.join(", "));
+      }
+
+      private function checkSquads() : void
+      {
+         tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+         // The room's view: Bob (the asker) and Carol a pair, Dave and Erin another.
+         var want:Object = {"Alice":["",false], "Bob":["1",true], "Carol":["1",true], "Dave":["2",false], "Erin":["2",false]};
+         var texts:Array = [];
+         tellRoom(1003, false, false, 0, null, 0, []);
+         walk(win,[],texts,0,0,[]);
+         var plain:Object = namePlaces(texts);
+         texts = [];
+         tellRoom(1003, false, false, 0, null, 0, ["S;01122"]);
+         walk(win,[],texts,0,0,[]);
+         checkTags("squads in the room", texts, plain, want);
+         // A private room's two teams, its owner Alice: Alice and Bob a pair on team 1.
+         texts = [];
+         tellRoom(1001, true, true, 0, "00110", 0, []);
+         walk(win,[],texts,0,0,[]);
+         plain = namePlaces(texts);
+         texts = [];
+         tellRoom(1001, true, true, 0, "00110", 0, ["S;11220"]);
+         walk(win,[],texts,0,0,[]);
+         checkTags("squads in a private room", texts, plain,
+            {"Alice":["1",true], "Bob":["1",true], "Carol":["2",false], "Dave":["2",false], "Erin":["",false]});
+         // The list's side panel, its room chosen: the members' list (`S1;G`) with the marks.
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1003;2;15;8;5;0;0;0;0;Alice"]);
+         var rows:Array = [];
+         walk(win,[],[],0,0,[]);
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == "1003")
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         var members:Function = function(marks:Array):Array
+         {
+            var names:Array = ["S1;G;1003;5"];
+            for(var i:int = 0; i < WHO.length; i++)
+            {
+               names.push(["P",i,15,i == 0 ? 1 : 0,i == 1 ? 1 : 0,0,0,0,0,11 + i,marks[i]].join(";"));
+               names.push(WHO[i]);
+            }
+            tell(names);
+            var seen:Array = [];
+            walk(win,[],seen,0,0,[]);
+            return seen;
+         };
+         plain = namePlaces(members([0,0,0,0,0]));
+         checkTags("squads in the list's side panel", members([0,1,1,2,2]), plain, want);
+      }
+
+      // A squad's soldier goes into no room on its own (squads.md): Join and New room greyed in
+      // the list; its commander's are not.
+      private function checkSoldier() : void
+      {
+         var Info:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.PlayerInfo");
+         var lit:Function = function(soldier:Boolean):Array
+         {
+            Info.isInSquad = true;
+            Info.commander = !soldier;
+            tell(["S1;N;0;0;0"]);
+            tell(["S1;L;1;0","1003;2;15;8;5;0;0;0;0;Alice"]);
+            var buttons:Array = [];
+            walk(win,[],[],0,0,buttons);
+            var join:* = null;
+            var make:* = null;
+            for each(var b:* in buttons)
+            {
+               if(b.label == "Join")
+                  join = b;
+               if(b.label == HarnessText.DATA.english.st_srp_rooms_new)
+                  make = b;
+            }
+            return [join != null && join.enabled, make != null && make.enabled, join != null && make != null];
+         };
+         var soldier:Array = lit(true);
+         var leader:Array = lit(false);
+         Info.isInSquad = false;
+         Info.commander = true;
+         tell(["S1;N;0;0;0"]);
+         trace("ROOMS a soldier's Join " + (soldier[0] ? "lit" : "greyed") + ", New room " + (soldier[1] ? "lit" : "greyed")
+            + "; its commander's Join " + (leader[0] ? "lit" : "greyed") + ", New room " + (leader[1] ? "lit" : "greyed"));
+         if(!soldier[2] || !leader[2])
+            failures.push("soldier: the list's Join or New room not found");
+         else if(soldier[0] || soldier[1] || !leader[0] || !leader[1])
+            failures.push("soldier: Join and New room must be greyed for a soldier only");
+      }
+
+      // The top bar's Play (the lobby's StatusPanel, its symbol SrvTopMenuContainer): a soldier's
+      // greyed Play says "In squad" (in capitals, as the game's PLAY), whole in every language;
+      // its leader's is the game's own PLAY.
+      private function checkInSquad() : void
+      {
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Info:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+         var Loc:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var panel:*;
+         try
+         {
+            panel = new (domain.getDefinition("SrvTopMenuContainer") as Class)();
+         }
+         catch(err:Error)
+         {
+            failures.push("in squad: the top bar: " + err);
+            return;
+         }
+         var btn:* = panel.playBtn;
+         btn.label = "PLAY";
+         btn.validateNow();
+         var said:Array = [];
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            Info.isInSquad = true;
+            Info.commander = false;
+            panel.showRoomsPlay(false,false,false,false,false,"");
+            btn.validateNow();
+            var want:String = String(say.st_srp_play_in_squad).toUpperCase();
+            var field:TextField = btn.textField as TextField;
+            said.push(language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width) : ""));
+            if(btn.label != want)
+               failures.push("in squad, " + language + ": Play says " + btn.label + ", not " + want);
+            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
+               failures.push("in squad, " + language + ": \"" + btn.label + "\" does not fit Play");
+            if(btn.enabled)
+               failures.push("in squad, " + language + ": Play lit for a soldier");
+            Info.commander = true;
+            panel.showRoomsPlay(false,false,false,false,true,"");
+            if(btn.label != "PLAY")
+               failures.push("in squad, " + language + ": the leader's Play says " + btn.label);
+         }
+         Info.isInSquad = false;
+         Loc.setData(HarnessText.DATA.english);
+         trace("ROOMS a soldier's Play: " + said.join(", "));
+      }
+
+      // The list's rows (their sprites are named by their rooms' keys).
+      private static function findRows(at:DisplayObject, rows:Array) : void
+      {
+         var box:DisplayObjectContainer = at as DisplayObjectContainer;
+         if(box == null)
+            return;
+         if(box is Sprite && Sprite(box).buttonMode && /^\d+$/.test(box.name))
+            rows.push(box);
+         for(var i:int = 0; i < box.numChildren; i++)
+            findRows(box.getChildAt(i), rows);
       }
 
       // What `what` shows: every shown text's drawn extent (its alignment in its field, the margin
@@ -334,6 +591,79 @@ package
             failures.push(what + ": queue action is above the room list");
          trace("ROOMS " + what + ": " + actions.length + " action(s), "
             + (actions.length ? actions[0].label : "missing"));
+      }
+
+      private function checkPlayerMenus():void
+      {
+         try
+         {
+            var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            var Lobby:Object = domain.getDefinition("LobbyMenu");
+            var Menu:Object = domain.getDefinition("survarium.controls.SrvContextMenu");
+            var Player:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+            var Friends:Object = domain.getDefinition("survarium.friends.FriendsMenu");
+            var friends:Object = new (domain.getDefinition("SrvFriendsMenuReskin") as Class)();
+            Menu.registerStage(stage,this);
+            Menu.setPatternt(new (domain.getDefinition("ContextPattern") as Class)());
+            Player.nickname = "Alice";
+            Player.commander = true;
+            Player.isSquadFull = false;
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            // The menu's names, from the second entry on: the friend action, the two mute entries that
+            // change Bob's state (the server's ignore list: every muted player, a <muted> one's id with
+            // bit 31), then message and squad.
+            var names:Function = function():String
+            {
+               var items:Object = Menu.getInstance().contextList.list.dataProvider;
+               var out:Array = [];
+               for(var i:int = 1; i < items.length; i++)
+                  out.push(items[i].name);
+               return out.join("|");
+            };
+            var self:RoomsHarness = this;
+            var menuFor:Function = function(what:String, want:String):void
+            {
+               Lobby.showPlayerInfoMenu("Bob",17,0,self);
+               var got:String = names();
+               trace("ROOMS player menu, " + what + ": " + got);
+               if(got != want)
+                  failures.push("player menu, " + what + ": " + got + ", not " + want);
+            };
+            menuFor("a stranger not muted", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            friends.setPlayers([{id:123,name:"Bob",status:0}]);
+            friends.setPlayers([{id:456,name:"Bob"}],false);
+            menuFor("a friend hidden", "#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            if(Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
+               failures.push("the pushed friend and ignore lists' ids");
+            friends.setPlayers([{id:uint(456 | 0x80000000),name:"Bob"}],false);
+            menuFor("a friend shown as <muted>", "#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            menuFor("unmuted, no longer a friend", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            Player.commander = false;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+               failures.push("non-commander can invite to squad");
+            Player.commander = true;
+            Player.isSquadFull = true;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+               failures.push("full squad can invite another player");
+            Lobby.showPlayerInfoMenu("Alice",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 1)
+               failures.push("own player menu has social actions");
+            Menu.hide();
+            Lobby.showPlayerInfoMenu("",17,0,this);
+            if(Menu.visisble)
+               failures.push("empty player name opened a menu");
+            Player.isSquadFull = false;
+            trace("ROOMS player menu: friend/remove, the two mute entries of each state, message, squad guards and self");
+         }
+         catch(err:Error)
+         {
+            failures.push("player menus: " + err.getStackTrace());
+         }
       }
 
       // Exercise the lobby's actual recurring layer adjustment. Background

@@ -529,6 +529,8 @@ va	name	location	role	basis
 0x0007a390	vostok::physics::create_primitive_shape	entry ESP+8 low word	the material (u16 put in the face-data word +110h)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
@@ -2529,6 +2531,7 @@ va	name	location	role	basis
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
 0x0027a790	survarium::network_client::close_current_match	ECX	network_client receiver	observed
 0x0027a790	survarium::network_client::close_current_match	stack+4	match-close case selector; enum meanings unassigned	observed
+0x0027a790	survarium::network_client::close_current_match	entry ESP+4	the reason (jump table 0x27A958): 2 disconnected_by_initiator, 0xE0 to the match server then as 1 (31 01 to the lobby, the world ended); 3 the world ended and the results shown (match.md sections 24, 25)	observed
 0x0027a9c0	survarium::network_client::get_active_player	ECX	the network client (its core [+1F1C40h]+1F8h)	observed
 0x0027a9c0	survarium::network_client::get_active_player	entry ESP+4	out pointer	observed
 0x0027a9c0	survarium::network_client::get_active_player	entry ESP+8	the place (byte)	observed
@@ -2660,6 +2663,8 @@ va	name	location	role	basis
 0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	out pointer	observed
 0x002d0b70		entry ESP+12		auto
 0x002d0b70		entry ESP+4		auto
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+4	the world core ([network_client+1F1C40h]+1F8h at the 0xE8 handler's loads 0x27C0D9, 0x27C111)	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+8	the buffer_reader at the world: its time (u32), then the body	observed
 0x002d1100		EAX		auto
 0x002d1100		entry ESP+4		auto
 0x002d1100		entry ESP+12		auto
@@ -4855,3 +4860,37 @@ va	name	location	role	basis
 0x003b82f0	vostok::input::input_world::create_devices	EDI	the input world: +20h the gamepad (0x3B8790), +24h the platform keyboard (0x91Ch bytes, its ctor 0x3B8BC0 writes the vtable 0xA25478 at 0x3B8BDC), +28h the mouse (0x3B94F0); the input world's vtable 0xA252D4 +24h is 0x79E40 (mov eax,[ecx+24h] / ret), the keyboard on_keyboard_action (0x25CD13) and render_name (0x1F2DC2) ask	observed
 0x00239420	survarium::game_world_ui::update_minimap_players	[esp+20h], [esp+1Ch]	the loop's place 0..13h (a u32 and its byte, both incremented at 0x23998A): each object's player_id is the place (0x2395AC), the same place initialize_match gives the hud's list rows as `id`, so a map icon and a Tab list row are matched by it	observed
 0x00234880	survarium::game_world_ui::initialize_match	EBX at 0x234FE4, [esp+190h] at 0x2350E0	root.list_set_players' rows: `id` (an int, type 3) the place ([esp+17h], 0x234EDB), `team` 1 ally / 2 enemy of the local player (0x23500E: setne + 1), `name` the place's profile name (+8 of the 45FCh-byte entry) as "[%s] %s" (0x9FB140) with its clan tag (+48h) when it has one, else the name alone, cut to 4Eh bytes	observed
+0x00014730	vostok::resources::store_first_unmanaged_resource	entry ESP+4	the result: the queries_result the boost function was called with (its first query's unmanaged resource +12Ch, counted at +0D0h, taken)	observed
+0x00014730	vostok::resources::store_first_unmanaged_resource	entry ESP+8	the bound value: a resource pointer the first result goes to (the old one let go); on_mounted_resources 0x14827 binds it (0x176D0) to its config's pointer	observed
+0x00059fb0	vostok::sound::sound_world::add_scene_to_active	ECX	the sound world (its active scenes +48DCh count, +48E4h first, +48E8h last; general volume byte +48F0h)	observed
+0x00059fb0	vostok::sound::sound_world::add_scene_to_active	EAX	the scene: appended to the active list (+108h next), its +2E8h set to general/100 and its submix (+2E0h) to +2E4h x that (vtable +30h SetVolume); set_active_sound_scene_impl 0x5A062 then sets +2F9h	observed
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	ECX	the proxy (sound_instance_proxy_internal, vtable 0x9E0EC0 slot 0)	observed
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	entry ESP+4	the playback mode, to +2Ch: 0 once, 1 looped (object_sound::insert 0x294A77 pushes 1; stop 0x5B021 writes 2)	observed
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	entry ESP+8	the producer, to +30h (0 none)	observed
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	entry ESP+12	the ignorable receiver, to +34h (0 none)	observed
+0x00056800	vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy>::dec	ECX	the intrusive pointer to a proxy (count at +28h, not atomic; at 0 the proxy's free_object, vtable +20h 0x5B390, queues its destruction to the sound thread); the pointer is not cleared	observed
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	ESI	the emitter (sound_emitter: its vtable +1Ch the propagator emitter; counted at +0D0h)	observed
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	EAX	the scene: a sound_scene pointer's address (new_hud_sound_instance_proxy 0x65100 takes the scene itself)	observed
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	ECX	the world user (the logic one: sound_world +0B0h)	observed
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	EDI	the out proxy pointer (intrusive, the new proxy counted +28h; 0 when the scene's proxies are all taken); returned in EAX	observed
+0x000176d0	boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >	ESI	the boost function to fill: +0 the vtable 0x9DB9E0 or 1 (trivially copied), +8 f, +0Ch the value; its invoker 0x3AAA20 calls f(result, value)	observed
+0x000176d0	boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >	entry ESP+4	f, the cdecl function bound, called f(queries_result &, value)	observed
+0x000176d0	boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >	entry ESP+8	the bound value (a word)	observed
+0x00059a60	vostok::sound::sound_world::tick	ECX	the sound world (kept in EDI); after process_orders (0x59AAC) EBX holds the ms since the last tick, then each active scene ticks (0x57B80: its process_fade 0x5C060 with that time)	observed
+0x001ec890	survarium::game::tick	ECX	the game (kept in EBX), every frame on the game's thread	observed
+0x001ec890	survarium::game::tick	entry ESP+4	the frame's time, to +5850h	observed
+0x001ed030	survarium::game::clear_resources	ECX	the game (game vtable slot at 0x9FAC9C): unloads the login and lobby menus (+5390h, +5394h, vtable +28h) and the game world	observed
+0x0021eab0	survarium::login_menu::on_activate	ECX	the login menu (kept in ESI); base_game_scene::on_activate 0x23DD60 first	observed
+0x00220400	survarium::lobby_menu::switch_to_level_loading	entry ESP+4	the lobby menu (kept in EBX)	observed
+0x00220400	survarium::lobby_menu::switch_to_level_loading	entry ESP+8	the maps_dict id: its mode's config (map_descriptor_by_id 0x21F910, +8, its root +108h), whose mode/ui (ESI at 0x2204A2) gives loading_screen_id	observed
+0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	ECX	the proxy whose last reference went (vtable 0x9E0EC0 slot 8, the call of intrusive_ptr::dec 0x56800 at count 0): marks it freed (+78h) and queues its destruction order to the sound thread	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	ECX	lobby_menu receiver	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	entry ESP+4	Flash callback params; +8 points to 24-byte values: nickname, kind, mode	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+4	lobby_client pointer; link at +8	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	ESI	the scene: +2FAh set (the listener's position is set), the three vectors stored as atomic half3 at +120h, +128h, +130h; the game calls it from its own thread every frame for its scenes (game_world 0x1F7653, lobby_menu 0x21D689, 0x220D9D). Without it a scene's tick (0x57B80) never calls notify_listener 0x5C280 (0x57C9C), the only path to create_sound_voice 0x59E70 (via 0x5C7A0): its sounds get no voice	observed
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	EAX	the listener's position (float3)	observed
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	entry ESP+4	its front (float3; the lobby's +2Ch)	observed
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	entry ESP+8	its top (float3; the lobby's +1Ch)	observed

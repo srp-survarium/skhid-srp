@@ -111,8 +111,11 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
-| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -3747,7 +3750,7 @@ Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
 own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
 buttons stop; the moves go on. That Ctrl press and its held and release
 events are taken from the player, so it does not crouch. A right-click on
-a row opens the hud movie's `PlayerRowMenu` with "Add to friends". The
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and two chat mute entries. The
 entry sends the lobby's own friend request (`4D` type 0, through
 messaging_client::send_important_message 0x26AFB0) to that place's bare
 name. The rules are in `../docs/notes/tab-cursor-friends.md`.
@@ -3758,13 +3761,65 @@ Blackout's at a match's options read (`static_info.options_read`,
 - `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
   Its exit `taken` is the function's `ret 0Ch`, with AL 1.
 - `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).
-  It answers `srp_player_menu` and `srp_add_friend` itself; any other call
-  goes on to the game's own dispatch.
+  It answers `srp_player_menu`, `srp_add_friend` and `srp_chat_mute` itself;
+  any other call goes on to the game's own dispatch.
 
 The client's checks are the lobby's: never the account's own name or a
 friend's; five requests at once, then one every 10 s; and the lobby
-connection up, as the lobby's senders check it.
+connection up, as the lobby's senders check it. A chat mute
+(`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
+mode), sent by lobby_client::comment_about_user (0x274470): never the own
+name, one of the three choices that changes the state the lobby's ignore list
+gives (a `<muted>` player's id marked with bit 31), the connection up.
 
 Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
 crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code
 beside the original.
+
+## World check (patch 87, unreleased)
+
+A game parses every world it is sent (0xE8) before its own reader takes it,
+with the parse the match server runs on every upload: the crate
+`../crates/world-frame` (`Frame::parse`, no_std, no alloc), a path
+dependency of `rust/patches` and a member of srp-026g's workspace
+(`../docs/notes/world_frame_check.md`). The frame must walk from the front
+to exactly its end, no mask bit may be at or past the game's 20 slots, and
+no section nor player state may be over the game's buffer for it. Each of
+these would kill the game in `game_state_history_item::deserialize`
+(0x324D80) or `mutable_buffer::reallocate` (0x7AB70), and no world a game
+made fails one.
+
+The Rust `world_check` module has two lohooks:
+- `world_load.unpacked` (0x27C0D0): before the load of an unpacked world
+  (0x27C0D9), the world in the frame's mutable buffer at EBP-24h;
+- `world_load.raw` (0x27C0FF): before the load of a raw world (0x27C111),
+  the world the rest of the packet's reader (ESI).
+
+A refused world is never loaded: the packet's reader is read to its end,
+`close_current_match(2)` leaves the match as the leave button does, a line
+goes to `srp_patches.log`, and the exit `refused` is the handler's epilogue
+(0x27C1E0). Nothing a match computes changes. `check_world_check_026g.py`
+runs both loads beside the original exe; `--drift` the client build against
+the server build on kept worlds.
+
+## Music (patch 88, unreleased)
+
+The main theme on the login screen, the lobby theme in the lobby, and the map's theme from its
+loading screen to 15 s past the match-start announcement, each fading in and out over 2 s, never
+two at once (the owner, 2026-10-28 and 2026-10-31; `../docs/notes/music.md`). Stock 0.26g plays no
+music; the tracks are the content pack `music@1` and each mode's `ui.loading_music`
+(`music-1.json`), as retail's. The Rust `music` module plays them in a sound scene of its own (the
+bus, class 38) that the game never makes current: the sound thread's tick (`sound_world.tick`,
+0x59AB1) keeps it among the active scenes and steps its volume, which the engine's own fade path
+gives its submix with the general volume; the volume is the stock Settings' Music slider's
+(`s_music_volume`, which the game's option names but never registered: patch 88 registers it at
+`configs.start`, a saved cc_float of 0 to 100, and the main menu no longer greys the slider out)
+times the fade. Its events: `game.tick` (the bus asked for, the 15 s,
+a fade done), `login_menu.activated`, `lobby_menu.activated`, `level_loading.ui` (the mode's `ui`
+table), `game_world_ui.welcome` (the announcement), `game.clear_resources` (the unload). Its tracks
+are single sounds loaded by `query_resources` (class 256) with a callback of its own
+(`resources.query_done`, a `callback` site: the generated entry handed to a boost function made
+by 0x176D0, no site rewritten). The presentation only: no simulation change.
+`check_music_026g.py` runs every hook from its site and the callback through the game's invoker,
+and the slider's variable through the game's lookup and setter.
+
