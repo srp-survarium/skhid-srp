@@ -136,6 +136,8 @@ pub use team::ModTuning;
 pub use team::PerchTuning;
 pub use team::Personalities;
 pub use team::Personality;
+pub use team::PinFromCover;
+pub use team::PinRule;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
 pub use team::SniperMemory;

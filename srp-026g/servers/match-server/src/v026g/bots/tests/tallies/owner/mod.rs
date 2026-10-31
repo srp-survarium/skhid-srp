@@ -65,6 +65,7 @@ mod outcomes;
 mod outranged;
 mod pace;
 mod pierce;
+mod pin_cover;
 mod pitch_bands;
 mod pockets;
 mod pre;
@@ -88,6 +89,7 @@ mod threat_answer;
 mod through;
 mod topic;
 mod worth;
+mod zone_deaths;
 
 use campers::*;
 use damage_zones::*;
@@ -108,6 +110,7 @@ use outcomes::*;
 use outranged::*;
 use pace::*;
 use pierce::*;
+use pin_cover::*;
 use pitch_bands::*;
 use pockets::*;
 use pre::*;
@@ -131,6 +134,7 @@ use threat_answer::*;
 use through::*;
 use topic::*;
 use worth::*;
+use zone_deaths::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
