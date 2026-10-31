@@ -1,0 +1,420 @@
+{
+  "error_deg": [
+    6.0,
+    0.9
+  ],
+  "wander_deg": [
+    3.0,
+    0.8
+  ],
+  "wander_s": 0.4,
+  "settled_wander_deg": [
+    1.5,
+    0.0
+  ],
+  "settle_tau_s": [
+    3.0,
+    1.0
+  ],
+  "settle_s": [
+    0.35,
+    0.1
+  ],
+  "notice": [
+    1.5,
+    0.6
+  ],
+  "fire_within_deg": 4.0,
+  "burst_ms": [
+    500,
+    1000
+  ],
+  "pause_ms": [
+    150,
+    700
+  ],
+  "range_m": 80.0,
+  "reaction_ms": [
+    450.0,
+    120.0
+  ],
+  "combat": {
+    "wounded_bonus_m": 20.0,
+    "duel_ms": 3000,
+    "punish_m": 25.0,
+    "punish_heard_m": 12.5,
+    "punish_window_ms": 1500,
+    "punish_ms": 1500,
+    "punish_chance": 0.8,
+    "hit_drop": 0.03,
+    "hide_m": [
+      2.0,
+      10.0
+    ],
+    "hide_wait_ms": [
+      1000,
+      2000
+    ],
+    "hide_give_up_ms": 4000,
+    "peek_m": [
+      2.0,
+      8.0
+    ],
+    "repeek_min_deg": 15.0,
+    "repeek_min_m": 4.0,
+    "peek_ms": 4000,
+    "band_pistol": [
+      0.0,
+      20.0
+    ],
+    "band_smg": [
+      10.0,
+      35.0
+    ],
+    "band_shotgun": [
+      5.0,
+      25.0
+    ],
+    "band_rifle": [
+      15.0,
+      50.0
+    ],
+    "band_sniper": [
+      40.0,
+      95.0
+    ],
+    "keep_from_shotgun_m": 15.0,
+    "close_on_sniper_m": 30.0,
+    "band_slack_m": 3.0,
+    "band_step_m": 6.0,
+    "band_legs": true,
+    "spot_cooldown_ms": 3000,
+    "spot_again_ms": 15000,
+    "spot_within_deg": 8.0,
+    "spot_chance": 1.0,
+    "grenades": 2,
+    "grenade_roll_ms": 4000,
+    "grenade_chance": 0.6,
+    "grenade_m": [
+      12.0,
+      27.0
+    ],
+    "grenade_hold_ms": [
+      500,
+      800
+    ],
+    "grenade_within_deg": 6.0,
+    "grenade_friend_m": 5.0,
+    "grenade_recheck": true,
+    "grenade_lead_s": 2.5,
+    "grenade_trace": true,
+    "grenade_launch_ms": 1100,
+    "grenade_look_after_ms": 300,
+    "grenade_land_m": 10.0,
+    "grenade_wall_m": 10.0,
+    "grenade_off_m": 8.0,
+    "grenade_off_y_m": null,
+    "grenade_lane_m": 2.0,
+    "grenade_places": 3,
+    "grenade_tracks": true,
+    "grenade_track_ms": 4000,
+    "grenade_track_gap_ms": 500,
+    "grenade_track_error_m": 8.0,
+    "grenade_track_chance": 0.45,
+    "grenade_at_held": 1.0,
+    "grenade_held_recheck": true,
+    "grenade_held_reach": true,
+    "grenade_search": true,
+    "grenade_search_off_m": 5.0,
+    "grenade_search_traces": 64,
+    "grenade_claim": true,
+    "grenade_kit_cap": true,
+    "grenade_claim_m": 8.0,
+    "grenade_claim_ms": 6000,
+    "grenade_repick": true,
+    "grenade_push_tracks": false,
+    "grenade_volley": false,
+    "grenade_volley_chance": 0.2,
+    "grenade_volley_ms": [
+      1600,
+      6000
+    ],
+    "grenade_volley_every_ms": 500,
+    "grenade_volley_track": false,
+    "grenade_volley_near_m": 10.0,
+    "grenade_volley_age_ms": 2000,
+    "grenade_near_m": 12.0,
+    "grenade_give_up_ms": 1500,
+    "grenade_push_ms": [
+      1500,
+      3500
+    ],
+    "grenade_push_after_blast": true,
+    "grenade_push_after_ms": 300,
+    "held_speed": 0.3,
+    "held_memory_ms": 5000,
+    "camp_ms": 8000,
+    "camp_m": 3.0,
+    "trade_ms": 3000,
+    "trade_m": 40.0,
+    "reload_idle_ms": 400,
+    "reload_some_share": 0.4,
+    "reload_aim_control": true,
+    "reload_rounds_in_view": 0,
+    "press_ms": 100,
+    "press_gap_ms": 50,
+    "recoil_pull": 1.0,
+    "recoil_pull_low": 0.5,
+    "ads_near_m": 10.0,
+    "ads_near_chance": 0.85,
+    "aim_in_first": true,
+    "aim_in_margin_ms": 50,
+    "hip_cone_share": 0.58,
+    "aim_carry": true,
+    "aim_carry_ms": 1000,
+    "reacquire_keep": false,
+    "range_by_weapon": true,
+    "range_floor_rifle_m": 65.0,
+    "range_floor_smg_m": 58.0,
+    "range_floor_shotgun_m": 49.0,
+    "range_floor_pistol_m": 1000.0,
+    "range_floor_mg_m": 1000.0,
+    "range_floor_marksman_m": 74.0,
+    "range_floor_bolt_m": 105.0,
+    "body_half_m": 0.25,
+    "fire_body_share": 0.0,
+    "fire_within_min_deg": 0.5,
+    "strafe_run_ms": [
+      250,
+      700
+    ],
+    "strafe_still_chance": 0.5,
+    "strafe_still_ms": [
+      150,
+      450
+    ],
+    "strafe_walking": true,
+    "clear_step_sees_lip": false,
+    "clear_step_slides_along": false,
+    "sniper_crouch_chance": 0.25,
+    "fire": {
+      "smg": [
+        {
+          "up_to_m": 20.0,
+          "tap_chance": 0.11,
+          "hold_ms": [
+            400,
+            1150
+          ]
+        },
+        {
+          "up_to_m": 35.0,
+          "tap_chance": 0.2,
+          "hold_ms": [
+            450,
+            1350
+          ]
+        },
+        {
+          "up_to_m": 60.0,
+          "tap_chance": 0.36,
+          "hold_ms": [
+            450,
+            1500
+          ]
+        },
+        {
+          "up_to_m": 3.4028235e38,
+          "tap_chance": 0.65,
+          "hold_ms": [
+            300,
+            900
+          ]
+        }
+      ],
+      "rifle": [
+        {
+          "up_to_m": 20.0,
+          "tap_chance": 0.16,
+          "hold_ms": [
+            400,
+            1200
+          ]
+        },
+        {
+          "up_to_m": 35.0,
+          "tap_chance": 0.19,
+          "hold_ms": [
+            400,
+            1200
+          ]
+        },
+        {
+          "up_to_m": 60.0,
+          "tap_chance": 0.36,
+          "hold_ms": [
+            300,
+            1100
+          ]
+        },
+        {
+          "up_to_m": 3.4028235e38,
+          "tap_chance": 0.61,
+          "hold_ms": [
+            250,
+            650
+          ]
+        }
+      ],
+      "tap_ms": [
+        100,
+        200
+      ],
+      "semi_wait": [
+        {
+          "up_to_m": 20.0,
+          "extra_ms": [
+            0,
+            150
+          ]
+        },
+        {
+          "up_to_m": 35.0,
+          "extra_ms": [
+            30,
+            210
+          ]
+        },
+        {
+          "up_to_m": 60.0,
+          "extra_ms": [
+            110,
+            500
+          ]
+        },
+        {
+          "up_to_m": 3.4028235e38,
+          "extra_ms": [
+            280,
+            1000
+          ]
+        }
+      ],
+      "bolt_reaim_ms": [
+        600,
+        1700
+      ],
+      "bolt_still_ms": 300,
+      "barrels_wait_ms": [
+        50,
+        300
+      ],
+      "bolt_range_m": 120.0,
+      "crouch_auto": 0.16,
+      "crouch_machine_gun": 0.35,
+      "crouch_marksman": 0.3,
+      "crouch_other": 0.15,
+      "strafe_bolt": 0.5,
+      "strafe_marksman": 0.5,
+      "weapon_class_by_data": true
+    },
+    "worth": {
+      "hurt_from": "seen",
+      "objective_actor_m": 0.0,
+      "objective_threat_m": 0.0,
+      "switch_m": 0.0,
+      "objective_in_band": false,
+      "switch_gap_m": null,
+      "credit_ms": 2000,
+      "told_ms": 400,
+      "hurter_keep_ms": 0,
+      "push_m": 0.0,
+      "push_hurt": 0.5,
+      "push_ms": 6000,
+      "push_bots": 2,
+      "flank_glance_m": 0.0,
+      "flank_glance_min_m": 12.0,
+      "flank_glance_min_pause_ms": 250,
+      "flank_glance_again_ms": 2500,
+      "flank_glance_ms": 500
+    },
+    "switch_share": 0.65,
+    "switch_near_m": 25.0,
+    "switch_margin_m": 5.0,
+    "switch_hold_ms": 0,
+    "switch_facing_deg": 0.0,
+    "switch_facing_margin_m": 10.0,
+    "switch_between_thinks": true,
+    "lead_target": true,
+    "lead_flight": false,
+    "lead_drop": false,
+    "mirror_gated": true,
+    "aim_last_known": true,
+    "lead_most_ms": 300,
+    "lead_own": true,
+    "live_eye": true,
+    "turn_feed": true,
+    "zoom_error": "scopes",
+    "settle": "wander_and_policy",
+    "settle_guns": "scoped",
+    "settle_k": 1.0,
+    "settle_max_wait_ms": 5000,
+    "threat_shot_ms": 1000,
+    "threat_heard_m": 25.0,
+    "threat_off_deg": 45.0,
+    "threat_ms": 1000,
+    "threat_again_ms": 1500,
+    "threat_match_m": 6.0,
+    "sound_ms": 1000,
+    "sound_again_ms": 1500,
+    "glance_heard_m": 10.0,
+    "glance_heard_share": 0.5,
+    "glance_close_m": 0.0,
+    "glance_told_m": 0.0,
+    "glance_told_fresh_ms": 3000,
+    "glance_told_every_ms": 4000,
+    "glance_ms": 1000,
+    "hit_bearing": false,
+    "hit_bearing_with_target": false,
+    "hit_bearing_error_deg": 8.0,
+    "hit_shot_ms": 3000,
+    "hit_aim_deg": 8.0,
+    "hit_match_deg": 15.0,
+    "hit_cover": true,
+    "hit_cover_m": 30.0,
+    "hit_cover_reach": true,
+    "fire_through_ms": 750,
+    "fire_through_share": 0.8,
+    "fire_through_gap_ms": 1000,
+    "band_carrier_seen_ms": 500,
+    "hit_look_m": 30.0,
+    "hit_told_m": 40.0,
+    "still_wait_ms": [
+      2000,
+      4000
+    ],
+    "outranged_hide": true,
+    "outranged_cover": false,
+    "outranged_aimed_deg": 180.0,
+    "outranged_again_ms": 6000,
+    "glance_run_yields": false,
+    "band_hold_on_carrier": true
+  },
+  "friends": {
+    "on": true,
+    "body_m": 0.35,
+    "human_m": 0.25,
+    "spread_source": "data",
+    "spread_deg": {
+      "auto": 3.0,
+      "semi": 1.5,
+      "bolt": 0.75,
+      "shotgun": 4.0
+    },
+    "past_target_m": 15.0,
+    "near_m": 0.63,
+    "lead": true,
+    "lead_extra_ms": 0,
+    "touch_m": 2.0
+  }
+}
