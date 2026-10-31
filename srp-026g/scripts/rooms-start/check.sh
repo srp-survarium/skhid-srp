@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: a private room's Start, teams and no max level
+# check.sh <lobby_menu.swf> [work dir]: rooms and player actions
 # (docs/notes/rooms.md) in Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU).
 # RoomsHarness.as makes the lobby movie's own rooms window and tells it room states: Start and the
 # move buttons (» «) for a private room's owner only, never for a member, an open room or a room
@@ -7,7 +7,9 @@
 # max level for a private room (its info line, its list row, the facts beside the list); the create
 # window's sliders hidden once a PIN is typed, Max level too. Then in every language (the dictionaries'
 # texts): the list, a room in each phase and hint, and the create window, no text cut by its field
-# and no two on one line meeting (a "ROOMS OVERLAP" line each).
+# and no two on one line meeting (a "ROOMS OVERLAP" line each). A second run checks the player
+# menu (friend, Mute chat and its choices, message, squad) and the server-pushed friend and ignore
+# lists, on a copy adapted by medical-cards/ruffle_movie.py.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail
@@ -33,7 +35,6 @@ flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/RoomsHarness.swf" "$here/RoomsHarness.as" >"$work/RoomsHarness.mxmlc.log" 2>&1 \
     || { cat "$work/RoomsHarness.mxmlc.log"; exit 1; }
-cp "$lobby" "$work/lobby_menu.swf"
 
 paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
 ruffle=$(grep -- '-ruffle-' <<<"$paths")
@@ -48,19 +49,31 @@ cleanup() { kill $ruffle_pid "$xvfb_pid" 2>/dev/null || true; }
 trap 'cleanup; [[ $# -ge 2 ]] || rm -rf "$work"' EXIT
 sleep 1
 
+for players in 0 1; do
+if [[ $players == 0 ]]; then
+    cp "$lobby" "$work/lobby_menu.swf"
+else
+    # Friends/context-menu symbols use native Scaleform placements that Ruffle
+    # rejects. Adapt only the test copy, retaining the production ActionScript.
+    "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
+fi
+log=$work/RoomsHarness-$players.log
 (
     cd "$work"
     unset WAYLAND_DISPLAY XDG_SESSION_TYPE
     DISPLAY=$display VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
         exec timeout 180 "$ruffle/bin/ruffle" -g vulkan -p low --storage memory --scale no-scale \
-        --width 1280 --height 720 -Pmovie=lobby_menu.swf RoomsHarness.swf
-) >"$work/RoomsHarness.log" 2>&1 &
+        --width 1280 --height 720 -Pmovie=lobby_menu.swf -Pplayers="$players" RoomsHarness.swf
+) >"$log" 2>&1 &
 ruffle_pid=$!
-for _ in $(seq 1800); do grep -q 'ROOMS RESULT' "$work/RoomsHarness.log" && break; sleep 0.1; done
-cleanup
+for _ in $(seq 1800); do grep -q 'ROOMS RESULT' "$log" && break; sleep 0.1; done
+kill "$ruffle_pid" 2>/dev/null || true
+wait "$ruffle_pid" 2>/dev/null || true
+ruffle_pid=
 
-if ! grep -q 'graphics API vulkan on llvmpipe' "$work/RoomsHarness.log"; then
-    echo "Ruffle did not run on lavapipe (CPU): see $work/RoomsHarness.log" >&2
+if ! grep -q 'graphics API vulkan on llvmpipe' "$log"; then
+    echo "Ruffle did not run on lavapipe (CPU): see $log" >&2
 fi
-grep -ho 'ROOMS .*' "$work/RoomsHarness.log" || true
-grep -q 'ROOMS RESULT pass' "$work/RoomsHarness.log"
+grep -ho 'ROOMS .*' "$log" || true
+grep -q 'ROOMS RESULT pass' "$log"
+done

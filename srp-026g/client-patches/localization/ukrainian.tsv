@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Приховати очки гравців
 st_srp_hud_add_friend	Долучити до друзів
 st_srp_hud_friend_not_sent	Заявку в друзі не надіслано
 st_srp_hud_friend_sent	Заявку в друзі надіслано
+st_srp_hud_mute_hide	Приховати чат
+st_srp_hud_mute_mask	Показувати чат як <muted>
+st_srp_hud_mute_not_sent	Не надіслано
+st_srp_hud_muted	Чат приглушено
+st_srp_hud_unmute	Увімкнути чат
+st_srp_hud_unmuted	Чат увімкнено
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Застосується після перезапуску.

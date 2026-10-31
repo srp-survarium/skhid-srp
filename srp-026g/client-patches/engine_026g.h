@@ -23,6 +23,7 @@ struct game_world_ui;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
+struct lobby_client;
 struct match_options;
 struct material_pair;
 struct messaging_client;
@@ -264,5 +265,8 @@ void engine_show_cursor(struct game_world_ui *ui, unsigned int shown);
 
 /* 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12 */
 void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text);
+
+/* 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16 */
+void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode);
 
 #endif
