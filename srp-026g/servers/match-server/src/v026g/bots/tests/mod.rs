@@ -45,7 +45,7 @@ use std::sync::Arc;
 use mapdata::{BatterySpawner, Container, NodeId, Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::body::{Fix, jumped_to, slide, slide_capped};
+use super::body::{self, Fix, jumped_to, slide, slide_capped, slide_supported};
 use super::guns::{Arms, Gun};
 use super::hazards::{Hazard, Hazards};
 use super::kin::{Blend, Kinematics, TICK_S, forward, to_world};

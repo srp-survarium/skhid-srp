@@ -113,6 +113,13 @@ pub(crate) fn stand_in_lift() -> bool {
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LIFT").map_or(true, |v| v != "off"))
 }
 
+/// Whether the stand-in body is held at a ledge's edge as the client's capsule is (`SRP_BENCH_STAND_IN_EDGE`, on unless `off`): it falls
+/// [`body::SUPPORT_M`] past the last floor's centre, not at the lattice's cell boundary.
+pub(crate) fn stand_in_edge() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_EDGE").map_or(true, |v| v != "off"))
+}
+
 /// The floor a body held at a face (on `node`, at `feet`, walking toward `to`) is lifted up: the jump link ahead
 /// ([`jumped_to`]) when its rise is the lift's at most ([`LIFT_MAX_RISE_M`]) and its top deep enough ([`LIFT_TOP_M`]).
 pub(crate) fn lift_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
