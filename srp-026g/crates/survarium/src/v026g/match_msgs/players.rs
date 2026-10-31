@@ -18,7 +18,8 @@
 //! lands on the sections of every snapshot kept (1222 of them).
 //!
 //! Of the state, the head is fixed (PROVEN): which of the player's objects
-//! it is, one u32 for every item of the profile (what is left in store of
+//! it is, client patch 83's pickup record ([`FIELDS_AT`]), one u32 for
+//! every item of the profile (what is left in store of
 //! a stack item, the condition of another), whether the player is alive.
 //! The inventory further on has variable parts that were not all traced
 //! (effects, weapons), so its items are found by their header's three id
@@ -183,19 +184,27 @@ pub struct PlayerState {
     pub effects: u32,
 }
 
+/// Where the native fields start: after the two kit indices, client patch
+/// 83 (`weapon_pickup`, written at base_player::serialize's start 0x2DAF70,
+/// read at 0x2DB4CF) puts the player's pickup record
+/// (`weapon_pickup::Record`: its drop and its borrowed gun).
+pub const FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
+
 impl PlayerState {
     /// The head's length for a profile of `items` items.
     pub fn head_len(items: usize) -> usize {
-        4 * items + 29
+        FIELDS_AT + 4 * items + 27
     }
 
     /// Reads the head of the state of a player whose profile has `items`
-    /// items. `None`: the state is shorter, or a bool is no bool.
+    /// items. `None`: the state is shorter, a bool is no bool, or the
+    /// pickup record is none.
     pub fn read(state: &[u8], items: usize) -> Option<Self> {
         let head = state.get(..Self::head_len(items))?;
+        weapon_pickup::Record::decode(head[2..FIELDS_AT].try_into().ok()?)?;
         let u32_at =
             |at: usize| u32::from_le_bytes([head[at], head[at + 1], head[at + 2], head[at + 3]]);
-        let fixed = 2 + 4 * items;
+        let fixed = FIELDS_AT + 4 * items;
         // The bool writer (0x80FA0) writes 0x00 or 0xFF.
         let flag = |at: usize| match head[at] {
             0 => Some(false),
@@ -205,7 +214,7 @@ impl PlayerState {
         Some(Self {
             current_index: head[0],
             target_index: head[1],
-            items: (0..items).map(|item| u32_at(2 + 4 * item)).collect(),
+            items: (0..items).map(|item| u32_at(FIELDS_AT + 4 * item)).collect(),
             alive: flag(fixed)?,
             has_to_die: flag(fixed + 1)?,
             look_pitch: f32::from_bits(u32_at(fixed + 3)),
@@ -443,10 +452,12 @@ pub fn animation_bytes(tree: &[bool], times: &[u32], floats: &[f32]) -> Vec<u8> 
     out.finish()
 }
 
-/// A player state for tests and tools: the head, `inventory` after it.
+/// A player state for tests and tools: the head (an empty pickup record),
+/// `inventory` after it.
 pub fn state_bytes(head: &PlayerState, inventory: &[u8]) -> Vec<u8> {
     let flag = |set: bool| if set { 0xFF } else { 0 };
     let mut out = vec![head.current_index, head.target_index];
+    out.extend(weapon_pickup::Record::EMPTY.encode());
     for item in &head.items {
         out.extend(item.to_le_bytes());
     }
@@ -636,6 +647,7 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 83's record, empty
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -652,7 +664,11 @@ mod tests {
         // Too short for the profile's items, or a bool that is none.
         assert_eq!(PlayerState::read(&state, 4), None);
         let mut wrong = state.clone();
-        wrong[14] = 1;
+        wrong[FIELDS_AT + 12] = 1;
+        assert_eq!(PlayerState::read(&wrong, 3), None);
+        // A pickup record that does not decode.
+        let mut wrong = state.clone();
+        wrong[2] = 0;
         assert_eq!(PlayerState::read(&wrong, 3), None);
     }
 

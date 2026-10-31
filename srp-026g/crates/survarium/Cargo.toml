@@ -10,6 +10,9 @@ workspace = true
 # Client patch 78 ends each player's state with the carry's snapshot
 # (`v026g::match_msgs::motion`).
 artefact-carry = { path = "../artefact-carry" }
+# Client patch 83 starts each player's state with its pickup record
+# (`v026g::match_msgs::players::FIELDS_AT`).
+weapon-pickup = { path = "../weapon-pickup" }
 binary-config-parser = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }
