@@ -1012,15 +1012,13 @@ fn room_match_starts(world: &mut World, players: &[usize], wait: Duration) -> u3
     tickets[0]
 }
 
-/// The owner's of 2026-10-20 ("people who pressed Play, rather than
-/// entering a room, leave it after the match ends; then next time they'd
-/// have a chance to land at their level; whoever explicitly entered a room
-/// stays in it"): Carol (the movie's Play) and Dave (the game's Play, `2F`)
-/// came by Play, and after the match they see their results and are in no
-/// room, as by Leave (not kicked); Alice made the room and Bob joined it
-/// from the list: both stay.
+/// The owner's of 2026-10-31: after a match every member is in the room
+/// still, however it came in. Carol (the movie's Play) and Dave (the
+/// game's Play, `2F`) came by Play, Alice made the room and Bob joined it
+/// from the list: all four see their results and are its members after
+/// the match, and its next vote makes the next match of the four.
 #[test]
-fn who_came_by_play_leaves_the_room_after_the_match_who_chose_it_stays() {
+fn who_came_by_play_stays_in_the_room_after_the_match_as_who_chose_it() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
@@ -1040,34 +1038,28 @@ fn who_came_by_play_leaves_the_room_after_the_match_who_chose_it_stays() {
     world.ask(dave, request::play(1));
     world.advance(Duration::from_millis(100));
     assert_eq!(header(&state(&mut world, dave))[KEY], key.to_string());
-    let ticket = room_match_starts(&mut world, &[alice, bob, carol, dave], VOTE_AND_WAIT);
+    let players = [alice, bob, carol, dave];
+    let ticket = room_match_starts(&mut world, &players, VOTE_AND_WAIT);
 
     world.end_match(ticket, 0);
     world.advance(Duration::from_secs(1));
-    for index in [carol, dave] {
+    for index in players {
         let decoded = world.take(index);
         assert!(matches!(queue_state(&decoded), Some(ClientState::Lobby)));
         assert_eq!(screens(&decoded).len(), 1, "its results: {decoded:?}");
-        assert_eq!(state(&mut world, index), ["S1;N;0;0;0"]);
-    }
-    for index in [alice, bob] {
         let after = state(&mut world, index);
         assert_eq!(header(&after)[KEY], key.to_string(), "{after:?}");
-        assert_eq!(header(&after)[MEMBERS], "2");
+        assert_eq!(header(&after)[MEMBERS], "4");
     }
-    let room = world.core.rooms.get(key).unwrap();
-    assert_eq!(room.owner, world.ids[alice].0);
-    assert!(room.kicked.is_empty(), "a Leave, not a kick");
-    // Not kicked: Carol may come back.
-    let back = rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
-    assert_eq!(header(&back)[MEMBERS], "3", "{back:?}");
+    let next = room_match_starts(&mut world, &players, NEXT_MATCH);
+    assert_ne!(next, ticket);
 }
 
 /// Carol and Dave pressed Play with no room open: Play made one for Carol
-/// (its maker by Play) and put Dave in it. After its match both leave, and
-/// the room, empty, is gone.
+/// and put Dave in it. After its match both are in it still, the room
+/// with them.
 #[test]
-fn a_room_of_players_who_all_came_by_play_is_gone_after_its_match() {
+fn a_room_play_made_stays_with_its_players_after_its_match() {
     let mut world = World::new();
     let carol = world.connect("Carol");
     let dave = world.connect("Dave");
@@ -1076,140 +1068,12 @@ fn a_room_of_players_who_all_came_by_play_is_gone_after_its_match() {
     let ticket = room_match_starts(&mut world, &[carol, dave], QUICK_START);
     world.end_match(ticket, 0);
     world.advance(Duration::from_secs(1));
-    assert!(world.core.rooms.is_empty());
+    assert_eq!(world.core.rooms.len(), 1);
     for index in [carol, dave] {
-        assert_eq!(state(&mut world, index), ["S1;N;0;0;0"]);
+        let after = state(&mut world, index);
+        assert_eq!(header(&after)[KEY], key, "{after:?}");
+        assert_eq!(header(&after)[MEMBERS], "2");
     }
-    assert_eq!(world.core.store.room_counts().rooms, 0);
-}
-
-/// Who comes by Play while the room's match is played: one that goes into
-/// it late leaves after it (Carol); one that came too late to go in
-/// (Erin) stays and plays the next match, and leaves after that one. Each
-/// leaves after the first match of the room it plays.
-#[test]
-fn one_who_comes_by_play_late_leaves_after_the_first_match_it_plays() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let carol = world.connect("Carol");
-    let erin = world.connect("Erin");
-    let key = create(
-        &mut world,
-        alice,
-        RoomSpec {
-            max_level: 10,
-            ..spec(6)
-        },
-        None,
-    );
-    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
-    // Carol: the match takes her 15 s later.
-    world.host.admitting.locked().insert(ticket);
-    assert_eq!(play_into_room(&mut world, carol), key.to_string());
-    world.take(carol);
-    world.advance(Duration::from_secs(18));
-    assert!(sent_to_match(&world.take(carol)).is_some(), "Carol goes in");
-    // Erin: the match takes nobody more; she waits.
-    assert_eq!(play_into_room(&mut world, erin), key.to_string());
-    world.take(erin);
-    world.advance(Duration::from_secs(18));
-    assert!(sent_to_match(&world.take(erin)).is_none());
-
-    world.end_match(ticket, 0);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(state(&mut world, carol), ["S1;N;0;0;0"]);
-    let after = state(&mut world, erin);
-    assert_eq!(header(&after)[KEY], key.to_string(), "{after:?}");
-    assert_eq!(header(&after)[MEMBERS], "3");
-
-    // Erin plays the next match, then leaves.
-    let next = room_match_starts(&mut world, &[alice, bob, erin], NEXT_MATCH);
-    assert_ne!(next, ticket);
-    world.end_match(next, 0);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(state(&mut world, erin), ["S1;N;0;0;0"]);
-    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "2");
-}
-
-/// One that came by Play and chooses the room (a Join: back after it left,
-/// or from inside it) is a member as one that joined: it stays after the
-/// match.
-#[test]
-fn one_by_play_who_joins_the_room_stays_after_the_match() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let carol = world.connect("Carol");
-    let key = create(
-        &mut world,
-        alice,
-        RoomSpec {
-            max_level: 10,
-            ..spec(6)
-        },
-        None,
-    );
-    assert_eq!(play_into_room(&mut world, bob), key.to_string());
-    assert_eq!(play_into_room(&mut world, carol), key.to_string());
-    // Carol chooses the room she is in.
-    let chosen = rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
-    assert_eq!(header(&chosen)[MEMBERS], "3", "{chosen:?}");
-    let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
-    world.end_match(ticket, 0);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(state(&mut world, bob), ["S1;N;0;0;0"]);
-    assert_eq!(header(&state(&mut world, carol))[MEMBERS], "2");
-    // Bob joins it again from the list: he stays after the next match.
-    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    let next = room_match_starts(&mut world, &[alice, bob, carol], NEXT_MATCH);
-    world.end_match(next, 0);
-    world.advance(Duration::from_secs(1));
-    let after = state(&mut world, bob);
-    assert_eq!(header(&after)[KEY], key.to_string(), "{after:?}");
-    assert_eq!(header(&after)[MEMBERS], "3");
-}
-
-/// The point of it (the owner's of 2026-10-20): Bob, equipped high, came by
-/// Play into the only room, a low one; a room of his level was made while
-/// he played. After the match he is out, and his next Play puts him into
-/// the room of his level, not back into the low one.
-#[test]
-fn one_by_play_lands_by_its_next_play_in_the_room_of_its_level() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let dave = world.connect("Dave");
-    let low = create(
-        &mut world,
-        alice,
-        RoomSpec {
-            max_level: 10,
-            ..spec(6)
-        },
-        None,
-    )
-    .to_string();
-    with_gear(&mut world, bob, 6);
-    assert_eq!(play_into_room(&mut world, bob), low, "the only room");
-    let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
-    with_gear(&mut world, dave, 6);
-    let high = create(
-        &mut world,
-        dave,
-        RoomSpec {
-            max_level: 10,
-            ..spec(6)
-        },
-        None,
-    )
-    .to_string();
-    world.end_match(ticket, 0);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(state(&mut world, bob), ["S1;N;0;0;0"]);
-    assert_eq!(play_into_room(&mut world, bob), high);
-    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "1");
 }
 
 /// A member whose game is gone (closed, killed: its link goes silent)

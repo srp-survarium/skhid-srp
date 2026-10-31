@@ -155,9 +155,6 @@ package survarium.rooms
         private var _chatKey:int = 0;
         // Who waits for the friends' rooms (FriendListRender's menu).
         private var _friendRooms:Function = null;
-        // Our room went while the results were up: the window, drawn as it
-        // was, waits under them and is hidden as they close.
-        private var _hideAfterResults:Boolean = false;
         // A join (or Play) waiting for its kit preset offer (`S1;O`,
         // presets.md): {room, play, at}; and the offer shown, the popup over
         // the view: {kind, preset, level, gear, max, room, play}.
@@ -410,31 +407,21 @@ package survarium.rooms
             syncChatTab();
         }
 
-        // LobbyMenu.onVsRemoved: the results are closing. A window whose room
-        // went under them is hidden now, before the lobby is drawn again (no
-        // frame shows it).
+        // LobbyMenu.onVsRemoved: the results are closing. The top menu's
+        // tab, left as it was under them (`show`), follows the window: Rooms
+        // for a room it opened in meanwhile (let in from a queue).
         public function resultsClosed():void
         {
-            if (!_hideAfterResults)
-                return;
-            _hideAfterResults = false;
-            if (_room == null)
-                show(false);
-            else
-                render();
+            if (topMenu != null)
+                topMenu.selectRoomsTab(_shown);
         }
 
         // LobbyMenu.show_victory_screen: a match is over. The room's chat
         // lines of the match did not reach the lobby (its game was in the
         // match): the tab is put up anew and given the room's last lines.
-        // Where we are is asked at once: a member who came by Play has left
-        // the room with the match's end (the owner's of 2026-10-20), which
-        // the state answered before the match does not say.
         public function matchOver():void
         {
             dropChatTab();
-            _fastUntil = getTimer() + 5000;
-            ask(RoomsWire.STATE, 1);
         }
 
         // Each frame: the chat's "Room Chat" tab, right of the general
@@ -621,7 +608,6 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
-            _hideAfterResults = false;
             if (!value)
             {
                 releaseInputFocus();
@@ -643,8 +629,12 @@ package survarium.rooms
                 _keys = true;
                 stage.addEventListener(KeyboardEvent.KEY_DOWN, listView.onKey, false, 0, false);
             }
-            // The top menu's tab follows: chosen while the window is open.
-            if (topMenu != null)
+            // The top menu's tab follows: chosen while the window is open. Not
+            // under the results: any change of that tab closes them
+            // (LobbyMenu.closeVS), and a window the server opens (let in
+            // from a queue) or hides then is not the player's choice. The
+            // tab follows as they close (resultsClosed).
+            if (topMenu != null && !resultsUp())
                 topMenu.selectRoomsTab(value);
             if (value)
             {
@@ -1005,17 +995,6 @@ package survarium.rooms
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
-                // Out of the room while the results are up (one by Play
-                // leaves with its match's end): the window under them stays as
-                // it is, untouched, and goes as they close (resultsClosed), so
-                // closing them shows the lobby (rooms.md, "After a match").
-                // Hidden now, it would deselect the top menu's Rooms tab, and
-                // the results close on any change of that tab (LobbyMenu.closeVS).
-                if (had && _shown && resultsUp())
-                {
-                    _hideAfterResults = true;
-                    return;
-                }
                 // Only when something shown changed: this answers every poll,
                 // and a view drawn anew under the mouse loses its clicks, its
                 // drag and the PIN being typed.
@@ -1204,7 +1183,7 @@ package survarium.rooms
 
         internal function render():void
         {
-            if (!_shown || _hideAfterResults)
+            if (!_shown)
                 return;
             var focused:TextField = stage != null ? stage.focus as TextField : null;
             var editingPin:Boolean = focused != null && (focused == listView._joinPin || focused == createView._makePin);
