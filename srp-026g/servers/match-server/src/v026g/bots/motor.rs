@@ -1462,6 +1462,8 @@ impl Motor {
         {
             self.sprinting = false;
         }
+        // The releases after the turn rule still win over a sprint it holds: counted when they let it go.
+        let mut held = turns.is_some() && self.sprinting;
         // Crouched where a standing body does not fit (a low passage):
         // no sprint there. Lining up for a jump: neither (a crouched body
         // does not jump).
@@ -1469,8 +1471,16 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        if held && !self.sprinting {
+            sprint_turns::overruled(if low { sprint_turns::Overrule::Low } else { sprint_turns::Overrule::Jump });
+            held = false;
+        }
         // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
         self.sprint_by_the_bar(route, s);
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Bar);
+            held = false;
+        }
         // A planned drop is a link too: timed from the lining up to it.
         if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
             let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
@@ -1498,6 +1508,9 @@ impl Motor {
                 // A descent by walk links only (a ramp, stairs): no fall, the sprint goes on.
                 super::path::DropRecord::Walk | super::path::DropRecord::None => drop_walks::skipped_as_descent(),
             }
+        }
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Drop);
         }
         if let Some(release) = self.release {
             match release.edge {
@@ -2694,8 +2707,8 @@ pub mod landings {
 /// The sprint by the turn ahead ([`Feel::sprint_turns`](super::Feel::sprint_turns), the route tally's `sprint_turns`):
 /// of the walking ticks of the legs it is for, those it sprinted, those of them on a stretch the old rule does not sprint
 /// (under `sprint_from_m` of straight way ahead, the old rule's start; under `sprint_until_m`, its release before a
-/// corner); the sprints it let go of by why ([`End`]); and the ticks it took none up for want of room before a sharp
-/// turn or before the route's end.
+/// corner); the sprints it let go of by why ([`End`]); the ticks it took none up for want of room before a sharp
+/// turn or before the route's end; and the sprints it held that a later release let go of the same tick ([`Overrule`]).
 pub mod sprint_turns {
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2714,10 +2727,27 @@ pub mod sprint_turns {
         Facing = 7,
     }
 
-    static COUNTS: [AtomicU64; 10] = [const { AtomicU64::new(0) }; 10];
+    /// A release after the rule that let go of a sprint the rule held, the same tick (they must still win).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Overrule {
+        /// A low passage ahead (crouched).
+        Low = 10,
+        /// Lining up for a jump of the route.
+        Jump = 11,
+        /// The reckoned bar ([`super::Motor`]'s reserve or a jump the bar is short for).
+        Bar = 12,
+        /// A planned drop unsafe at a sprint (`Feel::drop_walk`).
+        Drop = 13,
+    }
+
+    static COUNTS: [AtomicU64; 14] = [const { AtomicU64::new(0) }; 14];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn overruled(by: Overrule) {
+        add(by as usize);
     }
 
     /// A walking tick under the rule, with the sprint held or not, `straight` metres of the old rule's straight way ahead.
@@ -2744,8 +2774,9 @@ pub mod sprint_turns {
     }
 
     /// Walking ticks, sprinting, sprinting under the old start, sprinting under the old release; let go of standing, at a
-    /// sharp turn, before the end, off the way; no room before a sharp turn, before the end.
-    pub fn counts() -> [u64; 10] {
+    /// sharp turn, before the end, off the way; no room before a sharp turn, before the end; held by the rule and let go of
+    /// the same tick for a low passage, a jump, the bar, a planned drop ([`Overrule`]).
+    pub fn counts() -> [u64; 14] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

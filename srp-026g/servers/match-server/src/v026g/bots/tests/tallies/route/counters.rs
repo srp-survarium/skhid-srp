@@ -772,7 +772,8 @@ pub(super) fn route_ends() -> Box<dyn RouteTopic> {
 /// The sprint by the turn ahead (`motor::sprint_turns`, `feel.sprint_turns`): the walking ticks of the legs it is for and
 /// those sprinted; of them, under the old rule's start (10 m of straight way) and within its release before a corner;
 /// the sprints let go of standing, before a sharp turn or a jump, before the route's end, with the view off the way; the
-/// ticks with no room for one before a sharp turn and before the end. Only a team with the switch on counts.
+/// ticks with no room for one before a sharp turn and before the end; and the ticks a later release still let go of a sprint
+/// the rule held (a low passage, lining up for a jump, the bar, a planned drop). Only a team with the switch on counts.
 pub(super) fn sprint_turns() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::sprint_turns::counts().to_vec(),
@@ -780,8 +781,9 @@ pub(super) fn sprint_turns() -> Box<dyn RouteTopic> {
             line.ends.push(format!(
                 "sprint_turns_walking {} sprint_turns_sprinting {} sprint_turns_short_leg {} sprint_turns_past_corner {} \
                  sprint_turns_ended_standing {} sprint_turns_ended_sharp {} sprint_turns_ended_route_end {} sprint_turns_ended_facing {} \
-                 sprint_turns_no_room_sharp {} sprint_turns_no_room_end {}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]
+                 sprint_turns_no_room_sharp {} sprint_turns_no_room_end {} \
+                 sprint_turns_overruled_low {} sprint_turns_overruled_jump {} sprint_turns_overruled_bar {} sprint_turns_overruled_drop {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]
             ));
         },
     )
