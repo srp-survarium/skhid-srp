@@ -42,7 +42,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   srp the pick (`request_players_range(2 095 000 000 + id, 1)`, srp's `3B` at a reserved start,
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown)`), at its first frame and at each change.
-  The pictures are the lobbies' stock views without anyone in them (camp @11, bunker @6,
+  The pictures are the lobbies' stock views without anyone in them (camp @12, bunker @6,
   hangar @8, the classic): 560 x 380, twice the card, JPEG at q90 as the game's map renders are
   (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 255 KB the four), cut from 2560 x 1440 captures of the
   diagnostics sweep's `empty`.
