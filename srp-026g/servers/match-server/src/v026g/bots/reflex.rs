@@ -1016,6 +1016,15 @@ pub struct WaitRow {
     pub extra_ms: (u32, u32),
 }
 
+/// A row of the best players' pause between two bursts at the same target (register C2): from `from_m` on, the quartiles of the
+/// pause, ms (`q1`, median, `q3`; `player_bots_weapons.md` and `fact-fire-human-rule.md` ง1, rifle and SMG in the owner's bands).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PauseRow {
+    pub from_m: f32,
+    pub q: [u32; 3],
+}
+
 /// How the bots fire each kind of weapon ([`super::guns::Handling`], read
 /// from the weapon's config), from the best players of the 631 recorded
 /// matches of 6+ players of 2026-10-16..22 (`player_bots_weapons.md` ยง3,
@@ -1034,6 +1043,14 @@ pub struct FireTuning {
     /// %), then a third taps at 35-60 m and most beyond 60 m (36 %, 61 %;
     /// median 500 and 150 ms).
     pub rifle: Vec<BurstRow>,
+    /// The pause after a burst is drawn from the best players' quartiles for the target's distance (inverse CDF through the floor,
+    /// `q1`, the median, `q3` and the top) instead of `aim.pause_ms`'s flat draw, at the distances the rows cover (the bots' far
+    /// pause: median 450-500 ms from the shot, the best players' 200 ms from the end of the trigger; C2). OFF: the flat draw.
+    pub burst_pause: bool,
+    pub pause_floor_ms: u32,
+    pub pause_top_ms: u32,
+    pub pause_smg: Vec<PauseRow>,
+    pub pause_rifle: Vec<PauseRow>,
     /// A tap's hold, ms.
     pub tap_ms: (u32, u32),
     /// A one-round weapon without a bolt (marksman rifles, pistols,
@@ -1099,6 +1116,12 @@ impl Default for FireTuning {
                 burst(60.0, 0.36, (300, 1_100)),
                 burst(f32::MAX, 0.61, (250, 650)),
             ],
+            burst_pause: false,
+            pause_floor_ms: 100,
+            pause_top_ms: 700,
+            // 20-40 m is the best players' 15-30 m row, 40+ their 30+ m row (their bands end at 5 / 15 / 30 m).
+            pause_smg: vec![PauseRow { from_m: 20.0, q: [100, 250, 500] }, PauseRow { from_m: 40.0, q: [100, 200, 450] }],
+            pause_rifle: vec![PauseRow { from_m: 20.0, q: [100, 200, 462] }, PauseRow { from_m: 40.0, q: [100, 200, 350] }],
             tap_ms: (100, 200),
             semi_wait: vec![
                 wait(20.0, (0, 150)),
@@ -1173,6 +1196,31 @@ impl FireTuning {
             Some(row) => draw(row.hold_ms, rng),
             None => draw(fallback, rng),
         }
+    }
+
+    /// The pause after an automatic weapon's burst at `distance` metres, ms, from the best players' quartiles (`burst_pause`), or none
+    /// (off, or a distance no row covers: the flat `aim.pause_ms`). Inverse CDF, linear between the floor (0), `q1` (.25), the median
+    /// (.5), `q3` (.75) and the top (1).
+    pub fn pause_ms(&self, class: AutoClass, distance: f32, rng: &mut Rng) -> Option<u32> {
+        if !self.burst_pause {
+            return None;
+        }
+        let rows = match class {
+            AutoClass::Smg => &self.pause_smg,
+            AutoClass::Rifle => &self.pause_rifle,
+        };
+        let row = rows.iter().rev().find(|row| distance >= row.from_m)?;
+        let at = [
+            (0.0, self.pause_floor_ms as f32),
+            (0.25, row.q[0] as f32),
+            (0.5, row.q[1] as f32),
+            (0.75, row.q[2] as f32),
+            (1.0, self.pause_top_ms as f32),
+        ];
+        let u = rng.unit();
+        let hi = at.iter().position(|&(p, _)| u < p).unwrap_or(at.len() - 1).max(1);
+        let ((p0, v0), (p1, v1)) = (at[hi - 1], at[hi]);
+        Some((v0 + (v1 - v0) * (u - p0) / (p1 - p0)).max(self.pause_floor_ms as f32) as u32)
     }
 
     /// A one-round weapon's wait after its cycle before the next press at
@@ -6442,7 +6490,11 @@ impl Reflex {
                 let class = c.fire.auto_class(gun, class);
                 let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
                 self.burst_until = now + hold;
-                self.pause_until = self.burst_until + rng.range(aim.pause_ms.0 as f32, aim.pause_ms.1 as f32) as u32;
+                let pause = c
+                    .fire
+                    .pause_ms(class, distance, rng)
+                    .unwrap_or_else(|| rng.range(aim.pause_ms.0 as f32, aim.pause_ms.1 as f32) as u32);
+                self.pause_until = self.burst_until + pause;
                 true
             }
             Handling::Burst(_) => false,
@@ -6762,6 +6814,35 @@ fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// The best players' pause: off or under 20 m it is the flat draw's business; on, far, it is drawn through the quartiles.
+    #[test]
+    fn the_pause_is_drawn_from_the_best_players_quartiles_far_and_only_when_on() {
+        let mut fire = FireTuning::default();
+        let mut rng = Rng::new(7);
+        assert_eq!(fire.pause_ms(AutoClass::Rifle, 45.0, &mut rng), None, "off");
+        fire.burst_pause = true;
+        assert_eq!(fire.pause_ms(AutoClass::Rifle, 12.0, &mut rng), None, "near: the flat draw");
+        for class in [AutoClass::Rifle, AutoClass::Smg] {
+            for distance in [25.0, 60.0] {
+                let mut draws: Vec<u32> = (0..4_000).map(|_| fire.pause_ms(class, distance, &mut rng).expect("far")).collect();
+                draws.sort_unstable();
+                let q = |p: f32| draws[(p * draws.len() as f32) as usize];
+                let row = match class {
+                    AutoClass::Rifle => &fire.pause_rifle,
+                    AutoClass::Smg => &fire.pause_smg,
+                }
+                .iter()
+                .rev()
+                .find(|row| distance >= row.from_m)
+                .unwrap();
+                assert!(draws[0] >= fire.pause_floor_ms && *draws.last().unwrap() <= fire.pause_top_ms, "inside the floor and the top");
+                for (p, want) in [(0.25, row.q[0]), (0.5, row.q[1]), (0.75, row.q[2])] {
+                    assert!(q(p).abs_diff(want) <= 25, "{class:?} at {distance} m: the {p} quantile {} against {want}", q(p));
+                }
+            }
+        }
+    }
 
     /// The gait stands and strafes while the fight is on and for the hold after it, then the route again.
     #[test]
