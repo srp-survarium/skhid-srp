@@ -63,6 +63,8 @@ pub(crate) struct Seg {
 struct Wall {
     v: [Vec3; 3],
     y: (f32, f32),
+    /// What the face belongs to (the measurements name the faces: [`Sections::tagged`]); 0 for none.
+    tag: u32,
 }
 
 /// The walker mesh's walls, by bucket.
@@ -74,9 +76,14 @@ pub(crate) struct Sections {
 impl Sections {
     /// The walls of `triangles`: not ground for a body whose ground is `min_ground_normal_y` and up.
     pub(crate) fn new(triangles: &[Triangle], min_ground_normal_y: f32) -> Self {
+        Self::tagged(triangles.iter().map(|&t| (t, 0)), min_ground_normal_y)
+    }
+
+    /// [`Self::new`] for faces that carry a tag (of the object they belong to), which [`Self::near_tagged`] gives back.
+    pub(crate) fn tagged(triangles: impl IntoIterator<Item = (Triangle, u32)>, min_ground_normal_y: f32) -> Self {
         let mut walls = Vec::new();
         let mut buckets: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
-        for t in triangles {
+        for (t, tag) in triangles {
             let (e1, e2) = (sub(t.v[1], t.v[0]), sub(t.v[2], t.v[0]));
             let n = [e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x];
             let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
@@ -95,7 +102,7 @@ impl Sections {
             }
             let y = (t.v[0].y.min(t.v[1].y).min(t.v[2].y), t.v[0].y.max(t.v[1].y).max(t.v[2].y));
             let id = walls.len() as u32;
-            walls.push(Wall { v: t.v, y });
+            walls.push(Wall { v: t.v, y, tag });
             let (x0, x1) = (t.v[0].x.min(t.v[1].x).min(t.v[2].x), t.v[0].x.max(t.v[1].x).max(t.v[2].x));
             let (z0, z1) = (t.v[0].z.min(t.v[1].z).min(t.v[2].z), t.v[0].z.max(t.v[1].z).max(t.v[2].z));
             for bx in bucket(x0)..=bucket(x1) {
@@ -110,6 +117,16 @@ impl Sections {
     /// The cross-sections within `reach` m of `at` of the walls a body standing on `y` meets.
     pub(crate) fn near(&self, at: (f32, f32), y: f32, reach: f32, out: &mut Vec<Seg>) {
         out.clear();
+        self.gather(at, y, reach, |seg, _| out.push(seg));
+    }
+
+    /// [`Self::near`] with the tag of each face.
+    pub(crate) fn near_tagged(&self, at: (f32, f32), y: f32, reach: f32, out: &mut Vec<(Seg, u32)>) {
+        out.clear();
+        self.gather(at, y, reach, |seg, tag| out.push((seg, tag)));
+    }
+
+    fn gather(&self, at: (f32, f32), y: f32, reach: f32, mut each: impl FnMut(Seg, u32)) {
         let mut seen: Vec<u32> = Vec::new();
         for bx in bucket(at.0 - reach)..=bucket(at.0 + reach) {
             for bz in bucket(at.1 - reach)..=bucket(at.1 + reach) {
@@ -130,7 +147,7 @@ impl Sections {
                 if let Some(seg) = cut(&w.v, plane)
                     && seg_distance(&seg, at) <= reach
                 {
-                    out.push(seg);
+                    each(seg, w.tag);
                 }
             }
         }
