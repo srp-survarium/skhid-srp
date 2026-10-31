@@ -2460,6 +2460,7 @@ st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
 st_srp_pvb_busy	%1$s (zauzeto)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.
 st_srp_rooms_code_13	Komplet nije bio spreman (nema oružja ili dovoljno municije): uklonjen si iz sobe.
 st_srp_rooms_code_14	Nije moguće izabrati komplet.
 st_srp_rooms_code_16	Pritisni Igraj da uđeš u javnu sobu.
+st_srp_rooms_code_17	Sobu bira vođa odreda.
 st_srp_rooms_code_2	Ta soba više ne postoji.
 st_srp_rooms_code_3	Pogrešan PIN.
 st_srp_rooms_code_4	Ta soba je puna.
@@ -2604,6 +2606,7 @@ st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+st_srp_scope_slot	Optika
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s

@@ -86,6 +86,7 @@ global engine_scene_params_type
 global engine_add_active_scene
 global engine_store_first_resource
 global engine_comment_about_user
+global engine_close_current_match
 global engine_cc_float
 global engine_query_one
 global engine_release_emitter
@@ -111,6 +112,7 @@ engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: l
 engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
 engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

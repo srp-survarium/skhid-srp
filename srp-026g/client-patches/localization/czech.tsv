@@ -2460,6 +2460,7 @@ st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	V četě
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu
 st_srp_pvb_busy	%1$s (obsazeno)
@@ -2517,6 +2518,7 @@ st_srp_rooms_code_12	Vybavení přesahuje maximální úroveň.
 st_srp_rooms_code_13	Výbava nebyla připravená (chyběla zbraň nebo munice), proto jsi byl odebrán z místnosti.
 st_srp_rooms_code_14	Výbavu se nepodařilo vybrat.
 st_srp_rooms_code_16	Do veřejné místnosti vstoupíš tlačítkem Hrát.
+st_srp_rooms_code_17	Místnost vybírá velitel čety.
 st_srp_rooms_code_2	Tato místnost už neexistuje.
 st_srp_rooms_code_3	Nesprávný PIN.
 st_srp_rooms_code_4	Tato místnost je plná.
@@ -2604,6 +2606,7 @@ st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+st_srp_scope_slot	Optika
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s

@@ -23,6 +23,7 @@ given), LIKELY or GUESS.
 | [lobby.md](lobby.md) | Lobby transport, every server→client message, **crash hazards and the safe push order** (§3) |
 | [lobby_requests.md](lobby_requests.md) | Every client→server lobby request and the reply it expects |
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
+| [squads.md](squads.md) | Squads of two (the owner, 2026-10-31): Play and Join take the mate along into one room and team, or the queue together; invites stop at two; the "ready" the game's Play gating reads; each pair marked in the rooms' lists |
 | [premium.md](premium.md) | Premium time, the shop's offers and bundles, items for gold, the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
@@ -32,6 +33,7 @@ given), LIKELY or GUESS.
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
+| [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
@@ -177,8 +179,6 @@ Every setting has a default; none is needed on a dev PC.
   point of Research's too):
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
-  `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
-  (`social.md` §9.4).
 - `SRP_EXPERIENCE_RATE` (default 2), `SRP_MONEY_RATE` (percent; unset:
   150 to 220 by the match's level), `SRP_REPUTATION_RATE` (percent,
   default 120): the rewards (`results.md` §10, §13; how long progression

@@ -181,6 +181,8 @@ unsafe extern "thiscall" {
     pub fn engine_play_voice(proxy: *mut c_void, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
     pub fn engine_free_voice(proxy: *mut c_void);
+    /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+    pub fn engine_close_current_match(client: *mut c_void, reason: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
