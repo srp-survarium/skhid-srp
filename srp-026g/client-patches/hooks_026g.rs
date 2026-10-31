@@ -1223,7 +1223,7 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
 
 // ---- weapon_kit (patch 68) ----
 
-/// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else) calls this with the saved machine.
+/// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_weapon_kit_on_query(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `weapon_kit_on_query` calls this, from the game's jump at 0x2f1776,

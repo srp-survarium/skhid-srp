@@ -29,8 +29,9 @@
 //! A record is a kit only in record slot 3 with [`KIT_MAGIC`] on top; any
 //! other is a plain record. A kit value that names its own slot, or an own
 //! slot outside 2..=5, is [`Malformed`], as is a set of records that puts two
-//! things in one slot or names one dict id twice (the client's config would
-//! hit its duplicate-name assert). The client refuses a malformed kit by
+//! things in one slot or names a dict id another record holds (the client's
+//! config would hit its duplicate-name assert; two records of one dict id,
+//! the same decal twice, are the stock game's). The client refuses a malformed kit by
 //! building the item from its records as they are (the stock way).
 //!
 //! `no_std`, no `alloc`, no `unsafe`, and no read can panic: a panic in the
@@ -181,7 +182,8 @@ pub enum Malformed {
     TwoKits,
     /// Two things in one logical slot.
     SlotTwice(Slot),
-    /// One dict id twice (the config's duplicate modification).
+    /// A kit names a dict id another record holds (the config's duplicate
+    /// modification).
     DictTwice(u32),
     /// A plain record's slot is no weapon slot.
     NoSlot(u8),
@@ -419,7 +421,15 @@ impl Logical {
             if logical.get(slot).is_some() {
                 return Err(Malformed::SlotTwice(slot));
             }
-            if logical.iter().any(|(_, other)| other.dict() == held.dict()) {
+            // A name beside a record of its dict id: the config would get
+            // that modification twice (two `camouflage`s, its duplicate-name
+            // assert). Two records of one dict id (the same decal twice) are
+            // the stock game's, as on armour.
+            let named = |held: &Held| matches!(held, Held::Named(_));
+            if logical
+                .iter()
+                .any(|(_, other)| other.dict() == held.dict() && (named(&held) || named(&other)))
+            {
                 return Err(Malformed::DictTwice(held.dict()));
             }
             logical.set(slot, Some(held));

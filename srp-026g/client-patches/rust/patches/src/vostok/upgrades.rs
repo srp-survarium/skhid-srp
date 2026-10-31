@@ -107,13 +107,20 @@ pub struct CookQuery<'t> {
 const ROOM: usize = weapon_kit::EXPANDED;
 
 impl<'t> CookQuery<'t> {
+    /// None also when 0x2F2060 did not copy the query (AL 0): the frame's
+    /// [ebp+40h] is not the item's then.
     pub fn at_records(ctx: &'t Context<'_>) -> Option<CookQuery<'t>> {
         use raw::site::weapon_kit_query_records as site;
-        // SAFETY: the context is this site's: translate_query's frame (EBP),
-        // and ESP patch 68's room, which weapon_kit.query_room took on the
-        // cook's stack just before; both alive while the cook runs on this
-        // thread.
-        let (room, frame) = unsafe { (site::room(ctx)?, site::frame(ctx)?) };
+        // SAFETY: the context is this site's: AL 0x2F2060's answer,
+        // translate_query's frame (EBP), and ESP patch 68's room, which
+        // weapon_kit.query_room took on the cook's stack just before; both
+        // alive while the cook runs on this thread.
+        let (room, frame) = unsafe {
+            if site::copied(ctx) & 0xFF == 0 {
+                return None;
+            }
+            (site::room(ctx)?, site::frame(ctx)?)
+        };
         Some(CookQuery { room, frame, _thread: ctx.thread() })
     }
 

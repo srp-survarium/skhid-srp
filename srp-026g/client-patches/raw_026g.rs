@@ -7390,7 +7390,7 @@ pub mod site {
         }
     }
 
-    /// weapon_kit.query_records (0x2f1776): translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else
+    /// weapon_kit.query_records (0x2f1776): translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)
     pub mod weapon_kit_query_records {
         #[allow(unused_imports)]
         use super::*;
@@ -7411,6 +7411,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<TranslateQueryFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(TranslateQueryFrame)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn copied(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 

@@ -160,6 +160,15 @@ fn a_malformed_kit_is_refused() {
             std::vec![record(1600, 609, 0, 0), kit(3 << 48 | 609)],
             Malformed::DictTwice(609),
         ),
+        // the same decal twice is no kit's concern: taken
+        (
+            std::vec![
+                record(1600, 600, 1, 0),
+                record(1601, 600, 2, 1),
+                record(1602, 602, 1 << 60, 7)
+            ],
+            Malformed::NoSlot(7),
+        ),
         // a record of no weapon slot; more than three
         (std::vec![record(1607, 607, 0, 7)], Malformed::NoSlot(7)),
         (
@@ -298,4 +307,17 @@ fn put_and_take_off_as_the_server() {
     // a name comes off by its dict id
     received.take_off(1612, 612);
     assert_eq!(received.pack().as_slice(), [record(1600, 600, 0x55, 1)]);
+}
+
+#[test]
+fn the_same_decal_twice_is_a_weapons() {
+    let records = [
+        record(1600, 600, 1, 0),
+        record(1601, 600, 2, 1),
+        record(1603, 603, MAGIC | 3 << 48 | 602, 3),
+    ];
+    let logical = Logical::unpack(&records).unwrap();
+    assert_eq!(logical.pack().as_slice(), records);
+    let expanded = expand(&records, |_| true).unwrap().unwrap();
+    assert_eq!(expanded.as_slice().len(), 4);
 }

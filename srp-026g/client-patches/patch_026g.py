@@ -539,6 +539,17 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- a weapon's upgrades in at most three upgrade records, the weapon kit
+  (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
+  weapon_kit over the crate srp-026g/crates/weapon-kit (weapon_kit.toml).
+  translate_query's call of 0x2F2060 (0x2F1771) goes to the code hook
+  weapon_kit_026g.asm, which makes it and takes room below the cook's frame;
+  at 0x2F1776 a weapon whose records hold a kit is cooked from the records
+  and one for each dict id the kit names, in that room; the lobby's upgrades
+  to Flash (0x2882E3) give a kit's object kit_own, kit_camo, kit_muzzle and
+  kit_grip; setup_inventory_data (0x2885CE) marks the items a kit names as
+  attached; patch 48's apply calls weapon_kit_preview_apply through its
+  dword +23h, which the build writes. Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -3754,6 +3765,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
+                     "a weapon's upgrades (two decals, camouflage, scope) in at most three records (the weapon kit), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
