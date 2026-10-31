@@ -73,7 +73,7 @@ pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
-pub use keyboard::TabTest;
+pub use keyboard::{Dik, GameWorldKeys, TabTest};
 pub use options::OptionsRead;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
