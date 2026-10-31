@@ -18,8 +18,8 @@ package scaleform.clik.managers
       
       protected static var _defaultPopupCanvas:MovieClip;
 
-      // Where the popup canvas goes, kept on top of: the lobby's layers (LobbyMenu._layers, set
-      // before any popup), else the stage.
+      // Where the popup canvas goes, kept on top of: the lobby's transient layer
+      // (LobbyMenu._transients, set before any popup), else the stage.
       public static var layer:DisplayObjectContainer;
 
       protected static function get host() : DisplayObjectContainer

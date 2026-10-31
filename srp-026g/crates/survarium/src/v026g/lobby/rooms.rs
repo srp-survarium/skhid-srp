@@ -424,6 +424,10 @@ pub enum RoomCode {
     KitCantPlay = 15,
     /// Public rooms are created by Play as demand grows, never by a client.
     PublicCreate = 16,
+    /// A squad member that is not its commander goes into no room on its
+    /// own: its commander's Play, Join or Queue takes it (the owner's of
+    /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
+    SquadLeader = 17,
 }
 
 /// A room in [`room_list`].
@@ -485,7 +489,26 @@ pub struct Member {
     /// Its game is gone for now (its link silent): it keeps its place for
     /// about 90 s, shown grey (the owner's of 2026-10-18).
     pub away: bool,
+    /// Its squad's mark in this room: the pairs whose two members are both
+    /// in it numbered 1, 2, ... in the list's order ([`SQUAD_MARKS`] at
+    /// most); `None` for one in no pair there (the owner's of 2026-10-31:
+    /// squads seen in the room). The wire says none as 0.
+    pub squad: Option<u8>,
     pub name: String,
+}
+
+/// The most squad marks a room shows: a room's 20 members are 10 pairs.
+pub const SQUAD_MARKS: u8 = (MEMBERS_MAX / 2) as u8;
+
+/// A squad mark as one character of the state's `S` row: `0` none, then
+/// `1`..`9`, `a` (base 36).
+fn squad_mark(squad: Option<u8>) -> char {
+    char::from_digit(u32::from(squad_number(squad)), 36).unwrap_or('0')
+}
+
+/// A squad mark as the wire's number: 0 none.
+fn squad_number(squad: Option<u8>) -> u8 {
+    squad.map_or(0, |mark| mark.clamp(1, SQUAD_MARKS))
 }
 
 /// A member's kit as its room's next match would take it. One that is not
@@ -707,7 +730,10 @@ pub fn room_list(
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
 ///   in the list's order, its team as the owner arranged it (0, 1;
-///   [`RoomView::teams`]), a row `W;<key>;<max level>;<players>;<size>;<name>` when
+///   [`RoomView::teams`]), a row `S;<marks>` when two members of one squad are
+///   in it, a character a member in the list's order, its squad's mark
+///   ([`Member::squad`]: `0` none, `1`..`9`, `a`), a row
+///   `W;<key>;<max level>;<players>;<size>;<name>` when
 ///   a room of a lower max level would take the asker now ([`RoomSwitch`]),
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
@@ -773,6 +799,14 @@ pub fn room_state(
             .collect();
         names.push(format!("A;{sides}"));
     }
+    if room.members.iter().any(|member| member.squad.is_some()) {
+        let marks: String = room
+            .members
+            .iter()
+            .map(|member| squad_mark(member.squad))
+            .collect();
+        names.push(format!("S;{marks}"));
+    }
     if let Some(secs) = room.join_in {
         names.push(format!("J;{secs}"));
     } else if let Some(why) = room.join_hold {
@@ -809,9 +843,10 @@ pub struct ListMember {
 /// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
 /// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
 /// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
-/// <in match>;<fit>;<away>;<side>;<account>` (the state's fields; `side` 1
-/// or 2, the team of its place in the room's match being played, 0 when it
-/// has none), and its whole name alone (up to the 63 bytes a row holds, `;`
+/// <in match>;<fit>;<away>;<side>;<account>;<squad>` (the state's fields;
+/// `side` 1 or 2, the team of its place in the room's match being played, 0
+/// when it has none; `squad` its squad's mark, [`Member::squad`], 0 none),
+/// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
 pub fn room_members(key: u32, members: &[ListMember]) -> Result<ServerMessage, WireError> {
@@ -824,7 +859,7 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
     for (index, seen) in members.iter().enumerate() {
         let member = &seen.member;
         names.push(format!(
-            "P;{index};{};{};{};{};{};{};{};{}",
+            "P;{index};{};{};{};{};{};{};{};{};{}",
             member.gear,
             u8::from(member.owner),
             u8::from(member.me),
@@ -832,7 +867,8 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
             member.fit as u8,
             u8::from(member.away),
             seen.side.map_or(0, |team| team.min(1) + 1),
-            seen.account_id
+            seen.account_id,
+            squad_number(member.squad)
         ));
         names.push(member.name.clone());
     }
@@ -960,30 +996,57 @@ pub enum OfferKind {
     Unfit = 3,
 }
 
+/// What the room of an offer is to the request ([`RoomOffer::about`]).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OfferRoom {
+    /// The room the join goes into (for Play, the one it takes): "Enter
+    /// anyway" or "Exit" beside "Switch and enter".
+    Entered = 0,
+    /// Play would queue in its own bracket; the room is of the other one,
+    /// with a place for the preset offered (the owner's of 2026-10-30):
+    /// "Queue" (Play as it is) beside "Switch and enter".
+    InsteadOfQueue = 1,
+}
+
+/// What [`room_offer`] says of a join (or Play).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomOffer {
+    /// The room (for Play, the one it would take, or the other bracket's
+    /// offered instead of its queue); 0: none.
+    pub key: u32,
+    pub kind: OfferKind,
+    /// 1 to [`PRESET_COUNT`] and its gear level; 0 and 0 for none.
+    pub preset: u8,
+    pub level: u8,
+    /// The asker's gear now.
+    pub gear: u8,
+    /// The room's max level.
+    pub max_level: u8,
+    pub about: OfferRoom,
+}
+
 /// The answer to `3B 00 <ROOM_OFFER_BASE + asked>`, one row at that start:
-/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>`: `key` the room
-/// (for Play, the one it would take; 0: none), `kind` an [`OfferKind`],
-/// `preset` 1 to [`PRESET_COUNT`] and its gear `level` (0 and 0 for none),
-/// the asker's `gear` now and the room's `max level`.
-pub fn room_offer(
-    asked: u32,
-    key: u32,
-    kind: OfferKind,
-    preset: u8,
-    level: u8,
-    gear: u8,
-    max_level: u8,
-) -> Result<ServerMessage, WireError> {
+/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>;<about>` (the
+/// fields of [`RoomOffer`]; `about` since 2026-10-30, a movie before it
+/// reads only the first eight).
+pub fn room_offer(asked: u32, offer: &RoomOffer) -> Result<ServerMessage, WireError> {
     rows_at(
         ROOM_OFFER_BASE + asked.min(ROOM_KEY_MAX),
-        vec![offer_name(key, kind, preset, level, gear, max_level)],
+        vec![offer_name(offer)],
     )
 }
 
-fn offer_name(key: u32, kind: OfferKind, preset: u8, level: u8, gear: u8, max_level: u8) -> String {
+fn offer_name(offer: &RoomOffer) -> String {
     format!(
-        "{ROOMS_VERSION};O;{key};{};{preset};{level};{gear};{max_level}",
-        kind as u8
+        "{ROOMS_VERSION};O;{};{};{};{};{};{};{}",
+        offer.key,
+        offer.kind as u8,
+        offer.preset,
+        offer.level,
+        offer.gear,
+        offer.max_level,
+        offer.about as u8
     )
 }
 
@@ -1172,6 +1235,7 @@ mod tests {
             in_match: true,
             fit: Fit::Gear,
             away: true,
+            squad: Some(2),
             name: "a;b".into(),
         };
         let other = Member {
@@ -1179,6 +1243,7 @@ mod tests {
             in_match: false,
             fit: Fit::Yes,
             away: false,
+            squad: None,
             name: "Bob".into(),
             ..member.clone()
         };
@@ -1198,11 +1263,11 @@ mod tests {
             ),
             [
                 "S1;G;42;3",
-                "P;0;7;1;0;1;2;1;2;5",
+                "P;0;7;1;0;1;2;1;2;5;2",
                 "a;b",
-                "P;1;7;0;0;0;0;0;0;6",
+                "P;1;7;0;0;0;0;0;0;6;0",
                 "Bob",
-                "P;2;7;0;0;0;0;0;1;7",
+                "P;2;7;0;0;0;0;0;1;7;0",
                 "Bob"
             ]
         );
@@ -1228,6 +1293,7 @@ mod tests {
                     in_match: true,
                     fit: Fit::Gear,
                     away: true,
+                    squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
                 side: Some(1),
@@ -1324,11 +1390,17 @@ mod tests {
         );
         // The pool's bits right after the fifth preset.
         assert_eq!(ROOM_PRESET_BASE + 5 * 100_000, ROOM_BITS_BASE);
-        assert_eq!(
-            offer_name(12, OfferKind::Fits, 3, 7, 11, 8),
-            "S1;O;12;2;3;7;11;8"
-        );
-        assert!(room_offer(12, 12, OfferKind::None, 0, 0, 4, 0).is_ok());
+        let offer = RoomOffer {
+            key: 12,
+            kind: OfferKind::Fits,
+            preset: 3,
+            level: 7,
+            gear: 11,
+            max_level: 8,
+            about: OfferRoom::InsteadOfQueue,
+        };
+        assert_eq!(offer_name(&offer), "S1;O;12;2;3;7;11;8;1");
+        assert!(room_offer(12, &offer).is_ok());
     }
 
     #[test]

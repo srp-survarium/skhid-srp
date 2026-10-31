@@ -38,10 +38,8 @@ package player_icons_fla
       
       public var lastPosY:Number;
 
-      // force_interface_hidden's and force_interface_tab's states, for the layer frame 1 makes.
+      // force_interface_hidden's state, for the layer frame 1 makes.
       public var objectsForced:Boolean = false;
-
-      public var tabHeld:Boolean = false;
       
       public function MainTimeline()
       {
@@ -53,7 +51,7 @@ package player_icons_fla
       // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
       public function hide_interface(hidden:Boolean) : void
       {
-         // forced (Blackout, force_interface_hidden) the key does nothing: Tab alone shows the markers
+         // forced (Blackout, force_interface_hidden) the key does nothing: the players' markers stay
          if(this.objectsForced)
          {
             return;
@@ -63,7 +61,7 @@ package player_icons_fla
 
       // The interface forced hidden for a match (exe patch 62's hide_ui_force, Blackout; docs/notes/blackout.md):
       // the match's objects' markers (HUDIconLayer.FIRST_OBJECT on: the batteries and the like) hidden, the
-      // players' markers and names shown only while Tab is held (force_interface_tab), as the hud's Tab view.
+      // players' markers shown as in a plain match (the teammates'; an enemy's never, HUDIconLayer.canShow).
       // Kept for frame 1's layer when told before it.
       public function force_interface_hidden(forced:Boolean) : void
       {
@@ -75,19 +73,11 @@ package player_icons_fla
          this.applyForced();
       }
 
-      // Tab held or let go (patch 62's hide_ui_icons tells it with the forced state); nothing when not forced.
-      public function force_interface_tab(held:Boolean) : void
-      {
-         this.tabHeld = held;
-         this.applyForced();
-      }
-
       private function applyForced() : void
       {
          if(this.iconControl)
          {
             this.iconControl.objectsHidden = this.objectsForced;
-            this.iconControl.visible = !this.objectsForced || this.tabHeld;
          }
       }
 

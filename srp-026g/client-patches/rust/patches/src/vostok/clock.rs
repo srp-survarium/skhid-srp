@@ -19,3 +19,9 @@ pub fn frequency(_: &Thread) -> u64 {
     unsafe { (raw::engine_query_performance_frequency)(out.as_mut_ptr()) };
     u64::from(out[0]) | u64::from(out[1]) << 32
 }
+
+/// The counter in milliseconds (wraps: for logs of how long a step took).
+pub fn milliseconds(thread: &Thread) -> u32 {
+    let frequency = frequency(thread).max(1);
+    (u128::from(counter(thread)) * 1000 / u128::from(frequency)) as u32
+}

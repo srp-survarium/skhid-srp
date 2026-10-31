@@ -178,6 +178,7 @@ Sent at sign-in (0x26FBE2, right after 0x80 is read and before the client's `32`
 | n × | member (0x50): `u32 account_id` (+0), `u32 profile_id` (+4), `u32 profile_revision` (+8), `string name` (+0x10, buf 64 → ≤ 63), `bool online` (+0xC), `bool ready` (+0xD) | |
 | bool | i_am_commander | +0x1EAAAC |
 | u32 | revision | +0x1EAAA0 (log `squad info arrived rev. %d`) |
+| u8, u8 | srp's: the receiver's lobby pick, its commander's (0 none) | srp's own, after the squad, and after the id alone for none (`A1 00000000 <own> 00`): the stock reader stops before them; exe patch 81 reads them (`lobby-scenes.md`, `lobby.md` 2.16.5) |
 
 Then `lobby_menu::fill_squad_info(squad, i_am_commander)` 0x2277C0 (PROVEN):
 - `root.show_squad`, `root.remove_squad_player` 0..2, `root.set_squad_commander_mode(n == 0 ? true : i_am_commander)`, then per member `root.set_squad_player(index, …, name, ready)`.
@@ -199,6 +200,8 @@ PROVEN, in this order (each failure logs a `PlayBtn disabled reason is: …` lin
 6. Otherwise enabled.
 
 So a server that marks the commander ready when the commander presses Play locks the soldiers' Play (they cannot cancel/ready once the squad is queued), and a commander can only press Play once every soldier is ready.
+
+With rooms (since 2026-10-31, `squads.md`) srp's 0.26g lobby sends the commander ready always, so its Play is on and its soldier's is off all the time (only the commander acts for the squad, the owner's of 2026-10-31); the soldier ready while its commander's actions take it along (`rooms::squad_ready`). Before, nothing set ready, and a commander's Play stayed off (0 ≥ 1 fails).
 
 ### 2.3 Squad actions (client → server) — were 0x2A 01..04, now 0x4A
 
@@ -520,8 +523,7 @@ So: on the general, match and team channels a stock client lets through at most 
 | `4D` type 0 | already a friend, already asked, or the player ignores the sender | nothing | no text for any of them |
 | `4D` type 2 (squad invite) | the name is no account, or the player is not in the lobby | `84 49 00 st_player_not_found` | |
 | `4D` type 2 | the player ignores the sender | nothing | |
-| `4D` type 2 | squads are off (`SRP_SQUADS=off`) | `84 49 00 <SRP_SQUADS_OFF_TEXT>`, by default the sentence "Squads are switched off on this server." | the game has no text for it (9.2); a text that is no key is shown as it is (`lobby_requests.md` §4.2). The invite's button is the client's and stays. Not yet seen in a real game |
-| `4A 02` | squads are off | the squad as it is (`A1`: none), no text | the invite was already refused; this is a client that adds a player all the same |
+| `4D` type 2 | the sender's squad has two (`squads.md`) | nothing: not passed on | no text (9.2); the movie offers no invite then |
 | `4D` type 3 (the client's own "membership accepted") | can not be passed on | nothing | not the player's act |
 | `4E 04` (ignore by a typed name) | the name is no account | `A3 08` (the list as it is), then `84 49 00 st_player_not_found` | |
 | `4A 01..04` | refused (not the commander, squad full, not invited, in no squad) | the squad as it is (`A1`), no text | `84 4A` is dropped by the client and the game has no text (9.2) |

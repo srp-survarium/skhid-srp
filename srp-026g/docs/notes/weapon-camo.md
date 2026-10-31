@@ -168,7 +168,10 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   slots (decalSlot, decalSlot1) for `decal_available`, on two pages (`showPage`; the arrows
   `addPageArrow`, the places `placeWeaponSlots`, armour's from `_slotPlaces`); the Attachments
   button shows on a weapon with any (`isUpgradeableWeapon`). The slots are filled while all are
-  shown, then the page hides the other's: a slot keeps its item while hidden.
+  shown, then the page hides the other's: a slot keeps its item while hidden. The empty scope
+  slot says `st_srp_scope_slot` (Optics, Прицел...), short enough for its field in every language;
+  the stock `st_picatinny_scope_medium_name` (Optics / collimators) stays the inventory filter's
+  tip and the item hint's prefix. A weapon with a stock scope says `st_default_scope_name`.
 
 ## The masks (`scripts/weapon-camo/`)
 

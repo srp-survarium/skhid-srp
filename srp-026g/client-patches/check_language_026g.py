@@ -162,6 +162,21 @@ class Run(hide.Run):
         return self.invokes(), self.saves
 
 
+def registered(r, head, before):
+    """The console's list from `head` to `before` (the head before the start
+    ran): the variables registered there, newest first (a later hook of the
+    chain, patch 83, registers after this patch's, so its come first)."""
+    out = []
+    while head != before:
+        out.append(head)
+        head = r.read(head + 0x0C)
+    return out
+
+
+def named(r, nodes, name):
+    return next(node for node in nodes if r.text(r.read(node + 0x10)) == name.encode())
+
+
 def console_variable(r, head):
     """The registered variable: (name, buffer, size, saved byte), its vtable checked."""
     assert r.read(head) == CC_STRING_VTABLE
@@ -183,17 +198,18 @@ def main():
            "the initializer leaves the language string \"original\"")
     a_regs, a_sp, a_head = stock.start()
     b_regs, b_sp, b_head = ours.start()
-    variable = console_variable(ours, b_head)
-    expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before and b_head != head_before
-           and variable[0] == "localization" and variable[2] == 256 and variable[3] == 1
-           and ours.read(b_head + 0x0C) == head_before,
+    nodes = registered(ours, b_head, head_before)
+    ours_node = named(ours, nodes, "localization")
+    variable = console_variable(ours, ours_node)
+    expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before and nodes[-1] == ours_node
+           and variable[0] == "localization" and variable[2] == 256 and variable[3] == 1,
            "configs.start: registers and stack as the original's; `localization`, a saved string of 256 "
-           "bytes, at the head of the console's list before the old head (the original registers nothing)")
+           "bytes, registered first (right before the old head; patch 83's after it), the original registers nothing")
     _, _, again = ours.start()
-    expect(again == b_head and ours.read(b_head + 0x0C) == head_before, "configs.start again: registered once")
+    expect(registered(ours, again, head_before) == nodes, "configs.start again: registered once")
     buffer = variable[1]
     ours.emu.mem_write(TEXT, b"hungarian\0")
-    ours.call_at(EXECUTE, (TEXT,), {UC_X86_REG_ECX: b_head})
+    ours.call_at(EXECUTE, (TEXT,), {UC_X86_REG_ECX: ours_node})
     expect(ours.text(buffer) == b"hungarian", "user.cfg's line `localization hungarian` sets it "
            "(cc_string::execute 0xEC8C0)")
 
