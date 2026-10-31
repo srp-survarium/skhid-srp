@@ -880,7 +880,7 @@ st_decorations_options	Качество декораций
 st_default_profile_name1	Профиль 1
 st_default_profile_name2	Профиль 2
 st_default_profile_name3	Профиль 3
-st_default_scope_name	Стандарт. прицел
+st_default_scope_name	Штатный прицел
 st_defeat	Поражение
 st_defuse_trap	Обезвредить ({USE})
 st_disband_clan_message	Вы уверены, что хотите распустить клан?
@@ -2604,6 +2604,7 @@ st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_slot	Прицел
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
