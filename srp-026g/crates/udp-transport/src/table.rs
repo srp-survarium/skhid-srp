@@ -185,7 +185,7 @@ impl Table {
     }
 
     /// Ids that have an entry but must still never be sent to a client:
-    /// lobby 0x81 and 0xA0 (PLAN-026G step 3: they crash the client or make
+    /// lobby 0x81 and 0xA0 (they crash the client or make
     /// it drop the datagram at the game layer).
     pub fn is_forbidden(self, id: u8) -> bool {
         self == Table::Lobby && matches!(id, 0x81 | 0xA0)

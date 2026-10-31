@@ -67,7 +67,6 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `docs/SRP-026G.md` | The server: its parts, how a player gets into a match, every setting, the web page and the admin, what is implemented |
 | `docs/MATCH-SYNC-026G.md` | How a match stays in step: uploads, hash phases, resync |
 | `docs/CLIENT-FACTS-026G.md` | Proven facts about the 0.26g client, with addresses |
-| `docs/PLAN-026G.md` | The work order the server was built by, step by step |
 | `docs/OPEN-ISSUES.md` | What is unverified, broken or not done |
 | `docs/DEPLOY.md` | Hosting in Docker: the files, the ports, the settings, updating |
 | `docs/notes/` | The protocol and client research, message by message (`README.md` first) |

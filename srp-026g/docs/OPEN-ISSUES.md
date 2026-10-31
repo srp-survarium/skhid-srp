@@ -2,8 +2,7 @@
 
 > **Version scope: the 0.26g server** (`srp-026g`, SRP-026G.md). **Live on
 > 026g.skhid.link since 2026-10-12.** Sources: `srp-026g/WORK.md` (the
-> 2026-10-12 entries, newest at the top), PLAN-026G.md (Status) and the
-> checklist in `srp-026g/docs/notes/README.md`.
+> 2026-10-12 entries, newest at the top).
 
 ### The list written before the first live session, and what live play settled
 

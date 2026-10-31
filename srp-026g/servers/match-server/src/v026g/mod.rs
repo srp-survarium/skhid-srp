@@ -1,5 +1,5 @@
-//! The 0.26g match server (`docs/notes/match.md`,
-//! `PLAN-026G.md` step 6): the sockets and the loop around
+//! The 0.26g match server (`docs/notes/match.md`):
+//! the sockets and the loop around
 //! `survarium::v026g::match_msgs`, over the `udp-transport` crate.
 //!
 //! As for 0.21d, the clients simulate and the server does not: it takes

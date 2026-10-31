@@ -1,4 +1,4 @@
-//! The raw datagram log (PLAN-026G step 1; it stands in for a packet
+//! The raw datagram log (it stands in for a packet
 //! capture). Off unless `SRP_PACKET_LOG=<dir>` is set. One file per
 //! connection; every datagram in and out with its time, direction, peer and
 //! hex bytes, then one line per decoded message (id, x, part, length, and
