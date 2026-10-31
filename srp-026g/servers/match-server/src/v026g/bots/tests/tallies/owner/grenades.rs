@@ -57,6 +57,8 @@ pub(super) struct GrenadeCounts {
     pub(super) reading: Vec<Option<GrenadeStats>>,
     pub(super) logic: GrenadeLogic,
     pub(super) close: CloseBlasts,
+    /// [diagnostic] The blasts gone off since the last drain: (time, thrower, where it went off, the place aimed at, contact point).
+    pub(crate) gone_log: Vec<(u32, Place, Vec3, Vec3, (f32, f32, Vec3, Vec3, [Vec3; 2]))>,
     /// Throws as (thrower, team, the place, press) for [`SAME_SPOT_M`], and the pairs found: another bot
     /// of the team threw at a place within 3, 3-5, 5-8 m of this one within [`SAME_SPOT_MS`] before.
     pub(super) same_spot_log: Vec<(Place, u8, Vec3, u32)>,
@@ -168,6 +170,10 @@ pub(crate) fn blast_min() -> f32 {
 #[derive(Clone, Debug)]
 pub(crate) struct Blast {
     pub(crate) thrower: Place,
+    /// [diagnostic] The place the throw was aimed at.
+    pub(crate) aim: Vec3,
+    /// [diagnostic] The view and eye the tally threw from at the launch, and where the arc first touched.
+    pub(crate) launch: (f32, f32, Vec3, Vec3, [Vec3; 2]),
     pub(crate) at: Vec3,
     pub(crate) time: u32,
     pub(crate) inside: Vec<bool>,
@@ -795,6 +801,18 @@ impl GrenadeCounts {
                 .collect();
             self.blasts.push(Blast {
                 thrower: throw.thrower,
+                aim: throw.aim,
+                launch: (
+                    rec.yaw,
+                    rec.pitch,
+                    eye,
+                    landing.contact.point,
+                    [0.03f32, 0.05].map(|up| {
+                        arc::Flight::thrown(eye, rec.yaw, rec.pitch + up)
+                            .landing(&arc::Mesh(&game.world.sight))
+                            .map_or(Vec3::ZERO, |l| l.contact.point)
+                    }),
+                ),
                 at: landing.rest,
                 time: throw.press + fuse_ms(),
                 inside,
@@ -839,6 +857,7 @@ impl GrenadeCounts {
             !off
         });
         for blast in gone {
+            self.gone_log.push((blast.time, blast.thrower, blast.at, blast.aim, blast.launch));
             let before = (self.blast_dmg, self.blast_kills, self.blast_in);
             self.live_blast(&blast);
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {

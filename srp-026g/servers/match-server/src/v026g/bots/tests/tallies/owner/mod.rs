@@ -175,6 +175,11 @@ impl OwnerTally {
     }
 
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
+    /// [diagnostic] The blasts gone off since the last call: (time, thrower, where, the place aimed at).
+    pub(crate) fn drain_blasts(&mut self) -> Vec<(u32, Place, Vec3, Vec3, (f32, f32, Vec3, Vec3, [Vec3; 2]))> {
+        std::mem::take(&mut self.topic::<GrenadeCounts>().gone_log)
+    }
+
     pub(crate) fn set_camper(&mut self, camper: Option<Place>) {
         self.run.camper = camper;
     }
