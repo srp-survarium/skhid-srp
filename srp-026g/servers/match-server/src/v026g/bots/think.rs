@@ -646,7 +646,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     let thin = t.thin_m.get();
     let eye_over = Vec3::new(0.0, 1.6, 0.0);
     // Smoke there already: with `spot_rules` every cloud live or forming and the team's own in the air, at full size.
-    let planning = view.smoke.planning(view.clock, bot.team);
+    let planning = view.smoke.planning(view.clock, bot.team, smoke::Forming::of(t));
     let smoke_there = |eye: Vec3, point: Vec3| {
         let there = if t.spot_rules { planning.covers(view.clock, t, eye, point) } else { view.smoke.covers(view.clock, t, eye, point) };
         #[cfg(test)]

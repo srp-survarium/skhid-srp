@@ -1429,6 +1429,65 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     }
 }
 
+/// How long a carrier whose way home is shut waits after the time the schedule gave for its gate to open, ms, before it counts the gate missed: a search
+/// at the gate's time still fails (the schedule's margin, the zone floors' pass time, a span that moved).
+const GATE_GRACE_MS: u32 = 4_000;
+
+/// Why a stranded carrier waits, and when its wait ends: the wait is the state's own (a time, never a flag beside it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Strand {
+    /// No way home, and nothing says one comes: waits to `until`, then lets go of the battery.
+    NoWay { until: u32 },
+    /// Zones that switch shut the way, and the schedule opens them all at `opens`: waits for it.
+    Gate { opens: u32 },
+    /// A gate that stayed shut at its time (`GATE_GRACE_MS` on): the bound of a no-way from then, to `until`.
+    Missed { until: u32 },
+}
+
+impl Strand {
+    /// The wait of a carrier at `now` standing at a way home every search fails: what it waits as next, or `None` to let go. A gate whose time and grace are
+    /// past with the searches still failing is missed, and the bound of a no-way runs from then.
+    fn next(self, now: u32, wait_ms: u32) -> Option<Self> {
+        match self {
+            Self::NoWay { until } | Self::Missed { until } if now >= until => None,
+            Self::Gate { opens } if now >= opens.saturating_add(GATE_GRACE_MS) => Some(Self::Missed { until: now.saturating_add(wait_ms) }),
+            wait => Some(wait),
+        }
+    }
+
+    /// The wait of a carrier that finds every search for the way home failed at `cx.now`: a gate when only zones that switch shut it and the schedule opens
+    /// them within `home_gate_max_ms` ([`Tactics::gate_opens`], one search), else the bound.
+    fn of(cx: &Ctx, home: Vec3, wait_ms: u32) -> Self {
+        cx.tuning
+            .unstick
+            .home_gate_max_ms
+            .and_then(|max| {
+                let opens = cx.tactics.gate_opens(cx.me.feet, home, cx.now, cx.bot.side)?;
+                (opens.saturating_sub(cx.now) <= max).then_some(Self::Gate { opens })
+            })
+            .unwrap_or(Self::NoWay { until: cx.now.saturating_add(wait_ms) })
+    }
+}
+
+/// Whether the searches for the way home fail, for the stranded state. With the gate wait on (`home_gate_max_ms`) a search must have failed within
+/// [`super::goals::NO_WAY_FRESH_MS`]: a proof is kept [`crate::v026g::bots::search::NO_WAY_KEEP_MS`] after its last search whether or not a way was found since, and
+/// a carrier whose gate has opened would count as stranded for that long and wait for the gate again at once. With it off, the proof as long as it is kept
+/// (`Ctx::no_way_lately`), the rule of the bound alone.
+fn no_way_home(cx: &Ctx, home: Vec3) -> bool {
+    if cx.tuning.unstick.home_gate_max_ms.is_some() {
+        cx.no_way_failing(home)
+    } else {
+        cx.no_way_lately(home)
+    }
+}
+
+/// The damage-zone fixes' tally of a carrier's wait (`n` more of `ev`, under its team).
+#[cfg(test)]
+fn tally(cx: &Ctx, ev: crate::v026g::bots::hazards::damage_zone_fixes::Ev, n: u64) {
+    use crate::v026g::bots::hazards::damage_zone_fixes::{asked_by, count_by};
+    asked_by(cx.me.team, || count_by(ev, n));
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     /// Going to look at a spawner's spot.
@@ -1464,11 +1523,9 @@ pub enum State {
     Bring {
         via: Option<Vec<Vec3>>,
     },
-    /// Home with the battery, and every search for the way home fails (`Ctx::no_way_lately`): waits for a way until `until` (ms), then lets go
-    /// (`UnstickTuning::home_no_way_ms`); a way found in the time puts it back to `Bring`.
-    Stranded {
-        until: u32,
-    },
+    /// Home with the battery, and every search for the way home fails (`Ctx::no_way_lately`): waits for a way, as `Strand` says and for as long, then
+    /// lets go (`UnstickTuning::home_no_way_ms`); a way found in the time puts it back to `Bring`.
+    Stranded(Strand),
     /// Trapped in a pocket, its escape given up (`escape.rs`): lets go of
     /// the battery (pressed at `pressed`) so it may fight from where it
     /// stands; then the play ends.
@@ -1705,13 +1762,19 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             };
             // Every search for the way home fails: wait for a way for a bound, then let go (`Stranded`).
             if let Some(wait_ms) = cx.tuning.unstick.home_no_way_ms
-                && cx.no_way_lately(home)
+                && no_way_home(cx, home)
             {
-                *state = State::Stranded { until: cx.now.saturating_add(wait_ms) };
+                let strand = Strand::of(cx, home, wait_ms);
                 #[cfg(test)]
-                crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || {
-                    crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeStranded)
-                });
+                {
+                    use crate::v026g::bots::hazards::damage_zone_fixes::Ev;
+                    tally(cx, Ev::HomeStranded, 1);
+                    if let Strand::Gate { opens } = strand {
+                        tally(cx, Ev::HomeGate, 1);
+                        tally(cx, Ev::HomeGateMs, u64::from(opens - cx.now));
+                    }
+                }
+                *state = State::Stranded(strand);
                 return step(state, target, cx, _rng);
             }
             // In zones on all match with no way out (a crossing's take):
@@ -1774,26 +1837,46 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .hold_fire(),
             )
         }
-        State::Stranded { until } => {
+        State::Stranded(strand) => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "stranded: the battery is gone"));
             }
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
-            if !cx.no_way_lately(home) {
+            // A way found (no search fails any more), or no bound set any more: back to the way home.
+            let Some(wait_ms) = cx.tuning.unstick.home_no_way_ms.filter(|_| no_way_home(cx, home)) else {
+                #[cfg(test)]
+                if matches!(strand, Strand::Gate { .. }) {
+                    tally(cx, crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeGateOpened, 1);
+                }
                 *state = State::Bring { via: None };
                 return step(state, target, cx, _rng);
+            };
+            match strand.next(cx.now, wait_ms) {
+                Some(next) => {
+                    #[cfg(test)]
+                    if matches!(next, Strand::Missed { .. }) && !matches!(strand, Strand::Missed { .. }) {
+                        tally(cx, crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeGateMissed, 1);
+                    }
+                    *strand = next;
+                    Step::Continue(Intent::to(home, Pace::Walk).within(num("reach_m")).hold_fire())
+                }
+                None => {
+                    #[cfg(test)]
+                    tally(
+                        cx,
+                        if matches!(strand, Strand::Missed { .. }) {
+                            crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeLetGoMissed
+                        } else {
+                            crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeLetGo
+                        },
+                        1,
+                    );
+                    *state = State::LetGo { pressed: cx.now };
+                    Step::Continue(Intent::stay().pressing(key::DROP).let_go())
+                }
             }
-            if cx.now >= *until {
-                *state = State::LetGo { pressed: cx.now };
-                #[cfg(test)]
-                crate::v026g::bots::hazards::damage_zone_fixes::asked_by(cx.me.team, || {
-                    crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::HomeLetGo)
-                });
-                return Step::Continue(Intent::stay().pressing(key::DROP).let_go());
-            }
-            Step::Continue(Intent::to(home, Pace::Walk).within(num("reach_m")).hold_fire())
         }
         State::LetGo { pressed } => {
             if cx.me.carrying.is_none() {
@@ -4429,26 +4512,26 @@ mod tests {
         let wait = 20_000;
         let mut state = State::Bring { via: None };
         // Every search for the way home failed lately: stranded, with its end.
-        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        s.no_way_to = vec![(at, s.view.clock + crate::v026g::bots::search::NO_WAY_KEEP_MS)];
         let start = s.view.clock;
         step(&mut state, target, &s.cx(0), &mut rng);
-        assert_eq!(state, State::Stranded { until: start + wait });
+        assert_eq!(state, State::Stranded(Strand::NoWay { until: start + wait }));
         // Inside the bound it goes on trying for home.
         s.view.clock = start + wait - 100;
-        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        s.no_way_to = vec![(at, s.view.clock + crate::v026g::bots::search::NO_WAY_KEEP_MS)];
         let still = step(&mut state, target, &s.cx(0), &mut rng);
-        assert!(matches!(state, State::Stranded { .. }), "{state:?}");
+        assert!(matches!(state, State::Stranded(_)), "{state:?}");
         assert!(matches!(&still, Step::Continue(i) if matches!(i.go, Go::To { .. })), "{still:?}");
         // A way found: back to Bring.
         s.no_way_to = Vec::new();
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::Bring { .. }), "{state:?}");
         // The time out with the way still shut: it lets go.
-        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        s.no_way_to = vec![(at, s.view.clock + crate::v026g::bots::search::NO_WAY_KEEP_MS)];
         step(&mut state, target, &s.cx(0), &mut rng);
-        assert!(matches!(state, State::Stranded { .. }), "{state:?}");
+        assert!(matches!(state, State::Stranded(_)), "{state:?}");
         s.view.clock += wait;
-        s.no_way_to = vec![(at, s.view.clock + 5_000)];
+        s.no_way_to = vec![(at, s.view.clock + crate::v026g::bots::search::NO_WAY_KEEP_MS)];
         let drop = step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::LetGo { .. }), "{state:?}");
         assert!(intent_of(drop).press & key::DROP != 0, "the drop is pressed");
@@ -4457,6 +4540,159 @@ mod tests {
         let mut state = State::Bring { via: None };
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::Bring { .. }), "{state:?}");
+    }
+
+    /// The gate wait's narrower trigger is its own: a proof of no way 10 s old (kept 20 s) strands a carrier by the bound's rule (`home_gate_max_ms` null: as
+    /// shipped), not with the gate wait on, where only a search that failed within 4 s counts.
+    #[test]
+    fn a_proof_ten_seconds_old_strands_a_carrier_only_without_the_gate_wait() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, home + Vec3::new(30.0, 0.0, 0.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        s.tuning.unstick.home_no_way_ms = Some(20_000);
+        let at = s.view.container_of(0).map(|c| c.at).expect("our container");
+        let mut rng = Rng::new(1);
+        let old = crate::v026g::bots::search::NO_WAY_KEEP_MS - 10_000;
+        s.no_way_to = vec![(at, s.view.clock + old)];
+        // As shipped: the proof is kept, so it is stranded.
+        s.tuning.unstick.home_gate_max_ms = None;
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Stranded(Strand::NoWay { .. })), "{state:?}");
+        // With the gate wait: no search failed lately, so it walks on.
+        s.tuning.unstick.home_gate_max_ms = Some(90_000);
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Bring { .. }), "{state:?}");
+    }
+
+    /// A carrier whose way home zones that switch shut (a gate) waits for the schedule to open it, not the bound of a no-way: `Strand::Gate`, its end the opening
+    /// the schedule gives; a way found after it leaves the wait; a gate that stays shut goes on to the bound (`Missed`); and a gate too far off, or the switch off,
+    /// is the bound's from the start.
+    #[test]
+    fn a_carrier_whose_way_home_is_a_gate_waits_for_the_schedule_not_the_bound() {
+        use crate::v026g::bots::anomalies::Control;
+        use crate::v026g::bots::hazards::{damage_zone_fixes as dzf, Activity};
+        let mut s = Scenario::field(Mode::Batteries);
+        // The scenario's own container of team 0 (`Scenario::field`: the view's), and the bot east of the wall with the gap under the zone between it and home.
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        let gate = |on_until: u32| {
+            let mut tactics = crate::v026g::bots::tactics::Tactics::new(
+                crate::v026g::bots::tactics::tests::field_with(|map| {
+                    map.zones.push(mapdata::Zone {
+                        kind: mapdata::ZoneKind::Damage,
+                        name: "gate".into(),
+                        team: -1,
+                        position: Vec3::new(40.0, 0.0, 32.5),
+                        damage_type: "electro".into(),
+                        damage: Some(mapdata::Damage { max_hit: 0.6, parts: 2, continuous: true, ..mapdata::Damage::default() }),
+                        shapes: vec![mapdata::Shape {
+                            kind: mapdata::ShapeKind::Box,
+                            center: Vec3::new(40.0, 1.0, 32.5),
+                            rotation: mapdata::Rotation::IDENTITY,
+                            half: Vec3::new(2.0, 1.0, 7.5),
+                        }],
+                    });
+                    map.containers.push(mapdata::Container {
+                        position: home,
+                        team: 0,
+                        id: 0,
+                        use_shapes: vec![mapdata::Shape {
+                            kind: mapdata::ShapeKind::Box,
+                            center: home + Vec3::new(0.0, 3.0, 0.0),
+                            rotation: mapdata::Rotation::IDENTITY,
+                            half: Vec3::new(0.4, 0.5, 0.4),
+                        }],
+                    });
+                }),
+                1.0,
+            );
+            // On until `on_until`, off to 100 s, on again after.
+            tactics.hazards.zones[0].control = Control::Timer;
+            tactics.hazards.zones[0].activity = Activity::Spans(vec![(0, on_until), (100_000, u32::MAX)]);
+            tactics
+        };
+        s.tactics = gate(40_000);
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, Vec3::new(52.0, 0.0, 12.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        s.tuning.unstick.home_no_way_ms = Some(20_000);
+        s.tuning.unstick.home_gate_max_ms = Some(90_000);
+        let mut rng = Rng::new(1);
+        let at = s.view.container_of(0).map(|c| c.at).expect("our container");
+        let keep = crate::v026g::bots::search::NO_WAY_KEEP_MS;
+        let failed = |s: &mut Scenario| s.no_way_to = vec![(at, s.view.clock + keep)];
+        let before = dzf::counts()[0];
+        let n = |ev: dzf::Ev| dzf::counts()[0][ev as usize] - before[ev as usize];
+
+        // The zone is on to 40 s: it waits for that.
+        s.view.clock = 10_000;
+        failed(&mut s);
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded(Strand::Gate { opens: 40_000 }));
+        assert_eq!((n(dzf::Ev::HomeGate), n(dzf::Ev::HomeGateMs)), (1, 30_000));
+        // Past the bound of a no-way (20 s from standing), still inside the gate's time: it keeps waiting.
+        s.view.clock = 35_000;
+        failed(&mut s);
+        let still = step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded(Strand::Gate { opens: 40_000 }));
+        assert!(matches!(&still, Step::Continue(i) if matches!(i.go, Go::To { .. })), "{still:?}");
+        // The gate's time and its grace past, a search failing after it: the gate is missed, and the bound runs from there.
+        s.view.clock = 45_000;
+        failed(&mut s);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded(Strand::Missed { until: 65_000 }));
+        assert_eq!(n(dzf::Ev::HomeGateMissed), 1);
+        s.view.clock = 65_000;
+        failed(&mut s);
+        let drop = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::LetGo { .. }), "{state:?}");
+        assert!(intent_of(drop).press & key::DROP != 0, "the drop is pressed");
+        assert_eq!(n(dzf::Ev::HomeLetGoMissed), 1);
+
+        // The gate opens and no search fails after it: back to the way home, counted.
+        s.view.clock = 38_000;
+        failed(&mut s);
+        let mut state = State::Stranded(Strand::Gate { opens: 40_000 });
+        s.view.clock = 45_000;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Bring { .. }), "{state:?}");
+        assert_eq!(n(dzf::Ev::HomeGateOpened), 1);
+
+        // A gate farther off than the most it waits for: the bound's, from the start.
+        s.tactics = gate(150_000);
+        s.view.clock = 10_000;
+        failed(&mut s);
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded(Strand::NoWay { until: 30_000 }));
+        // The switch off: the same.
+        s.tactics = gate(40_000);
+        s.tuning.unstick.home_gate_max_ms = None;
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Stranded(Strand::NoWay { until: 30_000 }));
     }
 
     /// A raised box (its middle 3 m over the floor, which the old 1.6 m

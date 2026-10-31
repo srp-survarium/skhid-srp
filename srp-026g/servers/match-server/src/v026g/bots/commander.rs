@@ -173,7 +173,7 @@ fn threat_tick(
     }
     // [smoke.spot_rules] A region a cloud hides from the spot's shooter is not his while it stands: routes cross under it
     // (the detour weighs the lanes) and no lane smoke is planned for it.
-    let planning = view.smoke.planning(now, team);
+    let planning = view.smoke.planning(now, team, super::smoke::Forming::of(&tuning.smoke));
     let mut regions = if tuning.smoke.spot_rules && !planning.is_empty() {
         let (grid, map) = (&tactics.world.grid, tactics.regions());
         let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));

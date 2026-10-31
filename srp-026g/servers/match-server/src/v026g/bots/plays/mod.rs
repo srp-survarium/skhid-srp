@@ -798,6 +798,12 @@ impl Ctx<'_> {
         goals::no_way_near(self.bot.no_way_to, at, self.now)
     }
 
+    /// Whether a search to a goal at `at` failed within [`goals::NO_WAY_FRESH_MS`]: its proof is renewed by every failing
+    /// search, while [`Self::no_way_lately`] keeps it [`NO_WAY_KEEP_MS`] after the last whether or not a way was found since.
+    pub fn no_way_failing(&self, at: Vec3) -> bool {
+        goals::no_way_failing(self.bot.no_way_to, at, self.now)
+    }
+
     /// The enemy a use here would be made under the eyes of, if any (a
     /// take of a battery waits for the fight: `collect::take`). The
     /// threats are the enemies the bot sees now ([`SEEN_NOW_MS`]) within

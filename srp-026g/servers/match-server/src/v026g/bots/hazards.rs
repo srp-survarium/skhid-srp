@@ -54,6 +54,17 @@ pub const PASS_MS: u32 = 4_000;
 /// so a route's floor must stay off for [`Hazards::pass_ms`] from then
 /// ([`Hazards::allowed_arriving`]), not from now.
 pub const ARRIVE_MPS: f32 = 5.0;
+/// The pace a body can count on walking out of a blast, m/s ([`Pace::Escape`](super::plays::Pace)): the sprint where the way
+/// allows (the bench's out-of-blast walks: 2.8 m/s unaimed walking, 5 m/s sprinting; a route with corners and a start-up in
+/// between). GUESS, set from the register #30 data and judged by the bodies caught.
+pub const ESCAPE_MPS: f32 = 4.0;
+/// ... after this long from the decision, s: the turn to the way and the speed built up.
+pub const ESCAPE_START_S: f32 = 0.3;
+
+/// How far a body can walk out of a blast in `left_ms` of fuse: [`ESCAPE_MPS`] after the start-up [`ESCAPE_START_S`].
+pub fn escape_reach_m(left_ms: u32) -> f32 {
+    ESCAPE_MPS * (left_ms as f32 / 1000.0 - ESCAPE_START_S).max(0.0)
+}
 
 /// Whether a damage zone hurts at a match time.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -675,6 +686,28 @@ impl Hazards {
         [baked, self.live.next_switch(node)].into_iter().flatten().min()
     }
 
+    /// The soonest match time from `time` at which a body may be on `node` ([`Self::allowed`]) by the schedule alone, if the
+    /// zones there are all baked, switching ones with a predicted end to their present span: a gate that opens. `None` for
+    /// a floor a live field marks, or a zone on all match, or one whose span runs past the prediction.
+    pub fn gate_end(&self, node: NodeId, time: u32) -> Option<u32> {
+        if self.live.set_of(node) != 0 {
+            return None;
+        }
+        if self.allowed(node, time) {
+            return Some(time);
+        }
+        let mut ends: Vec<u32> = Vec::new();
+        for zone in self.zones_at(node) {
+            let Activity::Spans(spans) = &zone.activity else {
+                return None;
+            };
+            ends.extend(spans.iter().map(|&(_, to)| to).filter(|&to| to > time && to != u32::MAX));
+        }
+        ends.sort_unstable();
+        ends.into_iter()
+            .find(|&at| self.zones_at(node).all(|zone| zone.activity.off_for(at, self.pass_ms)))
+    }
+
     /// Floors marked, for the logs.
     pub fn marked(&self) -> usize {
         self.marks
@@ -808,6 +841,13 @@ pub mod damage_zone_fixes {
         /// A carrier whose way home is shut entered the stranded state (`collect::State::Stranded`), and one that let go of the battery when its time ran out.
         HomeStranded,
         HomeLetGo,
+        /// A stranded carrier whose gate was found (`Strand::Gate`): entered, the wait it was promised (ms, summed), the way found while it waited, the gate's time out
+        /// with the way still shut (it goes on to the bound as `Strand::Missed`), and the let-go of such a one (`HomeLetGo` is the plain no-way's).
+        HomeGate,
+        HomeGateMs,
+        HomeGateOpened,
+        HomeGateMissed,
+        HomeLetGoMissed,
     }
 
     /// The events' key suffixes, in order.
@@ -829,9 +869,14 @@ pub mod damage_zone_fixes {
         "run_out_ticks",
         "home_stranded",
         "home_let_go",
+        "home_gate",
+        "home_gate_ms",
+        "home_gate_opened",
+        "home_gate_missed",
+        "home_let_go_missed",
     ];
 
-    pub const N: usize = 17;
+    pub const N: usize = 22;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).
@@ -879,8 +924,13 @@ pub mod damage_zone_fixes {
     }
 
     pub fn count(ev: Ev) {
+        count_by(ev, 1);
+    }
+
+    /// `n` more of an event (a sum of milliseconds).
+    pub fn count_by(ev: Ev, n: u64) {
         let team = usize::from(TEAM.get());
-        COUNTS.with_borrow_mut(|counts| counts[team][ev as usize] += 1);
+        COUNTS.with_borrow_mut(|counts| counts[team][ev as usize] += n);
     }
 
     /// This thread's counts so far, by team.
