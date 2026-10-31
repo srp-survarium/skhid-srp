@@ -267,3 +267,10 @@ survarium::ammo_slot	size	0x4	size	one index (initialize's +5ACh reads step 4)
 survarium::inventory	weight_dirty	0x184	u8	m_need_to_recalculate_weight (set_item 0x2FC673; resupply_from_profile writes it)
 survarium::inventory	size	0x188	size	what resupply_from_profile and check_resupply read of it (slots +10Ch..+167h, +184h written): patch 83's crate view
 survarium::remove_frame	unload	0x4	u8	base_player::remove's flag (low byte): 1 the death/respawn removal (deactivate, unload_to_profile), 0 a snapshot's same-kit removal
+survarium::item_entry	config	0x114	ptr<survarium::item_config>	its config holder (fill_items_dictionary_impl 0x286486: [entry+114h]+108h the root it asks ui_desc of, 0x2864B0)
+survarium::item_config	root	0x108	ptr<vostok::configs::engine_cfg>	the item config's root table (0x286492; ui_desc/text_descriptions/name the name key 0x2865C9..0x2865E9, translated 0x2865F9)
+vostok::configs::engine_cfg	kind	0x14	u16	a binary_config_value's type (0.10b configs::enum_types: 3 a named table, 5 a string)
+vostok::configs::engine_cfg	text	0x0	ptr<u8>	a string value's text, a C string (kind 5; fill_items_dictionary_impl hands [value] to translate_text, 0x2865E9)
+vostok::render::model_instance	skeleton	0x0	obj<vostok::render::skeleton_render_model_instance>	only for a client weapon's model (weapon+1810h), a skeleton_render_model_instance
+vostok::render::skeleton_render_model_instance	resource	0x62B4	ptr<vostok::render::skeleton_render_model>	the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
+vostok::render::skeleton_render_model	bounds	0x108	f32	the authored model box, 6 f32: min xyz, max xyz (update_render_matrices 0x15A5B0 copies it to the instance's +62B8h turned by Y(pi): [-maxx, miny, -maxz, -minx, maxy, -minz])

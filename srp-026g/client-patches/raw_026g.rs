@@ -18,9 +18,9 @@ use core::ptr::NonNull;
 #[allow(dead_code)]
 unsafe extern "C" {
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
-    pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
+    pub fn engine_cfg_child(table: Option<EngineCfg>, key: *const u8) -> Option<EngineCfg>;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL
-    pub fn engine_cfg_has(table: *const c_void, key: *const u8) -> u32;
+    pub fn engine_cfg_has(table: Option<EngineCfg>, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
@@ -1420,6 +1420,24 @@ impl ItemEntry {
     pub unsafe fn stack(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x22a).cast::<u8>().as_ptr() }
     }
+
+    /// +0x114 (ptr<survarium::item_config>): its config holder (fill_items_dictionary_impl 0x286486: [entry+114h]+108h the root it asks ui_desc of, 0x2864B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<ItemConfig> {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ItemConfig>>().read_volatile() }
+    }
+
+    /// +0x114 (ptr<survarium::item_config>): its config holder (fill_items_dictionary_impl 0x286486: [entry+114h]+108h the root it asks ui_desc of, 0x2864B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<ItemConfig>) {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ItemConfig>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::bullet (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -2201,6 +2219,15 @@ impl SkeletonRenderModel {
     #[inline(always)]
     pub unsafe fn set_inverse_binds_end(self, value: Option<BoneMatrix>) {
         unsafe { self.0.byte_add(0x144).cast::<Option<BoneMatrix>>().write_volatile(value) }
+    }
+
+    /// +0x108 (f32): the authored model box, 6 f32: min xyz, max xyz (update_render_matrices 0x15A5B0 copies it to the instance's +62B8h turned by Y(pi): [-maxx, miny, -maxz, -minx, maxy, -minz])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bounds(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x108).cast::<f32>().as_ptr() }
     }
 }
 
@@ -4378,6 +4405,15 @@ impl ModelInstance {
     pub unsafe fn static_model(self) -> StaticModelInstance {
         StaticModelInstance(unsafe { self.0.byte_add(0x0) })
     }
+
+    /// +0x0 (obj<vostok::render::skeleton_render_model_instance>): only for a client weapon's model (weapon+1810h), a skeleton_render_model_instance
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skeleton(self) -> SkeletonRenderModelInstance {
+        SkeletonRenderModelInstance(unsafe { self.0.byte_add(0x0) })
+    }
 }
 
 /// A survarium::artefact_container_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -5298,6 +5334,114 @@ impl RemoveFrame {
     #[inline(always)]
     pub unsafe fn unload(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::item_config (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemConfig(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ItemConfig {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x108 (ptr<vostok::configs::engine_cfg>): the item config's root table (0x286492; ui_desc/text_descriptions/name the name key 0x2865C9..0x2865E9, translated 0x2865F9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn root(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x108).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0x108 (ptr<vostok::configs::engine_cfg>): the item config's root table (0x286492; ui_desc/text_descriptions/name the name key 0x2865C9..0x2865E9, translated 0x2865F9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_root(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0x108).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::configs::engine_cfg (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EngineCfg(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EngineCfg {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u16): a binary_config_value's type (0.10b configs::enum_types: 3 a named table, 5 a string)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x14).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x0 (ptr<u8>): a string value's text, a C string (kind 5; fill_items_dictionary_impl hands [value] to translate_text, 0x2865E9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn text(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): a string value's text, a C string (kind 5; fill_items_dictionary_impl hands [value] to translate_text, 0x2865E9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_text(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::skeleton_render_model_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkeletonRenderModelInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkeletonRenderModelInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x62b4 (ptr<vostok::render::skeleton_render_model>): the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<SkeletonRenderModel> {
+        unsafe { self.0.byte_add(0x62b4).cast::<Option<SkeletonRenderModel>>().read_volatile() }
+    }
+
+    /// +0x62b4 (ptr<vostok::render::skeleton_render_model>): the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<SkeletonRenderModel>) {
+        unsafe { self.0.byte_add(0x62b4).cast::<Option<SkeletonRenderModel>>().write_volatile(value) }
     }
 }
 

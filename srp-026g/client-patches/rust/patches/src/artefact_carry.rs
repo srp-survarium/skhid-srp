@@ -205,22 +205,36 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
+        // Patch 83: Use's press on a dropped gun is sent as its pickup.
+        crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
     }
     Flow::Continue
 }
 
 pub fn on_hud(ctx: &Context<'_>) {
     // Shown only when Use would take: otherwise the native hint stays.
-    let text = native::local_player(ctx).filter(|p| target(p, ctx).is_some() || ground_target(p).is_some())
-        .map(|_| c"st_artefact_take_teammate");
-    let visible = text.is_some();
-    if let Some(movie) = crate::vostok::GameWorldUi::at_update_icons(ctx).and_then(|ui| ui.hud_movie()) {
+    // Patch 78's own targets first, then patch 83's dropped gun.
+    let local = native::local_player(ctx);
+    let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
+    let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
+    let visible = carry || gun.is_some();
+    let Some(ui) = crate::vostok::GameWorldUi::at_update_icons(ctx) else { return };
+    if let Some(movie) = ui.hud_movie() {
         let previous = HINT.get(ctx.thread());
         let next = Some((movie.id(), visible));
         // Refresh visible prompts while chat/profile visibility changes in
         // the movie, even if the world target itself did not change.
         if !visible && previous.is_none_or(|(id, shown)| id != movie.id() || !shown) { return; }
-        if movie.invoke_text(c"root.show_artefact_offer", text.unwrap_or(c"")) { HINT.set(ctx.thread(), next); }
+        let mut text = [0u8; 0x200];
+        let shown = match gun {
+            _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
+            Some(name) => {
+                let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
+                movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+            }
+            None => movie.invoke_text(c"root.show_artefact_offer", c""),
+        };
+        if shown { HINT.set(ctx.thread(), next); }
     }
 }
 
@@ -317,7 +331,9 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
     let hide = if player.alive() {
         machine(&player, ctx).presentation(player.carry_time()).hide_weapon
     } else {
+        // Patch 83: a taken drop's gun, and a borrowed gun, are hidden too.
         death_hands(&player, ctx.thread()) == Some(Hands::Artefact)
+            || crate::weapon_pickup::ragdoll_gun(ctx, &player) == crate::weapon_pickup::RagdollGun::Hidden
     };
     let hidden = HIDDEN.with(ctx.thread(), |weapons| native::weapon_visibility(ctx, hide, weapons));
     if hidden { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }

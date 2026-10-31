@@ -4966,3 +4966,4 @@ va	name	location	role	basis
 0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	entry ESP+16	padding, 0 (copied, unread)	observed
 0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+4	the functor buffer (the callback +8)	observed
 0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	entry ESP+8	the queries_result	observed
+0x00286410	survarium::fill_items_dictionary_impl	at 0x286475..0x2865F9	the dictionary entries (EDI+130h, 3A0h each; count +134h): entry+114h its config holder, [holder+108h] the root (EBX); value_exists(root, "ui_desc") first (0x2864B0), then operator[] ui_desc / text_descriptions / name (0x2865C9..0x2865E4, no checks) and translate_text of the name value's string [value+0] (0x2865F9); entry+22Ah the stack flag (0x28649C). Patch 83's prompt reads a gun's name this way	observed

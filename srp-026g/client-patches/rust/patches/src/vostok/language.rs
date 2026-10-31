@@ -21,7 +21,7 @@ pub use super::ui::MAX_STRINGS;
 ///
 /// # Safety
 /// `text` is readable up to its zero or `limit` bytes, alive for `'a`.
-unsafe fn c_string<'a>(text: *const u8, limit: usize) -> Option<&'a CStr> {
+pub(in crate::vostok) unsafe fn c_string<'a>(text: *const u8, limit: usize) -> Option<&'a CStr> {
     if text.is_null() {
         return None;
     }

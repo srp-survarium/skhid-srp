@@ -22,6 +22,7 @@
 //! Every reference count change is the native set_item's/remove_item's; a
 //! moved item is held by one more reference across the move.
 
+use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Ammo, WeaponSlot};
@@ -530,5 +531,124 @@ pub fn crate_view(player: &Player<'_>, installed: &Installed, thread: &Thread) -
             }
             View(view.address())
         }))
+    }
+}
+
+// ---- the prompt's reads (stage 2b) -------------------------------------------------------------
+
+/// A dead player's gun as its ragdoll draws it (`carry.weapon`): its world
+/// transform (row vectors: a model point p is at p * M) and its model's box
+/// in model space as the renderer turns it (Y by pi).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GunPose {
+    pub transform: [f32; 16],
+    pub lo: [f32; 3],
+    pub hi: [f32; 3],
+}
+
+impl GunPose {
+    /// The authored box (min xyz, max xyz) turned as update_render_matrices
+    /// 0x15A5B0 turns it: [-maxx, miny, -maxz] .. [-minx, maxy, -minz].
+    /// Refused when anything is not finite, the box is inverted or a side is
+    /// longer than 4 m.
+    pub fn parse(transform: [f32; 16], bounds: [f32; 6]) -> Option<GunPose> {
+        if !transform.iter().chain(&bounds).all(|v| v.is_finite()) {
+            return None;
+        }
+        if (0..3).any(|n| bounds[n] > bounds[n + 3] || bounds[n + 3] - bounds[n] > 4.0) {
+            return None;
+        }
+        let [x0, y0, z0, x1, y1, z1] = bounds;
+        Some(GunPose { transform, lo: [-x1, y0, -z1], hi: [-x0, y1, -z0] })
+    }
+}
+
+/// At `carry.weapon` (mt_draw, before the held item's draw; the site's
+/// player is `player`): its held client weapon's pose, the transform the
+/// site has (EAX) and the box of the weapon's model (+1810h -> its render
+/// instance, a skeleton_render_model_instance -> its resource's +108h).
+pub fn drawn_gun(ctx: &Context<'_>, player: &Player<'_>) -> Option<GunPose> {
+    // SAFETY: the site's transform (a live float4x4) and its live player;
+    // the held item read as a client weapon only after its vtable says so;
+    // a client weapon's model is a skeleton model's render instance.
+    unsafe {
+        let transform = super::world::floats::<16>(raw::site::carry_weapon::transform(ctx)?.value());
+        let held = player.this.held_item()?;
+        if read(held.vtable()) != raw::image::WEAPON_VTABLE {
+            return None;
+        }
+        let resource = held.weapon().model()?.render_instance().instance()?.skeleton().resource()?;
+        GunPose::parse(transform, super::world::floats::<6>(resource.bounds()))
+    }
+}
+
+/// A binary config's named table and string types (0.10b configs::enum_types).
+const CFG_TABLE: u16 = 3;
+const CFG_STRING: u16 = 5;
+/// The longest name key kept.
+const NAME_KEY: usize = 64;
+
+/// A gun's name key (its config's ui_desc/text_descriptions/name), copied.
+#[derive(Clone, Copy)]
+pub struct NameKey([u8; NAME_KEY]);
+
+impl NameKey {
+    /// No name (the prompt shows the text without it).
+    pub const EMPTY: NameKey = NameKey([0; NAME_KEY]);
+
+    pub fn get(&self) -> &CStr {
+        CStr::from_bytes_until_nul(&self.0).unwrap_or(c"")
+    }
+}
+
+/// `table`'s child `key`, when `table` is a named table that has it
+/// (engine_cfg_child reads past the end for a missing key: asked first, as
+/// fill_items_dictionary_impl asks ui_desc, 0x2864B0).
+///
+/// # Safety
+/// `table` is a live config value.
+unsafe fn child(table: raw::EngineCfg, key: &CStr) -> Option<raw::EngineCfg> {
+    unsafe {
+        if read(table.kind()) != CFG_TABLE || raw::engine_cfg_has(Some(table), key.as_ptr().cast()) & 0xFF == 0 {
+            return None;
+        }
+        raw::engine_cfg_child(Some(table), key.as_ptr().cast())
+    }
+}
+
+/// The name key of the cooked gun of `cook` (its `slot`): its dictionary
+/// entry's config, ui_desc/text_descriptions/name (fill_items_dictionary_impl
+/// 0x2865C9..0x2865E9), when every step is there and the key fits.
+pub fn gun_name(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<NameKey> {
+    let inventory = gun_cook::inventory(thread, cook)?;
+    // SAFETY: the made cooked inventory (its ticket holds it), its gun's
+    // item, the item's dictionary entry and its config, which the dictionary
+    // keeps for the match; each value's type read before its use.
+    unsafe {
+        let (item, _) = cooked_gun(inventory, slot)?;
+        let root = item.entry()?.config()?.root()?;
+        let name = child(child(child(root, c"ui_desc")?, c"text_descriptions")?, c"name")?;
+        if read(name.kind()) != CFG_STRING {
+            return None;
+        }
+        let text = super::language::c_string(name.text(), NAME_KEY)?;
+        let mut out = [0u8; NAME_KEY];
+        out[..text.to_bytes().len()].copy_from_slice(text.to_bytes());
+        Some(NameKey(out))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_box_is_turned_as_the_renderer_turns_it() {
+        let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
+        let pose = GunPose::parse(identity, [-0.1, -0.05, -0.4, 0.2, 0.1, 0.6]).unwrap();
+        assert_eq!((pose.lo, pose.hi), ([-0.2, -0.05, -0.6], [0.1, 0.1, 0.4]));
+        assert!(GunPose::parse(identity, [0.2, 0., 0., 0.1, 1., 1.]).is_none(), "inverted");
+        assert!(GunPose::parse(identity, [0., 0., 0., 5., 1., 1.]).is_none(), "too long");
+        assert!(GunPose::parse(identity, [0., 0., f32::NAN, 1., 1., 1.]).is_none());
     }
 }

@@ -357,6 +357,7 @@ def main():
     print("ok the donor destroyed while its gun cooks: the completion gives the gun, recipe and profile back")
 
     stage2(patched, original)
+    stage2b(patched)
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
@@ -709,6 +710,171 @@ def stage2(patched, original):
     late.pick(now=DIED + 5_000)
     assert any("refused, no drop to take" in l for l in late.log) and late.native == []
     print("ok a command 5 s after the death: refused")
+
+
+
+# ---- stage 2b: the ragdoll's gun, the prompt, the command -----------------------------------------
+
+WEAPON_DRAW, WEAPON_DRAWN, WEAPON_SKIPPED = 0x2477C8, 0x2477CE, 0x2477DF
+ICONS_SITE, ICONS_AFTER = 0x23AA10, 0x23AA16
+BUILDER_END, BUILDER_AFTER = 0x2421B0, 0x2421B5
+RAY_TEST, REMOVE_MODEL, CFG_CHILD, CFG_HAS, TRANSLATE = 0x75E20, 0x21F40, 0xF6B10, 0xF6C00, 0x1FF0F0
+USE = 1 << 21
+IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
+NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
+PLACES_AT = OPTIONS_HOLDER + 0xC + 0x577B5
+
+
+class Prompt(Pick):
+    """Stage 2a's match (the donor at place 5 dead, its gun cooked; the picker at place 3) with the
+    donor's gun drawn on its ragdoll (a model box, a renderer), the hud (its movie's Invoke
+    recorded), the picker's eye, a ray test, the gun's config (ui_desc/text_descriptions/name) and
+    the dictionary's translate_text; the input builder's end."""
+
+    def __init__(self, data):
+        super().__init__(data)
+        self.wall, self.removed = False, []
+        for at in (RAY_TEST, REMOVE_MODEL, CFG_CHILD, CFG_HAS, TRANSLATE):
+            self.emu.hook_add(UC_HOOK_CODE, self.fixtures, begin=at, end=at)
+
+    def fixtures(self, emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda n: self.read(sp + 4 * n)
+        if address == RAY_TEST:                     # ECX world, result, origin, direction, length, group, mask; ret 20h
+            assert (arg(5), arg(6)) == (0x24, 2), "patch 78's level filter"
+            self.word(arg(1) + 0x1C, 1 if self.wall else 0)
+            self.ret(32)
+        elif address == REMOVE_MODEL:               # EAX the model's reference, renderer, scene; ret 8
+            instance = self.read(emu.reg_read(UC_X86_REG_EAX))
+            emu.mem_write(instance + 0x10D, b"\0")
+            self.removed.append(instance)
+            self.ret(8)
+        elif address in (CFG_CHILD, CFG_HAS):       # EAX the table, EDI (child) or ESI (has) the key
+            key = self.text(emu.reg_read(UC_X86_REG_EDI if address == CFG_CHILD else UC_X86_REG_ESI))
+            child = self.cfg.get((emu.reg_read(UC_X86_REG_EAX), key))
+            self.ret(0, child if address == CFG_CHILD else (1 if child else 0))
+        else:                                       # ECX translator, key, out; ret 8
+            assert emu.reg_read(UC_X86_REG_ECX) == GAME + 0x52A8
+            if self.text(arg(1)) == NAME_KEY:
+                emu.mem_write(arg(2), NAME.encode() + b"\0")
+            self.ret(8)
+
+    def setup(self, double_handed=1):
+        super().setup(double_handed)
+        p = self.picker
+        self.emu.mem_write(PLACES_AT, b"\x08")
+        self.word(p + 0x350, 0x5050)                    # its physics world
+        self.eye([0., 0., 1.], [0., 1.0, 0.])
+        # The donor's gun on its ragdoll: 1 m along z, at (0, 1, 1); a skeleton model's instance.
+        renderer, scene = 0x38000000, self.blk(0x100)
+        self.emu.mem_map(renderer, 0x201000, UC_PROT_ALL)
+        self.word(GAME + 0x5360, renderer)
+        self.word(renderer + 0x200064, scene)
+        model, self.instance, resource = self.blk(0x120), self.blk(0x6300), self.blk(0x140)
+        self.word(WEAPON + 0x1810, model)
+        self.word(WEAPON + 0x180C, WORLD)
+        self.word(model + 0x108, self.instance)
+        self.emu.mem_write(self.instance + 0x10D, b"\1")
+        self.word(self.instance + 0x62B4, resource)
+        self.emu.mem_write(resource + 0x108, struct.pack("<6f", -0.05, -0.05, -0.5, 0.05, 0.05, 0.5))
+        self.matrix = self.blk(64)
+        at = list(IDENTITY)
+        at[13], at[14] = 1.0, 1.0
+        self.emu.mem_write(self.matrix, struct.pack("<16f", *at))
+        # The cooked gun's config: ui_desc/text_descriptions/name, a string.
+        entry, holder = self.blk(0x3A0), self.blk(0x110)
+        self.word(self.new_gun + 0x10 + 0x25C, entry)
+        self.word(entry + 0x114, holder)
+        nodes = [self.blk(0x18) for _ in range(4)]
+        self.word(holder + 0x108, nodes[0])
+        for node in nodes[:3]:
+            self.emu.mem_write(node + 0x14, struct.pack("<H", 3))
+        text = self.blk(32)
+        self.emu.mem_write(text, NAME_KEY + b"\0")
+        self.word(nodes[3], text)
+        self.emu.mem_write(nodes[3] + 0x14, struct.pack("<H", 5))
+        self.cfg = {(nodes[0], b"ui_desc"): nodes[1], (nodes[1], b"text_descriptions"): nodes[2],
+                    (nodes[2], b"name"): nodes[3]}
+        # The hud: [esp+4] the ui; its world, its movie.
+        self.ui = self.blk(0x20)
+        self.word(self.ui + 0x18, WORLD)
+        self.word(CLIENT + 4, p)
+        self.handler = self.blk(0x400)
+
+    def eye(self, forward, position):
+        m = list(IDENTITY)
+        m[8:11], m[12:15] = forward, position
+        self.emu.mem_write(self.picker + 0x44C, struct.pack("<16f", *m))
+
+    def draw(self):
+        """mt_draw's carry.weapon of the dead donor: whether its native weapon draw goes on."""
+        self.lohook(WEAPON_DRAW, WEAPON_DRAWN, {UC_X86_REG_EBX: PLAYER, UC_X86_REG_EAX: self.matrix},
+                    stops=(WEAPON_DRAWN, WEAPON_SKIPPED))
+        return self.stopped == WEAPON_DRAWN
+
+    def hud(self):
+        """update_player_icons' start: the hud's prompts (show_artefact_offer's arguments)."""
+        sp = hide.STACK + 0x9000
+        self.movies(self.ui, True, False)
+        self.word(sp + 4, self.ui)
+        self.lohook(ICONS_SITE, ICONS_AFTER, {}, sp=sp)
+        return [values for _, method, values in self.invokes() if method == "root.show_artefact_offer"]
+
+    def build(self, actions):
+        """The input builder's end: the actions the input carries."""
+        self.word(self.handler + 0x33C, actions)
+        self.lohook(BUILDER_END, BUILDER_AFTER, {UC_X86_REG_EBX: self.handler})
+        return self.read(self.handler + 0x33C)
+
+
+def stage2b(patched):
+    r = Prompt(patched)
+    r.setup()
+    assert r.draw(), "an open drop's gun is drawn"
+    assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
+    print("ok the donor's gun drawn on its ragdoll (carry.weapon: the site's transform, its model's box): the "
+          "picker looking at it within 2.2 m, in sight, is offered it: show_artefact_offer(\"st_weapon_pick_up\", "
+          "the gun's ui_desc/text_descriptions/name translated)")
+
+    sent = r.build(USE | 0x21)
+    assert sent == command(PLACE) | 0x21, hex(sent)
+    assert r.build(USE | 0x01) == 0x01, "Use held after the pickup reached the game"
+    assert r.build(0x01) == 0x01 and r.build(USE) == command(PLACE)
+    r.build(0)
+    assert any("place 3 sends a pickup of the gun of place 5" in l for l in r.log), r.log
+    print("ok Use's press on it: the input builder's end sends the pickup command (Use, the quick bits out; fire "
+          "kept); held, the game sees no Use until it is let go")
+
+    # The command played: taken; the gun is hidden on the ragdoll, the prompt gone.
+    r.word(r.picker + 0x330, sent)
+    r.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: r.picker, UC_X86_REG_EAX: r.picker + 0x32C})
+    r.installed()
+    assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
+    assert r.hud() == [("",)], "the prompt stays after the take"
+    assert r.hud() == [] and r.build(USE) == USE
+    print("ok the command played (carry.filter): taken; its gun out of the scene on the ragdoll (native draw "
+          "skipped, as patch 78 hides a carrier's), the prompt gone, Use the game's again")
+
+    for case, change in (("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.])),
+                         ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9])),
+                         ("a wall between", lambda g: setattr(g, "wall", True)),
+                         ("5 s after the death", lambda g: g.word(g.picker + 0x324, DIED + 5_000)),
+                         ("a gun of another kind", None),
+                         ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"))):
+        g = Prompt(patched)
+        g.setup(double_handed=0 if change is None else 1)
+        if change:
+            change(g)
+        assert g.draw()
+        assert g.hud() == [], (case, g.invokes())
+        assert g.build(USE) == USE, case
+    g = Prompt(patched)
+    g.setup()
+    g.eye([0., -1., 0.], [0.09, 2.0, 1.2])
+    g.draw()
+    assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
+    print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, 5 s after the death, for a "
+          "gun of another kind, or a place the match does not have; the box padded by 5 cm")
 
 
 def frame_for(run, flag):

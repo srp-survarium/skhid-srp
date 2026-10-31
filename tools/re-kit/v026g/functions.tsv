@@ -1925,3 +1925,4 @@ va	status	ref_021d	name
 0x0027d280	observed		boost::function<void (vostok::resources::queries_result &)>::assign_member
 0x00202300	observed		boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke
 0x000e5ab0	observed	0x000b13ab	vostok::resources::dispatch_callbacks
+0x00286410	observed		survarium::fill_items_dictionary_impl
