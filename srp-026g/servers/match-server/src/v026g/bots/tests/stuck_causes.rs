@@ -55,7 +55,7 @@ enum Way {
 }
 
 fn clearance(sections: &Sections, segs: &mut Vec<Seg>, at: (f32, f32), y: f32) -> f32 {
-    sections.near(at, y, 1.0, segs);
+    sections.near(at, y, false, 1.0, segs);
     segs.iter().map(|s| nearest(s, at).1).fold(1.0f32, f32::min)
 }
 
@@ -164,7 +164,7 @@ fn stuck_causes() {
                     Cause::LineFree
                 } else {
                     let k = (LOOK_M / len).min(1.0);
-                    sections.near(here, at[1], LOOK_M + 1.0, &mut segs);
+                    sections.near(here, at[1], false, LOOK_M + 1.0, &mut segs);
                     if sweep(&segs, here, (dx * k, dz * k), RADIUS_M).is_some() {
                         match way_for_the_capsule(&world, &sections, here, (next[0], next[2]), at[1]) {
                             Way::Yes => Cause::LineBlockedWay,

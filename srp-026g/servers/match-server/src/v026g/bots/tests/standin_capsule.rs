@@ -15,9 +15,10 @@
 //!   of it when the move is more head-on than `cc_wall_full_slide_dot` (`character_move_sweep_callback::addSingleResult` 0x895F0
 //!   with 0x89B80, LIKELY: a ray along the move from the centre, 0.03 m past the contact, meeting a face).
 //!
-//! The walls are the walker mesh's faces that are not ground (steeper than the client's slope, or `dont_walk`), cut at four
-//! heights above the step height (`cc_step_height 0.80`: the capsule is lifted by it for the horizontal sweep, so a face lower than
-//! that is a step), and the body holds off them by `RADIUS_M`. `SRP_BENCH_STAND_IN_CORNER=off` leaves the lattice's slide.
+//! The walls are the walker mesh's faces that are not ground (steeper than the client's slope, or `dont_walk`), cut at three
+//! heights in the middle of the capsule that sweeps (`cc_step_height 0.80`: it is lifted by the step height from below, so a face
+//! lower than that is a step, and its ends are round: a face above 1.6 m or under 1.0 m meets a hemisphere, not the full radius, and
+//! is left out; a crouched body, 1.1 m tall, is cut at one height), and the body holds off them by `RADIUS_M`. `SRP_BENCH_STAND_IN_CORNER=off` leaves the lattice's slide.
 //! Tests-only: the bots' reckoning does not know it.
 
 use std::collections::HashMap;
@@ -45,8 +46,10 @@ const RAY_OFFSET_M: f32 = 0.03;
 const SWEEPS: usize = 3;
 /// A slide shorter than this squared ends the move (`0x9CBA48`, 1e-5).
 const MIN_SLIDE2: f32 = 1e-5;
-/// The heights over the feet the walls are cut at, m (the step height is 0.80).
-const HEIGHTS: [f32; 4] = [0.9, 1.2, 1.5, 1.75];
+/// The heights over the feet the walls are cut at, m: standing (the swept capsule is 0.8 to 1.8 m, its round ends at 1.18 and 1.42,
+/// where the full radius is: 1.05 and 1.55 m are 0.02 m under it) and crouched.
+const HEIGHTS: [f32; 3] = [1.05, 1.3, 1.55];
+const CROUCH_HEIGHTS: [f32; 1] = [0.95];
 /// The most a body overlapping a wall is pushed out in a tick, m.
 const PUSH_M: f32 = 0.15;
 /// The size of the buckets of the index, m.
@@ -115,18 +118,19 @@ impl Sections {
     }
 
     /// The cross-sections within `reach` m of `at` of the walls a body standing on `y` meets.
-    pub(crate) fn near(&self, at: (f32, f32), y: f32, reach: f32, out: &mut Vec<Seg>) {
+    pub(crate) fn near(&self, at: (f32, f32), y: f32, crouched: bool, reach: f32, out: &mut Vec<Seg>) {
         out.clear();
-        self.gather(at, y, reach, |seg, _| out.push(seg));
+        self.gather(at, y, crouched, reach, |seg, _| out.push(seg));
     }
 
     /// [`Self::near`] with the tag of each face.
-    pub(crate) fn near_tagged(&self, at: (f32, f32), y: f32, reach: f32, out: &mut Vec<(Seg, u32)>) {
+    pub(crate) fn near_tagged(&self, at: (f32, f32), y: f32, crouched: bool, reach: f32, out: &mut Vec<(Seg, u32)>) {
         out.clear();
-        self.gather(at, y, reach, |seg, tag| out.push((seg, tag)));
+        self.gather(at, y, crouched, reach, |seg, tag| out.push((seg, tag)));
     }
 
-    fn gather(&self, at: (f32, f32), y: f32, reach: f32, mut each: impl FnMut(Seg, u32)) {
+    fn gather(&self, at: (f32, f32), y: f32, crouched: bool, reach: f32, mut each: impl FnMut(Seg, u32)) {
+        let heights: &[f32] = if crouched { &CROUCH_HEIGHTS } else { &HEIGHTS };
         let mut seen: Vec<u32> = Vec::new();
         for bx in bucket(at.0 - reach)..=bucket(at.0 + reach) {
             for bz in bucket(at.1 - reach)..=bucket(at.1 + reach) {
@@ -139,7 +143,7 @@ impl Sections {
         seen.dedup();
         for id in seen {
             let w = &self.walls[id as usize];
-            for h in HEIGHTS {
+            for &h in heights {
                 let plane = y + h;
                 if plane < w.y.0 || plane > w.y.1 {
                     continue;
@@ -487,7 +491,7 @@ mod tests {
                     continue;
                 }
                 let (Ok(x), Ok(y), Ok(z)) = (f[3].parse::<f32>(), f[4].parse::<f32>(), f[5].parse::<f32>()) else { continue };
-                sections.near((x, z), y, 1.2, &mut segs);
+                sections.near((x, z), y, f[6] == "1", 1.2, &mut segs);
                 dists.push(segs.iter().map(|s| nearest(s, (x, z)).1).fold(1.2f32, f32::min));
             }
             if dists.is_empty() {

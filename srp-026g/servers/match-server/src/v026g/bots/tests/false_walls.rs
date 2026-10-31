@@ -65,7 +65,7 @@ fn false_walls() {
             }
             let (Ok(x), Ok(y), Ok(z)) = (c[3].parse::<f32>(), c[4].parse::<f32>(), c[5].parse::<f32>()) else { continue };
             samples += 1;
-            sections.near_tagged((x, z), y, CLOSE_M, &mut segs);
+            sections.near_tagged((x, z), y, c[6] == "1", CLOSE_M, &mut segs);
             let nearest_face = segs.iter().map(|(s, tag)| (nearest(s, (x, z)).1, *tag)).filter(|&(d, _)| d < CLOSE_M).min_by(|a, b| a.0.total_cmp(&b.0));
             if let Some((_, tag)) = nearest_face {
                 close += 1;

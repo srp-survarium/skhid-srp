@@ -1130,7 +1130,7 @@ impl Game {
                         });
                         let mv = (to.x - body.feet.x, to.z - body.feet.z);
                         let reach = mv.0.hypot(mv.1) + standin_capsule::RADIUS_M + 0.6;
-                        sections.near((body.feet.x, body.feet.z), body.feet.y, reach, &mut segs);
+                        sections.near((body.feet.x, body.feet.z), body.feet.y, body.keys & key::CROUCH != 0, reach, &mut segs);
                         let held = standin_capsule::client_move(&segs, (body.feet.x, body.feet.z), mv, standin_capsule::RADIUS_M);
                         standin_capsule::counts::note(&held, mv.0.hypot(mv.1) > 1e-4);
                         Vec3::new(held.to.0, to.y, held.to.1)

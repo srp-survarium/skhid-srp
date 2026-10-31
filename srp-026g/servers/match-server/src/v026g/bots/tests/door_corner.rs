@@ -294,7 +294,7 @@ fn capsule_spot_report() {
         let grid = &world.grid;
         let clearance = |px: f32, pz: f32, py: f32| {
             let mut segs = Vec::new();
-            sections.near((px, pz), py, 1.0, &mut segs);
+            sections.near((px, pz), py, false, 1.0, &mut segs);
             segs.iter().map(|s| standin_capsule::nearest(s, (px, pz)).1).fold(1.0f32, f32::min)
         };
         println!("{project} spot ({x}, {y}, {z}): rows are z {:.1}..{:.1} (down), columns x {:.1}..{:.1}", z - 2.5, z + 2.5, x - 2.5, x + 2.5);
