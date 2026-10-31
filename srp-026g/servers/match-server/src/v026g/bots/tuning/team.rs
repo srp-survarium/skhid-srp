@@ -87,6 +87,41 @@ impl SniperMemory {
     }
 }
 
+/// design-p1c §3 "no feeding" (`concede.rs`): the team's tries on a shooter's area are remembered per area, and after
+/// `fails` failed ones the area is conceded for `concede_s` (no job or Breach on it, plays aimed into it score down, the
+/// routes keep their cost). A retry must differ from the last try by kind, by `retry_deg` of approach, or by `retry_s`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Concede {
+    /// Failed tries (a role holder down, an untraded death at the spot, a job timed out or aborted) that concede the area.
+    /// design-p1c §3: 2. GUESS until the recordings' note.
+    pub fails: u8,
+    /// How long a conceded area stays conceded, s. design-p1c §3: 90-120. GUESS until the recordings' note.
+    pub concede_s: f32,
+    /// A retry this many degrees or more off the last try's approach differs from it. GUESS.
+    pub retry_deg: f32,
+    /// A retry this long after the last try differs from it, s. GUESS.
+    pub retry_s: f32,
+}
+
+impl Default for Concede {
+    fn default() -> Self {
+        Self { fails: 2, concede_s: 105.0, retry_deg: 45.0, retry_s: 30.0 }
+    }
+}
+
+impl Concede {
+    /// The rules, parsed once (`concede::ConcedeRules`).
+    pub fn rules(&self) -> crate::v026g::bots::concede::ConcedeRules {
+        crate::v026g::bots::concede::ConcedeRules {
+            fails: self.fails.max(1),
+            concede_ms: (self.concede_s.max(0.0) * 1000.0) as u32,
+            retry_deg: self.retry_deg.clamp(0.0, 180.0),
+            retry_ms: (self.retry_s.max(0.0) * 1000.0) as u32,
+        }
+    }
+}
+
 /// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
 /// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
 /// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
@@ -338,6 +373,10 @@ pub struct ThreatTuning {
     /// stand-in cell -0.4 % (384 pairs over both camper placements and two seed sets). An earlier -1.6 % on one seed set
     /// did not replicate. Its detours (+46-59 %) pass known enemies no more than the ways they replace, and die no more.
     pub sniper_memory: Option<SniperMemory>,
+    /// design-p1c §3 "no feeding" and items 11, 15 ([`Concede`], `concede.rs`): a team's failed tries on a shooter's area
+    /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. OFF by
+    /// default: not built into the jobs yet (the memory and its rules only).
+    pub concede: Option<Concede>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -452,6 +491,7 @@ impl Default for ThreatTuning {
             answer_sniper: false,
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
+            concede: None,
         }
     }
 }

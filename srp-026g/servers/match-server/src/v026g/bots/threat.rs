@@ -2409,6 +2409,8 @@ pub struct TeamThreat {
     /// The team's deaths of the last [`DEATH_KEPT_MS`] and their killers
     /// (the kill feed's), for a job holder's end.
     pub deaths: Vec<Death>,
+    /// [threat.concede] The team's tries on each shooter's area (`concede.rs`).
+    pub spot_memory: super::concede::SpotMemory,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
