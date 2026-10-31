@@ -287,6 +287,13 @@ pub(super) fn straight_jumps() -> Box<dyn RouteTopic> {
         || super::super::motor::straight_jumps::counts().to_vec(),
         |d, line| {
             line.ends.push(format!("jump_line_weave_added/held {}/{} jump_line_apart_asked/held {}/{}", d[0], d[1], d[2], d[3]));
+/// The ledge jumps whose landing was out of reach of the press from the feet (`motor::low_presses`, `Feel::press_in_reach`):
+/// pressed so (off), ticks held from the press and jumps given up under the take-off (on).
+pub(super) fn low_presses() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::low_presses::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("low_press_pressed/held_ticks/gave_up {}/{}/{}", d[0], d[1], d[2]));
         },
     )
 }

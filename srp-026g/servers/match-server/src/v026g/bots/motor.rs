@@ -37,6 +37,7 @@ use std::collections::VecDeque;
 use std::f32::consts::PI;
 
 use mapdata::Vec3;
+use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
@@ -235,6 +236,15 @@ pub struct Feel {
     /// diagonal, off the jump's line: at Vostok Radar Station's take-off 17 of 31 failed bench presses held a side key,
     /// against 5 of 40 that got up (A198). Off: the side keys as before (counted, `straight_jumps`).
     pub straight_jumps: bool,
+    /// A ledge jump of the route is pressed only when its landing is within the jump's reach of the feet: with the feet
+    /// more than [`PRESS_UNDER_M`] under the take-off and the landing higher above them than the jump the press makes
+    /// gets up ([`mapdata::grid::SPRINT_JUMP_LOW_M`] at a sprint, else [`mapdata::grid::STANDING_JUMP_M`]: the client's
+    /// jump rises from where it is pressed, PROVEN, the jump study), there is no press. The body walks on to the
+    /// take-off; one that reaches it (along the jump's way) still that low is on another floor, and the jump is given up so the
+    /// route is planned again. The bench pressed 0.40-1.50 m under the take-off at Vostok Radar Station and Mamayev
+    /// Kurgan, a rise of 1.35-2.37 m from the feet, and never got up (A198). Off: pressed as the body walks over the
+    /// take-off's place, at any height.
+    pub press_in_reach: bool,
 }
 
 impl Default for Feel {
@@ -283,6 +293,7 @@ impl Default for Feel {
             fight_lift: false,
             sprint_through: true,
             straight_jumps: false,
+            press_in_reach: false,
         }
     }
 }
@@ -473,6 +484,9 @@ pub const LIFT_MAX_RISE_M: f32 = 1.11;
 /// press lead is up to 0.85 m at a walk (`JUMP_LEAD_S` x 3.5 + `PRESS_M`) and the live players press about 1 m before
 /// (fx-cover, A198); 2 m is the lining up's last stretch.
 pub const STRAIGHT_JUMP_M: f32 = 2.0;
+/// The feet this far under a ledge jump's take-off, metres, are not at its level ([`Feel::press_in_reach`]): the grid's
+/// floors under one take-off differ by a step or a cell's slope, well under this (LIKELY); the bench's low-press bar.
+const PRESS_UNDER_M: f32 = 0.30;
 /// The least depth of a top the lift is tried up, metres: a 0.33 m rail head-on lifted 0 of 20 (PROVEN); 0.35 is the owner's
 /// bar (LIKELY).
 pub const LIFT_TOP_M: f32 = 0.35;
@@ -867,8 +881,20 @@ struct Ahead {
     approach: Approach,
     /// The jump's rise, metres; over [`WALK_JUMP_TOP_M`] only the sprint jump gets up ([`Feel::band_jump_gate`]).
     rise: f32,
+    /// How far the take-off is above the feet, metres (under them: below 0); a body on the take-off's floor reads about 0.
+    take_off_above: f32,
     /// A walking jump up a short top is pressed this far before the take-off ([`Route::ledge_lead`]); 0 is the usual lead.
     lead_m: f32,
+}
+
+impl Ahead {
+    /// Whether the landing is out of reach of a press from where the feet are ([`Feel::press_in_reach`]): the feet more
+    /// than [`PRESS_UNDER_M`] under the take-off and the landing above them by more than `reach`, the jump the press makes.
+    fn out_of_reach(&self, reach: f32) -> bool {
+        matches!(self.leap, Leap::Ledge | Leap::SprintLedge)
+            && self.take_off_above > PRESS_UNDER_M
+            && self.take_off_above + self.rise > reach
+    }
 }
 
 /// How the body approaches the face of a jump link: one of these, never a mixture.
@@ -1846,6 +1872,7 @@ impl Motor {
                 leap,
                 approach: if sprint { Approach::Sprint } else { Approach::Walk },
                 rise: landing.y - take_off.y,
+                take_off_above: take_off.y - feet.y,
                 lead_m: 0.0,
             });
         }
@@ -2038,6 +2065,7 @@ impl Motor {
                 Approach::Walk
             },
             rise: landing.y - take_off.y,
+            take_off_above: take_off.y - feet.y,
             lead_m,
         })
     }
@@ -2060,6 +2088,15 @@ impl Motor {
         }
         // The sprint lift is no press: the sprint into the face carries the body up.
         if ahead.approach == Approach::Lift {
+            return 0;
+        }
+        // At the take-off's place (along the jump's way) under its floor, out of reach of any jump, and not in a jump:
+        // another floor, so the jump is given up and the route planned again ([`Feel::press_in_reach`]).
+        let landed = jump.pressed.is_none_or(|at| self.since(at) >= CARRY_S);
+        if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(SPRINT_JUMP_LOW_M) {
+            jump.tries = JUMP_TRIES;
+            self.jump_try = Some(jump);
+            low_presses::gave_up();
             return 0;
         }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
@@ -2124,6 +2161,16 @@ impl Motor {
             band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
+        }
+        // The landing out of reach of the jump this press makes, from where the feet are: no press while the walk
+        // goes on to the take-off ([`Feel::press_in_reach`]); off, the press is counted.
+        let reach = if sprinted && block.is_none() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
+        if ahead.out_of_reach(reach) {
+            if self.feel.press_in_reach {
+                low_presses::held();
+                return 0;
+            }
+            low_presses::pressed();
         }
         if let BandTry::Held { refused, .. } = jump.band {
             band_jumps::pressed_after_hold();
@@ -2707,6 +2754,32 @@ pub mod sprint_gaps {
 
     /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, given up, pressed with the sprint key held and not, got across.
     pub fn counts() -> [u64; 7] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// The ledge jumps of routes whose landing was out of reach of the press from where the feet were ([`Feel::press_in_reach`],
+/// [`Ahead::out_of_reach`]): pressed so (the switch off), the ticks held from the press (on), and the jumps given up at the
+/// take-off's place under its floor (on).
+pub mod low_presses {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn pressed() {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn held() {
+        COUNTS[1].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn gave_up() {
+        COUNTS[2].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Pressed out of reach, ticks held, given up under the take-off.
+    pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
