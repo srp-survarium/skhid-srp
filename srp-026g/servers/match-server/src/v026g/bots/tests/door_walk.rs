@@ -1,5 +1,4 @@
-//! Chemical Plant's 717 door (A66), walked with the stand-in's body as the lattice has it and as the client's capsule is (A191,
-//! `SRP_BENCH_STAND_IN_CORNER`, read once: run the measurement under each setting). From the A66 door walk (fx-struct): a walk on the stand-in over the real mapdata through the doorway at x 24 (a 1.27 m
+//! Chemical Plant's 717 door (A66): a walk on the stand-in over the real mapdata through the doorway at x 24 (a 1.27 m
 //! opening in z 80.3-81.6, cells at x 23.6-24.1 only in the rows z 80.6-81.4, `wsl-out/grid/a96_door717.txt`), entered after
 //! a ramp and a turn, with the distance to the nearest wall read every tick.
 
@@ -69,12 +68,15 @@ struct Pass {
     stuck: usize,
     /// The clock the body first came within 1.5 m of the goal.
     reached: Option<u32>,
+    /// The feet every 250 ms from 6 m before the door to 3 m past it: (clock, feet, speed m/s, wall distance).
+    trace: Vec<(u32, Vec3, f32, f32)>,
     last_speed: f32,
 }
 
 /// A walk of the J0 runner's kind (`Go::To` the goal) from `start` to `goal`, for `until` ms.
-fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> Pass {
-    let tuning = Tuning::default();
+fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32, centred: bool) -> Pass {
+    let mut tuning = Tuning::default();
+    tuning.think.door_centres = centred;
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x717,
@@ -92,8 +94,9 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> 
     game.bodies[0].feet = start;
     bots.entered(0, true, 0);
     let (mut clock, mut next_world) = (0, 1_000);
-    let mut pass = Pass { near_ms: 0, closest: (f32::MAX, Vec3::ZERO), slow_ms: 0, jamb: (f32::MAX, Vec3::ZERO), under_hold_ms: 0, under_radius_ms: 0, stuck: 0, reached: None, last_speed: 0.0 };
+    let mut pass = Pass { near_ms: 0, closest: (f32::MAX, Vec3::ZERO), slow_ms: 0, jamb: (f32::MAX, Vec3::ZERO), under_hold_ms: 0, under_radius_ms: 0, stuck: 0, reached: None, trace: Vec::new(), last_speed: 0.0 };
     let mut last = start;
+    let mut next_trace = 0;
     while clock < until {
         clock += 25;
         while game.tick + TICK_MS <= clock {
@@ -165,6 +168,10 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32) -> 
                 pass.closest = (wall, feet);
             }
             pass.stuck += notes.iter().filter(|n| n.text.contains("is stuck at")).count();
+            if clock >= next_trace {
+                next_trace = clock + 250;
+                pass.trace.push((clock, feet, speed, wall));
+            }
         }
         if pass.reached.is_none() && feet.distance_xz(goal) < 1.5 {
             pass.reached = Some(clock);
@@ -222,7 +229,7 @@ fn ramp_turn_starts(grid: &mapdata::grid::WalkGrid, door: Vec3, goal_node: u32) 
 }
 
 /// Walks through the 717 door from the starts that climb a ramp and turn before it; prints, per walk, the least distance to a
-/// wall within 4 m of the door and where, the milliseconds there and under 1 m/s, the stuck notes. A measurement:
+/// wall within 4 m of the door and where, the milliseconds there and under 1 m/s, the stuck notes, and the trace. A measurement:
 /// `SRP_MAPDATA_DIR=<mapdata folder> cargo test -p match-server --release door_717_walk -- --ignored --nocapture`.
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
@@ -248,91 +255,35 @@ fn door_717_walk() {
         let goal = grid.position(goal_node);
         let starts = ramp_turn_starts(grid, door, goal_node);
         println!("{project}: door at ({:.2}, {:.2}, {:.2}), goal ({:.2}, {:.2}, {:.2}); {} starts climb a ramp and turn before it", door.x, door.y, door.z, goal.x, goal.y, goal.z, starts.len());
-        let (mut reached, mut walks) = (0, 0);
-        let (mut near, mut slow, mut under_hold, mut under_radius, mut stuck) = (0u32, 0u32, 0u32, 0u32, 0usize);
-        let mut closest = f32::MAX;
-        for (start, turn) in starts.iter().take(12) {
-            let pass = walk(&world, *start, goal, door, 90_000);
-            walks += 1;
-            reached += usize::from(pass.reached.is_some());
-            near += pass.near_ms;
-            slow += pass.slow_ms;
-            under_hold += pass.under_hold_ms;
-            under_radius += pass.under_radius_ms;
-            stuck += pass.stuck;
-            closest = closest.min(pass.jamb.0);
+        if let Some((start, _)) = starts.first() {
+            // What the switch costs: the planned route of the first start made again with the door gates.
+            let node = grid.locate(*start, 1.0).unwrap();
+            let route = path::plan(grid, node, goal_node).unwrap();
+            let t = std::time::Instant::now();
+            let centred = route.clone().door_centred(grid);
             println!(
-                "  corner {}: from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest jamb {:.2} m ({} ms under the controller's {CONTROLLER_HOLD_M} m, {} ms under the body's radius {BODY_RADIUS_M} m), stuck notes {}, reached the goal {:?}",
-                stand_in_corner(), start.x, start.y, start.z, turn, pass.near_ms, pass.slow_ms, pass.jamb.0, pass.under_hold_ms, pass.under_radius_ms, pass.stuck, pass.reached
+                "  door gates: the route of {:.0} m has {} corners, {} with them, made in {:.2} ms",
+                route.length(),
+                route.points().len(),
+                centred.points().len(),
+                t.elapsed().as_secs_f64() * 1000.0
             );
         }
-        println!(
-            "{project} DOOR-717 corner {}: walks {walks} reached {reached} near_ms {near} slow_ms {slow} under_hold_ms {under_hold} under_radius_ms {under_radius} stuck_notes {stuck} closest_jamb {closest:.2}",
-            stand_in_corner()
-        );
-    }
-}
-
-/// A picture of a place the capsule holds bodies at (`SRP_SPOTS="<level_NN/weather_n> <x> <z> <y>;..."`, `SRP_MAPDATA_DIR`, and
-/// `SRP_HUMAN_DIR` for the live samples): 5 m square at 0.1 m: `.` where a floor is and the capsule fits (0.38 m from every wall), `x`
-/// where a floor is and it does not, a blank where there is no floor; the live players' samples within 1.5 m of it and how near
-/// the walls they stood. A measurement.
-#[test]
-#[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_SPOTS"]
-fn capsule_spot_report() {
-    let (Some(dir), Ok(spots)) = (std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from), std::env::var("SRP_SPOTS")) else {
-        eprintln!("skipping: SRP_MAPDATA_DIR or SRP_SPOTS is not set");
-        return;
-    };
-    for spot in spots.split(';').filter(|s| !s.trim().is_empty()) {
-        let f: Vec<&str> = spot.split_whitespace().collect();
-        let (project, x, z, y) = (f[0], f[1].parse::<f32>().unwrap(), f[2].parse::<f32>().unwrap(), f[3].parse::<f32>().unwrap());
-        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(project))).unwrap();
-        let sections = standin_capsule::Sections::new(&map.walker_triangles(), mapdata::Body::client().min_ground_normal_y);
-        let links = Tuning::default().grid.off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
-        let grid = &world.grid;
-        let clearance = |px: f32, pz: f32, py: f32| {
-            let mut segs = Vec::new();
-            sections.near((px, pz), py, false, 1.0, &mut segs);
-            segs.iter().map(|s| standin_capsule::nearest(s, (px, pz)).1).fold(1.0f32, f32::min)
-        };
-        println!("{project} spot ({x}, {y}, {z}): rows are z {:.1}..{:.1} (down), columns x {:.1}..{:.1}", z - 2.5, z + 2.5, x - 2.5, x + 2.5);
-        for k in 0..=50 {
-            let pz = z - 2.5 + k as f32 * 0.1;
-            let mut row = String::new();
-            for i in 0..=50 {
-                let px = x - 2.5 + i as f32 * 0.1;
-                let floor = grid.floors_in([px, pz, px, pz]).map(|n| grid.position(n).y).find(|fy| (fy - y).abs() <= 2.0);
-                row.push(match floor {
-                    None => ' ',
-                    Some(fy) if clearance(px, pz, fy) >= standin_capsule::RADIUS_M => '.',
-                    Some(_) => 'x',
-                });
+        for (start, turn) in starts.iter().take(6) {
+          for centred in [false, true] {
+            let pass = walk(&world, *start, goal, door, 90_000, centred);
+            println!(
+                "  door_centres {centred}: from ({:.1}, {:.1}, {:.1}) turn {:.0} deg: near the door {} ms (under 1 m/s {} ms), closest jamb {:.2} m at ({:.2}, {:.2}, {:.2}) ({} ms under the controller's {CONTROLLER_HOLD_M} m, {} ms under the body's radius {BODY_RADIUS_M} m), stuck notes {}, reached the goal {:?}",
+                start.x, start.y, start.z, turn, pass.near_ms, pass.slow_ms, pass.jamb.0, pass.jamb.1.x, pass.jamb.1.y, pass.jamb.1.z, pass.under_hold_ms, pass.under_radius_ms, pass.stuck, pass.reached
+            );
+            for (t, f, v, w) in &pass.trace {
+                println!("      {t:6} ms feet ({:.2}, {:.2}, {:.2}) {v:.1} m/s wall {w:.2} m", f.x, f.y, f.z);
             }
-            if !row.trim().is_empty() {
-                println!("{pz:7.1} {row}");
+            if centred {
+                assert!(pass.jamb.0 >= CONTROLLER_HOLD_M - 0.01, "the walk from {start:?} passes the jamb at {:.2} m", pass.jamb.0);
+                assert!(pass.reached.is_some(), "the walk from {start:?} reached the goal");
             }
-        }
-        if let Ok(humans) = std::env::var("SRP_HUMAN_DIR") {
-            let stem = project.replace('/', "_");
-            let path = std::path::Path::new(&humans).join(format!("{stem}.tsv"));
-            let (mut n, mut moving, mut least) = (0, 0, f32::MAX);
-            if let Ok(text) = std::fs::read_to_string(&path) {
-                for line in text.lines().skip(1) {
-                    let c: Vec<&str> = line.split('\t').collect();
-                    if c.len() < 10 {
-                        continue;
-                    }
-                    let (Ok(sx), Ok(sy), Ok(sz), Ok(speed)) = (c[3].parse::<f32>(), c[4].parse::<f32>(), c[5].parse::<f32>(), c[9].parse::<f32>()) else { continue };
-                    if (sx - x).hypot(sz - z) <= 1.5 && (sy - y).abs() <= 1.5 {
-                        n += 1;
-                        moving += usize::from(speed > 1.0);
-                        least = least.min(clearance(sx, sz, sy));
-                    }
-                }
-            }
-            println!("  live samples within 1.5 m: {n} ({moving} over 1 m/s), the least wall clearance among them {least:.2} m");
+          }
         }
     }
 }

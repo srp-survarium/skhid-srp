@@ -346,6 +346,8 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
         pushed.push = Some((3_000, Vec3::new(30.0, 0.0, 20.0)));
         pushed.until = 30_000;
         pushed.tuning.feel.zone_lines = zone_lines;
+        // The escape pace of a body in a hurting zone (`hazard.run_out`) is another fix: this one is A136's alone.
+        pushed.tuning.hazard.run_out = false;
         drive(pushed)
     };
     // Off, the stand ends only when the unstick moves it (8.4 s here); on, it is out at once.

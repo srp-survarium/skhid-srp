@@ -233,3 +233,67 @@ fn grid_floor_clearance() {
         println!("{project}: floors {} (<0.30 / 0.30-0.36 / 0.36-0.38 / >=0.38): {}; live samples on them: {}", grid.len(), share(floors), share(sample_bands));
     }
 }
+
+/// A picture of a place the capsule holds bodies at (`SRP_SPOTS="<level_NN/weather_n> <x> <z> <y>;..."`, `SRP_MAPDATA_DIR`, and
+/// `SRP_HUMAN_DIR` for the live samples): 5 m square at 0.1 m: `.` where a floor is and the capsule fits (0.38 m from every wall), `x`
+/// where a floor is and it does not, a blank where there is no floor; the live players' samples within 1.5 m of it and how near
+/// the walls they stood. A measurement.
+#[test]
+#[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_SPOTS"]
+fn capsule_spot_report() {
+    let (Some(dir), Ok(spots)) = (std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from), std::env::var("SRP_SPOTS")) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR or SRP_SPOTS is not set");
+        return;
+    };
+    for spot in spots.split(';').filter(|s| !s.trim().is_empty()) {
+        let f: Vec<&str> = spot.split_whitespace().collect();
+        let (project, x, z, y) = (f[0], f[1].parse::<f32>().unwrap(), f[2].parse::<f32>().unwrap(), f[3].parse::<f32>().unwrap());
+        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let sections = Sections::new(&map.walker_triangles(), mapdata::Body::client().min_ground_normal_y);
+        let links = Tuning::default().grid.off_mesh_links();
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
+        let grid = &world.grid;
+        let clearance = |px: f32, pz: f32, py: f32| {
+            let mut segs = Vec::new();
+            sections.near((px, pz), py, false, 1.0, &mut segs);
+            segs.iter().map(|s| nearest(s, (px, pz)).1).fold(1.0f32, f32::min)
+        };
+        println!("{project} spot ({x}, {y}, {z}): rows are z {:.1}..{:.1} (down), columns x {:.1}..{:.1}", z - 2.5, z + 2.5, x - 2.5, x + 2.5);
+        for k in 0..=50 {
+            let pz = z - 2.5 + k as f32 * 0.1;
+            let mut row = String::new();
+            for i in 0..=50 {
+                let px = x - 2.5 + i as f32 * 0.1;
+                let floor = grid.floors_in([px, pz, px, pz]).map(|n| grid.position(n).y).find(|fy| (fy - y).abs() <= 2.0);
+                row.push(match floor {
+                    None => ' ',
+                    Some(fy) if clearance(px, pz, fy) >= RADIUS_M => '.',
+                    Some(_) => 'x',
+                });
+            }
+            if !row.trim().is_empty() {
+                println!("{pz:7.1} {row}");
+            }
+        }
+        if let Ok(humans) = std::env::var("SRP_HUMAN_DIR") {
+            let stem = project.replace('/', "_");
+            let path = std::path::Path::new(&humans).join(format!("{stem}.tsv"));
+            let (mut n, mut moving, mut least) = (0, 0, f32::MAX);
+            if let Ok(text) = std::fs::read_to_string(&path) {
+                for line in text.lines().skip(1) {
+                    let c: Vec<&str> = line.split('\t').collect();
+                    if c.len() < 10 {
+                        continue;
+                    }
+                    let (Ok(sx), Ok(sy), Ok(sz), Ok(speed)) = (c[3].parse::<f32>(), c[4].parse::<f32>(), c[5].parse::<f32>(), c[9].parse::<f32>()) else { continue };
+                    if (sx - x).hypot(sz - z) <= 1.5 && (sy - y).abs() <= 1.5 {
+                        n += 1;
+                        moving += usize::from(speed > 1.0);
+                        least = least.min(clearance(sx, sz, sy));
+                    }
+                }
+            }
+            println!("  live samples within 1.5 m: {n} ({moving} over 1 m/s), the least wall clearance among them {least:.2} m");
+        }
+    }
+}

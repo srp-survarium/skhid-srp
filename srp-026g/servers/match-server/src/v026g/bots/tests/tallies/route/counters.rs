@@ -418,9 +418,45 @@ pub(super) fn link_times() -> Box<dyn RouteTopic> {
                     pooled(Field::GoneFar),
                 ));
             }
+            // What became of the links of a 0.8-1.2 m face given up on, followed for 10 s: by method and route end, climbed
+            // anyway / went elsewhere / still within 6 m of the take-off, and the seconds within 3 m of it in those 10 s.
+            let ended_n = super::super::link_time::ENDED_NONE + 1;
+            let ghost_base = face_ended_base + Kind::ALL.len() * ended_n;
+            for kind in [Kind::Walking, Kind::SprintBand, Kind::Through, Kind::Lift] {
+                let parts = (0..ended_n)
+                    .filter(|&e| (0..3).any(|s| d[ghost_base + (kind as usize * ended_n + e) * 4 + s] > 0))
+                    .map(|e| {
+                        let at = ghost_base + (kind as usize * ended_n + e) * 4;
+                        let name = super::super::route_end::RouteEnd::ALL.get(e).map_or("route_kept", |end| end.name());
+                        format!("{name}:{}/{}/{}/{:.1}s", d[at], d[at + 1], d[at + 2], d[at + 3] as f32 / 1000.0)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if !parts.is_empty() {
+                    line.ends.push(format!("links_face_given_up_then_{} climbed/elsewhere/near/near_s_by_route_end {parts}", Kind::NAMES[kind as usize]));
+                }
+            }
+            // The first press of the walking and sprint jumps at a 0.8-1.2 m face, by outcome (got up / pressed and not up).
+            let press_base = ghost_base + Kind::ALL.len() * ended_n * 4;
+            let bins = super::super::link_time::PRESS_BINS;
+            let metrics = super::super::link_time::PRESS_METRICS;
+            for (k, name) in ["walking", "sprint_band"].iter().enumerate() {
+                for (o, outcome) in ["up", "not_up"].iter().enumerate() {
+                    let at = press_base + (k * 2 + o) * metrics * bins;
+                    let m = |i: usize| d[at + i * bins..at + (i + 1) * bins].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+                    line.ends.push(format!(
+                        "press_{name}_{outcome} before_m(0.25) {} side_m(0.1) {} speed(0.5) {} top_m(0.5) {} rise_from_0.8(0.05) {}",
+                        m(0),
+                        m(1),
+                        m(2),
+                        m(3),
+                        m(4)
+                    ));
+                }
+            }
             debug_assert_eq!(
                 d.len(),
-                Kind::ALL.len() * (BANDS * FIELD_COUNT + Why::ALL.len() * 2 + 2 * (super::super::link_time::ENDED_NONE + 1))
+                Kind::ALL.len() * (BANDS * FIELD_COUNT + Why::ALL.len() * 2 + 2 * ended_n) + Kind::ALL.len() * ended_n * 4 + 2 * 2 * metrics * bins
             );
         },
     )
