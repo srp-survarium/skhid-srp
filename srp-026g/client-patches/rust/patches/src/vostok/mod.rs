@@ -43,7 +43,9 @@ pub mod lobby;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod resources;
 mod rt;
+pub mod sound;
 pub mod settings;
 mod sync;
 pub mod trace;
@@ -68,6 +70,10 @@ mod generated {
     use crate::raw;
     #[allow(unused_imports)]
     use super::{RenderVisual, ObjectLight, GameScene};
+    #[allow(unused_imports)]
+    use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
 
@@ -75,7 +81,7 @@ pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{Handle, Out, Regs, Thread};
+pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
