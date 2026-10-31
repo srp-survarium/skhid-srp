@@ -84,6 +84,7 @@ mod sorted;
 mod sorted_use;
 mod standin;
 mod standin_body;
+mod standin_capsule;
 mod standin_damage;
 mod standin_fields;
 mod standin_grenade;
@@ -122,6 +123,7 @@ use settings::*;
 pub(crate) use settings::EnemyLanes;
 use soak::*;
 use standin::*;
+use standin_capsule::stand_in_corner;
 use standin_hitbox::HitVolume;
 use standin_jump::*;
 
