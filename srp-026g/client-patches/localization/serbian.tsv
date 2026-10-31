@@ -2454,7 +2454,6 @@ st_srp_matches_in_match	Već si u meču
 st_srp_matches_in_squad	Prvo napusti odred
 st_srp_matches_joining	pridruživanje…
 st_srp_matches_maintenance	Završava se nakon početka održavanja
-st_srp_matches_mode_protective_device	Zaštitni uređaj
 st_srp_matches_no_answer	Nema odgovora, pokušaj ponovo
 st_srp_matches_no_late_join	Meč ne prima nove igrače
 st_srp_matches_no_place	Nema slobodnog mesta u ovom meču
@@ -2465,6 +2464,7 @@ st_srp_matches_played_before	Već si igrao u ovom meču
 st_srp_matches_queued	Prvo prekini pretragu
 st_srp_matches_starting	početak
 st_srp_matches_title	Mečevi
+st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači

@@ -2454,7 +2454,6 @@ st_srp_matches_in_match	Du bist bereits in einem Match
 st_srp_matches_in_squad	Verlasse zuerst deine Abteilung
 st_srp_matches_joining	Beitritt…
 st_srp_matches_maintenance	Endet nach Beginn der Wartung
-st_srp_matches_mode_protective_device	Laden der Schutzeinrichtung
 st_srp_matches_no_answer	Keine Antwort, erneut versuchen
 st_srp_matches_no_late_join	Match nimmt keine neuen Spieler auf
 st_srp_matches_no_place	Kein freier Platz im Match
@@ -2465,6 +2464,7 @@ st_srp_matches_played_before	Du hast in diesem Match schon gespielt
 st_srp_matches_queued	Brich zuerst die Suche ab
 st_srp_matches_starting	Start
 st_srp_matches_title	Matches
+st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
