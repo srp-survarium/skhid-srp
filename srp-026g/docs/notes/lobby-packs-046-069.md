@@ -11,7 +11,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   is: `client_project` with no `.lua` and no server project; its vegetation files in
   `projects/lobby_scene/vegetation/<scene>/`.
 - Made by resource-porter (`vostok-port build-survarium-later-scene`, branch
-  `feat/lobby-scenes-046-069`; hangar @9 and camp @16 its `feat/lobby-reuse-native-textures`;
+  `feat/lobby-scenes-046-069`; hangar @9 and camp @17 its `feat/lobby-reuse-native-textures`;
   its `docs/survarium-069d-to-026.md`, "Lobby scenes"), shipped as one content pack per scene, so
   either can ship or change alone.
 - Sounds: the classic lobby's `sounds/background` and `sounds/lobby_room_tone` (the donors' sound
@@ -19,7 +19,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - To see one locally: a test patch with the scene in place of the classic one (`vostok-port pack
   patch ... --replace projects/lobby_scene/day/client_project=<the scene's client_project>`), or
   the lobby window of #778. Never committed.
-- Textures from 0.26g (hangar @9, camp @16): a donor texture whose 0.26g namesake is the same
+- Textures from 0.26g (hangar @9, camp @16 and @17): a donor texture whose 0.26g namesake is the same
   image is not imported, and the materials name 0.26g's own file (resource-porter
   `reuse_native_textures`, its `native_same_image`, as Rudnya's: the same size, each 4x4 block's
   mean colour within 2 levels on average, no channel's mean moved by 1.5, 99 % of blocks within
@@ -95,7 +95,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@16)
+## lobby_scene/camp_069 (pack lobby-camp-069@17)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -229,6 +229,19 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   (the square grew); undone, its shadow on a 256-texel map as in @13. Not yet seen in a game.
 
 - @16: the 54 textures 0.69d kept from 0.26 drawn from 0.26g's own files ("Both packs").
+- @17 (the owner, 2026-10-31, on @15: "now it is very dark where the character looks"; @12's
+  lighting "was good, the only problem was that single patch"): the light overrides are @12's
+  again: @13's floor-fill shadows and 256-texel window map, @14's window change and @15's ceiling
+  changes are all undone (what @13 says of shadow softness stands). Two changes only:
+  - the two negative ambient boxes over the chandelier, `shadows/ambient_light(8)` and `(9)`
+    (2 x 1.1 m footprints, y 2.37..4.37, cut by the ceiling; 0.26 draws them hard-edged), left
+    out. The chandelier's own ambient lights are spheres with a soft edge (geometry 0, radius
+    1.025 m, side width 0.5), not boxes, and stay. A dark patch on the ceiling remains; the owner
+    keeps it ("it is fine, we make release like this");
+  - the doors' hinge pins left out (the owner: "the door incorrectly shows hinges", "we can just
+    remove hinges"): resource-porter's new `removed_parts` drops a model surface's triangles near
+    given points; the 15 cm pins of `props/door/wood_door_02` (4) and `wood_door_01` (2), LOD0 and
+    LOD1 (128, 64, 64 and 32 triangles: the pins alone; LOD2 has none). The door keeps @10's turn.
 
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
