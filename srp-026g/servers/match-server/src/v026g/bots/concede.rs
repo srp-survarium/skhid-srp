@@ -36,6 +36,15 @@ pub enum Failed {
     Time,
 }
 
+impl Failed {
+    /// Whether it counts towards a concede (design-p1c §3: "2 failed jobs or 2 untraded deaths"): a death only. A gather
+    /// timeout, an abort or a job's time cost no life and say nothing of the spot; they still set the last try, so a
+    /// retry must differ.
+    pub fn counts(self) -> bool {
+        matches!(self, Failed::HolderDown { .. } | Failed::Untraded)
+    }
+}
+
 /// Why a job was given up ([`Failed::Aborted`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Abort {
@@ -65,7 +74,7 @@ pub struct Try {
 pub enum SpotState {
     /// No try failed on it since the last success.
     Open,
-    /// `fails` tries failed, fewer than the rules concede after; the last of them.
+    /// `fails` counted failures ([`Failed::counts`]), fewer than the rules concede after; the last try that failed.
     Tried { fails: u8, last: Try },
     /// Conceded until `until`; the try that conceded it.
     Conceded { until: u32, last: Try },
@@ -133,12 +142,15 @@ pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &Conc
     };
     match event {
         SpotEvent::Succeeded => SpotState::Open,
-        SpotEvent::Failed { kind, from, why: _ } => {
+        SpotEvent::Failed { kind, from, why } => {
             let last = Try { kind, bearing: bearing(at, from), at: now };
+            let add = u8::from(why.counts());
             let fails = match state {
-                SpotState::Open => 1,
-                SpotState::Tried { fails, .. } => fails.saturating_add(1),
-                // A failure while conceded (a lone bot's own try): it stays conceded, from now.
+                SpotState::Open => add,
+                SpotState::Tried { fails, .. } => fails.saturating_add(add),
+                // A failure while conceded (a lone bot's own try): a death concedes it again from now; else it stays as it
+                // was, with this try the last.
+                SpotState::Conceded { until, .. } if add == 0 => return SpotState::Conceded { until, last },
                 SpotState::Conceded { .. } => rules.fails,
             };
             if fails >= rules.fails {
@@ -262,7 +274,7 @@ mod tests {
     const SPOT: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
     fn fail(from: Vec3) -> SpotEvent {
-        SpotEvent::Failed { kind: TryKind::Job(JobKind::Flank), from, why: Failed::Time }
+        SpotEvent::Failed { kind: TryKind::Job(JobKind::Flank), from, why: Failed::Untraded }
     }
 
     #[test]
@@ -305,7 +317,11 @@ mod tests {
         // The spot was cleared and made again 8 m off: the same area, its failure kept.
         let b = m.area_of(Vec3::new(8.0, 0.0, 0.0), None, 5_000);
         assert_eq!(a, b);
-        m.record(b, JobKind::Breach, Failed::GatherTimedOut, Vec3::new(0.0, 0.0, 20.0), 6_000, &RULES);
+        // A gather timeout costs no life: not counted, but it is the last try.
+        m.record(b, JobKind::Breach, Failed::GatherTimedOut, Vec3::new(0.0, 0.0, 20.0), 5_500, &RULES);
+        assert!(!m.conceded(a, 5_500));
+        assert!(matches!(m.last_try(a), Some((TryKind::Job(JobKind::Breach), _, 5_500))));
+        m.record(b, JobKind::Breach, Failed::HolderDown { role: Role::Pinner }, Vec3::new(0.0, 0.0, 20.0), 6_000, &RULES);
         assert!(m.conceded(a, 6_000));
         assert_eq!(m.offers(a, 6_000), Offer::None);
         assert_eq!(m.offers(a, 106_000), Offer::Any);
