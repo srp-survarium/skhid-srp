@@ -23,7 +23,8 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   `m_ignorable_object`, a player (try_pierce 0x32D9DD), LIKELY its shooter. The suicide key's
   hit is ranged too, and kills.
 - **Only a drug that heals.** The painkiller heals nothing (its only effect, for its 10 s, is 10 %
-  less pain from bullets), so a bullet does not stop it. The antitoxin heals the infection pool:
+  less pain from bullets), so a bullet does not stop it (the owner, 2026-10-31: the painkiller is
+  not stopped). The antitoxin heals the infection pool:
   stopped, and its toxic protection ends with it.
 - **Every drug in use** of the hit player is stopped (a medkit and bandages both, if both run).
 - **Every client the same:** decided in the match simulation (the hit as the game applies it),
