@@ -2417,6 +2417,11 @@ st_srp_loadout_sell_many	Використовується в комплекта�
 st_srp_loadout_sell_one	Використовується в комплекті %1$s. Продати?
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для бою
+st_srp_lobby_basement	Підвал
+st_srp_lobby_bunker	Бункер
+st_srp_lobby_hangar	Ангар
+st_srp_lobby_room	Кімната
+st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаунт створюється під час першого входу
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)

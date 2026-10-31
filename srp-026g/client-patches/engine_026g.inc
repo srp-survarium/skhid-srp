@@ -187,6 +187,45 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
+; void engine_lobby_query_resources(struct lobby_menu *menu)
+; 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+extern engine_lobby_query_resources
+; void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count)
+; 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+extern engine_lobby_query_players_range
+; void engine_project_remove(struct simple_game_project *project)
+; 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
+extern engine_project_remove
+; void engine_project_insert(struct simple_game_project *project)
+; 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
+extern engine_project_insert
+; void engine_project_on_inserted(struct simple_game_project *project)
+; 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_project_on_inserted
+; void engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world)
+; 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_collision_insert
+; void engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world)
+; 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_collision_remove
+; void engine_effects_stop(struct game_effect_list *effects)
+; 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
+extern engine_effects_stop
+; void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)
+; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+extern engine_effect_play
+; struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)
+; virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
+extern engine_emitter_emit
+; void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect)
+; virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
+extern engine_emitter_destroy
+; void engine_release_resource(struct game_project_resource *resource, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
+extern engine_release_resource
 ; void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)
 ; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
@@ -233,6 +272,16 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)
+; 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+extern engine_lobby_camera_ray
+; unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+; the IAT slot 0x870064 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_read_file
+; void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)
+; 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+extern engine_lobby_character_setup_profile
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach

@@ -40,6 +40,8 @@ pub mod inventory;
 mod keyboard;
 pub mod language;
 pub mod lobby;
+pub mod lobby_camera;
+pub mod lobby_menu;
 pub mod log;
 mod options;
 pub mod parse;

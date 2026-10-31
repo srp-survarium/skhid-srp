@@ -2259,12 +2259,15 @@ va	name	location	role	basis
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+12	signed mouse wheel delta	inferred
 0x0021e260	survarium::lobby_menu::demo_play	ECX	lobby receiver	inferred
 0x0021e260	survarium::lobby_menu::demo_play	stack+4	requested track name	inferred
+0x0021e450	survarium::lobby_menu::query_resources	EAX	the lobby menu	observed
 0x0021f3d0	survarium::login_menu::enable_button	EDX	login menu receiver	inferred
 0x0021f3d0	survarium::login_menu::enable_button	AL	enabled Boolean	inferred
 0x0021f430	survarium::login_menu::update_online_queue	EAX	current timestamp; zero bypasses interval gate	inferred
 0x0021f430	survarium::login_menu::update_online_queue	stack+4	login menu receiver	inferred
 0x002206d0	survarium::lobby_menu::show_match_making	EDX	menu receiver	inferred
 0x002206d0	survarium::lobby_menu::show_match_making	AL	show Boolean	inferred
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	ECX	the lobby menu	observed
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	entry ESP+4	the queries' results	observed
 0x00225220	survarium::lobby_menu::is_mouse_over_ui	ECX	lobby receiver	inferred
 0x002252d0	survarium::lobby_menu::set_match_making_status	stack+4	menu receiver	inferred
 0x002252d0	survarium::lobby_menu::set_match_making_status	stack+8	queue place	inferred
@@ -2518,8 +2521,8 @@ va	name	location	role	basis
 0x00271df0	survarium::lobby_client::read_quest_list	stack+8	reader	inferred
 0x00271eb0	survarium::lobby_client::read_players_elo_list	stack+4	lobby client	inferred
 0x00271eb0	survarium::lobby_client::read_players_elo_list	stack+8	reader	inferred
-0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client	inferred
-0x00274720	survarium::lobby_client::read_squad_info	EAX	reader	inferred
+0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client (EBX inside)	observed
+0x00274720	survarium::lobby_client::read_squad_info	EAX	the message's reader {begin, cursor, size} (ESI inside)	observed
 0x002749d0	survarium::lobby_client::squad_ready_count	ECX	lobby client receiver	inferred
 0x00277aa0	survarium::lobby_client::find_item_by_id	ECX	the inventory's begin (B4h records)	observed
 0x00277aa0	survarium::lobby_client::find_item_by_id	EDI	the inventory's end	observed
@@ -4788,8 +4791,60 @@ va	name	location	role	basis
 0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	callback base+0xF20; client full-base vtable 0xA06084, verified constructor writes	observed
 0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	callback base+0x340; client full-base vtable 0xA06124, verified constructor writes	observed
 0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed
-0x00285540	survarium::simple_game_project::insert_static	EAX	project	observed
-0x002855b0	survarium::simple_game_project::remove_static	ESI	project	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x001f65d0	survarium::hud_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x001f65d0	survarium::hud_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x0029a320	survarium::particle_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x0029a320	survarium::particle_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002f0130	survarium::composite_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x002f0130	survarium::composite_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002855b0	survarium::simple_game_project::remove_static	ESI	the project (simple_game_project, lobby menu+114h)	observed
+0x00285540	survarium::simple_game_project::insert_static	EAX	the project (simple_game_project, lobby menu+114h)	observed
+0x002f8720	survarium::simple_game_project::on_inserted	ECX	the project (this)	observed
+0x002f8850	survarium::static_collision::insert	ECX	the static collision (this; one of the project's +28h, 50h each)	observed
+0x002f8850	survarium::static_collision::insert	entry ESP+4	the physics world (lobby menu+3104h)	observed
+0x002f8970	survarium::static_collision::remove	ECX	the static collision (this; one of the project's +28h, 50h each)	observed
+0x002f8970	survarium::static_collision::remove	entry ESP+4	the physics world (lobby menu+3104h)	observed
+0x002de7f0	survarium::game_effect_player::stop	EDI	the player's effects (the game effect player+8: lobby menu+120h)	observed
+0x002de090	survarium::game_effect_player::play	EDI	the game effect player (lobby menu+118h)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+4	&the effect to play (an intrusive_ptr: the emitter's made one)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+8	second argument (0 at the lobby, 0x220E72)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+0Ch	third argument (1 at the lobby, 0x220E70)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+10h	fourth argument (0 at the lobby, 0x220E6E)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+14h	the listener (lobby menu+684h, 0x220E6D)	observed
 0x00285fa0	survarium::render_visual::insert	ECX	visual	observed
 0x00285fa0	survarium::render_visual::insert	entry ESP+4	scene	observed
 0x00285fe0	survarium::render_visual::remove	ECX	visual	observed
@@ -4827,6 +4882,17 @@ va	name	location	role	basis
 0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
 0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	EAX	lobby client (sends 34 00 <account> <kit>)	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	entry ESP+4	the mate's account id (0xA1 m+0)	observed
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	entry ESP+8	the mate's kit id (0xA1 m+4)	observed
+0x00274580	survarium::lobby_client::destroy_squad	EAX	lobby client (sends 4A 01 when [lc+1E57A8h] is -1)	observed
+0x002745d0	survarium::lobby_client::add_squad_member	ECX	lobby client (sends 4A 02 <name>; connection state 0 or 4, order id -1)	observed
+0x002745d0	survarium::lobby_client::add_squad_member	entry ESP+4	the player's name, NUL-terminated	observed
+0x00274660	survarium::lobby_client::drop_squad_member	EAX	lobby client (sends 4A 03 <account>)	observed
+0x00274660	survarium::lobby_client::drop_squad_member	entry ESP+4	the member's account id	observed
+0x002746d0	survarium::lobby_client::leave_squad	EAX	lobby client (sends 4A 04)	observed
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	EAX	the arrived 0x88 account body (player_profile temporary, its 0x88 revision at +45FCh)	observed
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	entry ESP+4	lobby menu	observed
 0x0025b9b0	survarium::game_world::play_particle	ECX	the game world's bullet_manager_engine (game_world+0ECh; its +(-50h) the world whose +5360h renderer's +200064h is the scene)	observed
 0x0025b9b0	survarium::game_world::play_particle	entry ESP+4	the particle (a resource pointer*, taken by value)	observed
 0x0025b9b0	survarium::game_world::play_particle	entry ESP+8	the position (float3*)	observed
@@ -4840,6 +4906,9 @@ va	name	location	role	basis
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	entry ESP+4	the node	observed
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	EDI	the stack	observed
 0x00321d10	survarium::bullet_manager::tick	ECX	the bullet manager	observed
+0x00270070	survarium::lobby_client::query_elo_players	EAX	the lobby client (the network client's vtable+3Ch, 0x28C988)	observed
+0x00270070	survarium::lobby_client::query_elo_players	entry ESP+4	the start, u32	observed
+0x00270070	survarium::lobby_client::query_elo_players	entry ESP+8	the count, its low byte	observed
 0x0026afb0	survarium::messaging_client::send_important_message	EDX	the message's text, a C string copied to 100h bytes ("" 0x9DB708 from the lobby's add_friend_name, 0x28C1E0)	observed
 0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+4	the messaging client (lobby client +1E56C4h): its +4 the lobby client, whose +8 the connection the 4D is made on (new_packet 0x37A0E0) and queued to (enqueue 0x379640); the caller checks the connection first (0x28C1B6..0x28C1D6)	observed
 0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+8	the target player's name, a C string, written as a u8-length string (0x26B024..0x26B03B)	observed

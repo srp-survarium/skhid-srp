@@ -1,6 +1,7 @@
 //! Chat, friends, squads and clans on the lobby link, and the small pushes
 //! (`social.md`, `login_chat.md` §5).
 
+use super::lobby_pick::LobbyPick;
 use super::push::{NameRefusal, write_name_check};
 use super::requests::id;
 use super::{ServerId, ServerMessage, WireError, Writer, at_most, limits};
@@ -224,6 +225,14 @@ pub fn important_message(
         .done(ServerId::Important)
 }
 
+/// The lobby picks `0xA1` carries: the receiver's own and its squad
+/// commander's (none out of a squad, or not picked).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SquadPicks {
+    pub own: Option<LobbyPick>,
+    pub commander: Option<LobbyPick>,
+}
+
 /// One member in a squad info (0xA1).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SquadMember {
@@ -244,16 +253,22 @@ pub struct SquadMember {
 /// `A1`: the player's squad (`social.md` §2.1), or none for `squad_id` 0
 /// (then nothing else is sent). `commander_index` is the commander's place
 /// in `members`: a soldier's Play is locked while that member is ready.
+/// srp's own last two bytes, after the squad (after the id alone for none):
+/// the receiver's own lobby pick and its commander's (0 none; no squad,
+/// none), for exe patch 81 (`lobby-scenes.md`): every member is shown its
+/// commander's lobby. The stock reader stops before them.
 pub fn squad_info(
     squad_id: u32,
     members: &[SquadMember],
     commander_index: u8,
     i_am_commander: bool,
     revision: u32,
+    picks: SquadPicks,
 ) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     writer.u32(squad_id);
     if squad_id == 0 {
+        writer.u8(LobbyPick::byte(picks.own)).u8(0);
         return Ok(writer.done(ServerId::SquadInfo));
     }
     at_most("squad members", members.len(), limits::SQUAD_MEMBERS)?;
@@ -270,7 +285,11 @@ pub fn squad_info(
             .bool(member.online)
             .bool(member.ready);
     }
-    writer.bool(i_am_commander).u32(revision);
+    writer
+        .bool(i_am_commander)
+        .u32(revision)
+        .u8(LobbyPick::byte(picks.own))
+        .u8(LobbyPick::byte(picks.commander));
     Ok(writer.done(ServerId::SquadInfo))
 }
 

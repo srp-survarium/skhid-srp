@@ -178,6 +178,7 @@ Sent at sign-in (0x26FBE2, right after 0x80 is read and before the client's `32`
 | n × | member (0x50): `u32 account_id` (+0), `u32 profile_id` (+4), `u32 profile_revision` (+8), `string name` (+0x10, buf 64 → ≤ 63), `bool online` (+0xC), `bool ready` (+0xD) | |
 | bool | i_am_commander | +0x1EAAAC |
 | u32 | revision | +0x1EAAA0 (log `squad info arrived rev. %d`) |
+| u8, u8 | srp's: the receiver's lobby pick, its commander's (0 none) | srp's own, after the squad, and after the id alone for none (`A1 00000000 <own> 00`): the stock reader stops before them; exe patch 81 reads them (`lobby-scenes.md`, `lobby.md` 2.16.5) |
 
 Then `lobby_menu::fill_squad_info(squad, i_am_commander)` 0x2277C0 (PROVEN):
 - `root.show_squad`, `root.remove_squad_player` 0..2, `root.set_squad_commander_mode(n == 0 ? true : i_am_commander)`, then per member `root.set_squad_player(index, …, name, ready)`.

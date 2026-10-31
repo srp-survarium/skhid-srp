@@ -531,6 +531,51 @@ pub extern "C" fn hook_blackout_on_name_visibility(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_flight (patch 45) ----
+
+/// The entry `weapon_flight_on_view` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_flight_on_view(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_flight_on_view` calls this, from the game's jump at 0x2840f2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_flight::on_view(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- camera_sweep (patch 45) ----
+
+/// The entry `camera_sweep_on_view` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_camera_sweep_on_view(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `camera_sweep_on_view` calls this, from the game's jump at 0x2840f2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::camera_sweep::on_view(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_tick` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_tick` calls this, from the game's jump at 0x2840f2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- consumable_activity (patch 77) ----
 
 /// The entry `consumable_activity_on_update` (0x23b7a0, update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer) calls this with the saved machine.
@@ -570,6 +615,21 @@ pub extern "C" fn hook_hud_options_on_configs(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_configs_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_configs_start` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_configs_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -997,6 +1057,116 @@ pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_squad_id` calls this, from the game's jump at 0x2747c3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_squad_id(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_squad(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_squad` calls this, from the game's jump at 0x2748bc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_squad(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_scene_request` (0x21e5cc, lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_scene_request(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_scene_request` calls this, from the game's jump at 0x21e5cc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_scene_request(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The named exits of lobby_scene::on_scenes_ready (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySceneOnScenesReadyExit { Done }
+/// The entry `lobby_scene_on_scenes_ready` (0x220b20, lobby_menu::on_render_scenes_ready's start (push ebp / mov ebp,esp / and esp,-8): ECX the lobby menu, the site's ESP+4 the query's results; done is its `ret 4`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_scenes_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_scenes_ready` calls this, from the game's jump at 0x220b20,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_scenes_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_deactivate` (0x21d4a0, lobby_menu::on_deactivate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+4): ECX the lobby menu, no longer the active scene (a match entered): its scene not drawn until on_activate) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_deactivate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_deactivate` calls this, from the game's jump at 0x21d4a0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_deactivate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_activate` (0x21d2e0, lobby_menu::on_activate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+0, 0x9FFE74): ECX the lobby menu, about to be shown again (after a match, or the sign-in)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_activate` calls this, from the game's jump at 0x21d2e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_activate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]; ret 4), the game closing: it deactivates the active scene (0x1ED0B0, the scene's vtable+4: the lobby menu's on_deactivate when it is the lobby) and clears the lobby menu) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_game_closing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- map_names (patch 82) ----
 
 /// The entry `map_names_on_key` (0x25cd1c, game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick) calls this with the saved machine.
@@ -1253,10 +1423,23 @@ pub extern "C" fn hook_blackout_on_update_icons_chain(frame: &mut Frame) -> u32 
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_weapon_flight_on_view(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_camera_sweep_on_view(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lobby_scene_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32 {
     let flow = hook_language_on_configs_start(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_configs(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lobby_scene_on_configs_start(frame);
     if flow != 0 { return flow; }
     0
 }

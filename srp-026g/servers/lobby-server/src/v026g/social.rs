@@ -67,7 +67,7 @@ use session::v026g::{Account, quests, wire};
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
 use survarium::v026g::lobby::{
-    self, Friend, KIT_READY, ServerMessage, SquadMember, WireError, channel, important, sender,
+    self, Friend, KIT_READY, LobbyPick, ServerMessage, SquadMember, SquadPicks, WireError, channel, important, sender,
 };
 
 use super::core::{Core, Who};
@@ -878,10 +878,27 @@ impl Core<'_> {
         self.send_made(who.addr, message);
     }
 
+    /// The lobby pick of a signed-in account (none offline or not picked).
+    fn lobby_pick_of(&self, account_id: u32) -> Option<LobbyPick> {
+        self.player(*self.by_account.get(&account_id)?)?.lobby_pick
+    }
+
+    /// `3B` at a lobby pick's start: kept; every squad is sent again where it
+    /// changed (the picker's own `0xA1`, its squad's when it commands one).
+    pub(super) fn lobby_pick(&mut self, who: &Who, pick: LobbyPick) {
+        if let Some(player) = self.player_mut(who.addr)
+            && player.lobby_pick != Some(pick)
+        {
+            player.lobby_pick = Some(pick);
+            self.squads_dirty = true;
+        }
+    }
+
     /// The squad info for one member's client.
     fn squad_message(&self, me: u32, squad: Option<&Squad>) -> Result<ServerMessage, WireError> {
+        let own = self.lobby_pick_of(me);
         let Some(squad) = squad else {
-            return lobby::squad_info(0, &[], 0, false, 0);
+            return lobby::squad_info(0, &[], 0, false, 0, SquadPicks { own, commander: None });
         };
         let members: Vec<SquadMember> = squad
             .members
@@ -915,13 +932,15 @@ impl Core<'_> {
                 }
             })
             .collect();
-        // The commander is the first member.
+        // The commander is the first member; its pick is every member's lobby.
+        let commander = self.lobby_pick_of(squad.commander());
         lobby::squad_info(
             squad.id,
             &members,
             0,
             squad.commander() == me,
             squad.revision,
+            SquadPicks { own, commander },
         )
     }
 

@@ -1,0 +1,44 @@
+# Patch 81: the lobby's scene is the player's pick in the lobby window (the
+# squad commander's in a squad), a change shown at once behind a fade
+# (docs/notes/lobby-scenes.md). Only the decisions: which sites, and the
+# handlers. The sites are sites_026g.tsv's; the logic is lobby_scene.rs.
+name = "lobby_scene"
+patch = 81
+
+[[hook]]
+site = "configs.start"
+handler = "on_configs_start"
+order = 3                           # after patch 79's and patch 83's (language.toml, hud_options.toml)
+
+[[hook]]
+site = "lobby_client.squad_id"
+handler = "on_squad_id"
+
+[[hook]]
+site = "lobby_client.squad_read"
+handler = "on_squad"
+
+[[hook]]
+site = "lobby_menu.scene_request"
+handler = "on_scene_request"
+
+[[hook]]
+site = "lobby_menu.scenes_ready"
+handler = "on_scenes_ready"
+
+[[hook]]
+site = "lobby_menu.deactivate"
+handler = "on_deactivate"
+
+[[hook]]
+site = "lobby_menu.activate"
+handler = "on_activate"
+
+[[hook]]
+site = "game.clear_resources"
+handler = "on_game_closing"
+
+[[hook]]
+site = "lobby_camera.view"
+handler = "on_tick"
+order = 3                           # after the flight and the diagnostics' sweep (weapon_flight.toml, camera_sweep.toml)

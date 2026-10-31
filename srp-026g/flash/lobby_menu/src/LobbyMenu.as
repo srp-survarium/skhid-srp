@@ -21,6 +21,7 @@ package
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFieldType;
+   import flash.text.TextFormat;
    import flash.ui.Keyboard;
    import flash.utils.Timer;
    import flash.utils.clearTimeout;
@@ -102,6 +103,7 @@ package
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
    import survarium.controls.PlayerRanking;
+   import survarium.lobbypick.LobbyWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
    import survarium.controls.StatusPanel;
@@ -445,6 +447,17 @@ package
       protected var _isWheeled:Boolean = false;
       
       private var fadeBack:MovieClip = new FadeBackground();
+
+      // The black over the lobby's 3D scene while the exe puts another lobby in (srp_scene_fade),
+      // and the loading spinner on it.
+      private var _sceneFade:Sprite;
+
+      private var _sceneSpinner:MovieClip;
+
+      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown].
+      private var _lobbyWindow:LobbyWindow;
+
+      private var _lobbyState:Array;
       
       protected var _tempIndex:uint = 0;
       
@@ -1425,6 +1438,7 @@ package
          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
          this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);
+         this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
@@ -3878,7 +3892,7 @@ package
             return false;
          }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
-         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage) && topMost != this._sceneFade)
          {
             return true;
          }
@@ -5940,6 +5954,123 @@ package
          }
       }
       
+      // The lobby's scene changing (exe patch 81, docs/notes/lobby-scenes.md): a black over the 3D
+      // scene, under every panel (the root's first child), while the exe puts another lobby in;
+      // perMille of black (0 gone), the exe stepping it a frame each; `loading`: the game's loading
+      // spinner on it. The interface stays; no click lands on the black (get_mouse_over leaves it
+      // out), and it is off the display list while there is none.
+      public function srp_scene_fade(perMille:uint, loading:uint) : void
+      {
+         if(this._sceneFade == null)
+         {
+            this._sceneFade = new Sprite();
+            this._sceneFade.graphics.beginFill(0,1);
+            this._sceneFade.graphics.drawRect(-4096,-4096,12288,12288);
+            this._sceneFade.graphics.endFill();
+            this._sceneFade.mouseEnabled = false;
+            this._sceneFade.mouseChildren = false;
+            this._sceneSpinner = new LoadingIndicator();
+            this._sceneSpinner.mouseEnabled = false;
+            this._sceneSpinner.scaleX = this._sceneSpinner.scaleY = 0.7;
+            this._sceneFade.addChild(this._sceneSpinner);
+         }
+         var fade:Sprite = this._sceneFade;
+         if(perMille == 0)
+         {
+            if(fade.parent != null)
+            {
+               fade.parent.removeChild(fade);
+            }
+            this._sceneSpinner.stop();
+            return;
+         }
+         fade.alpha = Math.min(perMille,1000) / 1000;
+         if(fade.parent != this)
+         {
+            addChildAt(fade,0);
+         }
+         // the middle of the screen in the root's units (the root is scaled to the screen)
+         if(stage != null)
+         {
+            this._sceneSpinner.x = stage.stageWidth / scaleX / 2;
+            this._sceneSpinner.y = stage.stageHeight / scaleY / 2;
+         }
+         var spin:Boolean = loading != 0;
+         if(spin != this._sceneSpinner.visible)
+         {
+            this._sceneSpinner.visible = spin;
+            if(spin)
+            {
+               this._sceneSpinner.gotoAndPlay(1);
+            }
+            else
+            {
+               this._sceneSpinner.stop();
+            }
+         }
+      }
+
+      // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by
+      // the exe when one changes.
+      public function srp_lobby_state(pick:uint, shown:uint) : void
+      {
+         this._lobbyState = [pick,shown];
+         if(this._lobbyWindow != null)
+         {
+            this._lobbyWindow.state(pick,shown);
+         }
+      }
+
+      // The lobby button (StatusPanel.LOBBY_WINDOW): the lobby window opened, or closed again; the
+      // exe's diagnostics build opens it so too (srp_lobby_window).
+      public function srp_lobby_window() : void
+      {
+         this.onLobbyWindow(null);
+      }
+
+      private function onLobbyWindow(e:Event) : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this.closeLobbyWindow();
+            return;
+         }
+         if(this._lobbyWindow == null)
+         {
+            // the font of the bottom bar's tabs (the game's own), as the rooms window's
+            var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
+            var sample:* = new tabClass();
+            var tabText:TextField = sample["textField"] as TextField;
+            var format:TextFormat = tabText != null ? tabText.getTextFormat() : new TextFormat();
+            this._lobbyWindow = new LobbyWindow(format.font,format.bold);
+            this._lobbyWindow.onClose = this.closeLobbyWindow;
+            if(this._lobbyState != null)
+            {
+               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1]);
+            }
+         }
+         var window:LobbyWindow = this._lobbyWindow;
+         if(stage != null)
+         {
+            window.x = int((stage.stageWidth / scaleX - window.width) / 2);
+            window.y = int(stage.stageHeight / scaleY * 0.2);
+         }
+         addChild(window);
+         Modals.open(window,Modals.LOBBY,this.closeLobbyWindow,function():Boolean
+         {
+            return window.parent != null;
+         });
+      }
+
+      private function closeLobbyWindow() : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this._lobbyWindow.parent.removeChild(this._lobbyWindow);
+         }
+         Modals.leave(this._lobbyWindow);
+      }
+
       private function test_clan_mamngment() : void
       {
          var createPermission:Function = function(value:String = null):Object
