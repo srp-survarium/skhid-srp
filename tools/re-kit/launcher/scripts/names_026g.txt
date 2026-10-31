@@ -32,7 +32,7 @@
 13F97 read_disk_space_info(wstring,u64,u8)
 13FF1 registry_key::open_hklm
 14027 registry_key::get_string
-14080 get_product_registry_path        # Software\Vostok Games\<product>
+14080 get_product_registry_path        # Software\Vostok Games\<product>, built once into 0x48BE8 (read only here); called from 0x140C9 0x1517F 0x15223 0x15997 0x162F4 0x1709F
 140AE get_product_guid
 14131 get_uninstall_registry_path
 1415F is_running_from_temp

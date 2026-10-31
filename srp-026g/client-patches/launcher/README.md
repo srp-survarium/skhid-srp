@@ -45,6 +45,7 @@ your own copy, and the patched exe is made from it.
 python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe [--site=https://skhid.link]
 python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
+python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
 ```
 
 After a change of the game's languages (`../localization_026g.py --write`
@@ -467,9 +468,14 @@ found: `../../docs/notes/launcher.md`.
 ### 4. The installer's registry values are not needed
 
 - **Where:** `registry_key::get_string` 0x14027 starts with a jump into the
-  new section (`55 8B EC 51 8D 04 36` → `E9 <rel32> 90 90`); four
-  `push HKEY_LOCAL_MACHINE` become `push HKEY_CURRENT_USER` (0x15231,
-  0x159A4, 0x16301, 0x170AD: `68 02 00 00 80` → `68 01 00 00 80`).
+  new section (`55 8B EC 51 8D 04 36` → `E9 <rel32> 90 90`). The four
+  functions that read the installer's key open none: each jumps from the
+  call that gives the key's path straight to its first read (0x15223,
+  0x15997, 0x162F4, 0x1709F: `E8 <rel32>` → `EB <rel8> 90 90 90`), past
+  `RegOpenKeyExW` and its failure branch, and each `RegCloseKey` is jumped
+  over with the push of its handle (0x153FE, 0x1541E, 0x15A4D, 0x17123,
+  0x1714F: `FF 75 xx` → `EB 07 90`; 0x16338, the two of
+  `restart_launcher`: `test al,al / jne 0x163AD / jmp 0x16345`).
 - **Why:** the launcher read five strings that only the game's installer
   wrote, from `HKLM\Software\Vostok Games\Survarium`: what PLAY starts
   (`file to execute`, `arguments`, `working folder`), where the updater asks
@@ -484,10 +490,15 @@ found: `../../docs/notes/launcher.md`.
   | `arguments` | `-mt_allocator=768 -minimum_resources_memory_size=768` |
   | `update server` | the site's host (the new updater does not use it) |
 
-  Every other name goes on to the registry as before. The key the four
-  sites open is now the user's own, which the launcher makes itself for its
-  language setting, so it is always there; a key an old installation left
-  in HKLM is never read for these.
+  Every other name goes on to the registry as before; these four functions
+  read none, so they touch no key at all. Revision 39 still opened one (its
+  patch 4 made the four opens `HKCU\Software\Vostok Games\Survarium`,
+  which launchers before it made for their language): since 39 the language
+  is in user.cfg, nothing makes the key, and a player who never ran an older
+  launcher got "Can't open survarium registry key" from `start_updater`, no
+  updater and no PLAY. `check_registry_026g.py` runs the four under Unicorn
+  with no key, the key in HKCU and the key in HKLM, sees no registry call,
+  and sees revision 39's box.
 - **The new code:** `launcher_values_026g.asm`, in a new section `.skhid`
   after `.reloc` (VA 0x49A000). It finds where it was loaded and adds that
   to the two image addresses it uses, so it also works if the launcher is
