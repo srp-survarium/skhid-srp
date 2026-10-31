@@ -1894,3 +1894,4 @@ va	status	ref_021d	name
 0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
 0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
 0x00274470	reviewed		survarium::lobby_client::comment_about_user
+0x000587d0	reviewed		vostok::sound::sound_scene::set_listener_properties

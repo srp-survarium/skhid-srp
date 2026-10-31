@@ -113,6 +113,11 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
   towards the target at 1/2000 a millisecond: the fades run on the sound thread, so a slow frame
   never steps them. Its volume reaches the submix by the engine's own fade path (the scene's
   fade-in state, which writes `volume x general` to the submix every sound tick).
+- **A listener of its own:** a scene's sounds get voices only once its listener is set (its tick
+  calls notify_listener 0x5C280, the only path to create_sound_voice, only when +2FAh is set,
+  0x57C9C); the game sets its scenes' every frame. The bus is given one when it opens, at the
+  origin (set_listener_properties 0x587D0): a hud sound is heard the same wherever it is. (The
+  first test build had none: the tracks loaded and played with no voice, silent, 2026-10-31.)
 - **No hitch:** a track is loaded asynchronously (the Vorbis file, 0.8 to 5.3 MB, streamed and
   decoded by the sound thread as it plays); one track is in memory at a time (and the one fading
   out). Nothing waits on the frame.

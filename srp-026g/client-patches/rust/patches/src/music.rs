@@ -396,6 +396,8 @@ impl Glue {
             },
             Glue::Opening { sound, asked, attempt } => match told {
                 Told::Arrived(Arrived::Bus(Some(bus))) => {
+                    // without a listener the scene's sounds never get a voice
+                    bus.listen(thread);
                     BUS.with(thread, |b| b.scene = Some(bus));
                     let mut serial = Serial::FIRST;
                     let mut game = Game { thread, now, sound, bus, serial: &mut serial, query };

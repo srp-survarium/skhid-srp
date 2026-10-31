@@ -139,6 +139,8 @@ unsafe extern "C" {
     pub fn engine_query_one(requests: *const c_void, count: u32, callback: *const c_void, allocator: *mut c_void, user: *mut c_void, parent: *const c_void, flag: u32);
     /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
     pub fn engine_release_emitter(pointer: *mut *mut c_void);
+    /// 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    pub fn engine_set_listener(scene: *mut c_void, position: *const f32, front: *const f32, top: *const f32);
 }
 
 #[allow(dead_code)]

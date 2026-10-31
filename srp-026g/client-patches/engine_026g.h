@@ -310,4 +310,7 @@ void engine_query_one(const struct resource_request *requests, unsigned int coun
 /* 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0 */
 void engine_release_emitter(struct sound_emitter **pointer);
 
+/* 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8 */
+void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top);
+
 #endif

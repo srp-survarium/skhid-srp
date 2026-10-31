@@ -310,3 +310,4 @@ vostok::console_commands::cc_float	most	0x48	f32	the most value its setter store
 vostok::console_commands::image	cc_float_vtable	0x9E7C6C	u32	cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
 vostok::resources::query_user_data	variant	0x0	ptr<vostok::sound::scene_params_variant>	a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
 vostok::resources::query_user_data	size	0x4	size	one request's user data pointer
+vostok::sound::sound_scene	listener_set	0x2FA	u8	its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices

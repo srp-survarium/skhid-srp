@@ -89,6 +89,7 @@ global engine_comment_about_user
 global engine_cc_float
 global engine_query_one
 global engine_release_emitter
+global engine_set_listener
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1218,6 +1219,24 @@ engine_release_emitter:
     push edi
     mov ecx, [esp + 20]   ; pointer
     call 0x11540
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_listener:
+    ; 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; top -> 8
+    push dword [esp + 32]   ; front -> 4
+    mov esi, [esp + 28]   ; scene
+    mov eax, [esp + 32]   ; position
+    call 0x587d0
     pop edi
     pop esi
     pop ebx

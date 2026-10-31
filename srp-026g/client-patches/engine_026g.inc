@@ -278,3 +278,6 @@ extern engine_query_one
 ; void engine_release_emitter(struct sound_emitter **pointer)
 ; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
 extern engine_release_emitter
+; void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)
+; 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+extern engine_set_listener

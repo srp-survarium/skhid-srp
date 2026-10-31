@@ -145,6 +145,8 @@ unsafe extern "C" {
     pub fn engine_query_one(requests: Option<ResourceRequest>, count: u32, callback: Option<QueryFunction>, allocator: Option<GameAllocator>, user: Option<QueryUserData>, parent: *const c_void, flag: u32);
     /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
     pub fn engine_release_emitter(pointer: *mut Option<SoundEmitter>);
+    /// 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    pub fn engine_set_listener(scene: Option<SoundScene>, position: *const f32, front: *const f32, top: *const f32);
 }
 
 #[allow(dead_code)]
@@ -5071,6 +5073,15 @@ impl SoundScene {
     #[inline(always)]
     pub unsafe fn fade_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x2fc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2fa (u8): its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener_set(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2fa).cast::<u8>().as_ptr() }
     }
 }
 

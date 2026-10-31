@@ -25,6 +25,8 @@ thread). Checked:
   function of 0x176D0's (vtable 0x9DB9E0 | 1) bound to the entry and tag 0;
   the scene taken (+1 reference) and then kept among the active scenes by
   the sound thread's tick (the world's list, +2F9h set, fade-in state 1 with
+  an endless time; a listener set first: a scene without one gives its
+  sounds no voice;
   an endless time, the general factor as add_scene_to_active gives it);
 - a screen asked before the bus is open plays once it is: the main theme;
 - a track: a class 256 request of its path, a tag of its own; its sound
@@ -384,6 +386,11 @@ def main():
           and main_q[6] == 0,
           "the bus arrives (its scene taken: one reference more); the waiting main theme asked: "
           "music/main_theme (class 256), tag 2, no user data")
+    half = lambda at: struct.unpack("<3H", game.read(at, 6))
+    check(game.read(SCENE + 0x2FA, 1) == b"\x01" and half(SCENE + 0x120) == (0, 0, 0)
+          and half(SCENE + 0x128) == (0, 0, 0x3C00) and half(SCENE + 0x130) == (0, 0x3C00, 0),
+          "the bus gets a listener (the game's set_listener_properties 0x587D0): +2FAh set, at the origin, "
+          "front +z, top +y (halves); without it the scene's tick never gives its sounds voices")
     run("sound", EDI=WORLD, EBX=10)
     check(game.read(WORLD + 0x48E4) == SCENE and game.read(WORLD + 0x48DC) == 1 and game.read(SCENE + 0x2F9) & 0xFF == 1
           and game.read(SCENE + 0x2FC) == 1 and game.read(SCENE + 0x2EC) == 0xFFFFFFFF and volume() == 0.0

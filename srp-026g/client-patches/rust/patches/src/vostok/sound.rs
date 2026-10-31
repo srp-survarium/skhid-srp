@@ -83,11 +83,29 @@ pub struct BusScene(raw::SoundScene);
 // sound thread ticks it, as the game's own scenes are used.
 unsafe impl Send for BusScene {}
 
+/// The bus's listener: at the origin, looking down +z, up +y. A hud sound is
+/// heard the same wherever the listener is; the engine only needs one.
+const ORIGIN: [f32; 3] = [0.0, 0.0, 0.0];
+const FRONT: [f32; 3] = [0.0, 0.0, 1.0];
+const TOP: [f32; 3] = [0.0, 1.0, 0.0];
+
 impl BusScene {
     /// # Safety
     /// `scene` holds a reference that is now the bus's, forever.
     pub(super) unsafe fn of(scene: raw::SoundScene) -> BusScene {
         BusScene(scene)
+    }
+
+    /// Gives the bus a listener. A scene's sounds get voices only once its
+    /// listener is set: its tick calls notify_listener (0x5C280, the only
+    /// path to create_sound_voice) only then (0x57C9C). The game sets its
+    /// own scenes' every frame; the bus's never moves, so once is enough.
+    pub fn listen(&self, _: &Thread) {
+        // SAFETY: the game's own call (game_world 0x1F7653, the lobby
+        // 0x21D689), from the game's thread: it stores the three vectors as
+        // atomic halves the sound thread reads, and sets +2FAh. The bus is
+        // alive (its reference is never let go).
+        unsafe { raw::engine_set_listener(Some(self.0), ORIGIN.as_ptr(), FRONT.as_ptr(), TOP.as_ptr()) }
     }
 }
 
