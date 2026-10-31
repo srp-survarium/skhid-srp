@@ -24,36 +24,9 @@
   state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
-- Status (2026-10-30): the shared rules (`crates/weapon-pickup`) and the
-  server's check are built; the client side is not: see "The instance".
-
-## The instance (open, 2026-10-30)
-
-The owner's pick now is one cooked gun per death (the busy-spare rule gone).
-Why it is not built yet:
-
-- **A cook runs on the thread that dispatches it.** `dispatch_callbacks`
-  (0.10b `resources_manager_user_thread.cpp:499`) translates the calling
-  thread's queries, creates their resources and runs every finished query's
-  callback there. So a cook started at a death finishes when that client's
-  main thread has dispatched it, at a time of its own frames, not of the
-  simulation.
-- **Waiting is not safe inside the simulation.** `query_resources_and_wait`
-  (0xE5C20; 0.10b `resources_impl.cpp:175`) spins on `dispatch_callbacks`,
-  which runs every pending callback of that thread, for example a late
-  joiner's player cook completion, whose install changes the roster in the
-  middle of a tick. There is no wait for one query alone.
-- **A late joiner and a resynced game never saw the death.** A world loaded
-  with a borrowed gun in it needs that gun before the player reader runs
-  (the slot's bytes are that gun's layout: `weapon_core::serialize` writes
-  19 or 20 bytes and the client one more), and that game started no cook.
-
-Options: (a) the kit-load spares of the spike (deterministic, and a late
-joiner has them; their cost is per instance, in the 32 MiB "survarium"
-arena too); (b) a cook at the death with a short arming delay and a refusal
-(logged, then a resync) when it is not in, and a load-time wait for a
-loaded world's borrowed guns outside the simulation, which still needs its
-reentrancy shown harmless.
+- Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
+  server's check and the instance (a gun cooked at each death) are built;
+  the install, the record, the prompt and the crate are not.
 
 ## How a pickup would be installed (read in the exe, not built)
 
@@ -102,60 +75,112 @@ reentrancy shown harmless.
   +108h (6 f32, turned by Y(pi)); hide a taken one there as patch 78 hides a
   carrier's gun.
 
-## Spike: a spare weapon inventory per kit (patch 83, built, not run in a game)
+## The instance: one gun cooked at each death (patch 83, stage 1, built, not run in a game)
 
-Owner's pick (2026-10-30, option 2): a borrowed gun needs a second native
-weapon instance of the donor's type, and the only creator of one is the
-inventory cook. So every match kit player gets a spare, weapon-only inventory
-while the kits load. Nothing uses it yet: this spike measures what it costs.
+The owner's pick (2026-10-31): one cooked gun per death; no hold of the
+simulation ("don't overcomplicate": the cook takes milliseconds, walking to
+the body seconds), a plain wait in the rare case it is not in. The kit-load
+spares of the spike are gone. `rust/patches/src/weapon_pickup.rs` (the
+policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
 
-- **What it does.** `player_cook::on_config_loaded` (0x202500) queries the
-  player's subresources in one batch (0x202A38). The Rust hook at 0x202A18
-  (`spare_weapons.rs`, `vostok/spare.rs`) queries that batch itself with one
-  more request: an inventory (class 41h) whose recipe is the native one's
-  with a copy of the player's profile (constructor 0x2F73F0, operator=
-  0x284D10) in which that kit keeps only slots 7, 10 (the weapons) and 8, 9,
-  11, 12, 19..22 (their ammo); every other slot word is FFFFh.
-- **Ready and the late-join ack wait for it.** The player is made by the
-  batch's completion (0x202DD0), and the match load (Ready, 0xDA) and the
-  late join (its ack, which follows the player query) wait for the player.
-  The native completion reads results 0..13 (and 14 in the lobby) and never
-  ours, the last.
-- **A failed spare is skipped.** An empty result or a count that is not the
-  batch's: logged as FAILED, the recipe and the profile given back, the
-  player made as before. A spare can only hang where the player's own weapon
-  and ammo cooks (the same names, in the same batch) would.
-- **Kept and released.** The completion hook keeps one reference to the
-  spare's inventory. `player::~player` (0x1F2100) of that kit player (same
-  profile and kit) gives it back and destroys the profile copy.
-- **Not for the lobby's character** (stage +B1h is 1 there), and not
-  registered in the world: an inventory's items are bound to the core only by
-  the player's bind (0x2FC7D0, called only at 0x2D75BD). So nothing a match
-  computes changes: no `simulation_changes` row.
-- **The log** (`srp_patches.log` in the game's working folder, beside the exe; each line starts with the game's process id, as two local games share the file):
-  `spares: on`, then a line per place and kit when the spare is asked for and
-  when it is made or FAILED, with the batch's time and the process's address
-  space before and after (GlobalMemoryStatusEx: total less available virtual;
-  the machine's memory load), and `spares: all cooks in: N spares made, F
-  failed, in T ms; address space A -> B MiB` after each burst.
-  `spares: released ...` at each kit player's destruction.
-- **A comparison.** `SRP_SPARE_WEAPONS=off` in the client's environment makes
-  no spare and logs the same timings and memory (`spares: off ...`, `no spare
-  for ...`). The address space is the whole process's, so a spare's own cost
-  is the difference between two runs, not one line's.
-- **Checked:** `check_spare_weapons_026g.py` (Unicorn) runs the three hooks of
-  the built exe with the game's own profile code; `check_engine_026g.py`; the
-  span scan (no branch or pointer into the three spans); cargo test and
-  clippy of `client-patches/rust`.
+- **The cook.** At the death (`carry.client_death` 0x1F28E0, on every client
+  at the same tick; artefact_carry's handler calls `weapon_pickup::died`
+  first; a client's players have only this death, 0x1F28E0 inlines the
+  base's 0x2D77C0), when the held active object (+128h) is a client weapon
+  (vtable 0xA04174) whose inventory item (+10h) is in slot 7 or 10: one
+  query (`query_resources` 0xE5B60) of one request, the player cook's own
+  {"inventory" 0x9FD55C, 41h}, its user data an inventory variant (vtable
+  0x9FD808, type 0x205C60) and a recipe as the player cook fills it
+  (0x20284C..0x2028A6): a deep copy of the player's profile (+6B8h) whose
+  kit (+115h) keeps that weapon slot and the ammunition slots 8, 9, 11, 12,
+  19..22 (the others FFFFh), the dictionary game+53A4h, the spatial tree
+  match+130h (game_world+4D4Ch), the game world (+F474h), the seed
+  options+577B0h, flag 0. The inventory cook makes the weapon and the
+  ammunition its config binds; nothing of it is bound to the world, so
+  nothing a match computes changes (no `simulation_changes` row).
+- **Inside the tick, harmlessly.** `query_resources` (0.10b
+  `resources_manager::query_resources_impl`) translates the inventory query
+  at once (inventory_cook::translate_query, which reads only our profile copy
+  and recipe and queries the weapon and ammunition with a parent) and may
+  finish synchronously; it runs no other query's callback (that is
+  `dispatch_callbacks`'). Our completion only records its result; no lock of
+  ours is held across the query.
+- **The completion.** A boost member callback made by the game
+  (0x27D280, as late join's query_players makes its own): manager 0xA09374
+  | 1, invoker 0x202300, which calls the member thiscall with ECX = the
+  object (our ticket's number) and the queries_result pushed. The member is
+  `gun_cook::cooked_entry`, a naked thiscall entry that aligns the stack
+  (as RUST_THISCALL) and calls `cooked_shim`: one reference to the result's
+  inventory kept (count 1 checked), the recipe freed. It runs where the game
+  dispatches the querying thread's callbacks: between frames, or in a wait.
+- **The cache, by donor life**: place + spawn time (+328h). A rollback that
+  replays the death finds it and cooks nothing. Each entry owns a ticket of
+  `gun_cook` (48): dropping it gives back the inventory and the profile copy;
+  a cook still running is abandoned and its completion frees everything.
+  Freed: a death's gun when the world core's time (+18FC0h, at the frame's
+  `game_world.after_move`, ragdoll's handler calling
+  `weapon_pickup::after_move`) is 5 s (`WINDOW_MS`) + 3 s (a rollback's
+  reach) past the death; any gun of a donor player at its destruction
+  (`player.destroy` 0x1F2100: it leaves; every player at the match's
+  teardown); a gun the later stages give back (`give_back`: its holder died
+  or left). A holder's inventory keeps its own native reference.
+- **The wait** (`weapon_pickup::wait`, for the pickup's tick): when the cook
+  is not in, the game's `dispatch_callbacks` (0xE5AB0) runs until it is,
+  query_resources_and_wait's loop (0xE5C20); at most 2 s, then refused
+  (logged). The callbacks it runs are those of every query the logic thread
+  made: our other guns' (harmless), the UI's and sounds' (not the
+  simulation's), and a late joiner's. **That one must not run in a tick**:
+  its completion (late join's query_completed -> lj_complete -> install)
+  binds the newcomer's slot, puts its objects in front of the saved states'
+  game-objects bytes and renumbers the animation tables, "between simulation
+  updates" (late_join_install_026g.c). It comes only after its players are
+  made, each by a player cook's completion (0x202DD0, the next dispatch at
+  the earliest). So `player_cook.ready` marks "a player was made" and the
+  frame's `after_move` clears it (a frame's own dispatch lies between); a
+  wait while it is marked does not dispatch and refuses (logged). A true
+  deferral would need the late join's C completion to look at it: not done.
+- **A loaded world** (a late join, a resync): the record names donor place,
+  kit and slot; `weapon_pickup::need(donor player, kit, slot)` finds a gun of
+  that source or cooks one (origin "a loaded world's") and waits the same
+  way. The record's reader is inside `base_player::deserialize` of the 0xE8
+  load (network_client::process_dynamic_match_info 0x27C0xx ->
+  game_world_core::deserialize 0x2D0B70), a network handler outside any
+  tick; the game itself dispatches from a network handler
+  (process_static_match_info 0x27BEE7 loops on 0xE5AB0). No new
+  reentrancy: the same callbacks as the game's own loop, with the late
+  join's guarded as above. A loaded world's gun is freed by `give_back` or
+  its donor's destruction.
+- **The interface for the later stages** (`weapon_pickup.rs`):
+  `instance(place, spawned) -> Cooking | Ready(inventory) | Failed |
+  Missing`; `wait(place, spawned) -> Result<inventory, Refused>`;
+  `need(donor, kit, slot) -> Result<inventory, Refused>`;
+  `give_back(Source { place, kit, slot })`. A refusal is a refused pickup
+  (logged), never a crash.
+- **The log** (`srp_patches.log`, each line with the process id): `pickup:
+  asked for the gun of place P kit K slot S (death at T ms): address space A
+  MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
+  was asked for (the death), address space A -> B MiB` or `FAILED`; a wait:
+  `pickup: waited W ms for the gun of place P kit K slot S: made` or why not.
+- **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
+  frame's step and the destruction of the built exe with the game's own
+  profile code, match_options, boost binder and invoker: the query and its
+  recipe and profile copy, a replayed death, no gun, the completion through
+  the game's invoker, the window's end, an empty result, a donor destroyed
+  while its gun cooks; every allocation freed once. `check_artefact_carry_026g.py`
+  and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
+  cargo test and clippy of `client-patches/rust`. The wait is not run (no
+  caller yet). No new site (player_cook.query removed).
 
-### What a spare holds, and what it shares
+What a cooked gun holds and shares (from the spike's reading of the cooks):
+
+### What a cooked gun holds, and what it shares
 
 From the cooks' constructors in the exe (each cook: +8 its class, +0Ch its
 reuse policy; 1 is looked up by name in the resource registry,
 `query_result::consider_with_name_registry` 0x108A00; 0 is made anew for each
 query, `check_pickup_cooks.py` runs that gate):
 
-- **Made per spare:** the inventory (41h, inventory_cook 0x2C716A), each
+- **Made per cooked gun:** the inventory (41h, inventory_cook 0x2C716A), each
   weapon (46h, weapon_core_cook 0x30A7FA), its state objects (12Ch..141h),
   each ammo stack (48h, items_cook 0x31F2DA), and the model *instances*: the
   pose and bones (skeleton_model_instance 10h, skeleton_render_model_instance
@@ -168,10 +193,10 @@ query, `check_pickup_cooks.py` runs that gate):
 - **Camouflage and decals:** the baker (camouflage_decal_baker_cook 6Ch) is
   asked per instance, but patch 70's bake cache answers a second query of the
   same baked texture with the texture already held (count +1, no bake, no
-  load; `baked-textures.md`). So a spare of a painted gun shares its baked
+  load; `baked-textures.md`). So a cooked painted gun shares its baked
   textures.
-- **Expected:** a spare costs the per-instance objects (weapon, states, pose,
-  ammo) and not the mesh or textures. The spike's log measures it.
+- **Expected:** a cooked gun costs the per-instance objects (weapon, states, pose,
+  ammo) and not the mesh or textures. The cook's log measures it.
 
 ## Codex's research (evidence; its code is removed)
 

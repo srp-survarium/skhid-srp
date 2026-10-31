@@ -2571,21 +2571,29 @@ site with the client's functions and insert stubbed: alive and outside,
 inserted once with 1; inserted, dead, empty places untouched; a second load
 inserts nobody; the references given back; registers and stack kept.
 
-## Spare weapon inventories (patch 83, spike)
+## Dropped-weapon pickup: the instance (patch 83, stage 1)
 
-The first step of dropped-weapon pickup: each match kit player's cook also
-cooks a spare inventory of that kit's weapons and ammo, kept until that kit
-player is destroyed; nothing uses it yet. `rust/patches/src/spare_weapons.rs`
-(the policy, the log) over `vostok/spare.rs`: a lohook at 0x202A18 queries
-player_cook::on_config_loaded's subresource batch itself with one more
-inventory request, cooked from a weapon-only copy of the player's profile; a
-lohook at 0x202DD0 (the batch's completion) keeps that result; one at
-player::~player 0x1F2100 releases it. The lobby's character gets none.
-Every spare is logged to `srp_patches.log` (time, address space, failures);
-`SRP_SPARE_WEAPONS=off` makes none, for a comparison. Nothing a match
-computes. `check_spare_weapons_026g.py` runs the three hooks against the
-original exe's profile code. The RE and the cost: `docs/notes/weapon_pickup.md`.
+At a death that drops a gun (the held client weapon in slot 7 or 10), on
+every client at the same tick, that gun alone is cooked: one query of the
+player cook's own inventory request (41h) from a copy of the player's profile
+whose kit keeps that weapon slot and the ammunition slots, its completion a
+boost member callback (0x27D280) to a naked thiscall entry of ours. The gun
+is kept by donor life (place + spawn time), a replayed death reuses it, and
+it is given back past the 5 s window and a 3 s margin, at its donor's
+destruction (player::~player 0x1F2100) or by the later stages. A pickup whose
+gun is not in yet waits on dispatch_callbacks (0xE5AB0, as 0xE5C20 does),
+at most 2 s, refusing while a player cook has completed since the last frame
+(a late joiner's install must not run in a tick); a loaded world's borrowed
+gun is found or cooked and waited for the same way at its record's reader.
+`rust/patches/src/weapon_pickup.rs` over `vostok/gun_cook.rs`; the death is
+artefact_carry's `carry.client_death`, the frame's step ragdoll's
+`game_world.after_move` (their handlers call this patch's), its own hooks
+`player_cook.ready` and `player.destroy`. Every cook is logged to
+`srp_patches.log` (death-to-done ms, address space, waits). Nothing a match
+computes. `check_weapon_pickup_026g.py` runs the hooks with the game's own
+profile code, binder and invoker. The design, the evidence and the next
+stages: `docs/notes/weapon_pickup.md`.
 
-The rest of dropped-weapon pickup (the command, the record, the switch) is
-designed, not built: `docs/notes/weapon_pickup.md`.
+The rest of dropped-weapon pickup (the install, the record, the prompt, the
+crate) is designed, not built: `docs/notes/weapon_pickup.md`.
 
