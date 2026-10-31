@@ -314,10 +314,6 @@ package survarium.player
          this._ammo_share.registerWeightTextField(this.playerWeight.textFieldValue);
       }
       
-      public function lockTutorial(value:Boolean) : void
-      {
-      }
-      
       public function getRelativeData(value:Object) : Object
       {
          if(value.superCategory == SuperCategory.AMMO)
