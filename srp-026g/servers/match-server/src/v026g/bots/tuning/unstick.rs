@@ -61,6 +61,11 @@ pub struct UnstickTuning {
     /// (the fallback of the Bring state walks `to(home)` for ever); every other map 0-2 cases, none over 30 s. 20 s is a GUESS between a zone that goes off soon and a
     /// carrier that will not move again. None: it stands as before.
     pub home_no_way_ms: Option<u32>,
+    /// A carrier whose way home is shut by zones that switch (Vostok Radar Station's electric anomalies: 1.2 a second, on about 54 s, off about 40 s) waits for the gate
+    /// instead: up to this long from when it stands, ms, to the soonest the schedule opens it (`Tactics::gate_opens`), and only then is `home_no_way_ms` its bound. The
+    /// bench (Vostok Radar Station batteries, 10v10, seeds 13-20): its carriers stood 31-60 s, one on-window, and the 20 s bound dropped a battery that was deliverable
+    /// before the 54 s were out. 90 s is a GUESS over one on-window and the start of the next. None: every no-way is the bound's.
+    pub home_gate_max_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -80,6 +85,7 @@ impl Default for UnstickTuning {
             fix_gap_ms: None,
             blind_stop_ms: Some(4_500),
             home_no_way_ms: Some(20_000),
+            home_gate_max_ms: Some(90_000),
         }
     }
 }

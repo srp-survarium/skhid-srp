@@ -561,7 +561,10 @@ fn the_smoke_counts_fire_when_a_cloud_comes_between_two_fighting_teams() {
     for clock in (1_100..=3_000).step_by(25) {
         bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
     }
-    bots.tracker.add_cloud(across_middle(2_400));
+    // It hides from 3.1 s, the forming time of the defaults' rule before it.
+    let shape = crate::v026g::bots::smoke::SmokeGrenade::RDG_M.cloud;
+    let formed = crate::v026g::bots::smoke::Forming::of(&Tuning::default().smoke).ms(&shape);
+    bots.tracker.add_cloud(across_middle(3_100 - formed));
     for clock in (3_025..=5_000).step_by(25) {
         bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
     }

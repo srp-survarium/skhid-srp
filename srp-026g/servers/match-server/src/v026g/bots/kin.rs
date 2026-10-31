@@ -56,6 +56,8 @@ pub struct Kinematics {
     pub blend_ticks: u32,
     /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
     pub jump_snap: JumpSnap,
+    /// Where the reckoned body falls off a ledge ([`Edge`]).
+    pub edge: Edge,
     /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
     /// (`pitch.rs`), not a radian (`radian`: the bots as they were, which aimed 3.5 degrees low at a target 15 to 30 degrees below the eye
     /// and shot 16 % there against 29 % with the map, `player_bots_weapons.md`). The world's pitch, the pitch turns the bots send and the geometry from the
@@ -80,6 +82,18 @@ pub enum JumpSnap {
     Never,
 }
 
+/// Where the reckoned body (and the lip guard's forecast) falls off a ledge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Edge {
+    /// At the grid's cell boundary, 0.125 m past the last floor cell's centre (the server's picture of the lattice).
+    #[default]
+    Lattice,
+    /// As the client's capsule: held until [`super::body::SUPPORT_M`] past the centre of the floor it stands on, so a
+    /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
+    Client,
+}
+
 impl Default for Kinematics {
     fn default() -> Self {
         Self {
@@ -90,6 +104,7 @@ impl Default for Kinematics {
             sprint: 5.0,
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
+            edge: Edge::Lattice,
             pitch_scale: PitchScale::Client,
         }
     }
