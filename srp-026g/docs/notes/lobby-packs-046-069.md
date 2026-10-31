@@ -76,7 +76,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@13)
+## lobby_scene/camp_069 (pack lobby-camp-069@14)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -197,6 +197,14 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   the classic's floor fills cast none; the window light `point_light(5)` keeps its shadow on a
   256-texel map (`shadow_map_size_index` 2, as the classic's spot lights; it was 512). What softens
   a shadow in 0.26g is in the next section.
+
+- @14 (the owner, 2026-10-31: "what is this shadow plop in a room?", a dark smudge on the ceiling
+  by the back wall, behind the chandelier): the camp's one shadowing light, the window light
+  `character_lights/point_light(5)` (3.0, 6 m, at the left window), stands behind the ripped rag
+  over that window, which shadows most of the ceiling from it, and the chandelier's shadow falls on
+  the ceiling by the back wall (traced against the meshes). Not the ceiling's vertex blend (two
+  light plasters), the probes, the shadow boxes or a decal. Its shadow is off: no camp light casts
+  one now.
 
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
