@@ -30,7 +30,7 @@ switches OFF spacing: apart_ease
 switches OFF think: door_centres wall_clear_corners
 switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes
 switches OFF traps: at_defeated
-switches OFF unstick: drop_shut fix_gap_ms
+switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0} pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
@@ -43,6 +43,7 @@ switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
 switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
 switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
+switch values unstick: drop_shut={"kept_ms":45000,"near_m":2.0}
 changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
