@@ -76,7 +76,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@11)
+## lobby_scene/camp_069 (pack lobby-camp-069@12)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -183,14 +183,15 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   `instance_rotations` turns it to (0, 1.689, 0): its panelled leaf fills the doorway, lit
   (captured in a game, before and after). Drawing the leaves two-sided did not help (their backs
   are unlit).
-- @11 (the owner, 2026-10-31: "the lighting from the sink is strange"): a dark wedge ran from the
-  washbasin (`props/kitchen/washstend`, (-1.13, 0.75, 5.32), on the back wall) up the wall to
-  the ceiling. The donor's fill light `environment_and_lights/character_lights/point_light(10)`
-  stands 0.5 m below the basin by the wall, (-1.55, 0.27, 5.23), and casts shadows: in 0.26 it
-  throws the basin's shadow up the whole wall (traced against the meshes: the wedge from the basin
-  to the ceiling, leaning right, as in the owner's screenshot). In 0.69d it is a 35 lm fill seen
-  through the filmic exposure, its shadow faint. The manifest's light override sets its
-  `cast_shadow` false; it still lights the corner and the character's back.
+- @12 (the owner, 2026-10-31: "the lighting from the sink is strange"): a dark wedge ran from the
+  washbasin (`props/kitchen/washstend`, (-1.13, 0.75, 5.32), on the back wall) up the wall and on
+  across the ceiling. It is the donor's painted contact shadows at the basin,
+  `environment_and_lights/shadows/ambient_light(1)`, `(5)`, `(6)`, `(7)`: negative ambient-light
+  boxes, (1) and (5) tilted 25 degrees about z, (1) 2.9 m tall. 0.69d fades their edges (its own
+  shots show a clean wall there); 0.26 draws them as hard-edged boxes. The manifest's light
+  overrides leave the four out. Found by game captures, one cause ruled out at a time: the fill
+  light under the basin (@11 turned its shadow off: no change, undone in @12), every other
+  shadowing light, the sun.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
