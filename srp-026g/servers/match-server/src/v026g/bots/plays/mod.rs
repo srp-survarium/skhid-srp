@@ -1060,12 +1060,16 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
+        #[cfg(test)]
+        fairness::scoring(Some(kind));
         let (score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
+        #[cfg(test)]
+        fairness::scoring(None);
         (!score.is_zero()).then(|| Candidate {
             kind,
             target,

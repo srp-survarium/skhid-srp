@@ -388,6 +388,15 @@ impl Bots {
             })
             .collect();
         self.teams[usize::from(team)].knowledge.searching = searching;
+        // [A192] The bots running Crossfire now, and on which choke.
+        let crossfiring = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
+            .collect();
+        self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots
@@ -525,7 +534,14 @@ impl Bots {
             .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
             .collect();
         let gang = tuning.threat.gang_rule().map(|rule| team::GangUp { rule, partners: &partners, tally: &tactics.gang_tally });
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky, gang.as_ref()) {
+        for (place, assignment, changed) in team::assign_trapped(
+            asking,
+            now,
+            gap,
+            &given_up,
+            &shaky,
+            team::Pass { gang: gang.as_ref(), held_in_pass: tuning.commit.held_in_pass },
+        ) {
             let Some(me) = view.place(place) else {
                 continue;
             };
