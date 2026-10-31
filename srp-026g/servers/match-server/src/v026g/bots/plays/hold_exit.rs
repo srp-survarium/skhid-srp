@@ -161,6 +161,7 @@ fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
             up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
+            exposure: cx.tuning.cover.hold_exposure,
             ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
         };
         let mut rng = Rng::new(key ^ u64::from(cx.now));

@@ -102,6 +102,8 @@ pub use aim::TierSkill;
 pub use cover::BulletPierce;
 pub use cover::CoverRule;
 pub use cover::CoverTuning;
+pub use cover::Exposure;
+pub use cover::ExposureWeight;
 pub use cover::PierceCover;
 pub use cover::Share;
 pub use cover::SpotCost;
@@ -630,7 +632,14 @@ mod tests {
         let mut changes = Vec::new();
         leaves(&patch, String::new(), &mut changes);
         assert!(changes.len() > 60, "{}", changes.len());
+        // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
+        // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
+        const OFF_BY_DEFAULT: &[&str] = &["/cover/hold_exposure"];
         for (pointer, off) in changes {
+            if OFF_BY_DEFAULT.contains(&pointer.as_str()) {
+                assert_eq!(defaults.pointer(&pointer), Some(off), "{pointer} is on by default now: take it off OFF_BY_DEFAULT");
+                continue;
+            }
             // A play's number that is not in the default tuning is read at its table's value, which is on.
             let on = defaults.pointer(&pointer).cloned().or_else(|| {
                 let (play, name) = pointer.strip_prefix("/plays/")?.split_once("/numbers/")?;
