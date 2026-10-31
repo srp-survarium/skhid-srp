@@ -349,6 +349,7 @@ impl Settings {
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
                 bot_tuning.tuning().grid.clone(),
+                bot_tuning.tuning().needs_wall_clearance(),
             ),
             bot_tuning,
             timing: {
@@ -465,6 +466,7 @@ fn parse_mapdata_dir(
     at_once: u32,
     built: Option<&str>,
     grid: bots::tuning::GridTuning,
+    wall_clearance: bool,
 ) -> Option<Arc<bots::maps::Maps>> {
     let dir = value
         .map(str::trim)
@@ -487,11 +489,12 @@ fn parse_mapdata_dir(
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bots::maps::Maps::configured(
+    Some(bots::maps::Maps::configured_for(
         Some(dir.into()),
         keep as usize,
         at_once as usize,
         built,
         grid,
+        wall_clearance,
     ))
 }

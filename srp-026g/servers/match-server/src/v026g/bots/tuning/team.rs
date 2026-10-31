@@ -617,6 +617,12 @@ pub struct ThinkTuning {
     /// 0.32 m from the jamb on floors the grid keeps 0.3175 m from a wall, where the client's body holds 0.41 m (A66,
     /// Chemical Plant's 717 door). Off: the route as the planner pulled it.
     pub door_centres: bool,
+    /// A pulled route's corners are kept where the capsule fits (`Route::wall_cleared`, A191b): a corner on a floor under 0.41 m
+    /// from a wall moves to a floor within 0.5 m with room, and a leg that passes a wall under the capsule's 0.38 m gets a corner
+    /// at a floor with room beside the dip. The grid keeps its floors 0.3175 m from walls, where a live capsule does not fit, and
+    /// the stuck notes under the capsule stand-in are 13 % at a waypoint with no room, 8 % steering into a wall, 3 % in a gap
+    /// narrower than the body. Off: the route as the planner pulled it (and after the door gates, if those are on).
+    pub wall_clear_corners: bool,
     /// The bot's reckoned stamina bar (`stamina::Reckoning`) steers its legs: it lets go of the sprint at an empty bar
     /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
     /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off: the sprint and the jumps as before; the reckoning is counted.
@@ -639,6 +645,7 @@ impl Default for ThinkTuning {
             rest_off_lip: true,
             stranded_start: true,
             door_centres: false,
+            wall_clear_corners: false,
             stamina: true,
             fall_lock: true,
         }
