@@ -6048,6 +6048,66 @@ impl PreviewChangeStorage {
     }
 }
 
+/// A survarium::preview_apply_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PreviewApplyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PreviewApplyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::item_record>): weapon_kit.preview_apply's first argument (by the site's ESP, the return address at +0): patch 48's scratch record of the window's weapon (its edi)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> Option<ItemRecord> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ItemRecord>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::item_record>): weapon_kit.preview_apply's first argument (by the site's ESP, the return address at +0): patch 48's scratch record of the window's weapon (its edi)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_item(self, value: Option<ItemRecord>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ItemRecord>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::preview_change>): its second: the queue, patch 48's state +64h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn changes(self) -> Option<PreviewChange> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<PreviewChange>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::preview_change>): its second: the queue, patch 48's state +64h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_changes(self, value: Option<PreviewChange>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<PreviewChange>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): its third: the queued changes (patch 48's state +4, at most five)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -7468,6 +7528,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SetupInventoryFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SetupInventoryFrame)
+        }
+    }
+
+    /// weapon_kit.preview_apply (our entry): patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three
+    pub mod weapon_kit_preview_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::preview_apply_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PreviewApplyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PreviewApplyFrame)
         }
     }
 }

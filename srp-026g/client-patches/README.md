@@ -3819,8 +3819,8 @@ link and `rust/patches` builds in. The Rust `weapon_kit` module:
   0x7C6A20), which the lobby movie's `UpgradeWindow.kitUpgrades` reads;
 - `weapon_kit.attached_pair` (0x2885CE): the dict ids a kit names mark the
   inventory's items as attached to the weapon;
-- patch 48's apply calls `weapon_kit_preview_apply` through its dword +23h,
-  which the build writes.
+- patch 48's apply calls the entry `weapon_kit.preview_apply` (generated,
+  the stack aligned to 16) through its dword +23h, which the build writes.
 
 A malformed kit is refused: the item is built from its records as they
 are. The lobby's weapon window has two decal slots. Nothing a match

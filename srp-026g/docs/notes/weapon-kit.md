@@ -91,10 +91,13 @@ PROVEN in the code, run with Unicorn (`check_weapon_kit_026g.py`); not run in a 
   each item `is_attached_to`. `weapon_kit.attached_pair` (lohook, 0x2885CE) pushes, after a kit's
   own pair, one for each dict id it names (the inventory's item of that id, the lowest item id;
   only while the pairs have room). A scoped weapon's camouflage shows worn on it.
-- **The preview (patch 48).** Its `apply` calls `weapon_kit_preview_apply` (vostok::upgrades)
-  through the dword at +23h of its code, which the build writes: the queued changes applied on the
-  logical slots as the server applies them (`Logical::put`, `take_off`), packed again. Malformed
-  records stay as they are.
+- **The preview (patch 48).** Its `apply` calls `weapon_kit.preview_apply` through the dword at +23h
+  of its code, which the build writes: a generated entry (the framework's `entry` kind, aligned to
+  16 as a lohook's: rustc's i686 code keeps 16-byte locals with movaps, and the game's stack is
+  aligned to 4 only), whose handler applies the queued changes on the logical slots as the server
+  applies them (`Logical::put`, `take_off`) and packs them again. Malformed records stay as they
+  are, and only dict ids the record held or a change named are written (the cook would read a
+  dict id the dictionary lacks from a null entry).
 - **The window** (the lobby movie): two decal slots on a weapon (`WEAPON_DECALS` 2), as armour's.
 - **The client never writes a weapon's record itself**: srp answers a weapon's `46 01` and `46 02`
   with the inventory and the account only (no `83 46 01` / `02`, whose own copy of the record would
@@ -127,12 +130,17 @@ an exe without patch 68 is refused at sign-in, and recordings of older games are
 The transport is complete for them: slots 4 and 5, the kit's muzzle and grip fields, their
 expansion in the cook, their members to the movie (`kit_muzzle`, `kit_grip`), the attached marks
 and the preview carry them already. B adds a muzzle device's content (items, their modification
-adding the device's model to the weapon's `data`), its drawing (the model at barrel_point) and its
-slot on the window's Attachments page, and a `simulation_changes.tsv` row when a device changes a
-shot (a brake's recoil). C adds the grips the same way.
+adding the device's model to the weapon's `data`), its drawing and its slot on the window's
+Attachments page, and a `simulation_changes.tsv` row when a device changes a shot (a brake's
+recoil). The device is drawn at retail's `muzzle_point` locator (our 0.26g gun meshes are
+retail's, so the locator fits unchanged), the gun's built-in device taken out of its mesh, and the
+shot's flash moves to the device's own `fire_point`. Not at `barrel_point`: that is 0.5 to 25 cm
+off the muzzle, and #420's and #766's devices were drawn there, in the wrong places. C adds the
+grips the same way.
 
 ## Not done
 
 - A player holding two items of one camouflage sees the lower item id as the one worn (the kit
-  names the dict id, not the item).
+  names the dict id, not the item). Taking it off works: on a weapon the server takes off the item
+  of that dict id the weapon holds (`items_rules::detach_upgrade`).
 - Not run in a game.

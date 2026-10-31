@@ -4049,10 +4049,11 @@ def test_weapon_kit(original, image, before):
     block = linked.blocks["patches.code"]
     check(sorted((h["site_name"], h["kind"]) for h in hooks)
           == [("weapon_kit.attached_pair", "lohook"), ("weapon_kit.flash_upgrade", "lohook"),
-              ("weapon_kit.query_records", "lohook"), ("weapon_kit.query_room", "code")],
-          "weapon_kit.toml's hooks: the code hook query_room and the lohooks query_records, flash_upgrade and "
-          "attached_pair")
-    for h in hooks:
+              ("weapon_kit.preview_apply", "entry"), ("weapon_kit.query_records", "lohook"),
+              ("weapon_kit.query_room", "code")],
+          "weapon_kit.toml's hooks: the code hook query_room, the lohooks query_records, flash_upgrade and "
+          "attached_pair, and the entry preview_apply (patch 48's call, check 48)")
+    for h in (h for h in hooks if h["kind"] != "entry"):
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]
         new = P.hook_bytes(entry, va, old, 0, 0xE9)
@@ -4064,6 +4065,15 @@ def test_weapon_kit(original, image, before):
               and block.va <= entry < block.va + block.size and not under and not branches,
               f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+    entry = linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY]
+    listing = [t for _, _, t in ndisasm(image.read(entry, 0x50), entry)]
+    shim = linked.symbols["hook_weapon_kit_on_preview_apply"]
+    calls = [i for i, t in enumerate(listing) if t.startswith("call ")]
+    aligned = [i for i, t in enumerate(listing) if t == "and esp,byte -0x10"]
+    check(calls and listing[calls[0]] == f"call {shim:#x}" and aligned and aligned[-1] < calls[0]
+          and listing[0] == "lea esp,[esp-0x4]" and "ret" in listing,
+          f"patch 48's call goes to the generated entry {P.WEAPON_KIT_PREVIEW_APPLY} ({entry:#x}), which aligns "
+          "the stack to 16 before it calls the Rust shim and returns with `ret`")
     room = linked.symbols["weapon_kit_query_room"]
     cave = [t for _, _, t in ndisasm(image.read(room, 16), room)]
     check(cave == ["call 0x2f2060", "sub esp,0xa0", "jmp 0x2f1776"],

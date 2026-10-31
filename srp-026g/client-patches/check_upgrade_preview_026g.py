@@ -11,7 +11,9 @@ the inventory vector after it, a lobby character with its three copies,
 the items dictionary (for a scope: variants whose config has
 `srp_scope_fit`).
     python check_upgrade_preview_026g.py <original survarium.exe>
-Requires Python `unicorn` (2.1.4). Stubs that write down how they were
+Requires Python `unicorn` (2.1.4) and `capstone` (the alignment probe,
+align_probe_026g.py: every aligned-SSE operand our code runs, patch 68's
+preview apply in Rust among it, is 16-byte aligned). Stubs that write down how they were
 called: the dictionary's item_by_id (0x1F0090), the game's allocator
 (0x420789, 0xE4F90), setup_profile's query (from 0x284BDF, after it copied
 the profile into the character's next copy: the query is "made", nothing
@@ -64,6 +66,7 @@ from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP, \
     UC_X86_REG_ESP, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_EFLAGS
 
+import align_probe_026g as align
 import patch_026g as base
 
 ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE = 0x1F0090, 0x420789, 0x0E4F90
@@ -493,6 +496,7 @@ class Emu:
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
+    align.install()                 # every Uc from here: aligned-SSE operands checked
     original = open(sys.argv[1], "rb").read()
     late_join = open(base.late_join_bin(), "rb").read()
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
@@ -740,6 +744,7 @@ def main():
                    "character only while no player is being made, for a squad mate's as the original; every "
                    "register and the stack kept")
 
+    align.report(say)                # say counts a failure
     print(f"upgrade preview: {'all checks passed' if not failures else f'{failures} FAILED'}")
     sys.exit(1 if failures else 0)
 

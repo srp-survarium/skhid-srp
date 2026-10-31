@@ -2333,6 +2333,38 @@ weapon_kit_on_attached_pair_replay:
     db 0x8a, 0x45, 0xfb, 0xfe, 0xc0
     jmp 0x2885d3
 
+; weapon_kit.preview_apply patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three: entry -> weapon_kit_on_preview_apply
+global weapon_kit_on_preview_apply
+extern hook_weapon_kit_on_preview_apply
+weapon_kit_on_preview_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_preview_apply
+    cmp eax, 0
+    je weapon_kit_on_preview_apply_go
+    ud2
+weapon_kit_on_preview_apply_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked

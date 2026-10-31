@@ -6,7 +6,9 @@ default build and the original.
 
     python check_weapon_kit_026g.py <original survarium.exe>
 
-Requires Python `unicorn` (2.1.4). The exe's sections are loaded as they
+Requires Python `unicorn` (2.1.4) and `capstone` (the alignment probe,
+align_probe_026g.py: every aligned-SSE operand our code runs is 16-byte
+aligned, which Unicorn does not fault on). The exe's sections are loaded as they
 are, the arena with them.
 
 - translate_query (0x2F1750) runs from its `call 0x2F2060` (0x2F1771, the
@@ -58,6 +60,7 @@ from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
     UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP
 
+import align_probe_026g as align
 import patch_026g as base
 
 CALL_SITE, QUERY_BACK, LOOP_END = 0x2F1771, 0x2F1776, 0x2F1960
@@ -429,6 +432,7 @@ class Run:
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
+    align.install()                 # every Uc from here: aligned-SSE operands checked
     original = open(sys.argv[1], "rb").read()
     late_join = open(base.late_join_bin(), "rb").read()
     built, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None, late_join)
@@ -596,6 +600,8 @@ def main():
     a, b = stock.attached_to(plain), patched.attached_to(plain)
     report(a == b and a[1] == {WEAPON: 0, DECAL: WEAPON, CAMO_A: WEAPON},
            "records without a kit: the original's marks")
+    print("the alignment probe (align_probe_026g.py)")
+    align.report(report)             # report counts a failure
     print(f"weapon kit: {'all passed' if not failed else f'{failed} FAILED'}")
     sys.exit(1 if failed else 0)
 

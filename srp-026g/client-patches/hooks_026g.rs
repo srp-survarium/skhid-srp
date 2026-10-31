@@ -1266,6 +1266,21 @@ pub extern "C" fn hook_weapon_kit_on_attached_pair(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_kit (patch 68) ----
+
+/// The entry `weapon_kit_on_preview_apply` (weapon_kit.preview_apply, patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_kit_on_preview_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_kit_on_preview_apply` calls this, from our own code's call (weapon_kit.preview_apply),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_kit::on_preview_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code

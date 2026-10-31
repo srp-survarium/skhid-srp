@@ -25,3 +25,10 @@ handler = "on_flash_upgrade"
 [[hook]]
 site = "weapon_kit.attached_pair"
 handler = "on_attached_pair"
+
+# Patch 48's apply calls this through the dword +23h of its code, which the
+# build writes (patch_026g.py, with_kit_apply): a generated entry, aligned as
+# a lohook's, never a hand-made export.
+[[hook]]
+site = "weapon_kit.preview_apply"
+handler = "on_preview_apply"

@@ -2425,3 +2425,55 @@ fn a_weapons_upgrades_go_to_the_client_packed_in_the_weapon_kit() {
     assert_eq!(held.upgrades, sent);
     assert_eq!(account.item(rifle).unwrap().upgrades, saved);
 }
+
+/// Two items of one camouflage, the higher on a scoped rifle: the window
+/// shows the lowest item of that dict id (the kit names the dict id alone,
+/// `docs/notes/weapon-kit.md`), and taking it off takes off the one the
+/// rifle holds. Armour still needs the item it holds.
+#[test]
+fn a_weapons_camouflage_named_by_its_kit_comes_off_by_its_dict_id() {
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let vest = give(&mut account, "edge_torso_2", &[]);
+    let lower = account.add_item(dict("camo_city"), FULL_CONDITION);
+    let worn = account.add_item(dict("camo_city"), FULL_CONDITION);
+    let scope = account.add_item(69, FULL_CONDITION);
+    assert!(lower < worn);
+    let camo = |id| Upgrade {
+        id,
+        a: dict("camo_city").into(),
+        value: 0,
+        param: 2,
+    };
+    let scoped = Upgrade {
+        id: scope,
+        a: 362,
+        value: 0,
+        param: 3,
+    };
+    account.item_mut(rifle).unwrap().upgrades = vec![scoped, camo(worn)];
+    account.item_mut(vest).unwrap().upgrades = vec![Upgrade {
+        param: 3,
+        ..camo(worn)
+    }];
+    assert_eq!(
+        detach_upgrade(&mut account, rifle, lower),
+        Ok(Detached::Off)
+    );
+    assert_eq!(account.item(rifle).unwrap().upgrades, [scoped]);
+    // the vest keeps it; on armour another item of its dict id is refused
+    assert_eq!(
+        detach_upgrade(&mut account, vest, lower),
+        Err(ItemError::Upgrade("the cosmetic is not on that item"))
+    );
+    assert_eq!(account.item(vest).unwrap().upgrades.len(), 1);
+    // nothing of that dict id on the rifle any more: refused
+    assert_eq!(
+        detach_upgrade(&mut account, rifle, lower),
+        Err(ItemError::Upgrade("the cosmetic is not on that item"))
+    );
+    // the item itself still comes off by its id
+    account.item_mut(rifle).unwrap().upgrades = vec![scoped, camo(worn)];
+    assert_eq!(detach_upgrade(&mut account, rifle, worn), Ok(Detached::Off));
+    assert_eq!(account.item(rifle).unwrap().upgrades, [scoped]);
+}

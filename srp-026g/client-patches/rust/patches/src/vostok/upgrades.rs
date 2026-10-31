@@ -9,17 +9,17 @@
 //!   has its `param` (`weapon_kit.flash_upgrade`, 0x2882E3);
 //! - [`AttachedPairs`]: setup_inventory_data after it pushed a record's
 //!   {item id, host id} pair (`weapon_kit.attached_pair`, 0x2885CE);
-//! - [`PreviewRecords`]: patch 48's apply of its queue to the window's
-//!   weapon (`weapon_kit_preview_apply`, which patch 48's NASM calls through
-//!   the dword the build writes, `UPGRADE_PREVIEW_KIT_APPLY`).
+//! - [`PreviewApply`]: patch 48's apply of its queue to the window's
+//!   weapon (the entry `weapon_kit.preview_apply`, a generated one patch
+//!   48's NASM calls through the dword the build writes,
+//!   `UPGRADE_PREVIEW_KIT_APPLY`).
 //!
 //! Records are read once into `weapon_kit::Record`s; a list of more than
 //! three (no item of the game's holds one) is not read.
 
 use core::ffi::CStr;
-use core::marker::PhantomData;
 
-use weapon_kit::{RECORDS, Record};
+use weapon_kit::{Expanded, Logical, RECORDS, Record, Wire};
 
 use super::context::Context;
 use super::hook::Thread;
@@ -125,39 +125,58 @@ impl<'t> CookQuery<'t> {
     }
 
     /// The item's records (the query's), None when not readable.
-    pub fn records(&self) -> Option<Records> {
+    fn records(&self) -> Option<Records> {
         // SAFETY: the frame's [ebp+40h], the item record's own vector, alive
         // for the cook (0x2F2060 copied it from the query).
         unsafe { read(self.frame.upgrades()?) }
     }
 
-    /// The items dictionary has an entry of `dict`.
-    pub fn knows(&self, dict: u16) -> bool {
+    /// The items dictionary has an entry of `dict` (a record of a dict id
+    /// it lacks is read from a null entry, 0x2F18E3).
+    fn knows(&self, dict: u32) -> bool {
         // SAFETY: the frame's dictionary, the game's, alive for the cook;
         // item_by_id only looks the id up (0x1F0090).
-        unsafe { raw::engine_item_by_id(self.frame.dictionary(), u32::from(dict)).is_some() }
+        u16::try_from(dict).is_ok_and(|_| unsafe {
+            raw::engine_item_by_id(self.frame.dictionary(), dict).is_some()
+        })
     }
 
-    /// The cook applies `records` (at most [`ROOM`]; more are left out):
-    /// they go into the room and [ebp+40h] points at them, which the cook
-    /// reads at 0x2F1799 and 0x2F18D0 alone. The item's own records stay as
-    /// they are.
-    pub fn give(&mut self, records: &[Record]) {
-        let count = records.len().min(ROOM);
+    /// The cook applies the item's records with what their kit names
+    /// (`weapon_kit::expand`, each name the dictionary has): written into
+    /// the room, [ebp+40h] pointed at it (the cook reads it at 0x2F1799 and
+    /// 0x2F18D0 alone); the item's own records stay as they are. Whether it
+    /// did: not for records without a kit, a malformed one, or a list with
+    /// a dict id the dictionary lacks (the stock way then, as the original).
+    pub fn apply_kit(&mut self) -> bool {
+        let Some(records) = self.records() else { return false };
+        let Ok(Some(expanded)) = weapon_kit::expand(records.as_slice(), |dict| self.knows(u32::from(dict))) else {
+            return false;
+        };
+        self.give(&expanded)
+    }
+
+    /// `expanded` into the room, when the dictionary has every dict id of
+    /// it (the room holds [`ROOM`], every expansion fits).
+    fn give(&mut self, expanded: &Expanded) -> bool {
+        let records = expanded.as_slice();
+        if records.len() > ROOM || !records.iter().all(|record| self.knows(record.dict)) {
+            return false;
+        }
         // SAFETY: the room is ours (ROOM records and their vector), on the
         // cook's stack below its frame until it returns; the frame's
         // [ebp+40h] is its own local.
         unsafe {
             let first = self.room.records();
-            for (i, record) in records.iter().take(count).enumerate() {
+            for (i, record) in records.iter().enumerate() {
                 write(first.at(i), record);
             }
             let list = self.room.list();
             list.set_begin(Some(first));
-            list.set_end(Some(first.at(count)));
-            list.set_capacity(Some(first.at(count)));
+            list.set_end(Some(first.at(records.len())));
+            list.set_capacity(Some(first.at(records.len())));
             self.frame.set_upgrades(Some(list));
         }
+        true
     }
 }
 
@@ -281,58 +300,91 @@ pub enum PreviewChange {
     TakeOff { upgrade: u32, dict: u32 },
 }
 
-/// The window's weapon's record, which patch 48 builds the lobby's
-/// character from, and the changes it queued.
-pub struct PreviewRecords<'t> {
-    item: raw::ItemRecord,
-    _thread: PhantomData<&'t Thread>,
+impl PreviewChange {
+    fn dict(&self) -> u32 {
+        match *self {
+            PreviewChange::Put { dict, .. } | PreviewChange::TakeOff { dict, .. } => dict,
+        }
+    }
 }
 
-impl PreviewRecords<'_> {
+/// Patch 48's apply at `weapon_kit.preview_apply` (upgrade_preview_026g.asm
+/// `apply`, through its dword +23h, which the build writes with this
+/// entry): the window's weapon's record, which patch 48 builds the lobby's
+/// character from, and the changes it queued, read once.
+pub struct PreviewApply<'t> {
+    item: raw::ItemRecord,
+    changes: [Option<PreviewChange>; MAX_CHANGES],
+    _thread: &'t Thread,
+}
+
+impl<'t> PreviewApply<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<PreviewApply<'t>> {
+        // SAFETY: the context is this entry's: its arguments by the site's
+        // ESP, patch 48's scratch record and its state's queue of `count`
+        // changes (at most five, 0Ch each), alive for the call on the lobby's
+        // thread.
+        let (item, changes) = unsafe {
+            let frame = raw::site::weapon_kit_preview_apply::frame(ctx)?;
+            let item = frame.item()?;
+            let count = (*frame.count() as usize).min(MAX_CHANGES);
+            let mut changes = [None; MAX_CHANGES];
+            if let Some(first) = frame.changes() {
+                for (i, place) in changes.iter_mut().take(count).enumerate() {
+                    let change = first.at(i);
+                    let (upgrade, dict, slot) = (*change.upgrade(), *change.dict(), *change.slot());
+                    *place = Some(match slot {
+                        TAKE_OFF => PreviewChange::TakeOff { upgrade, dict },
+                        slot => PreviewChange::Put { upgrade, dict, slot: u8::try_from(slot).unwrap_or(u8::MAX) },
+                    });
+                }
+            }
+            (item, changes)
+        };
+        Some(PreviewApply { item, changes, _thread: ctx.thread() })
+    }
+
     /// The record's upgrade records.
     pub fn records(&self) -> Option<Records> {
         // SAFETY: patch 48's live scratch record.
         unsafe { read(self.item.upgrades()) }
     }
 
-    /// The record holds `records` (at most its room, three).
-    pub fn set(&mut self, records: &[Record]) {
+    /// The queued changes, oldest first.
+    pub fn changes(&self) -> impl Iterator<Item = PreviewChange> + '_ {
+        self.changes.iter().flatten().copied()
+    }
+
+    /// The record holds `wire` (packed by `weapon_kit::Logical::pack`, at
+    /// most three). Only dict ids the record held (its records and what its
+    /// kit names) or a queued change named
+    /// go in (the game's own, which patch 48 found: a dict id the items
+    /// dictionary lacks would be read from a null entry by the cook,
+    /// 0x2F18E3); else nothing is written. Whether it was.
+    pub fn set(&mut self, wire: &Wire) -> bool {
+        let records = wire.as_slice();
+        let held = self.records().and_then(|held| Logical::unpack(held.as_slice()).ok());
+        let given = |dict: u32| {
+            held.is_some_and(|held| held.iter().any(|(_, held)| held.dict() == dict))
+                || self.changes().any(|change| change.dict() == dict)
+        };
+        if !records.iter().all(|record| given(record.dict)) {
+            return false;
+        }
         // SAFETY: the record's own vector and inline room: written up to its
         // capacity end only.
         unsafe {
             let list = self.item.upgrades();
-            let Some(begin) = list.begin() else { return };
+            let Some(begin) = list.begin() else { return false };
             let room = list.capacity().and_then(|end| end.index_from(begin)).unwrap_or(0).min(RECORDS);
-            let count = records.len().min(room);
-            for (i, record) in records.iter().take(count).enumerate() {
+            if records.len() > room {
+                return false;
+            }
+            for (i, record) in records.iter().enumerate() {
                 write(begin.at(i), record);
             }
-            list.set_end(Some(begin.at(count)));
+            list.set_end(Some(begin.at(records.len())));
         }
+        true
     }
-}
-
-/// Patch 48's apply (upgrade_preview_026g.asm `apply`, through its
-/// `kit_apply` dword, which the build writes): the record `item` with the
-/// `count` changes at `changes` (its state's queue) applied as the server
-/// applies them, on the weapon kit's logical slots.
-#[unsafe(no_mangle)]
-pub extern "C" fn weapon_kit_preview_apply(
-    item: Option<raw::ItemRecord>,
-    changes: Option<raw::PreviewChange>,
-    count: u32,
-) {
-    let Some(item) = item else { return };
-    let queue = changes.into_iter().flat_map(|first| (0..(count as usize).min(MAX_CHANGES)).map(move |i| (first, i))).map(|(first, i)| {
-        // SAFETY: patch 48's queue, `count` changes of 0Ch from `first`.
-        let change = unsafe { first.at(i) };
-        // SAFETY: as above.
-        let (upgrade, dict, slot) = unsafe { (*change.upgrade(), *change.dict(), *change.slot()) };
-        match slot {
-            TAKE_OFF => PreviewChange::TakeOff { upgrade, dict },
-            slot => PreviewChange::Put { upgrade, dict, slot: u8::try_from(slot).unwrap_or(u8::MAX) },
-        }
-    });
-    let mut record = PreviewRecords { item, _thread: PhantomData };
-    crate::weapon_kit::preview_apply(&mut record, queue);
 }

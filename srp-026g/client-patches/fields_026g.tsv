@@ -324,3 +324,6 @@ survarium::preview_change	upgrade	0x0	u32	patch 48's queued change of the window
 survarium::preview_change	dict	0x4	u32	the dict id its record holds
 survarium::preview_change	slot	0x8	u32	the slot it goes into, or 0FFh: taken off
 survarium::preview_change	size	0xC	size	0Ch bytes
+survarium::preview_apply_frame	item	0x4	ptr<survarium::item_record>	weapon_kit.preview_apply's first argument (by the site's ESP, the return address at +0): patch 48's scratch record of the window's weapon (its edi)
+survarium::preview_apply_frame	changes	0x8	ptr<survarium::preview_change>	its second: the queue, patch 48's state +64h
+survarium::preview_apply_frame	count	0xC	u32	its third: the queued changes (patch 48's state +4, at most five)

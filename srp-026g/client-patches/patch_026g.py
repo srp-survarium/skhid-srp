@@ -1950,11 +1950,11 @@ UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
-# a dword after the entries: patch 68's weapon_kit_preview_apply (the Rust
-# patch weapon_kit, vostok::upgrades), which the build writes once the arena
+# a dword after the entries: patch 68's entry weapon_kit.preview_apply (the Rust
+# patch weapon_kit, a generated entry that aligns the stack), which the build writes once the arena
 # is linked (0 in the file and without an arena: patch 48's own apply)
 UPGRADE_PREVIEW_KIT_APPLY = 0x23
-WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
+WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_on_preview_apply"   # the generated entry of weapon_kit.preview_apply
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop

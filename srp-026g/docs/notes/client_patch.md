@@ -2670,5 +2670,7 @@ The rules and the layout: `weapon-kit.md`. PROVEN in the code, run with Unicorn
   bytes an inventory item), [ebp-14h] the inventory's vector, [ebp-0Ch] its end, [ebp-18h] the
   host's id.
 - **The preview:** patch 48's `apply` calls the dword at +23h of upgrade_preview_026g.asm when not
-  0 (cdecl: the record, the queue, its count); the build writes `weapon_kit_preview_apply` there
-  (the arena is linked before `.srpw` is made).
+  0 (cdecl: the record, the queue, its count); the build writes the generated entry of the site
+  `weapon_kit.preview_apply` there (`weapon_kit_on_preview_apply`, kind `entry`: the stack aligned
+  to 16 before Rust, which a hand-made export skipped: #893's review, movaps at [esp+10h] on the
+  game's 4-aligned stack; the arena is linked before `.srpw` is made).

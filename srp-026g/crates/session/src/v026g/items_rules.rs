@@ -529,6 +529,13 @@ pub enum Detached {
 /// first of the account's inventory (the order the inventory is sent in).
 /// With the upgrade on several items that may not be the item the window
 /// showed; client and server still agree.
+///
+/// On a weapon a cosmetic its kit names (the camouflage beside a scope) is
+/// known to the client by its dict id alone: the window shows the
+/// inventory's item of that dict id with the lowest item id
+/// (`docs/notes/weapon-kit.md`). With two items of one camouflage that may
+/// be another item than the one the weapon holds, so on a weapon an item
+/// it does not hold takes off the one of the same dict id it does.
 pub fn detach_upgrade(
     account: &mut Account,
     host_item_id: u32,
@@ -546,11 +553,25 @@ pub fn detach_upgrade(
     } else {
         host_item_id
     };
+    let dict_id = account
+        .item(upgrade_item_id)
+        .map(|item| u32::from(item.dict_id));
     let host = account
         .item_mut(host_item_id)
-        .filter(|host| host.upgrades.iter().any(|held| held.id == upgrade_item_id))
         .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
-    host.upgrades.retain(|held| held.id != upgrade_item_id);
+    let held_id = if host.upgrades.iter().any(|held| held.id == upgrade_item_id) {
+        Some(upgrade_item_id)
+    } else if is_weapon(host.dict_id) {
+        // a weapon's kit names this cosmetic by its dict id: the one of it
+        host.upgrades
+            .iter()
+            .find(|held| Some(held.a) == dict_id)
+            .map(|held| held.id)
+    } else {
+        None
+    }
+    .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
+    host.upgrades.retain(|held| held.id != held_id);
     bump_kits_wearing(account, host_item_id);
     Ok(Detached::Off)
 }

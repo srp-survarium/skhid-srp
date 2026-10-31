@@ -16,8 +16,9 @@
 //! - `on_attached_pair` (setup_inventory_data): each dict id a kit names
 //!   marks the inventory's item of that dict id (the lowest item id) as on
 //!   the kit's weapon, as a record of its own would (its is_attached_to);
-//! - `preview_apply` (patch 48's queue of a window's changes): applied on
-//!   the logical slots as srp applies them, packed again.
+//! - `on_preview_apply` (patch 48's queue of a window's changes, the entry
+//!   `weapon_kit.preview_apply`): applied on the logical slots as srp applies
+//!   them, packed again.
 //!
 //! What a match computes does not change: the cook applies the same
 //! modifications with the same values as from the records srp sent before
@@ -27,14 +28,12 @@
 
 use weapon_kit::{Kit, KitSlot, Logical, Slot};
 
-use crate::vostok::{AttachedPairs, Context, CookQuery, Flow, FlashUpgrade, NoExit, PreviewChange, PreviewRecords};
+use crate::vostok::{AttachedPairs, Context, CookQuery, Flow, FlashUpgrade, NoExit, PreviewApply, PreviewChange};
 
 /// translate_query after it copied its query (0x2F1776).
 pub fn on_query(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(mut query) = CookQuery::at_records(ctx) else { return Flow::Continue };
-    let Some(records) = query.records() else { return Flow::Continue };
-    if let Ok(Some(expanded)) = weapon_kit::expand(records.as_slice(), |dict| query.knows(dict)) {
-        query.give(expanded.as_slice());
+    if let Some(mut query) = CookQuery::at_records(ctx) {
+        query.apply_kit();
     }
     Flow::Continue
 }
@@ -78,15 +77,19 @@ pub fn on_attached_pair(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Patch 48's queue applied to the window's weapon's record: each change as
-/// srp applies it (`items_rules::attach_upgrade_in`, `detach_upgrade`) on
-/// the logical slots, the result packed as srp packs it. Records that are no
-/// weapon's (malformed) stay as they are.
-pub fn preview_apply(record: &mut PreviewRecords<'_>, changes: impl Iterator<Item = PreviewChange>) {
-    let Some(records) = record.records() else { return };
-    let Ok(mut logical) = Logical::unpack(records.as_slice()) else { return };
-    apply(&mut logical, changes);
-    record.set(logical.pack().as_slice());
+/// Patch 48's apply (the entry `weapon_kit.preview_apply`): its queue applied
+/// to the window's weapon's record, each change as srp applies it
+/// (`items_rules::attach_upgrade_in`, `detach_upgrade`) on the logical slots,
+/// the result packed as srp packs it. Records that are no weapon's
+/// (malformed) stay as they are.
+pub fn on_preview_apply(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(mut preview) = PreviewApply::at(ctx) else { return Flow::Continue };
+    let Some(records) = preview.records() else { return Flow::Continue };
+    if let Ok(mut logical) = Logical::unpack(records.as_slice()) {
+        apply(&mut logical, preview.changes());
+        preview.set(&logical.pack());
+    }
+    Flow::Continue
 }
 
 fn apply(logical: &mut Logical, changes: impl Iterator<Item = PreviewChange>) {
