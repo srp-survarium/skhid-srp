@@ -138,15 +138,21 @@ pub(crate) fn edge_fall_stats() -> Vec<u64> {
     EDGE_FALLS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
 }
 
-/// A stand-in body at a ledge (its floor `node` a lip's or near one: a wall's foot is not) that the slide stopped short of
-/// `to`: on to `to` while a floor of its level within [`body::SUPPORT_M`] still holds it, else down on the highest floor under
-/// `to` (straight below, within a cell). None where it is not at a ledge, or no floor is below.
-pub(crate) fn past_edge(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<(NodeId, Vec3)> {
+/// A stand-in body (on `node`) that the slide stopped short of `to` with no wall in the way (`walls`, the walker's triangles, met
+/// above a step: a wall stops the capsule, an edge does not): on to `to` while a floor of its level within [`body::SUPPORT_M`] still
+/// holds it, else down on the highest floor under `to` (straight below, within the capsule's width). None at a wall, or with no
+/// floor below.
+pub(crate) fn past_edge(grid: &mapdata::WalkGrid, walls: &mapdata::RayTree, node: NodeId, feet: Vec3, to: Vec3) -> Option<(NodeId, Vec3)> {
     use std::sync::atomic::Ordering::Relaxed;
-    if feet.distance_xz(to) <= 1e-3 || !(grid.near_lip(node) || grid.is_lip(node)) {
+    let ahead = feet.distance_xz(to);
+    if ahead <= 1e-3 {
         return None;
     }
     let (base, step) = (grid.position(node).y, grid.body().step);
+    let dir = Vec3::new((to.x - feet.x) / ahead, 0.0, (to.z - feet.z) / ahead);
+    if walls.ray_cast(Vec3::new(feet.x, base + step + 0.1, feet.z), dir, ahead + grid.body().radius).is_some() {
+        return None;
+    }
     let level = |n: NodeId| (grid.position(n).y - base).abs() <= step;
     let held = std::iter::once(node)
         .chain(grid.links(node).filter(|(_, kind)| !kind.is_leap()).map(|(next, _)| next))
@@ -156,10 +162,11 @@ pub(crate) fn past_edge(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: 
         EDGE_FALLS[0].fetch_add(1, Relaxed);
         return Some((n, Vec3::new(to.x, grid.position(n).y, to.z)));
     }
-    // Down: the first floor under `to` lower than a step, probing in overlapping height windows (`locate` looks 2.5 m down).
+    // Down: the first floor under `to` lower than a step, probing in overlapping height windows (`locate` looks 2.5 m down),
+    // within the capsule's width across: the floor at a wall's foot is eroded, and the falling capsule comes down off the face.
     let mut y = base - step - 1.0;
     while y > base - 60.0 {
-        if let Some(n) = grid.locate(Vec3::new(to.x, y, to.z), grid.cell_size())
+        if let Some(n) = grid.locate(Vec3::new(to.x, y, to.z), 2.0 * grid.body().radius)
             && grid.position(n).y < base - step
         {
             EDGE_FALLS[1].fetch_add(1, Relaxed);
@@ -969,23 +976,35 @@ pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
 }
 
 /// [`past_edge`]: a body past the top's last floor at a ledge walks on while that floor is within [`body::SUPPORT_M`] of where it
-/// steps, and comes down on the floor below once it is not, with no drop link asked; at a wall's foot (no lip) nothing changes.
+/// steps, and comes down on the floor below once it is not, with no drop link asked; at the foot of the face (a wall) nothing changes.
 #[test]
 fn a_body_past_a_ledges_edge_walks_on_within_the_support_and_falls_past_it() {
-    let grid = ledge_grid(2.0, mapdata::Body::default());
-    // The top's last floor toward the face (x 10) along z 5.
+    use super::body::tests::{floor, wall_x};
+    // The ground at 0, a top 2 m high from x 10 on, its face at x 10.
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 2.0));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+        t
+    }));
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    // The top's last floor toward the face along z 5.
     let last = (0..grid.len() as NodeId)
         .filter(|&n| grid.position(n).y > 1.9 && (grid.position(n).z - 5.0).abs() < 0.2)
         .min_by(|&a, &b| grid.position(a).x.total_cmp(&grid.position(b).x))
         .unwrap();
     let edge = grid.position(last);
-    assert!(grid.near_lip(last) || grid.is_lip(last), "the top's last floor is at a lip");
     let feet = Vec3::new(edge.x - 0.3, edge.y, edge.z);
-    let on = past_edge(&grid, last, feet, Vec3::new(edge.x - 0.4, edge.y, edge.z));
+    let on = past_edge(&grid, &walls, last, feet, Vec3::new(edge.x - 0.4, edge.y, edge.z));
     assert!(on.is_some_and(|(n, f)| n == last && (f.y - edge.y).abs() < 1e-3), "within the support it walks on: {on:?}");
-    let down = past_edge(&grid, last, feet, Vec3::new(edge.x - 0.6, edge.y, edge.z));
+    let down = past_edge(&grid, &walls, last, feet, Vec3::new(edge.x - 0.6, edge.y, edge.z));
     assert!(down.is_some_and(|(_, f)| f.y < 0.5), "past the support it comes down: {down:?}");
-    // A floor in the middle of the top (no lip near): as the slide had it.
-    let mid = grid.locate(Vec3::new(15.0, 2.0, 5.0), 0.5).unwrap();
-    assert_eq!(past_edge(&grid, mid, grid.position(mid), grid.position(mid) + Vec3::new(0.2, 0.0, 0.0)), None);
+    // At the face's foot, walking into it: the wall stops it.
+    let foot = (0..grid.len() as NodeId)
+        .filter(|&n| grid.position(n).y < 0.1 && (grid.position(n).z - 5.0).abs() < 0.2 && grid.position(n).x < 10.0)
+        .max_by(|&a, &b| grid.position(a).x.total_cmp(&grid.position(b).x))
+        .unwrap();
+    let at = grid.position(foot);
+    assert_eq!(past_edge(&grid, &walls, foot, at, at + Vec3::new(0.2, 0.0, 0.0)), None);
 }
