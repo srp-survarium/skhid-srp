@@ -113,6 +113,8 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(SniperCounts::new(n)),
         Box::new(GunShots::new(n)),
         Box::new(StealCounts::new(n)),
+        Box::new(CrouchCounts::new(n)),
+        Box::new(RangeLegCounts::new(n)),
     ]
 }
 
@@ -156,6 +158,8 @@ pub(super) struct BotNow {
     /// Its assignment, and its tracks (who, source, time).
     pub(super) aim: Option<(crate::v026g::bots::plays::PlayKind, crate::v026g::bots::plays::TargetRef)>,
     pub(super) tracks: Vec<(Place, crate::v026g::bots::know::Source, u32)>,
+    /// Why the reflex has its legs ([`Bot::bench_legs_why`]).
+    pub(super) legs: Option<crate::v026g::bots::reflex::LegsWhy>,
 }
 
 #[cfg(test)]
