@@ -10,13 +10,13 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::{ArtefactPickup, Context, Flow, NoExit, ScoreEvent, Slots};
+use crate::vostok::{ArtefactPickup, Context, Flow, NoExit, ScoreEvent, Slots, site};
 
 /// What the score's extra 10 is counted in.
 const INTO_A_FREE_SLOT: ScoreEvent = ScoreEvent::WINNING_TEAM_VI_BONUS;
 
 /// use_execute before transfer_artefact (0x31C810).
-pub fn on_transfer(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_transfer(ctx: &mut Context<'_, site::ArtefactContainerTransfer>) -> Flow<NoExit> {
     if let Some(pickup) = ArtefactPickup::at_transfer(ctx)
         && pickup.slots() == Slots::Free
     {

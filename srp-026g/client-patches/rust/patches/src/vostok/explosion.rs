@@ -7,6 +7,7 @@
 
 use super::bullet::{MaterialId, SurfaceBreakEffects};
 use super::context::Context;
+use super::site;
 use super::geometry::{Distance, WorldPoint};
 use super::project::PhysicsId;
 use super::world::{floats, read};
@@ -22,12 +23,13 @@ pub struct Explosion<'t> {
 }
 
 impl<'t> Explosion<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<Explosion<'t>> {
-        use raw::site::bullet_manager_explode as site;
-        // SAFETY: the context is this site's: the splash and explode's
-        // arguments, alive while it runs, on its thread.
+    pub fn at(ctx: &'t Context<'_, site::BulletManagerExplode>) -> Option<Explosion<'t>> {
+        use raw::site::bullet_manager_explode as at;
+        let (params, frame) = (at::params(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's splash and explode's arguments, alive while it
+        // runs, on its thread.
         unsafe {
-            let (params, frame) = (site::params(ctx)?, site::frame(ctx)?);
+
             let manager = frame.manager()?;
             let centre = frame.centre();
             if centre.is_null() { return None; }

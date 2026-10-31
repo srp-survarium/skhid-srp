@@ -47,7 +47,7 @@ use crate::vostok::lobby_menu::{DrawnLobby, HiddenLobby, Picks, SceneQuery, Scen
 use crate::vostok::lobby_camera::{LobbyCamera, TableCamera, WeaponTableState};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit, Thread};
+use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit, Thread, site};
 
 /// A lobby scene.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -413,7 +413,7 @@ static SCENE: GameCell<Scene> = GameCell::new(Scene::Unasked);
 /// before the first.
 static TOLD: GameCell<Option<[u32; 2]>> = GameCell::new(None);
 
-pub fn on_configs_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_configs_start(ctx: &mut Context<'_, site::ConfigsStart>) -> Flow<NoExit> {
     SAVED.register(ctx.thread(), c"srp_lobby");
     Flow::Continue
 }
@@ -449,7 +449,7 @@ fn no_picks() {
 
 /// `0xA1` with its squad id read: none (0) is out of a squad, its picks
 /// after the id (a squad's go on to `on_squad`).
-pub fn on_squad_id(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_squad_id(ctx: &mut Context<'_, site::LobbyClientSquadId>) -> Flow<NoExit> {
     if let Some(read) = SquadId::at(ctx)
         && read.squad_id() == 0
     {
@@ -462,7 +462,7 @@ pub fn on_squad_id(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// A squad from the server (`0xA1`, read to its end): its picks.
-pub fn on_squad(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_squad(ctx: &mut Context<'_, site::LobbyClientSquadRead>) -> Flow<NoExit> {
     if let Some(read) = SquadRead::at(ctx) {
         match read.picks() {
             Some(picks) => take_picks(ctx.thread(), picks, |lobby| read.send(lobby.pick_start())),
@@ -575,7 +575,7 @@ fn decimal(out: &mut [u8; 64], n: usize, v: u32) -> usize {
 /// The lobby's frames so far (the diagnostics' clock).
 static FRAMES: GameCell<u32> = GameCell::new(0);
 
-pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_scene_request(ctx: &mut Context<'_, site::LobbyMenuSceneRequest>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let action = step(thread, Event::Query { wanted: wanted(thread) });
     if let Some(mut query) = SceneQuery::at(ctx) {
@@ -598,7 +598,7 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExit> {
+pub fn on_scenes_ready(ctx: &mut Context<'_, site::LobbyMenuScenesReady>) -> Flow<LobbySceneOnScenesReadyExit> {
     let Some(ready) = ScenesReady::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     match step(thread, Event::Ready { loaded: ready.loaded(), wanted: wanted(thread) }) {
@@ -631,7 +631,7 @@ pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExi
 
 /// A frame of the lobby drawn: a change's fades stepped and its query
 /// asked, the lobby window told what it shows.
-pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_tick(ctx: &mut Context<'_, site::LobbyCameraView>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some((mut camera, dt)) = LobbyCamera::at(ctx) else { return Flow::Continue };
     FRAMES.update(thread, |n| n.wrapping_add(1));
@@ -673,7 +673,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// A match entered: a fade gone (a project that comes is put in at once).
-pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_deactivate(ctx: &mut Context<'_, site::LobbyMenuDeactivate>) -> Flow<NoExit> {
     let action = step(ctx.thread(), Event::Hidden);
     if action == Action::Clear
         && let Some(lobby) = HiddenLobby::at(ctx)
@@ -684,7 +684,7 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// The lobby shown again: the black back over it while a project loads.
-pub fn on_activate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_activate(ctx: &mut Context<'_, site::LobbyMenuActivate>) -> Flow<NoExit> {
     if let Action::Shade { per_mille, loading } = step(ctx.thread(), Event::Shown)
         && let Some(lobby) = HiddenLobby::at_shown(ctx)
     {
@@ -694,7 +694,7 @@ pub fn on_activate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// The game closes: results from now on let go without the lobby menu.
-pub fn on_game_closing(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_game_closing(ctx: &mut Context<'_, site::GameClearResources>) -> Flow<NoExit> {
     step(ctx.thread(), Event::Closing);
     Flow::Continue
 }

@@ -83,7 +83,12 @@ one crate, `client-patches/rust/patches`, in three layers:
     VA; one the game takes in registers keeps its cdecl thunk (block
     `engine.code`). kernel32's imports are declarations over their IAT slots;
   - `raw::site::<site>::<name>(machine)`: the handle a site's register (or
-    its frame, by ESP or EBP) holds, as the site's `holds` declares it.
+    its frame, by ESP or EBP) holds, as the site's `holds` declares it. A
+    marker type per lohook site (`raw::site::marker::<Site>`, vostok's
+    `site`) is in its readers' type: they read only the machine at that site
+    (`Machine<Site>`), so they are safe. A name several sites hold as one
+    type is also a trait of their markers (`HoldsPlayer`), for a view they
+    share.
 
   A handle is made there alone: from a typed field, a function's typed
   result or a site's typed register; there is no constructor from a number.
@@ -145,13 +150,19 @@ NH3API's HiHook/LoHook applied at build time:
 | `call` | a game `call F` (and any pushes before it) | F's typed arguments and `Original<F>`; it decides whether and when to `orig.call(..)`, and returns F's result or a named `Exit` |
 | `splice` | a function's start, through a trampoline | the same, the original a trampoline; `replace` when ours is the whole body |
 | `pointer` | a function pointer in the image | the same; `Original` is the old pointer |
-| `lohook` | a detour anywhere (>= 5 bytes) | `&mut Context`, returning a `Flow` |
+| `lohook` | a detour anywhere (>= 5 bytes) | `&mut Context<'_, site::<Site>>`, returning a `Flow` |
 | `vtable` | a run-time copy of a vtable with slots ours | each slot in its convention |
 | `callback` | a function the game is handed | its typed arguments |
 | `write` | a `byte`, `word`, `dword`, `float`, `bytes` or pointer, with its expected original | nothing |
 | `code` | hand-written NASM with a byte limit, where nothing above fits | -- |
 
-**`Context` (`lohook`)**: the machine at the site, opaque to a patch. Its
+**`Context` (`lohook`)**: the machine at the site, opaque to a patch, and
+typed by it: the shim makes `Context<'_, site::PlayerDrawBones>` for its own
+site, and a site's view takes that site's context alone (or one of the
+sites a `Holds*` trait names), so a handler builds only its own site's views:
+another's is a compile error. A view never writes a register its site holds,
+which a later handler of a chain reads. Its
+
 registers and flags (`reg`/`set_reg`/`set_reg8`/`set_flag`) are
 `pub(in crate::vostok)`: a site's vostok view (`vostok::draw`,
 `vostok::keyboard`, ..) turns them into typed methods, so a patch cannot

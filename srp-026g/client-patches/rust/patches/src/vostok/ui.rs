@@ -7,23 +7,23 @@ use core::ffi::CStr;
 use core::marker::PhantomData;
 
 use super::context::{Context, Reg};
+use super::site;
 use super::hook::Thread;
 use crate::raw;
 
 /// A character event delivered after a text field lost its AS3 receiver.
 /// Only this detached state permits skipping native dispatch/insertion.
 pub struct DetachedTextInput<'c, 'm> {
-    ctx: &'c mut Context<'m>,
+    ctx: &'c mut Context<'m, site::TextInputCharTarget>,
 }
 
 impl<'c, 'm> DetachedTextInput<'c, 'm> {
-    pub fn at_char_event(ctx: &'c mut Context<'m>) -> Option<Self> {
-        // SAFETY: the context is text_input.char_target's: the live
-        // AvmTextField interface, on the game's thread, whose two AS3 pointers
-        // this site's native code reads next. The collectible low bit is the
-        // GC mark, not part of its pointer.
+    pub fn at_char_event(ctx: &'c mut Context<'m, site::TextInputCharTarget>) -> Option<Self> {
+        let field = raw::site::text_input_char_target::field(&*ctx)?;
+        // SAFETY: the site's live AvmTextField interface, on the game's
+        // thread, whose two AS3 pointers this site's native code reads next.
+        // The collectible low bit is the GC mark, not part of its pointer.
         let target = unsafe {
-            let field = raw::site::text_input_char_target::field(&*ctx)?;
             let raw = *field.as3_raw();
             if raw != 0 { raw } else { *field.as3_collectible() }
         } & !1;
@@ -41,19 +41,17 @@ impl<'c, 'm> DetachedTextInput<'c, 'm> {
 /// The handle can only be obtained for a valid same-team player, and cannot
 /// escape the hook. The engine already checked life, visibility and projection.
 pub struct NameVisibility<'c, 'm> {
-    ctx: &'c mut Context<'m>,
+    ctx: &'c mut Context<'m, site::PlayerNamesVisibility>,
 }
 
 impl<'c, 'm> NameVisibility<'c, 'm> {
-    pub fn for_teammate(ctx: &'c mut Context<'m>) -> Option<Self> {
-        use raw::site::player_names_visibility as site;
-        // SAFETY: the context is this site's: render_name's live player and
-        // its frame, on the game's thread. The profile is the same one the
-        // original code reads at 0x1F2F33, before any call can change it.
-        let (local, team) = unsafe {
-            let (player, frame) = (site::player(&*ctx)?, site::frame(&*ctx)?);
-            (*frame.local_team(), *player.profile()?.team())
-        };
+    pub fn for_teammate(ctx: &'c mut Context<'m, site::PlayerNamesVisibility>) -> Option<Self> {
+        use raw::site::player_names_visibility as at;
+        let (player, frame) = (at::player(&*ctx)?, at::frame(&*ctx)?);
+        // SAFETY: the site's render_name live player and its frame, on the
+        // game's thread. The profile is the same one the original code reads
+        // at 0x1F2F33, before any call can change it.
+        let (local, team) = unsafe { (*frame.local_team(), *player.profile()?.team()) };
         if local > 1 || local != team {
             return None;
         }
@@ -74,10 +72,12 @@ pub struct GameWorldUi<'t> {
 
 impl<'t> GameWorldUi<'t> {
     /// At `player_icons.update_start`.
-    pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
-        // SAFETY: the context is this site's: update_player_icons' frame, its
-        // argument the ui, alive while it runs on the game's thread.
-        let this = unsafe { raw::site::player_icons_update_start::frame(ctx)?.ui() }?;
+    pub fn at_update_icons(ctx: &'t Context<'_, site::PlayerIconsUpdateStart>) -> Option<GameWorldUi<'t>> {
+        let frame = raw::site::player_icons_update_start::frame(ctx)?;
+        // SAFETY: the site's update_player_icons frame, its argument the ui,
+        // alive while it runs on the game's thread.
+        let this = unsafe { frame.ui() }?;
+
         Some(GameWorldUi { this, thread: PhantomData })
     }
 

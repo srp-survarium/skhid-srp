@@ -4,6 +4,7 @@
 
 use super::world::{Player, floats, read, write_floats};
 use super::context::{Context, Reg};
+use super::site;
 use crate::raw;
 use ragdoll::corpse::DeathKey;
 
@@ -18,10 +19,8 @@ pub enum FatalHit {
 /// base player and BL is still the cause icon (1 for a headshot, 0/3
 /// otherwise). The queue call preserves EBX and ESI; no render-player-only
 /// fields are read here.
-pub fn killed(ctx: &Context<'_>) -> Option<(u8, DeathKey, FatalHit)> {
-    // SAFETY: the context is this site's: the victim, alive for the event, on
-    // its thread.
-    let player = Player::of(ctx, unsafe { raw::site::player_killed_event::victim(ctx) })?;
+pub fn killed(ctx: &Context<'_, site::PlayerKilledEvent>) -> Option<(u8, DeathKey, FatalHit)> {
+    let player = Player::of(ctx, raw::site::player_killed_event::victim(ctx))?;
     let hit = if ctx.reg(Reg::Ebx) as u8 == 1 { FatalHit::Headshot } else { FatalHit::Other };
     Some((player.place(), DeathKey(player.spawned()), hit))
 }
@@ -59,13 +58,13 @@ pub fn of_player(player: &Player<'_>) -> Option<HeadwearRig> {
 /// Commands from baking, the lobby, and the ordinary 69-bone draw inherit
 /// Head's already-skinned matrix. A 70-bone command already supplied its own
 /// accessory pose, so it is never overwritten here.
-pub fn finish_update(ctx: &Context<'_>) {
+pub fn finish_update(ctx: &Context<'_, site::RenderSkeletonUpdated>) {
     if ctx.reg(Reg::Edx) != BONE as u32 {
         return;
     }
-    // SAFETY: the context is this site's (`render.skeleton_updated`): the
-    // instance update_render_matrices updates, on the render thread.
-    let Some(instance) = (unsafe { raw::site::render_skeleton_updated::instance(ctx) }) else { return };
+    // The instance update_render_matrices updates, on the render thread.
+    let Some(instance) = raw::site::render_skeleton_updated::instance(ctx) else { return };
+
     if rig(instance).is_none() {
         return;
     }

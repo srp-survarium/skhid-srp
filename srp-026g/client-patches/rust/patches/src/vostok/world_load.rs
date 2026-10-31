@@ -17,6 +17,7 @@
 use core::marker::PhantomData;
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::world::read;
 use crate::raw;
@@ -45,12 +46,13 @@ pub struct WorldLoad<'t> {
 
 impl<'t> WorldLoad<'t> {
     /// At `world_load.unpacked`.
-    pub fn at_unpacked(ctx: &'t Context<'_>) -> Option<WorldLoad<'t>> {
-        use raw::site::world_load_unpacked as site;
-        // SAFETY: the context is this site's: the network client and the
-        // handler's frame, whose buffer holds the unpacked world (the 0x8000
-        // bytes of its stack), alive while it runs on the game's thread.
-        let (client, buffer) = unsafe { (site::client(ctx)?, site::frame(ctx)?.unpacked()) };
+    pub fn at_unpacked(ctx: &'t Context<'_, site::WorldLoadUnpacked>) -> Option<WorldLoad<'t>> {
+        use raw::site::world_load_unpacked as at;
+        let (client, frame) = (at::client(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's handler frame, whose buffer holds the unpacked
+        // world (the 0x8000 bytes of its stack), alive while it runs on the
+        // game's thread.
+        let buffer = unsafe { frame.unpacked() };
         // SAFETY: the buffer is alive for the hook, `size` bytes from its
         // begin (resize at 0x27C0A8 set it within its capacity).
         let state = unsafe { bytes(buffer.begin(), read(buffer.size()) as usize) };
@@ -58,11 +60,11 @@ impl<'t> WorldLoad<'t> {
     }
 
     /// At `world_load.raw`.
-    pub fn at_raw(ctx: &'t Context<'_>) -> Option<WorldLoad<'t>> {
-        use raw::site::world_load_raw as site;
-        // SAFETY: the context is this site's: the network client and the
-        // packet's reader, alive while the handler runs on the game's thread.
-        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+    pub fn at_raw(ctx: &'t Context<'_, site::WorldLoadRaw>) -> Option<WorldLoad<'t>> {
+        // The network client and the packet's reader, alive while the
+        // handler runs on the game's thread.
+        let (client, reader) = (raw::site::world_load_raw::client(ctx)?, raw::site::world_load_raw::reader(ctx)?);
+
         // SAFETY: a live reader {begin, cursor, size}, for the hook.
         let (begin, cursor, size) = unsafe { (reader.begin() as usize, reader.cursor() as usize, read(reader.size())) };
         let end = begin.checked_add(size as usize)?;

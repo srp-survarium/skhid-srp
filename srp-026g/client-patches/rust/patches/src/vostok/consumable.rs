@@ -3,6 +3,7 @@
 //! a patch remembers between updates (patch 84's red second) is a drug's
 //! identity and the local player's simulation clock, never a game object.
 use super::context::{Context, Reg};
+use super::site;
 use super::ui::{Movie, movie_of};
 use crate::raw;
 
@@ -91,8 +92,8 @@ pub struct QuickSlotActivity<'t> {
 }
 
 impl<'t> QuickSlotActivity<'t> {
-    pub fn at_update(ctx: &'t Context<'_>) -> Option<Self> {
-        use raw::site::quick_slots_activity as site;
+    pub fn at_update(ctx: &'t Context<'_, site::QuickSlotsActivity>) -> Option<Self> {
+        use raw::site::quick_slots_activity as at;
         let slot = ctx.reg(Reg::Edi);
         let index = ctx.reg(Reg::Eax) as usize;
         // SAFETY: the context is this site's: the live objects
@@ -101,7 +102,8 @@ impl<'t> QuickSlotActivity<'t> {
         // an offset into a separately allocated container array; an index past
         // the slots is no slot.
         let (movie, observed, now) = unsafe {
-            let (ui, player, inventory) = (site::ui(ctx)?, site::player(ctx)?, site::inventory(ctx)?);
+            let (ui, player, inventory) = (at::ui(ctx)?, at::player(ctx)?, at::inventory(ctx)?);
+
             let movie = movie_of(ui.hud_movie())?;
             let slots = inventory.slots();
             let count = inventory.slots_end().index_from(slots).unwrap_or(0);

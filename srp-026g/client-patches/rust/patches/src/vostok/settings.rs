@@ -8,6 +8,7 @@ use core::cell::UnsafeCell;
 use core::ffi::CStr;
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::ui::{TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
@@ -173,15 +174,14 @@ pub struct OptionsCall<'c> {
 }
 
 impl<'c> OptionsCall<'c> {
-    pub fn at(ctx: &'c Context<'_>) -> Option<OptionsCall<'c>> {
-        use raw::site::options_callback as site;
-        // SAFETY: the context is this site's: the options' interface and the
-        // callback's frame, alive for the call, on the game's thread; the
-        // method's name a C string the movie gave.
-        let (options, frame, method) = unsafe {
-            let (options, frame) = (site::options(ctx)?, site::frame(ctx)?);
-            (options, frame, c_string(frame.method(), TEXT_LIMIT)?)
-        };
+    pub fn at(ctx: &'c Context<'_, site::OptionsCallback>) -> Option<OptionsCall<'c>> {
+        use raw::site::options_callback as at;
+        let (options, frame) = (at::options(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's options interface and the callback's frame, alive
+        // for the call, on the game's thread; the method's name a C string
+        // the movie gave.
+        let method = unsafe { c_string(frame.method(), TEXT_LIMIT)? };
+
         Some(OptionsCall { options, frame, method, _thread: ctx.thread() })
     }
 

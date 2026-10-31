@@ -7,6 +7,7 @@
 //! first argument, the reader its local; both by the site's ESP).
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::parse::Reader;
 use crate::raw;
@@ -21,24 +22,22 @@ pub struct OptionsRead<'t> {
 
 impl<'t> OptionsRead<'t> {
     /// At `static_info.options_read`.
-    pub fn at_static_info(ctx: &'t Context<'_>) -> Option<OptionsRead<'t>> {
-        use raw::site::static_info_options_read as site;
-        // SAFETY: the context is this site's: the options just read and the
-        // function's frame, whose local reader they were read from, alive while
-        // it runs on the game's thread.
-        let (options, reader) = unsafe { (site::options(ctx)?, site::frame(ctx)?.reader()) };
+    pub fn at_static_info(ctx: &'t Context<'_, site::StaticInfoOptionsRead>) -> Option<OptionsRead<'t>> {
+        use raw::site::static_info_options_read as at;
+        let (options, frame) = (at::options(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's frame, whose local reader the options were read
+        // from, alive while it runs on the game's thread.
+        let reader = unsafe { frame.reader() };
         Some(OptionsRead { options, reader, _thread: ctx.thread() })
     }
 
     /// At `replay.options_read`.
-    pub fn at_replay(ctx: &'t Context<'_>) -> Option<OptionsRead<'t>> {
-        // SAFETY: the context is this site's: the frame, its argument the
-        // options just read and its local reader, alive while it runs on the
-        // game's thread.
-        let (options, reader) = unsafe {
-            let frame = raw::site::replay_options_read::frame(ctx)?;
-            (frame.options()?, frame.reader())
-        };
+    pub fn at_replay(ctx: &'t Context<'_, site::ReplayOptionsRead>) -> Option<OptionsRead<'t>> {
+        let frame = raw::site::replay_options_read::frame(ctx)?;
+        // SAFETY: the site's frame, its argument the options just read and
+        // its local reader, alive while it runs on the game's thread.
+        let (options, reader) = unsafe { (frame.options()?, frame.reader()) };
+
         Some(OptionsRead { options, reader, _thread: ctx.thread() })
     }
 

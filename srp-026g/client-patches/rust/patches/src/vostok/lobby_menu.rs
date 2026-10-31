@@ -21,6 +21,7 @@ use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::parse::Reader;
 use super::ui::movie_of;
@@ -43,10 +44,9 @@ pub struct SceneQuery<'t> {
 }
 
 impl<'t> SceneQuery<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<SceneQuery<'t>> {
-        // SAFETY: the context is this site's: query_resources' frame (EBP),
-        // alive while it runs on the game's thread.
-        let frame = unsafe { raw::site::lobby_menu_scene_request::frame(ctx)? };
+    /// query_resources' frame (EBP), alive while it runs on the game's thread.
+    pub fn at(ctx: &'t Context<'_, site::LobbyMenuSceneRequest>) -> Option<SceneQuery<'t>> {
+        let frame = raw::site::lobby_menu_scene_request::frame(ctx)?;
         Some(SceneQuery { frame, _thread: ctx.thread() })
     }
 
@@ -101,12 +101,12 @@ pub struct ScenesReady<'t> {
 }
 
 impl<'t> ScenesReady<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<ScenesReady<'t>> {
-        use raw::site::lobby_menu_scenes_ready as site;
-        // SAFETY: the context is this site's: the lobby menu (ECX) and the
-        // callback's argument, the query's results, alive for the call on
-        // the game's thread.
-        let (menu, results) = unsafe { (site::menu(ctx)?, site::frame(ctx)?.results()?) };
+    pub fn at(ctx: &'t Context<'_, site::LobbyMenuScenesReady>) -> Option<ScenesReady<'t>> {
+        use raw::site::lobby_menu_scenes_ready as at;
+        let (menu, frame) = (at::menu(ctx)?, at::frame(ctx)?);
+        // SAFETY: the site's callback argument, the query's results, alive
+        // for the call on the game's thread.
+        let results = unsafe { frame.results()? };
         Some(ScenesReady { menu, results, thread: ctx.thread() })
     }
 
@@ -284,18 +284,15 @@ pub struct HiddenLobby<'t> {
 }
 
 impl<'t> HiddenLobby<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<HiddenLobby<'t>> {
-        // SAFETY: the context is this site's: on_deactivate's ECX, the lobby
-        // menu, alive for the call on the game's thread.
-        let menu = unsafe { raw::site::lobby_menu_deactivate::menu(ctx)? };
+    /// On_deactivate's ECX, the lobby menu, alive for the call on the game's thread.
+    pub fn at(ctx: &'t Context<'_, site::LobbyMenuDeactivate>) -> Option<HiddenLobby<'t>> {
+        let menu = raw::site::lobby_menu_deactivate::menu(ctx)?;
         Some(HiddenLobby { menu, _thread: ctx.thread() })
     }
 
     /// At `lobby_menu.activate`: the lobby menu about to be shown again.
-    pub fn at_shown(ctx: &'t Context<'_>) -> Option<HiddenLobby<'t>> {
-        // SAFETY: the context is this site's: on_activate's ECX, the lobby
-        // menu, alive for the call on the game's thread.
-        let menu = unsafe { raw::site::lobby_menu_activate::menu(ctx)? };
+    pub fn at_shown(ctx: &'t Context<'_, site::LobbyMenuActivate>) -> Option<HiddenLobby<'t>> {
+        let menu = raw::site::lobby_menu_activate::menu(ctx)?;
         Some(HiddenLobby { menu, _thread: ctx.thread() })
     }
 
@@ -403,11 +400,11 @@ pub struct SquadId<'t> {
 }
 
 impl<'t> SquadId<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<SquadId<'t>> {
-        use raw::site::lobby_client_squad_id as site;
-        // SAFETY: the context is this site's: the lobby client and the
-        // message's reader, alive while the handler runs on the game's thread.
-        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+    /// The lobby client and the message's reader, alive while the handler
+    /// runs on the game's thread.
+    pub fn at(ctx: &'t Context<'_, site::LobbyClientSquadId>) -> Option<SquadId<'t>> {
+        use raw::site::lobby_client_squad_id as at;
+        let (client, reader) = (at::client(ctx)?, at::reader(ctx)?);
         Some(SquadId { client, reader, _thread: ctx.thread() })
     }
 
@@ -441,11 +438,12 @@ pub struct SquadRead<'t> {
 }
 
 impl<'t> SquadRead<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<SquadRead<'t>> {
-        use raw::site::lobby_client_squad_read as site;
-        // SAFETY: the context is this site's: the lobby client and the
-        // message's reader, alive while the handler runs on the game's thread.
-        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+    /// The lobby client and the message's reader, alive while the handler
+    /// runs on the game's thread.
+    pub fn at(ctx: &'t Context<'_, site::LobbyClientSquadRead>) -> Option<SquadRead<'t>> {
+        use raw::site::lobby_client_squad_read as at;
+        let (client, reader) = (at::client(ctx)?, at::reader(ctx)?);
+
         Some(SquadRead { client, reader, _thread: ctx.thread() })
     }
 

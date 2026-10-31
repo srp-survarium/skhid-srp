@@ -65,6 +65,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
+    use super::site;
+    #[allow(unused_imports)]
     use super::hook::{Handle, Out, Thread};
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
@@ -82,6 +84,9 @@ mod generated {
 pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flow, NoExit, Ret};
+/// A type per lohook site (generated from sites_026g.tsv): a handler's
+/// [`Context`] names its site, `Context<'_, site::PlayerDrawBones>`.
+pub use crate::raw::site::marker as site;
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};

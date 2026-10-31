@@ -10,17 +10,18 @@
 use core::marker::PhantomData;
 
 use super::context::{Context, Reg};
+use super::site;
 use super::hook::Thread;
 use super::hud_input::Hud;
 use crate::raw;
 
-/// The key being handled, after the game's ask of Tab.
+/// The key being handled, after the game's ask of Tab (`keyboard.tab_state`).
 pub struct TabTest<'c, 'm> {
-    ctx: &'c mut Context<'m>,
+    ctx: &'c mut Context<'m, site::KeyboardTabState>,
 }
 
 impl<'c, 'm> TabTest<'c, 'm> {
-    pub fn at(ctx: &'c mut Context<'m>) -> TabTest<'c, 'm> {
+    pub fn at(ctx: &'c mut Context<'m, site::KeyboardTabState>) -> TabTest<'c, 'm> {
         TabTest { ctx }
     }
 
@@ -77,7 +78,7 @@ impl KeyKind {
 
 /// A key at the game world's on_keyboard_action's start (`tab_cursor.key`).
 pub struct GameWorldKey<'c, 'm> {
-    ctx: &'c mut Context<'m>,
+    ctx: &'c mut Context<'m, site::TabCursorKey>,
     hud: Hud<'c>,
     key: Dik,
     kind: KeyKind,
@@ -85,15 +86,13 @@ pub struct GameWorldKey<'c, 'm> {
 
 impl<'c, 'm> GameWorldKey<'c, 'm> {
     /// None for a code or a kind the keyboard does not give.
-    pub fn at_start(ctx: &'c mut Context<'m>) -> Option<GameWorldKey<'c, 'm>> {
-        use raw::site::tab_cursor_key as site;
-        // SAFETY: the context is this site's: the game world's input handler
-        // (its hud inside it) and the function's arguments, alive while it
-        // runs on the game's thread.
-        let (ui, key, kind) = unsafe {
-            let (input, frame) = (site::input(&*ctx)?, site::frame(&*ctx)?);
-            (input.ui(), *frame.key(), *frame.state())
-        };
+    pub fn at_start(ctx: &'c mut Context<'m, site::TabCursorKey>) -> Option<GameWorldKey<'c, 'm>> {
+        use raw::site::tab_cursor_key as at;
+        let (input, frame) = (at::input(&*ctx)?, at::frame(&*ctx)?);
+        // SAFETY: the site's game world input handler (its hud inside it)
+        // and the function's arguments, alive while it runs on the game's
+        // thread.
+        let (ui, key, kind) = unsafe { (input.ui(), *frame.key(), *frame.state()) };
         let (key, kind) = (Dik::of(key)?, KeyKind::of(kind)?);
         // SAFETY: the hud inside the game world, alive for the hook, on its thread.
         let hud = unsafe { Hud::of(ui) };
@@ -135,7 +134,8 @@ pub struct GameWorldKeys<'t> {
 }
 
 impl<'t> GameWorldKeys<'t> {
-    pub fn at_key_state(ctx: &'t Context<'_>) -> Option<GameWorldKeys<'t>> {
+    pub fn at_key_state(ctx: &'t Context<'_, site::KeyboardKeyState>) -> Option<GameWorldKeys<'t>> {
+
         use raw::site::keyboard_key_state as site;
         // SAFETY: the context is this site's: the input world's live keyboard
         // (EAX, its vtable+24h's answer) and the game world's input handler

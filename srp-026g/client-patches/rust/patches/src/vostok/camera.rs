@@ -5,21 +5,21 @@
 use core::cell::UnsafeCell;
 
 use super::context::{Context, Reg};
+use super::site;
 use super::world::Player;
 use crate::raw;
 
 /// The camera's player, and whether the view is given its own eye (the
 /// first person).
-pub fn eye_player<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, bool)> {
-    // SAFETY: the context is this site's: the camera's player, alive while
-    // update_camera runs on its thread.
-    let player = Player::of(ctx, unsafe { raw::site::camera_eye::player(ctx) })?;
+pub fn eye_player<'t>(ctx: &'t Context<'_, site::CameraEye>) -> Option<(Player<'t>, bool)> {
+    let player = Player::of(ctx, raw::site::camera_eye::player(ctx))?;
     Some((player, ctx.reg(Reg::Eax) == player.eye_address()))
 }
 
 /// The eye the view is given instead, a row-vector 4x4: kept in [`EYE`],
 /// which the view reads after the hook (until the next frame's).
-pub fn look_from(ctx: &mut Context<'_>, eye: [f32; 16]) {
+pub fn look_from(ctx: &mut Context<'_, site::CameraEye>, eye: [f32; 16]) {
+
     // SAFETY: update_camera runs on the game's one render thread (the
     // Context's): the only writer, and the view reads it on that thread.
     unsafe { *EYE.0.get() = eye };

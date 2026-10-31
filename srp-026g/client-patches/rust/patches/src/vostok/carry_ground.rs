@@ -2,7 +2,7 @@
 use artefact_carry::{Artefact, ArtefactId, Refused};
 use artefact_carry::carry::Time;
 use artefact_carry::ground::Drop;
-use super::{Context, Lock, Thread};
+use super::{Context, Lock, Thread, site};
 use super::world::{Player, read};
 use super::inventory::{ContainerSpace, Inventory};
 use crate::raw;
@@ -95,20 +95,21 @@ impl<'t> Player<'t> {
 /// load reads it as no release, and the stream stays the same length.
 const NO_RELEASE: [u8; 20] = [0xFF; 20];
 
-pub fn save(ctx: &Context<'_>) {
-    // SAFETY: artefact_base::serialize after its state-dependent fields.
-    let (Some(item), Some(writer)) = (unsafe { raw::site::carry_ground_save::item(ctx) }, unsafe { raw::site::carry_ground_save::writer(ctx) }) else { return };
+pub fn save(ctx: &Context<'_, site::CarryGroundSave>) {
+    // artefact_base::serialize after its state-dependent fields.
+    let (Some(item), Some(writer)) = (raw::site::carry_ground_save::item(ctx), raw::site::carry_ground_save::writer(ctx)) else { return };
     // SAFETY: the live artefact being serialized.
     if unsafe { read(item.state()) } != DROPPED { return; }
     // State 6 always has the extension; the native state byte is its tag.
     let record = GroundItem::of_item(item, ctx.thread()).and_then(|i| i.release()).map_or(NO_RELEASE, |d| d.snapshot());
     super::carry_runtime::write_bytes(writer, &record);
 }
-pub fn load(ctx: &Context<'_>) {
-    let Some(item) = (unsafe { raw::site::carry_ground_load::item(ctx) }).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
+pub fn load(ctx: &Context<'_, site::CarryGroundLoad>) {
+    let Some(item) = raw::site::carry_ground_load::item(ctx).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
     // SAFETY: deserialize just read this live artefact's native state byte.
     let drop = if unsafe { read(item.item.state()) } == DROPPED {
-        unsafe { raw::site::carry_ground_load::reader(ctx) }.and_then(super::carry_runtime::read_bytes::<20>).and_then(Drop::restore)
+        raw::site::carry_ground_load::reader(ctx).and_then(super::carry_runtime::read_bytes::<20>).and_then(Drop::restore)
+
     } else { None };
     item.store(drop);
 }

@@ -10,6 +10,7 @@
 //! queue it is the patch's (the hook exits past add_decal or replays).
 
 use super::context::Context;
+use super::site;
 use super::world::{BodyId, floats, read};
 use crate::raw;
 use super::geometry::{WorldPoint, RayDirection};
@@ -39,11 +40,11 @@ pub struct BulletRay<'t> {
 }
 
 impl<'t> BulletRay<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<BulletRay<'t>> {
-        use raw::site::bullet_ray_traced as site;
-        // SAFETY: the context is this site's: the bullet, its ray's result and
-        // check_collision's frame, alive while it runs, on its thread.
-        let (bullet, result, frame) = unsafe { (site::bullet(ctx)?, site::result(ctx)?, site::frame(ctx)?) };
+    /// The bullet, its ray's result and check_collision's frame, alive while
+    /// it runs, on its thread.
+    pub fn at(ctx: &'t Context<'_, site::BulletRayTraced>) -> Option<BulletRay<'t>> {
+        use raw::site::bullet_ray_traced as at;
+        let (bullet, result, frame) = (at::bullet(ctx)?, at::result(ctx)?, at::frame(ctx)?);
         Some(BulletRay { bullet, result, frame, _thread: ctx.thread() })
     }
 
@@ -180,9 +181,9 @@ impl<'t> BulletRay<'t> {
 /// The four places a bullet's hit queues its decal (bullet_manager::add_decal
 /// 0x321FA0), each at its material pair's decal slot (sites_026g.tsv
 /// `bullet.decal_*`): entering, leaving, ricocheting off and stopping in a
-/// surface.
-#[derive(Clone, Copy, Debug)]
-pub enum DecalSite { Enter, Leave, Ricochet, Stop }
+/// surface. Each holds the bullet and its hit.
+pub trait DecalSite: raw::site::HoldsBullet + raw::site::HoldsHitRayResult {}
+impl<S: raw::site::HoldsBullet + raw::site::HoldsHitRayResult> DecalSite for S {}
 
 /// A bullet's hit, its decal not yet queued. The decal is the game world's,
 /// at the hit's point, a world-space box of a ring of ids: no model owns it,
@@ -194,20 +195,11 @@ pub struct BulletDecal<'t> {
 }
 
 impl<'t> BulletDecal<'t> {
-    pub fn at(ctx: &'t Context<'_>, site: DecalSite) -> Option<BulletDecal<'t>> {
-        use raw::site::{bullet_decal_back as leave, bullet_decal_collide as stop, bullet_decal_front as enter,
-                        bullet_decal_reflect as ricochet};
-        // SAFETY: the context is this site's: the bullet and its hit, alive
-        // while the process_* function runs, on its thread.
-        let (bullet, hit) = unsafe {
-            match site {
-                DecalSite::Enter => (enter::bullet(ctx)?, enter::hit(ctx)?),
-                DecalSite::Leave => (leave::bullet(ctx)?, leave::hit(ctx)?),
-                DecalSite::Ricochet => (ricochet::bullet(ctx)?, ricochet::hit(ctx)?),
-                DecalSite::Stop => (stop::bullet(ctx)?, stop::hit(ctx)?),
-            }
-        };
-        Some(BulletDecal { bullet, hit, _thread: ctx.thread() })
+    /// The bullet and its hit, alive while the process_* function runs, on
+    /// its thread.
+    pub fn at<S: DecalSite>(ctx: &'t Context<'_, S>) -> Option<BulletDecal<'t>> {
+        Some(BulletDecal { bullet: S::bullet(ctx)?, hit: S::hit(ctx)?, _thread: ctx.thread() })
+
     }
 
     pub fn physics(&self) -> Option<PhysicsId> {

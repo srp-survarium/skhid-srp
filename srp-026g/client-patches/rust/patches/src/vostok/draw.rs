@@ -3,15 +3,14 @@
 //! What each site's registers hold is said here, once.
 
 use super::context::{Context, Flag, Flow, NoExit, Reg};
+use super::site;
 use super::world::{Player, Skeleton, floats, read};
 use crate::raw;
 
 /// The player at `player_draw.held_item`, when it holds nothing: mt_draw
 /// then skips every bone update (the `je 0x24781E` after the span).
-pub fn unheld_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    // SAFETY: the context is this site's: the player mt_draw draws, alive
-    // while it does, on its thread.
-    Player::of(ctx, unsafe { raw::site::player_draw_held_item::player(ctx) })
+pub fn unheld_player<'t>(ctx: &'t Context<'_, site::PlayerDrawHeldItem>) -> Option<Player<'t>> {
+    Player::of(ctx, raw::site::player_draw_held_item::player(ctx))
         .filter(|p| p.held() == super::world::Held::Nothing)
 }
 
@@ -50,20 +49,18 @@ pub const MAX_BONES: usize = 80;
 
 /// What the skip after `player_draw.held_item` leaves: ESI the held item,
 /// 0 (the span it skips is `mov esi,[ebx+128h]`).
-pub fn no_held_item(ctx: &mut Context<'_>) {
+pub fn no_held_item(ctx: &mut Context<'_, site::PlayerDrawHeldItem>) {
     ctx.set_reg(Reg::Esi, 0);
 }
 
 /// The player mt_draw culls (at `player_draw.cull`).
-pub fn culled_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    // SAFETY: the context is this site's: the player mt_draw draws, alive
-    // while it does, on its thread.
-    Player::of(ctx, unsafe { raw::site::player_draw_cull::player(ctx) })
+pub fn culled_player<'t>(ctx: &'t Context<'_, site::PlayerDrawCull>) -> Option<Player<'t>> {
+    Player::of(ctx, raw::site::player_draw_cull::player(ctx))
 }
 
 /// The cull's way for a player drawn whatever its model was last seen as:
 /// ZF set (the `je` after the span draws), the compare skipped.
-pub fn draw_anyway(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn draw_anyway(ctx: &mut Context<'_, site::PlayerDrawCull>) -> Flow<NoExit> {
     ctx.set_flag(Flag::Zf, true);
     Flow::Skip
 }
@@ -84,24 +81,21 @@ pub struct DrawnBones<'t> {
 }
 
 impl<'t> DrawnBones<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
-        use raw::site::player_draw_bones as site;
-        // SAFETY: the context is this site's: the player mt_draw draws and
-        // its frame, alive while it draws, on its thread.
-        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
-        Self::of(ctx, player, frame)
+    pub fn at(ctx: &'t Context<'_, site::PlayerDrawBones>) -> Option<DrawnBones<'t>> {
+        use raw::site::player_draw_bones as at;
+        Self::of(ctx, at::player(ctx), at::frame(ctx))
     }
 
     /// The same bones at `player_draw.post_bones` (mt_draw's frame and
     /// player, before update_skeleton's arguments are pushed).
-    pub fn at_post_bones(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
-        use raw::site::player_draw_post_bones as site;
-        // SAFETY: as `at`, this site's player and frame.
-        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
-        Self::of(ctx, player, frame)
+    pub fn at_post_bones(ctx: &'t Context<'_, site::PlayerDrawPostBones>) -> Option<DrawnBones<'t>> {
+        use raw::site::player_draw_post_bones as at;
+        Self::of(ctx, at::player(ctx), at::frame(ctx))
     }
 
-    fn of(ctx: &'t Context<'_>, player: Option<raw::Player>, frame: Option<raw::MtDrawFrame>) -> Option<DrawnBones<'t>> {
+    /// From a site's player and mt_draw's frame (the player mt_draw draws
+    /// and its frame, alive while it draws, on its thread).
+    fn of<S>(ctx: &'t Context<'_, S>, player: Option<raw::Player>, frame: Option<raw::MtDrawFrame>) -> Option<DrawnBones<'t>> {
         // SAFETY: mt_draw's frame, whose locals are the bones' array and its
         // count, alive while it draws.
         let (bones, count) = unsafe {
@@ -112,11 +106,11 @@ impl<'t> DrawnBones<'t> {
         (!bones.is_null()).then_some(DrawnBones { pass: BonePass::Render, skeleton: player.skeleton()?, player, bones: bones.cast(), count })
     }
 
-    pub fn at_damage(ctx: &'t Context<'_>) -> Option<Self> {
-        // SAFETY: documented live player at the hit-model update site.
-        let player = Player::of(ctx, unsafe { raw::site::carry_damage_bones::player(ctx) })?;
-        // SAFETY: the same site's typed registers: the bones and their count.
-        let (bones, count) = unsafe { (raw::site::carry_damage_bones::bones(ctx)?, raw::site::carry_damage_bones::count(ctx)) };
+    pub fn at_damage(ctx: &'t Context<'_, site::CarryDamageBones>) -> Option<Self> {
+        use raw::site::carry_damage_bones as at;
+        let player = Player::of(ctx, at::player(ctx))?;
+        let (bones, count) = (at::bones(ctx)?, at::count(ctx));
+
         // SAFETY: a bone matrix's 16 f32 start at its value.
         Some(Self { pass: BonePass::Damage, skeleton: player.core_skeleton()?,
             player, bones: unsafe { bones.value() }.cast(), count })

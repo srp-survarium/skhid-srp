@@ -46,7 +46,9 @@ its accessor `handle.<field>()` by its type: a plain value's place, a
 the kind's size (an array's stride, `<Kind>Storage`: room of ours for one).
 A prototype's `struct <kind> *` is that kind's handle in `raw`, and a lohook
 site's `holds` in sites_026g.tsv (`name=REGISTER:kind`, ESP the site's
-own; or `name=REGISTER:u32`, a plain value) its typed register, `raw::site::<site>::<name>` (rust_patches.md). An offset may be
+own; or `name=REGISTER:u32`, a plain value) its typed register, `raw::site::<site>::<name>`, read
+only from the machine at that site (`raw::site::marker::<Site>`; a name several sites hold as one
+type is also a trait, `raw::site::Holds<Name>`, of their markers) (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
 itself: its rows are VAs of the game's data, up to the end of .data: a
@@ -420,11 +422,14 @@ def kinds(fields_):
 def site_holds(kinds_, path=None):
     """sites_026g.tsv's `holds`, what each site's registers hold: [(site, va, what, [(name, location,
     module)])], a location a register (EAX..EBP) or ESP (the site's own), each `name=LOCATION:kind`, or
-    `name=REGISTER:u32` (module None: the register's value itself)."""
+    `name=REGISTER:u32` (module None: the register's value itself); every lohook site, its list empty
+    when it holds nothing."""
     out = []
     for row in read_tsv(SITES if path is None else path):
         text = (row.get("holds") or "").strip()
         if text in ("", "-"):
+            if row["kind"].strip() == "lohook":
+                out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), []))
             continue
         holds = []
         for token in text.split():
@@ -740,34 +745,61 @@ def raw_text(fs, fields_, sites=None):
     lines += ["", "/// A general-purpose register at a hook's site.", "#[derive(Clone, Copy, Debug, PartialEq, Eq)]",
               "pub enum Register {", "    Eax,", "    Ecx,", "    Edx,", "    Ebx,", "    Esp,", "    Ebp,", "    Esi,",
               "    Edi,", "}", "",
-              "/// The machine at a lohook's site (vostok's `Context`): what a site's typed registers are read from.",
-              "pub trait Machine {", "    /// A register as the hook's entry saved it.",
+              "/// The machine at the lohook site `S` (a [`site::marker`]; vostok's `Context<S>`): what that",
+              "/// site's typed registers are read from.",
+              "pub trait Machine<S> {", "    /// A register as the hook's entry saved it.",
               "    fn register(&self, register: Register) -> u32;",
               "    /// ESP as the site's own code has it (not the entry's).", "    fn site_esp(&self) -> u32;", "}",
-              "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.",
-              "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;"]
+              "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles. A reader takes",
+              "/// the machine at its own site alone (the site's marker is in its type), so it is safe.",
+              "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;", "",
+              "    /// A type per lohook site: a `Machine<S>` is the machine at site `S`.", "    pub mod marker {"]
     for site, va, what, regs in holds:
+        lines += [f"        /// {site} ({va:#x}).", f"        pub enum {site_marker(site)} {{}}"]
+    lines.append("    }")
+    typed = lambda module: "u32" if module is None else kinds_[module]["type"]
+    for site, va, what, regs in holds:
+        if not regs:
+            continue
         lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
+            machine = f"machine: &impl Machine<marker::{site_marker(site)}>"
             if module is None:
-                lines += ["", f"        /// {location}: a u32 value.",
-                          "        ///", "        /// # Safety", "        /// `machine` is at this site.",
-                          "        #[inline(always)]",
-                          f"        pub unsafe fn {name}(machine: &impl Machine) -> u32 {{",
+                lines += ["", f"        /// {location}: a u32 value.", "        #[inline(always)]",
+                          f"        pub fn {name}({machine}) -> u32 {{",
                           f"            machine.register(Register::{location.title()})", "        }"]
                 continue
             t = kinds_[module]["type"]
             value = "machine.site_esp()" if location == "ESP" else f"machine.register(Register::{location.title()})"
             lines += ["", f"        /// {'the site' + chr(39) + 's ESP' if location == 'ESP' else location}: "
-                          f"a {kinds_[module]['kind']} (None for 0).",
-                      "        ///", "        /// # Safety", "        /// `machine` is at this site.",
-                      "        #[inline(always)]",
-                      f"        pub unsafe fn {name}(machine: &impl Machine) -> Option<{t}> {{",
+                          f"a {kinds_[module]['kind']} (None for 0).", "        #[inline(always)]",
+                      f"        pub fn {name}({machine}) -> Option<{t}> {{",
                       f"            NonNull::new({value} as usize as *mut c_void).map({t})", "        }"]
         lines.append("    }")
+    # a name several sites hold as one type: a trait of their markers, for a view they share
+    # (named by the type too where another site's `name` is of another)
+    shared = {}
+    for site, va, what, regs in holds:
+        for name, location, module in regs:
+            shared.setdefault((name, typed(module)), []).append(site)
+    for (name, t), sites_ in shared.items():
+        if len(sites_) < 2:
+            continue
+        trait = "Holds" + camel(name) + ("" if [n for n, _ in shared].count(name) == 1 else t)
+        result = t if t == "u32" else f"Option<{t}>"
+        reader = f"fn {name}(machine: &impl Machine<Self>) -> {result}"
+        lines += ["", f"    /// The sites whose `{name}` is a {t}: {', '.join(sites_)}.",
+                  f"    pub trait {trait}: Sized {{ {reader}; }}"]
+        lines += [f"    impl {trait} for marker::{site_marker(site)} {{ #[inline(always)] {reader} {{ "
+                  f"{site.replace('.', '_')}::{name}(machine) }} }}" for site in sites_]
     lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+def site_marker(site):
+    """A lohook site's marker in `raw::site::marker` (vostok's `site`): player_draw.bones, PlayerDrawBones."""
+    return "".join(camel(part) for part in site.split("."))
 
 
 def assemble(text, va=0x10000000, tools=None):

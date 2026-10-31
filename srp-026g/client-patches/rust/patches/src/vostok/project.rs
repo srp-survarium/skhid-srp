@@ -3,7 +3,7 @@
 //! into patch data; project removal and destruction end the registration.
 use core::{marker::PhantomData, num::NonZeroU32};
 use crate::raw;
-use super::{Context, Handle, Lock, Thread};
+use super::{Context, Handle, Lock, Thread, site};
 use super::collection::BoundedVec;
 use super::config::{ConfigError, ConfigValue};
 use super::geometry::WorldPoint;
@@ -100,16 +100,14 @@ struct PreparedProject<'t> {
 }
 
 impl<'t> ProjectView<'t> {
-    fn inserting(ctx: &'t Context<'_>) -> Result<Self, BindingError> {
-        use raw::site::project_insert as site;
-        // SAFETY: this is the project.insert detour, before the native
-        // insert_static call. The entry supplies the physics world in its
-        // first argument; the project's camera is not a physics world.
-        unsafe {
-            let native = site::project(ctx).ok_or(BindingError::MissingProject)?;
-            let frame = site::frame(ctx).ok_or(BindingError::MissingPhysics)?;
-            Ok(Self { native, frame, thread: ctx.thread() })
-        }
+    /// At the project.insert detour, before the native insert_static call.
+    /// The entry supplies the physics world in its first argument; the
+    /// project's camera is not a physics world.
+    fn inserting(ctx: &'t Context<'_, site::ProjectInsert>) -> Result<Self, BindingError> {
+        use raw::site::project_insert as at;
+        let native = at::project(ctx).ok_or(BindingError::MissingProject)?;
+        let frame = at::frame(ctx).ok_or(BindingError::MissingPhysics)?;
+        Ok(Self { native, frame, thread: ctx.thread() })
     }
     pub fn root(&self) -> Result<ConfigValue<'t>, BindingError> {
         // SAFETY: the inserted project owns the config resource for the hook.
@@ -295,7 +293,7 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
 }
 
 impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
-    pub fn insert<'t, E: From<BindingError>>(&self, ctx: &'t Context<'_>,
+    pub fn insert<'t, E: From<BindingError>>(&self, ctx: &'t Context<'_, site::ProjectInsert>,
         prepare: impl FnOnce(ProjectView<'t>) -> Result<Option<ProjectPlan<'t, D, K>>, E>) -> Result<(), E> {
         let project = ProjectView::inserting(ctx)?;
         self.state.with(project.thread, |state| {
@@ -304,19 +302,20 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
             Ok(())
         })
     }
-    pub fn removed(&self, ctx: &Context<'_>) {
-        // SAFETY: project.removed, after native removal but before storage release.
-        if let Some(project) = unsafe { raw::site::project_removed::project(ctx) } {
+    /// At project.removed, after native removal but before storage release.
+    pub fn removed(&self, ctx: &Context<'_, site::ProjectRemoved>) {
+        if let Some(project) = raw::site::project_removed::project(ctx) {
             self.state.with(ctx.thread(), |s| s.transition(ProjectEvent::Remove(ProjectId::of(project))).expect("removal is total"));
         }
     }
-    pub fn destroying(&self, ctx: &Context<'_>) {
-        // SAFETY: project.destroy at entry, before any resource member dies.
-        if let Some(project) = unsafe { raw::site::project_destroy::project(ctx) } {
+    /// At project.destroy's entry, before any resource member dies.
+    pub fn destroying(&self, ctx: &Context<'_, site::ProjectDestroy>) {
+        if let Some(project) = raw::site::project_destroy::project(ctx) {
             self.state.with(ctx.thread(), |s| s.transition(ProjectEvent::Remove(ProjectId::of(project))).expect("destruction is total"));
         }
     }
-    pub fn present(&self, ctx: &Context<'_>) {
+    pub fn present(&self, ctx: &Context<'_, site::GameWorldAfterMove>) {
+
         // Called at game_world.after_move: bullet workers have joined; the
         // game's thread owns renderer changes until native drawing begins.
         self.state.with(ctx.thread(), |s| {

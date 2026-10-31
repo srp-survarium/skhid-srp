@@ -13,6 +13,7 @@
 use ragdoll::math::{Vec3, sin_cos};
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use crate::raw;
 
@@ -65,13 +66,12 @@ const STOCK_SPEEDS: [f32; 3] = [1.0, 1.0, 3.0];
 
 impl<'t> LobbyCamera<'t> {
     /// The camera and the frame's time (s, at most 0.1).
-    pub fn at(ctx: &'t Context<'_>) -> Option<(LobbyCamera<'t>, f32)> {
-        // SAFETY: the context is this site's: EBX the camera's +4 and the
-        // tick's frame at ESP, alive while the tick runs on the game's thread.
-        let (ticker, frame) = unsafe {
-            (raw::site::lobby_camera_view::camera(ctx)?, raw::site::lobby_camera_view::frame(ctx)?)
-        };
-        // SAFETY: as above: the frame's time, written before the site.
+    pub fn at(ctx: &'t Context<'_, site::LobbyCameraView>) -> Option<(LobbyCamera<'t>, f32)> {
+        // EBX the camera's +4 and the tick's frame at ESP, alive while the
+        // tick runs on the game's thread.
+        let (ticker, frame) = (raw::site::lobby_camera_view::camera(ctx)?, raw::site::lobby_camera_view::frame(ctx)?);
+        // SAFETY: the site's frame: its time, written before the site.
+
         let dt = unsafe { *frame.dt() };
         Some((LobbyCamera { ticker, _thread: ctx.thread() }, dt))
     }

@@ -13,6 +13,7 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use crate::raw;
 
@@ -48,10 +49,8 @@ pub struct GameWorld<'t> {
 
 impl<'t> GameWorld<'t> {
     /// The world the site's code is ticking.
-    pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
-        // SAFETY: the context is this site's: the game world it ticks, alive
-        // on the game's thread.
-        let this = unsafe { raw::site::game_world_after_move::world(ctx) }?;
+    pub fn at_after_move(ctx: &'t Context<'_, site::GameWorldAfterMove>) -> Option<GameWorld<'t>> {
+        let this = raw::site::game_world_after_move::world(ctx)?;
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
@@ -149,7 +148,8 @@ impl<'t> Player<'t> {
     }
 
     /// The player a site's typed register holds (raw's `site`), on its hook's thread.
-    pub(in crate::vostok) fn of(ctx: &'t Context<'_>, this: Option<raw::Player>) -> Option<Player<'t>> {
+    pub(in crate::vostok) fn of<S>(ctx: &'t Context<'_, S>, this: Option<raw::Player>) -> Option<Player<'t>> {
+
         this.map(|this| Player { this, thread: ctx.thread() })
     }
 

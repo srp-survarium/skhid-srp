@@ -13,7 +13,7 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::{Context, Dik, Flow, GameCell, GameWorldKeys, NoExit};
+use crate::vostok::{Context, Dik, Flow, GameCell, GameWorldKeys, NoExit, site};
 
 /// What the hud movie was last told: which movie, and whether the names show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,7 +30,7 @@ fn shown(down: impl Fn(Dik) -> bool) -> bool {
 }
 
 /// on_keyboard_action with the input world's keyboard (0x25CD1C).
-pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_key(ctx: &mut Context<'_, site::KeyboardKeyState>) -> Flow<NoExit> {
     let Some(keys) = GameWorldKeys::at_key_state(ctx) else { return Flow::Continue };
     let Some(movie) = keys.hud().movie() else { return Flow::Continue };
     let now = Told { movie: movie.id(), shown: shown(|key| keys.down(key)) };

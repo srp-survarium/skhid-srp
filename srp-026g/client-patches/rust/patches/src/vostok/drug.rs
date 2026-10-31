@@ -17,6 +17,7 @@
 //! is fields_026g.tsv's.
 
 use super::context::Context;
+use super::site;
 use super::hook::Thread;
 use super::sync::Lock;
 use super::world::read;
@@ -73,13 +74,13 @@ pub struct AppliedHit<'t> {
 impl<'t> AppliedHit<'t> {
     /// The hit at `player.hit_applied`; None for a hit type the game has no
     /// name for.
-    pub fn at_applied(ctx: &'t Context<'_>) -> Option<AppliedHit<'t>> {
-        use raw::site::player_hit_applied as site;
-        // SAFETY: the context is this site's: hit_impl's victim (alive: it
-        // returned at 0x2D9BA3 otherwise) and its hit_info, on the thread
-        // running the hit.
+    pub fn at_applied(ctx: &'t Context<'_, site::PlayerHitApplied>) -> Option<AppliedHit<'t>> {
+        use raw::site::player_hit_applied as at;
+        let (victim, hit) = (at::victim(ctx)?, at::hit(ctx)?);
+        // SAFETY: the site's hit_impl victim (alive: it returned at 0x2D9BA3
+        // otherwise) and its hit_info, on the thread running the hit.
         unsafe {
-            let (victim, hit) = (site::victim(ctx)?, site::hit(ctx)?);
+
             let kind = HitType::parse(read(hit.kind()))?;
             let time = HitTime(read(hit.time()));
             Some(AppliedHit { victim, kind, time, thread: ctx.thread() })

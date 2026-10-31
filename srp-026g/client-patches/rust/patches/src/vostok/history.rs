@@ -1,6 +1,6 @@
 //! Bullet-history suffix access. A read commits its native cursor only
 //! after the complete typed value has been decoded successfully.
-use super::{Context, parse::Reader, project::PhysicsId};
+use super::{Context, parse::Reader, project::PhysicsId, site};
 use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -9,10 +9,10 @@ pub enum HistoryError { InvalidRange, InvalidPayload }
 pub struct HistoryWriter<'t> {
     writer: raw::BufferWriter,
     physics: PhysicsId,
-    _context: &'t Context<'t>,
+    _context: &'t Context<'t, site::BulletHistorySaved>,
 }
 impl<'t> HistoryWriter<'t> {
-    pub fn at_saved(ctx: &'t Context<'t>) -> Option<Self> {
+    pub fn at_saved(ctx: &'t Context<'t, site::BulletHistorySaved>) -> Option<Self> {
         use raw::site::bullet_history_saved as site;
         // SAFETY: native serialize's epilogue retains EDI=manager and
         // EBP's caller-frame writer argument until it returns.
@@ -38,10 +38,11 @@ impl<'t> HistoryWriter<'t> {
 pub struct HistoryReader<'t> {
     reader: raw::BufferReader,
     physics: PhysicsId,
-    _context: &'t Context<'t>,
+    _context: &'t Context<'t, site::BulletHistoryLoaded>,
 }
 impl<'t> HistoryReader<'t> {
-    pub fn at_loaded(ctx: &'t Context<'t>) -> Option<Self> {
+    pub fn at_loaded(ctx: &'t Context<'t, site::BulletHistoryLoaded>) -> Option<Self> {
+
         use raw::site::bullet_history_loaded as site;
         // SAFETY: native deserialize's epilogue retains EDI=manager and
         // EBX=reader. The reader's source bytes remain alive for this hook.

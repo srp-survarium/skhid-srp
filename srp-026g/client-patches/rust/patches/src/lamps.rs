@@ -4,7 +4,7 @@
 
 pub mod model;
 
-use crate::vostok::{self, Context, Flow, NoExit};
+use crate::vostok::{self, Context, Flow, NoExit, site};
 use crate::vostok::bullet::{BulletDecal, BulletRay, DecalSite, MaterialId, SurfaceBreakEffects};
 use crate::vostok::explosion::Explosion;
 use crate::vostok::collection::BoundedVec;
@@ -152,17 +152,17 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     Ok(Some(plan.with_data(Lamps { fixtures, state: Snapshot::intact(count), material, effect })))
 }
 
-pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_bind(ctx: &mut Context<'_, site::ProjectInsert>) -> Flow<NoExit> {
     if let Err(error) = PROJECT.insert(ctx, prepare) {
         let Some(why) = error.unbound() else { error.refuse() };
         vostok::log::line(&[Text("lamps: this map's lamps are not breakable, its metadata has "), Text(why)]);
     }
     Flow::Continue
 }
-pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.removed(ctx); Flow::Continue }
-pub fn on_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.destroying(ctx); Flow::Continue }
-pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.present(ctx); Flow::Continue }
-pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_remove(ctx: &mut Context<'_, site::ProjectRemoved>) -> Flow<NoExit> { PROJECT.removed(ctx); Flow::Continue }
+pub fn on_destroy(ctx: &mut Context<'_, site::ProjectDestroy>) -> Flow<NoExit> { PROJECT.destroying(ctx); Flow::Continue }
+pub fn on_present(ctx: &mut Context<'_, site::GameWorldAfterMove>) -> Flow<NoExit> { PROJECT.present(ctx); Flow::Continue }
+pub fn on_ray(ctx: &mut Context<'_, site::BulletRayTraced>) -> Flow<NoExit> {
     if let Some(ray) = BulletRay::at(ctx) && let Some(physics) = ray.physics() {
         let segment = (|| {
             let hit = match ray.struck() { Some(p) => Some(WorldPoint::parse(p)?), None => None };
@@ -180,7 +180,7 @@ pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     Flow::Continue
 }
-pub fn on_explode(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_explode(ctx: &mut Context<'_, site::BulletManagerExplode>) -> Flow<NoExit> {
     if let Some(blast) = Explosion::at(ctx) && let Some(physics) = blast.physics() {
         PROJECT.with_physics(ctx.thread(), physics, |lamps| {
             let (effect, material) = (lamps.effect, lamps.material);
@@ -191,8 +191,8 @@ pub fn on_explode(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     Flow::Continue
 }
-fn glass_mark(ctx: &Context<'_>, site: DecalSite) -> bool {
-    let Some(decal) = BulletDecal::at(ctx, site) else { return false };
+fn glass_mark<S: DecalSite>(ctx: &Context<'_, S>) -> bool {
+    let Some(decal) = BulletDecal::at(ctx) else { return false };
     let (Some(physics), Some(surface), Some(point)) = (decal.physics(), decal.surface(), decal.point()) else {
         return false;
     };
@@ -200,22 +200,23 @@ fn glass_mark(ctx: &Context<'_>, site: DecalSite) -> bool {
 }
 macro_rules! decal_hook {
     ($fn:ident, $site:ident, $exit:ident) => {
-        pub fn $fn(ctx: &mut Context<'_>) -> Flow<vostok::$exit> {
-            if glass_mark(ctx, DecalSite::$site) { Flow::Exit(vostok::$exit::Skip) } else { Flow::Continue }
+        pub fn $fn(ctx: &mut Context<'_, site::$site>) -> Flow<vostok::$exit> {
+            if glass_mark(ctx) { Flow::Exit(vostok::$exit::Skip) } else { Flow::Continue }
         }
     };
 }
-decal_hook!(on_decal_enter, Enter, LampsOnDecalEnterExit);
-decal_hook!(on_decal_leave, Leave, LampsOnDecalLeaveExit);
-decal_hook!(on_decal_ricochet, Ricochet, LampsOnDecalRicochetExit);
-decal_hook!(on_decal_stop, Stop, LampsOnDecalStopExit);
-pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+decal_hook!(on_decal_enter, BulletDecalFront, LampsOnDecalEnterExit);
+decal_hook!(on_decal_leave, BulletDecalBack, LampsOnDecalLeaveExit);
+
+decal_hook!(on_decal_ricochet, BulletDecalReflect, LampsOnDecalRicochetExit);
+decal_hook!(on_decal_stop, BulletDecalCollide, LampsOnDecalStopExit);
+pub fn on_save(ctx: &mut Context<'_, site::BulletHistorySaved>) -> Flow<NoExit> {
     if let Some(mut writer) = HistoryWriter::at_saved(ctx) {
         PROJECT.with_physics(ctx.thread(), writer.physics(), |lamps| writer.append(lamps.state.words()));
     }
     Flow::Continue
 }
-pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_load(ctx: &mut Context<'_, site::BulletHistoryLoaded>) -> Flow<NoExit> {
     if let Some(mut reader) = HistoryReader::at_loaded(ctx) {
         let result = PROJECT.with_physics(ctx.thread(), reader.physics(), |lamps| {
             let restored = reader.decode(|source| Snapshot::parse(source, lamps.state.count()))?;
