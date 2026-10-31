@@ -54,6 +54,17 @@ pub const PASS_MS: u32 = 4_000;
 /// so a route's floor must stay off for [`Hazards::pass_ms`] from then
 /// ([`Hazards::allowed_arriving`]), not from now.
 pub const ARRIVE_MPS: f32 = 5.0;
+/// The pace a body can count on walking out of a blast, m/s ([`Pace::Escape`](super::plays::Pace)): the sprint where the way
+/// allows (the bench's out-of-blast walks: 2.8 m/s unaimed walking, 5 m/s sprinting; a route with corners and a start-up in
+/// between). GUESS, set from the register #30 data and judged by the bodies caught.
+pub const ESCAPE_MPS: f32 = 4.0;
+/// ... after this long from the decision, s: the turn to the way and the speed built up.
+pub const ESCAPE_START_S: f32 = 0.3;
+
+/// How far a body can walk out of a blast in `left_ms` of fuse: [`ESCAPE_MPS`] after the start-up [`ESCAPE_START_S`].
+pub fn escape_reach_m(left_ms: u32) -> f32 {
+    ESCAPE_MPS * (left_ms as f32 / 1000.0 - ESCAPE_START_S).max(0.0)
+}
 
 /// Whether a damage zone hurts at a match time.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -802,6 +813,12 @@ pub mod damage_zone_fixes {
         /// An escort offered for a carrier by the old rule and refused by `escort_reach` (the post on his line is a goal no
         /// walk of the escort reaches, or the escort stands in such a pocket), once a carrier and a bot a 2 s.
         EscortUnreachable,
+        /// A drive tick whose walking pace was made a run because the body stood on a floor a zone hurts on now
+        /// (`HazardTuning::run_out`).
+        RunOut,
+        /// A carrier whose way home is shut entered the stranded state (`collect::State::Stranded`), and one that let go of the battery when its time ran out.
+        HomeStranded,
+        HomeLetGo,
     }
 
     /// The events' key suffixes, in order.
@@ -820,9 +837,12 @@ pub mod damage_zone_fixes {
         "out_none",
         "cross_cheaper",
         "esc_unreachable",
+        "run_out_ticks",
+        "home_stranded",
+        "home_let_go",
     ];
 
-    pub const N: usize = 14;
+    pub const N: usize = 17;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).

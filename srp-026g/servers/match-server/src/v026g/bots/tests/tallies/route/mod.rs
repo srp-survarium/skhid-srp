@@ -14,6 +14,7 @@ mod counters;
 mod exact;
 mod falls;
 mod fields;
+mod passes;
 mod pockets;
 mod probe;
 mod reversal_roles;
@@ -61,6 +62,7 @@ pub(super) struct TickAt<'a> {
     pub(super) carry: Option<CarryEvent>,
     /// The anomaly field on the body's floor, and whether it hurts (`standin_fields`).
     pub(super) field: Option<(crate::v026g::bots::live_zones::FieldId, bool)>,
+    pub(super) grid: &'a mapdata::grid::WalkGrid,
 }
 
 /// The `routes:` line in its three places ([`RouteTally::line`]); a piece is `key value` pairs.
@@ -137,6 +139,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         route_ends(),
         Box::new(probe::Probe::new(bodies)),
         Box::new(fields::Fields::new(bodies)),
+        Box::new(passes::Passes::new(bodies)),
     ]
 }
 
@@ -199,7 +202,7 @@ impl RouteTally {
                 .then(|| game.world.grid.locate(body.feet, 1.0))
                 .flatten()
                 .and_then(|node| game.fields.here(node));
-            let at = TickAt { bots, time, place, body, before, fall, carry, field };
+            let at = TickAt { bots, time, place, body, before, fall, carry, field, grid: &game.world.grid };
             for topic in &mut self.topics {
                 topic.tick(&self.run, &at);
             }

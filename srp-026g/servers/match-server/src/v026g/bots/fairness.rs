@@ -65,6 +65,32 @@ thread_local! {
     static COUNTS: std::cell::Cell<Counts> = const { std::cell::Cell::new([[[0; BASES]; SITES]; 2]) };
 }
 
+/// [A192 diagnosis] The `Place` and `Near` reads by the play whose candidate was being scored (`Ctx::candidate_with`;
+/// the last slot: read outside a scoring, a play's step or the reflex): by team, site (0 place, 1 near), play, basis.
+#[cfg(test)]
+pub const BY_PLAY: usize = super::plays::PlayKind::ALL.len() + 1;
+#[cfg(test)]
+pub type ByPlay = [[[[u64; BASES]; BY_PLAY]; 2]; 2];
+
+#[cfg(test)]
+thread_local! {
+    static SCORING: std::cell::Cell<usize> = const { std::cell::Cell::new(BY_PLAY - 1) };
+    static BY_PLAY_COUNTS: std::cell::Cell<ByPlay> = const { std::cell::Cell::new([[[[0; BASES]; BY_PLAY]; 2]; 2]) };
+}
+
+/// [A192 diagnosis] The candidate of `kind` is being scored now (None: no scoring).
+#[cfg(test)]
+pub fn scoring(kind: Option<super::plays::PlayKind>) {
+    let slot = kind.and_then(|k| super::plays::PlayKind::ALL.iter().position(|&a| a == k)).unwrap_or(BY_PLAY - 1);
+    SCORING.with(|s| s.set(slot));
+}
+
+/// [A192 diagnosis] The reads by play so far on this thread.
+#[cfg(test)]
+pub fn by_play() -> ByPlay {
+    BY_PLAY_COUNTS.with(std::cell::Cell::get)
+}
+
 /// A decision of a bot of `team` read `track`'s position at `now`.
 #[cfg(test)]
 #[inline(always)]
@@ -73,6 +99,17 @@ pub fn read(team: u8, site: Site, track: &Track, now: u32) {
     COUNTS.with(|c| {
         let mut counts = c.get();
         counts[usize::from(team & 1)][site as usize][basis as usize] += 1;
+        c.set(counts);
+    });
+    let s = match site {
+        Site::Place => 0,
+        Site::Near => 1,
+        _ => return,
+    };
+    let play = SCORING.with(std::cell::Cell::get);
+    BY_PLAY_COUNTS.with(|c| {
+        let mut counts = c.get();
+        counts[usize::from(team & 1)][s][play][basis as usize] += 1;
         c.set(counts);
     });
 }

@@ -934,10 +934,13 @@ pub(crate) fn real_bot_cost() {
             // on a play taken since its last motor tick (no tick yet to plan).
             let mut stood_routing = [0u64; 2];
             let mut stood_by: std::collections::BTreeMap<String, u64> = Default::default();
+            // [diag close] Once a second, for each living bot and each living enemy 4-12 m away: moments, no frag, in a fight (a target in sight), quiet and an enemy track within 3 m, quiet and none.
+            let mut close_truth = [[0u64; 5]; 2];
             // By the bot's play: its searches that found no way (each sets
             // `Bot::no_way` afresh) and its ticks stood at a goal one of them
             // was for, while it is not searched again (`NO_WAY_RETRY_MS`).
             let mut no_way_by: std::collections::BTreeMap<String, [u64; 2]> = Default::default();
+            let mut no_way_lines = vec![0u8; teams.len()];
             let mut no_way_seen: Vec<Option<u32>> = vec![None; teams.len()];
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
@@ -1023,12 +1026,13 @@ pub(crate) fn real_bot_cost() {
             game.set_grenade_kits(&roster.grenades);
             game.set_heal_kits(&roster.profiles);
             game.set_radio_kits(&roster.profiles);
-            // The stand-in camper plays by the build's defaults whatever his team's tuning is, so that the two runs of a head-to-head
-            // bench face the same opponent.
+            // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
+            // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
+            // opponent, and a change of the bots' aim does not move him.
             let camper_options = camper::CamperOptions::from_env();
             bots.bench_camper = bench_settings()
                 .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
-                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(Tuning::default())));
+                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(human_tuning())));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
@@ -1055,6 +1059,9 @@ pub(crate) fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
                         game.bodies[bot.place].why_now = bot.bench_why;
+                        // [counts only] The mirror of the kick the bot made for the tick about to be played (`kick_gap`).
+                        let next = game.tick + TICK_MS;
+                        game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
                     }
                     game.step();
                     // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
@@ -1335,16 +1342,55 @@ pub(crate) fn real_bot_cost() {
                             search_deaths += 1;
                         }
                         was_alive[bot.place] = body.alive;
+                        if clock % 1_000 == 0 && body.alive {
+                            let (has_frag, fight) = (bot.reflex.frags_left() != Some(0), bot.reflex.target().is_some());
+                            for (p, enemy) in game.bodies.iter().enumerate() {
+                                let d = body.feet.distance_xz(enemy.feet);
+                                if p == bot.place || !enemy.alive || enemy.team == body.team || !(4.0..=12.0).contains(&d) {
+                                    continue;
+                                }
+                                let truth = &mut close_truth[usize::from(body.team)];
+                                truth[0] += 1;
+                                if !has_frag {
+                                    truth[1] += 1;
+                                } else if fight {
+                                    truth[2] += 1;
+                                } else if bot.memory.tracks().iter().any(|t| t.own.is_some_and(|(at, _)| at.distance_xz(enemy.feet) < 3.0)) {
+                                    truth[3] += 1;
+                                } else {
+                                    truth[4] += 1;
+                                }
+                            }
+                        }
                         let play_now = || {
                             bot.assignment
                                 .as_ref()
                                 .map_or("none".to_owned(), |a| format!("{:?}", a.kind))
                         };
-                        if let Some((_, until)) = bot.no_way
+                        if let Some((goal, until)) = bot.no_way
                             && no_way_seen[bot.place] != Some(until)
                         {
                             no_way_seen[bot.place] = Some(until);
                             no_way_by.entry(play_now()).or_default()[0] += 1;
+                            // The first three failed searches of each bot: who, doing what, to where (the give-up of a goal with no way).
+                            if no_way_lines[bot.place] < 3 {
+                                no_way_lines[bot.place] += 1;
+                                eprintln!(
+                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                    game.tick,
+                                    bot.place,
+                                    body.team,
+                                    play_now(),
+                                    bot.assignment.as_ref().map(|a| &a.target),
+                                    body.carrying.is_some(),
+                                    body.feet.x,
+                                    body.feet.y,
+                                    body.feet.z,
+                                    goal.x,
+                                    goal.y,
+                                    goal.z
+                                );
+                            }
                         }
                         if let Some(Go::To { at, within_m }) = bot.bench_go
                             && body.alive
@@ -1672,6 +1718,7 @@ pub(crate) fn real_bot_cost() {
             for line in &game.stolen_log {
                 eprintln!("  stolen log: {line}");
             }
+            eprintln!("  close truth (diag) by team, per bot-second and enemy 4-12 m away [moments, no frag, fight, quiet with a track, quiet and unknown]: {close_truth:?}");
             let mut by: Vec<_> = stood_by.into_iter().collect();
             by.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  stood by play: {:?}", &by[..by.len().min(8)]);

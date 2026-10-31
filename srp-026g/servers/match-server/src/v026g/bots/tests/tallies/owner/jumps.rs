@@ -1,4 +1,5 @@
 use super::*;
+use crate::v026g::bots::tests::standin_jump::{LETHAL_FALL_DAMAGE, fall_damage};
 
 /// The jumps counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
@@ -778,6 +779,14 @@ impl JumpCounts {
             );
         }
         let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
+        // The jumps' free falls by the client's fall damage (C14: the bench applies none; this says how often it would matter).
+        let falls = self.landings.iter().filter_map(|l| l.fall_v).fold([0u32; 3], |mut c, v| {
+            let d = fall_damage(v);
+            c[0] += 1;
+            c[1] += u32::from(d > 0.0);
+            c[2] += u32::from(d >= LETHAL_FALL_DAMAGE);
+            c
+        });
         let gaps = self.gap_counts(run, &game.world.grid, presses);
         let mut stalls = [0u32; 3];
         for place in (0..n).filter(|&p| run.is_bot[p]) {
@@ -806,6 +815,7 @@ impl JumpCounts {
             "route_landed_up": route_landed[0],
             "route_landed_down": route_landed[1],
             "sprint_jumps": sprint_jumps,
+            "falls_free_hurt_lethal": falls,
             "band_jumps": band,
             "fwd_released_by_play_and_hide": released_by,
         });

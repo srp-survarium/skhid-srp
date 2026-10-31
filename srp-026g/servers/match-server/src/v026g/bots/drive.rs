@@ -1,6 +1,7 @@
 use super::pitch::Pitch;
 use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
+use super::tactics::StepOutPick;
 use super::*;
 
 /// The own eye is led at most this far past its last decided tick
@@ -134,20 +135,35 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
         me: &PlaceView,
         blast: &grenade_threat::Blast,
         reach_m: f32,
-    ) -> Option<Vec3> {
+        far_m: f32,
+        routed: bool,
+    ) -> Option<(Vec3, StepOutPick)> {
         let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
         let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
-        self.tactics.step_out(
-            from,
-            blast.rest,
-            blast.radius,
-            reach_m,
-            self.time,
-            self.side,
-            self.objective,
-            &hard,
-        )
+        if routed {
+            self.tactics.step_out_routes(
+                from,
+                blast.rest,
+                blast.radius,
+                reach_m,
+                far_m,
+                self.time,
+                self.side,
+                self.objective,
+                &hard,
+            )
+        } else {
+            self.tactics
+                .step_out(from, blast.rest, blast.radius, reach_m, self.time, self.side, self.objective, &hard)
+                .map(|to| (to, StepOutPick::Nearest))
+        }
     }
+}
+
+/// A planned route with the middle of each doorway it crosses as a corner when `ThinkTuning::door_centres` is on
+/// ([`Route::door_centred`]).
+fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid) -> Route {
+    if tuning.think.door_centres { route.door_centred(grid) } else { route }
 }
 
 /// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
@@ -307,6 +323,7 @@ fn drive_tick_inner(
     // base pitch and the kick the last tick left (the reflex takes back
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time, tuning.kin.pitch_scale);
+    bot.reflex.gate_mirror(tuning.aim.combat.mirror_gated);
     // Only this tick's walk to the play's own exact spot sets it (below).
     bot.motor.exact_end = None;
     // The view's pitch is the game's unit; the geometry below reckons in elevations (`pitch.rs`).
@@ -558,9 +575,20 @@ fn drive_tick_inner(
                 within_m: AVOID_ARRIVE_M,
             };
             intent.crouch = false;
-            intent.pace = Pace::Run;
+            intent.pace = if tuning.avoid.escape { Pace::Escape(EscapeWhy::Grenade) } else { Pace::Run };
             intent.objective = false;
             intent.straight = false;
+        }
+    }
+    // [zones] On a floor a zone hurts on now, the legs escape (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): the walk out is at the legs' top speed, the
+    // sprint on any route, and the fight goes on (`escape_legs`). The zones kill by a pool that runs out in 4-5 s; a player runs out of a toxic cloud.
+    if reacts && tuning.hazard.run_out {
+        let hurt = tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.on_at(node, time));
+        if Gates::runs_out(intent.pace, intent.crouch, hurt, over.legs.is_none()) {
+            intent.pace = Pace::Escape(EscapeWhy::Zone);
+            intent.crouch = false;
+            #[cfg(test)]
+            super::hazards::damage_zone_fixes::asked_by(bot.team, || super::hazards::damage_zone_fixes::count(super::hazards::damage_zone_fixes::Ev::RunOut));
         }
     }
     // [Pace::Escape] Out of somewhere first: what of the reflex's wish slows the legs is let go, by the reason (`escape_legs`).
@@ -919,7 +947,7 @@ fn drive_tick_inner(
                 }
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                bot.set_route(route.map(|route| (route, goal)), time);
+                bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
                 if shut_in {
@@ -1314,7 +1342,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((plain, at)), time);
+                        bot.set_route(Some((door_route(plain, tuning, &tactics.world.grid), at)), time);
                         bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
@@ -1343,7 +1371,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((partial, at)), time);
+                        bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
                         #[cfg(test)]
                         {
                             bot.bench_on_partial = true;
@@ -1396,7 +1424,7 @@ fn drive_tick_inner(
                         };
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                    bot.set_route(route.map(|route| (route, at)), time);
+                    bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
@@ -2161,6 +2189,12 @@ impl Gates {
         goal.is_none() && !intent.zone_ok
     }
 
+    /// Whether a body on a floor a zone hurts on now (`hurt`) escapes (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): it was to walk or run (a run is no
+    /// sprint on a short route), is not crouched, not sneaking and not escaping already, and the reflex's legs (a fight) are not on it.
+    pub(super) fn runs_out(pace: Pace, crouch: bool, hurt: bool, legs_free: bool) -> bool {
+        hurt && legs_free && !crouch && matches!(pace, Pace::Walk | Pace::Cruise | Pace::Arrive | Pace::Run)
+    }
+
     /// Whether the walk is by keys with no route (`Intent::straight`): not when a zone's way out is the goal.
     pub(super) fn straight(straight: bool, zone_out: bool) -> bool {
         straight && !zone_out
@@ -2553,6 +2587,19 @@ mod tests {
         assert!(!Gates::wants_zone_way_out(&intent(true, false, false), goal));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), None));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), goal));
+    }
+
+    #[test]
+    fn a_body_in_a_hurting_zone_runs_unless_it_is_crouched_runs_already_or_the_reflex_has_its_legs() {
+        assert!(Gates::runs_out(Pace::Walk, false, true, true));
+        assert!(Gates::runs_out(Pace::Cruise, false, true, true));
+        assert!(Gates::runs_out(Pace::Arrive, false, true, true));
+        assert!(Gates::runs_out(Pace::Run, false, true, true));
+        assert!(!Gates::runs_out(Pace::Escape(EscapeWhy::Grenade), false, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, false, true));
+        assert!(!Gates::runs_out(Pace::Walk, true, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, true, false));
+        assert!(!Gates::runs_out(Pace::Sneak, false, true, true));
     }
 
     #[test]

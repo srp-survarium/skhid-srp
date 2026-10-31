@@ -11,6 +11,11 @@ pub struct AimTuning {
     /// comes back, seconds (a mean-reverting walk).
     pub wander_deg: (f32, f32),
     pub wander_s: f32,
+    /// With `combat.settle` on ([`super::super::aim_settle`]): the wander's spread after a long time on the target, degrees,
+    /// and the time constant of its settling, seconds. GUESS: skill 1 settles to nothing in a second, skill 0 to half of its
+    /// wander in 3 s.
+    pub settled_wander_deg: (f32, f32),
+    pub settle_tau_s: (f32, f32),
     /// The time to bring the view onto a target, seconds (the motor's
     /// turn time while aiming).
     pub settle_s: (f32, f32),
@@ -48,6 +53,8 @@ impl Default for AimTuning {
             error_deg: (6.0, 0.9),
             wander_deg: (3.0, 0.8),
             wander_s: 0.4,
+            settled_wander_deg: (1.5, 0.0),
+            settle_tau_s: (3.0, 1.0),
             settle_s: (0.35, 0.10),
             notice: (1.5, 0.6),
             fire_within_deg: 4.0,
@@ -160,6 +167,14 @@ impl Check for AimTuning {
         check(self.burst_ms.0 <= self.burst_ms.1, "aim.burst_ms")?;
         check(self.pause_ms.0 <= self.pause_ms.1, "aim.pause_ms")?;
         check(self.wander_s > 0.0, "aim.wander_s")?;
+        check(
+            self.settle_tau_s.0 > 0.0
+                && self.settle_tau_s.1 > 0.0
+                && self.settled_wander_deg.0 >= 0.0
+                && self.settled_wander_deg.1 >= 0.0
+                && self.combat.settle_k > 0.0,
+            "aim.settle_*",
+        )?;
         let c = &self.combat;
         check(
             c.strafe_run_ms.0 > 0 && c.strafe_run_ms.0 <= c.strafe_run_ms.1,
@@ -175,6 +190,7 @@ impl Check for AimTuning {
             "aim.combat.recoil_pull",
         )?;
         check(c.worth.valid(), "aim.combat.worth")?;
+        check(c.band_cross_deg.is_none_or(|deg| (0.0..90.0).contains(&deg)), "aim.combat.band_cross_deg")?;
         Ok(())
     }
 }

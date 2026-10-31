@@ -9,6 +9,8 @@ use std::any::Any;
 use std::collections::BTreeMap;
 
 use super::*;
+use crate::v026g::bots::plays::PlayKind;
+use crate::v026g::bots::reflex::{LegsWhy, StrafeStats};
 use crate::v026g::bots::tests::tallies::fight_tally::stance;
 
 /// The live humans' distance bands, metres (upper edges; the last takes the rest): 0-20, 20-40, 40-65, 65-80, 80-105, 105+.
@@ -109,6 +111,20 @@ struct Acc {
     /// 2.5 m/s in the first four bands, 190 recordings).
     speed_sum: [f64; 6],
     by_lateral: [[u32; 2]; 5],
+    /// A bot target's shots, hits and crossing speed summed, by what it was doing and what drove it: the state and the
+    /// reflex's legs or the play it ran (`Moving/Range`, `Moving/play:Roam`, `AimedIn/strafe`, ...): why a bot is aimed in or
+    /// moves along the line (register #24).
+    by_driver: BTreeMap<String, (u32, u32, f64)>,
+    /// By the target's team (0, 1), then by [`TargetState`]: shots on his line, hits, and his crossing speed summed (a
+    /// head-to-head's ON side is one team: what its movement does to the shots at it, register #24).
+    by_target_team: [[[f64; 3]; TargetState::COUNT]; 2],
+    /// Shots at a target aimed in (not crouched), by whether he held a side key (LEFT or RIGHT) at the shot (0: none, 1: one),
+    /// by his team: shots, hits, crossing speed summed. The share with a side key is the aimed-in strafe's duty.
+    aimed_side: [[[f64; 3]; 2]; 2],
+    /// Aimed-in shots at a target holding one side key: by the ticks that key has been held ([`RUN_BINS_TICKS`]) and whether
+    /// forward or back is held too (diagonal): shots, ground speed summed, crossing speed summed, and the target's speed
+    /// level against the aimed side cap is read from the sums. Why a held side key crosses at 1.3 m/s and not 2.0.
+    aimed_run: [[[f64; 3]; 2]; 5],
     /// Shots and hits by what the target was doing ([`TargetState`]), and his crossing speed summed over them.
     by_state: [[u32; 2]; TargetState::COUNT],
     state_across: [f64; TargetState::COUNT],
@@ -131,11 +147,21 @@ struct Burst {
     hits: u32,
 }
 
+/// The ticks a side key has been held, binned (upper edges): 3 (150 ms, inside the blend), 6, 12, 24, more.
+const RUN_BINS_TICKS: [u32; 4] = [3, 6, 12, 24];
+
 pub(super) struct GunShots {
     groups: BTreeMap<String, Acc>,
+    /// The side key each body holds (LEFT or RIGHT, 0: none or both) and for how many ticks in a row.
+    side_key: Vec<u32>,
+    side_ticks: Vec<u32>,
     open: Vec<Option<Burst>>,
     /// Ticks each body has been below [`STILL_MPS`] in a row.
     still: Vec<u32>,
+    /// What drives each bot this tick ([`Driver`]), read in [`Topic::read`].
+    driver: Vec<Option<Driver>>,
+    /// Each bot's side-step reasons so far (cumulative; the latest read), summed by team in the parts.
+    strafe: Vec<Option<StrafeStats>>,
     /// Since when (game ms) each body's aim key has been held unbroken, and its view has been on an enemy unbroken; whether
     /// its fire key was down the tick before.
     aim_since: Vec<Option<u32>>,
@@ -143,15 +169,38 @@ pub(super) struct GunShots {
     was_firing: Vec<bool>,
 }
 
+/// What moves a bot: the reflex's legs, else the play it runs (and whether the play is going somewhere), read from the bot.
+#[derive(Clone, Copy, Debug)]
+struct Driver {
+    legs: Option<LegsWhy>,
+    play: Option<PlayKind>,
+    going: bool,
+}
+
+impl Driver {
+    fn name(self) -> String {
+        match (self.legs, self.play) {
+            (Some(why), _) => format!("legs:{why:?}"),
+            (None, Some(play)) if self.going => format!("play:{play:?}"),
+            (None, Some(play)) => format!("hold:{play:?}"),
+            (None, None) => "none".to_owned(),
+        }
+    }
+}
+
 impl GunShots {
     pub(super) fn new(n: usize) -> Self {
         Self {
             groups: BTreeMap::new(),
+            side_key: vec![0; n],
+            side_ticks: vec![0; n],
             open: vec![None; n],
             still: vec![0; n],
             aim_since: vec![None; n],
             on_since: vec![None; n],
             was_firing: vec![false; n],
+            driver: vec![None; n],
+            strafe: vec![None; n],
         }
     }
 
@@ -170,10 +219,31 @@ impl Topic for GunShots {
         self
     }
 
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(bot) = bot {
+            self.strafe[place] = Some(bot.reflex.strafe_stats());
+        }
+        self.driver[place] = bot.map(|bot| Driver {
+            legs: bot.bench_legs_why,
+            play: bot.assignment.as_ref().map(|a| a.kind),
+            going: matches!(bot.intent.go, Go::To { .. }),
+        });
+    }
+
     fn begin(&mut self, run: &Run, game: &mut Game) {
         for (still, body) in self.still.iter_mut().zip(&game.bodies) {
             let speed = body.step_vec.length() / TICK_S;
             *still = if speed < STILL_MPS { *still + 1 } else { 0 };
+        }
+        for (place, body) in game.bodies.iter().enumerate().take(self.side_key.len()) {
+            let lr = body.keys & (key::LEFT | key::RIGHT);
+            let held = if lr == key::LEFT || lr == key::RIGHT { lr } else { 0 };
+            if held != 0 && held == self.side_key[place] {
+                self.side_ticks[place] += 1;
+            } else {
+                self.side_ticks[place] = u32::from(held != 0);
+            }
+            self.side_key[place] = held;
         }
         // What each body has been doing without a break: the aim key held, the view on an enemy.
         let now = game.tick;
@@ -249,6 +319,33 @@ impl Topic for GunShots {
                 let state = TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS) as usize;
                 tally(&mut a.by_state[state]);
                 a.state_across[state] += f64::from(across);
+                if state == TargetState::AimedIn as usize && self.side_key[target] != 0 {
+                    let bin = RUN_BINS_TICKS.iter().position(|&edge| self.side_ticks[target] <= edge).unwrap_or(RUN_BINS_TICKS.len());
+                    let diagonal = usize::from(t.keys & (key::FORWARD | key::BACK) != 0 && t.keys & (key::FORWARD | key::BACK) != (key::FORWARD | key::BACK));
+                    let cell = &mut a.aimed_run[bin][diagonal];
+                    cell[0] += 1.0;
+                    cell[1] += f64::from(velocity.x.hypot(velocity.z));
+                    cell[2] += f64::from(across);
+                }
+                if state == TargetState::AimedIn as usize {
+                    let side = usize::from((t.keys & (key::LEFT | key::RIGHT)).count_ones() == 1);
+                    let cell = &mut a.aimed_side[usize::from(t.team != 0)][side];
+                    cell[0] += 1.0;
+                    cell[1] += h as f64;
+                    cell[2] += f64::from(across);
+                }
+                let cell = &mut a.by_target_team[usize::from(t.team != 0)][state];
+                cell[0] += 1.0;
+                cell[1] += h as f64;
+                cell[2] += f64::from(across);
+                if run.camper != Some(target)
+                    && let Some(driver) = self.driver.get(target).copied().flatten()
+                {
+                    let cell = a.by_driver.entry(format!("{:?}/{}", TargetState::of(t.keys, velocity.x.hypot(velocity.z), self.still[target] * TICK_MS), driver.name())).or_default();
+                    cell.0 += 1;
+                    cell.1 += h as u32;
+                    cell.2 += f64::from(across);
+                }
             }
             tally(&mut a.by_aim[fact.aim_state as usize]);
             tally(&mut a.by_shooter_moving[usize::from(fact.moving)]);
@@ -269,12 +366,30 @@ impl Topic for GunShots {
         }
     }
 
-    fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         for place in 0..self.open.len() {
             self.close(place);
         }
         let mut json = serde_json::Map::new();
         let mut lines = Vec::new();
+        // The side step's reasons in aimed fights, by team (register #24).
+        let mut by_team = [StrafeStats::default(); 2];
+        for (place, stats) in self.strafe.iter().enumerate() {
+            let (Some(s), Some(body)) = (stats, game.bodies.get(place)) else { continue };
+            let t = &mut by_team[usize::from(body.team != 0)];
+            t.ticks += s.ticks;
+            t.running += s.running;
+            t.stopped += s.stopped;
+            t.not_for_target += s.not_for_target;
+            t.bolt_holds += s.bolt_holds;
+            t.legs_no_weave += s.legs_no_weave;
+            t.friend_away += s.friend_away;
+            t.stand += s.stand;
+        }
+        json.insert(
+            "strafe_by_team".to_owned(),
+            serde_json::json!(by_team.iter().map(|t| [t.ticks, t.running, t.stopped, t.not_for_target, t.bolt_holds, t.legs_no_weave, t.friend_away, t.stand]).collect::<Vec<_>>()),
+        );
         for (key, a) in &self.groups {
             if a.shots_all == 0 {
                 continue;
@@ -300,6 +415,10 @@ impl Topic for GunShots {
                     "by_state": a.by_state,
                     "state_across": a.state_across,
                     "by_lateral": a.by_lateral,
+                    "by_driver": a.by_driver,
+                    "by_target_team": a.by_target_team,
+                    "aimed_side": a.aimed_side,
+                    "aimed_run": a.aimed_run,
                     "by_burst": a.by_burst,
                     "pauses": a.pauses,
                 }),
