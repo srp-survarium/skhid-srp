@@ -109,6 +109,8 @@ pub(super) struct Player<'a> {
     /// The name it was last told is no player's (`st_player_not_found`),
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
+    /// The friend requests it may still send (`social`).
+    pub friend_requests: super::social::FriendRequestAllowance,
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
@@ -688,6 +690,7 @@ impl<'a> Core<'a> {
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
+            friend_requests: super::social::FriendRequestAllowance::new(now),
             room_chat: None,
         };
         let mut link = Link {

@@ -4909,3 +4909,18 @@ va	name	location	role	basis
 0x00270070	survarium::lobby_client::query_elo_players	EAX	the lobby client (the network client's vtable+3Ch, 0x28C988)	observed
 0x00270070	survarium::lobby_client::query_elo_players	entry ESP+4	the start, u32	observed
 0x00270070	survarium::lobby_client::query_elo_players	entry ESP+8	the count, its low byte	observed
+0x0026afb0	survarium::messaging_client::send_important_message	EDX	the message's text, a C string copied to 100h bytes ("" 0x9DB708 from the lobby's add_friend_name, 0x28C1E0)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+4	the messaging client (lobby client +1E56C4h): its +4 the lobby client, whose +8 the connection the 4D is made on (new_packet 0x37A0E0) and queued to (enqueue 0x379640); the caller checks the connection first (0x28C1B6..0x28C1D6)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+8	the target player's name, a C string, written as a u8-length string (0x26B024..0x26B03B)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+12 low byte	the message type byte (0 friend request, 2 squad invite, 3 membership accepted; social.md 1.5)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	ECX	the hud (game_world_ui; +18h its game world, 0x233D69)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+4	the movie that called	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+8	the method's name, a C string (string compares from 0x233D38)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+12	the GFx arguments, 18h bytes each (profile_changed reads the first's +8 byte, 0x233F16)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+16	the arguments' count	observed
+0x0021bd80	survarium::network_client::messaging_client	ECX	the network client (game +53ACh; slot +44h of its vtable 0x9FFB14)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CD1C: EAX, EDI	EAX the input world's keyboard (its vtable+24h's answer, 0x25CD1A), EDI the game world's input handler (the hud at +4); before the keyboard is asked for Tab (0x25CD22). Every key the game world is given passes here, a held one every tick (kind 3). Patch 82's site keyboard.key_state	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX+4	the keys' states: 256 u32 by DIK code, the key down when bit 80h of its low byte is set (movsx [ecx+eax*4+4] / shr 7 / and 1; execute 0x3B8D20 polls them before the keys are handed out)	observed
+0x003b82f0	vostok::input::input_world::create_devices	EDI	the input world: +20h the gamepad (0x3B8790), +24h the platform keyboard (0x91Ch bytes, its ctor 0x3B8BC0 writes the vtable 0xA25478 at 0x3B8BDC), +28h the mouse (0x3B94F0); the input world's vtable 0xA252D4 +24h is 0x79E40 (mov eax,[ecx+24h] / ret), the keyboard on_keyboard_action (0x25CD13) and render_name (0x1F2DC2) ask	observed
+0x00239420	survarium::game_world_ui::update_minimap_players	[esp+20h], [esp+1Ch]	the loop's place 0..13h (a u32 and its byte, both incremented at 0x23998A): each object's player_id is the place (0x2395AC), the same place initialize_match gives the hud's list rows as `id`, so a map icon and a Tab list row are matched by it	observed
+0x00234880	survarium::game_world_ui::initialize_match	EBX at 0x234FE4, [esp+190h] at 0x2350E0	root.list_set_players' rows: `id` (an int, type 3) the place ([esp+17h], 0x234EDB), `team` 1 ally / 2 enemy of the local player (0x23500E: setne + 1), `name` the place's profile name (+8 of the 45FCh-byte entry) as "[%s] %s" (0x9FB140) with its clan tag (+48h) when it has one, else the name alone, cut to 4Eh bytes	observed

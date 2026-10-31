@@ -152,7 +152,8 @@ def audit(root, required=(), reference='english'):
         # srp's own texts: each mapped to itself for the movies that read them.
         own = {k for k in baseline if k.startswith(FLASH_PREFIX)}
         report['ui_unmapped'] = {f'{movie}_strings': sorted(
-            k for k in own if [k, k] not in mapping.get(f'{movie}_strings', [])) for movie in FLASH_MOVIES}
+            k for k in own if k.startswith(prefix) and [k, k] not in mapping.get(f'{movie}_strings', []))
+            for movie, prefix in FLASH_MOVIES.items()}
     return report
 
 

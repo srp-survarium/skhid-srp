@@ -71,7 +71,8 @@ Edits (edits.json):
                     compile every registered language from its complete TSV dictionary;
                     preserve all source keys, check formats and the native text buffer limit;
                     map each of srp's own texts (st_srp_*) to itself in the UI mapping of the
-                    movies that read them (localization_026g.FLASH_MOVIES), after their rows.
+                    movies that read them (localization_026g.FLASH_MOVIES: each movie its
+                    prefix's), after their rows.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -1145,12 +1146,12 @@ def main():
             if errors:
                 raise ValueError('UI mapping contains invalid UTF-8')
             keys = read_translations(directory / 'english.tsv').keys()
-            for movie in FLASH_MOVIES:
+            for movie, prefix in FLASH_MOVIES.items():
                 table = movie + '_strings'
                 have = {row[0]: row[1] for row in config[table]}
-                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys)):
+                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys, prefix)):
                     raise ValueError(f'{table}: an srp text key mapped to another text')
-                rows = [row for row in flash_rows(keys) if row[0] not in have]
+                rows = [row for row in flash_rows(keys, prefix) if row[0] not in have]
                 if rows:
                     at = append_rows(buf(mapping), table, rows)
                     for k in range(at, at + len(rows)):

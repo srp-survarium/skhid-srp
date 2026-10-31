@@ -2385,6 +2385,9 @@ st_srp_exchange_receive	Атрымліваеце
 st_srp_exchange_short_gold	Недастаткова золата
 st_srp_exchange_short_silver	Недастаткова срэбра
 st_srp_exchange_title	Абмен
+st_srp_hud_add_friend	Дадаць у сябры
+st_srp_hud_friend_not_sent	Заяўка ў сябры не адпраўлена
+st_srp_hud_friend_sent	Заяўка ў сябры адпраўлена
 st_srp_inventory_search	Пошук
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.

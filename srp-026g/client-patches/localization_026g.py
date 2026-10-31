@@ -33,15 +33,17 @@ CATALOG = Path(__file__).resolve().parent / 'localization'
 # srp's own texts (keys st_srp_...) reach these movies under their own keys: the
 # content compile maps each such key to itself in the movie's table of
 # localization/flash_movies_localizations.options (<movie>_strings), which the exe
-# hands the movie through set_localization_data. The movies call
-# LocalizationData.getName("st_srp_...") / LocalizationData.format(...).
+# hands the movie through set_localization_data (at every match start, the hud's).
+# The movies call LocalizationData.getName("st_srp_...") / LocalizationData.format(...).
+# Each movie is given the keys of its prefix: the menus every srp text, the match hud
+# its own (st_srp_hud_...).
 FLASH_PREFIX = 'st_srp_'
-FLASH_MOVIES = ('lobby_menu', 'login_menu')
+FLASH_MOVIES = {'lobby_menu': FLASH_PREFIX, 'login_menu': FLASH_PREFIX, 'hud': FLASH_PREFIX + 'hud_'}
 
 
-def flash_rows(keys):
-    """The UI mapping rows of srp's own texts: each key as its own UI key."""
-    return [[key, key] for key in sorted(keys) if key.startswith(FLASH_PREFIX)]
+def flash_rows(keys, prefix=FLASH_PREFIX):
+    """The UI mapping rows of srp's own texts of `prefix`: each key as its own UI key."""
+    return [[key, key] for key in sorted(keys) if key.startswith(prefix)]
 # These unused directional controls intentionally have no visible label.
 EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
                        for direction in ('down', 'left', 'up', 'right'))

@@ -285,3 +285,9 @@ extern engine_lobby_character_setup_profile
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach
+; void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)
+; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+extern engine_show_cursor
+; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
+; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+extern engine_send_important

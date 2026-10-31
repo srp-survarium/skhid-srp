@@ -25,7 +25,7 @@
 use ragdoll::math::Vec3;
 
 use crate::lobby_scene::{self, Lobby, Squad};
-use crate::vostok::lobby::DrawnLobby;
+use crate::vostok::lobby_menu::DrawnLobby;
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::{Context, Flow, GameCell, NoExit};

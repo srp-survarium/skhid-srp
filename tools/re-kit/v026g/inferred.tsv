@@ -3134,3 +3134,5 @@ va	status	ref_021d	name
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
 0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
+0x0026afb0	inferred-medium		survarium::messaging_client::send_important_message
+0x0021bd80	inferred-medium		survarium::network_client::messaging_client
