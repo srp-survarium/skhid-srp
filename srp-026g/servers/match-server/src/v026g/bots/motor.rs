@@ -141,7 +141,7 @@ pub struct Feel {
     /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
     /// to a stop on a lip's floors; 0 is off (the default is 2).
     pub lip_guard_ticks: u32,
-    /// The lip guard's three gaps closed (`false`, the default: as it was): a body that let go of its keys at a rim and still
+    /// The lip guard's three gaps closed (the default; `false`: as it was): a body that let go of its keys at a rim and still
     /// glides is asked too (the stop it makes is played, braking if it goes over); the guard also looks at the floors
     /// [`body::RECKONING_M`] about the reckoned feet, and holds a walk that would fall from the feet that far to the side; and a
     /// bot it gave up (after holding its keys too often) is watched again once it has moved 0.5 m or changed its keys, not after a
@@ -260,7 +260,7 @@ impl Default for Feel {
             hop_every_s: Positive::of(4.0),
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 2,
-            lip_guard_full: false,
+            lip_guard_full: true,
             lip_look_ahead_m: Metres::of(0.8),
             drop_aim: true,
             unclear_aim: true,

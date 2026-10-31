@@ -1,0 +1,46 @@
+owner-test crouch: in a fight 61.1 toggles a fight minute (humans 9.6, q10-q90 5.8-13.7), 1.9 standing blips of 0.1 s or less a fight minute (humans 0.11), 30.4 crouch spells of 0.5 s or less (humans: 3.5 or fewer), 0 % of the in-fight crouch spells exactly 6 ticks (humans 4.6 %), fire ticks crouched 3.3 % (humans about 19 %); 3752 fight ticks of 14052 alive
+{
+  "crouch": {
+    "alive_ticks": 14052,
+    "crouch_short_per_fight_min": 30.4,
+    "fight_ticks": 3752,
+    "fire_crouched_pct": 3.3,
+    "fire_ticks": {
+      "all": 691,
+      "crouched": 23
+    },
+    "six_tick_share_pct": 0.0,
+    "spells": {
+      "crouch": {
+        "fight": {
+          "all": 95,
+          "short": 95,
+          "six": 0
+        },
+        "out": {
+          "all": 261,
+          "short": 261,
+          "six": 0
+        }
+      },
+      "stand": {
+        "fight": {
+          "all": 91,
+          "short": 6,
+          "six": 1
+        },
+        "out": {
+          "all": 247,
+          "short": 5,
+          "six": 8
+        }
+      }
+    },
+    "stand_blips_per_fight_min": 1.9,
+    "toggles": {
+      "fight": 191,
+      "out": 521
+    },
+    "toggles_per_fight_min": 61.1
+  }
+}

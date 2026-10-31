@@ -82,6 +82,30 @@ fn wait_bin(ms: u32) -> usize {
 
 /// The burst lengths binned: 1, 2-3, 4-6, 7-10, 11 and more shots.
 const BURST_BINS: [u32; 4] = [1, 3, 6, 10];
+/// The bands of the pace tallies, m (upper edges, the last takes the rest): <=5, 5-20, 20-40, 40+ (the bar is above the top quarter
+/// under 20 m and below it beyond: register C2).
+const PACE_BANDS_M: [f32; 3] = [5.0, 20.0, 40.0];
+/// The pause between two bursts at the same target (a press again within 2 s), ms, binned by upper edge: the best players' pause is
+/// read at q1 / median / q3 (100 / 200 / 450 ms for a rifle).
+const PACE_PAUSE_MS: [u32; 13] = [100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 850, 1_000];
+/// A fire run (first shot to last of a burst), ms, binned by upper edge.
+const PACE_RUN_MS: [u32; 9] = [50, 100, 150, 200, 300, 400, 500, 750, 1_000];
+
+/// The pauses and runs of a class by band (see the constants): pause counts by [`PACE_PAUSE_MS`] (the last cell takes up to 2 s),
+/// run counts by [`PACE_RUN_MS`] (the last takes more), the runs, the runs that ended with the target dead, the shots in them.
+#[derive(Default, Clone)]
+struct Pace {
+    pause: [[u32; 14]; 4],
+    run: [[u32; 10]; 4],
+    runs: [u32; 4],
+    killed: [u32; 4],
+    shots: [u32; 4],
+}
+
+fn pace_band(distance: f32) -> usize {
+    PACE_BANDS_M.iter().position(|&edge| distance <= edge).unwrap_or(PACE_BANDS_M.len())
+}
+
 /// The pauses between bursts binned, ms (upper edges): 0.3 s, 1 s, 3 s, more.
 const PAUSE_BINS_MS: [u32; 3] = [300, 1_000, 3_000];
 
@@ -92,6 +116,8 @@ struct Acc {
     shots: u32,
     hits: u32,
     by_band: [[u32; 2]; 6],
+    /// The same by the SHOOTER's team (0, 1): a head-to-head's ON side is one team (C2: the far hits of the ON side).
+    by_band_team: [[[u32; 2]; 6]; 2],
     /// Hip, aiming in, aimed in.
     by_aim: [[u32; 2]; 3],
     /// The shooter holding a move key / not; the target holding one / not.
@@ -145,6 +171,12 @@ struct Burst {
     last: u32,
     shots: u32,
     hits: u32,
+    /// The first shot's tick, the class, the target and his distance at the last shot, and whether he was dead at some tick of it.
+    first: u32,
+    class: &'static str,
+    target: Option<Place>,
+    distance: f32,
+    dead: bool,
 }
 
 /// The ticks a side key has been held, binned (upper edges): 3 (150 ms, inside the blend), 6, 12, 24, more.
@@ -152,6 +184,8 @@ const RUN_BINS_TICKS: [u32; 4] = [3, 6, 12, 24];
 
 pub(super) struct GunShots {
     groups: BTreeMap<String, Acc>,
+    /// The pace tallies by class (and who fires).
+    pace: BTreeMap<String, Pace>,
     /// The side key each body holds (LEFT or RIGHT, 0: none or both) and for how many ticks in a row.
     side_key: Vec<u32>,
     side_ticks: Vec<u32>,
@@ -192,6 +226,7 @@ impl GunShots {
     pub(super) fn new(n: usize) -> Self {
         Self {
             groups: BTreeMap::new(),
+            pace: BTreeMap::new(),
             side_key: vec![0; n],
             side_ticks: vec![0; n],
             open: vec![None; n],
@@ -206,6 +241,15 @@ impl GunShots {
 
     fn close(&mut self, place: Place) {
         let Some(b) = self.open[place].take() else { return };
+        if b.target.is_some() {
+            let band = pace_band(b.distance);
+            let p = self.pace.entry(format!("{}/{}", b.class, b.key.rsplit('/').next().unwrap_or("bots"))).or_default();
+            let ms = b.last.saturating_sub(b.first);
+            p.run[band][PACE_RUN_MS.iter().position(|&edge| ms <= edge).unwrap_or(PACE_RUN_MS.len())] += 1;
+            p.runs[band] += 1;
+            p.killed[band] += u32::from(b.dead);
+            p.shots[band] += b.shots;
+        }
         let bin = BURST_BINS.iter().position(|&edge| b.shots <= edge).unwrap_or(BURST_BINS.len());
         let cell = &mut self.groups.entry(b.key).or_default().by_burst[bin];
         cell[0] += 1;
@@ -266,6 +310,13 @@ impl Topic for GunShots {
             });
             self.on_since[place] = if on { self.on_since[place].or(Some(now)) } else { None };
         }
+        for b in self.open.iter_mut().flatten() {
+            if let Some(t) = b.target
+                && game.bodies.get(t).is_some_and(|body| !body.alive)
+            {
+                b.dead = true;
+            }
+        }
         let facts: Vec<_> = game.shot_facts.clone();
         for fact in facts {
             let Some(body) = game.bodies.get(fact.shooter) else { continue };
@@ -278,6 +329,18 @@ impl Topic for GunShots {
             if let Some(b) = &self.open[shooter] {
                 let gap = tick.saturating_sub(b.last);
                 if b.key != key || gap > gap_ms {
+                    // [C2] A press again at the same target within 2 s is a pause of this class, in the band of his distance.
+                    if b.key == key
+                        && gap <= 2_000
+                        && b.target.is_some()
+                        && b.target == fact.target.map(|(t, _, _)| t)
+                    {
+                        let band = pace_band(b.distance);
+                        let ms = gap;
+                        let class = format!("{}/{}", b.class, who);
+                        let bin = PACE_PAUSE_MS.iter().position(|&edge| ms <= edge).unwrap_or(PACE_PAUSE_MS.len());
+                        self.pace.entry(class).or_default().pause[band][bin] += 1;
+                    }
                     if b.key == key {
                         let bin = PAUSE_BINS_MS.iter().position(|&edge| gap <= edge).unwrap_or(PAUSE_BINS_MS.len());
                         self.groups.entry(key.clone()).or_default().pauses[bin] += 1;
@@ -285,7 +348,21 @@ impl Topic for GunShots {
                     self.close(shooter);
                 }
             }
-            let b = self.open[shooter].get_or_insert(Burst { key: key.clone(), last: tick, shots: 0, hits: 0 });
+            let b = self.open[shooter].get_or_insert(Burst {
+                key: key.clone(),
+                last: tick,
+                shots: 0,
+                hits: 0,
+                first: tick,
+                class: body.gun.class(),
+                target: None,
+                distance: 0.0,
+                dead: false,
+            });
+            if let Some((target, distance, _)) = fact.target {
+                b.target = Some(target);
+                b.distance = distance;
+            }
             b.last = tick;
             b.shots += 1;
             b.hits += u32::from(hit);
@@ -310,6 +387,9 @@ impl Topic for GunShots {
             a.hits += h as u32;
             let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
             tally(&mut a.by_band[band]);
+            if let Some(shooter) = game.bodies.get(fact.shooter) {
+                tally(&mut a.by_band_team[usize::from(shooter.team != 0)][band]);
+            }
             if let (Some(t), Some(s)) = (game.bodies.get(target), game.bodies.get(fact.shooter)) {
                 let velocity = t.step_vec * (1.0 / TICK_S);
                 let across = across_speed(s.feet, t.feet, velocity);
@@ -387,6 +467,12 @@ impl Topic for GunShots {
             t.stand += s.stand;
         }
         json.insert(
+            "pace_by_class".to_owned(),
+            serde_json::json!(self.pace.iter().map(|(k, p)| (k.clone(), serde_json::json!({
+                "pause": p.pause, "run": p.run, "runs": p.runs, "killed": p.killed, "shots": p.shots,
+            }))).collect::<BTreeMap<_, _>>()),
+        );
+        json.insert(
             "strafe_by_team".to_owned(),
             serde_json::json!(by_team.iter().map(|t| [t.ticks, t.running, t.stopped, t.not_for_target, t.bolt_holds, t.legs_no_weave, t.friend_away, t.stand]).collect::<Vec<_>>()),
         );
@@ -401,6 +487,7 @@ impl Topic for GunShots {
                     "shots": a.shots,
                     "hits": a.hits,
                     "by_band": a.by_band,
+                    "by_band_team": a.by_band_team,
                     "by_aim": a.by_aim,
                     "by_shooter_moving": a.by_shooter_moving,
                     "by_target_moving": a.by_target_moving,

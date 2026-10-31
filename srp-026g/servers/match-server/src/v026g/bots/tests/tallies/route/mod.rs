@@ -117,6 +117,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         rests(),
         rest_stops(),
         contacts(),
+        capsule_walls(),
         sprint_jumps(),
         lifts(),
         link_times(),
@@ -140,6 +141,8 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(probe::Probe::new(bodies)),
         Box::new(fields::Fields::new(bodies)),
         Box::new(passes::Passes::new(bodies)),
+        wall_clear(),
+        wall_clear_kept(),
     ]
 }
 

@@ -236,6 +236,12 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
     Some((0..places).map(|_| rng.range(lo, hi.max(lo)) as u32).collect())
 }
 
+/// Whether the bench's worlds need the grids' table of wall clearances: either team's tuning needs it
+/// ([`Tuning::needs_wall_clearance`]; team 1's is its own only in a one-sided run).
+fn bench_wall_clearance() -> bool {
+    bench_tuning().needs_wall_clearance() || (bench_settings().flag("SRP_BENCH_ONE_SIDE") && bench_tuning_of(true).needs_wall_clearance())
+}
+
 /// [`tuning_from`] of the environment.
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     tuning_from(bench_settings(), side1)
@@ -674,7 +680,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
+        let world = Arc::new(World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, bench_wall_clearance()));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {
