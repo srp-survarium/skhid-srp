@@ -131,6 +131,15 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     is shot; a later run only shoots poses it has no shot for. Only the port is re-shot
     each iteration: `--fresh` drops the port's shots alone. Never delete or re-take the
     reference shots.
+  - **Rudnya's reference is closed** (owner, 2026-10-31): 0.69d never starts again for
+    it. The check is `private/rudnya-ref069/poses-kept.json`, 112 poses: the 47 of
+    `poses-rudnya.json` (`shots/`), the 37 fix poses (`shots-fixes/`), the 24 battery-mode
+    poses cached from `level_01/day_br`, each with its kept shot as `ref`, and 7 with none
+    (the Research units, spawns). Run it port-only:
+    `sweep.py run --no-ref --poses ../poses-kept.json --build <name> --content <dir> --fresh`;
+    the poses with no 0.69d shot get `port_only.py <port shots> ../poses-kept.json`
+    (near-black tiles, sky where a wall or the ground should be). A spot the kept poses
+    miss is checked from the port alone.
   - Fix what it flags at its cause, rebuild, rerun, until nothing serious is flagged.
 
 ## The machine
@@ -138,7 +147,9 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 - No capture while the owner's game runs: wait for
   `! pgrep -f '[s]urvarium_skhid.*\.exe'` (the bracket keeps the loop from matching
   itself; a plain `pgrep -f survarium_skhid` never ends). The rig waits by itself and stops
-  a session the moment the owner starts a game. When the coordinator says no captures,
+  a session the moment the owner starts a game; after such a stop it starts again only
+  after 10 minutes with no game ("waiting for 10 quiet minutes": test games come in
+  bursts, and each one killed a session that takes minutes to load). When the coordinator says no captures,
   start none at all.
 - At least 2.5 GB of VRAM free (`nvidia-smi --query-gpu=memory.free --format=csv`).
 - Never touch `private/rudnya-preview` or `private/rudnya-local`: the owner's test setup.
