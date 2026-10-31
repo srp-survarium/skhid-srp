@@ -82,7 +82,7 @@ use std::time::{Duration, Instant};
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
-use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage};
+use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::presets::PresetDone;
@@ -288,13 +288,27 @@ impl Core<'_> {
             .collect()
     }
 
-    /// The account's squad mate with its equipment level, when the mate
-    /// comes along with the account's Play, Join or queue now: free in the
-    /// lobby as [`Self::room_fit_of`] says (in a room too, while it plays no
-    /// match), its game told its room, its kit able to play.
+    /// The mate a squad's action takes along (the owner's of 2026-10-31:
+    /// only its commander acts for the squad: Play, Join, Queue, Switch),
+    /// with its equipment level: the commander's mate while it is free in
+    /// the lobby as [`Self::room_fit_of`] says (in a room too, while it plays
+    /// no match), its game told its room, its kit able to play, and waiting
+    /// in no queue but its commander's. `None` for anyone but a commander.
+    /// The one rule of who comes along: Play, Join, Queue, the queue's turn,
+    /// the scale-out and the late join all ask it.
     pub(super) fn room_mate(&self, account_id: u32) -> Option<(u32, u8)> {
-        let mate = self.store.squads().mate_of(account_id)?;
-        if self.room_unseen.contains_key(&mate) || self.room_fit_of(mate).is_err() {
+        let squad = self.store.squads().of(account_id)?;
+        if squad.commander() != account_id {
+            return None;
+        }
+        let mate = squad.mate_of(account_id)?;
+        if self.room_unseen.contains_key(&mate)
+            || self.room_fit_of(mate).is_err()
+            || self
+                .rooms
+                .waiting_of(mate)
+                .is_some_and(|waiting| waiting.lead() != account_id)
+        {
             return None;
         }
         let account = self.accounts.get(mate)?;
@@ -304,39 +318,44 @@ impl Core<'_> {
             .then(|| (mate, matchmaking::gear_level(&account, unix)))
     }
 
-    /// The account's mate that its Play takes along: [`Self::room_mate`]
-    /// in no room (one in a room is joined there instead), and the
+    /// A squad member that is not its commander: it goes into no room on
+    /// its own (no Play, Join, Queue, room made or switch; code 17), only
+    /// with its commander's (the owner's of 2026-10-31). Leaving its room,
+    /// its queue or the squad stays its own.
+    pub(super) fn squad_soldier(&self, account_id: u32) -> bool {
+        self.store
+            .squads()
+            .of(account_id)
+            .is_some_and(|squad| squad.commander() != account_id)
+    }
+
+    /// The mate a commander's Play takes ([`Self::room_mate`]), and the
     /// equipment level Play picks a room by: the higher of the two, so the
     /// room's max level lets both in.
     fn play_party(&self, account_id: u32, gear: u8) -> (Option<(u32, u8)>, u8) {
-        let mate = self
-            .room_mate(account_id)
-            .filter(|(mate, _)| self.rooms.key_of(*mate).is_none());
+        let mate = self.room_mate(account_id);
         let party_gear = mate.map_or(gear, |(_, mate_gear)| gear.max(mate_gear));
         (mate, party_gear)
     }
 
     /// The squad info's "ready" for a member (`social.md` §2.2, the game's
-    /// Play gating): it is free in the lobby, in no room and no queue, its
-    /// kit able to play, so that its commander's Play takes it along. The
-    /// game lets a commander press Play while one of the squad is ready (it
-    /// is, itself, when Play could take it), and a soldier while its
-    /// commander is not: a free commander leads the pair, a busy one (in a
-    /// room, a match, away) leaves its soldier's Play to it.
+    /// Play gating): the commander always (its Play is the squad's: the
+    /// game greys a soldier's Play while its commander is ready); a
+    /// soldier while its commander's actions take it ([`Self::room_mate`]).
     pub(super) fn squad_ready(&self, account_id: u32) -> bool {
-        self.rooms.key_of(account_id).is_none()
-            && self.rooms.queue_place(account_id).is_none()
-            && !self.room_unseen.contains_key(&account_id)
-            && self.room_fit_of(account_id).is_ok()
-            && self
-                .accounts
-                .get(account_id)
-                .is_some_and(|account| rules::kits_can_play(&account.locked(), quests::now()))
+        let Some(squad) = self.store.squads().of(account_id) else {
+            return false;
+        };
+        let commander = squad.commander();
+        commander == account_id
+            || self
+                .room_mate(commander)
+                .is_some_and(|(mate, _)| mate == account_id)
     }
 
-    /// The account and its mate wait in room `key`'s queue together (the
-    /// mate when it comes along: in no room, the room lets it in). The
-    /// account's place, or why not.
+    /// The commander and its mate (`room_mate`; one in a room stays out)
+    /// wait in room `key`'s queue as one entry, its place. The place, or
+    /// why not.
     fn room_enqueue_party(
         &mut self,
         who: &Who,
@@ -346,13 +365,16 @@ impl Core<'_> {
         choice: QueueChoice,
         now: Instant,
     ) -> Result<usize, Refused> {
-        let mate = mate.filter(|(mate, _)| self.rooms.key_of(*mate).is_none());
         self.rooms
             .enqueue_party(who.account_id, gear, mate, key, now, choice)
     }
 
     /// Whether `who` may make or join a room now.
+    /// A squad's soldier may not: its commander acts for it.
     fn room_fit(&self, who: &Who) -> Result<(), RoomCode> {
+        if self.squad_soldier(who.account_id) {
+            return Err(RoomCode::SquadLeader);
+        }
         self.room_fit_of(who.account_id)
     }
 
@@ -590,19 +612,11 @@ impl Core<'_> {
                 let members = self.room_members(who, key);
                 self.send_made(who.addr, wire::room_members(key, &members));
             }
-            // Its squad mate waiting in the same queue leaves it too: they
-            // came together.
+            // A commander takes its pair's place out whole; its mate leaves
+            // it alone (`Rooms::dequeue`).
             RoomRequest::Unqueue => {
                 if let Some(key) = self.rooms.dequeue(who.account_id) {
                     log::info!("{}: left room {key}'s queue", who.name);
-                    if let Some(mate) = self.store.squads().mate_of(who.account_id)
-                        && self
-                            .rooms
-                            .queue_place(mate)
-                            .is_some_and(|(queued, _)| queued == key)
-                    {
-                        self.rooms.dequeue(mate);
-                    }
                 }
                 self.send_room_state(who, RoomCode::None, now);
             }
@@ -669,10 +683,10 @@ impl Core<'_> {
         }
     }
 
-    /// Join the room with that key, the squad mate along (`room_mate`); a
-    /// pair with too few places on one side, both in no room, waits in its
-    /// queue together, as one whose mate is in it without a place on its
-    /// mate's team. The state answers it.
+    /// Join the room with that key, a commander's mate along (`room_mate`);
+    /// a commander in no room whose squad finds too few places on one side
+    /// (two for the pair, or one on its mate's team with the mate in it)
+    /// waits in its queue, with its mate. The state answers it.
     fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let mate = self.room_mate(who.account_id);
@@ -683,17 +697,9 @@ impl Core<'_> {
                     log::info!("{}: joined room {key}", who.name);
                     RoomCode::None
                 }
-                // Too few places for the pair on one side (both outside a
-                // room), or none on its mate's side (its mate in it): it
-                // waits in the queue.
                 Err(Refused::Full)
                     if self.rooms.key_of(who.account_id).is_none()
-                        && (mate.is_some_and(|(mate, _)| self.rooms.key_of(mate).is_none())
-                            || self
-                                .store
-                                .squads()
-                                .mate_of(who.account_id)
-                                .is_some_and(|mate| self.rooms.key_of(mate) == Some(key))) =>
+                        && self.store.squads().of(who.account_id).is_some() =>
                 {
                     match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
                         Ok(place) => {
@@ -810,6 +816,11 @@ impl Core<'_> {
     /// then the join of the room with `key` (0: Play). A preset that could
     /// not be chosen joins nothing (code 14).
     fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
+        // A soldier's join is its commander's: its loadout stays.
+        if self.squad_soldier(who.account_id) {
+            self.send_room_state(who, RoomCode::SquadLeader, now);
+            return;
+        }
         match self.preset_choose(who, preset) {
             Ok(_) => {
                 self.send_presets(who, PresetDone::Chosen, preset);
@@ -890,6 +901,17 @@ impl Core<'_> {
                 spec.wait
             );
         }
+        // A commander's mate comes in with it (`room_mate`), no PIN typed:
+        // a room made by hand, by Play or by the scale-out alike (the
+        // owner's of 2026-10-31).
+        if let Some(mate) = self.room_mate(who.account_id)
+            && let Err(refused) = self.rooms.bring_mate(who.account_id, mate, key)
+        {
+            log::info!(
+                "{}: its squad mate stays out of room {key} ({refused:?})",
+                who.name
+            );
+        }
         Ok(key)
     }
 
@@ -954,17 +976,9 @@ impl Core<'_> {
             self.room_enqueue_party(who, gear, mate, key, QueueChoice::Play, now)
                 .map(|_| ())
         } else {
+            // Its mate comes in with it (`room_create`).
             self.room_create_public(who, PublicBracket::of(party_gear), now)
-                .map(|key| {
-                    if let Some((mate, mate_gear)) = mate
-                        && let Err(refused) = self.rooms.join(mate, mate_gear, key, now)
-                    {
-                        log::info!(
-                            "{}: its squad mate stays out of room {key} ({refused:?})",
-                            who.name
-                        );
-                    }
-                })
+                .map(|_| ())
         };
         match result {
             Ok(()) => {
@@ -1093,7 +1107,8 @@ impl Core<'_> {
         if self.maintenance_is_near() {
             return;
         }
-        for (account_id, key) in self.rooms.play_queue() {
+        for (waiting, key) in self.rooms.play_queue() {
+            let account_id = waiting.lead();
             let Some(who) = self.who_is(account_id) else {
                 continue;
             };
@@ -1116,11 +1131,14 @@ impl Core<'_> {
         self.room_admit_queues(now);
         for bracket in [PublicBracket::UpTo10, PublicBracket::UpTo15] {
             loop {
+                // Each entry's lead (one alone, or a commander with the mate
+                // its Play takes, `play_party`), by the pair's gear.
                 let waiting: Vec<_> = self
                     .rooms
                     .play_queue()
                     .into_iter()
-                    .filter_map(|(account_id, _)| {
+                    .filter_map(|(waiting, _)| {
+                        let account_id = waiting.lead();
                         let who = self.who_is(account_id)?;
                         if self.room_unseen.contains_key(&account_id)
                             || self.room_enter_fit(&who).is_err()
@@ -1128,12 +1146,15 @@ impl Core<'_> {
                             return None;
                         }
                         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
-                        // A pair by the higher gear of the two (`play_party`).
-                        let (_, party_gear) = self.play_party(account_id, gear);
-                        (PublicBracket::of(party_gear) == bracket).then_some((who, gear))
+                        let (mate, party_gear) = self.play_party(account_id, gear);
+                        (PublicBracket::of(party_gear) == bracket).then_some((who, gear, mate))
                     })
                     .collect();
-                if waiting.len() < SCALE_PLAYERS {
+                let players: usize = waiting
+                    .iter()
+                    .map(|(_, _, mate)| 1 + usize::from(mate.is_some()))
+                    .sum();
+                if players < SCALE_PLAYERS {
                     break;
                 }
                 let Ok(key) = self.room_create_public(&waiting[0].0, bracket, now) else {
@@ -1141,21 +1162,11 @@ impl Core<'_> {
                     // queued, including the player who would make the room.
                     break;
                 };
-                // In the queue's order, a squad together (both, beside each
-                // other) or neither: one that cannot join now (the room
-                // full, or one place for a pair) waits in its queue.
-                let squads = self.store.squads();
-                for (who, gear) in waiting.iter().skip(1) {
-                    if self.rooms.key_of(who.account_id) == Some(key) {
-                        continue;
-                    }
-                    let mate = squads.mate_of(who.account_id).and_then(|mate| {
-                        waiting
-                            .iter()
-                            .find(|(other, _)| other.account_id == mate)
-                            .map(|(other, gear)| (other.account_id, *gear))
-                    });
-                    let _ = self.rooms.join_with(who.account_id, *gear, mate, key, now);
+                // In the queue's order, a pair together or neither (one place
+                // left for it: both stay queued); its maker's mate came with
+                // it (`room_create`).
+                for (who, gear, mate) in waiting.iter().skip(1) {
+                    let _ = self.rooms.join_with(who.account_id, *gear, *mate, key, now);
                 }
                 log::info!(
                     "Room {key}: opened for queued Play users, max level {}",
@@ -1207,7 +1218,7 @@ impl Core<'_> {
             fit: self.member_fit(account_id),
             away: !self.by_account.contains_key(&account_id)
                 || self.room_unseen.contains_key(&account_id),
-            squad: marks.get(&account_id).copied().unwrap_or(0),
+            squad: marks.get(&account_id).copied(),
             name: self.name_of(account_id).unwrap_or_default(),
         }
     }
@@ -1607,80 +1618,88 @@ impl Core<'_> {
             return;
         }
         for key in self.rooms.with_queue_and_place() {
-            // One whose kit can not play now keeps its place, passed over
-            // (it may switch back while it waits); the next goes in. A pair
-            // waiting together goes in together, at two places.
-            loop {
-                let party = {
-                    let accounts = &self.accounts;
-                    let online = &self.by_account;
-                    let unseen = &self.room_unseen;
-                    let squads = self.store.squads();
-                    let unix = quests::now();
-                    let can_play = |account_id: u32| {
-                        online.contains_key(&account_id)
-                            && !unseen.contains_key(&account_id)
-                            && accounts.get(account_id).is_some_and(|account| {
-                                rules::kits_can_play(&account.locked(), unix)
-                            })
-                    };
-                    let mate_of = |account_id: u32| squads.mate_of(account_id);
-                    self.rooms.next_ready_in_queue(key, &can_play, &mate_of)
-                };
-                if party.is_empty() {
-                    break;
-                }
-                // Play's bracket is the pair's: the higher gear of the two.
+            while let Some(room) = self.rooms.get(key) {
+                // Who of each entry would go now, the one rule: its lead
+                // (one alone, or the commander) while it may (online, its
+                // game told, a kit that plays; else it keeps its place,
+                // passed over: it may switch back while it waits), with its
+                // mate while the commander's actions take it (`room_mate`)
+                // and the room lets it in; else the commander alone, its
+                // mate staying where it is (squads.md). Then whether it may
+                // come in (in the lobby, its max level, Play's bracket the
+                // pair's): one that may not leaves the queue.
                 let unix = quests::now();
                 let gear_of = |account_id: u32| {
-                    self.accounts
-                        .get(account_id)
-                        .map(|account| matchmaking::gear_level(&account.locked(), unix))
+                    self.accounts.get(account_id).map_or(0, |account| {
+                        matchmaking::gear_level(&account.locked(), unix)
+                    })
                 };
-                let party_gear = party
+                let can_play = |account_id: u32| {
+                    self.by_account.contains_key(&account_id)
+                        && !self.room_unseen.contains_key(&account_id)
+                        && self
+                            .accounts
+                            .get(account_id)
+                            .is_some_and(|account| rules::kits_can_play(&account.locked(), unix))
+                };
+                let squads = self.store.squads();
+                let goes: HashMap<u32, (Waiting, Option<u32>)> = self
+                    .rooms
+                    .queue_of(key)
+                    .into_iter()
+                    .filter(|waiting| can_play(waiting.lead()))
+                    .map(|waiting| {
+                        let lead = waiting.lead();
+                        let going = match waiting {
+                            Waiting::Pair { mate, .. }
+                                if self.room_mate(lead).is_some_and(|(free, gear)| {
+                                    free == mate && room.lets_in(gear)
+                                }) =>
+                            {
+                                waiting
+                            }
+                            _ => Waiting::One(lead),
+                        };
+                        let beside = squads
+                            .mate_of(lead)
+                            .filter(|mate| room.members.contains(mate));
+                        (lead, (going, beside))
+                    })
+                    .collect();
+                let Some((going, choice)) = self
+                    .rooms
+                    .take_from_queue(key, &|waiting| goes.get(&waiting.lead()).copied())
+                else {
+                    break;
+                };
+                let accounts = going.accounts();
+                let lead = going.lead();
+                let party_gear = accounts
                     .iter()
-                    .filter_map(|(account_id, _)| gear_of(*account_id))
+                    .map(|&account| gear_of(account))
                     .max()
                     .unwrap_or(0);
-                let fits = |account_id: u32, choice: QueueChoice| {
-                    self.room_fit_of(account_id).is_ok()
-                        && gear_of(account_id).is_some_and(|gear| {
-                            self.rooms.get(key).is_some_and(|room| {
-                                room.lets_in(gear)
-                                    && (choice == QueueChoice::Chosen
-                                        || PublicBracket::of(party_gear).contains(room))
-                            })
-                        })
-                };
-                let all_fit = party
-                    .iter()
-                    .all(|&(account_id, choice)| fits(account_id, choice));
-                let accounts: Vec<u32> = party.iter().map(|(account_id, _)| *account_id).collect();
-                // Beside its mate in the room already (one alone).
-                let beside = self.store.squads().mate_of(accounts[0]).filter(|mate| {
-                    self.rooms
-                        .get(key)
-                        .is_some_and(|room| room.members.contains(mate))
-                });
-                // A pair goes in as one, or neither does.
-                if all_fit && self.rooms.admit_party(&accounts, key, beside) {
+                let fits = self.room_fit_of(lead).is_ok()
+                    && self.rooms.get(key).is_some_and(|room| {
+                        room.lets_in(gear_of(lead))
+                            && (choice == QueueChoice::Chosen
+                                || PublicBracket::of(party_gear).contains(room))
+                    });
+                let beside = goes.get(&lead).and_then(|(_, beside)| *beside);
+                if fits && self.rooms.admit_party(&accounts, key, beside) {
                     for account_id in accounts {
                         log::info!("Account {account_id}: from room {key}'s queue into it");
                     }
                     continue;
                 }
-                // Out of the queue, all of it; Play's go where Play takes
-                // them (the first's Play takes its mate along).
-                for (account_id, choice) in party {
-                    if choice == QueueChoice::Play
-                        && let Some(who) = self.who_is(account_id)
-                    {
-                        self.room_quick(&who, now);
-                    }
-                    log::info!(
-                        "Account {account_id}: out of room {key}'s queue (may not come now)"
-                    );
+                // Out of the queue; Play's lead goes where Play takes it
+                // (its mate along, `room_mate`).
+                if choice == QueueChoice::Play
+                    && let Some(who) = self.who_is(lead)
+                {
+                    self.room_quick(&who, now);
                 }
+                log::info!("Account {lead}: out of room {key}'s queue (may not come now)");
             }
         }
     }
@@ -2228,6 +2247,18 @@ impl Core<'_> {
         let Some(ready) = self.room_ready(account_id) else {
             return;
         };
+        // A soldier whose commander waits in the room to go in goes with
+        // it, by its commander's turn (`late_placement`).
+        if self.squad_soldier(account_id)
+            && self.store.squads().of(account_id).is_some_and(|squad| {
+                let commander = squad.commander();
+                room.members.contains(&commander)
+                    && !room.in_match.contains(&commander)
+                    && self.room_ready(commander).is_some()
+            })
+        {
+            return;
+        }
         let ticket = running.ticket.match_id;
         let Late {
             placement,
@@ -2328,7 +2359,11 @@ impl Core<'_> {
         let mate_side = mate
             .filter(|mate| room.in_match.contains(mate))
             .and_then(side_in_match);
-        let waiting_mate = mate
+        // A commander takes its mate waiting in the room with it
+        // (`room_mate`): both in on one side, or neither.
+        let waiting_mate = self
+            .room_mate(account_id)
+            .map(|(mate, _)| mate)
             .filter(|mate| {
                 mate_side.is_none() && room.members.contains(mate) && !room.in_match.contains(mate)
             })

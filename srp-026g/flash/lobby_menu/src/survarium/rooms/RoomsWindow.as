@@ -892,6 +892,9 @@ package survarium.rooms
                     sig += [r0.key, r0.level, r0.max, r0.size, r0.players, r0.phase, r0.map, r0.pin, r0.name].join(",") + "|";
                 }
                 sig += _total;
+                // A squad's soldier has Join and New room greyed: drawn
+                // anew when that changes (squads.md).
+                sig += LocalPlayerProfile.squadSoldier() ? ";soldier" : "";
                 if (_view == "list")
                 {
                     if (sig != _listSig)

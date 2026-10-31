@@ -200,7 +200,7 @@ PROVEN, in this order (each failure logs a `PlayBtn disabled reason is: …` lin
 
 So a server that marks the commander ready when the commander presses Play locks the soldiers' Play (they cannot cancel/ready once the squad is queued), and a commander can only press Play once every soldier is ready.
 
-With rooms (since 2026-10-31, `squads.md`) srp's 0.26g lobby sends a member ready while Play could take it along (free in the lobby, in no room and no queue, its kit able to play; `rooms::squad_ready`): a free commander's Play is on (itself ready) and leads the pair, its soldier's off; a commander in a room, a match or away leaves the soldier its own Play. Before, nothing set ready, and a commander's Play stayed off (0 ≥ 1 fails).
+With rooms (since 2026-10-31, `squads.md`) srp's 0.26g lobby sends the commander ready always, so its Play is on and its soldier's is off all the time (only the commander acts for the squad, the owner's of 2026-10-31); the soldier ready while its commander's actions take it along (`rooms::squad_ready`). Before, nothing set ready, and a commander's Play stayed off (0 ≥ 1 fails).
 
 ### 2.3 Squad actions (client → server) — were 0x2A 01..04, now 0x4A
 

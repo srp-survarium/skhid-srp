@@ -30,7 +30,9 @@ package
    // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows a
    //   tag with its number after each name, ours green and another's tan, in the room's view and
    //   the list's side panel; every name keeps its place with and without the tags; every
-   //   language's texts fit with them (checkFit).
+   //   language's texts fit with them (checkFit);
+   // - a squad's soldier (in a squad, not its leader): the list's Join and New room greyed, its
+   //   commander's not (it goes into no room on its own; the server refuses it too).
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
@@ -128,6 +130,7 @@ package
          checkCreate();
          checkWindowOrder();
          checkSquads();
+         checkSoldier();
          checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
@@ -339,6 +342,43 @@ package
          };
          plain = namePlaces(members([0,0,0,0,0]));
          checkTags("squads in the list's side panel", members([0,1,1,2,2]), plain, want);
+      }
+
+      // A squad's soldier goes into no room on its own (squads.md): Join and New room greyed in
+      // the list; its commander's are not.
+      private function checkSoldier() : void
+      {
+         var Info:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.PlayerInfo");
+         var lit:Function = function(soldier:Boolean):Array
+         {
+            Info.isInSquad = true;
+            Info.commander = !soldier;
+            tell(["S1;N;0;0;0"]);
+            tell(["S1;L;1;0","1003;2;15;8;5;0;0;0;0;Alice"]);
+            var buttons:Array = [];
+            walk(win,[],[],0,0,buttons);
+            var join:* = null;
+            var make:* = null;
+            for each(var b:* in buttons)
+            {
+               if(b.label == "Join")
+                  join = b;
+               if(b.label == HarnessText.DATA.english.st_srp_rooms_new)
+                  make = b;
+            }
+            return [join != null && join.enabled, make != null && make.enabled, join != null && make != null];
+         };
+         var soldier:Array = lit(true);
+         var leader:Array = lit(false);
+         Info.isInSquad = false;
+         Info.commander = true;
+         tell(["S1;N;0;0;0"]);
+         trace("ROOMS a soldier's Join " + (soldier[0] ? "lit" : "greyed") + ", New room " + (soldier[1] ? "lit" : "greyed")
+            + "; its commander's Join " + (leader[0] ? "lit" : "greyed") + ", New room " + (leader[1] ? "lit" : "greyed"));
+         if(!soldier[2] || !leader[2])
+            failures.push("soldier: the list's Join or New room not found");
+         else if(soldier[0] || soldier[1] || !leader[0] || !leader[1])
+            failures.push("soldier: Join and New room must be greyed for a soldier only");
       }
 
       // The list's rows (their sprites are named by their rooms' keys).

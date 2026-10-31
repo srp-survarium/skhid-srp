@@ -920,8 +920,9 @@ fn a_squad_in_a_room_plays_as_a_squad_on_one_side() {
     let carol = world.connect("Carol");
     let dave = world.connect("Dave");
     super::form_squad(&mut world, alice, bob);
-    let key = create(&mut world, alice, spec(6), None);
-    for index in [bob, carol, dave] {
+    // Alice's Join takes Bob, her squad's soldier, along.
+    let key = create(&mut world, carol, spec(6), None);
+    for index in [alice, dave] {
         rows(&mut world, index, ROOM_JOIN_BASE + key, 1);
     }
     world.advance(VOTE_AND_WAIT);

@@ -2517,6 +2517,7 @@ st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.
 st_srp_rooms_code_13	Varustesettisi ei kelvannut peliin (ase puuttui tai ammuksia oli liian vähän), joten sinut poistettiin huoneesta.
 st_srp_rooms_code_14	Varustesetin valinta epäonnistui.
 st_srp_rooms_code_16	Liity julkiseen huoneeseen painamalla Pelaa.
+st_srp_rooms_code_17	Ryhmän johtaja valitsee huoneen.
 st_srp_rooms_code_2	Huonetta ei enää ole.
 st_srp_rooms_code_3	Väärä PIN-koodi.
 st_srp_rooms_code_4	Huone on täynnä.

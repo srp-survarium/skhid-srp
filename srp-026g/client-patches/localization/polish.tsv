@@ -2517,6 +2517,7 @@ st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
 st_srp_rooms_code_13	Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju.
 st_srp_rooms_code_14	Nie udało się wybrać zestawu.
 st_srp_rooms_code_16	Naciśnij Graj, aby wejść do pokoju publicznego.
+st_srp_rooms_code_17	Pokój wybiera dowódca brygady.
 st_srp_rooms_code_2	Ten pokój już nie istnieje.
 st_srp_rooms_code_3	Błędny PIN.
 st_srp_rooms_code_4	Pokój jest pełny.

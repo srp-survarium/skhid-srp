@@ -2517,6 +2517,7 @@ st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
 st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
 st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
 st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_17	Den Raum wählt der Anführer deiner Abteilung.
 st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
 st_srp_rooms_code_3	Falsche PIN.
 st_srp_rooms_code_4	Der Raum ist voll.

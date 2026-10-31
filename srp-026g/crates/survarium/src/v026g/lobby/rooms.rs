@@ -424,6 +424,10 @@ pub enum RoomCode {
     KitCantPlay = 15,
     /// Public rooms are created by Play as demand grows, never by a client.
     PublicCreate = 16,
+    /// A squad member that is not its commander goes into no room on its
+    /// own: its commander's Play, Join or Queue takes it (the owner's of
+    /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
+    SquadLeader = 17,
 }
 
 /// A room in [`room_list`].
@@ -487,8 +491,9 @@ pub struct Member {
     pub away: bool,
     /// Its squad's mark in this room: the pairs whose two members are both
     /// in it numbered 1, 2, ... in the list's order ([`SQUAD_MARKS`] at
-    /// most); 0: none (the owner's of 2026-10-31: squads seen in the room).
-    pub squad: u8,
+    /// most); `None` for one in no pair there (the owner's of 2026-10-31:
+    /// squads seen in the room). The wire says none as 0.
+    pub squad: Option<u8>,
     pub name: String,
 }
 
@@ -497,8 +502,13 @@ pub const SQUAD_MARKS: u8 = (MEMBERS_MAX / 2) as u8;
 
 /// A squad mark as one character of the state's `S` row: `0` none, then
 /// `1`..`9`, `a` (base 36).
-fn squad_mark(squad: u8) -> char {
-    char::from_digit(u32::from(squad.min(SQUAD_MARKS)), 36).unwrap_or('0')
+fn squad_mark(squad: Option<u8>) -> char {
+    char::from_digit(u32::from(squad_number(squad)), 36).unwrap_or('0')
+}
+
+/// A squad mark as the wire's number: 0 none.
+fn squad_number(squad: Option<u8>) -> u8 {
+    squad.map_or(0, |mark| mark.clamp(1, SQUAD_MARKS))
 }
 
 /// A member's kit as its room's next match would take it. One that is not
@@ -789,7 +799,7 @@ pub fn room_state(
             .collect();
         names.push(format!("A;{sides}"));
     }
-    if room.members.iter().any(|member| member.squad != 0) {
+    if room.members.iter().any(|member| member.squad.is_some()) {
         let marks: String = room
             .members
             .iter()
@@ -858,7 +868,7 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
             u8::from(member.away),
             seen.side.map_or(0, |team| team.min(1) + 1),
             seen.account_id,
-            member.squad.min(SQUAD_MARKS)
+            squad_number(member.squad)
         ));
         names.push(member.name.clone());
     }
@@ -1225,7 +1235,7 @@ mod tests {
             in_match: true,
             fit: Fit::Gear,
             away: true,
-            squad: 2,
+            squad: Some(2),
             name: "a;b".into(),
         };
         let other = Member {
@@ -1233,7 +1243,7 @@ mod tests {
             in_match: false,
             fit: Fit::Yes,
             away: false,
-            squad: 0,
+            squad: None,
             name: "Bob".into(),
             ..member.clone()
         };
@@ -1283,7 +1293,7 @@ mod tests {
                     in_match: true,
                     fit: Fit::Gear,
                     away: true,
-                    squad: SQUAD_MARKS,
+                    squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
                 side: Some(1),

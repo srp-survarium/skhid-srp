@@ -2517,6 +2517,7 @@ st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.
 st_srp_rooms_code_13	Komplet nije bio spreman (nema oružja ili dovoljno municije): uklonjen si iz sobe.
 st_srp_rooms_code_14	Nije moguće izabrati komplet.
 st_srp_rooms_code_16	Pritisni Igraj da uđeš u javnu sobu.
+st_srp_rooms_code_17	Sobu bira vođa odreda.
 st_srp_rooms_code_2	Ta soba više ne postoji.
 st_srp_rooms_code_3	Pogrešan PIN.
 st_srp_rooms_code_4	Ta soba je puna.

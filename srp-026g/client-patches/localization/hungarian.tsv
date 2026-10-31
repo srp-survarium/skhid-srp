@@ -2517,6 +2517,7 @@ st_srp_rooms_code_12	A felszerelésed meghaladja a szintkorlátot.
 st_srp_rooms_code_13	Az összeállításod nem volt használható (hiányzó fegyver vagy kevés lőszer), ezért kikerültél a szobából.
 st_srp_rooms_code_14	Nem sikerült kiválasztani az összeállítást.
 st_srp_rooms_code_16	Nyomd meg a Játék gombot egy nyilvános szobához.
+st_srp_rooms_code_17	A szobát az osztag vezetője választja.
 st_srp_rooms_code_2	Ez a szoba már nem létezik.
 st_srp_rooms_code_3	Hibás PIN.
 st_srp_rooms_code_4	Ez a szoba megtelt.
