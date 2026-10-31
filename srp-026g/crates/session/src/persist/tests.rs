@@ -54,7 +54,12 @@ fn full_account(id: u32) -> Account {
     account.login = format!("full{id}@test.invalid");
     account.password_hash = crate::password::hash(b"test-password-1");
     account.friends = vec![9, 3];
-    account.ignored = vec![12];
+    account
+        .ignored
+        .set(12, Some(crate::chat_mutes::ChatMuteMode::Hidden));
+    account
+        .ignored
+        .set(13, Some(crate::chat_mutes::ChatMuteMode::Placeholder));
     account.active_profile = Some(2);
     account.notices = vec![(3, "#ru[1:2]".into()), (4, "quest done".into())];
     let game = &mut account.game;
@@ -356,7 +361,8 @@ fn an_older_database_loads_and_its_counters_are_repaired() {
     connection
         .execute_batch(
             "PRAGMA foreign_keys = OFF;
-             DELETE FROM inventory WHERE item_id = 9;",
+             DELETE FROM inventory WHERE item_id = 9;
+             INSERT INTO ignored (account_id, seq, ignored_id) VALUES (4, 0, 12);",
         )
         .unwrap();
     drop(connection);
@@ -376,6 +382,10 @@ fn an_older_database_loads_and_its_counters_are_repaired() {
         assert_eq!(slots[7].as_ref().map(|item| item.item_id), Some(7));
         assert_eq!(slots[8], None);
         assert_eq!(account.password_hash, None);
+        assert_eq!(
+            account.ignored.mode(12),
+            Some(crate::chat_mutes::ChatMuteMode::Hidden)
+        );
     }
     // The repaired account is written back, and new accounts come after it.
     assert_eq!(store.flush(), 1);
@@ -502,7 +512,9 @@ fn a_played_account_comes_back_whole_after_a_restart() {
         premium::buy(&mut account.game, 1, now).unwrap();
         loyalty::raise(&mut account.game, 2);
         account.friends.push(friend);
-        account.ignored.push(friend + 7);
+        account
+            .ignored
+            .set(friend + 7, Some(crate::chat_mutes::ChatMuteMode::Hidden));
         account.active_profile = Some(1);
         account.notices.push((3, "#ru[2:1]".into()));
     }

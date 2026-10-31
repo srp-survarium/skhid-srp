@@ -342,6 +342,10 @@ pub enum ClientMessage {
     },
     /// `49 05`: GUESS a report or praise of a player.
     CommentAboutUser { nickname: String, a: u8, b: u8 },
+    SetChatMute {
+        nickname: String,
+        mode: Option<super::ChatMuteMode>,
+    },
     /// `49 06..=23`.
     Clan(ClanRequest),
     /// `49 24`.
@@ -799,11 +803,19 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             });
         }
         0x05 => {
-            return Ok(M::CommentAboutUser {
-                nickname: r.str()?,
-                a: r.u8()?,
-                b: r.u8()?,
-            });
+            let nickname = r.str()?;
+            let a = r.u8()?;
+            let b = r.u8()?;
+            if a == super::CHAT_MUTE_ACTION {
+                let mode = match b {
+                    0 => None,
+                    1 => Some(super::ChatMuteMode::Hidden),
+                    2 => Some(super::ChatMuteMode::Placeholder),
+                    _ => return Err(r.unknown_sub(b)),
+                };
+                return Ok(M::SetChatMute { nickname, mode });
+            }
+            return Ok(M::CommentAboutUser { nickname, a, b });
         }
         0x24 => {
             // Always 0.

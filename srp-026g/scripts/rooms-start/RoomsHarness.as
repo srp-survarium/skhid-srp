@@ -58,6 +58,14 @@ package
 
       private function loaded(e:Event) : void
       {
+         // The native placement adapter also initializes more of the lobby's
+         // root. Keep that fixture separate from the lightweight rooms tests.
+         if(loaderInfo.parameters.players == "1")
+         {
+            checkPlayerMenus();
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
          var step:String = "the classes";
          try
          {
@@ -334,6 +342,70 @@ package
             failures.push(what + ": queue action is above the room list");
          trace("ROOMS " + what + ": " + actions.length + " action(s), "
             + (actions.length ? actions[0].label : "missing"));
+      }
+
+      private function checkPlayerMenus():void
+      {
+         try
+         {
+            var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            var Lobby:Object = domain.getDefinition("LobbyMenu");
+            var Menu:Object = domain.getDefinition("survarium.controls.SrvContextMenu");
+            var Player:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+            var Friends:Object = domain.getDefinition("survarium.friends.FriendsMenu");
+            var friends:Object = new (domain.getDefinition("SrvFriendsMenuReskin") as Class)();
+            Menu.registerStage(stage,this);
+            Menu.setPatternt(new (domain.getDefinition("ContextPattern") as Class)());
+            Player.nickname = "Alice";
+            Player.commander = true;
+            Player.isSquadFull = false;
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            var items:Object = Menu.getInstance().contextList.list.dataProvider;
+            if(items.length != 5 || items[1].name != "#add_to_friends" || items[2].name != "#st_srp_hud_mute_chat"
+               || items[3].name != "#send_message" || items[4].name != "#invite_to_squad")
+               failures.push("stranger menu lacks friend, mute, message or squad actions");
+            var muteOptions:Array = items[2].options;
+            if(muteOptions == null || muteOptions.length != 3 || muteOptions[0].name != "#st_srp_hud_mute_hide"
+               || muteOptions[1].name != "#st_srp_hud_mute_mask" || muteOptions[2].name != "#st_srp_hud_unmute")
+               failures.push("mute submenu lacks hide, placeholder or unmute modes");
+            friends.setPlayers([{id:123,name:"Bob",status:0}]);
+            friends.setPlayers([{id:456,name:"Bob"}],false);
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            items = Menu.getInstance().contextList.list.dataProvider;
+            if(items[1].name != "#remove_from_friends" || items[2].options.length != 3
+               || Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
+               failures.push("friend menu or mute choices missing after ignore push");
+            friends.setPlayers([]);
+            friends.setPlayers([],false);
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            items = Menu.getInstance().contextList.list.dataProvider;
+            if(items[1].name != "#add_to_friends" || items[2].name != "#st_srp_hud_mute_chat")
+               failures.push("remove/unmute push did not reset player actions");
+            Player.commander = false;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 4)
+               failures.push("non-commander can invite to squad");
+            Player.commander = true;
+            Player.isSquadFull = true;
+            Lobby.showPlayerInfoMenu("Bob",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 4)
+               failures.push("full squad can invite another player");
+            Lobby.showPlayerInfoMenu("Alice",17,0,this);
+            if(Menu.getInstance().contextList.list.dataProvider.length != 1)
+               failures.push("own player menu has social actions");
+            Menu.hide();
+            Lobby.showPlayerInfoMenu("",17,0,this);
+            if(Menu.visisble)
+               failures.push("empty player name opened a menu");
+            Player.isSquadFull = false;
+            trace("ROOMS player menu: friend/remove, hide/placeholder/unmute, message, squad guards and self passed");
+         }
+         catch(err:Error)
+         {
+            failures.push("player menus: " + err.getStackTrace());
+         }
       }
 
       // Exercise the lobby's actual recurring layer adjustment. Background

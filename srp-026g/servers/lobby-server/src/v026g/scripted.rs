@@ -544,6 +544,19 @@ pub mod request {
         (0x4E, body)
     }
 
+    pub fn chat_mute(
+        name: &str,
+        mode: Option<survarium::v026g::lobby::ChatMuteMode>,
+    ) -> (u8, Vec<u8>) {
+        let mut body = vec![5];
+        string(&mut body, name);
+        body.extend([
+            survarium::v026g::lobby::CHAT_MUTE_ACTION,
+            mode.map_or(0, |mode| mode as u8),
+        ]);
+        (0x49, body)
+    }
+
     pub fn find_players(name: &str) -> (u8, Vec<u8>) {
         let mut body = vec![6];
         string(&mut body, name);

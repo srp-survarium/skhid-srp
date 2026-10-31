@@ -28,6 +28,7 @@ use survarium::dictionary::Dictionary;
 use survarium::v021d;
 
 pub mod bans;
+pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
@@ -134,8 +135,8 @@ pub struct Account {
 
     /// The accounts on its friend list, in the order they were added.
     pub friends: Vec<u32>,
-    /// The accounts whose chat lines its client hides.
-    pub ignored: Vec<u32>,
+    /// Per-account chat mute policies (hide completely or replace the body).
+    pub ignored: chat_mutes::ChatMutes,
     /// The profile the client last chose (`29 04`); squad mates see it.
     pub active_profile: Option<u32>,
     /// Its Play, while it waits: a squad queues once every member has one.
@@ -220,7 +221,7 @@ impl Account {
             game: v021d::account::Account::new(&name, Dictionary::shared()),
             name,
             friends: Vec::new(),
-            ignored: Vec::new(),
+            ignored: chat_mutes::ChatMutes::default(),
             active_profile: None,
             play: None,
             notices: Vec::new(),

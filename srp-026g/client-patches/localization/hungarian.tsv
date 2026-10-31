@@ -2388,6 +2388,13 @@ st_srp_exchange_title	Átváltás
 st_srp_hud_add_friend	Hozzáadás a barátokhoz
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve
 st_srp_hud_friend_sent	Barátkérelem elküldve
+st_srp_hud_mute_chat	Chat némítása
+st_srp_hud_mute_hide	Üzenetek elrejtése
+st_srp_hud_mute_mask	Név mutatása: <muted>
+st_srp_hud_mute_not_sent	Nincs elküldve
+st_srp_hud_muted	Chat némítva
+st_srp_hud_unmute	Némítás feloldása
+st_srp_hud_unmuted	Némítás feloldva
 st_srp_inventory_search	Keresés
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.

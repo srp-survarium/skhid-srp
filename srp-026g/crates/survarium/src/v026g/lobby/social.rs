@@ -5,6 +5,19 @@ use super::push::{NameRefusal, write_name_check};
 use super::requests::id;
 use super::{ServerId, ServerMessage, WireError, Writer, at_most, limits};
 
+/// Per-recipient rendering policy. Absence of a policy means normal delivery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ChatMuteMode {
+    Hidden = 1,
+    Placeholder = 2,
+}
+
+/// SRP extension of `comment_about_user`: kind 254, mode 0/1/2. This uses
+/// the existing name + two bytes transport, never the report/praise kinds.
+pub const CHAT_MUTE_ACTION: u8 = 254;
+pub const MUTED_CHAT_TEXT: &str = "<muted>";
+
 /// `message_channel_enum` (`social.md` §1.1).
 pub mod channel {
     pub const NONE: u8 = 0;
