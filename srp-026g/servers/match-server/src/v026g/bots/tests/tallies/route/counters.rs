@@ -291,6 +291,17 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stand-in's body past a ledge's edge with no drop link ahead (`SRP_BENCH_STAND_IN_FALL`, `standin_jump::past_edge`): walked on
+/// within the support, fell to the floor below, no floor below.
+pub(super) fn edge_falls() -> Box<dyn RouteTopic> {
+    Delta::of(
+        crate::v026g::bots::tests::standin_jump::edge_fall_stats,
+        |d, line| {
+            line.ends.push(format!("stand_in_past_edge walked/fell/no_floor {}/{}/{}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// The sprint lift (`motor::lifts`), by band of rise (up to 0.80 m, 0.80-0.95, 0.95-1.05, 1.05-1.11): lifts tried (the body
 /// stood at the face), got up, given up for the jump; the jumps pressed up those faces with the body calm and in a fight
 /// or a rush; and the faces a body in a fight or a rush did not lift (top short, sprint blocked, no run).

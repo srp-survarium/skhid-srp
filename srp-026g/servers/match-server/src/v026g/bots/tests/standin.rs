@@ -1153,7 +1153,12 @@ impl Game {
                     }
                 } else {
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        slide_supported(grid, node, body.feet, to, grid.body().step, body::SUPPORT_M)
+                        let slid = slide_supported(grid, node, body.feet, to, grid.body().step, body::SUPPORT_M);
+                        // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
+                        match stand_in_fall().then(|| past_edge(grid, slid.0, slid.1, to)).flatten() {
+                            Some((n, f)) => (n, f, false),
+                            None => slid,
+                        }
                     } else {
                         slide_capped(grid, node, body.feet, to, grid.body().step)
                     };
