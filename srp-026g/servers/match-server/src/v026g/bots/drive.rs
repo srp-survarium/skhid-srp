@@ -1,6 +1,7 @@
 use super::pitch::Pitch;
 use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
+use super::tactics::StepOutPick;
 use super::*;
 
 /// The own eye is led at most this far past its last decided tick
@@ -134,19 +135,28 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
         me: &PlaceView,
         blast: &grenade_threat::Blast,
         reach_m: f32,
-    ) -> Option<Vec3> {
+        far_m: f32,
+        routed: bool,
+    ) -> Option<(Vec3, StepOutPick)> {
         let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
         let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
-        self.tactics.step_out(
-            from,
-            blast.rest,
-            blast.radius,
-            reach_m,
-            self.time,
-            self.side,
-            self.objective,
-            &hard,
-        )
+        if routed {
+            self.tactics.step_out_routes(
+                from,
+                blast.rest,
+                blast.radius,
+                reach_m,
+                far_m,
+                self.time,
+                self.side,
+                self.objective,
+                &hard,
+            )
+        } else {
+            self.tactics
+                .step_out(from, blast.rest, blast.radius, reach_m, self.time, self.side, self.objective, &hard)
+                .map(|to| (to, StepOutPick::Nearest))
+        }
     }
 }
 
@@ -565,7 +575,7 @@ fn drive_tick_inner(
                 within_m: AVOID_ARRIVE_M,
             };
             intent.crouch = false;
-            intent.pace = Pace::Run;
+            intent.pace = if tuning.avoid.escape { Pace::Escape(EscapeWhy::Grenade) } else { Pace::Run };
             intent.objective = false;
             intent.straight = false;
         }
