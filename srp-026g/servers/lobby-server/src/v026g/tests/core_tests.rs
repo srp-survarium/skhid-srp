@@ -1654,6 +1654,40 @@ fn a_squad_invite_that_waits_is_sent_again() {
 }
 
 #[test]
+fn a_squad_info_carries_the_lobby_picks() {
+    use survarium::v026g::lobby::lobby_pick::LOBBY_PICK_BASE;
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let picks = |decoded: &[Decoded]| {
+        decoded.iter().rev().find_map(|message| match message {
+            Decoded::SquadInfo { squad_id, picks, .. } => Some((*squad_id != 0, *picks)),
+            _ => None,
+        })
+    };
+    let pick = |world: &mut World, who, id: u32| world.ask(who, request::ranking(LOBBY_PICK_BASE + id, 1));
+    // Out of a squad: the own pick alone, sent back at once; nothing answered else.
+    world.take(alice);
+    pick(&mut world, alice, 4);
+    assert_eq!(picks(&world.take(alice)), Some((false, [4, 0])));
+    pick(&mut world, bob, 3);
+    form_squad(&mut world, alice, bob);
+    // In it: each its own and the commander's (Alice's).
+    assert_eq!(picks(&world.take(alice)), Some((true, [4, 4])));
+    assert_eq!(picks(&world.take(bob)), Some((true, [3, 4])));
+    // The commander's change reaches every member; a member's own changes its own byte only.
+    pick(&mut world, alice, 2);
+    assert_eq!(picks(&world.take(bob)), Some((true, [3, 2])));
+    world.take(alice);
+    pick(&mut world, bob, 1);
+    assert_eq!(picks(&world.take(bob)), Some((true, [1, 2])));
+    assert_eq!(picks(&world.take(alice)), None, "the commander's squad info is as it was");
+    // A start past the picks is no pick.
+    pick(&mut world, bob, 5);
+    assert_eq!(picks(&world.take(bob)), None);
+}
+
+#[test]
 fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     let mut world = World::new();
     let alice = world.connect("Alice");

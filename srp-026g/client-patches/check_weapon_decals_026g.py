@@ -325,6 +325,8 @@ class EditRun:
     def set_states(self, table_on, mode, item, spin=0.0, tilt=0.0):
         self.word(self.table, table_on)
         self.emu.mem_write(self.table + 0x20, struct.pack("<2f", spin, tilt))
+        if table_on:        # and the spot `camera` read from the lobby's project: the classic's (SPOT, VIEW, TURN)
+            self.emu.mem_write(self.table + 0xA0, struct.pack("<7f", 4.25, 1.30, 3.05, 1.0, -1.5707964, 1.0, 0.0))
         self.word(self.preview, mode)
         self.word(self.preview + 4, item)
 

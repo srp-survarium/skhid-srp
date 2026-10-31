@@ -99,12 +99,12 @@ USAGE (this script never touches the source exe):
     (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
     A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
     own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
-    the decals) and the decal editor on a weapon from weapon_decals_026g.asm, on
-    that section's second page:
-        nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
-        nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+    the decals) and the decal editor on a weapon from weapon_decals_026g.asm, at
+    0x1200 of that section (after patch 45's code):
+        nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B200 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+        nasm -f bin -DCAVE=0xA42B200 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FC0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
-    its own, 0xFA0 of the late join's state page, checked).
+    its own, 0xFC0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
     library, the kit keys and the match chat option, the hide-the-interface
     key), is linked from its C and
@@ -1189,7 +1189,9 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "hud_options", "tab_cursor", "world_check", "music", "drug_interrupt")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score",
+                "lamps", "map_names", "hud_options", "tab_cursor", "lobby_scene", "weapon_flight", "camera_sweep",
+                "world_check", "music", "drug_interrupt")
 
 
 def rust_hooks(original):
@@ -1895,7 +1897,7 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 # the game's functions' and finds its state with call/pop.
 WEAPON_TABLE_OFFSET = 0x6B0                    # round 5d: 0x800 until it outgrew the page (the stash ends at +6A5h)
 WEAPON_TABLE_STATE_OFFSET = 0xF00
-WEAPON_TABLE_STATE_SIZE = 0xA0
+WEAPON_TABLE_STATE_SIZE = 0xBC                 # 0xA0 until the lobby's spot (SPOT, VIEW, TURN, 2026-10-29)
 # The interface other patches read (weapon decals): while the state's TABLE
 # (+0) and READY (+28h) are 1, the transform the held weapon was last drawn
 # with at the bench, a float4x4 in rows (v * M, as the game's: row 3 the
@@ -1956,8 +1958,8 @@ WEAPON_TABLE_HOOKS = (
 )
 
 # Decals on a weapon (patch 47, README; client_patch.md section 3.44):
-# weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, the section's
-# second page; its state (WEAPON_DECALS_STATE_SIZE bytes: the left button's
+# weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, after patch
+# 45's code (the section's second page until patch 45 grew, 2026-10-29); its state (WEAPON_DECALS_STATE_SIZE bytes: the left button's
 # press) at WEAPON_DECALS_STATE_OFFSET of `.srpd`, after patch 45's, whose
 # published transform (WEAPON_TABLE_MATRIX_OFFSET) it reads, as patch 32's
 # mode and item. It begins with seven `jmp near`: lookup (+0) and fill (+5), which patch 44 calls
@@ -1975,9 +1977,9 @@ WEAPON_TABLE_HOOKS = (
 #   and esp,-8`, the entry; in the input vtable 0xA09F6C): `jmp click` and a
 #   nop: the left button places the decal on a click, not after a drag.
 # No base relocation is under a site and no branch aims inside one.
-WEAPON_DECALS_OFFSET = 0x1000
+WEAPON_DECALS_OFFSET = 0x1200                  # 0x1000 until patch 45 read the lobby's spot (2026-10-29)
 WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # lookup, fill, pick, decode, bake, start, click
-WEAPON_DECALS_STATE_OFFSET = 0xFA0
+WEAPON_DECALS_STATE_OFFSET = 0xFC0            # 0xFA0 until patch 45's state grew (2026-10-29)
 WEAPON_DECALS_STATE_SIZE = 12
 WEAPON_DECALS_HOOKS = (
     (0x265999, bytes.fromhex("e8c2efffff"), 0xA, 0xE8),         # the preview's pick
@@ -3547,8 +3549,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         table_state = late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET
         preview_state = late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET
         if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
-                or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
-            sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
+                or WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET:
+            sys.exit("the weapon stash's code and the weapon table's do not fit before the weapon decals'")
         if DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
                 or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon table's state is not between the others' and the page's end")
@@ -3573,7 +3575,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 decals_calls[target] += 1
         if WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET \
                 or WEAPON_DECALS_OFFSET + len(weapon_decals) > 0x2000:
-            sys.exit("the weapon table's code and the weapon decals' do not fit in .srpw's two pages")
+            sys.exit("the weapon table's code and the weapon decals' do not fit before the upgrade preview's page")
         press_state = late_join_state_va(late_join) + WEAPON_DECALS_STATE_OFFSET
         if WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > WEAPON_DECALS_STATE_OFFSET \
                 or WEAPON_DECALS_STATE_OFFSET + WEAPON_DECALS_STATE_SIZE > LATE_JOIN_STATE_SIZE:

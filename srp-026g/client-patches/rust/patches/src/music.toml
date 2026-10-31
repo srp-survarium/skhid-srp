@@ -6,11 +6,12 @@ patch = 88
 
 # game::on_configs_loaded's start, before user.cfg runs: s_music_volume
 # registered, so the stock Settings' Music slider and user.cfg have it
-# (after patch 79's language, order 1, and patch 83's settings, order 2)
+# (after patch 79's language, order 1, patch 83's settings, order 2, and patch 81's
+# srp_lobby, order 3)
 [[hook]]
 site = "configs.start"
 handler = "on_configs"
-order = 3
+order = 4
 
 # every frame (the game's thread): the bus asked for, the deadline, a fade done
 [[hook]]
@@ -43,10 +44,11 @@ order = 3
 site = "game_world_ui.welcome"
 handler = "on_announced"
 
-# the game unloads its screens: the music stops
+# the game unloads its screens: the music stops (before patch 81's lobby scene, order 2)
 [[hook]]
 site = "game.clear_resources"
 handler = "on_unload"
+order = 1
 
 # the sound thread's tick: the bus kept active, its fade stepped
 [[hook]]

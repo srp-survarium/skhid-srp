@@ -97,6 +97,24 @@ unsafe extern "C" {
     pub fn engine_point_to_screen(game: *mut c_void, point: *const f32, out: *mut f32) -> u32;
     /// 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
     pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
+    /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+    pub fn engine_lobby_query_resources(menu: *mut c_void);
+    /// 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+    pub fn engine_lobby_query_players_range(client: *mut c_void, start: u32, count: u32);
+    /// 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
+    pub fn engine_project_remove(project: *mut c_void);
+    /// 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
+    pub fn engine_project_insert(project: *mut c_void);
+    /// 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
+    pub fn engine_effects_stop(effects: *mut c_void);
+    /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    pub fn engine_effect_play(player: *mut c_void, effect: *mut c_void, second: u32, third: u32, fourth: u32, listener: *mut c_void);
+    /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
+    pub fn engine_emitter_emit(emitter: *mut c_void, out: *mut c_void, first: f32, second: f32) -> *mut c_void;
+    /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
+    pub fn engine_emitter_destroy(emitter: *mut c_void, effect: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
+    pub fn engine_release_resource(resource: *mut c_void, count: *mut u32);
     /// 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
     pub fn engine_inventory_remove(inventory: *mut c_void, slot: u32);
     /// 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
@@ -117,6 +135,12 @@ unsafe extern "C" {
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
+    /// 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+    pub fn engine_lobby_camera_ray(camera: *mut c_void, point: *const f32, distance: *mut f32, direction: *const f32);
+    /// 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+    pub fn engine_lobby_character_setup_profile(profile: *const c_void, character: *mut c_void, kit: u32);
+    /// 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
+    pub fn engine_lobby_character_release_player(character: *mut c_void, byte: u32);
     /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
     pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
     /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
@@ -171,6 +195,12 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
+    /// 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
+    pub fn engine_project_on_inserted(project: *mut c_void);
+    /// 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_collision_insert(collision: *mut c_void, world: *mut c_void);
+    /// 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_collision_remove(collision: *mut c_void, world: *mut c_void);
     /// 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
     pub fn engine_visual_insert(visual: *mut c_void, scene: *mut c_void);
     /// 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
@@ -203,4 +233,6 @@ unsafe extern "C" {
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+    pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
 }

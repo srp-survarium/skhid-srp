@@ -2424,6 +2424,11 @@ st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
+st_srp_lobby_basement	Keller
+st_srp_lobby_bunker	Bunker
+st_srp_lobby_hangar	Hangar
+st_srp_lobby_room	Zimmer
+st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)

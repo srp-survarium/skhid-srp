@@ -9,6 +9,12 @@ Files (tab-separated, one header line; va is a preferred-image VA)
   inferred.tsv     va, status, ref_021d, name   Unreviewed names.
   abi.tsv          va, name, source, ret_cleanup, result
   abi_inputs.tsv   va, name, location, role, basis
+  vtables.tsv      vtable, slot, va, class, base, basis
+                   One row per known slot of a vtable: the function (va) the
+                   class's vtable holds at that byte offset, and the class
+                   whose virtual it is (base). A virtual call through base's
+                   slot reaches one of these. A vtable of an abstract class
+                   (its slot _purecall, 0x420F22) is not listed.
   identity.json    Exact executable/PDB hashes, image bases and PE sections.
   lookup.py        Search by name or address; prints RVA, file offset and ABI.
 

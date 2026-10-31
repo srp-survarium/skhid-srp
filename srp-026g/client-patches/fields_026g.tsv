@@ -123,6 +123,38 @@ scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed strin
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
+survarium::lobby_query_frame	scene	-0x68	obj<vostok::resources::request>	lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
+survarium::lobby_query_frame	scene_data	-0x34	obj<vostok::resources::user_data_slot>	its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
+survarium::lobby_query_frame	requests	-0x80	obj<vostok::resources::request>	its eight requests (8 bytes each; the count 8 at 0x21E5E7): game_scene, game_scene_view, sound_scene, the project, two movies, two binary configs
+survarium::lobby_query_frame	user_data	-0x40	obj<vostok::resources::user_data_slot>	their eight user data pointers (0x21E5DF)
+vostok::resources::request	name	0x0	ptr<u8>	a request's resource name (a C string the query reads while it runs)
+vostok::resources::request	class	0x4	u32	its resource class (40h a game project, 1Fh a binary config: lobby_menu::query_resources' list)
+vostok::resources::request	size	0x8	size	{name, class}: the request list's stride
+vostok::resources::user_data_slot	data	0x0	ptr<u8>	a request's user data (a variant), 0 none
+vostok::resources::user_data_slot	size	0x4	size	one pointer of the query's user data array
+survarium::scenes_ready_frame	results	0x4	ptr<survarium::lobby_scene_results>	on_render_scenes_ready's argument, the query's results
+survarium::lobby_scene_results	scene	0x9CC	u32	the fourth result's resource (+12Ch of result 3, 2E0h each; 0x220DA2): 0 when its query failed
+survarium::lobby_scene_results	project	0x9CC	ptr<survarium::game_project_resource>	the same, as the lobby's project (its resource part, project+38h; 0x220DC7)
+survarium::game_project_resource	track	0x1AC	u32	the project's camera track (project+1E4h): on_render_scenes_ready calls its vtable+20h unchecked (0x220E80)
+survarium::lobby_menu	scene	0x114	obj<survarium::lobby_project_slot>	where it keeps its project (0x220E01; clear_resources 0x21D0DD)
+survarium::lobby_menu	track_player	0x118	obj<survarium::game_effect_player>	the player of its project's track (0x220E57: stopped, cleared, the track's effect played)
+survarium::lobby_menu	listener	0x684	obj<survarium::game_effect_listener>	the listener its track's effect is played with (0x220E67)
+survarium::lobby_menu	physics_world	0x3104	ptr<vostok::physics::bullet_physics_world>	the physics world its project's static collisions are in (0x221966, 0x21D0B7)
+survarium::lobby_project_slot	project	0x0	ptr<survarium::simple_game_project>	the lobby's project (the resource less 38h; one reference of its count), 0 before the scene is ready
+survarium::lobby_project_slot	size	0x4	size	the lobby menu's +114h
+survarium::simple_game_project	collisions	0x28	ptr<survarium::static_collision>	its static collisions (an array, 50h each; 0x221956)
+survarium::simple_game_project	collision_count	0x2C	u32	how many
+survarium::simple_game_project	resource	0x38	obj<survarium::game_project_resource>	its resource part (what a query's result holds)
+survarium::simple_game_project	count	0x108	u32	its reference count (the resource's +0D0h; lock xadd, 0x220DE0; at 0 engine_release_object, 0x21D0FB)
+survarium::simple_game_project	track	0x1E4	ptr<survarium::pure_game_effect_emitter>	its track's emitter (on_render_scenes_ready makes the lobby's effect of it, 0x220E80)
+survarium::game_project_resource	project	-0x38	obj<survarium::simple_game_project>	the project it is the resource part of (0x220DC7)
+survarium::static_collision	size	0x50	size	one of a project's static collisions (new_array_helper<static_collision>, vtable 0xA029A8)
+survarium::game_effect_player	state	0x0	u32	cleared (0) after a stop and before a play (0x21D0D1, 0x220E74)
+survarium::game_effect_player	effects	0x8	obj<survarium::game_effect_list>	what it plays (game_effect_player::stop's EDI, 0x220E5D)
+survarium::game_effect	emitter	0xC	ptr<survarium::pure_game_effect_emitter>	the emitter that made it (its vtable+1Ch destroys it, 0x220EB8)
+survarium::game_effect	count	0x1C	u32	its reference count (not atomic: add [eax+1Ch],-1 at 0x220EAE)
+survarium::game_effect_slot	effect	0x0	ptr<survarium::game_effect>	an intrusive_ptr<game_effect>: an emitter's emit writes the made effect (its count taken) or 0
+survarium::game_effect_slot	size	0x4	size	one pointer (on_render_scenes_ready's [esp+28h])
 vostok::engine_cfg	data	0x0	u32	value bits of a binary config node
 vostok::engine_cfg	children	0x0	ptr<vostok::engine_cfg>	child array when node_type is table or array
 vostok::engine_cfg	node_type	0x14	u16	binary config type: integer 1, float 2, table 3, array 4
@@ -239,10 +271,51 @@ survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds
 survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
 survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
 survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
+survarium::lobby_camera_ticker	camera	-0x4	obj<survarium::lobby_camera>	the lobby camera itself (lobby menu+10Ch): the ticker is its second base, at +4 (vtable 0xA09ED8, the tick's this)
+survarium::lobby_camera_ticker	zoom	0x90	f32	the camera's +94h: patch 22's zoom of its projection (1 the player's field of view)
+survarium::lobby_camera_ticker	side_target	0x94	f32	the camera's +98h: the side angle's target (the setter 0x2845C0's [esp+4])
+survarium::lobby_camera_ticker	height_target	0x98	f32	the camera's +9Ch: the height's target (the setter's xmm0; 1.2 from the ctor)
+survarium::lobby_camera_ticker	point_x	0x9C	f32	the camera's +A0h: x of the point it looks at (0 from the ctor; nothing of the game's writes it again)
+survarium::lobby_camera_ticker	height	0xA0	f32	the camera's +A4h: the point's current height, stepped to its target before 0x284020
+survarium::lobby_camera_ticker	point_z	0xA4	f32	the camera's +A8h: z of the point it looks at
+survarium::lobby_camera_ticker	side	0xA8	f32	the camera's +ACh: the current side angle (turns only the view), stepped to its target after 0x2840F2
+survarium::lobby_camera_ticker	yaw	0xB4	f32	the camera's +B8h: the yaw (forward (-sin yaw cos pitch, sin pitch, cos yaw cos pitch)), no limit
+survarium::lobby_camera_ticker	pitch	0xB8	f32	the camera's +BCh: the pitch, clamped to +-1.0471976 every tick (0x2840C5)
+survarium::lobby_camera_ticker	distance_target	0xBC	f32	the camera's +C0h: the distance's target (the wheel's, 1.5..4.6; the setter's)
+survarium::lobby_camera_ticker	distance	0xC0	f32	the camera's +C4h: the current distance, stepped to its target, cut by the ray (0x2844D0) and clamped (0x28430E) every tick
+survarium::lobby_camera_ticker	side_speed	0xDC	f32	the camera's +E0h: the side angle's step speed (the ctor's 1.0; the setter's |change| * 1.111)
+survarium::lobby_camera_ticker	height_speed	0xE0	f32	the camera's +E4h: the height's step speed (the ctor's 1.0; the setter's)
+survarium::lobby_camera_ticker	distance_speed	0xE4	f32	the camera's +E8h: the distance's step speed (the ctor's 3.0, the wheel's 3.0 at 0x28409E; the setter's)
+survarium::lobby_camera_tick_frame	dt	0x10	f32	lobby_camera::tick's frame time (s, at most 0.1), at its ESP+10h from 0x283F3x to past 0x2840F2 (no push between)
+survarium::image	weapon_table	0xA428F00	obj<skhid::weapon_table>	patch 45's state (weapon_table_026g.asm's STATE: .srpd+WEAPON_TABLE_STATE_OFFSET, patch_026g.py): the interface between its NASM (the weapon at the bench) and the Rust camera flight (weapon_flight.rs)
+skhid::weapon_table	table	0x0	u32	TABLE: 1 while the window's weapon is at the bench (patch 45's camera, its NASM's alone)
+skhid::weapon_table	flight	0x4	u32	FLIGHT: the camera flight's (weapon_flight.rs, its alone): 0 the stock camera, 1 moving, 2 resting at the bench; the NASM reads it (no ray, the wheel's farthest)
+skhid::weapon_table	target_x	0x8	f32	TARGET_X: the point's x the camera goes to (the spot's, or 0 back)
+skhid::weapon_table	target_z	0xC	f32	TARGET_Z: the point's z
+skhid::weapon_table	target_yaw	0x10	f32	TARGET_YAW: the bench's view, the nearest turn of weapon_view to the camera's yaw; or the yaw kept, back
+skhid::weapon_table	target_pitch	0x14	f32	TARGET_PITCH: -0.25 at the bench; the pitch kept, back
+skhid::weapon_table	request	0x2C	u32	REQUEST: +1 at every request of patch 45's camera (the table on, again, or off): the flight starts at a change
+skhid::weapon_table	target_zoom	0x4C	f32	TARGET_ZOOM: the bench's zoom (the original's 65 degrees whatever uro_fov), 1 back
+survarium::lobby_camera_ticker	menu	0x84	ptr<survarium::lobby_menu>	the camera's +88h: its lobby menu (the ctor's ecx, 0x283BEF)
+survarium::lobby_menu	movie	0x690	ptr<vostok::ui::movie_holder>	its movie's holder: [[+690h]+108h]+4 the lobby movie (fill_squad_info 0x2277E1, root.show_squad; the tutorial's root.clean_highlight 0x2A4FF6)
+survarium::lobby_menu	character	0x694	ptr<survarium::lobby_character>	the lobby's own character, at (0, 0, 0) (made at 0x21CCD2, kept at 0x21CCE6; patch 32's MENU_CHARACTER)
+survarium::lobby_menu	squad_right	0x698	ptr<survarium::lobby_character>	the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
+survarium::lobby_menu	squad_left	0x69C	ptr<survarium::lobby_character>	the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
+survarium::lobby_menu	account_profile	0x6A0	ptr<survarium::player_profile>	the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
+survarium::player_profile	chosen_kit	0x4632	u8	the kit chosen in the lobby (weapon_preview_026g.asm CHOSEN_KIT)
 survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, after its thrower's modifier 0Ch (grenade_set_core +2A0h read at 0x309BDD, the copy's +28h at 0x30A3DC): bullet_manager::explode's objects within it (0x33963D) take damage
 survarium::explosion_params	splash_pierce	0x34	f32	its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
 survarium::explode_frame	manager	0x4	ptr<survarium::bullet_manager>	bullet_manager::explode's first stack argument: the core world's bullet manager (game_world_core +18F58h; 0x30A4CF, 0x305711)
 survarium::explode_frame	centre	0x8	ptr<f32>	its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)
+
+survarium::lobby_client	quest_faction	0x1EA998	u32	the account's quest faction, 0x8E's last byte (0x2717CF; 0 none, factions_dict 1..4)
+survarium::lobby_client	squad_revision	0x1EAAA0	u32	0xA1's revision (read_squad_info 0x2748BC)
+survarium::lobby_client	squad_id	0x1EAAA4	u32	0xA1's squad id; 0 no squad (0x2747A8; the reader stops there and the squad chat tab is removed)
+survarium::lobby_client	squad_count	0x1EAAA8	u8	0xA1's member count (0x2747D9), not checked against the three slots; its members at +1EA9B0h, 50h each, zeroed (FCh) on each 0xA1
+survarium::lobby_client	squad_commander	0x1EAAA9	u8	0xA1's commander index: the leader is member[this] (0x2747EF; srp always 0)
+survarium::lobby_client	i_am_commander	0x1EAAAC	u8	0xA1's i_am_commander (0x2748AB; 0 first, 0x2747C3)
+survarium::image	postprocess	0xAC914C	obj<vostok::render::postprocess_flags>	stage_postprocess's byte flag of the eye adaptation (compute_per_pixel_eye_adaptated_luminance 0x1B14A6), 1 in the image
+vostok::render::postprocess_flags	reset_eye_adaptation	0x0	u8	1: the next frame's eye adaptation takes the frame's own luminance (t_current) as the last one's (t_previous_luminance, 0x1B14B2), so it is at once where it settles; the render thread clears it (0x1B14F2); nothing else of the game writes it (the first frame's)
 vostok::console_commands::cc_bool	size	0x48	size	a cc_bool console variable's object (cc_value<bool>::cc_value 0x1DDB0: +0Ch the list's next, +10h the name, +14h the kind, +1Dh saved, +40h the value's address; the hud's show_quests_progress 0x2339C9)
 vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, written after cc_value<bool>::cc_value (which leaves its base's), as the hud's show_quests_progress does (0x2339E8) and patch 58's variable
 vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)

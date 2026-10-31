@@ -49,6 +49,9 @@ pub mod consumable_activity;
 
 pub mod language;
 
+pub mod lobby_scene;
+pub mod weapon_flight;
+pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
 

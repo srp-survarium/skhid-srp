@@ -1876,10 +1876,17 @@ va	status	ref_021d	name
 0x00239420	observed	0x00182a9c	survarium::game_world_ui::update_minimap_players
 0x00239a30	observed	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x0027a980	observed	0x001a2572	survarium::network_client::get_player
+0x00222fe0	reviewed	0x00174caf	survarium::lobby_menu::on_squad_member_profile_arrived
+0x0026fe70	reviewed	0x0019d603	survarium::lobby_client::query_squad_member_contents
+0x00274580	reviewed	0x0019eca1	survarium::lobby_client::destroy_squad
+0x002745d0	reviewed	0x0019ed0a	survarium::lobby_client::add_squad_member
+0x00274660	reviewed	0x0019ed8a	survarium::lobby_client::drop_squad_member
+0x002746d0	reviewed	0x0019ee04	survarium::lobby_client::leave_squad
 0x0025b9b0	reviewed	0x001935c1	survarium::game_world::play_particle
 0x0025cb10	reviewed	0x0019400b	vostok::math::create_rotation
 0x00322ab0	reviewed	0x001fee95	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push
 0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
+0x00270070	reviewed	0x0019d75f	survarium::lobby_client::query_elo_players
 0x00014730	reviewed		vostok::resources::store_first_unmanaged_resource
 0x00059fb0	reviewed		vostok::sound::sound_world::add_scene_to_active
 0x00059a60	reviewed	0x00040549	vostok::sound::sound_world::tick

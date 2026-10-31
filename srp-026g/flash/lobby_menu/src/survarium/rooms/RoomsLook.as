@@ -123,7 +123,7 @@ package survarium.rooms
             _bold = bold;
         }
 
-        internal function text(box:Sprite, value:String, x:Number, y:Number, w:Number, size:Number,
+        public function text(box:Sprite, value:String, x:Number, y:Number, w:Number, size:Number,
             color:uint, align:String = "left"):TextField
         {
             var tf:TextField = new TextField();
@@ -396,7 +396,7 @@ package survarium.rooms
         }
 
         // A control and what a press on it does, (control, event).
-        internal function route(control:DisplayObject, press:Function):void
+        public function route(control:DisplayObject, press:Function):void
         {
             _routes.push({"control": control, "press": press});
         }
@@ -418,7 +418,7 @@ package survarium.rooms
         // A press in the content: to the last control routed under it, unless
         // Scaleform gave it to that control (or to something inside it)
         // itself, which then has it (no double press).
-        internal function onContentDown(e:MouseEvent):void
+        public function onContentDown(e:MouseEvent):void
         {
             // Only the left button presses (a right-click on a member is its
             // equipment, `onContentClick`).
@@ -483,24 +483,32 @@ package survarium.rooms
             var small:BitmapData = _renders[key] as BitmapData;
             if (small == null)
             {
-                small = new BitmapData(w, h, false, 0x05080B);
                 try
                 {
                     var cls:Class = renderClass(level, weather);
-                    var big:BitmapData = new cls() as BitmapData;
-                    var scale:Number = Math.max(w / big.width, h / big.height);
-                    var m:Matrix = new Matrix();
-                    m.scale(scale, scale);
-                    m.translate((w - big.width * scale) / 2, (h - big.height * scale) / 2);
-                    small.draw(big, m, null, null, null, true);
-                    big.dispose();
+                    small = cover(new cls() as BitmapData, w, h);
                 }
                 catch (e:Error)
                 {
+                    small = new BitmapData(w, h, false, 0x05080B);
                 }
                 _renders[key] = small;
             }
             return new Bitmap(small);
+        }
+
+        // A picture scaled to cover w x h, centred, the rest cut (a vote
+        // card's map, a lobby window's card); `big` is disposed.
+        public static function cover(big:BitmapData, w:int, h:int):BitmapData
+        {
+            var small:BitmapData = new BitmapData(w, h, false, 0x05080B);
+            var scale:Number = Math.max(w / big.width, h / big.height);
+            var m:Matrix = new Matrix();
+            m.scale(scale, scale);
+            m.translate((w - big.width * scale) / 2, (h - big.height * scale) / 2);
+            small.draw(big, m, null, null, null, true);
+            big.dispose();
+            return small;
         }
 
         // The library bitmap of a level in a weather; its day one when that
@@ -611,7 +619,7 @@ package survarium.rooms
         }
 
         // The click the game's buttons make (ButtonClick: sound_play 0).
-        internal static function clickSound():void
+        public static function clickSound():void
         {
             gameSound(UiSound.CLICK);
         }
