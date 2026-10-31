@@ -86,6 +86,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(PitchBands::default()),
         Box::new(ShotBands::default()),
         Box::new(ShotHeights::default()),
+        Box::new(KickGap::default()),
         Box::new(HitShapes::default()),
         Box::new(DamageZoneFixes::default()),
         Box::new(ZoneDeaths::new(n)),

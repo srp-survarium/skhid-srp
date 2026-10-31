@@ -241,6 +241,9 @@ pub(crate) struct Body {
     pub(crate) gun: &'static Gun,
     pub(crate) recoil: Recoil,
     pub(crate) cadence: Cadence,
+    /// The bot's mirror of the kick as its last input was made: the kick after the turn, before the shots (pitch units), and
+    /// the shots it counted ([`Reflex::seen`]); read against `recoil` at the shot ([`KickPair`], counts only).
+    pub(crate) mirror: Option<(f32, u8)>,
     pub(crate) team: u8,
     pub(crate) feet: Vec3,
     pub(crate) node: Option<NodeId>,
@@ -578,6 +581,10 @@ pub(crate) struct Game {
     pub(crate) nudged: u32,
     /// Every shot, for the bench's fight tally ([`fight_tally`]).
     pub(crate) shot_facts: Vec<fight_tally::ShotFact>,
+    /// The kick of a shooter's first shot of a tick against the bot's mirror of it, and each tick's shots against the mirror's
+    /// ([`fight_tally::KickPair`], [`fight_tally::KickTick`]; the owner counts' `kick_gap`).
+    pub(crate) kick_pairs: Vec<fight_tally::KickPair>,
+    pub(crate) kick_ticks: Vec<fight_tally::KickTick>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
@@ -714,6 +721,7 @@ impl Game {
             gun,
             recoil: Recoil::new(kick_of(gun.item)),
             cadence: Cadence::default(),
+            mirror: None,
             team,
             feet: Vec3::ZERO,
             node: None,
@@ -834,6 +842,8 @@ impl Game {
             nudge: None,
             nudged: 0,
             shot_facts: Vec::new(),
+            kick_pairs: Vec::new(),
+            kick_ticks: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
             flight: standin_hitbox::BulletPath::Instant,
@@ -1294,10 +1304,29 @@ impl Game {
             let mut times = Vec::new();
             body.cadence
                 .tick(tick, held, auto, interval_ms, |t| times.push(t));
+            // [counts only] Why the trigger was not down for the weapon this tick (`kick_gap`'s `REFUSALS`).
+            let why = if !body.alive {
+                1
+            } else if body.keys & key::FIRE == 0 {
+                2
+            } else if body.carrying.is_some() {
+                3
+            } else if tick < body.drawn_at {
+                4
+            } else {
+                body.stock.why_not(tick).unwrap_or(8)
+            };
+            let mut fired = 0u8;
             for at in times {
                 if self.bodies[shooter].stock.fired(at) {
                     self.shot(shooter, at);
+                    fired = fired.saturating_add(1);
                 }
+            }
+            if let Some((_, counted)) = self.bodies[shooter].mirror
+                && (fired > 0 || counted > 0)
+            {
+                self.kick_ticks.push(fight_tally::KickTick { shooter, tick, fired, counted, why });
             }
         }
     }
@@ -1346,6 +1375,8 @@ impl Game {
         let kick = body.recoil.kick();
         let top = kick.top(self.rng.unit());
         let (gun, keys) = (body.gun, body.keys);
+        let truth = body.recoil.y();
+        let mirror = body.mirror.map(|m| m.0);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
         let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
         let view_dir = dir;
@@ -1443,6 +1474,18 @@ impl Game {
                         .map(|(body, _)| body)
                 })
         };
+        // [counts only] A shooter's first shot of the tick: its kick against the mirror's (a second shot of the tick has the first's).
+        if let Some(mirror) = mirror
+            && !self.shot_facts.iter().rev().take_while(|f| f.tick == tick).any(|f| f.shooter == shooter)
+        {
+            self.kick_pairs.push(fight_tally::KickPair {
+                shooter,
+                tick,
+                truth,
+                mirror,
+                distance: aimed_at.map(|(_, distance, _)| distance),
+            });
+        }
         self.shot_facts.push(fight_tally::ShotFact {
             shooter,
             tick,
