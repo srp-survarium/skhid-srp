@@ -91,7 +91,7 @@ pub use world_load::WorldLoad;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
-mod consumable;
+pub mod consumable;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
@@ -104,5 +104,6 @@ pub mod project;
 pub use project::{RenderVisual, ObjectLight, GameScene};
 
 pub mod history;
+pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

@@ -1211,7 +1211,7 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
-0x002e5080	survarium::damage_model::hit_body_part	manual	0	
+0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
@@ -2098,3 +2098,4 @@ va	name	source	ret_cleanup	result
 0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
 0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	manual	8	
+0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
