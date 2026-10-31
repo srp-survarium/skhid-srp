@@ -518,7 +518,22 @@ pub(crate) struct Landing {
     pub(crate) at: u32,
     pub(crate) to: Vec3,
     pub(crate) sprint: bool,
+    /// The vertical speed of the free fall at the landing tick, m/s (`Flight::fall`; none: the clip ended on the floor). The client's fall damage
+    /// is a function of it alone (`docs/notes/fall_damage.md`); the bench does not apply it ([`fall_damage`] only counts).
+    pub(crate) fall_v: Option<f32>,
 }
+
+/// The client's fall damage at a landing speed `v` m/s with `fatal_damage` 1.0 (the resources.db patch): none up to `harmless_height` 5 m
+/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (PROVEN, `docs/notes/fall_damage.md`).
+pub(crate) fn fall_damage(v: f32) -> f32 {
+    ((v - HARMLESS_V) / (FATAL_V - HARMLESS_V)).clamp(0.0, 1.0)
+}
+
+/// `sqrt(2 g h)` for `harmless_height` 5 m and `fatal_height` 10 m at the client's gravity 9.8.
+const HARMLESS_V: f32 = 9.899_495;
+const FATAL_V: f32 = 14.0;
+/// A fall of this damage or more kills a body at full health (about 0.6, `fall_damage.md`).
+pub(crate) const LETHAL_FALL_DAMAGE: f32 = 0.6;
 
 /// One tick of `body`'s jump ([`Flight`]) at `tick`; the landing when it
 /// came down.
@@ -535,7 +550,7 @@ pub(crate) fn fly(
         return None;
     };
     let ms = tick.saturating_sub(f.at) as f32;
-    let landed = |body: &mut Body, f: &Flight, n: NodeId, feet: Vec3| {
+    let landed = |body: &mut Body, f: &Flight, n: NodeId, feet: Vec3, fall_v: Option<f32>| {
         body.node = Some(n);
         body.feet = feet;
         body.flight = None;
@@ -544,13 +559,14 @@ pub(crate) fn fly(
             at: f.at,
             to: feet,
             sprint: f.sprint(),
+            fall_v,
         })
     };
     if let Some(v) = f.fall {
         let v = v + GRAVITY * TICK_S;
         let y = body.feet.y - v * TICK_S;
         match air_floor(grid, body.feet, body.feet.y + 0.05) {
-            Some((n, feet)) if feet.y >= y => return landed(body, &f, n, feet),
+            Some((n, feet)) if feet.y >= y => return landed(body, &f, n, feet, Some(v)),
             Some(_) => {
                 body.feet.y = y;
                 f.fall = Some(v);
@@ -561,7 +577,7 @@ pub(crate) fn fly(
             // on a bench; kept from falling for ever).
             None => {
                 let feet = grid.position(node);
-                return landed(body, &f, node, feet);
+                return landed(body, &f, node, feet, Some(v));
             }
         }
     }
@@ -591,7 +607,7 @@ pub(crate) fn fly(
         && let Some((n, feet)) = air_floor(grid, body.feet, was.max(y) + 0.05)
         && feet.y >= y - 1e-4
     {
-        return landed(body, &f, n, feet);
+        return landed(body, &f, n, feet, None);
     }
     if over {
         f.fall = Some(0.0);
@@ -738,6 +754,20 @@ pub(crate) fn an_honest_jump_off_an_edge_falls_to_the_floor_below() {
     body.yaw = std::f32::consts::FRAC_PI_2;
     let (to, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, 0.0);
     assert!(to.y.abs() < 0.05 && to.x < 9.0, "{to:?}");
+}
+
+/// The client's fall damage by landing speed (`docs/notes/fall_damage.md`, `fatal_damage` 1.0): none up to 9.9 m/s, linear to 14 m/s, 1 beyond; a
+/// fall of 8 m (v = 12.5 m/s) is about 0.64 and kills from full health (0.6), one of 5 m (9.9 m/s) hurts no one.
+#[test]
+pub(crate) fn the_fall_damage_follows_the_clients_rule_by_landing_speed() {
+    assert_eq!(fall_damage(0.0), 0.0);
+    assert!(fall_damage(9.89) == 0.0);
+    assert!((fall_damage(10.8) - 0.22).abs() < 0.01, "{}", fall_damage(10.8));
+    let eight_m = (2.0f32 * 9.8 * 8.0).sqrt();
+    assert!((fall_damage(eight_m) - 0.64).abs() < 0.02, "{}", fall_damage(eight_m));
+    assert!(fall_damage(eight_m) >= LETHAL_FALL_DAMAGE);
+    assert_eq!(fall_damage(14.0), 1.0);
+    assert_eq!(fall_damage(30.0), 1.0);
 }
 
 /// The honest walk steps up to the client's 0.6 m, and not up the grid's
