@@ -4084,7 +4084,7 @@ def test_lobby_scene(original, image, before):
           and vtable(0x9FAC8C + 0x10, 1) == [0x1ED030],
           "game::clear_resources (the game's vtable 0x9FAC8C+10h, the game closing) starts push ebx / push esi / "
           "mov esi,ecx / mov ecx,[esi+535Ch] and deactivates the active scene (+539Ch, its vtable+4) at 0x1ED0B0")
-    # the swap redoes these halves (vostok::lobby::ScenesReady::swap)
+    # the swap redoes these halves (vostok::lobby_menu::put_in)
     check(rows(0x21D085, 6) == ["mov esi,[ebp+0x114]"] and rows(0x21D093, 5) == ["call 0x2855b0"]
           and rows(0x21D0B1, 0xF) == ["mov edx,[edx+0x4]", "lea ecx,[eax+esi]", "mov eax,[ebp+0x3104]", "push eax",
                                        "call edx"]
