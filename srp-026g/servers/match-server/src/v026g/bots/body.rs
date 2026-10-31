@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, Edge, JumpSnap, Kinematics, TICK_S, to_world, wrap};
+use super::kin::{Blend, Edge, FIX_ABOVE_M, FixFloor, JumpSnap, Kinematics, TICK_S, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -464,7 +464,10 @@ impl BodyTrack {
             }
             way
         });
-        let node = grid.and_then(|grid| grid.locate(feet, LOCATE_M));
+        let node = grid.and_then(|grid| match kin.fix_floor {
+            FixFloor::Nearest => grid.locate(feet, LOCATE_M),
+            FixFloor::Under => grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(|| grid.locate(feet, LOCATE_M)),
+        });
         // The world has its own tick's keys (PROVEN, `kin`); its velocity
         // is its speed along the way the keys before were taking it.
         let held = fix.keys;
@@ -1261,6 +1264,36 @@ pub(super) mod tests {
         let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
         assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
+    }
+
+    /// [`FixFloor::Under`]: a world that shows the body in the air at a ledge's face (a jump against it) puts it on the floor
+    /// under it, where [`FixFloor::Nearest`] puts it on the top over the face, the nearer; walking on into the face, the body
+    /// reckoned from the top walks on over it, the one from the floor under it stays at the face.
+    #[test]
+    fn a_world_of_the_body_in_the_air_at_a_face_puts_it_on_the_floor_under_it() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.3));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.3));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        // Facing the face (+x), 0.7 m up in a jump, 0.2 m short of it.
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let feet = Vec3::new(9.8, 0.7, 5.0);
+        let on = |fix_floor: FixFloor| {
+            let kin = Kinematics { blend_ticks: 1, fix_floor, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, feet, yaw), &kin, Some(&grid));
+            let floor = grid.position(track.estimate().unwrap().node.unwrap()).y;
+            for time in (50..=1_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            (floor, track.estimate().unwrap().feet)
+        };
+        let (nearest, under) = (on(FixFloor::Nearest), on(FixFloor::Under));
+        assert!(nearest.0 > 1.2, "the nearest floor is the top over the face: {nearest:?}");
+        assert!(under.0 < 0.1 && under.1.x < 10.0, "the floor under the feet, at the face: {under:?}");
     }
 
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of

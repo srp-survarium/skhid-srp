@@ -58,6 +58,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// Which floor a world's feet are put on ([`FixFloor`]).
+    pub fix_floor: FixFloor,
     /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
     /// (`pitch.rs`), not a radian (`radian`: the bots as they were, which aimed 3.5 degrees low at a target 15 to 30 degrees below the eye
     /// and shot 16 % there against 29 % with the map, `player_bots_weapons.md`). The world's pitch, the pitch turns the bots send and the geometry from the
@@ -95,6 +97,25 @@ pub enum Edge {
     Client,
 }
 
+/// Which floor of the walk grid the reckoning puts a world's feet on (`body::BodyTrack::fixed`), the floor it moves the body on from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixFloor {
+    /// The nearest floor from 1 m over the feet to 2.5 m under them (`WalkGrid::locate`): a world that shows the body in the air
+    /// in front of a wall puts it on the floor over the wall's top when that is nearer than its own. School, the r1 stuck spot
+    /// (A196, live): a jump against the facade, shown 0.68 m up, put the reckoned body on the top behind it, 0.59 m over the feet;
+    /// with [`Edge::Client`] it walked on there for a second (2-3 m off) while the body fell back.
+    #[default]
+    Nearest,
+    /// The nearest floor at most [`FIX_ABOVE_M`] over the feet, else the nearest: feet are on their floor or over it.
+    Under,
+}
+
+/// How far over a world's feet [`FixFloor::Under`] takes a floor, metres: a floor's height is its cell centre's, which on the
+/// steepest walkable slope (55 degrees, `impassable_slope` 0x7DE10, PROVEN) lies up to 0.25 m over feet at the cell's edge (half
+/// the diagonal of a 0.25 m cell, 0.18 m, times tan 55); a little over that.
+pub const FIX_ABOVE_M: f32 = 0.3;
+
 impl Default for Kinematics {
     fn default() -> Self {
         Self {
@@ -106,6 +127,7 @@ impl Default for Kinematics {
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            fix_floor: FixFloor::Nearest,
             pitch_scale: PitchScale::Client,
         }
     }
