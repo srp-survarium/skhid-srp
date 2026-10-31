@@ -141,7 +141,13 @@ package
             crosshair.hitMarkersHidden = false;
             crosshair.setDamage(0.5, 1000, false, false);
             require(markerShown(), "off: hits shown again");
-            trace("HUD hit marker: shown off, hidden on (a shown one cleared, a kill's too)");
+            // Hidden crosshair: HUD.srp_hud_options hides the whole crosshair, its hit marker with it
+            crosshair.setDamage(0.5, 1000, false, false);
+            crosshair.visible = false;
+            require(markerShown() && !crosshair.visible && !crosshair.hitTestPoint(crosshair.x, crosshair.y, true),
+                "a hidden crosshair draws nothing, its marker neither");
+            crosshair.visible = true;
+            trace("HUD hit marker: shown off, hidden on (a shown one cleared, a kill's too); none with the crosshair hidden");
         }
 
         private function names(team:*):Array

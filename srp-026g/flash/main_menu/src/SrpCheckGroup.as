@@ -1,17 +1,19 @@
 package
 {
     import flash.display.MovieClip;
+    import flash.external.ExternalInterface;
     import flash.text.TextField;
     import flash.text.TextFormat;
 
     // A group of the gameplay tab: a heading, as the tab's own group headings
     // ("Friends:", "Crosshair:"), with checkboxes the exe keeps in user.cfg
-    // under it (SrpCheckOption; exe patch 83's "Hide hit markers" and "Hide
-    // player scores", docs/notes/hide-hit-markers-scores.md). The exe's answer
-    // for each option names the group's heading too (root.srp_check_option(
-    // name, label, saved, heading)). Settings places the group (layout) in its
-    // column as the tab's groups are placed; the controls are script-added
-    // children of the tab content, shown on the gameplay frame only.
+    // in it (SrpCheckOption; exe patch 83's "Hide hit markers" and "Hide
+    // player scores", docs/notes/hide-hit-markers-scores.md). The exe gives the
+    // heading with the group's other texts (root.srp_hud_texts, asked at each
+    // bind of the gameplay tab). Settings places the heading (layout) and the
+    // group's controls in its column as the tab's groups are placed; the
+    // controls are script-added children of the tab content, shown on the
+    // gameplay frame only.
     public class SrpCheckGroup
     {
         private static const GAMEPLAY_FRAME:int = 1;
@@ -66,41 +68,43 @@ package
                 each.place();
             }
             show();
+            if (content.currentFrame == GAMEPLAY_FRAME)
+            {
+                try
+                {
+                    // the group's texts: root.srp_hud_texts (Settings.setHudTexts)
+                    ExternalInterface.call("srp_hud_texts");
+                }
+                catch (error:Error)
+                {
+                }
+            }
         }
 
-        // The exe's answer for one option: name, label, saved, heading.
+        // The exe's answer for one option: name, label, saved.
         public function answer(values:Array):void
         {
             var each:SrpCheckOption = values.length > 0 ? option(values[0]) : null;
-            if (each == null)
+            if (each != null)
             {
-                return;
+                each.answer(values.slice(1, 3));
             }
-            each.answer(values.slice(1, 3));
-            if (values.length > 3)
-            {
-                heading.text = values[3];
-            }
+        }
+
+        // The heading's text (the exe's root.srp_hud_texts).
+        public function title(text:String):void
+        {
+            heading.text = text;
             show();
         }
 
-        // The heading at (x, y), the checkboxes under it at controlX, the
-        // first `first` below the heading, each next `step` below the last
-        // (the tab's own spacing), the heading in the look of `style` (a
-        // heading of the tab). The top of the last checkbox.
-        public function layout(style:TextField, x:Number, controlX:Number, y:Number, first:Number, step:Number):Number
+        // The heading at (x, y) in the look of `style` (a heading of the tab);
+        // Settings places the group's controls under it.
+        public function layout(style:TextField, x:Number, y:Number):void
         {
             SrpLanguage.restyle(heading, style);
             heading.x = x;
             heading.y = y;
-            var top:Number = y + first - step;
-            for each (var each:SrpCheckOption in options)
-            {
-                top += step;
-                each.box.x = controlX;
-                each.box.y = top;
-            }
-            return top;
         }
 
         private function show():void
