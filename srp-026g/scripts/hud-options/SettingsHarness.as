@@ -11,6 +11,7 @@ package
     import flash.system.ApplicationDomain;
     import flash.system.LoaderContext;
     import flash.text.Font;
+    import flash.text.TextField;
 
     // The Settings' "Hide hit markers" and "Hide player scores" checkboxes
     // (exe patch 83, docs/notes/hide-hit-markers-scores.md) in the rebuilt main
@@ -97,17 +98,128 @@ package
             });
         }
 
+        // A visible control's or text's top and bottom in the tab content: a checkbox's box and drawn
+        // label (its label's field runs on below), a text's drawn lines, a list's or slider's own height.
+        private function span(item:*):Array
+        {
+            if (item is TextField)
+                return [item.y, item.y + TextField(item).textHeight + 4];
+            if (item.hasOwnProperty("textField") && item.textField != null && item.hasOwnProperty("selected"))
+                return [item.y, item.y + Math.max(item.textField.y + item.textField.textHeight + 4, 26)];
+            return [item.y, item.y + item.height];
+        }
+
+        // The gameplay tab's two columns: "Friends:" then the HUD group on the left, "Crosshair:" then
+        // Language then "Quest progress:" on the right; each group's heading at its column's heading x,
+        // its controls at the column's controls' x, spaced as the tab's own groups; nothing overlapping
+        // in a column, everything above the window's bottom; every dictionary's texts inside its column.
+        private function checkLayout(content:MovieClip, boxes:Array, texts:Array, when:String):void
+        {
+            var c:* = content;
+            var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
+            var menu:* = content.getChildByName("_srp_language");
+            var language:TextField = null;
+            for (var i:int = 0; i < content.numChildren; ++i)
+            {
+                var t:TextField = content.getChildAt(i) as TextField;
+                if (t != null && t.visible && t.text == texts[0][3]) language = t;
+            }
+            require(language != null, when + ": the Language heading shown");
+            var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
+                c._hide_spam, heading, boxes[0], boxes[1]];
+            var right:Array = [c.s_cross, c._setter_static_cross, c._setter_static_minimap, c._setter_static_minimap_position,
+                language, menu, c.s_quest_propgress, c._setter_static_show_quests, c._slider_quest_alpha];
+            var bottom:Number = c.bottomContainer.getBounds(content).bottom;
+            for each (var column:Array in [left, right])
+            {
+                for (i = 0; i < column.length; ++i)
+                {
+                    require(column[i] != null, when + ": item " + i + " of a column there (" + column.map(function(x:*, ...r):String { return x ? x.name : "null"; }).join() + ")");
+                    require(column[i].visible, when + ": " + column[i].name + " shown");
+                    var here:Array = span(column[i]);
+                    require(here[1] <= bottom, when + ": " + column[i].name + " above the window's bottom (" + bottom + "): " + here[1]);
+                    if (i + 1 < column.length)
+                    {
+                        var next:Array = span(column[i + 1]);
+                        require(here[1] <= next[0] + 1, when + ": " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
+                    }
+                }
+            }
+            // alignment: the headings, the controls
+            require(heading.x == c.s_friends.x && language.x == c.s_cross.x, when + ": the headings at their columns' x");
+            require(boxes[0].x == c._setter_invite.x && boxes[1].x == c._setter_invite.x, when + ": the checkboxes at the friends' x");
+            require(menu.x == c._setter_static_minimap_position.x, when + ": the Language list at the minimap list's x");
+            // spacing: as the tab's own groups
+            var first:Number = c._setter_invite.y - c.s_friends.y, step:Number = c._setter_message.y - c._setter_invite.y;
+            require(boxes[0].y - heading.y == first && boxes[1].y - boxes[0].y == step, when + ": the HUD group spaced as Friends");
+            require(menu.y - language.y == c._setter_static_cross.y - c.s_cross.y, when + ": the Language list under its heading as Crosshair's");
+            var gap:Number = heading.y - c._hide_spam.y;
+            require(language.y - c._setter_static_minimap_position.y == gap, when + ": the same gap before each group: " + gap
+                + ", " + (language.y - c._setter_static_minimap_position.y));
+            var note:TextField = null;
+            for (i = 0; i < content.numChildren; ++i)
+            {
+                t = content.getChildAt(i) as TextField;
+                if (t != null && t.text == "Applies after restart.") note = t;
+            }
+            require(note != null, when + ": the Language note there");
+            var lastRow:Number = note.visible ? note.y : menu.y;
+            require(c.s_quest_propgress.y - lastRow == gap, when + ": Quest progress the same gap under Language's last row ("
+                + (note.visible ? "the note" : "the list") + "): " + (c.s_quest_propgress.y - lastRow));
+            if (note.visible)
+            {
+                require(span(menu)[1] <= note.y && span(note)[1] <= c.s_quest_propgress.y, when + ": the note between the list and Quest progress");
+            }
+            require(!c.bottomContainer.visible, when + ": no bottom panel across the columns");
+            // every dictionary's texts inside their columns
+            var leftEnd:Number = c.s_friends.x + c.s_friends.width, rightEnd:Number = c.s_cross.x + c.s_cross.width;
+            for each (var row:Array in texts)
+            {
+                for (i = 0; i < 2; ++i)
+                {
+                    var shown:String = boxes[i].label;
+                    boxes[i].label = row[i];
+                    boxes[i].validateNow();
+                    var end:Number = boxes[i].x + boxes[i].textField.x + boxes[i].textField.textWidth;
+                    boxes[i].label = shown;
+                    boxes[i].validateNow();
+                    require(end < leftEnd, when + ": " + row[i] + " ends in the left column (" + leftEnd + "): " + end);
+                }
+                var was:String = heading.text;
+                heading.text = row[2];
+                require(heading.x + heading.textWidth < leftEnd, when + ": " + row[2] + " ends in the left column");
+                heading.text = was;
+                was = language.text;
+                language.text = row[3];
+                require(language.x + language.textWidth < rightEnd, when + ": " + row[3] + " ends in the right column");
+                language.text = was;
+            }
+            trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", HUD " + heading.y + " (" + boxes[0].y + ", "
+                + boxes[1].y + "); right Crosshair " + c.s_cross.y + ", Language " + language.y + " (" + menu.y + "), Quest progress "
+                + c.s_quest_propgress.y + " (slider to " + span(c._slider_quest_alpha)[1] + "); bottom " + bottom);
+        }
+
         private function check():void
         {
-            // [[hit markers' label, scores' label], ...] for every dictionary
+            // [[hit markers' label, scores' label, the group's heading, "Language:"], ...] for every dictionary
             var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
             var content:MovieClip = settings.settings_content;
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
-            root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
-                {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
-                {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"}]);
+            // the tab's own headings as the exe names them (st_options_friends, ...)
+            try
+            {
+                root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
+                    {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
+                    {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"},
+                    {name: "s_friends", label: "Friends:"}, {name: "s_cross", label: "Crosshair:"},
+                    {name: "s_quest_propgress", label: "Quest progress:"}]);
+            }
+            catch (error:Error)
+            {
+                // the tab bar's change calls the exe, which a test player lacks
+            }
             var settingsList:Array = [];
             var values:Array = [];
             for (var i:int = 0; i < 16; ++i)
@@ -118,7 +230,7 @@ package
             }
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            root.srp_language("Language:", "Applies after restart.", "english", "english", "english", "English",
+            root.srp_language(texts[0][3], "Applies after restart.", "english", "english", "english", "English",
                 "ukrainian", "Українська");
             root.show_settings(true);
 
@@ -131,54 +243,31 @@ package
             }
             for (i = 0; i < NAMES.length; ++i)
             {
-                root.srp_check_option(NAMES[i], texts[0][i], "0");
+                root.srp_check_option(NAMES[i], texts[0][i], "0", texts[0][2]);
                 require(boxes[i].visible && boxes[i].alpha == 1, NAMES[i] + ": on the gameplay tab");
                 require(boxes[i].label == texts[0][i], NAMES[i] + ": its label is the exe's: " + boxes[i].label);
                 require(!boxes[i].selected, NAMES[i] + ": the saved state (off) is shown");
             }
             require(!settings.btn_accept.enabled, "nothing to apply after the answers");
-            root.srp_check_option("srp_no_such", "x", "1");
+            var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
+            require(heading != null && heading.visible && heading.text == texts[0][2], "the group's heading is the exe's: " + (heading ? heading.text : null));
+            root.srp_check_option("srp_no_such", "x", "1", "y");
             require(!boxes[0].selected && !boxes[1].selected && !settings.btn_accept.enabled, "another name changes nothing");
 
-            var panel:Rectangle = content.bottomContainer.getBounds(content);
-            var menu:DisplayObject = content.getChildByName("_srp_language");
+            checkLayout(content, boxes, texts, "at rest");
+            // the restart note shown (a saved language not the running one): the groups under it move down
+            root.srp_language(texts[0][3], "Applies after restart.", "ukrainian", "english", "english", "English",
+                "ukrainian", "Українська");
+            checkLayout(content, boxes, texts, "the restart note shown");
+            root.srp_language(texts[0][3], "Applies after restart.", "english", "english", "english", "English",
+                "ukrainian", "Українська");
+            checkLayout(content, boxes, texts, "the note hidden again");
             var invite:DisplayObject = content["_setter_invite"];
-            for (i = 0; i < boxes.length; ++i)
+            for each (box in boxes)
             {
-                box = boxes[i];
-                // the box and its text (its label's field runs on past the text, as the tab's own)
-                var bounds:Rectangle = box.getBounds(content);
-                require(panel.contains(box.x, box.y) && panel.contains(box.x, box.y + box.height),
-                    NAMES[i] + ": in the bottom panel " + panel + ": " + bounds);
-                require(box.x > menu.x + menu.width + 10, NAMES[i] + ": right of the Language list (" + (menu.x + menu.width) + "): " + box.x);
                 require(Math.abs(box.width - invite.width) < 1 && Math.abs(box.height - invite.height) < 1,
-                    NAMES[i] + ": the tab's checkbox at its size: " + box.width + "x" + box.height + " (" + invite.width + "x" + invite.height + ")");
-                // The longest dictionary label, drawn: it ends inside the panel.
-                var shown:String = box.label;
-                var longest:Number = 0;
-                var longestText:String = "";
-                for each (var pair:Array in texts)
-                {
-                    box.label = pair[i];
-                    box.validateNow();
-                    if (box.textField.textWidth > longest)
-                    {
-                        longest = box.textField.textWidth;
-                        longestText = pair[i];
-                    }
-                }
-                box.label = shown;
-                box.validateNow();
-                var textEnd:Number = box.x + box.textField.x + longest;
-                require(textEnd < panel.right - 4, NAMES[i] + ": the longest label (" + longestText + ") ends in the panel ("
-                    + panel.right + "): " + textEnd);
-                trace("SETTINGS " + NAMES[i] + " " + box.label + " at " + bounds + ", longest label " + longestText
-                    + " to " + int(textEnd) + "; Language list " + menu.x + ".." + (menu.x + menu.width) + "; panel " + panel);
+                    box.name + ": the tab's checkbox at its size: " + box.width + "x" + box.height + " (" + invite.width + "x" + invite.height + ")");
             }
-            // one under the other, spaced as the left column's first two
-            var step:Number = content["_setter_message"].y - invite.y;
-            require(boxes[0].x == boxes[1].x && Math.abs(boxes[1].y - boxes[0].y - step) < 1,
-                "one under the other, " + step + " apart: " + boxes[0].y + ", " + boxes[1].y);
 
             for (i = 0; i < boxes.length; ++i)
             {
@@ -198,7 +287,7 @@ package
                 require(settings.btn_accept.enabled, NAMES[i] + ": unchecking a saved on is a change");
                 click(settings.btn_cancel);
                 require(box.selected, NAMES[i] + ": Cancel: the saved on again");
-                root.srp_check_option(NAMES[i], texts[0][i], "0");
+                root.srp_check_option(NAMES[i], texts[0][i], "0", texts[0][2]);
                 require(!box.selected && !settings.btn_accept.enabled, NAMES[i] + ": the exe's answer sets the saved state");
             }
             boxes[0].selected = true;
@@ -224,7 +313,8 @@ package
             var panelIndex:int = content.getChildIndex(content.bottomContainer);
             require(content.getChildIndex(boxes[0]) > panelIndex && content.getChildIndex(boxes[1]) > panelIndex,
                 "the boxes over the bottom panel after a tab change");
-            require(content.getChildIndex(menu) > panelIndex, "the Language list over the bottom panel after a tab change");
+
+            checkLayout(content, boxes, texts, "after a tab change");
             trace("SETTINGS tabs pass");
 
             var fontName:String = boxes[0].textField.getTextFormat().font;
@@ -241,7 +331,7 @@ package
                 return;
             }
             var missing:String = "";
-            for each (pair in texts)
+            for each (var pair:Array in texts)
             {
                 for each (var text:String in pair)
                 {

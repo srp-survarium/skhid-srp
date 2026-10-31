@@ -2,10 +2,11 @@
 # check.sh <main_menu.swf> <hud.swf> [work dir]: the Settings' "Hide hit markers" and "Hide player
 # scores" (exe patch 83, docs/notes/hide-hit-markers-scores.md) in Ruffle, on a private CPU-only
 # virtual display:
-# - SettingsHarness.as: the two checkboxes from the exe's answers, their place, a toggle of each
+# - SettingsHarness.as: the HUD group (its heading, the two checkboxes) from the exe's answers, the
+#   Gameplay tab's two columns (Friends, HUD; Crosshair, Language, Quest progress), a toggle of each
 #   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs);
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
-#   on names only, each team by name (case-insensitive).
+#   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive).
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
 set -euo pipefail
@@ -21,12 +22,12 @@ else
     work=$(mktemp -d)
 fi
 
-# Every dictionary's two labels, as JSON.
+# Every dictionary's two labels, the group's heading and "Language:", as JSON.
 texts=$("${PYTHON:-python3}" - "$here/../../client-patches" <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
-keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option')
+keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

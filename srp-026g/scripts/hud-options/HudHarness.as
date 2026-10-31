@@ -19,7 +19,8 @@ package
     //   shown again off;
     // - the Tab list off: each team by score as the game sorts it, every
     //   column shown; on: each team (the board's two lists, as it groups them)
-    //   by name, case-insensitive, its score, kills, deaths and rank not shown,
+    //   by clan tag, then name (the clanless after the clans, the bots' "BOT" last), case-
+    //   insensitive, equal names by id, its score, kills, deaths and rank not shown,
     //   kept so through a player's update and the local player's name; off
     //   again: as before.
     // Ends showing the list with scores, then names only, for check.sh's
@@ -33,16 +34,22 @@ package
         private var board:MovieClip;
         private var list:*;
 
-        // Two teams, their names in mixed case: case-insensitive, the allies are alice, Bob, carol,
-        // Dave (case-sensitive would put Bob and Dave first); by score Dave, alice, carol, Bob.
+        // Two teams, clan tags and names in mixed case. Names only, the allies: the clans by tag
+        // (Axe, then wolf/Wolf as one), then those without a clan (Bob before bob: by id), then the bots
+        // ([BOT]), each by name; case-sensitive would differ. By score: Dave, Abe, alice, carol, amy,
+        // bob, Bob, zed.
         private static const PLAYERS:Array = [
-            {id: 1, name: "carol", team: 1, kills: 3, deaths: 2, score: 30, rank: 12, squad_id: 0, squad_state: 0},
+            {id: 1, name: "[wolf] carol", team: 1, kills: 3, deaths: 2, score: 30, rank: 12, squad_id: 0, squad_state: 0},
             {id: 2, name: "Bob", team: 1, kills: 1, deaths: 5, score: 10, rank: 3, squad_id: 0, squad_state: 0},
-            {id: 3, name: "Dave", team: 1, kills: 9, deaths: 1, score: 90, rank: 20, squad_id: 0, squad_state: 0},
-            {id: 4, name: "alice", team: 1, kills: 5, deaths: 3, score: 50, rank: 7, squad_id: 0, squad_state: 0},
+            {id: 3, name: "[BOT] Dave", team: 1, kills: 9, deaths: 1, score: 90, rank: 20, squad_id: 0, squad_state: 0},
+            {id: 4, name: "[Axe] alice", team: 1, kills: 5, deaths: 3, score: 50, rank: 7, squad_id: 0, squad_state: 0},
+            {id: 8, name: "[Wolf] Abe", team: 1, kills: 6, deaths: 2, score: 60, rank: 8, squad_id: 0, squad_state: 0},
+            {id: 9, name: "zed", team: 1, kills: 0, deaths: 6, score: 5, rank: 2, squad_id: 0, squad_state: 0},
+            {id: 10, name: "[BOT] amy", team: 1, kills: 2, deaths: 3, score: 15, rank: 4, squad_id: 0, squad_state: 0},
+            {id: 11, name: "bob", team: 1, kills: 1, deaths: 1, score: 12, rank: 5, squad_id: 0, squad_state: 0},
             {id: 5, name: "Yuri", team: 2, kills: 2, deaths: 4, score: 20, rank: 9, squad_id: 0, squad_state: 0},
             {id: 6, name: "xena", team: 2, kills: 7, deaths: 2, score: 70, rank: 15, squad_id: 0, squad_state: 0},
-            {id: 7, name: "Zoe", team: 2, kills: 4, deaths: 4, score: 40, rank: 11, squad_id: 0, squad_state: 0}];
+            {id: 7, name: "[cat] Zoe", team: 2, kills: 4, deaths: 4, score: 40, rank: 11, squad_id: 0, squad_state: 0}];
 
         public function HudHarness()
         {
@@ -229,24 +236,24 @@ package
         {
             require(!list.namesOnly, "the list shows scores by default");
             list.addPlayersList(copy());
-            expectTeams(["Dave", "alice", "carol", "Bob"], ["xena", "Zoe", "Yuri"], true, "off (the game's order)");
+            expectTeams(["[BOT] Dave", "[Wolf] Abe", "[Axe] alice", "[wolf] carol", "[BOT] amy", "bob", "Bob", "zed"], ["xena", "[cat] Zoe", "Yuri"], true, "off (the game's order)");
         }
 
         private function namesOnly():void
         {
             list.namesOnly = true;
-            expectTeams(["alice", "Bob", "carol", "Dave"], ["xena", "Yuri", "Zoe"], false, "on");
+            expectTeams(["[Axe] alice", "[Wolf] Abe", "[wolf] carol", "Bob", "bob", "zed", "[BOT] amy", "[BOT] Dave"], ["[cat] Zoe", "xena", "Yuri"], false, "on");
             // Bob tops the scores: the order stays by name
             list.updatePlayer({id: 2, name: "Bob", team: 1, kills: 20, deaths: 0, score: 200, rank: 3});
-            expectTeams(["alice", "Bob", "carol", "Dave"], ["xena", "Yuri", "Zoe"], false, "on, a player's update");
-            list.set_local_name("carol");
-            expectTeams(["alice", "Bob", "carol", "Dave"], ["xena", "Yuri", "Zoe"], false, "on, the local player's name");
+            expectTeams(["[Axe] alice", "[Wolf] Abe", "[wolf] carol", "Bob", "bob", "zed", "[BOT] amy", "[BOT] Dave"], ["[cat] Zoe", "xena", "Yuri"], false, "on, a player's update");
+            list.set_local_name("[wolf] carol");
+            expectTeams(["[Axe] alice", "[Wolf] Abe", "[wolf] carol", "Bob", "bob", "zed", "[BOT] amy", "[BOT] Dave"], ["[cat] Zoe", "xena", "Yuri"], false, "on, the local player's name");
             list.addPlayersList(copy());
-            expectTeams(["alice", "Bob", "carol", "Dave"], ["xena", "Yuri", "Zoe"], false, "on, a new list");
+            expectTeams(["[Axe] alice", "[Wolf] Abe", "[wolf] carol", "Bob", "bob", "zed", "[BOT] amy", "[BOT] Dave"], ["[cat] Zoe", "xena", "Yuri"], false, "on, a new list");
             list.namesOnly = false;
-            expectTeams(["Dave", "alice", "carol", "Bob"], ["xena", "Zoe", "Yuri"], true, "off again");
+            expectTeams(["[BOT] Dave", "[Wolf] Abe", "[Axe] alice", "[wolf] carol", "[BOT] amy", "bob", "Bob", "zed"], ["xena", "[cat] Zoe", "Yuri"], true, "off again");
             list.namesOnly = true;
-            expectTeams(["alice", "Bob", "carol", "Dave"], ["xena", "Yuri", "Zoe"], false, "on again");
+            expectTeams(["[Axe] alice", "[Wolf] Abe", "[wolf] carol", "Bob", "bob", "zed", "[BOT] amy", "[BOT] Dave"], ["[cat] Zoe", "xena", "Yuri"], false, "on again");
         }
     }
 }

@@ -18,19 +18,14 @@ package
     // name, ...), which Settings passes to answer. The note shows while the
     // saved language is not the running one. The controls are script-added
     // children of the tab content, which survive frame changes: place shows
-    // them on the gameplay frame only.
+    // them on the gameplay frame only. A group of the tab: its label is a
+    // heading as the tab's own ("Crosshair:"), the list under it as the tab's
+    // own lists; Settings places it in its column (layout).
     public class SrpLanguage
     {
         private static const GAMEPLAY_FRAME:int = 1;
-        // The bottom panel of the gameplay tab, where the seeding options were
-        // (settingsTabs_15 hides them): centred on the panel, the label over
-        // the list as the "Limit upload speed:" label was over its stepper.
-        private static const CENTER_X:Number = 297;
-        private static const LABEL_Y:Number = 289;
-        private static const MENU_Y:Number = 315;
-        private static const NOTE_Y:Number = 348;
+        // The tab's own lists' width (the minimap position's).
         private static const MENU_WIDTH:Number = 184;
-        private static const TEXT_WIDTH:Number = 338;
 
         public var menu:DropdownMenuSkinned;
         private var content:MovieClip;
@@ -42,11 +37,13 @@ package
         private var saved:String = "";
         private var running:String = "";
 
-        public function SrpLanguage(content:MovieClip)
+        // `style`: one of the tab's own group headings, whose look the label
+        // takes.
+        public function SrpLanguage(content:MovieClip, style:TextField)
         {
             this.content = content;
-            var format:TextFormat = labelFormat(content);
-            label = text(format, LABEL_Y, 24);
+            label = text(style.defaultTextFormat, style.width, style.height);
+            restyle(label, style);
             content.addChild(label);
             menu = new DropdownMenuSkinned();
             menu.name = "_srp_language";
@@ -62,13 +59,11 @@ package
             menu.menuWrapping = "normal";
             menu.scrollBar = "";
             menu.focusable = true;
-            menu.x = CENTER_X - MENU_WIDTH / 2;
-            menu.y = MENU_Y;
             menu.width = MENU_WIDTH;
             // Scaleform leaves a script-created control fully transparent.
             menu.alpha = 1;
             content.addChild(menu);
-            note = text(format, NOTE_Y, 40);
+            note = text(noteFormat(content), style.width, 20);
             note.wordWrap = true;
             note.multiline = true;
             note.alpha = 0.7;
@@ -150,28 +145,52 @@ package
             note.visible = menu.visible && saved != running;
         }
 
-        // The tab's option label style: the "Limit upload speed:" stepper's
-        // label (the stepper is hidden; this choice took its place).
-        private static function labelFormat(content:MovieClip):TextFormat
+        // The label at (x, y) in the look of `style` (a heading of the tab),
+        // the list under it at controlX, `first` below the label, the note
+        // under the list. The top of the group's last row: the note's while it
+        // shows, else the list's.
+        public function layout(style:TextField, x:Number, controlX:Number, y:Number, first:Number):Number
+        {
+            restyle(label, style);
+            label.x = x;
+            label.y = y;
+            menu.x = controlX;
+            menu.y = y + first;
+            note.x = controlX;
+            note.y = menu.y + menu.height + 2;
+            return note.visible ? note.y : menu.y;
+        }
+
+        // `field` in the look of `heading` as the timeline formats it.
+        public static function restyle(field:TextField, heading:TextField):void
+        {
+            var format:TextFormat = heading.getTextFormat();
+            field.embedFonts = heading.embedFonts;
+            field.filters = heading.filters;
+            field.defaultTextFormat = format;
+            field.setTextFormat(format);
+        }
+
+        // The note's style: an option's label, the "Limit upload speed:"
+        // stepper's (the stepper is hidden), left aligned.
+        private static function noteFormat(content:MovieClip):TextFormat
         {
             var stepper:OptionStepperCyclic2 = content.getChildByName("_upload_speed") as OptionStepperCyclic2;
             var format:TextFormat = stepper != null && stepper.textField != null
                 ? stepper.textField.defaultTextFormat
                 : new TextFormat("$CalibriBold", 15, 0x9C9E9D);
-            format.align = TextFormatAlign.CENTER;
+            format.align = TextFormatAlign.LEFT;
             return format;
         }
 
-        private static function text(format:TextFormat, y:Number, height:Number):TextField
+        private static function text(format:TextFormat, width:Number, height:Number):TextField
         {
             var field:TextField = new TextField();
             field.embedFonts = true;
             field.selectable = false;
             field.mouseEnabled = false;
             field.defaultTextFormat = format;
-            field.x = CENTER_X - TEXT_WIDTH / 2;
-            field.y = y;
-            field.width = TEXT_WIDTH;
+            field.width = width;
             field.height = height;
             return field;
         }
