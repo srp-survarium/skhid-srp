@@ -332,10 +332,11 @@ pub struct ThreatTuning {
     pub sniper_lanes: bool,
     /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
     /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
-    /// objective play weighs them. OFF by default (176 pairs by side, 2026-10-31): with the routes, K1's sprint and the lane
-    /// smoke reading its spots the stand-in sniper's kills a crossing 6.1 % -> 4.8 % (z -1.4) but score -1.6 % (z -1.3),
-    /// the ON team dying +14.5 % more to snipers in TDM; with none of them score +0.4 % (z +0.4) and no protection
-    /// (5.8 % -> 6.8 %). The cost is not named yet (`SniperMemory`'s per-consumer switches split it).
+    /// objective play weighs them. ON by default (the coordinator's rule, 2026-10-31: TDM's deaths to snipers settled, no
+    /// cost in batteries or by the stand-in sniper; by side, memory with all its consumers vs off): TDM deaths to snipers
+    /// -6 % (120 pairs, z -2.4; score +3.0 % z +2.0 on the 84 fresh), batteries score +0.2 % (120 pairs, z +0.2), the
+    /// stand-in cell -0.4 % (384 pairs over both camper placements and two seed sets). An earlier -1.6 % on one seed set
+    /// did not replicate. Its detours (+46-59 %) pass known enemies no more than the ways they replace, and die no more.
     pub sniper_memory: Option<SniperMemory>,
 }
 
@@ -450,7 +451,7 @@ impl Default for ThreatTuning {
             pin_from_cover: None,
             answer_sniper: false,
             sniper_lanes: false,
-            sniper_memory: None,
+            sniper_memory: Some(SniperMemory::default()),
         }
     }
 }

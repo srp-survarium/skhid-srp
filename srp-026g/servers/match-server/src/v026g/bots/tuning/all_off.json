@@ -146,6 +146,7 @@
     "lanes_pierce": false,
     "pair_up_hidden": false,
     "recast": false,
+    "sniper_memory": null,
     "trade_out_of_lines": false,
     "whole_route": false,
     "whole_route_booked": false
