@@ -1,14 +1,13 @@
 @echo off
 rem Skhid-network-setup.cmd: lets the Skhid game's three programs out through
-rem Windows Firewall and, if you say yes, excludes the game's program folder
-rem (game\binaries\x86) from Microsoft Defender's scans. It turns nothing off: the firewall and
-rem Defender stay on. It belongs beside Skhid.bat, in the folder that holds
-rem the folder named game. What it says is in Russian (its players are).
+rem Windows Firewall. It turns nothing off: the firewall stays on. It belongs
+rem beside Skhid.bat, in the folder that holds the folder named game. What it
+rem says is in Russian (its players are). The Microsoft Defender exclusion it
+rem once asked about is Skhid-defender-setup.cmd's now.
 rem
 rem   Skhid-network-setup.cmd                add the rules (asks for administrator rights)
 rem   Skhid-network-setup.cmd --undo         remove exactly what it added
 rem   Skhid-network-setup.cmd --dry-run      print the commands, change nothing
-rem   --defender-yes or --defender-no        answer the Defender question beforehand
 rem
 rem Started without administrator rights, it asks Windows for them (the User
 rem Account Control prompt) and runs again in a new window, elevated.
@@ -38,22 +37,17 @@ cd /d "%~dp0"
 set "MODE=add"
 set "DRY="
 set "ELEVATED="
-set "DEFENDER=ask"
 :args
 if "%~1"=="" goto args_done
 if /i "%~1"=="--undo" (set "MODE=undo") else ^
 if /i "%~1"=="/undo" (set "MODE=undo") else ^
 if /i "%~1"=="--dry-run" (set "DRY=1") else ^
-if /i "%~1"=="--defender-yes" (set "DEFENDER=yes") else ^
-if /i "%~1"=="--defender-no" (set "DEFENDER=no") else ^
 if /i "%~1"=="--elevated" (set "ELEVATED=1") else goto bad_option
 shift
 goto args
 :args_done
 
 set "X86=%TOP%\game\binaries\x86"
-set "MARKER=%TOP%\Skhid-network-setup.defender"
-set "SKHID_MARKER=%MARKER%"
 set "PROGRAMS=launcher_skhid.exe survarium_skhid.exe updater_skhid.exe"
 if not exist "%X86%\survarium_skhid.exe" goto wrong_place
 
@@ -65,13 +59,11 @@ if "%MODE%"=="undo" goto intro_undo
 echo Добавляет правила брандмауэра Windows, которые разрешают трём программам
 echo игры из папки game\binaries\x86 исходящие соединения (TCP и UDP):
 echo   launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe
-echo Потом спрашивает, добавить ли эту папку в исключения Microsoft Defender.
-echo Брандмауэр и Defender остаются включёнными.
+echo Брандмауэр остаётся включённым.
 goto intro_done
 :intro_undo
 echo Удаляет правила брандмауэра Windows "Skhid ...", которые добавил этот
-echo файл, и исключение папки игры из проверки Microsoft Defender, если его
-echo добавил он.
+echo файл.
 :intro_done
 echo Папка игры: "%TOP%"
 echo.
@@ -103,8 +95,6 @@ rem With --dry-run it is printed, and is a dry run's.
 :elevation
 set "SKHID_ARGS=--elevated"
 if "%MODE%"=="undo" set "SKHID_ARGS=%SKHID_ARGS% --undo"
-if "%DEFENDER%"=="yes" set "SKHID_ARGS=%SKHID_ARGS% --defender-yes"
-if "%DEFENDER%"=="no" set "SKHID_ARGS=%SKHID_ARGS% --defender-no"
 if defined DRY set "SKHID_ARGS=%SKHID_ARGS% --dry-run"
 set "SKHID_CMDLINE=/d /c ""%SKHID_SELF%" %SKHID_ARGS%""
 if not defined DRY exit /b 0
@@ -120,7 +110,6 @@ rem --- add -------------------------------------------------------------
 for %%P in (%PROGRAMS%) do call :allow %%P
 echo.
 call :blocking
-call :defender_add
 echo.
 echo Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo
 goto end
@@ -128,7 +117,8 @@ goto end
 rem --- undo ------------------------------------------------------------
 :undo
 for %%P in (%PROGRAMS%) do call :remove %%P
-call :defender_remove
+rem The Defender exclusion it once added is Skhid-defender-setup.cmd's to undo.
+if exist "%TOP%\Skhid-network-setup.defender" echo Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo
 echo.
 echo Готово.
 goto end
@@ -164,90 +154,6 @@ set "SKHID_X86=%X86%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($p in 'launcher_skhid.exe','survarium_skhid.exe','updater_skhid.exe') { $path = Join-Path $env:SKHID_X86 $p; Get-NetFirewallApplicationFilter -Program $path -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Action -eq 'Block' -and $_.Enabled -eq 'True' } | ForEach-Object { Write-Output ('ВНИМАНИЕ: правило брандмауэра [' + $_.DisplayName + '] блокирует ' + $p + '. Удалите его: Брандмауэр Защитника Windows, Дополнительные параметры, Правила для исходящего подключения.') } }" 2>nul
 exit /b 0
 
-rem The exclusion is of game\binaries\x86 alone, where the programs that get
-rem flagged are (never the folder the archive was unpacked into: Downloads).
-:defender_add
-set "SKHID_EXCLUDED=%X86%"
-if not "%TOP:~2%"=="" goto defender_offer
-echo Defender: исключение не предлагается, игра лежит в корне диска. Сначала
-echo перенесите её в папку.
-exit /b 0
-:defender_offer
-if "%DEFENDER%"=="no" goto defender_skipped
-if "%DEFENDER%"=="yes" goto defender_yes
-echo.
-echo Microsoft Defender может по ошибке принять изменённые файлы игры
-echo (survarium_skhid.exe, bugtrap.dll, программу обновления) за угрозу и
-echo заблокировать или удалить их. Исключение папки с программами игры
-echo отключает только это:
-echo   "%X86%"
-rem The answer is typed (set /p reads it as Unicode), Д or Н in either case,
-rem Y or N too. A bare Enter, or no input at all, is a no.
-:defender_ask
-set "ANSWER="
-set /p "ANSWER=Добавить исключение в Defender? Д - да, Н - нет, затем Enter: "
-if not defined ANSWER goto defender_skipped
-set "ANSWER=%ANSWER:"=%"
-if /i "%ANSWER%"=="д" goto defender_yes
-if /i "%ANSWER%"=="да" goto defender_yes
-if /i "%ANSWER%"=="y" goto defender_yes
-if /i "%ANSWER%"=="н" goto defender_skipped
-if /i "%ANSWER%"=="нет" goto defender_skipped
-if /i "%ANSWER%"=="n" goto defender_skipped
-echo Введите Д или Н.
-goto defender_ask
-:defender_yes
-if not defined DRY goto defender_exclude
-echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
-echo [dry-run] write "%MARKER%":
-call :marker_line
-exit /b 0
-rem PowerShell writes the marker (the path excluded, UTF-8 with a byte order
-rem mark): every letter of the path is kept, Ukrainian or Polish too, which
-rem code page 866 has not.
-:defender_exclude
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop; [IO.File]::WriteAllText($env:SKHID_MARKER, $env:SKHID_EXCLUDED, [Text.Encoding]::UTF8) } catch { exit 1 }"
-if errorlevel 3 goto defender_had
-if errorlevel 1 goto defender_failed
-echo Defender: папка game\binaries\x86 исключена из проверки.
-exit /b 0
-:defender_had
-echo Defender: эта папка уже была в исключениях, ничего не изменено.
-exit /b 0
-:defender_failed
-echo Defender: исключение добавить не удалось. Возможно, защитой управляет
-echo другой антивирус: добавьте папку в его исключения сами.
-exit /b 0
-:defender_skipped
-echo Defender: исключение не добавлено.
-exit /b 0
-
-rem A dry run's picture of the marker's line: the path, as it is. A FOR
-rem variable is not parsed again (an & in it is no command) and, without
-rem delayed expansion, a ! stays a !. (A Windows path has no * or ?, which
-rem FOR would match.)
-:marker_line
-for %%A in ("%SKHID_EXCLUDED%") do echo(%%~A
-exit /b 0
-
-rem PowerShell reads the marker and says what it removed. ReadAllText takes
-rem the byte order mark's UTF-8; a marker without one is of the earlier
-rem script (#453), written by cmd in the console's code page: 866 here.
-:defender_remove
-if exist "%MARKER%" goto defender_unexclude
-echo Defender: этот файл не добавлял здесь исключений, удалять нечего.
-exit /b 0
-:defender_unexclude
-if not defined DRY goto defender_unexclude_run
-echo [dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "%MARKER%")
-echo [dry-run] delete "%MARKER%"
-exit /b 0
-:defender_unexclude_run
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = ''; try { $p = [IO.File]::ReadAllText($env:SKHID_MARKER, [Text.Encoding]::GetEncoding(866)).Trim(); Remove-MpPreference -ExclusionPath $p -ErrorAction Stop; Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалено.') } catch { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалить не удалось.'); exit 1 }"
-if errorlevel 1 exit /b 0
-del "%MARKER%"
-exit /b 0
-
 rem A command, or with --dry-run its words.
 :run
 if defined DRY goto run_dry
@@ -263,7 +169,7 @@ exit /b 0
 
 :bad_option
 echo Неизвестный параметр: %1
-echo Запуск: Skhid-network-setup.cmd [--undo] [--dry-run] [--defender-yes ^| --defender-no]
+echo Запуск: Skhid-network-setup.cmd [--undo] [--dry-run]
 set "RC=2"
 goto quit
 
