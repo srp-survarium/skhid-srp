@@ -11,15 +11,33 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   is: `client_project` with no `.lua` and no server project; its vegetation files in
   `projects/lobby_scene/vegetation/<scene>/`.
 - Made by resource-porter (`vostok-port build-survarium-later-scene`, branch
-  `feat/lobby-scenes-046-069`; its `docs/survarium-069d-to-026.md`, "Lobby scenes"), shipped as
-  one content pack per scene, so either can ship or change alone.
+  `feat/lobby-scenes-046-069`; hangar @9 and camp @17 its `feat/lobby-reuse-native-textures`;
+  its `docs/survarium-069d-to-026.md`, "Lobby scenes"), shipped as one content pack per scene, so
+  either can ship or change alone.
 - Sounds: the classic lobby's `sounds/background` and `sounds/lobby_room_tone` (the donors' sound
   environments have no 0.26 counterpart).
 - To see one locally: a test patch with the scene in place of the classic one (`vostok-port pack
   patch ... --replace projects/lobby_scene/day/client_project=<the scene's client_project>`), or
   the lobby window of #778. Never committed.
+- Textures from 0.26g (hangar @9, camp @16 and @17): a donor texture whose 0.26g namesake is the same
+  image is not imported, and the materials name 0.26g's own file (resource-porter
+  `reuse_native_textures`, its `native_same_image`, as Rudnya's: the same size, each 4x4 block's
+  mean colour within 2 levels on average, no channel's mean moved by 1.5, 99 % of blocks within
+  12 levels). Nothing is downscaled. No listed patch, pack or edit list replaces one of these
+  stock files, so players have what was compared.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@8)
+  | pack | reused | byte for byte | decode alike | re-encodes | MiB not carried | pack |
+  | --- | ---: | ---: | ---: | ---: | ---: | --- |
+  | lobby-hangar-046@9 | 72 of 131 | 13 | 59 | 0 | 123.8 | 214 -> 90 MiB |
+  | lobby-camp-069@16 | 54 of 220 | 1 | 3 | 50 | 59.3 | 428 -> 368 MiB |
+
+  The camp's re-encodes differ by 0.6 level per block on average (at most 1.5; 99 % of blocks
+  within 8.2); side by side with 0.26g's, the worst (the vertex-blend masks, the gas cylinder,
+  the level 02 tree atlases) show no visible change. Left imported: of the textures with a
+  0.26g namesake, the hangar's 43 and the camp's 21 are other images (retouched gloss and
+  specular maps, recoloured metal and moss, an edited corner) or another size.
+
+## lobby_scene/hangar_046 (pack lobby-hangar-046@9)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
@@ -57,6 +75,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   (`native_scenery`, drawn only): `flora/bush_s_003`/`_005` just outside the gate, two fruit trees,
   three birches and a poplar further out on the ground's rise (z -8.8..-14.8), their crowns over
   the wall's top, none through it.
+- @9: the 72 textures 0.46c2 kept from 0.26 drawn from 0.26g's own files ("Both packs").
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -76,7 +95,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@13)
+## lobby_scene/camp_069 (pack lobby-camp-069@17)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -197,6 +216,32 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   the classic's floor fills cast none; the window light `point_light(5)` keeps its shadow on a
   256-texel map (`shadow_map_size_index` 2, as the classic's spot lights; it was 512). What softens
   a shadow in 0.26g is in the next section.
+
+- @15 (the owner, 2026-10-31: "what is this shadow plop in a room?", a dark square on the
+  ceiling by the back wall, behind the chandelier): the chandelier's two positive ambient boxes
+  (`room/lustra/ambient_light`, `(1)`, 0.4) end at z 3.4..3.7, and 0.26 draws an ambient box with a
+  hard edge: bright inside, unlit beyond it to the back wall (z 5.5). They, the two negative
+  chandelier boxes in the same zone (`shadows/ambient_light(8)`, `(9)`) and the faint ceiling
+  boxes there (`light/celling/ambient_light`, `(2)`..`(6)`) are left out; the chandelier's two point
+  lights (no shadow, falloff power 1) reach the back wall instead, 0.8 and 4.2 m (0.5 and 2 m): a
+  fill with no edge. No box edge is left on the ceiling between the chandelier and the back wall
+  (checked against the project). @14 had turned the window light's shadow off as the cause: wrong
+  (the square grew); undone, its shadow on a 256-texel map as in @13. Not yet seen in a game.
+
+- @16: the 54 textures 0.69d kept from 0.26 drawn from 0.26g's own files ("Both packs").
+- @17 (the owner, 2026-10-31, on @15: "now it is very dark where the character looks"; @12's
+  lighting "was good, the only problem was that single patch"): the light overrides are @12's
+  again: @13's floor-fill shadows and 256-texel window map, @14's window change and @15's ceiling
+  changes are all undone (what @13 says of shadow softness stands). Two changes only:
+  - the two negative ambient boxes over the chandelier, `shadows/ambient_light(8)` and `(9)`
+    (2 x 1.1 m footprints, y 2.37..4.37, cut by the ceiling; 0.26 draws them hard-edged), left
+    out. The chandelier's own ambient lights are spheres with a soft edge (geometry 0, radius
+    1.025 m, side width 0.5), not boxes, and stay. A dark patch on the ceiling remains; the owner
+    keeps it ("it is fine, we make release like this");
+  - the doors' hinge pins left out (the owner: "the door incorrectly shows hinges", "we can just
+    remove hinges"): resource-porter's new `removed_parts` drops a model surface's triangles near
+    given points; the 15 cm pins of `props/door/wood_door_02` (4) and `wood_door_01` (2), LOD0 and
+    LOD1 (128, 64, 64 and 32 triangles: the pins alone; LOD2 has none). The door keeps @10's turn.
 
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
