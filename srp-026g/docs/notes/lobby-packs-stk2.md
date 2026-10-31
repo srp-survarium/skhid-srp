@@ -50,7 +50,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@7)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@8)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -109,10 +109,16 @@ crates, beds and lockers, and the vaults beside it.
   the vault above it; the lights at the pendants (the store room's and STK2's under the corridor
   pendant) cast none now, and the light reaches the vault as a hanging lamp's does. The room
   probe's ambient 0.45 (0.3) lifts the dark parts; the warm colour kept.
-- The merged model is `level/stk2_bunker/main_v<version>` (`main_v7`), a new folder with each
+- The merged model is `level/stk2_bunker/main_v<version>` (`main_v8`), a new folder with each
   version: its surfaces are numbered by material, and a resources.db patch only adds files, so a
   surface folder of an earlier version left in the same model failed all its materials (seen with
   @6's files over @5's: "material not loaded: nomaterial", the shelter untextured).
+- No shadows (@8, the owner: a hard pitch-black band down the inner face of the big arch, "a
+  shadow of something"; "decrease intensity of light a bit"): traced from each shadowing light
+  through the band, the caster is the wooden shelf's post by the gas-mask crates, 1.7 m from STK2's
+  store-room fill `point_light(5)`, which stands right beside the shelf. STK2 lit with it as a soft
+  bounce; 0.26 drew the post's shadow hard and black. No light of the bunker casts a shadow now;
+  the main lights are 18 % lower (the store room's lamps 1.97), the ambient and the bulbs' glow kept.
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).
