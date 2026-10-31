@@ -35,7 +35,8 @@ use ragdoll::math::{PI, Vec3, clamp};
 
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, StepTargets, Steps, TableRequest,
                                   WeaponTableState, forward};
-use crate::vostok::{Context, Flow, GameCell, NoExit};
+use crate::vostok::trace::{self, TraceFile};
+use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
 
 /// How long a flight takes (s).
 pub const DURATION: f32 = 0.45;
@@ -294,9 +295,82 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Action::Hold(pose) => camera.set(&pose, Steps::Held),
         Action::Release(pose) => camera.set(&pose, Steps::Released),
     }
+    if let Action::Hold(pose) | Action::Release(pose) = action {
+        trace_pose(thread, dt, &flight, &pose);
+    }
     table.set_flight(flight.word());
     STATE.set(thread, State { flight, answered });
     Flow::Continue
+}
+
+/// A diagnostics build's trace of the flight (never a release's): a line of
+/// `srp_weapon_flight.csv` in the user data folder for every tick the flight
+/// gives the camera a pose: the tick's time (ms), the eye and the point (mm),
+/// the yaw and the pitch (mrad), the distance (mm) and the state (0 to the
+/// bench, 1 at it, 2 home, 3 landed, 4 stock), for checking the path frame by
+/// frame.
+fn trace_pose(thread: &Thread, dt: f32, flight: &Flight, pose: &CameraPose) {
+    static LOG: GameCell<Option<TraceFile>> = GameCell::new(None);
+    if !trace::enabled() {
+        return;
+    }
+    let file = match LOG.get(thread) {
+        Some(file) => file,
+        None => {
+            let Some(file) = TraceFile::open(thread, "srp_weapon_flight.csv") else { return };
+            LOG.set(thread, Some(file));
+            file
+        }
+    };
+    let state = match flight {
+        Flight::ToBench { .. } => 0,
+        Flight::AtBench { .. } => 1,
+        Flight::Home { .. } => 2,
+        Flight::Landed { .. } => 3,
+        Flight::Stock => 4,
+    };
+    let eye = pose.eye();
+    let thousand = |v: f32| if v >= 0.0 { (v * 1000.0 + 0.5) as i32 } else { (v * 1000.0 - 0.5) as i32 };
+    let values = [thousand(dt), thousand(eye.x), thousand(eye.y), thousand(eye.z), thousand(pose.point.x),
+                  thousand(pose.point.y), thousand(pose.point.z), thousand(pose.yaw), thousand(pose.pitch),
+                  thousand(pose.distance), state];
+    let mut line = [0u8; 160];
+    let mut n = 0;
+    for (k, v) in values.iter().enumerate() {
+        if k > 0 {
+            line[n] = b',';
+            n += 1;
+        }
+        n = decimal(&mut line, n, *v);
+    }
+    line[n] = b'\n';
+    file.write(thread, &line[..n + 1]);
+}
+
+/// `v` in decimal into `out` at `n`; the end.
+fn decimal(out: &mut [u8], n: usize, v: i32) -> usize {
+    let mut n = n;
+    if v < 0 {
+        out[n] = b'-';
+        n += 1;
+    }
+    let mut digits = [0u8; 10];
+    let mut k = 0;
+    let mut u = v.unsigned_abs();
+    loop {
+        digits[k] = b'0' + (u % 10) as u8;
+        k += 1;
+        u /= 10;
+        if u == 0 {
+            break;
+        }
+    }
+    while k > 0 {
+        k -= 1;
+        out[n] = digits[k];
+        n += 1;
+    }
+    n
 }
 
 #[cfg(test)]
