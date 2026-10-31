@@ -23,6 +23,7 @@
       "grenade_tracks": false,
       "grenade_wall_m": 18.0,
       "hit_cover_reach": false,
+      "mirror_gated": false,
       "worth": {
         "hurt_from": "body"
       }
