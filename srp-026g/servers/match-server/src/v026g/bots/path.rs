@@ -39,6 +39,8 @@ pub const OFF_ROUTE_HEIGHT_M: f32 = 1.5;
 /// 1.1 m up it had no link to). A leg that is a jump keeps
 /// [`OFF_ROUTE_HEIGHT_M`]: its floor rises by the jump's height along it.
 pub const OFF_WALK_BELOW_M: f32 = 0.9;
+/// A door gate ([`Route::gate_within`]) is reached when the body is within this many metres of it along the route.
+pub const GATE_REACHED_M: f32 = 0.25;
 
 /// A body above its route's floor by more than [`OFF_ROUTE_HEIGHT_M`] is
 /// still on it if the route was that high within this far back along it
@@ -130,6 +132,9 @@ pub struct Route {
     /// The landings of the route's jump links, and how deep the top is past the face along the jump
     /// ([`top_depth`]); the planner sets them. A landing not in it has no known top (a lift is not tried up it).
     ledge_tops: Vec<(Vec3, f32)>,
+    /// The middles of the doorways the route crosses ([`Route::door_centred`]), each a corner of it: the walk steers at the
+    /// first one it has not reached however near the corner after it is ([`Route::gate_within`]).
+    gates: Vec<Vec3>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
 }
@@ -1055,6 +1060,75 @@ impl Route {
         route
     }
 
+    /// This route with the middle of each doorway it crosses as a corner and a gate (`doors::centre_of`, [`Route::gate_within`]):
+    /// a walked leg that crosses a doorway gets a corner at its middle, kept where both new legs are straight walks over the
+    /// floors. The floors' heights keep their places along the legs. Legs of a jump, a drop or under a low floor are left as
+    /// they are.
+    pub fn door_centred(self, grid: &WalkGrid) -> Self {
+        let n = self.points.len();
+        if n < 2 {
+            return self;
+        }
+        let mut points: Vec<Waypoint> = Vec::with_capacity(n + 2);
+        // Per old leg (the one into point k): the corner put in it, if any.
+        let mut corner: Vec<Option<Vec3>> = vec![None; n];
+        for k in 0..n {
+            if k > 0 {
+                let (a, b) = (self.points[k - 1], self.points[k]);
+                if b.jump.is_none() && !b.low && b.at.y - a.at.y > -DROP_LINK_MIN_M
+                    && let Some(c) = super::doors::centre_of(grid, a.at, b.at)
+                    && let Some(node) = grid.locate(c, 0.3)
+                    && straight(grid, a.node, node)
+                    && straight(grid, node, b.node)
+                {
+                    points.push(Waypoint { at: c, node, jump: None, low: false });
+                    corner[k] = Some(c);
+                }
+            }
+            points.push(self.points[k]);
+        }
+        if corner.iter().all(Option::is_none) {
+            return self;
+        }
+        // The floors' distances along a leg are scaled to the leg's new length.
+        let mut new_at = Vec::with_capacity(n);
+        let mut total = 0.0f32;
+        for k in 0..n {
+            if k > 0 {
+                let (a, b) = (self.points[k - 1].at, self.points[k].at);
+                total += corner[k].map_or(a.distance_xz(b), |c| a.distance_xz(c) + c.distance_xz(b));
+            }
+            new_at.push(total);
+        }
+        let floors: Vec<(f32, f32)> = self
+            .floors
+            .iter()
+            .map(|&(d, y)| {
+                let k = self.along.partition_point(|&a| a < d);
+                if k == 0 {
+                    return (d, y);
+                }
+                if k >= n {
+                    return (new_at[n - 1] + (d - self.along[n - 1]), y);
+                }
+                let old_len = self.along[k] - self.along[k - 1];
+                let new_len = new_at[k] - new_at[k - 1];
+                let scale = if old_len > 1e-6 { new_len / old_len } else { 1.0 };
+                (new_at[k - 1] + (d - self.along[k - 1]) * scale, y)
+            })
+            .collect();
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, planned, below_walk_m, .. } = self;
+        gates.extend(corner.iter().flatten());
+        let mut route = Self::with_floors(points, floors);
+        route.sprint_drops = sprint_drops;
+        route.ledge_leads = ledge_leads;
+        route.ledge_tops = ledge_tops;
+        route.gates = gates;
+        route.planned = planned;
+        route.below_walk_m = below_walk_m;
+        route
+    }
+
     /// This route with a jump from its end onto `to` (on floor `node`): a
     /// way out of a pocket, which no link of the grid makes
     /// (`escape.rs`). The floors along it are kept; the jump's leg is as
@@ -1069,6 +1143,7 @@ impl Route {
             sprint_drops,
             ledge_leads,
             ledge_tops,
+            gates,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -1089,6 +1164,7 @@ impl Route {
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
+        route.gates = gates;
         route.planned = planned;
         route
     }
@@ -1129,6 +1205,7 @@ impl Route {
         route.sprint_drops = self.sprint_drops.iter().chain(&mid.sprint_drops).copied().collect();
         route.ledge_leads = self.ledge_leads.iter().chain(&mid.ledge_leads).copied().collect();
         route.ledge_tops = self.ledge_tops.iter().chain(&mid.ledge_tops).copied().collect();
+        route.gates = self.gates.iter().chain(&mid.gates).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -1162,6 +1239,7 @@ impl Route {
             sprint_drops: Vec::new(),
             ledge_leads: Vec::new(),
             ledge_tops: Vec::new(),
+            gates: Vec::new(),
             planned: false,
         }
     }
@@ -1183,8 +1261,33 @@ impl Route {
         route.sprint_drops = self.sprint_drops;
         route.ledge_leads = self.ledge_leads;
         route.ledge_tops = self.ledge_tops;
+        route.gates = self.gates;
         route.planned = self.planned;
         route
+    }
+
+    /// The distance along the route to the first door gate ([`Route::door_centred`]) that the body at `s` metres along it
+    /// has not reached and that is within `ahead` metres of it, if there is one: the walk steers at the gate, not past it,
+    /// so the body goes through the middle of the doorway.
+    pub fn gate_within(&self, s: f32, ahead: f32) -> Option<f32> {
+        self.points
+            .iter()
+            .zip(&self.along)
+            .filter(|(point, a)| **a > s + GATE_REACHED_M && **a <= s + ahead && self.gates.contains(&point.at))
+            .map(|(_, &a)| a)
+            .next()
+    }
+
+    /// The door gates of this route ([`Route::door_centred`]): the corners put at the middle of a doorway.
+    pub fn gates(&self) -> &[Vec3] {
+        &self.gates
+    }
+
+    /// This route with its corner at `at` a door gate (tests of the walk).
+    #[cfg(test)]
+    pub fn with_gate(mut self, at: Vec3) -> Self {
+        self.gates.push(at);
+        self
     }
 
     /// This route's rule for a body under a walked leg ([`OFF_WALK_BELOW_M`]).
