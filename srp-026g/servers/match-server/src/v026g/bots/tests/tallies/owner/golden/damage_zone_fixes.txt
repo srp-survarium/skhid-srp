@@ -1,4 +1,4 @@
-owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0; team 0: [cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0]; team 1: [cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0]; drops of 4 m or more by play, team 0 {}, team 1 {}
+owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0, run_out_ticks 0, home_stranded 0, home_let_go 0; team 0: [cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0, run_out_ticks 0, home_stranded 0, home_let_go 0]; team 1: [cross_asked 0, cross_found 0, cross_free 0, cross_none 0, routed_noroute 0, routed_strict 0, routed_total_only 0, post_line 0, post_pulled 0, post_none 0, out_priced 0, out_none 0, cross_cheaper 0, esc_unreachable 0, run_out_ticks 0, home_stranded 0, home_let_go 0]; drops of 4 m or more by play, team 0 {}, team 1 {}
 {
   "dzf_bat_cross_asked": 0,
   "dzf_bat_cross_cheaper": 0,
@@ -6,6 +6,8 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
   "dzf_bat_cross_free": 0,
   "dzf_bat_cross_none": 0,
   "dzf_bat_esc_unreachable": 0,
+  "dzf_bat_home_let_go": 0,
+  "dzf_bat_home_stranded": 0,
   "dzf_bat_out_none": 0,
   "dzf_bat_out_priced": 0,
   "dzf_bat_post_line": 0,
@@ -14,6 +16,7 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
   "dzf_bat_routed_noroute": 0,
   "dzf_bat_routed_strict": 0,
   "dzf_bat_routed_total_only": 0,
+  "dzf_bat_run_out_ticks": 0,
   "dzf_by_team": {
     "0": {
       "dzf_bat_cross_asked": 0,
@@ -22,6 +25,8 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
       "dzf_bat_cross_free": 0,
       "dzf_bat_cross_none": 0,
       "dzf_bat_esc_unreachable": 0,
+      "dzf_bat_home_let_go": 0,
+      "dzf_bat_home_stranded": 0,
       "dzf_bat_out_none": 0,
       "dzf_bat_out_priced": 0,
       "dzf_bat_post_line": 0,
@@ -29,7 +34,8 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
       "dzf_bat_post_pulled": 0,
       "dzf_bat_routed_noroute": 0,
       "dzf_bat_routed_strict": 0,
-      "dzf_bat_routed_total_only": 0
+      "dzf_bat_routed_total_only": 0,
+      "dzf_bat_run_out_ticks": 0
     },
     "1": {
       "dzf_bat_cross_asked": 0,
@@ -38,6 +44,8 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
       "dzf_bat_cross_free": 0,
       "dzf_bat_cross_none": 0,
       "dzf_bat_esc_unreachable": 0,
+      "dzf_bat_home_let_go": 0,
+      "dzf_bat_home_stranded": 0,
       "dzf_bat_out_none": 0,
       "dzf_bat_out_priced": 0,
       "dzf_bat_post_line": 0,
@@ -45,7 +53,8 @@ owner-test damage-zone fixes (bat): cross_asked 0, cross_found 0, cross_free 0, 
       "dzf_bat_post_pulled": 0,
       "dzf_bat_routed_noroute": 0,
       "dzf_bat_routed_strict": 0,
-      "dzf_bat_routed_total_only": 0
+      "dzf_bat_routed_total_only": 0,
+      "dzf_bat_run_out_ticks": 0
     }
   },
   "dzf_drops_4m_by_play": {

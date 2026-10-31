@@ -20,9 +20,10 @@
 //!   (an-anticamper, `bp-anticamper-human.md`: our data): [`RETURN_P`], [`RETURN_MEDIAN_S`]. Otherwise he takes a new spot. A trap on
 //!   a defeated camper's spot (A145) is judged on this rate.
 //!
-//! The reflex still aims and fires as ever, and keeps the legs off (`Bot::bench_camper`). His reflex and decisions play by a
-//! fixed tuning ([`BenchCamper::tuning`], the build's defaults), not his team's: in a head-to-head run (one team ON, the other OFF,
-//! sides swapped) he is then the same opponent in both runs.
+//! The reflex still aims and fires, and keeps the legs off (`Bot::bench_camper`). His reflex and decisions play by a
+//! fixed tuning ([`BenchCamper::tuning`]), not his team's: in a head-to-head run (one team ON, the other OFF, sides swapped)
+//! he is then the same opponent in both runs. His aim is his own too, the file `camper_human_aim.json` (`standin_aim.rs`), so
+//! that no change of the bots' aim defaults moves him between builds; the rest is the build's defaults.
 
 use super::*;
 use crate::v026g::bots::control::Driver;

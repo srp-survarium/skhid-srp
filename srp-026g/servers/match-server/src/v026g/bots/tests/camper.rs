@@ -379,7 +379,7 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.set_routes(camper_routes());
     }
-    bots.bench_camper = Some(BenchCamper::new(0, options, seed as u32, Arc::new(Tuning::default())));
+    bots.bench_camper = Some(BenchCamper::new(0, options, seed as u32, Arc::new(human_tuning())));
     let mut game = Game::new(world, &teams, seed, Some(1_000), None);
     for place in 0..teams.len() {
         bots.entered(place, true, 0);

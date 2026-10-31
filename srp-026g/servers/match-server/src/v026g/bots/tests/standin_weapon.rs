@@ -264,6 +264,21 @@ impl Stock {
             || self.busy == Busy::Free && self.load.rounds > 0 && self.ready_at <= now as f32 + 1e-3
     }
 
+    /// Why the weapon cannot fire at `now` ms (a reason code, [`REFUSALS`]): `None` when it can ([`Self::may_fire`]).
+    pub(crate) fn why_not(&self, now: u32) -> Option<u8> {
+        if !self.gating {
+            None
+        } else if self.busy != Busy::Free {
+            Some(5)
+        } else if self.load.rounds == 0 {
+            Some(6)
+        } else if self.ready_at > now as f32 + 1e-3 {
+            Some(7)
+        } else {
+            None
+        }
+    }
+
     /// A shot at `at` ms: a round out of the weapon. `false`: it cannot
     /// fire (nothing is spent).
     pub(crate) fn fired(&mut self, at: f32) -> bool {

@@ -241,6 +241,9 @@ pub(crate) struct Body {
     pub(crate) gun: &'static Gun,
     pub(crate) recoil: Recoil,
     pub(crate) cadence: Cadence,
+    /// The bot's mirror of the kick as its last input was made: the kick after the turn, before the shots (pitch units), and
+    /// the shots it counted ([`Reflex::seen`]); read against `recoil` at the shot ([`KickPair`], counts only).
+    pub(crate) mirror: Option<(f32, u8)>,
     pub(crate) team: u8,
     pub(crate) feet: Vec3,
     pub(crate) node: Option<NodeId>,
@@ -295,6 +298,10 @@ pub(crate) struct Body {
     pub(crate) spread: bench_spread::Spread,
     /// Its stretch of zone damage under way ([`ZoneSpell`]).
     pub(crate) zone_spell: Option<ZoneSpell>,
+    /// At its last tick it stood in a zone's shape with no zone there on ([`ZoneNow`]).
+    pub(crate) zone_prev_off: bool,
+    /// Its feet height at each tick of the last second, by the tick mod 20 (how far it came down into a zone).
+    pub(crate) zone_ys: [f32; 20],
     /// Its bot's motives at its last tick (`Bot::bench_why`).
     pub(crate) why_now: u16,
     /// Its drugs, and the pools the fields above lack ([`standin_heal`]).
@@ -483,6 +490,8 @@ pub(crate) struct Game {
     /// the body's health at the end (enemy fire counts; a death, 0) and at
     /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
     pub(crate) zone_spells: Vec<[f32; 5]>,
+    /// The same spells with how they began ([`ZoneNote`]), for the owner topic.
+    pub(crate) zone_notes: Vec<ZoneNote>,
     pub(crate) took_from: Vec<Vec3>,
     /// For each take of a lying battery, how far along the use ray its
     /// middle lay (m): the length of use the take needed.
@@ -572,6 +581,10 @@ pub(crate) struct Game {
     pub(crate) nudged: u32,
     /// Every shot, for the bench's fight tally ([`fight_tally`]).
     pub(crate) shot_facts: Vec<fight_tally::ShotFact>,
+    /// The kick of a shooter's first shot of a tick against the bot's mirror of it, and each tick's shots against the mirror's
+    /// ([`fight_tally::KickPair`], [`fight_tally::KickTick`]; the owner counts' `kick_gap`).
+    pub(crate) kick_pairs: Vec<fight_tally::KickPair>,
+    pub(crate) kick_ticks: Vec<fight_tally::KickTick>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
@@ -708,6 +721,7 @@ impl Game {
             gun,
             recoil: Recoil::new(kick_of(gun.item)),
             cadence: Cadence::default(),
+            mirror: None,
             team,
             feet: Vec3::ZERO,
             node: None,
@@ -739,6 +753,8 @@ impl Game {
             target: None,
             spread: bench_spread::Spread::default(),
             zone_spell: None,
+            zone_prev_off: false,
+            zone_ys: [f32::NEG_INFINITY; 20],
             why_now: 0,
             heal: standin_heal::Heal::new(),
             rest: standin_heal::Rest::FULL,
@@ -791,6 +807,7 @@ impl Game {
             zone_pool_deaths: [0; 4],
             fields: standin_fields::FieldGen::from_env(&world, seed),
             zone_spells: Vec::new(),
+            zone_notes: Vec::new(),
             took_from: Vec::new(),
             take_alongs: Vec::new(),
             carry_m: 0.0,
@@ -825,6 +842,8 @@ impl Game {
             nudge: None,
             nudged: 0,
             shot_facts: Vec::new(),
+            kick_pairs: Vec::new(),
+            kick_ticks: Vec::new(),
             spread: false,
             volume: HitVolume::Disc,
             flight: standin_hitbox::BulletPath::Instant,
@@ -887,6 +906,8 @@ impl Game {
         body.step_m = 0.0;
         body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
+        body.zone_prev_off = false;
+        body.zone_ys = [f32::NEG_INFINITY; 20];
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -1287,10 +1308,29 @@ impl Game {
             let mut times = Vec::new();
             body.cadence
                 .tick(tick, held, auto, interval_ms, |t| times.push(t));
+            // [counts only] Why the trigger was not down for the weapon this tick (`kick_gap`'s `REFUSALS`).
+            let why = if !body.alive {
+                1
+            } else if body.keys & key::FIRE == 0 {
+                2
+            } else if body.carrying.is_some() {
+                3
+            } else if tick < body.drawn_at {
+                4
+            } else {
+                body.stock.why_not(tick).unwrap_or(8)
+            };
+            let mut fired = 0u8;
             for at in times {
                 if self.bodies[shooter].stock.fired(at) {
                     self.shot(shooter, at);
+                    fired = fired.saturating_add(1);
                 }
+            }
+            if let Some((_, counted)) = self.bodies[shooter].mirror
+                && (fired > 0 || counted > 0)
+            {
+                self.kick_ticks.push(fight_tally::KickTick { shooter, tick, fired, counted, why });
             }
         }
     }
@@ -1339,6 +1379,8 @@ impl Game {
         let kick = body.recoil.kick();
         let top = kick.top(self.rng.unit());
         let (gun, keys) = (body.gun, body.keys);
+        let truth = body.recoil.y();
+        let mirror = body.mirror.map(|m| m.0);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
         let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
         let view_dir = dir;
@@ -1436,6 +1478,18 @@ impl Game {
                         .map(|(body, _)| body)
                 })
         };
+        // [counts only] A shooter's first shot of the tick: its kick against the mirror's (a second shot of the tick has the first's).
+        if let Some(mirror) = mirror
+            && !self.shot_facts.iter().rev().take_while(|f| f.tick == tick).any(|f| f.shooter == shooter)
+        {
+            self.kick_pairs.push(fight_tally::KickPair {
+                shooter,
+                tick,
+                truth,
+                mirror,
+                distance: aimed_at.map(|(_, distance, _)| distance),
+            });
+        }
         self.shot_facts.push(fight_tally::ShotFact {
             shooter,
             tick,
@@ -1810,6 +1864,7 @@ impl Game {
             if !body.alive {
                 if let Some(spell) = body.zone_spell.take() {
                     self.zone_spells.push(spell.ended(body));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                 }
                 continue;
             }
@@ -1817,6 +1872,15 @@ impl Game {
                 continue;
             };
             let centre = self.body_centre(place);
+            let now = self.zone_now(node, inside, on, tick);
+            let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
+            let drop_m = {
+                let body = &mut self.bodies[place];
+                let slot = (tick / 50 % 20) as usize;
+                let hi = body.zone_ys.iter().copied().fold(body.feet.y, f32::max);
+                body.zone_ys[slot] = body.feet.y;
+                hi - body.feet.y
+            };
             let per_baked: f32 = if baked {
                 inside
                     .zones_at(node)
@@ -1839,6 +1903,7 @@ impl Game {
                     && tick >= spell.last + SPELL_GAP_MS
                 {
                     self.zone_spells.push(spell.ended(body));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                     body.zone_spell = None;
                 }
                 continue;
@@ -1853,7 +1918,16 @@ impl Game {
                 lost: 0.0,
                 last: tick,
                 why: 0,
+                restored: false,
+                unmarked: false,
+                came_on: was_off,
+                fixed: now.fixed,
+                at: body.feet,
+                drop_m,
+                zone: now.zone,
             });
+            spell.restored |= now.restored;
+            spell.unmarked |= now.unmarked;
             spell.why |= body.why_now;
             spell.lost += hit;
             spell.last = tick;
@@ -1865,6 +1939,7 @@ impl Game {
             // What took the rest: the spell, and the enemy hits in it.
             let spell = body.zone_spell.take().expect("just set");
             self.zone_spells.push(spell.ended(body));
+            self.zone_notes.push(ZoneNote::of(place, &spell, body, Some(0)));
             eprintln!(
                 "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
                  the zones took {:.2}, last enemy hit {}",
@@ -1901,6 +1976,22 @@ impl Game {
         self.bodies[place].feet + Vec3::new(0.0, 0.5 * self.world.grid.body().stand_height, 0.0)
     }
 
+    /// What the floor `node` is to the damage zones at `tick` ([`ZoneNow`]): `inside` holds the zones' own shapes, `on` the bots' marks and timing.
+    fn zone_now(&self, node: NodeId, inside: &Hazards, on: &Hazards, tick: u32) -> ZoneNow {
+        let active = |zone: &Hazard| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick));
+        let (mut in_shape, mut any_active, mut fixed, mut unmarked, mut first) = (false, false, true, false, None);
+        for zone in inside.zones_at(node) {
+            in_shape = true;
+            if active(zone) {
+                any_active = true;
+                first.get_or_insert(zone.zone);
+                fixed &= !zone.switches();
+                unmarked |= !on.zones_at(node).any(|m| m.zone == zone.zone);
+            }
+        }
+        ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active, zone: first }
+    }
+
     /// What `zone` takes a second from a body whose centre is at `centre`, before armour: the client's rule under
     /// [`Self::zone_intensity`], else the full hit.
     fn zone_hit(&self, zone: &Hazard, centre: Vec3) -> f32 {
@@ -1924,6 +2015,7 @@ impl Game {
             if !body.alive {
                 if let Some(spell) = body.zone_spell.take() {
                     self.zone_spells.push(spell.ended(body));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                 }
                 continue;
             }
@@ -1932,6 +2024,15 @@ impl Game {
             };
             let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, self.damage.mask, body.gun.item);
             let centre = self.body_centre(place);
+            let now = self.zone_now(node, inside, on, tick);
+            let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
+            let drop_m = {
+                let body = &mut self.bodies[place];
+                let slot = (tick / 50 % 20) as usize;
+                let hi = body.zone_ys.iter().copied().fold(body.feet.y, f32::max);
+                body.zone_ys[slot] = body.feet.y;
+                hi - body.feet.y
+            };
             let baked_cost: Cost = if baked {
                 inside
                     .zones_at(node)
@@ -1960,6 +2061,7 @@ impl Game {
                     && tick >= spell.last + SPELL_GAP_MS
                 {
                     self.zone_spells.push(spell.ended(body));
+                    self.zone_notes.push(ZoneNote::of(place, &spell, body, None));
                     body.zone_spell = None;
                 }
                 continue;
@@ -1989,7 +2091,16 @@ impl Game {
                 lost: 0.0,
                 last: tick,
                 why: 0,
+                restored: false,
+                unmarked: false,
+                came_on: was_off,
+                fixed: now.fixed,
+                at: body.feet,
+                drop_m,
+                zone: now.zone,
             });
+            spell.restored |= now.restored;
+            spell.unmarked |= now.unmarked;
             spell.why |= body.why_now;
             spell.lost += hit;
             spell.last = tick;
@@ -2005,6 +2116,7 @@ impl Game {
             };
             let spell = body.zone_spell.take().expect("just set");
             self.zone_spells.push(spell.ended(body));
+            self.zone_notes.push(ZoneNote::of(place, &spell, body, Some(which as u8)));
             eprintln!(
                 "  zone death ({}): at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, the zones took {:.2}",
                 ["body", "head", "infection", "pain"][which],

@@ -37,6 +37,16 @@ fn heading_alike(a: Option<&Rec>, b: Option<&Rec>) -> bool {
     }
 }
 
+/// The distance to the nearest living teammate, binned (upper edges, m; the last bin is farther): the live players' median is 22.4 m (p10 5.9 m,
+/// 379 matches of 12+ places, `grid-record.md`), the bots' 11.4 m (p10 2.8 m).
+const NEAREST_EDGES_M: [f32; 6] = [1.0, 3.0, 6.0, 12.0, 22.0, 40.0];
+
+/// The way a body walks: the walk's progress (0 at its own spawns, 1 at the enemy's, `Tactics::progress_at`) a second on, per living bot with a known
+/// side. A second that moved the progress by at least this much is forward (or back), the rest stood. GUESS: 1 % of the way a second.
+const ADVANCE_EPS: f32 = 0.01;
+/// The progress levels sampled, in fifths of the way.
+const LEVEL_BINS: usize = 5;
+
 /// Crowded: this many distinct enemies near in the window.
 const CROWD: u32 = 3;
 
@@ -68,6 +78,14 @@ struct TeamSpacing {
     overlap_05: u64,
     body_overlap_1: u64,
     cause: [u64; 6],
+    /// The distance to the nearest living teammate of each body-second that has one (B6 / A114: the live players' row of the gap table): the
+    /// samples, the metres summed, and the samples by [`NEAREST_EDGES_M`].
+    nearest_n: u64,
+    nearest_m: f64,
+    nearest_bins: [u64; NEAREST_EDGES_M.len() + 1],
+    /// How far forward the bots walk (B6 P1b: the forward share of the gap table): per living bot-second with a known side and the second
+    /// before in the same life, the progress moved ([`Advance`]), and the progress level sampled.
+    advance: Advance,
     /// The 1 m pair-seconds by what the step apart did on the pair's two bodies that tick (the worse of the two): nothing asked (no mate inside in the bot's picture), taken, refused (no clear
     /// ground that side), held off (the reflex strafes or fires, a use is held, a side key down).
     apart_state: [u64; 5],
@@ -80,6 +98,37 @@ struct TeamSpacing {
     /// By life-age bucket ([`LIFE_BUCKET_S`]): the samples, the teammates near, and the teammates alive (the available
     /// mates, the body itself left out).
     by_life: [[u64; 3]; LIFE_BUCKETS],
+}
+
+/// The walk's progress of the living bots, a second to the next: the seconds counted, the progress moved summed (signed), the seconds forward and
+/// back ([`ADVANCE_EPS`]), and the level the bodies were at (the sum and by fifths of the way).
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+struct Advance {
+    seconds: u64,
+    moved: f64,
+    forward: u64,
+    back: u64,
+    level_sum: f64,
+    levels: [u64; LEVEL_BINS],
+}
+
+impl Advance {
+    /// One body-second at progress `now`, `before` a second ago (none: first sample of its life).
+    fn add(&mut self, before: Option<f32>, now: f32) {
+        self.level_sum += f64::from(now);
+        self.levels[((now * LEVEL_BINS as f32) as usize).min(LEVEL_BINS - 1)] += 1;
+        let Some(before) = before else { return };
+        let moved = now - before;
+        self.seconds += 1;
+        self.moved += f64::from(moved);
+        self.forward += u64::from(moved >= ADVANCE_EPS);
+        self.back += u64::from(moved <= -ADVANCE_EPS);
+    }
+}
+
+/// The nearest-teammate bin of a distance `d` (m).
+fn nearest_bin(d: f32) -> usize {
+    NEAREST_EDGES_M.iter().position(|&edge| d < edge).unwrap_or(NEAREST_EDGES_M.len())
 }
 
 /// What the topic keeps: the counts by team, and for each body the enemies near it (a bit by place) in each of the last
@@ -109,6 +158,11 @@ pub(super) struct SpacingCounts {
     /// By the play the body runs (a bot's assignment; "human" for the stand-in): the living bodies sampled and the
     /// teammates near them, and how many had 3 or more.
     by_play: BTreeMap<String, [u64; 3]>,
+    /// Each bot's map side (the walk's progress is of a side), and its progress now and at the sample before; none for a body that is not a living bot
+    /// with a known side (a stand-in human is left out).
+    side: Vec<Option<i32>>,
+    progress: Vec<Option<f32>>,
+    progress_before: Vec<Option<f32>>,
 }
 
 impl SpacingCounts {
@@ -127,6 +181,9 @@ impl SpacingCounts {
             overlap_plays: Default::default(),
             born: vec![None; n],
             by_play: BTreeMap::new(),
+            side: vec![None; n],
+            progress: vec![None; n],
+            progress_before: vec![None; n],
         }
     }
 }
@@ -137,6 +194,9 @@ impl Topic for SpacingCounts {
     }
 
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(side) = self.side.get_mut(place) {
+            *side = bot.and_then(|b| b.side);
+        }
         if let Some(goal) = self.goal.get_mut(place) {
             *goal = bot.and_then(|b| b.route.as_ref().map(|(route, _)| route.end()));
         }
@@ -145,6 +205,13 @@ impl Topic for SpacingCounts {
         }
         if let Some(target) = self.target.get_mut(place) {
             *target = bot.and_then(|b| b.assignment.as_ref().map(|a| a.target)).unwrap_or(crate::v026g::bots::plays::TargetRef::None);
+        }
+    }
+
+    fn bots(&mut self, bots: &Bots, game: &Game) {
+        let Some(tactics) = bots.tactics() else { return };
+        for (place, body) in game.bodies.iter().enumerate().take(self.progress.len()) {
+            self.progress[place] = self.side[place].filter(|_| body.alive).map(|side| tactics.progress_at(body.feet, side));
         }
     }
 
@@ -194,7 +261,14 @@ impl Topic for SpacingCounts {
                 self.born[place] = (tick > 0).then_some(second);
             }
             self.was_alive[place] = body.alive;
+            if !body.alive {
+                self.progress_before[place] = None;
+            }
             if sample && body.alive {
+                if let Some(now) = self.progress[place] {
+                    self.by_team[team].advance.add(self.progress_before[place], now);
+                }
+                self.progress_before[place] = self.progress[place];
                 self.still_s[place] = match self.last_pos[place] {
                     Some(before) if before.distance_xz(body.feet) < STILL_M => self.still_s[place] + 1,
                     _ => 0,
@@ -205,9 +279,11 @@ impl Topic for SpacingCounts {
                 continue;
             }
             let (mut mates, mut enemy_mask, mut alive_mates) = (0u64, 0u64, 0u64);
+            let mut nearest = f32::INFINITY;
             for (other_place, other) in game.bodies.iter().enumerate() {
                 if other_place != place && other.alive && other.team == body.team {
                     alive_mates += 1;
+                    nearest = nearest.min(other.feet.distance_xz(body.feet));
                 }
                 if other_place == place || !other.alive || other.feet.distance_xz(body.feet) > NEAR_M {
                     continue;
@@ -223,6 +299,11 @@ impl Topic for SpacingCounts {
             ts.mates += mates;
             ts.enemies += u64::from(enemy_mask.count_ones());
             ts.clumped += u64::from(mates >= 3);
+            if nearest.is_finite() {
+                ts.nearest_n += 1;
+                ts.nearest_m += f64::from(nearest);
+                ts.nearest_bins[nearest_bin(nearest)] += 1;
+            }
             if let Some(born) = self.born[place] {
                 let life = &mut ts.by_life[((second - born.min(second)) / LIFE_BUCKET_S).min(LIFE_BUCKETS - 1)];
                 life[0] += 1;
@@ -336,6 +417,15 @@ impl SpacingCounts {
                 "overlap_05m_pair_s": c.overlap_05,
                 "overlap_1m_body_s": c.body_overlap_1,
                 "overlap_1m_cause_target_goal_follow_still_file_other": c.cause,
+                "nearest_mate_samples": c.nearest_n,
+                "nearest_mate_m_sum": c.nearest_m,
+                "nearest_mate_bins_lt1_3_6_12_22_40_up": c.nearest_bins,
+                "advance_seconds": c.advance.seconds,
+                "advance_moved_sum": c.advance.moved,
+                "advance_forward_seconds": c.advance.forward,
+                "advance_back_seconds": c.advance.back,
+                "progress_level_sum": c.advance.level_sum,
+                "progress_levels_fifths": c.advance.levels,
                 "overlap_1m_apart_none_taken_refused_heldoff": c.apart_state,
                 "overlap_1m_moving_pair_goal_under5_5_20_20up_none": c.in_file_goals,
                 "killed_by_bullet_or_other": c.killed_by,
@@ -355,6 +445,7 @@ impl SpacingCounts {
         let overlap_plays: serde_json::Value = serde_json::json!([&self.overlap_plays[0], &self.overlap_plays[1]]);
         let json = serde_json::json!({ "spacing": { "by_team": { "0": team(0), "1": team(1) }, "by_play": by_play, "overlap_plays": overlap_plays } });
         let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 };
+        let mean_f = |sum: f64, n: u64| if n == 0 { 0.0 } else { sum / n as f64 };
         let line = |t: usize| {
             let c = &self.by_team[t];
             let ages: Vec<String> = c
@@ -367,8 +458,18 @@ impl SpacingCounts {
                     format!("{from}{to} s {:.2} ({:.2} an available mate)", mean(*mates, *n), mean(*mates, *alive))
                 })
                 .collect();
+            let share = |bins: &[u64], from: usize, to: usize| 100.0 * mean(bins[from..to].iter().sum(), c.nearest_n);
+            let a = &c.advance;
             format!(
-                "mates within 30 m {:.2}, enemies {:.2}, 3+ mates {:.0} % of {} body-seconds; deaths {} crowded {} ({:.0} %, mean {:.1} enemies near); by life age: {}",
+                "nearest mate mean {:.1} m, under 6 m {:.0} %, beyond 40 m {:.0} %; progress {:+.3} a second ({:.0} % forward, {:.0} % back of {} bot-seconds, mean level {:.2}); mates within 30 m {:.2}, enemies {:.2}, 3+ mates {:.0} % of {} body-seconds; deaths {} crowded {} ({:.0} %, mean {:.1} enemies near); by life age: {}",
+                mean_f(c.nearest_m, c.nearest_n),
+                share(&c.nearest_bins, 0, 3),
+                share(&c.nearest_bins, NEAREST_EDGES_M.len(), NEAREST_EDGES_M.len() + 1),
+                mean_f(a.moved, a.seconds),
+                100.0 * mean(a.forward, a.seconds),
+                100.0 * mean(a.back, a.seconds),
+                a.seconds,
+                mean_f(a.level_sum, a.levels.iter().sum()),
                 mean(c.mates, c.samples),
                 mean(c.enemies, c.samples),
                 100.0 * mean(c.clumped, c.samples),
@@ -434,4 +535,51 @@ pub(crate) fn a_respawned_body_is_sampled_by_its_lifes_age() {
     assert!(young["samples"].as_u64().unwrap() >= 5, "{json}");
     assert_eq!(young["mates_near"], young["mates_alive"], "one mate near of one alive: {json}");
     assert_eq!(json["spacing"]["by_team"]["0"]["by_life"][1]["samples"], 0, "{json}");
+}
+
+/// The nearest teammate of each sampled body: places 0 and 1 (team 0) stand 10 m apart and place 2 (team 0) is 30 m from place 1, so each second
+/// has two samples in the 6-12 m bin and one in the 22-40 m bin; a lone body (team 1) has no mate and no sample.
+#[test]
+pub(crate) fn the_spacing_topic_counts_the_distance_to_the_nearest_mate() {
+    let (mut game, mut tally) = made_up(&[0, 0, 0, 1]);
+    play(&mut game, &mut tally, 80, |_, game| {
+        for (place, x) in [0.0f32, 10.0, 40.0].into_iter().enumerate() {
+            put(game, place, x, 5.0, 0);
+        }
+        put(game, 3, 70.0, 40.0, 0);
+        vec![bot_now(); 4]
+    });
+    let (_, json) = tally.finish(&game);
+    let team0 = &json["spacing"]["by_team"]["0"];
+    let bins = &team0["nearest_mate_bins_lt1_3_6_12_22_40_up"];
+    let n = team0["nearest_mate_samples"].as_u64().unwrap();
+    assert!(n >= 6, "{json}");
+    // Places 0 and 1 are 10 m from each other (6-12 m, bin 3); place 2 is 30 m from place 1 (22-40 m, bin 5).
+    assert_eq!(bins[3].as_u64().unwrap() + bins[5].as_u64().unwrap(), n, "{json}");
+    assert_eq!(bins[3].as_u64().unwrap(), 2 * bins[5].as_u64().unwrap(), "{json}");
+    assert_eq!(json["spacing"]["by_team"]["1"]["nearest_mate_samples"], 0, "no mate alive: {json}");
+    let mean = team0["nearest_mate_m_sum"].as_f64().unwrap() / n as f64;
+    assert!((mean - (10.0 + 10.0 + 30.0) / 3.0).abs() < 0.01, "{mean}");
+}
+
+/// The nearest-mate bins: under 1, 3, 6, 12, 22 and 40 m, then farther.
+#[test]
+pub(crate) fn the_nearest_mate_bins_are_by_the_live_yardstick_edges() {
+    let bins: Vec<usize> = [0.5, 1.0, 2.9, 5.9, 11.9, 21.9, 39.9, 40.0, 90.0].into_iter().map(nearest_bin).collect();
+    assert_eq!(bins, [0, 1, 1, 2, 3, 4, 5, 6, 6]);
+}
+
+/// The advance: a second's move of the progress is forward or back by [`ADVANCE_EPS`]; the first sample of a life has no move but has its level.
+#[test]
+pub(crate) fn the_advance_counts_the_progress_a_second_on_and_the_level() {
+    let mut a = Advance::default();
+    a.add(None, 0.10);
+    a.add(Some(0.10), 0.13);
+    a.add(Some(0.13), 0.125);
+    a.add(Some(0.125), 0.10);
+    a.add(Some(0.10), 1.0);
+    assert_eq!((a.seconds, a.forward, a.back), (4, 2, 1), "{a:?}");
+    assert!((a.moved - 0.90).abs() < 1e-6, "{a:?}");
+    assert_eq!(a.levels, [4, 0, 0, 0, 1], "{a:?}");
+    assert!((a.level_sum - (0.10 + 0.13 + 0.125 + 0.10 + 1.0)).abs() < 1e-6);
 }

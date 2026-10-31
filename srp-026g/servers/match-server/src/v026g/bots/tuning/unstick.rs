@@ -55,6 +55,12 @@ pub struct UnstickTuning {
     /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
     /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on.
     pub blind_stop_ms: Option<u32>,
+    /// A carrier whose way home has been found shut by its own searches (`Bot::no_way_to`, kept while they go on failing) for this long, ms, lets go of the battery (as a carrier
+    /// whose escape from a pocket is given up does, `escape.rs`) and fights from where it stands; the play ends. The bench's tip (the 16 offered maps, batteries and Team
+    /// Deathmatch, 16 matches each): Vostok Radar Station batteries had a Collect carrier stand at its no-way goal for 10 s or more in 7 of 16 matches, 5 of them for 30-60 s
+    /// (the fallback of the Bring state walks `to(home)` for ever); every other map 0-2 cases, none over 30 s. 20 s is a GUESS between a zone that goes off soon and a
+    /// carrier that will not move again. None: it stands as before.
+    pub home_no_way_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -73,6 +79,7 @@ impl Default for UnstickTuning {
             progress_ms: Some(6_000),
             fix_gap_ms: None,
             blind_stop_ms: Some(4_500),
+            home_no_way_ms: Some(20_000),
         }
     }
 }

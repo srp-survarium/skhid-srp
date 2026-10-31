@@ -7,6 +7,11 @@ owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,32],"route":[22,22],
     0,
     21
   ],
+  "falls_free_hurt_lethal": [
+    0,
+    0,
+    0
+  ],
   "fwd_released_by_play_and_hide": {},
   "jump_flags": {
     "BACK_SIDE": 7,

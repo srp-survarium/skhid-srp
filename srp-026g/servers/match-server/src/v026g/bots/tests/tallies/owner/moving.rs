@@ -49,6 +49,7 @@ impl Stood {
             Self::Legs(LegsWhy::Throwing) => "throwing",
             Self::Legs(LegsWhy::ThrowingSmoke) => "throwing_smoke",
             Self::Legs(LegsWhy::Finish(_)) => "finish",
+            Self::Legs(LegsWhy::Stand) => "stand",
             Self::NewPlay => "new_play",
             Self::Nothing => "none",
         }

@@ -64,6 +64,8 @@ pub(super) enum NoteKind<'a> {
     Stuck,
     NoWay,
     Thrown { aim: Vec3, blast: u32 },
+    /// A throw that was a close one (`grenade_close`), with the time of its blast.
+    Closed { blast: u32 },
     HeldBack(&'a str),
     Other,
 }
@@ -79,6 +81,8 @@ impl<'a> NoteKind<'a> {
             Self::NoWay
         } else if let Some((aim, blast)) = thrown_at(text) {
             Self::Thrown { aim, blast }
+        } else if let Some(blast) = closed_at(text) {
+            Self::Closed { blast }
         } else if let Some(why) = held_back(text) {
             Self::HeldBack(why)
         } else {

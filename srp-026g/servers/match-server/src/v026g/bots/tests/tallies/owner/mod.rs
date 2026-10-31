@@ -58,6 +58,7 @@ mod gun_shots;
 mod heal;
 mod hit_shapes;
 mod jumps;
+mod kick_gap;
 mod live_list;
 mod metrics;
 mod moving;
@@ -89,6 +90,7 @@ mod threat_answer;
 mod through;
 mod topic;
 mod worth;
+mod zone_deaths;
 
 use campers::*;
 use damage_zones::*;
@@ -101,6 +103,7 @@ use gun_shots::GunShots;
 use heal::*;
 use hit_shapes::*;
 use jumps::*;
+use kick_gap::*;
 use live_list::*;
 use metrics::*;
 use moving::*;
@@ -133,6 +136,7 @@ use threat_answer::*;
 use through::*;
 use topic::*;
 use worth::*;
+use zone_deaths::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
