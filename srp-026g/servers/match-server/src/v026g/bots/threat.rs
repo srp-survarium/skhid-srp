@@ -257,26 +257,36 @@ pub fn searched(_: Searched) {}
 
 #[cfg(test)]
 thread_local! {
-    static ROUNDED: std::cell::RefCell<std::collections::HashMap<usize, u32>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// By place: the last detour's time and the metres the match's detours added to their routes.
+    static ROUNDED: std::cell::RefCell<std::collections::HashMap<usize, (u32, f32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// The bot at `place` took a route round the covered regions at `time` (the
+/// The bot at `place` took a route round the covered regions at `time`, `added_m` longer than the way it replaced (the
 /// bench's count of what follows).
 #[cfg(test)]
-pub fn rounded(place: usize, time: u32) {
+pub fn rounded(place: usize, time: u32, added_m: f32) {
     ROUNDED.with(|m| {
-        m.borrow_mut().insert(place, time);
+        let mut m = m.borrow_mut();
+        let e = m.entry(place).or_insert((time, 0.0));
+        *e = (time, e.1 + added_m.max(0.0));
     });
 }
 
 #[cfg(not(test))]
-pub fn rounded(_: usize, _: u32) {}
+pub fn rounded(_: usize, _: u32, _: f32) {}
 
 /// Whether the bot at `place` took such a route within `ms` before `time`
 /// (one stamped later than `time` is another match's).
 #[cfg(test)]
 pub fn rounded_within(place: usize, time: u32, ms: u32) -> bool {
-    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&t| t <= time && time - t <= ms))
+    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&(t, _)| t <= time && time - t <= ms))
+}
+
+/// When the bot at `place` last took such a route, and the metres the match's detours added (the bench's count of detours
+/// by team: a new stamp is a new one).
+#[cfg(test)]
+pub fn rounded_at(place: usize) -> Option<(u32, f32)> {
+    ROUNDED.with(|m| m.borrow().get(&place).copied())
 }
 
 /// A new match: the detours of the last are forgotten. The map is the
@@ -857,8 +867,8 @@ impl Sense {
     }
 }
 
-/// Which held spots the routes keep out of ([`Covered`]): all, or (`SniperMemory::keep_out` off) those of kills only, the
-/// sensed snipers' spots read by the plays alone (the objectives' ways, `bot.lanes`).
+/// Which held spots a consumer of [`Covered`] (the routes, K1's sprint, the lane smoke) reads: all, or (its
+/// `SniperMemory` switch off) those of kills only, the sensed snipers' spots then read by the others alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeptOut {
     All,
@@ -1295,6 +1305,62 @@ pub mod sniper_way_tally {
     #[cfg(test)]
     pub fn counted() -> [[u64; 3]; 2] {
         WAYS.with(std::cell::Cell::get)
+    }
+}
+
+/// [measure, #25b] The detours round the covered regions against the ways they replaced, by team: does a detour pass the
+/// enemies the bot knows of (its own senses and its team's calls within [`detour_path_tally::KNOWN_MS`], `Track::own`;
+/// any weapon) more than the plain way did. Test builds only; nothing decides by it.
+#[cfg(test)]
+pub mod detour_path_tally {
+    use crate::v026g::bots::path::{Route, RouteHeight};
+    use mapdata::Vec3;
+
+    /// A known enemy this near a point of the way counts the way's metre as passing him, m.
+    pub const NEAR_M: f32 = 25.0;
+    /// A known place this fresh counts, ms.
+    pub const KNOWN_MS: u32 = 10_000;
+    /// The way is sampled every this many metres.
+    const STEP_M: f32 = 2.0;
+
+    thread_local! {
+        /// By team: [detours, plain metres, detour metres, plain metres near a known enemy, detour metres near one].
+        static PATHS: std::cell::Cell<[[f64; 5]; 2]> = const { std::cell::Cell::new([[0.0; 5]; 2]) };
+    }
+
+    /// The metres of `route` between `s0` and `s1` within [`NEAR_M`] of one of `known`.
+    pub fn near_m(route: &Route, heights: RouteHeight, s0: f32, s1: f32, known: &[Vec3]) -> f32 {
+        if known.is_empty() || s1 <= s0 {
+            return 0.0;
+        }
+        let steps = ((s1 - s0) / STEP_M).ceil().max(1.0) as usize;
+        let step = (s1 - s0) / steps as f32;
+        (0..steps)
+            .filter(|&k| {
+                let p = route.at(s0 + (k as f32 + 0.5) * step, heights);
+                known.iter().any(|e| e.distance_xz(p) <= NEAR_M)
+            })
+            .count() as f32
+            * step
+    }
+
+    /// A detour taken by a bot of `team`: the plain way's and the detour's metres, and of each the metres near a known enemy.
+    pub fn record(team: u8, plain_m: f32, detour_m: f32, plain_near_m: f32, detour_near_m: f32) {
+        PATHS.with(|cell| {
+            let mut all = cell.get();
+            let t = &mut all[usize::from(team).min(1)];
+            t[0] += 1.0;
+            t[1] += f64::from(plain_m);
+            t[2] += f64::from(detour_m);
+            t[3] += f64::from(plain_near_m);
+            t[4] += f64::from(detour_near_m);
+            cell.set(all);
+        });
+    }
+
+    /// The counts by team since the thread began.
+    pub fn counted() -> [[f64; 5]; 2] {
+        PATHS.with(std::cell::Cell::get)
     }
 }
 
@@ -2309,7 +2375,12 @@ pub struct HeldLane {
 impl ThreatSpots {
     /// The spots held at `now`, as lanes.
     pub fn lanes(&self, now: u32) -> Vec<HeldLane> {
-        self.held(now)
+        self.lanes_kept(now, KeptOut::All)
+    }
+
+    /// [`Self::lanes`] of the spots `kept` keeps (`SniperMemory::smoke`).
+    pub fn lanes_kept(&self, now: u32, kept: KeptOut) -> Vec<HeldLane> {
+        self.kept(now, kept)
             .map(|s| HeldLane {
                 at: s.at,
                 shooter: s.shooter,
@@ -2328,6 +2399,9 @@ pub struct TeamThreat {
     pub spots: ThreatSpots,
     /// The regions his line covers now.
     pub covered: Option<std::sync::Arc<Covered>>,
+    /// [threat.sniper_memory] The regions of the kill spots' lines alone, while a consumer's switch keeps the sensed
+    /// snipers' spots out of it.
+    pub covered_kills: Option<std::sync::Arc<Covered>>,
     /// The team jobs on held spots (K2).
     pub jobs: Vec<Job>,
     /// Spots whose job ended, resting until then.
@@ -2674,7 +2748,9 @@ mod tests {
         seen.sort_unstable();
         assert_eq!(seen, vec![0, 1, 2, 3], "all round him");
         assert_eq!(spots.sniper_regions(1_500), vec![0, 1, 2, 3]);
-        assert!(spots.covered_regions_kept(1_500, KeptOut::KillsOnly).is_empty(), "keep_out off: the routes do not keep out of it");
+        assert!(spots.covered_regions_kept(1_500, KeptOut::KillsOnly).is_empty(), "routes off: the routes do not keep out of it");
+        assert!(spots.lanes_kept(1_500, KeptOut::KillsOnly).is_empty(), "smoke off: no lane of his for a smoke");
+        assert_eq!(spots.lanes_kept(1_500, KeptOut::All).len(), 1);
         assert!(spots.held_lines(1_500, NEW).is_empty(), "the jobs and the plays read no sniper spot");
         assert!(spots.held_of(5, 1_500, 1).is_empty(), "no kill behind it: no holder");
         assert_eq!(spots.held(1_000 + SEEN_MS + 1_000).count(), 0, "not sensed for a while: not held");

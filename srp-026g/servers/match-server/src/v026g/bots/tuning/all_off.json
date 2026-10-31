@@ -50,6 +50,7 @@
     "hold_to_arrival": false
   },
   "cover": {
+    "hold_exposure": null,
     "pierce": null,
     "spot_cost": null
   },
@@ -99,6 +100,7 @@
   },
   "kin": {
     "edge": "lattice",
+    "fix_floor": "nearest",
     "jump_snap": "any",
     "pitch_scale": "radian"
   },
@@ -146,6 +148,7 @@
     "lanes_pierce": false,
     "pair_up_hidden": false,
     "recast": false,
+    "sniper_memory": null,
     "trade_out_of_lines": false,
     "whole_route": false,
     "whole_route_booked": false

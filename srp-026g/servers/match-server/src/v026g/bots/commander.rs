@@ -33,6 +33,7 @@ fn threat_tick(
     weapons: &[Option<reflex::WeaponKind>],
 ) {
     let rules = threat::SpotRules::of(&tuning.threat);
+    let kept = Kept::of(&tuning.threat);
     let threat = &mut state.features.threat;
     // A sensed sniper is a spot (#836's `sniper_lanes`, or #25b's area memory).
     let sniper_spots = tuning.threat.sniper_lanes || tuning.threat.sniper_memory.is_some();
@@ -72,7 +73,7 @@ fn threat_tick(
     }
     // [smoke] The held lanes, for a smoke across one (`smoke.cross_lane`).
     if tuning.smoke.cross_lane {
-        let lanes: Arc<[threat::HeldLane]> = threat.spots.lanes(now).into();
+        let lanes: Arc<[threat::HeldLane]> = threat.spots.lanes_kept(now, kept.smoke).into();
         for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.lanes = lanes.clone();
         }
@@ -173,15 +174,10 @@ fn threat_tick(
     // [smoke.spot_rules] A region a cloud hides from the spot's shooter is not his while it stands: routes cross under it
     // (the detour weighs the lanes) and no lane smoke is planned for it.
     let planning = view.smoke.planning(now, team, super::smoke::Forming::of(&tuning.smoke));
-    // [threat.sniper_memory] The sensed snipers' spots kept out of the routes too, unless `keep_out` is off.
-    let kept = match tuning.threat.sniper_memory {
-        Some(m) if !m.keep_out => threat::KeptOut::KillsOnly,
-        _ => threat::KeptOut::All,
-    };
     let mut regions = if tuning.smoke.spot_rules && !planning.is_empty() {
         let (grid, map) = (&tactics.world.grid, tactics.regions());
         let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
-        let (covered, opened) = threat.spots.covered_regions_smoked(now, kept, |at, r| {
+        let (covered, opened) = threat.spots.covered_regions_smoked(now, threat::KeptOut::All, |at, r| {
             planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
         });
         // The regions opened are counted by the bench only (crossings under a cloud).
@@ -199,22 +195,52 @@ fn threat_tick(
         if !planning.is_empty() {
             let (grid, map) = (&tactics.world.grid, tactics.regions());
             let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
-            let (_, opened) = threat.spots.covered_regions_smoked(now, kept, |at, r| {
+            let (_, opened) = threat.spots.covered_regions_smoked(now, threat::KeptOut::All, |at, r| {
                 planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
             });
             if !opened.is_empty() {
                 under_cloud(bots, team, grid, map, &opened, tuning, now);
             }
         }
-        threat.spots.covered_regions_kept(now, kept)
+        threat.spots.covered_regions(now)
     };
     regions.sort_unstable();
     regions.dedup();
-    let same = match &threat.covered {
-        Some(covered) => covered.regions() == &regions[..],
+    // [threat.sniper_memory] The regions of the kill spots alone, for a consumer whose switch keeps the sensed snipers'
+    // spots out of it (none with the memory off).
+    let kills_regions = kept.any_kills_only().then(|| {
+        let mut r = if tuning.smoke.spot_rules && !planning.is_empty() {
+            let (grid, map) = (&tactics.world.grid, tactics.regions());
+            let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+            threat.spots.covered_regions_smoked(now, threat::KeptOut::KillsOnly, |at, r| {
+                planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+            }).0
+        } else {
+            threat.spots.covered_regions_kept(now, threat::KeptOut::KillsOnly)
+        };
+        r.sort_unstable();
+        r.dedup();
+        r
+    });
+    let same_as = |was: &Option<Arc<threat::Covered>>, regions: &[u32]| match was {
+        Some(covered) => covered.regions() == regions,
         None => regions.is_empty(),
     };
-    if same {
+    let kills_same = match &kills_regions {
+        Some(r) => same_as(&threat.covered_kills, r),
+        None => threat.covered_kills.is_none(),
+    };
+    if same_as(&threat.covered, &regions) && kills_same {
+        return;
+    }
+    let build = |regions: Vec<u32>| {
+        (!regions.is_empty()).then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())))
+    };
+    if !kills_same {
+        threat.covered_kills = kills_regions.and_then(build);
+    }
+    if same_as(&threat.covered, &regions) {
+        kept.tell(bots, team, threat);
         return;
     }
     notes.push(Note {
@@ -226,11 +252,48 @@ fn threat_tick(
             threat.spots.held(now).count()
         ),
     });
-    threat.covered = (!regions.is_empty())
-        .then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())));
-    let shared = threat.covered.clone().unwrap_or_default();
-    for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
-        bot.threat = shared.clone();
+    threat.covered = build(regions);
+    kept.tell(bots, team, threat);
+}
+
+/// [threat.sniper_memory] Which held spots each consumer of the covered regions reads (`SniperMemory`'s switches; all of
+/// them with the memory off).
+#[derive(Clone, Copy)]
+struct Kept {
+    routes: threat::KeptOut,
+    sprint: threat::KeptOut,
+    smoke: threat::KeptOut,
+}
+
+impl Kept {
+    fn of(t: &tuning::ThreatTuning) -> Self {
+        let of = |on: bool| if on { threat::KeptOut::All } else { threat::KeptOut::KillsOnly };
+        match t.sniper_memory {
+            Some(m) => Self { routes: of(m.routes), sprint: of(m.sprint), smoke: of(m.smoke) },
+            None => Self { routes: threat::KeptOut::All, sprint: threat::KeptOut::All, smoke: threat::KeptOut::All },
+        }
+    }
+
+    fn any_kills_only(self) -> bool {
+        [self.routes, self.sprint, self.smoke].contains(&threat::KeptOut::KillsOnly)
+    }
+
+    /// The team's bots told their covered regions, each consumer's.
+    fn tell(self, bots: &mut [Option<Bot>], team: u8, threat: &threat::TeamThreat) {
+        let pick = |kept| {
+            match kept {
+                threat::KeptOut::All => &threat.covered,
+                threat::KeptOut::KillsOnly => &threat.covered_kills,
+            }
+            .clone()
+            .unwrap_or_default()
+        };
+        let (routes, sprint, smoke) = (pick(self.routes), pick(self.sprint), pick(self.smoke));
+        for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.threat = routes.clone();
+            bot.sprint_threat = sprint.clone();
+            bot.smoke_threat = smoke.clone();
+        }
     }
 }
 

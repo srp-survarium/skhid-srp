@@ -22,26 +22,27 @@ switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
+switches OFF cover: hold_exposure
 switches OFF feel: fight_lift floor_height_clear
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease
 switches OFF think: door_centres wall_clear_corners
-switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes sniper_memory
+switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes
 switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values kin: edge=client jump_snap=by_keys pitch_scale=client
+switch values kin: edge=client fix_floor=nearest jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
-switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5}
+switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
 switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
 changed numbers cheats: sight_hold_ms=450 (default 0)
