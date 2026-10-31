@@ -516,6 +516,12 @@ pub enum NotOpened {
     LikeTheLast,
 }
 
+/// What finds a Breach's points on a held spot for crossers at their feet ([`plan`] with the map, or a test's stand-in).
+pub type Planner<'a> = dyn FnMut(&HeldLine, [Vec3; CROSSERS]) -> Result<[Plan; CROSSERS], NoPlan> + 'a;
+
+/// Whether the spot memory lets a Breach be tried on a held spot from a point (its cover points' middle).
+pub type MayTry<'a> = dyn Fn(&HeldLine, Vec3) -> Result<(), NotOpened> + 'a;
+
 /// Holding a role: alive, free, and its play taken within this of the role, ms (`threat::JOB_START_MS`).
 pub const START_MS: u32 = super::threat::JOB_START_MS;
 
@@ -531,8 +537,8 @@ pub fn tick(
     holds: &[HeldLine],
     lanes: &[HeldLine],
     team: &Team,
-    may_try: &dyn Fn(&HeldLine, Vec3) -> Result<(), NotOpened>,
-    plan: &mut dyn FnMut(&HeldLine, [Vec3; CROSSERS]) -> Result<[Plan; CROSSERS], NoPlan>,
+    may_try: &MayTry,
+    plan: &mut Planner,
     now: u32,
     rules: &BreachRules,
 ) -> Vec<Event> {
@@ -707,7 +713,9 @@ pub mod tally {
     pub const CROSSER_DOWNS: usize = 27;
     /// Thinks an objective player waited out of a held lane for the team's Breach (§13, §14).
     pub const OBJECTIVE_WAITS: usize = 28;
-    pub const ALL: usize = 29;
+    /// Frags a Breach's bots let go at a held spot while in the job (A170's held-spot rule: the Breach has no throw of its own).
+    pub const FRAGS_AT_SPOT: usize = 29;
+    pub const ALL: usize = 30;
 
     // A match runs on one thread: its counts are the thread's (the topic reads the difference from its start).
     thread_local! {
@@ -724,6 +732,28 @@ pub mod tally {
 
     pub fn counted() -> [[u64; ALL]; 2] {
         COUNTS.with(|cell| cell.get())
+    }
+
+    thread_local! {
+        /// By team: each Breach bot's frags at held spots this life at the last tick.
+        static FRAGS: std::cell::RefCell<[Vec<(usize, u32)>; 2]> = const { std::cell::RefCell::new([Vec::new(), Vec::new()]) };
+    }
+
+    /// The team's Breach bots and their frags at held spots this life (`GrenadeStats::thrown_at_spots`) at a tick: the rise since
+    /// the last tick of each bot that was in a job then too is counted; a new life (fewer than before) counts from 0.
+    pub fn frags(team: u8, now: &[(usize, u32)]) {
+        let t = usize::from(team & 1);
+        let rise: u64 = FRAGS.with(|f| {
+            let before = &f.borrow()[t];
+            now.iter()
+                .filter_map(|&(place, n)| before.iter().find(|(p, _)| *p == place).map(|&(_, b)| if n >= b { n - b } else { n }))
+                .map(u64::from)
+                .sum()
+        });
+        FRAGS.with(|f| f.borrow_mut()[t] = now.to_vec());
+        if rise > 0 {
+            add(team, FRAGS_AT_SPOT, rise);
+        }
     }
 
     fn idx(name: &str) -> usize {
@@ -977,7 +1007,7 @@ mod tests {
         let ok = |_: &HeldLine, _: Vec3| Ok(());
         let one = [mate(1, 20.0, 20.0, None)];
         let two = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None)];
-        let run = |mates: &[Mate], size, may: &dyn Fn(&HeldLine, Vec3) -> Result<(), NotOpened>, plan: &mut dyn FnMut(&HeldLine, [Vec3; CROSSERS]) -> Result<[Plan; CROSSERS], NoPlan>| {
+        let run = |mates: &[Mate], size, may: &MayTry, plan: &mut Planner| {
             let mut breaches = Vec::new();
             let mut due = vec![Due { spot: 4, until: 20_000 }];
             let team = Team { mates, size, objective_areas: &[], flank_jobs: &[], kills: &[], points: None };

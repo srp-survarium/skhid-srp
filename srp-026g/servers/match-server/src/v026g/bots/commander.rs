@@ -353,6 +353,17 @@ fn threat_tick(
             for (shooter, at, holders) in killed {
                 note_cleared(bots, &mut state.knowledge, view, tuning, team, (shooter, at), &holders, know::ClearedBy::Breach, now, notes);
             }
+            // [measure] The frags the Breaches' bots let go at the held spot while in a job.
+            #[cfg(test)]
+            {
+                let readings: Vec<(Place, u32)> = threat
+                    .breaches
+                    .iter()
+                    .flat_map(|b| b.places().collect::<Vec<_>>())
+                    .filter_map(|p| bots.iter().flatten().find(|b| b.place == p).map(|b| (p, b.reflex.grenade_stats().thrown_at_spots())))
+                    .collect();
+                breach::tally::frags(team, &readings);
+            }
         }
     }
     if *state.knowledge.breaches != threat.breaches {

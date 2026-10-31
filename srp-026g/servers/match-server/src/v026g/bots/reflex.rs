@@ -2178,6 +2178,11 @@ pub struct GrenadeStats {
 }
 
 impl GrenadeStats {
+    /// [measure] The frags this life let go at a held threat spot (`grenade_at_held`).
+    pub fn thrown_at_spots(&self) -> u32 {
+        self.thrown_from[PlaceSource::Spot.index()]
+    }
+
     /// The change from `before`, the last reading of the same reflex, and
     /// whether this reading is a new life's: the whole of `self` then (another
     /// reflex counted it, or there was no reading before).
