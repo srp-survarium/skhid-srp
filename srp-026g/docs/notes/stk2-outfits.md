@@ -3,8 +3,9 @@
 The owner (2026-10-30): "let's port what wasn't ported yet" of the STK2 characters export
 (`___surva_stk2_characters_port.7z`). Built by resource-porter
 `examples/build-stk2-outfits-026` (`src/stk2_outfits_026.rs`, its
-`docs/stk2-outfits-026.md`); one content pack per outfit. srp needs no code: it reads each
-item's faction (none), level, slots and drop weight from its config in the server game data.
+`docs/stk2-outfits-026.md`); one content pack per outfit. srp reads each item's faction
+(none), level, slots, stats and drop weight from its config in the server game data; its
+code only names the 14 in `prices::EXCEPTIONS` (sold as the knit cap, below).
 
 ## What the export holds
 
@@ -284,7 +285,8 @@ against 10.1.
 
 - Each outfit whole, front, side and back, in the lobby and a match.
 - Jackets with gauntlets (Chemical protection gloves, Omicron gloves) and wrist gloves; the
-  bomber's bare forearms with and without gloves.
+  bomber's bare forearms with and without gloves, its waist from below (closed since the
+  last test round).
 - Trousers with low (Leather boots), medium (Military boots) and tall (Stalker's boots)
   boots; the Novice's jeans and the loner's pants with low boots (lengthened).
 - The sneakers, the loner's and the Novice's boots under stock trousers (the Novice's are
@@ -292,12 +294,14 @@ against 10.1.
 - The collars with masks (gas masks, balaclavas) while aiming and looking down; the hood
   over the head with and without a mask (balaclava, gas mask, a bulky helmet mask).
 - The backpack on slim and bulky jackets; first-person hands of both gloves.
-- The 14 icons in the shop and inventory.
+- The 14 icons in the shop and inventory; each sold by the Independent traders at its
+  price, at rank 0, and dropped after matches.
 
 ## Release
 
 - Three `pack` rows in `release/content.tsv`: `stk2-bandit@13`, `stk2-novice@12`,
   `stk2-loner@12` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-13`, `stk2-novice-12`,
+  `stk2-loner-12`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).

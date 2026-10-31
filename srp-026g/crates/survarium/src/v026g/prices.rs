@@ -966,7 +966,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn the_bandit_balaclava_goes_by_the_rule() {
         // No exception (owner, 2026-10-16): Black Market at its item level,
@@ -1577,8 +1576,9 @@ mod with_the_weapons_from_0_29a3 {
         let dictionary = Dictionary::parse(data.file(dictionary::PATH).unwrap()).unwrap();
         let params = item_params::derive(&data, &dictionary).unwrap();
         let params_of = |item: &Item| *params.iter().find(|p| p.dict_id == item.dict_id).unwrap();
-        // Every unreleased name is in it.
-        for name in UNRELEASED {
+        // Every unreleased name of the patch is in it: its ammo (the other
+        // names come with content packs, which this data need not have).
+        for name in UNRELEASED.iter().filter(|name| name.starts_with("ammo_")) {
             assert!(dictionary.item_named(name).is_some(), "{name}");
         }
         let new: Vec<&Item> = dictionary
