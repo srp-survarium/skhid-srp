@@ -76,7 +76,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@14)
+## lobby_scene/camp_069 (pack lobby-camp-069@15)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -198,13 +198,16 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   256-texel map (`shadow_map_size_index` 2, as the classic's spot lights; it was 512). What softens
   a shadow in 0.26g is in the next section.
 
-- @14 (the owner, 2026-10-31: "what is this shadow plop in a room?", a dark smudge on the ceiling
-  by the back wall, behind the chandelier): the camp's one shadowing light, the window light
-  `character_lights/point_light(5)` (3.0, 6 m, at the left window), stands behind the ripped rag
-  over that window, which shadows most of the ceiling from it, and the chandelier's shadow falls on
-  the ceiling by the back wall (traced against the meshes). Not the ceiling's vertex blend (two
-  light plasters), the probes, the shadow boxes or a decal. Its shadow is off: no camp light casts
-  one now.
+- @15 (the owner, 2026-10-31: "what is this shadow plop in a room?", a dark square on the
+  ceiling by the back wall, behind the chandelier): the chandelier's two positive ambient boxes
+  (`room/lustra/ambient_light`, `(1)`, 0.4) end at z 3.4..3.7, and 0.26 draws an ambient box with a
+  hard edge: bright inside, unlit beyond it to the back wall (z 5.5). They, the two negative
+  chandelier boxes in the same zone (`shadows/ambient_light(8)`, `(9)`) and the faint ceiling
+  boxes there (`light/celling/ambient_light`, `(2)`..`(6)`) are left out; the chandelier's two point
+  lights (no shadow, falloff power 1) reach the back wall instead, 0.8 and 4.2 m (0.5 and 2 m): a
+  fill with no edge. No box edge is left on the ceiling between the chandelier and the back wall
+  (checked against the project). @14 had turned the window light's shadow off as the cause: wrong
+  (the square grew); undone, its shadow on a 256-texel map as in @13. Not yet seen in a game.
 
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
