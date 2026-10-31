@@ -186,6 +186,13 @@ item's faction (none), level, slots and drop weight from its config in the serve
   0.30-0.50 m, median 0.40 m (the knee at 0.48-0.50 m), 0.62 of the waist-to-floor height.
   Ours are cut at 0.62 and fitted to 81 px: 55-64 px wide opaque, the stock median 61 by
   80. Packs `stk2-bandit@9`, `stk2-novice@10`, `stk2-loner@10` (the trousers' icons only).
+- The stock icons' faint dark edge (the owner: "retail pants have this light black effect at
+  the corners", "very slight"): every stock icon sits on a black halo, even all round, its
+  alpha 60 at 2 px from the body, 34 at 4, 19 at 6, 10 at 8, 4 at 10 (248 icons of the
+  released atlas), which is the item's alpha blurred (sigma 5 px) at 0.6. All 14 icons now
+  have it at 0.55, a shade fainter; the cells' top and bottom rows stay clear as on stock,
+  nothing else reaches a cell edge. Packs `stk2-bandit@10`, `stk2-novice@11`,
+  `stk2-loner@11` (their icons only).
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -207,8 +214,8 @@ item's faction (none), level, slots and drop weight from its config in the serve
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@9`, `stk2-novice@10`,
-  `stk2-loner@10` (their pack.json sha256s). `release/build-content` composes them; the
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@10`, `stk2-novice@11`,
+  `stk2-loner@11` (their pack.json sha256s). `release/build-content` composes them; the
   release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
