@@ -336,6 +336,16 @@ pub struct CombatTuning {
     /// blast's lethal reach is 2.4 m and its 10 m splash is wide, the
     /// roll's median is 2 m.
     pub grenade_off_m: f32,
+    /// [A187 R31] ... and, when over 0, the first contact's height more than this from the place's: not thrown, metres (the arc
+    /// came down on another storey or a ledge; `grenade_off_m` is on the ground plane only). A place is a body's feet or a spot's
+    /// floor; a floor is 3 m up. Of 151 smoke blasts 42 (28 %) went off more than 2.5 m above the place they were thrown at
+    /// (p75 +2.9 m, p90 +4.9 m). 0: not asked (the throw as it was).
+    ///
+    /// Bench (smoke preset, 10 a side, 16 maps, seeds 1-8, the team with 2.5 m against the team without, sides swapped, 128 pairs, built on
+    /// the fixed tally of #859): the switch holds back the throws that would land on another storey (82 against 35 "lands off the place"
+    /// in 64 pairs, 414 throws against 476) and the team takes 20 % less `damage other` (144.1 against 180.6, z -3.0), but the outcome is
+    /// not moved: score +0.6 % (z +0.4), kills +0.9 %, deaths -1.0 %, and the by-side table disagrees (side A +11.8, side B -10.0). OFF.
+    pub grenade_off_y_m: f32,
     /// A teammate this near the line the grenade may run on, the first
     /// contact to [`arc::ROLL_WORST_M`] along its heading, and so on it:
     /// not thrown, metres. One in five blasts lay 8 m or more beyond the
@@ -1172,6 +1182,7 @@ impl Default for CombatTuning {
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
             grenade_off_m: 8.0,
+            grenade_off_y_m: 0.0,
             grenade_lane_m: 2.0,
             grenade_places: 3,
             grenade_tracks: true,
@@ -2104,7 +2115,9 @@ fn weigh_view(
     if landing.contact.is_wall() && thrower < c.grenade_wall_m {
         return Err(Refuse::Wall);
     }
-    if landing.contact.point.distance_xz(at) > off_m {
+    if landing.contact.point.distance_xz(at) > off_m
+        || (c.grenade_off_y_m > 0.0 && (landing.contact.point.y - at.y).abs() > c.grenade_off_y_m)
+    {
         return Err(Refuse::Off);
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
@@ -9943,6 +9956,13 @@ mod tests {
             weigh_throw(&me, &view, far, (0.0, 0.0), &c, true, &arc::Floor { y: 0.0 }),
             Err(Refuse::Reach)
         );
+        // A place 2 m up (the arc comes down on the floor under it): thrown as it was; off the place with a height asked.
+        let up = Vec3::new(0.0, 2.0, 20.0);
+        let floor = arc::Floor { y: 0.0 };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &c, true, &floor), Ok(()));
+        let asked = CombatTuning { grenade_off_y_m: 1.5, ..c.clone() };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &asked, true, &floor), Err(Refuse::Off));
+        assert_eq!(weigh_throw(&me, &view, at, (0.0, 0.0), &asked, true, &floor), Ok(()));
         // A first contact on a wall 19 m out (clear of the thrower) for a
         // place at 27 m: off the place.
         let wall = |from: Vec3, dir: Vec3, max_t: f32| {
