@@ -19,7 +19,7 @@
 # or 0.46c2's single icon (donor.sha256).
 # name	dict_id	key	colour	faction	level	mm	cost	use	active	kg	limbs	body_head	pain	toxins	injuries	row	col	source	english
 bandages	66	st_base_bandages	white	0	1	1	10	1	1	0.1	100	35	35	0	yes	2	2	stock	Pack of bandages
-medkit	67	st_base_medkit	orange	0	3	3	20	2	3	0.2	100	100	10	0	yes	15	1	stock	Medikit
-military_medkit	390	st_military_medkit	blue	3	6	3	40	1	1	0.3	100	60	20	0	yes	16	3	0.27d [16, 3]	Military Medkit
+medkit	67	st_base_medkit	orange	0	3	3	20	2	3	0.2	100	100	40	0	yes	15	1	stock	Medikit
+military_medkit	390	st_military_medkit	blue	3	6	3	40	1	1	0.3	100	60	50	0	yes	16	3	0.27d [16, 3]	Military Medkit
 blackmarket_medkit	1196	st_blackmarket_medkit	green	2	3	3	40	2	2	0.3	0	100	100	0	no	17	3	0.46c2 ammo_3_28	Black Market Medkit
-science_medkit	391	st_science_medkit	yellow	4	6	3	40	2	3	0.3	100	100	0	100	yes	14	1	0.27d [14, 1]	Science Medkit
+science_medkit	391	st_science_medkit	yellow	4	6	3	40	2	3	0.3	100	100	50	100	yes	14	1	0.27d [14, 1]	Science Medkit

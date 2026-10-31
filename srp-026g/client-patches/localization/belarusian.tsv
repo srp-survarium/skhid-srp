@@ -1456,7 +1456,7 @@ st_message_reroll_text	Скінуць навыкі?
 st_messages_censor_option	Уключыць цэнзуру паведамленняў
 st_messages_only_from_friends_option	Прымаць асабістыя паведамленні толькі ад сяброў
 st_microphone_sensitivity_option	Адчувальнасць мікрафона
-st_military_medkit_description	Цалкам лечыць рукі і ногі. Аднаўляе 60% здароўя цела і галавы і 20% болю.
+st_military_medkit_description	Цалкам лечыць рукі і ногі. Аднаўляе 60% здароўя цела і галавы і 50% болю.
 st_military_medkit_name	Армейская аптэчка
 st_minimap	Мінікарта
 st_minimap_bottom	Ніжні левы вугал
@@ -2029,7 +2029,7 @@ st_scavengers_win_score_obj	Выйграць бой з лікам прынесе
 st_scavengers_win_x_games_descr	Мы жывём у жорсткім свеце. Пераможцу дастаецца ўсё, а таму, хто прайграў, застаюцца толькі крошкі. Запомні: каманда, якая перамагла ў баі, атрымлівае большую ўзнагароду.
 st_scavengers_win_x_games_name	Смак перамогі
 st_scavengers_win_x_games_obj	Выйграць баёў:
-st_science_medkit_description	Цалкам лечыць рукі, ногі, цела і галаву. Вылечвае атручванне і прамянёвую хваробу.
+st_science_medkit_description	Цалкам лечыць рукі, ногі, цела і галаву. Аднаўляе 50% болю. Вылечвае атручванне і прамянёвую хваробу.
 st_science_medkit_name	Навуковая аптэчка
 st_scientists_faction	Інстытут
 st_search_label	Пошук

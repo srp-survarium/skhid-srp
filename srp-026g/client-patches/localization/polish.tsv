@@ -1456,7 +1456,7 @@ st_message_reroll_text	Cofnąć rozdanie umiejętności?
 st_messages_censor_option	Włącz cenzurę wiadomości
 st_messages_only_from_friends_option	Przyjmuj wiadomości prywatne tylko od znajomych
 st_microphone_sensitivity_option	Czułość mikrofonu
-st_military_medkit_description	W pełni leczy ręce i nogi. Przywraca 60% zdrowia tułowia i głowy oraz 20% bólu.
+st_military_medkit_description	W pełni leczy ręce i nogi. Przywraca 60% zdrowia tułowia i głowy oraz 50% bólu.
 st_military_medkit_name	Apteczka wojskowa
 st_minimap	Minimapa
 st_minimap_bottom	Dolny lewy róg
@@ -2029,7 +2029,7 @@ st_scavengers_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
 st_scavengers_win_x_games_descr	Świat, w którym żyjemy, jest okrutny. Zwycięzca dostaje wszystko, a pokonany musi się zadowolić resztkami. Pamiętaj, zwycięska drużyna otrzymuje większą nagrodę.
 st_scavengers_win_x_games_name	Smak zwycięstwa
 st_scavengers_win_x_games_obj	Rozgrywki do wygrania:
-st_science_medkit_description	W pełni leczy ręce, nogi, tułów i głowę. Leczy zatrucie i chorobę popromienną.
+st_science_medkit_description	W pełni leczy ręce, nogi, tułów i głowę. Przywraca 50% bólu. Leczy zatrucie i chorobę popromienną.
 st_science_medkit_name	Apteczka naukowa
 st_scientists_faction	Instytut
 st_search_label	Szukaj

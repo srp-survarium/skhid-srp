@@ -1456,7 +1456,7 @@ st_message_reroll_text	Сбросить навыки?
 st_messages_censor_option	Включить цензуру сообщений
 st_messages_only_from_friends_option	Принимать личные сообщения только от друзей
 st_microphone_sensitivity_option	Чувствительность микрофона
-st_military_medkit_description	Полностью лечит руки и ноги. Восстанавливает 60% здоровья тела и головы и 20% боли.
+st_military_medkit_description	Полностью лечит руки и ноги. Восстанавливает 60% здоровья тела и головы и 50% боли.
 st_military_medkit_name	Армейская аптечка
 st_minimap	Миникарта
 st_minimap_bottom	Нижний левый угол
@@ -2029,7 +2029,7 @@ st_scavengers_win_score_obj	Выиграть бой со счетом прине
 st_scavengers_win_x_games_descr	Мы живем в жестоком мире. Победителю достается все, а проигравший вынужден довольствоваться лишь крохами. Запомни, победившая в бою команда получает большую награду.
 st_scavengers_win_x_games_name	Вкус победы
 st_scavengers_win_x_games_obj	Выиграть боев:
-st_science_medkit_description	Полностью лечит руки, ноги, тело и голову. Излечивает отравление и лучевую болезнь.
+st_science_medkit_description	Полностью лечит руки, ноги, тело и голову. Восстанавливает 50% боли. Излечивает отравление и лучевую болезнь.
 st_science_medkit_name	Научная аптечка
 st_scientists_faction	Институт
 st_search_label	Поиск

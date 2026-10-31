@@ -1456,7 +1456,7 @@ st_message_reroll_text	Želite li da poništite veštine?
 st_messages_censor_option	Omogući filtriranje poruka
 st_messages_only_from_friends_option	Primaj privatne poruke samo od prijatelja
 st_microphone_sensitivity_option	Osetljivost mikrofona
-st_military_medkit_description	Potpuno leči ruke i noge. Obnavlja 60% zdravlja trupa i glave i ublažava bol za 20%.
+st_military_medkit_description	Potpuno leči ruke i noge. Obnavlja 60% zdravlja trupa i glave i ublažava bol za 50%.
 st_military_medkit_name	Vojna prva pomoć
 st_minimap	Mini-mapa
 st_minimap_bottom	Donji levi ugao
@@ -2029,7 +2029,7 @@ st_scavengers_win_score_obj	Pobedite u meču sa donetim baterijama:
 st_scavengers_win_x_games_descr	Živimo u surovom svetu. Pobednik uzima sve, a poraženi dobija ostatke. Pobednički tim uvek dobija veću nagradu.
 st_scavengers_win_x_games_name	Ukus pobede
 st_scavengers_win_x_games_obj	Pobedite u mečevima:
-st_science_medkit_description	Potpuno leči ruke, noge, trup i glavu. Leči trovanje i radijacionu bolest.
+st_science_medkit_description	Potpuno leči ruke, noge, trup i glavu. Ublažava bol za 50%. Leči trovanje i radijacionu bolest.
 st_science_medkit_name	Naučna prva pomoć
 st_scientists_faction	Institut
 st_search_label	Pretraga

@@ -12,6 +12,7 @@ Medikit's dictionary rows at their new configs; the texts are in `client-patches
 - All five stand on their own: none better than another in everything.
 - One table for all of them ("we can just rebuild it completely for all items").
 - Yellow heals intoxication and radiation, always completely; gradually is fine.
+- Pain (the owner, 2026-10-31): orange 40 %, blue and yellow 50 %, green 100 %, bandages 35 %.
 - A bullet hit stops a drug's use or its healing: an exe patch of its own (branch
   `feat/drug-hit-interrupt`), for every drug.
 
@@ -20,13 +21,13 @@ Medikit's dictionary rows at their new configs; the texts are in `client-patches
 | | use | active | arms, legs | body, head | pain | other | kg | silver | sold by |
 |---|---|---|---|---|---|---|---|---|---|
 | Bandages | 1 s | 1 s | 100 % + injuries | 35 % | 35 % | | 0.1 | 10 | Scavengers r1 |
-| Orange Medikit | 2 s | 3 s | 100 % + injuries | 100 % | 10 % (was 0) | | 0.2 | 20 | Scavengers r3 |
-| Blue Military | 1 s | 1 s | 100 % + injuries | 60 % | 20 % | | 0.3 | 40 | Renaissance r1 |
+| Orange Medikit | 2 s | 3 s | 100 % + injuries | 100 % | 40 % (was 0) | | 0.2 | 20 | Scavengers r3 |
+| Blue Military | 1 s | 1 s | 100 % + injuries | 60 % | 50 % | | 0.3 | 40 | Renaissance r1 |
 | Green Black Market | 2 s | 2 s | 0 | 100 % | 100 % | | 0.3 | 40 | Black Market r3 |
-| Yellow Science | 2 s | 3 s | 100 % + injuries | 100 % | 0 | intoxication and radiation | 0.3 | 40 | Fringe r1 |
+| Yellow Science | 2 s | 3 s | 100 % + injuries | 100 % | 50 % | intoxication and radiation | 0.3 | 40 | Fringe r1 |
 
-- What each wins at: bandages light, cheap, a bit of everything; orange the full heal with a little
-  pain; blue a big heal in 1 s; green the one full pain cure; yellow the full heal that cures
+- What each wins at: bandages light, cheap, a bit of everything; orange the full heal with some pain;
+  blue a big heal in 1 s; green the one full pain cure; yellow the full heal that cures
   intoxication and radiation.
 
 ## How the table becomes a config
@@ -34,15 +35,15 @@ Medikit's dictionary rows at their new configs; the texts are in `client-patches
 - A drug heals `amount` of a pool a second over its active time, after its use time
   (`bandages.md`). Pools: body 1.0, head 0.4, each arm and leg 0.5, pain 1.0, `infection`.
 - 100 % is 1 a second (0.26g's Medikit: the body full in 1 s); less is that share of the pool over
-  the active time (bandages' 35 % of body in 1 s: 0.35; the Medikit's 10 % of pain in 3 s:
-  0.0333). So the bandages are as before, the Medikit as before but its pain.
+  the active time (bandages' 35 % of body in 1 s: 0.35; the Medikit's 40 % of pain in 3 s:
+  0.1333). So the bandages are as before, the Medikit as before but its pain.
 - Every config is 0.26g's `medkit.options` with the row's keys, icon cell, faction, levels, times,
   weight, heals, injuries and card, at `gameplay/items/medicines/<name>.options`; read back, it is
   the row and nothing else of the template differs. Also the stamina key spelt as the exe reads it,
   as every live item has it (`weapon-balance-1`). `parameters/heal_amount` stays the template's: no
   code or movie reads it.
 - New paths: no live config's value changes its type (the release's type check refuses that; the
-  stock Medikit's amounts are whole numbers, its 10 % is not). The old `gameplay/items/drugs/`
+  stock Medikit's amounts are whole numbers, its 40 % is not). The old `gameplay/items/drugs/`
   bandages and medkit stay in the archive, named by nothing.
 - The cards: use, active time and weight, and `medical-cards-1`'s rows (135 arms and legs, 136
   body and head, 137 pain), yellow's also 13 (intoxication, the antitoxin's); no "Heal amount"

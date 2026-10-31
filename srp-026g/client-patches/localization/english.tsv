@@ -1456,7 +1456,7 @@ st_message_reroll_text	Undo skills?
 st_messages_censor_option	Enable message censorship
 st_messages_only_from_friends_option	Accept private messages from friends only
 st_microphone_sensitivity_option	Microphone sensitivity
-st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 20% of pain.
+st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
 st_military_medkit_name	Military Medkit
 st_minimap	Minimap
 st_minimap_bottom	Lower left corner
@@ -2029,7 +2029,7 @@ st_scavengers_win_score_obj	Win a match with batteries brought:
 st_scavengers_win_x_games_descr	We live in a cruel world. The Winner takes everything while the loser is forced to be content with leftovers. Remember, the winning team receives the greater reward.
 st_scavengers_win_x_games_name	Taste of victory
 st_scavengers_win_x_games_obj	Win matches:
-st_science_medkit_description	Fully heals arms, legs, body and head. Cures intoxication and radiation sickness.
+st_science_medkit_description	Fully heals arms, legs, body and head. Restores 50% of pain. Cures intoxication and radiation sickness.
 st_science_medkit_name	Science Medkit
 st_scientists_faction	Institute
 st_search_label	Search
