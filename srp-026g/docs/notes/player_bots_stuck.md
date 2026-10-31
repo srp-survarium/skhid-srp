@@ -1365,7 +1365,7 @@ and 80 degrees):
   the second half of 0x89B80; the stand-in takes the sweep to be an exact circle of the capsule's radius 0.38 m in the walls'
   horizontal sections (GUESS: the complex test's shapes).
 
-`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER`, on unless `off`): the walker mesh's
+`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER=on`; unset or `off`: the lattice): the walker mesh's
 faces that are not ground (steeper than the client's slope, or `dont_walk`) are cut by horizontal planes, the body is a circle of radius
 0.38 m in those sections, pushed out of a wall it overlaps (at most 0.15 m a tick) and moved by the rule above; the lattice then walks
 it to where the rule put it (ledges, floors and the sprint lift stay the lattice's and the intended move's). Tests-only: the bots'
@@ -1458,3 +1458,14 @@ ledge reckoning and the edge hold act on them; the rise of "open level" (+35) an
 stand-in's lift counters show the capsule arriving at faces slower (slow contacts at links of 0.80 m or less: 122 against 828; lifts made
 at 0.80-0.95 m: 3 against 6), not read further. The share of the grid's floors the capsule does not fit (under 0.38 m of a wall section;
 corrected shape): 0.5-0.7 % on levels 01, 02, 03, 06, 1.1 % on 07, 1.4 % on 04, 1.7 % on 08, 3.4 % on 05.
+
+**Against the live bots' week (A187, fx-struct's `a187_live.py` on the live server's 2026-10-24..30 logs, rev 37 bots; 866 bot matches, 142,955
+bot-minutes (an upper bound of the minutes the bots were alive)): 592 "is stuck" notes per 1,000 bot-minutes**, 404 on 10-24 and 520-640 after.
+The bench, notes a bot-minute, all tiers: lattice 0.309, capsule 0.375 (so lattice 0.52 and capsule 0.63 of the live rate); on the tier 9-10 cells
+fx-struct measured 0.402 for the capsule. By map, live / lattice / capsule (per 1,000 bot-minutes, the maps both have): level_01 day 2 261 / 175 / 204;
+level_01 day 4 189 / 130 / 153; level_02 day 2 716 / 489 / 600; level_02 day 4 845 / 199 / 287; level_04 day 2 242 / 318 / 426; level_05 day 2
+281 / 255 / 345; level_05 day 4 284 / 214 / 252; level_06 day 2 1,172 / 462 / 622; level_06 day 4 747 / 413 / 519; level_07 day 4 555 / 673 / 648;
+level_08 day 4 1,025 / 231 / 198. The capsule is nearer to live than the lattice on 8 of these 11 maps (the lattice on level_04 day 2,
+level_05 day 2, level_08 day 4), and both stay under live on the two biggest live maps (level_08 day 4, level_02 day 4: 3-4 times). The earlier read
+("the capsule is further from live than the lattice") was made against the 2026-10-24 owner matches (0.12-0.28) and does not hold against the week.
+The switch merges OFF; whether it becomes the bench default before the final sweep is the coordinator's call (see the PR).
