@@ -14,6 +14,7 @@
 //! - [`camera`]: the death camera's follow of a tumbling head.
 
 #![no_std]
+#![forbid(unsafe_code)]
 #![feature(core_float_math)]
 
 pub mod body;

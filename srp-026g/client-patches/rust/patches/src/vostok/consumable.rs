@@ -2,7 +2,7 @@
 //! pointers retained: each HUD update reads the current simulation, and what
 //! a patch remembers between updates (patch 84's red second) is a drug's
 //! identity and the local player's simulation clock, never a game object.
-use super::{Context, Reg};
+use super::context::{Context, Reg};
 use super::ui::{Movie, movie_of};
 use crate::raw;
 

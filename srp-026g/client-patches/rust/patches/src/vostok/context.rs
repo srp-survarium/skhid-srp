@@ -2,28 +2,22 @@
 //! it does next ([`Flow`]). The generated NASM entry (rust_patches.md) saves
 //! every register, the flags and the FPU/SSE state (`fxsave`), fills a
 //! [`Frame`], calls the handler, applies what it wrote and takes its
-//! [`Flow`]. A handler names a general register by [`Reg`], reads a stack
-//! dword or a typed frame local, sets the flags for a following `jcc`, and
-//! writes an XMM or the x87 top as the overwritten instructions' result.
+//! [`Flow`]. The registers and flags are vostok's alone: a site's view
+//! (`vostok::draw`, `vostok::keyboard`, ..) reads and writes them in typed
+//! methods, so a patch never writes a raw register.
 //!
 //! Patch 76 (the ragdoll) is the first to ship lohooks (`ragdoll.toml`).
 
 use super::hook::{Regs, Thread};
 
 /// A general-purpose register (raw's: a site's typed registers are read by it).
-pub use crate::raw::Register as Reg;
+pub(in crate::vostok) use crate::raw::Register as Reg;
 
-/// A flag a handler may set for the code after the detour.
+/// A flag a site's view may set for the code after the detour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Flag {
+pub(in crate::vostok) enum Flag {
     /// Zero.
     Zf = 1 << 6,
-    /// Carry.
-    Cf = 1 << 0,
-    /// Sign.
-    Sf = 1 << 7,
-    /// Overflow.
-    Of = 1 << 11,
 }
 
 /// The two pointers the generated `lohook` entry hands its shim: the
@@ -36,8 +30,6 @@ pub struct Frame {
     pub regs: *mut Regs,
     pub fxsave: *mut u8,
 }
-
-const XMM0: usize = 160;        // xmm0's offset in the fxsave area; 16 bytes each
 
 /// The machine at a `lohook`, borrowing the hook's [`Thread`].
 pub struct Context<'t> {
@@ -83,7 +75,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    pub fn reg(&self, reg: Reg) -> u32 {
+    pub(in crate::vostok) fn reg(&self, reg: Reg) -> u32 {
         let r = self.regs();
         match reg {
             Reg::Eax => r.eax,
@@ -97,52 +89,22 @@ impl<'t> Context<'t> {
         }
     }
 
-    pub fn set_reg(&mut self, reg: Reg, value: u32) {
+    pub(in crate::vostok) fn set_reg(&mut self, reg: Reg, value: u32) {
         *self.reg_mut(reg) = value;
     }
 
     /// Sets a register's low byte (al, bl, ..), leaving the rest.
-    pub fn set_reg8(&mut self, reg: Reg, value: u8) {
+    pub(in crate::vostok) fn set_reg8(&mut self, reg: Reg, value: u8) {
         let slot = self.reg_mut(reg);
         *slot = (*slot & !0xFF) | u32::from(value);
     }
 
-    pub fn flag(&self, flag: Flag) -> bool {
-        self.regs().eflags & flag as u32 != 0
-    }
-
-    pub fn set_flag(&mut self, flag: Flag, on: bool) {
+    pub(in crate::vostok) fn set_flag(&mut self, flag: Flag, on: bool) {
         if on {
             self.regs_mut().eflags |= flag as u32;
         } else {
             self.regs_mut().eflags &= !(flag as u32);
         }
-    }
-
-    fn xmm(&self, index: usize) -> *mut u8 {
-        assert!(index < 8, "xmm0..7");
-        // SAFETY: new's contract: `fxsave` is the entry's 512-byte area.
-        unsafe { self.frame.fxsave.add(XMM0 + 16 * index) }
-    }
-
-    pub fn xmm_f32(&self, index: usize) -> f32 {
-        // SAFETY: the fxsave area holds 16 bytes per xmm register.
-        unsafe { self.xmm(index).cast::<f32>().read_unaligned() }
-    }
-
-    pub fn set_xmm_f32(&mut self, index: usize, value: f32) {
-        // SAFETY: as xmm_f32.
-        unsafe { self.xmm(index).cast::<f32>().write_unaligned(value) }
-    }
-
-    pub fn xmm_f64(&self, index: usize) -> f64 {
-        // SAFETY: as xmm_f32.
-        unsafe { self.xmm(index).cast::<f64>().read_unaligned() }
-    }
-
-    pub fn set_xmm_f64(&mut self, index: usize, value: f64) {
-        // SAFETY: as xmm_f32.
-        unsafe { self.xmm(index).cast::<f64>().write_unaligned(value) }
     }
 }
 
@@ -196,7 +158,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registers_flags_and_xmm() {
+    fn registers_and_flags() {
         let mut regs = Regs { edi: 0, esi: 0, ebp: 0, esp: 0, ebx: 0, edx: 0, ecx: 0, eax: 0, eflags: 0 };
         let mut fxsave = [0u8; 512];
         let mut frame = Frame { regs: &mut regs, fxsave: fxsave.as_mut_ptr() };
@@ -207,13 +169,9 @@ mod tests {
         ctx.set_reg8(Reg::Eax, 0x01);
         assert_eq!(ctx.reg(Reg::Eax), 0x1234_5601);
         ctx.set_flag(Flag::Zf, true);
-        assert!(ctx.flag(Flag::Zf));
+        assert_eq!(ctx.regs().eflags, Flag::Zf as u32);
         ctx.set_flag(Flag::Zf, false);
-        assert!(!ctx.flag(Flag::Zf));
-        ctx.set_xmm_f32(3, 1.5);
-        assert_eq!(ctx.xmm_f32(3), 1.5);
         assert_eq!(regs.eax, 0x1234_5601);
-        // xmm3 lives at fxsave + 160 + 48
-        assert_eq!(f32::from_le_bytes(fxsave[208..212].try_into().unwrap()), 1.5);
+        assert_eq!(regs.eflags, 0);
     }
 }
