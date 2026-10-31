@@ -1189,7 +1189,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "tab_cursor")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "hud_options", "tab_cursor")
 
 
 def rust_hooks(original):
