@@ -62,6 +62,17 @@ fn urgent(bot: &Bot, intent: &Intent, me: &PlaceView, time: u32) -> bool {
             }))
 }
 
+/// [measure, #25b] The places of the enemies the bot knows of from its own senses and its team's calls (`Track::own`)
+/// within `ms` (the bench's detour path counts; nothing decides by it).
+#[cfg(test)]
+fn known_enemies(bot: &Bot, time: u32, ms: u32) -> Vec<Vec3> {
+    bot.memory
+        .tracks()
+        .iter()
+        .filter_map(|track| track.own.filter(|&(_, when)| time.wrapping_sub(when) <= ms).map(|(at, _)| at))
+        .collect()
+}
+
 /// A jump pressed while the weapon fired lately is held this long, ms,
 /// with the trigger let go: the weapon takes a jump only idle, reloading or
 /// chambering a round (`weapon_core::can_jump` 0x2E3A70: states 3, 4 and
@@ -656,8 +667,8 @@ fn drive_tick_inner(
         && over.legs.is_none()
         && intent.pace == Pace::Walk
         && !intent.crouch
-        && !bot.threat.is_empty()
-        && bot.threat.exposed_at(&tactics.world.grid, me.feet)
+        && !bot.sprint_threat.is_empty()
+        && bot.sprint_threat.exposed_at(&tactics.world.grid, me.feet)
     {
         intent.pace = Pace::Run;
     }
@@ -1219,7 +1230,16 @@ fn drive_tick_inner(
                                     let less = threat::exposure(&round, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
                                     if less.metres < seen.metres {
                                         threat::searched(threat::Searched::Round);
-                                        threat::rounded(bot.place, time);
+                                        #[cfg(test)]
+                                        {
+                                            use threat::detour_path_tally as dp;
+                                            let known = known_enemies(bot, time, dp::KNOWN_MS);
+                                            let h = bot.motor.heights();
+                                            let (pm, rm) = (plain.length(), round.length());
+                                            let near = (dp::near_m(plain, h, 0.0, pm, &known), dp::near_m(&round, h, 0.0, rm, &known));
+                                            dp::record(bot.team, pm, rm, near.0, near.1);
+                                        }
+                                        threat::rounded(bot.place, time, round.length() - plain.length());
                                         kept_m = less.metres;
                                         detour = Some(round);
                                     } else {
@@ -1265,7 +1285,16 @@ fn drive_tick_inner(
                             match way {
                                 Ok(Some(local)) if stuck::worth_round(local.length(), s1 - s0) => {
                                     threat::searched(threat::Searched::Round);
-                                    threat::rounded(bot.place, time);
+                                    #[cfg(test)]
+                                    {
+                                        use threat::detour_path_tally as dp;
+                                        let known = known_enemies(bot, time, dp::KNOWN_MS);
+                                        let h = bot.motor.heights();
+                                        let lm = local.length();
+                                        let near = (dp::near_m(plain, h, s0, s1, &known), dp::near_m(&local, h, 0.0, lm, &known));
+                                        dp::record(bot.team, s1 - s0, lm, near.0, near.1);
+                                    }
+                                    threat::rounded(bot.place, time, local.length() - (s1 - s0));
                                     detour = Some(plain.spliced(s0, s1, &local));
                                 }
                                 Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
