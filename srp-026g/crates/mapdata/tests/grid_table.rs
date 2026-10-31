@@ -1310,17 +1310,21 @@ fn the_floors_by_distance_to_a_wall() {
         );
         let started = std::time::Instant::now();
         let under: Vec<usize> = [grid.exact_clearance() - 1e-3, 0.38, 0.41].map(|r| grid.floors_near_walls(&triangles, r).0).to_vec();
-        let elapsed = started.elapsed();
-        // The three calls above build the walls three times; the time of one call is a third.
-        let one = elapsed.as_secs_f64() / 3.0;
+        let one = started.elapsed().as_secs_f64() / 3.0;
+        let started = std::time::Instant::now();
+        let grid = grid.with_wall_clearance(&triangles);
+        let table_ms = started.elapsed().as_secs_f64() * 1e3;
+        let table_under = |r: f32| (0..grid.len() as u32).filter(|&n| grid.wall_clearance(n).is_some_and(|c| c < r)).count();
         eprintln!(
-            "{project}\t{}\t{}\t{}\t{}\t{:.0}\t{:.1}",
+            "{project}	{}	{}	{}	{}	{}	{}	{:.0}	{:.0}",
             grid.len(),
             under[0],
             under[1],
             under[2],
+            table_under(0.38),
+            table_under(0.41),
             one * 1e3,
-            one * 1e6 / grid.len().max(1) as f64
+            table_ms
         );
     }
 }
