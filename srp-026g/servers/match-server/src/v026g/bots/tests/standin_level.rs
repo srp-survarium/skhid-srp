@@ -16,13 +16,13 @@ pub(crate) fn enabled() -> bool {
     bench_settings().var("SRP_BENCH_STAND_IN_LEVEL").is_ok_and(|v| v == "on" || v == "1")
 }
 
-/// The level of the stand-in human's body. The only humans whose body speed is on record are the owner's: in the eight owner-test
-/// matches the worlds' `speed` of his sprint ticks over the nominal 5.0 m/s is 0.97 (the four matches of tier 13-15 gear) and 1.11
-/// (the three of tier 9-10 gear; Rudnya, Vector Laboratory, Vostok Radar Station), his walk 0.98 and 1.12 over 3.5 m/s, while the bots
-/// of the same matches ran at 1.00-1.03 and 1.08 (their profiles' levels): `a182-sniper/scripts/human_level.py`. Their mean, 1.03,
-/// is the stand-in human's: PROVEN for the owner's body, LIKELY for the other humans (the client keeps a level in 0.85-1.15; a
-/// human's own gear and skills 208 and 209 move it, which the bench does not know). One account is no distribution.
-pub(crate) const HUMAN_LEVEL: f32 = 1.03;
+/// The level of the stand-in human's body: the median over live players of their sprint speed over the nominal 5.0 m/s, 1.02 (PROVEN
+/// from the data): the saved worlds of 185 live matches of 2026-10-12..14, the game's own `speed` field of the rows with forward + sprint,
+/// 841 bodies with 8 rows or more (47,823 rows): per body 1.02 median, 0.978 p10, 0.992 p25, 1.042 p75 and p90, 0.89-1.09 in all (peaks at
+/// 1.00: 254 bodies and 1.04: 360), against the bots' kit levels of 1.03-1.04 (`a182-sniper/scripts/human_level_live.py`). The owner's
+/// own body is no yardstick (0.97 and 1.11 in his matches). A human's own gear and skills 208 and 209 move it, which the bench does not know
+/// of its stand-in; the spread (0.98-1.04) is left out, one number for every human.
+pub(crate) const HUMAN_LEVEL: f32 = 1.02;
 
 /// The level of each place's body: a bot's from its profile's first kit (none: the nominal), the human's [`HUMAN_LEVEL`].
 pub(crate) fn levels(upgrades: &[Upgrades], human: Option<Place>) -> Vec<Option<f32>> {
