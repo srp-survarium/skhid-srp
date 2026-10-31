@@ -190,6 +190,7 @@ impl Check for AimTuning {
             "aim.combat.recoil_pull",
         )?;
         check(c.worth.valid(), "aim.combat.worth")?;
+        check(c.band_cross_deg.is_none_or(|deg| (0.0..90.0).contains(&deg)), "aim.combat.band_cross_deg")?;
         Ok(())
     }
 }

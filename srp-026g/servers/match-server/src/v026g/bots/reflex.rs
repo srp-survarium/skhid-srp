@@ -278,12 +278,12 @@ pub struct CombatTuning {
     /// (only with `band_legs`).
     pub band_slack_m: f32,
     pub band_step_m: f32,
-    /// The range step is taken across the line to him by this angle, degrees (0: along it, as it was): a step in or back
+    /// The range step is taken across the line to him by this angle, degrees (none: along it, as it was): a step in or back
     /// out of the band that goes to one side of the line, longer by 1 / cos so that the way in or out is the same, and
     /// the side the other way at every new step (the bench's bots crossed the shooter's line at 1.07 m/s while a range
     /// step ran, the live humans' aimed-in 1.95: `gun_shots` by_driver, register #24). The step the side's floor refuses
     /// goes to the other side, else along the line.
-    pub band_cross_deg: f32,
+    pub band_cross_deg: Option<f32>,
     /// Aimed in and firing at a target in range, it stands on its feet and steps to the side only (no forward or back from its
     /// route or a range step), for `stand_strafe_hold_ms` after the last tick the fight was on; then the play's way goes on
     /// ([`Gait`]). The live players' side-key shots are 69 % pure side steps, the bench bots' 18 % (`gun_shots` aimed_run:
@@ -1244,7 +1244,7 @@ impl Default for CombatTuning {
             close_on_sniper_m: 30.0,
             band_slack_m: 3.0,
             band_step_m: 6.0,
-            band_cross_deg: 0.0,
+            band_cross_deg: None,
             stand_strafe: false,
             stand_strafe_hold_ms: 400,
             band_legs: true,
@@ -4913,17 +4913,17 @@ impl Reflex {
         let fine = |at: &Vec3| sit.tactics.is_some_and(|tactics| tactics.fine_goal(*at, now, sit.side));
         // A step goes across the line when `band_cross_deg` says so, to the side after the last one's, else the other, else along it.
         let right_first = if stepping { self.range_right } else { !self.range_right };
-        let step = along.and_then(|m| {
-            if c.band_cross_deg > 0.0 {
+        let step = along.map(|m| {
+            if let Some(deg) = c.band_cross_deg {
                 for right in [right_first, !right_first] {
-                    let at = step_across(me.feet, track.at(), m, c.band_cross_deg.to_radians(), right);
+                    let at = step_across(me.feet, track.at(), m, deg.to_radians(), right);
                     if fine(&at) {
                         self.range_right = right;
-                        return Some(at);
+                        return at;
                     }
                 }
             }
-            Some(step_toward(me.feet, track.at(), m))
+            step_toward(me.feet, track.at(), m)
         });
         self.range_step = step.filter(fine);
     }
