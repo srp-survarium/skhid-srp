@@ -75,3 +75,10 @@ engine_get_current_process_id	0x8701b8	-	unsigned int engine_get_current_process
 engine_bind_member_callback	0x27d280	EDI:callback ESP+4:member ESP+8:adjustment ESP+12:object ESP+16:padding	struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding)	thunk	
 engine_inventory_variant_type	0x205c60	-	unsigned int engine_inventory_variant_type(void)	thunk	
 engine_dispatch_callbacks	0x0e5ab0	-	void engine_dispatch_callbacks(void)	thunk	
+engine_inventory_set	0x2fc620	ESI:inventory EDI:slot ESP+4:reference	void engine_inventory_set(struct inventory *inventory, unsigned int slot, struct item *const *item)	thunk
+engine_release_inventory_item	0x0e0210	ECX:instance EAX:count	void engine_release_inventory_item(struct item *object, unsigned int *count)	thunk
+engine_forget_active_object	0x3919e0	EAX:animation EDX:removed	void engine_forget_active_object(void *animation, struct item *object)	thunk
+engine_weapon_set_user	0x2445e0	ECX:weapon ESP+4:player	void engine_weapon_set_user(struct item *weapon, struct player *player)	thiscall
+engine_weapon_initialize	0x2449e0	ECX:weapon	void engine_weapon_initialize(struct item *weapon)	thiscall
+engine_weapon_activate	0x244610	ECX:weapon ESP+4:switch_flag	void engine_weapon_activate(struct item *weapon, unsigned int flag)	thiscall
+engine_weapon_deactivate	0x244860	ECX:weapon ESP+4:clear_user	void engine_weapon_deactivate(struct item *weapon, unsigned int clear)	thiscall

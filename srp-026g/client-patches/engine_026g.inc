@@ -247,3 +247,28 @@ extern engine_inventory_variant_type
 ; void engine_dispatch_callbacks(void)
 ; 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
 extern engine_dispatch_callbacks
+; void engine_inventory_set(struct inventory *inventory, unsigned int slot, struct item *const *item)
+; 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
+extern engine_inventory_set
+; void engine_release_inventory_item(struct item *object, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+extern engine_release_inventory_item
+; void engine_forget_active_object(void *animation, struct item *object)
+; 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
+extern engine_forget_active_object
+; void engine_weapon_set_user(struct item *weapon, struct player *player)
+; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_weapon_set_user
+; void engine_weapon_initialize(struct item *weapon)
+; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_weapon_initialize
+; void engine_weapon_activate(struct item *weapon, unsigned int flag)
+; 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_weapon_activate
+; void engine_weapon_deactivate(struct item *weapon, unsigned int clear)
+; 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_weapon_deactivate

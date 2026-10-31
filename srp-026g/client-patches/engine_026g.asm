@@ -80,6 +80,13 @@ global engine_get_current_process_id
 global engine_bind_member_callback
 global engine_inventory_variant_type
 global engine_dispatch_callbacks
+global engine_inventory_set
+global engine_release_inventory_item
+global engine_forget_active_object
+global engine_weapon_set_user
+global engine_weapon_initialize
+global engine_weapon_activate
+global engine_weapon_deactivate
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -97,6 +104,10 @@ engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, 
 engine_player_insert equ 0x1f2720   ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
 engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
 engine_get_current_process_id equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
+engine_weapon_set_user equ 0x2445e0   ; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
+engine_weapon_initialize equ 0x2449e0   ; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
+engine_weapon_activate equ 0x244610   ; 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly
+engine_weapon_deactivate equ 0x244860   ; 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1104,6 +1115,55 @@ engine_dispatch_callbacks:
     push esi
     push edi
     call 0xe5ab0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_set:
+    ; 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; item -> 4
+    mov esi, [esp + 24]   ; inventory
+    mov edi, [esp + 28]   ; slot
+    call 0x2fc620
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_inventory_item:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_forget_active_object:
+    ; 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; animation
+    mov edx, [esp + 24]   ; object
+    call 0x3919e0
     pop edi
     pop esi
     pop ebx

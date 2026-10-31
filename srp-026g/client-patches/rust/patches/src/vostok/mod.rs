@@ -41,6 +41,7 @@ pub mod log;
 mod options;
 pub mod parse;
 pub mod gun_cook;
+pub mod pickup;
 mod rt;
 mod sync;
 pub mod trace;

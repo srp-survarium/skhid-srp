@@ -264,6 +264,15 @@ pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
     })
 }
 
+/// The cooked inventory of the made cook `id` (the install's, while its
+/// ticket holds it).
+pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::Inventory> {
+    TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
+        Ticket::Made { generation, spare, .. } if *generation == id.generation => Some(spare.inventory),
+        _ => None,
+    })
+}
+
 /// The gun `player` holds at its death, by the slot of its kit's inventory
 /// that holds it: a client weapon (its vtable) in slot 7 or 10. Anything
 /// else (nothing, a battery, a grenade, a medkit, a gun of another slot)

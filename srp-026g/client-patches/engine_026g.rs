@@ -129,6 +129,12 @@ unsafe extern "C" {
     pub fn engine_inventory_variant_type() -> u32;
     /// 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
     pub fn engine_dispatch_callbacks();
+    /// 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
+    pub fn engine_inventory_set(inventory: *mut c_void, slot: u32, item: *const *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_inventory_item(object: *mut c_void, count: *mut u32);
+    /// 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
+    pub fn engine_forget_active_object(animation: *mut c_void, object: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -157,6 +163,14 @@ unsafe extern "thiscall" {
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
     /// 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
     pub fn engine_player_insert(player: *mut c_void, link: u32);
+    /// 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_set_user(weapon: *mut c_void, player: *mut c_void);
+    /// 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
+    pub fn engine_weapon_initialize(weapon: *mut c_void);
+    /// 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_activate(weapon: *mut c_void, flag: u32);
+    /// 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_deactivate(weapon: *mut c_void, clear: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

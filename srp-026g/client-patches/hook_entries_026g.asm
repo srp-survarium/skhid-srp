@@ -1795,3 +1795,282 @@ weapon_pickup_on_destroy_go:
 weapon_pickup_on_destroy_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x1f2106
+
+; 0x2daf70 base_player::serialize before its first field (mov eax,[ebx+124h]; the profile's serialize_dynamic 0x2DAF81 follows): EBX the player, ESI the writer; patch 83's record goes here, state offset 2: lohook -> weapon_pickup_on_save
+global weapon_pickup_on_save
+extern hook_weapon_pickup_on_save
+weapon_pickup_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_save
+    mov edx, weapon_pickup_on_save_replay
+    cmp eax, 0
+    je weapon_pickup_on_save_go
+    mov edx, 0x2daf76
+    cmp eax, 1
+    je weapon_pickup_on_save_go
+    ud2
+weapon_pickup_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_save_replay:
+    db 0x8b, 0x83, 0x24, 0x01, 0x00, 0x00
+    jmp 0x2daf76
+
+; 0x2db4cf base_player::deserialize before its first read (mov [ebx+344h],edx; EDX live; profile deserialize_dynamic 0x2DB4D5, held 0x2DB626, inventory 0x2DB7D8 follow): EBX the player, ESI the reader: lohook -> weapon_pickup_on_load
+global weapon_pickup_on_load
+extern hook_weapon_pickup_on_load
+weapon_pickup_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load
+    mov edx, weapon_pickup_on_load_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_go
+    mov edx, 0x2db4d5
+    cmp eax, 1
+    je weapon_pickup_on_load_go
+    ud2
+weapon_pickup_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_replay:
+    db 0x89, 0x93, 0x44, 0x03, 0x00, 0x00
+    jmp 0x2db4d5
+
+; 0x2da790 base_player::remove's entry (push ebp / mov ebp,esp / and esp,-8; ret 4): ECX the player, [esp+4] the flag (1: held deactivated, unload_to_profile 0x2DA840): lohook -> weapon_pickup_on_remove
+global weapon_pickup_on_remove
+extern hook_weapon_pickup_on_remove
+weapon_pickup_on_remove:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_remove
+    mov edx, weapon_pickup_on_remove_replay
+    cmp eax, 0
+    je weapon_pickup_on_remove_go
+    mov edx, 0x2da796
+    cmp eax, 1
+    je weapon_pickup_on_remove_go
+    ud2
+weapon_pickup_on_remove_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_remove_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2da796
+
+; 0x2f809c resupply_zone_core::can_use before check_resupply's inventory (mov ecx,[eax+10Ch]; EAX the player, EDX its profile; a je lands on its start); available: mov eax,1 / ret 4: lohook -> weapon_pickup_on_can_use
+global weapon_pickup_on_can_use
+extern hook_weapon_pickup_on_can_use
+weapon_pickup_on_can_use:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_can_use
+    mov edx, weapon_pickup_on_can_use_replay
+    cmp eax, 0
+    je weapon_pickup_on_can_use_go
+    mov edx, 0x2f80a2
+    cmp eax, 1
+    je weapon_pickup_on_can_use_go
+    mov edx, 0x2f80b3
+    cmp eax, 2
+    je weapon_pickup_on_can_use_go
+    ud2
+weapon_pickup_on_can_use_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_can_use_replay:
+    db 0x8b, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f80a2
+
+; 0x2f80e4 resupply_zone_core::use_hint before check_resupply's inventory (mov ecx,[eax+10Ch]; a je lands on its start); available: st_use_resupply_zone / ret 4: lohook -> weapon_pickup_on_use_hint
+global weapon_pickup_on_use_hint
+extern hook_weapon_pickup_on_use_hint
+weapon_pickup_on_use_hint:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_use_hint
+    mov edx, weapon_pickup_on_use_hint_replay
+    cmp eax, 0
+    je weapon_pickup_on_use_hint_go
+    mov edx, 0x2f80ea
+    cmp eax, 1
+    je weapon_pickup_on_use_hint_go
+    mov edx, 0x2f8116
+    cmp eax, 2
+    je weapon_pickup_on_use_hint_go
+    ud2
+weapon_pickup_on_use_hint_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_use_hint_replay:
+    db 0x8b, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f80ea
+
+; 0x2f81b8 resupply_zone_core::finish_use before resupply_from_profile's inventory (mov eax,[eax+10Ch]; ECX the kit, EDX the profile): lohook -> weapon_pickup_on_resupply
+global weapon_pickup_on_resupply
+extern hook_weapon_pickup_on_resupply
+weapon_pickup_on_resupply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_resupply
+    mov edx, weapon_pickup_on_resupply_replay
+    cmp eax, 0
+    je weapon_pickup_on_resupply_go
+    mov edx, 0x2f81be
+    cmp eax, 1
+    je weapon_pickup_on_resupply_go
+    ud2
+weapon_pickup_on_resupply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_resupply_replay:
+    db 0x8b, 0x80, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f81be
+
+; 0x2954ef resupply_zone::finish_use (the client's) before resupply_from_profile's inventory (mov eax,[eax+10Ch]): lohook -> weapon_pickup_on_client_resupply
+global weapon_pickup_on_client_resupply
+extern hook_weapon_pickup_on_client_resupply
+weapon_pickup_on_client_resupply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_client_resupply
+    mov edx, weapon_pickup_on_client_resupply_replay
+    cmp eax, 0
+    je weapon_pickup_on_client_resupply_go
+    mov edx, 0x2954f5
+    cmp eax, 1
+    je weapon_pickup_on_client_resupply_go
+    ud2
+weapon_pickup_on_client_resupply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_client_resupply_replay:
+    db 0x8b, 0x80, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2954f5

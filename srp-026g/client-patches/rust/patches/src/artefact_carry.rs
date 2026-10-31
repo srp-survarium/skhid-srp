@@ -131,11 +131,15 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     crate::vostok::carry_ground::load(ctx); Flow::Continue
 }
 
+/// After set_input's copy: patch 83 plays a pickup command from the raw
+/// actions first, then the carry filters them.
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, native::PlayerSite::Filter)
-        && player.carry_key().is_some() {
+    if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
+        crate::weapon_pickup::on_filter(&player, ctx.thread());
+        if player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
+    }
     Flow::Continue
 }
 

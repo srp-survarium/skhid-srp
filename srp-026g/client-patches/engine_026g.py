@@ -606,9 +606,10 @@ def raw_kind(k, kinds_):
             value = f"*mut {x['target']}" if x["of"] == "data" else f"Option<{kinds_[module_of(x['target'])]['type']}>"
             lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {value} {{",
                             f"        unsafe {{ {place}.cast::<{value}>().read_volatile() }}", "    }"]
-            if k["size"]:                              # a kind we have room for: one we fill
-                lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
-                                f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
+            # a kind we have room for (one we fill), or a game object's pointer a patch
+            # rebinds (patch 83's install): written as its handle, never a bare number
+            lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
+                            f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
     size = k["size"]
     if size:
         n = size["offset"]
