@@ -100,7 +100,7 @@ fn humans_of(project: &str) -> Vec<[f32; 3]> {
     text.lines()
         .skip(1)
         .filter_map(|line| {
-            let c: Vec<&str> = line.split('	').collect();
+            let c: Vec<&str> = line.split('\t').collect();
             (c.len() >= 10 && c[8] == "0").then(|| Some([c[3].parse().ok()?, c[4].parse().ok()?, c[5].parse().ok()?])).flatten()
         })
         .collect()
