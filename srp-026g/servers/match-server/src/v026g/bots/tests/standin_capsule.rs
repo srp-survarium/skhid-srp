@@ -359,7 +359,7 @@ pub(crate) mod counts {
     }
 
     pub(crate) fn counts() -> [u64; 5] {
-        [MOVES, MET, STOPPED, SLOWED, PUSHED].map(|c| c.load(Ordering::Relaxed))
+        [&MOVES, &MET, &STOPPED, &SLOWED, &PUSHED].map(|c| c.load(Ordering::Relaxed))
     }
 }
 
@@ -433,5 +433,56 @@ mod tests {
         let seg = cut(&v, 1.0).unwrap();
         assert!((seg.a.0 - seg.b.0).abs() <= 1.0 && seg.a != seg.b);
         assert!(cut(&v, 3.0).is_none());
+    }
+
+    /// How near live players stand to a wall (`cargo test -p match-server --release live_wall_clearance -- --ignored --nocapture`, with
+    /// `SRP_MAPDATA_DIR` the maps and `SRP_HUMAN_DIR` the folder of the live alive samples, one `<level>_<weather>_<n>.tsv` a map:
+    /// match, place, t_ms, x, feet, z, crouch, sprint, jumping, speed, spawned): per map the samples on the ground, the share nearer a
+    /// wall than 0.30, 0.34, 0.38, 0.41 m, and the distances' 1 / 5 / 50 percentiles. The capsule cannot be nearer than its radius.
+    #[test]
+    #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_HUMAN_DIR"]
+    fn live_wall_clearance() {
+        let (Some(maps), Some(humans)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_HUMAN_DIR")) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR or SRP_HUMAN_DIR is not set");
+            return;
+        };
+        let mut files: Vec<_> = std::fs::read_dir(&humans).unwrap().filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "tsv")).collect();
+        files.sort();
+        let only = std::env::var("SRP_HUMAN_ONLY").ok();
+        for path in files {
+            let stem = path.file_stem().unwrap().to_string_lossy().to_string();
+            if only.as_ref().is_some_and(|o| !stem.contains(o.as_str())) {
+                continue;
+            }
+            // level_04_day_2 -> level_04/day_2
+            let parts: Vec<&str> = stem.splitn(3, '_').collect();
+            let project = format!("{}_{}/{}", parts[0], parts[1], parts[2]);
+            let Ok(map) = mapdata::MapData::read(&std::path::Path::new(&maps).join(mapdata::format::file_name(&project))) else {
+                println!("{stem}: no map file");
+                continue;
+            };
+            let sections = Sections::new(&map.walker_triangles(), mapdata::Body::client().min_ground_normal_y);
+            let mut dists: Vec<f32> = Vec::new();
+            let mut segs = Vec::new();
+            for line in std::fs::read_to_string(&path).unwrap().lines().skip(1) {
+                let f: Vec<&str> = line.split('	').collect();
+                if f.len() < 10 || f[8] != "0" {
+                    continue;
+                }
+                let (Ok(x), Ok(y), Ok(z)) = (f[3].parse::<f32>(), f[4].parse::<f32>(), f[5].parse::<f32>()) else { continue };
+                sections.near((x, z), y, 1.2, &mut segs);
+                dists.push(segs.iter().map(|s| nearest(s, (x, z)).1).fold(1.2f32, f32::min));
+            }
+            if dists.is_empty() {
+                continue;
+            }
+            dists.sort_by(|a, b| a.total_cmp(b));
+            let share = |m: f32| 100.0 * dists.iter().filter(|&&d| d < m).count() as f32 / dists.len() as f32;
+            let q = |p: f32| dists[((dists.len() - 1) as f32 * p) as usize];
+            println!(
+                "{stem}: {} samples, walls {}; nearer than 0.30 m {:.2} %, 0.34 {:.2} %, 0.38 {:.2} %, 0.41 {:.2} %; p1 {:.3} p5 {:.3} p50 {:.3}",
+                dists.len(), sections.len(), share(0.30), share(0.34), share(0.38), share(0.41), q(0.01), q(0.05), q(0.5)
+            );
+        }
     }
 }
