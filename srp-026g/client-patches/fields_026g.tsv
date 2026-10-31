@@ -278,3 +278,6 @@ vostok::input::keyboard	keys	0x4	obj<vostok::input::key_state>	each key's state 
 vostok::input::key_state	state	0x0	u8	bit 80h: the key is down (is_key_down 0x3B8D00: movsx / shr 7 / and 1)
 vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8D00 indexes key x 4)
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
+vostok::mutable_buffer	begin	0x4	ptr<u8>	a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
+vostok::mutable_buffer	size	0xC	u32	the bytes used, from begin
+survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)

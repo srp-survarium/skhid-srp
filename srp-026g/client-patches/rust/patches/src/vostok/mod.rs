@@ -49,6 +49,7 @@ mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+mod world_load;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -80,6 +81,7 @@ pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
+pub use world_load::WorldLoad;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 

@@ -7,12 +7,13 @@ use std::time::Duration;
 use std::collections::BTreeSet;
 
 use survarium::v026g::match_msgs::client_model::Skip;
-use survarium::v026g::match_msgs::players::PlayerState;
+use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
-use survarium::v026g::match_msgs::snapshot::event;
+use survarium::v026g::match_msgs::snapshot::{Sections, event};
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
+use world_frame::{Frame, PLAYER_STATE_CAP, Places, Section};
 
 use super::client::{Client, HORIZON_MS, INITIAL_MS};
 use super::{Bench, MAP_BATTERIES, MAP_TDM, session_of};
@@ -2052,24 +2053,83 @@ fn a_roster_of_three_waits_for_its_second_player_before_the_countdown() {
     bench.assert_no_faults();
 }
 
+/// Worlds no game could load: the bytes given, and a real world but for
+/// one thing (world_frame_check.md).
+fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
+    let real = Sections::walk(world).expect("a world that walks");
+    let block = players::block_bytes(&[0xAB; 33], None);
+    let big_state = players::block_bytes(&[0xAB; PLAYER_STATE_CAP + 1], None);
+    let over = Section::ALL.map(|section| vec![0; section.cap() + 1]);
+    let [bullets, statistics, objects, physics, rules, effects] = &over;
+    let worlds = [
+        // A place past the roster of two.
+        Sections {
+            active_clients_mask: 1 << 2,
+            players: &block,
+            ..real
+        },
+        // A place past the 20 slots of any game.
+        Sections {
+            active_clients_mask: 1 << 31,
+            players: &block,
+            ..real
+        },
+        Sections {
+            active_clients_mask: 1,
+            players: &big_state,
+            ..real
+        },
+        Sections { bullets, ..real },
+        Sections { statistics, ..real },
+        Sections { objects, ..real },
+        Sections { physics, ..real },
+        Sections { rules, ..real },
+        Sections { effects, ..real },
+    ];
+    let mut bodies = vec![vec![0xEE; 777]];
+    bodies.extend(worlds.iter().map(|world| world.to_body().unwrap()));
+    // A mask that names a player whose block is not there: the reader
+    // would take a section's length for the block's.
+    let mut torn = world.to_vec();
+    torn[..4].copy_from_slice(&1u32.to_le_bytes());
+    bodies.push(torn);
+    bodies
+}
+
 #[test]
-fn a_world_the_server_cannot_read_still_starts_the_match_but_gives_no_results() {
-    let mut bench = Bench::new(1, MAP_BATTERIES, Settings::default());
+fn a_world_no_game_could_load_goes_to_nobody() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
-    // Not a mask, players and six sections: the server's reader may be
-    // what is wrong (no 0.26g world was seen when it was written).
-    let odd = vec![0xEE; 777];
-    bench.clients[0].upload(INITIAL_MS, &odd);
+    let world = bench.clients[0].sim.world(INITIAL_MS);
+    // At its caps a world goes, as a real one does.
+    let real = Sections::walk(&world).unwrap();
+    let full = vec![0; Section::Bullets.cap()];
+    let at_cap = Sections {
+        bullets: &full,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(Frame::parse(&at_cap, Places::of(2)).is_ok());
+    let bodies = unloadable_worlds(&world);
+    for (count, body) in bodies.iter().enumerate() {
+        assert!(Frame::parse(body, Places::of(2)).is_err(), "world {count}");
+        // One item time is one upload for the reassembler.
+        bench.clients[0].upload(INITIAL_MS + 50 * count as u32, body);
+        bench.run(100);
+        assert_eq!(bench.game().uploads_refused(0), count as u32 + 1);
+    }
     assert!(bench.clients[0].model.send_ready());
     bench.clients[0].send(id::READY, &[], true);
-    assert!(bench.until(1_000, |bench| bench.stages() == "L"));
-    // It went out byte for byte. (The client model, as strict as the
-    // reader, calls it no world: the one fault here.)
-    assert_eq!(bench.clients[0].faults.len(), 1);
-    assert!(bench.clients[0].faults[0].contains("0xe8"));
-    assert_eq!(bench.game().observed(), None);
-    assert!(bench.game().has_clock());
+    bench.run(1_000);
+    assert!(!bench.game().has_clock());
+    assert_eq!(bench.stages().as_bytes()[0], b'w');
+    // The next game's world starts the match, and the first game from it.
+    bench.join(1);
+    assert!(bench.until(5_000, |bench| bench.stages() == "LL"));
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
 }
 
 #[test]

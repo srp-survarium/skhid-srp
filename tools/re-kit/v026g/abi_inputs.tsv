@@ -529,6 +529,8 @@ va	name	location	role	basis
 0x0007a390	vostok::physics::create_primitive_shape	entry ESP+8 low word	the material (u16 put in the face-data word +110h)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
@@ -2529,6 +2531,7 @@ va	name	location	role	basis
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
 0x0027a790	survarium::network_client::close_current_match	ECX	network_client receiver	observed
 0x0027a790	survarium::network_client::close_current_match	stack+4	match-close case selector; enum meanings unassigned	observed
+0x0027a790	survarium::network_client::close_current_match	entry ESP+4	the reason (jump table 0x27A958): 2 disconnected_by_initiator, 0xE0 to the match server then as 1 (31 01 to the lobby, the world ended); 3 the world ended and the results shown (match.md sections 24, 25)	observed
 0x0027a9c0	survarium::network_client::get_active_player	ECX	the network client (its core [+1F1C40h]+1F8h)	observed
 0x0027a9c0	survarium::network_client::get_active_player	entry ESP+4	out pointer	observed
 0x0027a9c0	survarium::network_client::get_active_player	entry ESP+8	the place (byte)	observed
@@ -2660,6 +2663,8 @@ va	name	location	role	basis
 0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	out pointer	observed
 0x002d0b70		entry ESP+12		auto
 0x002d0b70		entry ESP+4		auto
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+4	the world core ([network_client+1F1C40h]+1F8h at the 0xE8 handler's loads 0x27C0D9, 0x27C111)	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+8	the buffer_reader at the world: its time (u32), then the body	observed
 0x002d1100		EAX		auto
 0x002d1100		entry ESP+4		auto
 0x002d1100		entry ESP+12		auto

@@ -2216,6 +2216,90 @@ text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
 
+; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
+global world_check_on_unpacked
+extern hook_world_check_on_unpacked
+world_check_on_unpacked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_world_check_on_unpacked
+    mov edx, world_check_on_unpacked_replay
+    cmp eax, 0
+    je world_check_on_unpacked_go
+    mov edx, 0x27c0d9
+    cmp eax, 1
+    je world_check_on_unpacked_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je world_check_on_unpacked_go
+    ud2
+world_check_on_unpacked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+world_check_on_unpacked_replay:
+    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
+    jmp 0x27c0d9
+
+; 0x27c0ff process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue: lohook -> world_check_on_raw
+global world_check_on_raw
+extern hook_world_check_on_raw
+world_check_on_raw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_world_check_on_raw
+    mov edx, world_check_on_raw_replay
+    cmp eax, 0
+    je world_check_on_raw_go
+    mov edx, 0x27c105
+    cmp eax, 1
+    je world_check_on_raw_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je world_check_on_raw_go
+    ud2
+world_check_on_raw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+world_check_on_raw_replay:
+    db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
+    jmp 0x27c105
+
 section .rodata
 align 4
 global lamps_visual_vtable
