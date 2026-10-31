@@ -64,6 +64,7 @@ else
 fi
 
 new=$(mktemp -d "$maps/built.new.XXXXXX")
+chmod 755 "$new"
 say "building ${#projects[@]} maps into $new (minutes) ..."
 "$bin" "$maps" "$new" "${projects[@]}" || die "srp-build-maps failed: nothing changed ($new is left for a look)"
 
