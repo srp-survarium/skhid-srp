@@ -50,7 +50,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@6)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@7)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -104,6 +104,15 @@ crates, beds and lockers, and the vaults beside it.
 - Light (@6): the store room's three lights at their fixtures (3 cm under the pendant's bulb, in
   the plafonds' glass), softer: intensity 2.4 (3.2), range 8.5 m (6), falloff power 1.5 (2);
   the room probe's ambient 0.3 (0.2). The warm colour kept.
+- Shadows (@7, the owner: "in bunker shadows are a bit too strong"): the light under the store
+  room's pendant bulb cast shadows, so the pendant's shade threw a hard pitch-black ellipse over
+  the vault above it; the lights at the pendants (the store room's and STK2's under the corridor
+  pendant) cast none now, and the light reaches the vault as a hanging lamp's does. The room
+  probe's ambient 0.45 (0.3) lifts the dark parts; the warm colour kept.
+- The merged model is `level/stk2_bunker/main_v<version>` (`main_v7`), a new folder with each
+  version: its surfaces are numbered by material, and a resources.db patch only adds files, so a
+  surface folder of an earlier version left in the same model failed all its materials (seen with
+  @6's files over @5's: "material not loaded: nomaterial", the shelter untextured).
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).
