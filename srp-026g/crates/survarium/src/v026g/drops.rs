@@ -677,15 +677,16 @@ mod tests {
 
     /// The STK2 outfits' 14 items on game data with their packs
     /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
-    /// stk2-bandit, stk2-novice and stk2-loner): no faction and no seller
-    /// (the owner, 2026-10-31: the new equipment only drops), each at the
+    /// stk2-bandit, stk2-novice and stk2-loner): no faction, sold by seller 0
+    /// at no rank at its own price, as the Novice's knit cap (the owner,
+    /// 2026-10-31), and dropped: each at the
     /// owner's level and in the generic table's pool of its category at that
     /// level, by its own drop weight (`armour::tests` holds it to its level's
     /// range). It makes that data the process's:
     /// run it alone.
     #[test]
     #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
-    fn the_stk2_outfits_drop_and_are_sold_by_no_one() {
+    fn the_stk2_outfits_drop_and_are_sold_to_everyone() {
         use super::super::{game_data, prices};
         let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
         game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
@@ -720,7 +721,16 @@ mod tests {
             // level's), in the same pool as its template's.
             assert_eq!(params.kind, template.kind, "{name}");
             assert!(params.drop_weight > 0, "{name}");
-            assert_eq!(prices::sellers_of(dictionary, item, params), [], "{name}");
+            // Sold as the Novice's knit cap (the owner, 2026-10-31): by
+            // seller 0 at no rank, at its own price.
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            assert!(
+                prices::price_list().iter().any(|r| r.dict_id == item.dict_id
+                    && r.faction_id == 0
+                    && r.level == 0
+                    && r.cost == item.base_cost),
+                "{name}"
+            );
             assert!(!generic.level_independent.contains(&item.category), "{name}");
             let pool = generic.candidates(dictionary, item.category, level);
             assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");

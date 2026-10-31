@@ -48,14 +48,17 @@ item's faction (none), level, slots and drop weight from its config in the serve
 | 1875 | Loner's boots | boots (`data_full`) | 6 | Army boots (62, 6) | `neutral_03_boot` (the left boot the right one mirrored) | [12, 9] |
 | 1876 | Loner's fingerless gloves | gloves (`data_full`) | 6 | Rough gloves (327, 5) | `neutral_03_hand` | [13, 9] |
 
-- **No faction, drop only (the owner, 2026-10-31):** every item's `parameters.faction` is 0,
-  as the Novice's knit cap's: the Independent traders' (the item tables show them so). No
-  one sells them: srp sells gear of no faction only through a named `prices` exception, and
-  none names them (nor a bundle or the start kit). They drop after matches: each has its
-  level's drop weight (below), its category is in the generic drop table, and the table's level rows
-  roll its item level (`prices::tests::the_stk2_outfits_are_sold_by_no_one`; on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_by_no_one`).
-  Drops are rolled after a match, so nothing a match computes changes (no
-  `simulation_changes.tsv` row).
+- **No faction, sold as the knit cap, and dropped (the owner, 2026-10-31):** every item's
+  `parameters.faction` is 0, as the Novice's knit cap's: the Independent traders' (the item
+  tables show them so). First drop only; then "let's make them buyable the same way the
+  beanie is": each has a `prices::EXCEPTIONS` row `(0, 0)`, as the cap, so seller 0 sells it
+  to everyone at no rank, at its price (Stats, below); the 14 names are in
+  `prices::UNRELEASED` until the release that ships the packs. They also drop after
+  matches: each has its level's drop weight, its category is in the generic drop table, and
+  the table's level rows roll its item level (`prices::tests::the_stk2_outfits_are_sold_to_everyone_at_no_rank`;
+  on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
+  Drops are rolled after a match and prices are the lobby's, so nothing a match computes
+  changes (no `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.
 - Each item's config is a stock piece's of its slot (card, sounds, rollable modifications)
   with its own numbers (Stats, below), model, icon, texts and faction (none); camouflage
@@ -206,7 +209,7 @@ against 10.1.
   band's edge loop, smooth. The sneakers' icon is back to its first render (the owner's
   pick: the camera a little above, the collar and tongue whole), 28 % smaller. Packs
   `stk2-bandit@6`, `stk2-novice@7`, `stk2-loner@7`.
-- No faction and drop only, the levels 4 and 6 with their new donors (above); the trousers'
+- No faction and drop only (since: sold as the knit cap, above), the levels 4 and 6 with their new donors; the trousers'
   icons cut at the shin as the stock ones (from the waist down to the stock icons' width to
   height, 77 by 81); the Novice glove's cuff edge smoothed. Packs `stk2-bandit@7`,
   `stk2-novice@8`, `stk2-loner@8`.
@@ -231,6 +234,8 @@ against 10.1.
   `stk2-loner@11` (their icons only).
 - The owner's stats (Stats, above), approved as proposed. Packs `stk2-bandit@11`,
   `stk2-novice@12`, `stk2-loner@12`, with the two fixes below.
+- "Let's make them buyable the same way the beanie is": sold by seller 0 to everyone at
+  no rank at their prices, and still dropped (srp's `prices`, no pack change).
 - "The sweater is seen through the leather jacket": the bomber's bare forearms were the
   native body's (`base_character_torso_s1`/`_s2`/`_s3`) with the native torso's material,
   whose map is a red Christmas sweater; they now take the native hands' material, mapped to
