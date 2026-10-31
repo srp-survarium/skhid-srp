@@ -27,45 +27,6 @@ impl BenchEvents {
         )
     }
 
-    /// [diagnostic, not merged] A blast gone off: where it went off against the place aimed at.
-    pub(crate) fn blast(&mut self, time: u32, thrower: Place, at: Vec3, aim: Vec3, launch: (f32, f32, Vec3, Vec3, [Vec3; 2])) {
-        let r1 = |v: f32| (v * 10.0).round() / 10.0;
-        let r3 = |v: f32| (v * 1000.0).round() / 1000.0;
-        self.line(serde_json::json!({"t": time, "blast": [thrower, r1(at.x), r1(at.y), r1(at.z), r1(aim.x), r1(aim.y), r1(aim.z)],
-            "launch": [r3(launch.0), r3(launch.1), r1(launch.2.x), r1(launch.2.y), r1(launch.2.z), r1(launch.3.x), r1(launch.3.y), r1(launch.3.z)],
-            "up": [[r1(launch.4[0].x), r1(launch.4[0].y), r1(launch.4[0].z)], [r1(launch.4[1].x), r1(launch.4[1].y), r1(launch.4[1].z)]]}));
-    }
-
-    /// [diagnostic, not merged] Each bot that has noticed a grenade or is walking out of one, every poll: its place, the state,
-    /// its feet and speed, the rest point it reckons with, the floor it walks to, and what its intent asks.
-    pub(crate) fn avoiding(&mut self, clock: u32, game: &Game, bots: &Bots) {
-        use crate::v026g::bots::grenade_threat::GrenadeThreat;
-        if self.0.is_none() {
-            return;
-        }
-        for bot in bots.bots.iter().flatten() {
-            let body = &game.bodies[bot.place];
-            let (state, rest, to, known) = match &bot.features.avoid.state {
-                GrenadeThreat::Noticed { known, act_at } => (format!("noticed, acts at {act_at}"), known.rest, None, *known),
-                GrenadeThreat::Stepping { known, to } => ("stepping".to_owned(), known.rest, Some(*to), *known),
-                _ => continue,
-            };
-            let r1 = |v: f32| (v * 10.0).round() / 10.0;
-            let goal = match bot.bench_go {
-                Some(Go::To { at, .. }) => Some([r1(at.x), r1(at.z)]),
-                _ => None,
-            };
-            let route = bot.route.as_ref().map(|(route, planned)| [r1(route.length()), r1(planned.x), r1(planned.z)]);
-            self.line(serde_json::json!({
-                "t": clock,
-                "av": [bot.place, state, r1(body.feet.x), r1(body.feet.z), r1(body.feet.y), r1(body.feet.distance_xz(rest)),
-                       [r1(rest.x), r1(rest.y), r1(rest.z)], to.map(|t| [r1(t.x), r1(t.y), r1(t.z)]), goal],
-                "av3": [bot.place, format!("{:?}", known.how), format!("{:?}", known.whose), known.first, known.blast_at, known.radius_m],
-                "av2": [bot.place, bot.bench_why, body.keys, r1(body.stamina.value()), format!("{:?}", bot.intent.pace), bot.intent.crouch, route],
-            }));
-        }
-    }
-
     /// The traps placed and set off since the last call, one line each, with the trap's floor point (the stand-in's list)
     /// and, for a catch, who set it off and whose body that is (`kind`: the placer's own, a mate's, an enemy's).
     pub(crate) fn traps(&mut self, game: &Game) {
@@ -1134,9 +1095,6 @@ pub(crate) fn real_bot_cost() {
                     BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
                     owner.tick(&mut game, &bots);
-                    for (time, thrower, at, aim, launch) in owner.drain_blasts() {
-                        events.blast(time, thrower, at, aim, launch);
-                    }
                     hits.tick(&mut game, &bots, &mut events);
                     // The stand-in human's traps laid in the last step: with `SRP_BENCH_HUMAN_TRAPS_KNOWN=on` his team knows them from now on (off: it learns
                     // them as a live team learns a human mate's, once seen; A168).
@@ -1464,7 +1422,6 @@ pub(crate) fn real_bot_cost() {
                         }
                     }
                 }
-                events.avoiding(clock, &game, &bots);
                 if clock >= next_world {
                     next_world += 1_000;
                     events.world(clock, &mut game, &bots);

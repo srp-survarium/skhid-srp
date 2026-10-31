@@ -5755,21 +5755,6 @@ impl Reflex {
                             why: LegsWhy::AfterGrenade,
                         });
                     }
-                    // [diagnostic, not merged] The landing this throw was planned for, from where the thrower stands at the let-go.
-                    if let Some((yaw, planned_pitch)) = throw_view_of(me, throw.at, c, throw.pick) {
-                        let planned = over_ground(mesh.as_deref(), throw.at.y, |ground| {
-                            arc::Flight::thrown(me.eye(), yaw + throw.error.0, planned_pitch + throw.error.1).landing(ground)
-                        });
-                        let eye = me.eye();
-                        self.throw_notes.push(format!(
-                            "planned landing for blast at {blast}: eye ({:.1}, {:.1}, {:.1}) view yaw {:.3} pitch {:.3} (planned {:.3}, {:.3}) {}",
-                            eye.x, eye.y, eye.z, me.yaw, me.pitch, yaw + throw.error.0, planned_pitch + throw.error.1,
-                            planned.map_or("none".to_owned(), |l| format!(
-                                "contact ({:.1}, {:.1}, {:.1}) rest ({:.1}, {:.1}, {:.1})",
-                                l.contact.point.x, l.contact.point.y, l.contact.point.z, l.rest.x, l.rest.y, l.rest.z
-                            )),
-                        ));
-                    }
                     self.throw_notes.push(format!(
                         "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}{}",
                         throw.at.x,
