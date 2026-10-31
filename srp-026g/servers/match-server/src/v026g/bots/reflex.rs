@@ -86,7 +86,9 @@
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
+use survarium::v026g::weapons::Optic;
 
+use super::aim_settle::{self, Settle, SettleGuns};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
@@ -191,6 +193,33 @@ impl WeaponKind {
             PISTOL_CATEGORY => Self::Pistol,
             _ => return None,
         })
+    }
+}
+
+/// Whether the aim's error angles scale with the zoom of the sights, as a player's hand does (the client turns the view by
+/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): a bench setting to size the effect,
+/// off in the game.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoomError {
+    /// The error angles are the skill's whatever the sights (today).
+    #[default]
+    Off,
+    /// Times the zoom of a scope (`fov_factor`, 0.25) while aimed in, ramped by the aim progress; iron sights unchanged.
+    Scopes,
+    /// As [`Self::Scopes`], and the iron sights' zoom (`1 / aim_zoom_factor`) too.
+    All,
+}
+
+impl ZoomError {
+    /// The factor on the error angles with the sights `optic` at aim progress `progress` (0 not aimed, 1 aimed in): the
+    /// camera's zoom `1 + (target - 1) x progress`.
+    pub fn factor(self, optic: Optic, progress: f32) -> f32 {
+        let target = match (self, optic) {
+            (Self::Off, _) | (Self::Scopes, Optic::Iron { .. }) => 1.0,
+            (Self::Scopes | Self::All, Optic::Scope { zoom }) | (Self::All, Optic::Iron { zoom }) => zoom,
+        };
+        1.0 + (target - 1.0) * progress.clamp(0.0, 1.0)
     }
 }
 
@@ -827,6 +856,18 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
+    /// The error angles times the sights' zoom ([`ZoomError`]): the scopes' (A182 #29; `all_off.json` keeps it off).
+    pub zoom_error: ZoomError,
+    /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]), on the guns with a
+    /// scope (`settle_guns`; A182 #29, `all_off.json` keeps it off). The
+    /// policy's number is `settle_k` (the error to expect against this times the body's angular half width at his distance:
+    /// GUESS 1.0) and its cap `settle_max_wait_ms` after the target was taken (GUESS 5 s, the humans' aim-held q75 of a
+    /// bolt action at 40-80 m).
+    pub settle: Settle,
+    /// Which guns it applies to (the scoped ones).
+    pub settle_guns: SettleGuns,
+    pub settle_k: f32,
+    pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -1303,6 +1344,11 @@ impl Default for CombatTuning {
             lead_own: true,
             live_eye: true,
             turn_feed: true,
+            zoom_error: ZoomError::Scopes,
+            settle: Settle::WanderAndPolicy,
+            settle_guns: SettleGuns::Scoped,
+            settle_k: 1.0,
+            settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -2494,9 +2540,11 @@ pub mod gate {
     pub const LOST: u32 = 1 << 25;
     pub const REACTION_AGAIN: u32 = 1 << 26;
     pub const AIMING_AGAIN: u32 = 1 << 27;
+    /// The shot waits for the aim to settle ([`super::Settle::WanderAndPolicy`]).
+    pub const SETTLING: u32 = 1 << 28;
 
     /// The gates' names, in their order.
-    pub const NAMES: [(u32, &str); 28] = [
+    pub const NAMES: [(u32, &str); 29] = [
         (UNSTICK, "unstick"),
         (PLAY, "play"),
         (JUMP_ROUTE, "jump_route"),
@@ -2518,6 +2566,7 @@ pub mod gate {
         (RUNNING, "running"),
         (AIMING_IN, "aiming_in"),
         (AIMING_AGAIN, "aiming_again"),
+        (SETTLING, "settling"),
         (FRIEND, "friend"),
         (HIDDEN, "hidden"),
         (VIEW_RAY, "view_ray"),
@@ -6001,12 +6050,28 @@ impl Reflex {
         // and wanders slowly about him as a player's tracking does.
         let t = now.saturating_sub(self.since) as f32 / 1000.0;
         let fade = (-t / settle_s).exp();
-        self.wander_step(aim, skill, rng);
-        let gun = self.hands().held().gun;
-        let error = (
-            self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5),
-            self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5),
+        let settle = c.settle_guns.settle(c.settle, self.hands().held().gun.optic);
+        let wander_deg = aim_settle::wander_deg(
+            settle,
+            mix(aim.wander_deg, skill),
+            mix(aim.settled_wander_deg, skill),
+            mix(aim.settle_tau_s, skill),
+            t,
         );
+        self.wander_step(aim, wander_deg, rng);
+        let gun = self.hands().held().gun;
+        // The error angles go with the zoom of the sights (`zoom_error`): the aim progress is the time since the aim key went
+        // down over the sights' aim time.
+        let zoom = c.zoom_error.factor(
+            gun.optic,
+            aim_since.map_or(0.0, |since| now.saturating_sub(since) as f32 / gun.aim_ms.max(1) as f32),
+        );
+        let error = (
+            (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
+            (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
+        );
+        // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
+        let expected_deg = aim_settle::error_rms_deg(mix(aim.error_deg, skill), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
@@ -6086,6 +6151,18 @@ impl Reflex {
                 && (aimed_in || hip_fits),
             running,
         });
+        // The shot waits for the aim to settle ([`aim_settle`]): a burst under way is held to its end, the first shot of one, and every shot of
+        // another weapon, waits.
+        let settling = now >= self.burst_until
+            && aim_settle::waits(
+                settle,
+                expected_deg,
+                distance,
+                c.body_half_m,
+                c.settle_k,
+                now.saturating_sub(self.since),
+                c.settle_max_wait_ms,
+            );
         // [measure] Each gate that fails ([`gate`]); the play's word and the
         // jump hold are the bot's ([`Self::outer_gates`]).
         let mut failed = 0;
@@ -6107,6 +6184,7 @@ impl Reflex {
                     gate::AIMING_IN
                 },
             ),
+            (settling, gate::SETTLING),
             (friend.is_some(), gate::FRIEND),
         ] {
             if fails {
@@ -6192,7 +6270,8 @@ impl Reflex {
             keys |= key::CROUCH;
         }
         let mut strafe = 0;
-        let aiming_the_shot = bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press);
+        // A bolt action stands still for its aimed shot, and any gun with the view on him stands still while the shot waits for the aim to settle.
+        let aiming_the_shot = (bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press)) || (settling && within);
         if !self.strafe_fire || aiming_the_shot {
             self.strafe = 0;
         } else if legs.is_none() || (c.strafe_walking && !running) {
@@ -6498,10 +6577,11 @@ impl Reflex {
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
-    /// the skill's `wander_deg` (the pitch's half) and which comes back in
-    /// about `wander_s`.
-    fn wander_step(&mut self, aim: &AimTuning, skill: f32, rng: &mut Rng) {
-        let spread = mix(aim.wander_deg, skill).max(0.0).to_radians();
+    /// `spread_deg` (the skill's `wander_deg`, settled with the time on target
+    /// when [`Settle`] says; the pitch's half) and which comes back in about
+    /// `wander_s`.
+    fn wander_step(&mut self, aim: &AimTuning, spread_deg: f32, rng: &mut Rng) {
+        let spread = spread_deg.max(0.0).to_radians();
         let a = (self.tick_ms as f32 / 1000.0 / aim.wander_s.max(0.01)).min(1.0);
         // Uniform shocks (a spread of 1/sqrt(12)) scaled to keep the walk's
         // spread at `spread`.
@@ -6573,6 +6653,21 @@ mod tests {
 
     fn combat_off() -> CombatTuning {
         crate::v026g::bots::tuning::Tuning::all_off().aim.combat
+    }
+
+    /// The error angles go with the zoom as the client's look step does: nothing when off, the scope's 0.25 aimed in (halfway
+    /// up the aim: 0.625), iron sights only with `All`.
+    #[test]
+    fn the_error_angles_follow_the_zoom_of_the_sights() {
+        let scope = Optic::Scope { zoom: 0.25 };
+        let iron = Optic::Iron { zoom: 1.0 / 1.2 };
+        assert_eq!(ZoomError::Off.factor(scope, 1.0), 1.0);
+        assert_eq!(ZoomError::Scopes.factor(scope, 0.0), 1.0);
+        assert!((ZoomError::Scopes.factor(scope, 0.5) - 0.625).abs() < 1e-6);
+        assert!((ZoomError::Scopes.factor(scope, 1.0) - 0.25).abs() < 1e-6);
+        assert_eq!(ZoomError::Scopes.factor(iron, 1.0), 1.0);
+        assert!((ZoomError::All.factor(iron, 1.0) - 1.0 / 1.2).abs() < 1e-6);
+        assert!((ZoomError::All.factor(scope, 2.0) - 0.25).abs() < 1e-6, "progress past 1 stays at the full zoom");
     }
 
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
@@ -7845,6 +7940,23 @@ mod tests {
                 assert_eq!(o.strafe, 0, "{now}");
             }
         }
+    }
+
+    /// A gun whose shot waits for the aim to settle ([`Settle::WanderAndPolicy`], here on every gun) stands still while it waits, as a player
+    /// steadies for a long shot; the same bot with the settling off fires at once and side-steps between its bursts.
+    #[test]
+    fn a_shot_waiting_for_the_aim_to_settle_is_not_a_side_step() {
+        let aim = |settle| AimTuning {
+            fire_within_deg: 180.0,
+            // `settle_k` small: the error to expect never fits the body, so the shot waits for the cap.
+            combat: CombatTuning { settle, settle_guns: SettleGuns::All, settle_k: 0.1, ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let waiting = facing_fight("support", 30.0, &aim(Settle::WanderAndPolicy), 60);
+        assert!(waiting.iter().all(|(_, o)| !o.fire && o.strafe == 0), "{:?}", waiting.iter().filter(|(_, o)| o.fire || o.strafe != 0).count());
+        let free = facing_fight("support", 30.0, &aim(Settle::Off), 60);
+        assert!(free.iter().any(|(_, o)| o.fire), "the same bot fires within 3 s with the settling off");
+        assert!(free.iter().any(|(_, o)| o.strafe != 0), "and side-steps");
     }
 
     /// Every weapon of the game data that the tiers' kits may carry is

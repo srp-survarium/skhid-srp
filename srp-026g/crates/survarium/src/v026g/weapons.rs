@@ -39,6 +39,25 @@ pub const STATE_RELOAD_EMPTY: u16 = 314;
 /// A range of the config, `(min, max)`.
 pub type Range = (f32, f32);
 
+/// How a weapon is sighted: the camera's zoom factor at full aim (`1 + (target - 1) x p` with p the aim progress, the client's
+/// `zoom` of 0x1F3480; the look step is the sensitivity times that zoom, 0x240220: PROVEN, `client_patch.md` 531).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Optic {
+    /// Iron sights: `1 / parameters.aim_zoom_factor` (1.0, 1.1 or 1.2 on the 50 stock weapons: zoom 1, 0.909, 0.833).
+    Iron { zoom: f32 },
+    /// A scope named by `addons.rifle_scope_dict_id`: its `data.fov_factor` (0.25 on all three scopes).
+    Scope { zoom: f32 },
+}
+
+impl Optic {
+    /// The camera's zoom factor with the aim fully up.
+    pub fn zoom(self) -> f32 {
+        match self {
+            Self::Iron { zoom } | Self::Scope { zoom } => zoom,
+        }
+    }
+}
+
 /// One weapon's firing and handling numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WeaponParams {
@@ -83,6 +102,8 @@ pub struct WeaponParams {
     pub hide_time: f32,
     /// `aim_time`, seconds: to bring the sights up.
     pub aim_time: f32,
+    /// How the weapon is sighted ([`Optic`]).
+    pub optic: Optic,
     /// `bullet_damage`, and full damage up to `max_damage_distance`, down
     /// to `min_damage_amount` of it at `min_damage_distance`, metres.
     pub bullet_damage: f32,
@@ -381,6 +402,12 @@ impl WeaponParams {
             show_time: number(Some(p), "show_time")?,
             hide_time: number(Some(p), "hide_time")?,
             aim_time: number(Some(p), "aim_time")?,
+            optic: Optic::Iron {
+                zoom: match number(Some(p), "aim_zoom_factor")? {
+                    factor if factor > 0.0 => 1.0 / factor,
+                    _ => 1.0,
+                },
+            },
             bullet_damage: number(Some(p), "bullet_damage")?,
             max_damage_distance: number(Some(p), "max_damage_distance")?,
             min_damage_distance: number(Some(p), "min_damage_distance")?,
@@ -435,7 +462,7 @@ pub fn derive(
         if !is_weapon {
             continue;
         }
-        let row = WeaponParams::from_config(
+        let mut row = WeaponParams::from_config(
             item.dict_id,
             &item.name,
             item.category,
@@ -443,6 +470,19 @@ pub fn derive(
             data.clip_lengths(),
         )
         .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
+        // A scope the weapon's config names (`addons.rifle_scope_dict_id`) gives its `data.fov_factor` for the iron sights' zoom.
+        let scope_id = config
+            .get("addons")
+            .and_then(|addons| addons.get("rifle_scope_dict_id"))
+            .and_then(ConfigValue::as_i32)
+            .and_then(|id| u16::try_from(id).ok());
+        if let Some(scope) = scope_id.and_then(|id| dictionary.item(id)) {
+            let zoom = super::game_data::config(data, scope.cfg_name.as_str())?
+                .and_then(|scope| scope.get("data")?.get("fov_factor")?.as_f32());
+            if let Some(zoom) = zoom.filter(|zoom| *zoom > 0.0) {
+                row.optic = Optic::Scope { zoom };
+            }
+        }
         rows.push(row);
     }
     rows.sort_by_key(|row| row.dict_id);

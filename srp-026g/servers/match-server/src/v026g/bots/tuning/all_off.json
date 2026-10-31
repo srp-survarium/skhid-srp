@@ -24,9 +24,11 @@
       "grenade_wall_m": 18.0,
       "hit_cover_reach": false,
       "mirror_gated": false,
+      "settle": "off",
       "worth": {
         "hurt_from": "body"
-      }
+      },
+      "zoom_error": "off"
     },
     "friends": {
       "spread_source": "constants"
