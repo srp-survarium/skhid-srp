@@ -29,6 +29,19 @@ const SAME_GOAL_M: f32 = 2.0;
 const STILL_MPS: f32 = 0.3;
 const MOVING_MPS: f32 = 1.0;
 
+/// The ground direction a body's walk keys take it, a unit vector (x, z), none with no walk key down or two that cancel: forward along the view, left a quarter turn from it.
+/// The live worlds' keys are read the same way (`A175/human_file.py`), so a body that looks aside as it walks is not read as walking where it looks.
+fn walk_direction(rec: &Rec) -> Option<(f32, f32)> {
+    use crate::v026g::drive::key;
+    let axis = |plus: u32, minus: u32| f32::from(i8::from(rec.keys & plus != 0) - i8::from(rec.keys & minus != 0));
+    let (f, l) = (axis(key::FORWARD, key::BACK), axis(key::LEFT, key::RIGHT));
+    let [fx, fz] = crate::v026g::bots::kin::forward(rec.yaw);
+    let [lx, lz] = crate::v026g::bots::kin::forward(rec.yaw + std::f32::consts::FRAC_PI_2);
+    let (x, z) = (f * fx + l * lx, f * fz + l * lz);
+    let len = x.hypot(z);
+    (len > 0.1).then(|| (x / len, z / len))
+}
+
 /// Whether two bodies move the same way (their yaws within 45 degrees; the walk keys are forward).
 fn heading_alike(a: Option<&Rec>, b: Option<&Rec>) -> bool {
     match (a, b) {
@@ -436,9 +449,9 @@ impl SpacingCounts {
                     if let (Some(ra), Some(rb)) = (ra, rb)
                         && ra.speed >= MOVING_MPS
                         && rb.speed >= MOVING_MPS
-                        && heading_alike(Some(ra), Some(rb))
+                        && let (Some((fx, fz)), Some((gx, gz))) = (walk_direction(ra), walk_direction(rb))
+                        && fx * gx + fz * gz > std::f32::consts::FRAC_PI_4.cos()
                     {
-                        let ([fx, fz], [gx, gz]) = (crate::v026g::bots::kin::forward(ra.yaw), crate::v026g::bots::kin::forward(rb.yaw));
                         let (hx, hz) = (fx + gx, fz + gz);
                         let h = hx.hypot(hz).max(1e-6);
                         let (ux, uz) = (hx / h, hz / h);
