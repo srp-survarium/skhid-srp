@@ -41,7 +41,7 @@ del skhid-files.zip
 rem 2. The original game, when it is missing: 2.9 GB download, about 10 GB free needed.
 if exist "game\resources.db" if exist "game\binaries\x86\survarium.exe" goto game_done
 set ARCHIVE=game\.skhid-game.7z
-if exist "%ARCHIVE%" call :sha "%ARCHIVE%" %GAME_SHA% && goto extract
+if exist "%ARCHIVE%" call :sha "%ARCHIVE%" %GAME_SHA% >nul && goto extract
 echo Downloading Survarium 0.26g (2.9 GB)...
 curl.exe -fL -C - -o "%ARCHIVE%" "%GAME_URL%" || goto failed
 call :sha "%ARCHIVE%" %GAME_SHA% || (del "%ARCHIVE%" & goto failed)
