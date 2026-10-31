@@ -1273,7 +1273,7 @@ impl Route {
         self.points
             .iter()
             .zip(&self.along)
-            .filter(|(point, &a)| a > s + GATE_REACHED_M && a <= s + ahead && self.gates.contains(&point.at))
+            .filter(|(point, a)| **a > s + GATE_REACHED_M && **a <= s + ahead && self.gates.contains(&point.at))
             .map(|(_, &a)| a)
             .next()
     }
