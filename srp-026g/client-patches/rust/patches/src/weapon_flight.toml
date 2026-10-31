@@ -1,4 +1,4 @@
-# Patch 45's camera flight (client_patch.md section 3.42, round 7): the lobby
+# Patch 45's camera flight (client_patch.md section 3.42, round 8): the lobby
 # camera to the weapon's spot and back, its NASM (weapon_table_026g.asm) the
 # weapon at the bench. Only the decisions; the logic is weapon_flight.rs.
 name = "weapon_flight"

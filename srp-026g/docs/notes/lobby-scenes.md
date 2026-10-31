@@ -202,25 +202,51 @@ classic's. What the exe and our patches take from it:
   workbench, between its drill press and its vice). A project without `srp_lobby/weapon` (or
   without `weapon_view`): the upgrade window keeps the stock camera and the weapon stays in the
   character's hands.
-- **No table:** the lobby gets one, 0.26's own `props/furniture/workbench_02` (top 0.84 m)
-  against a wall or a prop in the frame (the porters' `native_props`): the bar's back left
-  corner, the hangar's sandbags.
+- **No table:** a table already in the scene first; else the weapon floats in the air in front
+  of the character, beside him, seen along +z as the stock camera looks (the owner,
+  2026-10-31: "we can use other tables, or just do that in the air"). The hangar got 0.26's
+  own `props/furniture/workbench_02` (top 0.84 m) against its sandbags before that rule (the
+  porters' `native_props`).
+- **Each lobby's upgrade view** (captured in a game 2026-10-31, headless, the four lobbies, the
+  flight there and back):
+
+  | lobby | the weapon | `weapon` | `weapon_view` |
+  |---|---|---|---|
+  | the Room (`camp_069`, @10) | above the camp's own office table (the 0.69d weapon workshop's, its lights) | (-1.60, 1.37, 3.255) | 1.5708 |
+  | the Basement (`day`) | above the workbench | (4.25, 1.30, 3.05) | -1.5708 |
+  | the Bunker (`stk2_bunker`, @5) | in the air in front of the character, beside him (the shelter has no table) | (-0.95, 1.35, -0.80) | 0 |
+  | the Hangar (`hangar_046`, @8) | above the workbench_02 against the sandbags (the hangar has no table of its own) | (2.289, 1.24, 3.925) | -2.3562 |
 - **The artefact table and the bench bulb** of the classic (content edit `lobby-scene-2`, pack
   `lobby-bulb@1`) are the classic's decoration: a lobby that wants a lit table puts its own light
   (`point_light`) and props in its own project. No exe code places them.
 
-## The camera flight to the weapon (patch 45, round 7)
+## The camera flight to the weapon (patch 45, round 8)
 
 The weapon's upgrade window flies the camera from where it is to the spot's view, and the close
-flies it back: the eye on a straight line between the two eyes (over a character's head where the
-line comes within 0.9 m of one: the camp's spot is behind the character), the yaw, the pitch, the distance,
-the side angle and the zoom with it, one smoothstep over 0.45 s; back, to where the stock camera
-will be (the wheel's target cut by the camera's own ray there), held a tick with no ray, then the
-stock camera from exactly there. The Rust patch `weapon_flight` (one enum `Flight`, one
-`Flight::step`), at `lobby_camera.view`; patch 45's NASM keeps the weapon at the bench and its
-requests (client_patch.md section 3.42, round 7). Until round 6 the flight glided back to the
-wheel's target with no ray, out through a small room's wall, and the first stock tick snapped
-the eye back by up to 3.1 m (the camp, the bunker; 2.6 m in the classic, through the floor).
+flies it back: the eye on a straight line between the two eyes, raised by one arc over the whole
+way where that line passes within 0.9 m of a character (the camp's spot is behind the character),
+the yaw, the pitch, the distance, the side angle and the zoom with it, one smoothstep over 0.45 s;
+back, to where the stock camera will be (the wheel's target cut by the camera's own ray there),
+held a tick with no ray, then the stock camera from exactly there. The Rust patch
+`weapon_flight` (one enum `Flight`, one `Flight::step`), at `lobby_camera.view`; patch 45's NASM
+keeps the weapon at the bench and its requests, and casts no ray while the camera flies
+(client_patch.md section 3.42). Until round 6 the flight glided back to the wheel's target with
+no ray, out through a small room's wall, and the first stock tick snapped the eye back by up to
+3.1 m (the camp, the bunker; 2.6 m in the classic, through the floor).
+
+- **Round 8 (2026-10-31): no jump over the character.** The owner: "in room camera does a jump
+  when going to a table, most likely because it hits a character". Round 7 raised the eye only
+  near a character, by a bump of up to 0.8 m that rose and fell within about a tenth of a second
+  at the flight's fastest (in the Room the line from the stock eye to the spot passes 0.2 m from
+  the character; the classic's and the hangar's pass a squad panel's spot): the eye's vertical
+  speed changed by 0.3 m a frame. Now the arc spans the whole flight, `height * 4 s (1 - s)`, its
+  height the least that still takes the eye over every character the line passes (at most to
+  2.5 m, under the rooms' ceilings): 0.03 m a frame at most. Not the ray (none is cast while it
+  flies) nor the 1.5 m clamp (the flight sets the distance itself). Tests: every lobby's flight
+  there and back, from twelve starts round the orbit, against the smoothstep's own acceleration.
+- Where the line itself meets a prop: from the stock start no lobby's flight crosses one (the four
+  spots, static ray casts against the drawn meshes); from a few orbit poses it grazes a prop the
+  stock camera already stands behind (the bunker's crates, the camp's refrigerator).
 
 ## The audit (2026-10-30)
 
