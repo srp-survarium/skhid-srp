@@ -255,6 +255,12 @@ pub struct CombatTuning {
     /// step ran, the live humans' aimed-in 1.95: `gun_shots` by_driver, register #24). The step the side's floor refuses
     /// goes to the other side, else along the line.
     pub band_cross_deg: f32,
+    /// Aimed in and firing at a target in range, it stands on its feet and steps to the side only (no forward or back from its
+    /// route or a range step), for `stand_strafe_hold_ms` after the last tick the fight was on; then the play's way goes on
+    /// ([`Gait`]). The live players' side-key shots are 69 % pure side steps, the bench bots' 18 % (`gun_shots` aimed_run:
+    /// 82 % of theirs walk forward or back as well, and a diagonal crosses the line at 0.7 of its ground speed), register #24.
+    pub stand_strafe: bool,
+    pub stand_strafe_hold_ms: u32,
     pub band_legs: bool,
     /// Play 19: the bots' own spacing of spots, ms (the stock game's 3 s
     /// cooldown; client patch 38 has none); the same enemy is spotted
@@ -1180,6 +1186,8 @@ impl Default for CombatTuning {
             band_slack_m: 3.0,
             band_step_m: 6.0,
             band_cross_deg: 0.0,
+            stand_strafe: false,
+            stand_strafe_hold_ms: 400,
             band_legs: true,
             spot_cooldown_ms: 3_000,
             spot_again_ms: 15_000,
@@ -1459,6 +1467,31 @@ pub enum LegsWhy {
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
+    /// Aimed in and firing: standing on its feet with the side step only ([`Gait::StandStrafe`]).
+    Stand,
+}
+
+/// How the legs go while the bot fights (`CombatTuning::stand_strafe`). One state, not a flag: what the legs do in a fight is
+/// either the play's way or the stand-and-strafe, and the transition is total over the tick's one fact.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Gait {
+    /// The play's route, a range step, a weave on a walk.
+    #[default]
+    Route,
+    /// On its feet with the side step only, until this tick of the game's clock unless the fight is still on.
+    StandStrafe { until: u32 },
+}
+
+impl Gait {
+    /// The gait after a tick in which the fight was on (aimed in, a round in, the target in range, the play's word to fire) or
+    /// not: stands and strafes for `hold_ms` after the last tick it was on.
+    fn next(self, fight_on: bool, now: u32, hold_ms: u32) -> Self {
+        match (self, fight_on) {
+            (_, true) => Self::StandStrafe { until: now + hold_ms },
+            (Self::StandStrafe { until }, false) if now < until => self,
+            (_, false) => Self::Route,
+        }
+    }
 }
 
 /// The legs as the reflex wants them this tick, instead of the play's go,
@@ -2707,6 +2740,8 @@ pub struct Reflex {
     band: Option<(f32, f32)>,
     /// A step into the band.
     range_step: Option<Vec3>,
+    /// How the legs go in a fight (`stand_strafe`).
+    gait: Gait,
     /// Which side of the line the last range step went to (`band_cross_deg`): the next new step takes the other.
     range_right: bool,
     spot_pending: Option<Place>,
@@ -6053,6 +6088,13 @@ impl Reflex {
                 && (aimed_in || hip_fits),
             running,
         });
+        // [#24] The fight is on: aimed in on a target in range with a round in and the play's word to fire.
+        let fight_on = c.stand_strafe
+            && fire_allowed
+            && aimed_in
+            && distance <= range_m
+            && self.hands().held().rounds > 0;
+        self.gait = self.gait.next(fight_on, now, c.stand_strafe_hold_ms);
         // [measure] Each gate that fails ([`gate`]); the play's word and the
         // jump hold are the bot's ([`Self::outer_gates`]).
         let mut failed = 0;
@@ -6159,10 +6201,17 @@ impl Reflex {
             keys |= key::CROUCH;
         }
         let mut strafe = 0;
+        // [#24] In a fight the legs stand and the side step goes on; a hide, a push or a throw keeps its legs.
+        let stand = matches!(self.gait, Gait::StandStrafe { .. }) && legs.is_none_or(|l| l.why == LegsWhy::Range && !l.run);
+        let legs = if stand {
+            Some(Legs { at: me.feet, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::Stand })
+        } else {
+            legs
+        };
         let aiming_the_shot = bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press);
         if !self.strafe_fire || aiming_the_shot {
             self.strafe = 0;
-        } else if legs.is_none() || (c.strafe_walking && !running) {
+        } else if stand || legs.is_none() || (c.strafe_walking && !running) {
             strafe = self.side_step(now, c, rng);
         }
         if let Some(friend) = friend.filter(|_| !running) {
@@ -6518,6 +6567,21 @@ fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// The gait stands and strafes while the fight is on and for the hold after it, then the route again.
+    #[test]
+    fn the_gait_stands_for_the_fight_and_its_hold_then_goes_back_to_the_route() {
+        let g = Gait::Route;
+        assert_eq!(g.next(false, 1_000, 400), Gait::Route);
+        let g = g.next(true, 1_000, 400);
+        assert_eq!(g, Gait::StandStrafe { until: 1_400 });
+        // Fight off, hold running: stays, until unchanged.
+        assert_eq!(g.next(false, 1_200, 400), Gait::StandStrafe { until: 1_400 });
+        // Fight on again: the hold starts anew.
+        assert_eq!(g.next(true, 1_300, 400), Gait::StandStrafe { until: 1_700 });
+        // Hold over: back to the route.
+        assert_eq!(g.next(false, 1_400, 400), Gait::Route);
+    }
 
     /// A range step across the line goes the same way along it as the straight one and sideways by `m tan(angle)`, to the
     /// side asked, in or back out (`band_cross_deg`).
