@@ -535,3 +535,41 @@ fn friends_near_a_held_target_count_the_other_contender() {
     assert_eq!(friends(&s, 0), 2.0);
     assert_eq!(friends(&s, 1), 2.0);
 }
+
+/// #25b (`threat.sniper_memory`): a remembered sniper's lanes on the straight way to a battery score its Collect down by
+/// the metres in them, never under the floor; with the switch off, or the bot carrying, the score is as it was.
+#[test]
+fn a_remembered_snipers_lanes_on_the_way_score_an_objective_down_not_out() {
+    use crate::v026g::bots::threat::Picture;
+    use crate::v026g::bots::tuning::SniperMemory;
+    let battery = Vec3::new(30.0, 0.0, 35.0);
+    let mut s = Scenario::field(Mode::Batteries);
+    // The scenarios start from every switch off (`Tuning::all_off`): the memory on, as by default.
+    s.tuning.threat.sniper_memory = Some(SniperMemory::default());
+    s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+    s.battery(BatteryState::Free(battery));
+    let collect = |s: &Scenario| {
+        s.candidates(0)
+            .into_iter()
+            .find(|c| c.kind == PlayKind::Collect && c.target == TargetRef::Battery(0))
+            .map(|c| c.score.get())
+    };
+    let clear = collect(&s).expect("a Collect of the battery");
+    // His lanes see the whole field.
+    let regions: Vec<u32> = (0..s.tactics.regions().len() as u32).collect();
+    s.team.threat = Arc::new(Picture { sniper_regions: regions, ..Picture::default() });
+    let way = s.cx(0).sniper_way_m(battery);
+    assert!(way > 25.0 && way <= Vec3::new(10.0, 0.0, 10.0).distance_xz(battery) + 0.01, "{way}");
+    let down = collect(&s).expect("scored down, not out");
+    let weight = SniperMemory::default().way_weight(way);
+    assert!((0.5..1.0).contains(&weight));
+    assert!((down - clear * weight).abs() < 1e-4, "{down} vs {clear} x {weight}");
+    // Off: as it was.
+    let mut off = s.tuning.clone();
+    off.threat.sniper_memory = None;
+    let tuning = std::mem::replace(&mut s.tuning, off);
+    assert_eq!(collect(&s), Some(clear));
+    s.tuning = tuning;
+    assert_eq!(SniperMemory::default().way_weight(500.0), 0.5, "a cost, never a block");
+    assert_eq!(SniperMemory::default().way_weight(0.0), 1.0);
+}

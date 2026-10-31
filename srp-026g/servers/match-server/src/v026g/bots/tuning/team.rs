@@ -46,6 +46,43 @@ impl Default for ModTuning {
     }
 }
 
+/// #25b, the owner's remembered sniper (2026-10-30 quiz: "Yes, 2 minutes"): a sniper the team senses (seen, heard or told)
+/// is a threat spot with lanes all round him (`threat::ThreatSpots::sniper_sensed`), held `memory_s` after the last sense
+/// by the spots' decay, at the place he was last sensed (never his live one; `threat::area_m` says how far he may be from
+/// it by then), let go at his death or a teammate's clear look. The routes keep out of his lanes like any held spot's, and
+/// the objective plays (Collect, Escort, Intercept, not a carrier going home) weigh a way through them: a cost, never a
+/// block.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SniperMemory {
+    /// How long a sensed sniper's spot is held after the last sense, s: the human snipers' area stays as dangerous for
+    /// 120 s and more after a kill (kill share per crossing within 20 m of an earlier kill spot 7-10 % in every bin up to
+    /// 120 s, `human25/reveal_decay.txt`, 145 live recordings of 12+ players). LIKELY.
+    pub memory_s: f32,
+    /// An objective play's score falls by this share for each 10 m of the straight way to its target that lies in the
+    /// sniper spots' lanes. GUESS.
+    pub way_cut_per_10m: Share,
+    /// ... but to no less than this share of it (a cost, never a block: humans do not avoid a revealed sniper's lane,
+    /// `human25`). GUESS.
+    pub way_floor: Share,
+    /// The routes keep out of the sensed snipers' lanes, as of a held spot of kills (`threat::Covered`). Off: only the
+    /// plays read the spots (the objectives' ways, the smoke's `bot.lanes`), the routes keep out of kill spots alone.
+    pub keep_out: bool,
+}
+
+impl Default for SniperMemory {
+    fn default() -> Self {
+        Self { memory_s: 120.0, way_cut_per_10m: Share::of(0.1), way_floor: Share::of(0.5), keep_out: true }
+    }
+}
+
+impl SniperMemory {
+    /// An objective play's share of its score for `exposed_m` of its way in the lanes.
+    pub fn way_weight(&self, exposed_m: f32) -> f32 {
+        (1.0 - self.way_cut_per_10m.get() * exposed_m.max(0.0) / 10.0).max(self.way_floor.get())
+    }
+}
+
 /// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
 /// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
 /// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
@@ -289,6 +326,12 @@ pub struct ThreatTuning {
     /// score +1.7 % (z +1.1) on seeds 1-4, -3.0 % (z -1.8) on seeds 5-8, deaths to snipers within 10 s of a sighting -16 % then
     /// +10 %; it costs +9 % of the rays cast a second.
     pub sniper_lanes: bool,
+    /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
+    /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
+    /// objective play weighs them. OFF by default (176 pairs by side, 2026-10-31): with `keep_out` the stand-in sniper's kills
+    /// a crossing 6.1 % -> 4.8 % (z -1.4) but score -1.6 % (z -1.3), the ON team dying +14.5 % more to snipers in TDM;
+    /// without `keep_out` score +0.4 % (z +0.4) and no protection (5.8 % -> 6.8 %). The cost is not named yet.
+    pub sniper_memory: Option<SniperMemory>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -317,6 +360,37 @@ pub struct CommitTuning {
     /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
     /// `push-record/scripts/human_cover_lastseen.py`).
     pub crossfire_point_s: f32,
+    /// [A192] A Crossfire's other half is a teammate running Crossfire on
+    /// the same choke (the commander's, `TeamKnowledge::crossfiring`), at
+    /// the point it means to be at; and a running one checks it is apart
+    /// only within `sneak_m` of its spot. Off: every teammate within
+    /// `partner_m` of the choke, where it stands, every `repick_every_s`
+    /// (the bench: 92 of 789 takes ended "no spot apart" on a mate passing by).
+    /// And a new Crossfire on a known enemy's last place only when the team's
+    /// own senses gave it within 15 s (`fairness::UNSEEN_MS`, the owner's
+    /// rule): with spots no longer blocked by passers-by, more offers were
+    /// scored on older places (the bench's stale reads +13-15 %, their share
+    /// unchanged); a running one keeps its choke (`crossfire_point`).
+    /// On with `held_in_pass` (`fresh-a192-20261031T0312`, by side, 96 pairs):
+    /// Crossfire arrivals 385 vs 206, kills while holding 67 vs 33, "no spot
+    /// apart" ends 9 vs 341, stale enemy reads -62 %, score +3.0 %, delivered
+    /// +4.3 %; the drop-one arms put the gain on this switch.
+    pub crossfire_apart_mates: bool,
+    /// [A192] The commander's slots held by the bots kept on them are
+    /// rebuilt as each bot of the pass is given up: a slot freed earlier in
+    /// the same pass is free for the rest of it. Off: the held slots are
+    /// found once before the pass (a bot that lost its Collect slot took a
+    /// filler for one pass, then the Collect back: 35 flips within 3 s).
+    /// On with `crossfire_apart_mates` (its bench): those flips 21 vs 38.
+    pub held_in_pass: bool,
+    /// [A192] A Crossfire offer's score is taken times the chance it is
+    /// still wanted at arrival, `exp(-walk_s / tau)`, the walk at a run's
+    /// pace to the choke (the bench: of the takes that ended before the
+    /// spot, the walk's median time to the end was about 13 s). None: off,
+    /// the default: with 13 s the drop-one arm without it held more (arrivals
+    /// 409 vs 388, kills while holding 78 vs 56, takes a match 14.4 vs 12.7)
+    /// for deaths before arrival a take 0.268 vs 0.285 (`drop-a192-20261031T0043`).
+    pub crossfire_arrival_tau_s: Option<f32>,
 }
 
 impl ThreatTuning {
@@ -333,6 +407,9 @@ impl Default for CommitTuning {
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
+            crossfire_apart_mates: true,
+            held_in_pass: true,
+            crossfire_arrival_tau_s: None,
         }
     }
 }
@@ -368,6 +445,7 @@ impl Default for ThreatTuning {
             pin_from_cover: None,
             answer_sniper: false,
             sniper_lanes: false,
+            sniper_memory: None,
         }
     }
 }

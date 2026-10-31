@@ -802,6 +802,12 @@ pub mod damage_zone_fixes {
         /// An escort offered for a carrier by the old rule and refused by `escort_reach` (the post on his line is a goal no
         /// walk of the escort reaches, or the escort stands in such a pocket), once a carrier and a bot a 2 s.
         EscortUnreachable,
+        /// A drive tick whose walking pace was made a run because the body stood on a floor a zone hurts on now
+        /// (`HazardTuning::run_out`).
+        RunOut,
+        /// A carrier whose way home is shut entered the stranded state (`collect::State::Stranded`), and one that let go of the battery when its time ran out.
+        HomeStranded,
+        HomeLetGo,
     }
 
     /// The events' key suffixes, in order.
@@ -820,9 +826,12 @@ pub mod damage_zone_fixes {
         "out_none",
         "cross_cheaper",
         "esc_unreachable",
+        "run_out_ticks",
+        "home_stranded",
+        "home_let_go",
     ];
 
-    pub const N: usize = 14;
+    pub const N: usize = 17;
     pub type Counts = [[u64; N]; 2];
 
     // A thread's own counts: a test, or one bench match, counts alone (tests run in parallel threads).

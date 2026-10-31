@@ -23,9 +23,12 @@
       "grenade_tracks": false,
       "grenade_wall_m": 18.0,
       "hit_cover_reach": false,
+      "mirror_gated": false,
+      "settle": "off",
       "worth": {
         "hurt_from": "body"
-      }
+      },
+      "zoom_error": "off"
     },
     "friends": {
       "spread_source": "constants"
@@ -40,8 +43,10 @@
     "sight_hold_ms": 0
   },
   "commit": {
+    "crossfire_apart_mates": false,
     "crossfire_point": false,
     "cut_given_crowd": false,
+    "held_in_pass": false,
     "hold_to_arrival": false
   },
   "cover": {
@@ -83,6 +88,7 @@
     "live_zones": false,
     "price_way_out": false,
     "route_crossing": "off",
+    "run_out": false,
     "zone_intensity": false,
     "zone_pools": "raw"
   },
@@ -168,6 +174,7 @@
   },
   "unstick": {
     "blind_stop_ms": null,
+    "home_no_way_ms": null,
     "progress_ms": null,
     "suicide_after_ms": null,
     "unknown_meant_needs_keys": false
