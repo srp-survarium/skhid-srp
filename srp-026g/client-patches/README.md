@@ -3715,7 +3715,7 @@ the replay start and the scripts pass no language by default. See
 ## Lobby scene by pick (patch 81)
 
 The lobby's scene is the one the player picks in the lobby window
-(`../docs/notes/lobby-scenes.md`): a button left of Settings opens four cards,
+(`../docs/notes/lobby-scenes.md`): the player panel's lobby button (in the premium button's place) opens four cards,
 the Room (`lobby_scene/camp_069`, the default), the Basement (the classic,
 `lobby_scene/day`), the Bunker (`lobby_scene/stk2_bunker`) and the Hangar
 (`lobby_scene/hangar_046`). The pick is kept in user.cfg as `srp_lobby`

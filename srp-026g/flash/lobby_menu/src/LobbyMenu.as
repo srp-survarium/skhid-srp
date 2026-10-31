@@ -2928,11 +2928,9 @@ package
       {
          PlayerInfo.premiumState = state;
          PlayerInfo.premiumLeft = label;
-         this.statusPanel.btn_premium.stateIndex = state;
-         this.statusPanel.btn_premium.label = label;
-         if(state != PremiumState.NONE && (this.statusPanel.btn_premium.discount))
+         if(state != PremiumState.NONE && (this.statusPanel.premiumDiscount))
          {
-            this.statusPanel.btn_premium.discount = 0;
+            this.statusPanel.premiumDiscount = 0;
             this.updatePremiumDiscountTime();
          }
          if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
@@ -6391,7 +6389,7 @@ package
             this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
          }
          this.statusPanel.postRewardData = this._postRewardData;
-         this.statusPanel.btn_premium.discount = timeLeft;
+         this.statusPanel.premiumDiscount = timeLeft;
          this.add_notification(notif);
       }
       
@@ -6399,7 +6397,7 @@ package
       {
          var curTime:int;
          var delta:int;
-         if(this.statusPanel.btn_premium.discount > 0)
+         if(this.statusPanel.premiumDiscount > 0)
          {
             curTime = getTimer();
             delta = Math.round((curTime - this._postRewardData.startTime) / 1000);
@@ -6407,10 +6405,10 @@ package
             if(delta > 0)
             {
                this._postRewardData.startTime = curTime;
-               this.statusPanel.btn_premium.discount -= delta;
+               this.statusPanel.premiumDiscount = Math.max(this.statusPanel.premiumDiscount - delta,0);
             }
          }
-         if(this.statusPanel.btn_premium.discount <= 0)
+         if(this.statusPanel.premiumDiscount <= 0)
          {
             if((this._discountTimer))
             {

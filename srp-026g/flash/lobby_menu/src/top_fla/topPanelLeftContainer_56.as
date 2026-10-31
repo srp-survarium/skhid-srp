@@ -24,6 +24,7 @@ package top_fla
    import flash.ui.*;
    import flash.utils.*;
    import flash.xml.*;
+   import survarium.data.LocalizationData;
    
    public dynamic class topPanelLeftContainer_56 extends MovieClip
    {
@@ -44,7 +45,8 @@ package top_fla
       
       public var textFieldName:FixedTextTopNickname2;
       
-      public var btn_premium:SrvBtnPrem;
+      // the lobby button (StatusPanel.LOBBY_WINDOW), in the premium button's place
+      public var btn_lobby:SrvButtonTop;
       
       public function topPanelLeftContainer_56()
       {
@@ -53,6 +55,40 @@ package top_fla
          this.__setProp_btn_add_regular_money_topPanelLeftContainer_();
          this.__setProp_btn_add_premium_money_topPanelLeftContainer_();
          this.__setProp_progress_indicator_topPanelLeftContainer_();
+         this.placeLobbyButton();
+      }
+      
+      // The owner (2026-10-31): "remove premium button and put lobby button there instead". The
+      // premium button (the original's, `btn_premium`, which the timeline places) is taken out and
+      // the lobby button takes its place, as wide: a money box of this panel (SrvButtonTop, the
+      // silver's frame, hover and press), the dictionary's label centred where the amount is, no
+      // coin.
+      private function placeLobbyButton() : void
+      {
+         var slot:DisplayObject = getChildByName("btn_premium");
+         var button:SrvButtonTop = new SrvButtonTop();
+         button.name = "btn_lobby";
+         button.x = slot.x;
+         button.y = slot.y;
+         button.width = slot.width;
+         var content:MovieClip = button.getChildByName("content") as MovieClip;
+         content.removeChild(content.getChildByName("icon"));
+         var label:TextField = content.getChildByName("txMoney") as TextField;
+         var format:TextFormat = label.getTextFormat();
+         format.align = TextFormatAlign.CENTER;
+         label.defaultTextFormat = format;
+         label.x = -content.x;
+         label.width = slot.width;
+         label.mouseEnabled = false;
+         addChildAt(button,getChildIndex(slot));
+         removeChild(slot);
+         this.btn_lobby = button;
+         LocalizationData.addCallback(this.lobbyLabel,"st_srp_lobby_title");
+      }
+      
+      private function lobbyLabel(text:String) : void
+      {
+         TextField(MovieClip(this.btn_lobby.getChildByName("content")).getChildByName("txMoney")).text = text;
       }
       
       internal function __setProp_hintButton_topPanelLeftContainer_() : *

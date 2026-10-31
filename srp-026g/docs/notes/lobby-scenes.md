@@ -1,7 +1,7 @@
 # Lobby scenes
 
 The owner (2026-10-30): "a lobby selection screen" in place of a lobby by faction. A button in
-the lobby, left of Settings, opens a window of four cards, a picture and a name each (the owner,
+the lobby opens a window of four cards, a picture and a name each (the owner,
 2026-10-31: drawn as the rooms' map-vote cards); a click on one shows that lobby, behind a fade. In a squad every member is shown its commander's
 pick ("when someone joins your squad, they go into your lobby, so it switches for them"). Exe
 patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's window
@@ -21,6 +21,12 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   | 3  | the Bunker (`st_srp_lobby_bunker`) | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2 |
   | 4  | the Hangar (`st_srp_lobby_hangar`) | `lobby_scene/hangar_046`, the 0.46c2 hangar |
 
+- **The button** is the player panel's, top left, in the premium button's place (the owner,
+  2026-10-31: "remove premium button and put lobby button there instead"): the original's
+  premium button is taken out of the panel (`topPanelLeftContainer_56.placeLobbyButton`) and the
+  lobby button drawn as the panel's money boxes (`SrvButtonTop`, no coin), as wide as the
+  premium button was. The premium itself is as before (its state, the x2 mark, the offer after a
+  match: `StatusPanel.premiumDiscount`, the seconds the button kept); only its button is gone.
   The window's title and the button are `st_srp_lobby_title` ("Lobby"); the texts are
   dictionary keys (`client-patches/localization`), every language's.
 - **The pick is kept in user.cfg** as the console variable `srp_lobby` (`srp_lobby 3`), written by

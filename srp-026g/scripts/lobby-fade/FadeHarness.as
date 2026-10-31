@@ -20,7 +20,8 @@ package
    // - gone (0, 0): off the display list;
    // - the lobby window (srp_lobby_window, its button's toggle): four cards, the state the exe
    //   tells (srp_lobby_state: the pick 3 marked), opened and closed, then left open (check.sh's
-   //   window.png).
+   //   window.png); the player panel with the lobby button in the premium button's place (none
+   //   left there), drawn at the top left.
    // Prints "FADE ..." lines (trace) and ends with "FADE RESULT pass" or "FADE RESULT fail: ...".
    public class FadeHarness extends Sprite
    {
@@ -148,8 +149,35 @@ package
             if(w.parent != null)
                failures.push("the lobby window not closed by its toggle");
             lobby.srp_lobby_window();
+            button(w);
          }
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
+      }
+
+      // The lobby button: the player panel's (its symbol's class, made here: the lobby's status panel
+      // needs the exe), in the premium button's place (none left there), the dictionary's label.
+      private function button(w:Object) : void
+      {
+         var Panel:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("top_fla.topPanelLeftContainer_56") as Class;
+         var panel:Sprite = new Panel() as Sprite;
+         var b:Object = panel.getChildByName("btn_lobby");
+         trace("FADE lobby button: " + (b == null ? "none" : int(b.x) + "," + int(b.y) + " " + int(b.width) + " x " + int(b.height)
+            + ", '" + label(b) + "'"));
+         if(panel.getChildByName("btn_premium") != null)
+            failures.push("the premium button still in the player panel");
+         if(b == null || b != Object(panel).btn_lobby)
+            failures.push("no lobby button in the player panel");
+         else if(label(b) != "Lobby")
+            failures.push("the lobby button's label not the dictionary's");
+         // drawn at the top left, as the lobby draws it (window.png)
+         panel.x = 10;
+         panel.y = 4;
+         addChild(panel);
+      }
+
+      private function label(b:Object) : String
+      {
+         return b.getChildByName("content").getChildByName("txMoney").text;
       }
 
       private function finish(result:String) : void
