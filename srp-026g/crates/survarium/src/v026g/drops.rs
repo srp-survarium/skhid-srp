@@ -21,7 +21,9 @@
 //! 2. The items of the category with `drop_weight` above 0 [LIKELY: the
 //!    cosmetics that can drop are the ones of type `drp_camo` / `drp_decl`,
 //!    and exactly those have a drop weight; premium copies of weapons have
-//!    0].
+//!    0]. A camouflage or decal ([`COSMETIC_CATEGORIES`]) the player
+//!    already has is left out, unless the player has every one of the
+//!    category [srp's choice, the owner's of 2026-10-31].
 //! 3. Unless the category is in `item_level_independent_categories`: an
 //!    item level from the row of the match's level (21 rows, as the 21 match
 //!    levels of `match_levels_dict`; 16 columns, item levels 0..=15), and
@@ -74,6 +76,9 @@ pub const NOTHING: u8 = 0;
 /// How often a category and level are rolled again when the category has no
 /// item of the level, before the nearest level is taken.
 pub const TRIES: usize = 32;
+
+/// Camouflages and decals: a roll gives none the player already has.
+pub const COSMETIC_CATEGORIES: [u8; 2] = [25, 26];
 
 /// One row of `item_category_probabilities`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -341,10 +346,12 @@ fn dropped(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng:
 
 /// One roll of `table` for a match of `match_level` (0..=20), with
 /// `bonus_percent` more chance of an item
-/// ([`PlaytimeDependence::bonus_percent`], or 0). `None` is no drop.
+/// ([`PlaytimeDependence::bonus_percent`], or 0), for a player who has the
+/// items `owned` (dictionary ids). `None` is no drop.
 pub fn roll(
     table: &DropTable,
     dictionary: &Dictionary,
+    owned: &[u16],
     match_level: u8,
     bonus_percent: u32,
     rng: &mut Rng,
@@ -369,11 +376,16 @@ pub fn roll(
     let pick = |nearest: bool, rng: &mut Rng| {
         let category = group.categories[rng.below(group.categories.len() as u32) as usize];
         let level = rng.pick(row).unwrap_or(0) as u8;
-        let candidates = if nearest {
+        let mut candidates = if nearest {
             table.nearest_candidates(dictionary, category, level)
         } else {
             table.candidates(dictionary, category, level)
         };
+        if COSMETIC_CATEGORIES.contains(&category)
+            && candidates.iter().any(|p| !owned.contains(&p.dict_id))
+        {
+            candidates.retain(|p| !owned.contains(&p.dict_id));
+        }
         let item_weights: Vec<u32> = candidates.iter().map(|p| p.drop_weight).collect();
         rng.pick(&item_weights).map(|index| candidates[index])
     };
@@ -575,7 +587,7 @@ mod tests {
         let mut rng = Rng::new(7);
         let (mut drops, mut gear, mut money) = (0u32, 0u32, 0u32);
         for _ in 0..10_000 {
-            let Some(drop) = roll(generic, dictionary, 5, 0, &mut rng) else {
+            let Some(drop) = roll(generic, dictionary, &[], 5, 0, &mut rng) else {
                 continue;
             };
             drops += 1;
@@ -618,7 +630,7 @@ mod tests {
         // The first game of a play period: twice the chance.
         let mut drops = 0;
         for _ in 0..10_000 {
-            drops += u32::from(roll(generic, dictionary, 5, 100, &mut rng).is_some());
+            drops += u32::from(roll(generic, dictionary, &[], 5, 100, &mut rng).is_some());
         }
         assert!(
             (7800..8200).contains(&drops),
@@ -633,7 +645,7 @@ mod tests {
         let mut rng = Rng::new(11);
         for _ in 0..500 {
             // A new player: a weapon or armour of level 1 or 2, best rarity.
-            let drop = roll(&drops.new_player, dictionary, 0, 0, &mut rng).unwrap();
+            let drop = roll(&drops.new_player, dictionary, &[], 0, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(matches!(item.category, 1..=8 | 13..=17), "{}", item.name);
             assert!(!item.is_stack);
@@ -642,11 +654,11 @@ mod tests {
             assert_eq!(drop.rarity, 3);
 
             // The daily bonus: 50 gold.
-            let drop = roll(&drops.daily_bonus, dictionary, 9, 0, &mut rng).unwrap();
+            let drop = roll(&drops.daily_bonus, dictionary, &[], 9, 0, &mut rng).unwrap();
             assert_eq!((drop.dict_id, drop.count, drop.rarity), (215, 50, 4));
 
             // A drop card: a cosmetic, armour or a weapon.
-            let drop = roll(&drops.drop_card, dictionary, 20, 0, &mut rng).unwrap();
+            let drop = roll(&drops.drop_card, dictionary, &[], 20, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(
                 matches!(item.category, 1..=8 | 13..=17 | 25 | 26),
@@ -654,6 +666,35 @@ mod tests {
                 item.name
             );
         }
+    }
+
+    #[test]
+    fn a_cosmetic_the_player_has_drops_only_once_it_has_them_all() {
+        let dictionary = Dictionary::shared();
+        let mut table = Drops::shared().drop_card.clone();
+        table.categories = vec![CategoryGroup {
+            weight: 1,
+            categories: COSMETIC_CATEGORIES.to_vec(),
+        }];
+        let cosmetics: Vec<u16> = COSMETIC_CATEGORIES
+            .iter()
+            .flat_map(|&category| table.candidates(dictionary, category, 0))
+            .map(|params| params.dict_id)
+            .collect();
+        let (missing, owned) = cosmetics.split_last().unwrap();
+        let mut rng = Rng::new(5);
+        let mut gave_missing = 0;
+        for _ in 0..300 {
+            // Every decal and camouflage but one: the one missing, or (when
+            // the category picked is the other) any of that category.
+            let drop = roll(&table, dictionary, owned, 20, 0, &mut rng).unwrap();
+            assert!(cosmetics.contains(&drop.dict_id));
+            gave_missing += u32::from(drop.dict_id == *missing);
+            // Every one: they drop again.
+            let drop = roll(&table, dictionary, &cosmetics, 20, 0, &mut rng).unwrap();
+            assert!(cosmetics.contains(&drop.dict_id));
+        }
+        assert!(gave_missing > 100, "{gave_missing}");
     }
 
     #[test]
@@ -668,7 +709,7 @@ mod tests {
         }];
         let mut rng = Rng::new(3);
         for _ in 0..300 {
-            let drop = roll(&table, dictionary, 5, 0, &mut rng).unwrap();
+            let drop = roll(&table, dictionary, &[], 5, 0, &mut rng).unwrap();
             let params = item_params(drop.dict_id).unwrap();
             assert_eq!(drop.count % params.clip_size, 0);
             assert!((60..=150).contains(&drop.count));

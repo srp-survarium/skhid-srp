@@ -155,6 +155,7 @@ fn start_run(account: &mut Account, today: u64, rng: &mut Rng) {
     let rolled = drops::roll(
         &Drops::shared().daily_bonus,
         Dictionary::shared(),
+        &[],
         0,
         0,
         rng,

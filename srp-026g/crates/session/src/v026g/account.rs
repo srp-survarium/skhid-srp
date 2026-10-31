@@ -361,6 +361,12 @@ impl Account {
         self.inventory.iter().find(|item| item.item_id == item_id)
     }
 
+    /// The dictionary ids of everything it owns, for a drop roll
+    /// (`drops::roll`).
+    pub fn owned_dict_ids(&self) -> Vec<u16> {
+        self.inventory.iter().map(|item| item.dict_id).collect()
+    }
+
     pub fn item_mut(&mut self, item_id: u32) -> Option<&mut Item> {
         self.inventory
             .iter_mut()
