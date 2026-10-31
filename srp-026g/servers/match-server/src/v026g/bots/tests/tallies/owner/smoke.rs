@@ -144,6 +144,13 @@ pub(super) struct SmokeCounts {
     seen_through_margin: [u32; 2],
 }
 
+/// The fairness judges' eyes: the default smoke tuning with a forming cloud hiding from the client's
+/// [`smoke::CLIENT_FORMING_MS`] (`smoke.forming_client`), what a human's client lets him see through, whatever the
+/// bots' own switch: a bot's sighting through a cloud the client still shows is no sighting through smoke.
+fn client_eyes() -> SmokeTuning {
+    SmokeTuning { forming_client: true, ..SmokeTuning::default() }
+}
+
 impl SmokeCounts {
     pub(super) fn new() -> Self {
         smoke::tally::begin_match();
@@ -175,9 +182,10 @@ impl SmokeCounts {
         }
     }
 
-    /// The clouds as a bot's eyes with the default tuning read them at `tick`.
+    /// The clouds as a bot's eyes with the default tuning read them at `tick`, a forming cloud as the client draws it
+    /// ([`client_eyes`]).
     fn hides(&self, tick: u32, a: Vec3, b: Vec3) -> bool {
-        Clouds::new(self.clouds.clone()).covers(tick, &SmokeTuning::default(), a, b)
+        Clouds::new(self.clouds.clone()).covers(tick, &client_eyes(), a, b)
     }
 
     /// Whether the clouds hide every part a look tests of a body with its feet at `feet` (`aimpoint::Part::SIGHT_ORDER`,
@@ -194,7 +202,7 @@ impl SmokeCounts {
     /// within 0.5 m of a top or bottom; every bot path to a `Seen` sighting goes through the veil).
     fn hides_body(&self, tick: u32, eye: Vec3, feet: Vec3) -> bool {
         let clouds = Clouds::new(self.clouds.clone());
-        let default = SmokeTuning::default();
+        let default = client_eyes();
         let tuning = SmokeTuning {
             thin_m: crate::v026g::bots::tuning::Positive::of(default.thin_m.get() + FAIR_MARGIN_M),
             ..default
@@ -218,7 +226,7 @@ impl SmokeCounts {
     /// Whether the clouds hid every part it tests: a look that showed him while they did is a sighting through smoke.
     fn replay_hides(&self, look: &smoke::tally::SeenLook) -> bool {
         let clouds = Clouds::new(self.clouds.clone());
-        let tuning = SmokeTuning::default();
+        let tuning = client_eyes();
         let veil = clouds.veil(look.time, &tuning);
         BodyPart::SIGHT_ORDER
             .iter()
