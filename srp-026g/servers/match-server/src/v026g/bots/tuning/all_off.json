@@ -62,6 +62,7 @@
     "drop_walk": false,
     "landing_cancel_deg": 0.0,
     "landing_cancel_drops": false,
+    "lip_guard_full": false,
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "sprint_gaps": false,
@@ -97,6 +98,7 @@
     "on": false
   },
   "kin": {
+    "edge": "lattice",
     "jump_snap": "any",
     "pitch_scale": "radian"
   },
