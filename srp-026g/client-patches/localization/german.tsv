@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Wir gratulieren! Sie sind jetzt ein Kämpfer des s
 st_blackmarket_level_unlock_3	Wir gratulieren! Sie sind jetzt Aufseher des schwarzen Marktes!
 st_blackmarket_level_unlock_4	Wir gratulieren! Sie sind jetzt Zenturio des schwarzen Marktes!
 st_blackmarket_level_unlock_5	Wir gratulieren! Sie sind jetzt Elite des schwarzen Marktes.
+st_blackmarket_medkit_description	Heilt Körper, Kopf und Schmerz vollständig. Behandelt keine Arme und Beine.
+st_blackmarket_medkit_name	Schwarzmarkt-Kit
 st_blackmarket_meele_kill_descr	Wenn du schafst die Arbeit sauber zu machen - sei bereit, die Hände zu beschmutzen. Gerade dadurch unterscheiden wir uns von anderen. Beweise, dass du bist einer von uns - arbeite mit den Händen.
 st_blackmarket_meele_kill_name	schmutzige Arbeit
 st_blackmarket_meele_kill_obj	Gegner im Nahkampf töten:
@@ -880,7 +882,7 @@ st_decorations_options	Dekorationen Qualität
 st_default_profile_name1	Profil 1
 st_default_profile_name2	Profil 2
 st_default_profile_name3	Profil 3
-st_default_scope_name	Standardzielfernrohr
+st_default_scope_name	Standardoptik
 st_defeat	Verlust 
 st_defuse_trap	Entschärfen ({USE})
 st_disband_clan_message	Sind Sie sicher, dass Sie den Klan aufläsen wollen?
@@ -1454,6 +1456,8 @@ st_message_reroll_text	Die Fertigkeiten rücksetzen?
 st_messages_censor_option	Die Zensur der Mitteilungen aufzunehmen. 
 st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freunden zu nehmen
 st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
+st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
+st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
 st_minimap_bottom	untere linke Winkel
 st_minimap_off	Versteckte Minikarte
@@ -2025,6 +2029,8 @@ st_scavengers_win_score_obj	Das Feld zu behaupten mit der Anzahl der gebrachten 
 st_scavengers_win_x_games_descr	Wir leben in der grausamen Welt. Dem Sieger fällt alles zu, und den Verlierern ist erzwungen, sich nur mit den Knirpsen zu begnügen. Merke dir, die in den Kampf siegende Mannschaft bekommt die großere Belohnung.
 st_scavengers_win_x_games_name	Sieg Geschmack
 st_scavengers_win_x_games_obj	Kämpfe zu gewinnen:
+st_science_medkit_description	Heilt Arme, Beine, Körper und Kopf vollständig. Stellt 50% von Schmerz wieder her. Heilt Vergiftungen und Strahlenkrankheit.
+st_science_medkit_name	Wissenschafts-Kit
 st_scientists_faction	Institut
 st_search_label	Such
 st_search_range	Match Level
@@ -2465,6 +2471,7 @@ st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)
@@ -2522,6 +2529,7 @@ st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
 st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
 st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
 st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_17	Den Raum wählt der Anführer deiner Abteilung.
 st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
 st_srp_rooms_code_3	Falsche PIN.
 st_srp_rooms_code_4	Der Raum ist voll.
@@ -2609,6 +2617,7 @@ st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_scope_slot	Optik
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
@@ -2696,6 +2705,34 @@ st_stats_saved	Es ist gerettet:
 st_stats_silent_kills	unmerklichen Totschläge:
 st_stats_stolen_victory_items	Batterien gestohlen:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Abgetragene Turnschuhe, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Turnschuhe
+st_stk2_bandit_026_legs_desc	Trainingshose mit Streifen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Trainingshose
+st_stk2_bandit_026_torso_desc	Eine schwarze Lederbomberjacke über einem T-Shirt, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Lederbomberjacke
+st_stk2_loner_026_boots_desc	Geschnürte Lederstiefel eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Stiefel des Einzelgängers
+st_stk2_loner_026_hand_desc	Fingerlose Handschuhe eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Fingerlose Handschuhe des Einzelgängers
+st_stk2_loner_026_legs_desc	Tarnhose mit Knieschonern, Holster und Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Tarnhose des Einzelgängers
+st_stk2_loner_026_torso_desc	Kapuzenjacke unter einer Tragweste mit Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Jacke des Einzelgängers mit Weste
+st_stk2_novice_026_back_desc	Einriemiger Segeltuchrucksack eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Rucksack des Neulings
+st_stk2_novice_026_boots_desc	Lederstiefel eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Stiefel des Neulings
+st_stk2_novice_026_hand_desc	Fingerlose Handschuhe eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Fingerlose Handschuhe des Neulings
+st_stk2_novice_026_hood_desc	Segeltuchkapuze eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kapuze des Neulings
+st_stk2_novice_026_legs_desc	Abgetragene Jeans eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Jeans des Neulings
+st_stk2_novice_026_torso_desc	Feldjacke eines Neulings-Stalkers mit Feldflasche und Messer am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Feldjacke des Neulings
+st_stk2_novice_026_torso_v2_desc	Feldjacke eines Neulings-Stalkers mit zwei Taschen am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Feldjacke des Neulings mit Taschen
 st_storage	Lager
 st_string_pattern_error	Der Name enthält unkorrekte Symbole oder ist zu lang
 st_support	Support:

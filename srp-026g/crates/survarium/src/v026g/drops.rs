@@ -674,4 +674,66 @@ mod tests {
             assert!((60..=150).contains(&drop.count));
         }
     }
+
+    /// The STK2 outfits' 14 items on game data with their packs
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// stk2-bandit, stk2-novice and stk2-loner): no faction, sold by seller 0
+    /// at no rank at its own price, as the Novice's knit cap (the owner,
+    /// 2026-10-31), and dropped: each at the
+    /// owner's level and in the generic table's pool of its category at that
+    /// level, by its own drop weight (`armour::tests` holds it to its level's
+    /// range). It makes that data the process's:
+    /// run it alone.
+    #[test]
+    #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
+    fn the_stk2_outfits_drop_and_are_sold_to_everyone() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let generic = &Drops::shared().generic;
+        // (item, the owner's level, the stock piece its config copies)
+        let items: [(&str, u8, &str); 14] = [
+            ("stk2_bandit_026_torso", 6, "torso/edge_torso_1"),
+            ("stk2_bandit_026_legs", 6, "legs/edge_legs_1"),
+            ("stk2_bandit_026_boots", 6, "boots/edge_boots_1"),
+            ("stk2_novice_026_hood", 4, "helmet/scavenger_helmet_5"),
+            ("stk2_novice_026_torso", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_torso_v2", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_back", 4, "back/bm_back_1"),
+            ("stk2_novice_026_legs", 4, "legs/scavenger_legs_3"),
+            ("stk2_novice_026_boots", 4, "boots/scavenger_boots_3"),
+            ("stk2_novice_026_hand", 4, "gloves/eq046_blackmarket_gloves_5"),
+            ("stk2_loner_026_torso", 6, "torso/renesanse_torso_8"),
+            ("stk2_loner_026_legs", 6, "legs/renesanse_legs_8"),
+            ("stk2_loner_026_boots", 6, "boots/renesanse_boots_1"),
+            ("stk2_loner_026_hand", 6, "gloves/scavenger_gloves_5"),
+        ];
+        for (name, level, donor) in items {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let template = dictionary.items.iter().find(|i| i.cfg_name == cfg).unwrap();
+            let template = item_params(template.dict_id).unwrap();
+            assert_eq!(params.faction, 0, "{name}");
+            assert_eq!(params.item_level, level, "{name}");
+            // Its own drop weight (armour::tests checks it against its
+            // level's), in the same pool as its template's.
+            assert_eq!(params.kind, template.kind, "{name}");
+            assert!(params.drop_weight > 0, "{name}");
+            // Sold as the Novice's knit cap (the owner, 2026-10-31): by
+            // seller 0 at no rank, at its own price.
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            assert!(
+                prices::price_list().iter().any(|r| r.dict_id == item.dict_id
+                    && r.faction_id == 0
+                    && r.level == 0
+                    && r.cost == item.base_cost),
+                "{name}"
+            );
+            assert!(!generic.level_independent.contains(&item.category), "{name}");
+            let pool = generic.candidates(dictionary, item.category, level);
+            assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
+        }
+    }
 }

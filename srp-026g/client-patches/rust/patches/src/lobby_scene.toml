@@ -8,7 +8,7 @@ patch = 81
 [[hook]]
 site = "configs.start"
 handler = "on_configs_start"
-order = 3                           # after patch 79's and patch 83's (language.toml, hud_options.toml)
+order = 3                           # after patch 79's and patch 83's, before patch 88's (language.toml, hud_options.toml, music.toml)
 
 [[hook]]
 site = "lobby_client.squad_id"
@@ -37,6 +37,7 @@ handler = "on_activate"
 [[hook]]
 site = "game.clear_resources"
 handler = "on_game_closing"
+order = 2                           # after patch 88's music (music.toml)
 
 [[hook]]
 site = "lobby_camera.view"

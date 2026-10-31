@@ -94,7 +94,20 @@ global engine_lobby_character_release_player
 global engine_explosion_reach
 global engine_show_cursor
 global engine_send_important
+global engine_emit_hud_sound
+global engine_play_voice
+global engine_free_voice
+global engine_bind_query_callback
+global engine_scene_params_type
+global engine_add_active_scene
+global engine_store_first_resource
 global engine_comment_about_user
+global engine_close_current_match
+global engine_cc_float
+global engine_query_one
+global engine_release_emitter
+global engine_set_listener
+global engine_medkit_set_active
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -117,6 +130,10 @@ engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove:
 engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
 engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
 engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
+engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
+engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
+engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1293,6 +1310,71 @@ engine_send_important:
     ret
 
     align 16, db 0xCC
+engine_emit_hud_sound:
+    ; 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; emitter
+    mov eax, [esp + 24]   ; scene
+    mov ecx, [esp + 28]   ; user
+    mov edi, [esp + 32]   ; out
+    call 0x65630
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_bind_query_callback:
+    ; 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; value -> 8
+    push dword [esp + 28]   ; f -> 4
+    mov esi, [esp + 28]   ; boost
+    call 0x176d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_scene_params_type:
+    ; 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x630f0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_add_active_scene:
+    ; 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; world
+    mov eax, [esp + 24]   ; scene
+    call 0x59fb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
 engine_comment_about_user:
     ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
     push ebp
@@ -1304,6 +1386,97 @@ engine_comment_about_user:
     push dword [esp + 32]   ; nickname -> 8
     push dword [esp + 32]   ; lobby_client -> 4
     call 0x274470
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_float:
+    ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; kind -> 16
+    push dword [esp + 36]   ; saved -> 12
+    push dword [esp + 36]   ; value -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0x1ddb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_query_one:
+    ; 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; flag -> 20
+    push dword [esp + 44]   ; parent -> 16
+    push dword [esp + 44]   ; user -> 12
+    push dword [esp + 44]   ; allocator -> 8
+    push dword [esp + 44]   ; callback -> 4
+    mov eax, [esp + 40]   ; requests
+    mov ecx, [esp + 44]   ; count
+    call 0xe5b60
+    add esp, 20                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_emitter:
+    ; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pointer
+    call 0x11540
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_listener:
+    ; 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; top -> 8
+    push dword [esp + 32]   ; front -> 4
+    mov esi, [esp + 28]   ; scene
+    mov eax, [esp + 32]   ; position
+    call 0x587d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_medkit_set_active:
+    ; 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; time -> 8
+    push dword [esp + 24]   ; medkit -> 4
+    mov eax, [esp + 32]   ; active
+    call 0x33d390
     pop edi
     pop esi
     pop ebx

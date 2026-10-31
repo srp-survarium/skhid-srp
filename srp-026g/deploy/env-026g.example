@@ -106,9 +106,6 @@ RUST_LOG=info
 # count for, in players:
 # SRP_BALANCE_BATTERY_LEAD=0.55
 # SRP_BALANCE_TICKET_LEAD=0.2
-# No squads: an invite is refused, and its sender is told in a message box.
-# SRP_SQUADS=off
-# SRP_SQUADS_OFF_TEXT=Squads are switched off on this server.
 # A game older than this patch revision (what the exe says at its sign-in)
 # is refused at its sign-in with the game's own "outdated version", and its
 # sessions from before a restart in the lobby. Left out (or 0): every game

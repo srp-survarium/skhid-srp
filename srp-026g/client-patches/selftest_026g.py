@@ -4117,13 +4117,14 @@ def test_lobby_scene(original, image, before):
                             "lobby_client.squad_read", "lobby_menu.activate", "lobby_menu.deactivate",
                             "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
-          and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "hud_options", "lobby_scene"]
-          and heads["configs.start"]["chain"][-1]["shim"] == hooks["configs.start"]["shim"]
+          and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "hud_options", "lobby_scene", "music"]
+          and [m["patch"] for m in heads["game.clear_resources"]["chain"]] == ["music", "lobby_scene"]
+          and heads["configs.start"]["chain"][2]["shim"] == hooks["configs.start"]["shim"]
           and [m["patch"] for m in heads["lobby_camera.view"]["chain"]] == ["weapon_flight", "camera_sweep", "lobby_scene"]
           and heads["lobby_camera.view"]["chain"][-1]["shim"] == hooks["lobby_camera.view"]["shim"],
-          "lobby_scene.toml's nine hooks are lohooks; at configs.start in the chain after patch 79's and 83's "
-          "handlers (one entry, language's, calls the shims); at lobby_camera.view the last of the chain after patch 45's "
-          "flight and the diagnostics' sweep")
+          "lobby_scene.toml's nine hooks are lohooks; at configs.start in the chain after patch 79's and 83's handlers "
+          "and before 88's (one entry, language's, calls the shims); at game.clear_resources after patch 88's; at "
+          "lobby_camera.view the last of the chain after patch 45's flight and the diagnostics' sweep")
     for site in ("lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
                  "lobby_menu.scenes_ready",
                  "lobby_menu.activate", "lobby_menu.deactivate", "game.clear_resources"):

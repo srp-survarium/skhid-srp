@@ -1703,8 +1703,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   hud then still held a movie that did not take it (the game world's own comes with it). So the
   forced state is told from the feed: at update_player_icons' start (each frame) the movies the hud
   holds are told it at a change of movie or state, and again while the Invoke answers 0. Forced,
-  the player icons hide their objects' icons (ids from 37) and show the players' only while Tab is
-  held (`root.force_interface_tab`, told with it; the owner, 2026-10-26).
+  the player icons hide their objects' icons (ids from 37) and keep the players' as in a plain match
+  (the teammates' always, an enemy's never; the owner, 2026-10-31: before, only while Tab was held).
 - **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
   (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
   the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
@@ -2437,6 +2437,16 @@ filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
 
+Phase 3 (patch 84, `drug-interrupt.md`): a drug ended with time left
+(set_active(0) leaves +2ACh/+2A8h; a spent one has both 0) that the hook saw
+in use at its previous update. The hook keeps per quick slot only the last
+seen state (idle, the drug in use by its address, or stopped with the local
+player's simulation time +324h when first seen so) and sends 3 for 1000 ms of
+that clock, then 0; never for a drug not seen in use (a previous life's, a
+late join's), and in use again after a rollback that took the hit back.
+QuickSlots keeps the exhausted stack for it and the renderer tints the slot's
+own icon red (ColorTransform 1, 0.3, 0.3) where phase 1 dims it.
+
 ### Lobby weight explanation
 
 `weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
@@ -2608,6 +2618,71 @@ places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
 
+### A bullet stops a drug (patch 84)
+
+`drug_interrupt` (Rust, `vostok::drug`) is a lohook at 0x2D9CB1 in
+`base_player::hit_impl` (0x2D9B90): `mov edi,esi / cmp dword [edi+40h],0` (6
+bytes, replayed; the je at 0x2D9CB7 takes their flags), right after
+`damage_model::hit_body_part` (0x2E5080) returned 1. It returns 1 when the
+hit's damage, (1 - invulnerability) x hit+34h through the part's protectors
+and armour (`body_part_parameters::hit_by_type` 0x329FF0), is above 0.0;
+hit_impl leaves at once otherwise (no slow, no listeners, no death). EBX the
+victim, ESI the `hit_info` (built by `hit_info::hit_info` 0x32B9F0: +1Ch the
+hit type, +3Ch the time, +20h the damage source, +40h the weapon, +44h the
+attacker's place). A dead, dying or fully invulnerable victim never gets
+there (0x2D9BA3, 0x2D9BB0, 0x2D9BCB).
+
+The hit type is `hit_type_enum`, the index of its name in 0x9257E0
+(`survarium::hit_type` 0x304370, 0.21d 0x1E8DA3: ranged, blunt, slash,
+explosive, toxic, radiation, fire, shock). A bullet's is its ammo data's +4Ch
+(`ammo_data::load` 0x332440: `damage_type`, 0 when absent; try_pierce passes
+`[[bullet+40h]+4Ch]` to `base_player::hit` 0x2D9A60): every 0.26g round has
+none, so ranged; a weapon's melee data (weapon+53Ch) says blunt. The suicide
+key's brain hit is ranged too (0x2D8C44). A bullet never hits its
+`m_ignorable_object` (+50h, a player; 0x32D9DD).
+
+For a ranged hit, each of the victim's 23 slots ([player+10Ch]+10Ch) holding
+a drug (vtable 0xA1C79C, the game's medkit class, whatever folder its options
+file is in) in use (+2B0h, set
+from the press through the use time and the active time) whose
+data/influences count (+288h) is not 0 gets `medkit::set_active(0, drug,
+[hit+3Ch])` (0x33D390: AL, then medkit and time on the stack, `ret 8`; the
+library's `engine_medkit_set_active`). That is the game's own end of a drug
+(medkit::tick 0x33D7C1 for a dead holder, 0x33DA3C when the activity is
+spent): it clears +2B0h; unlinks the drug_activity node +2B4h from the kit's
+modifiers only when +2ACh is 0 and +2A8h is below the duration (the active
+time began, 0x33D52B..0x33D583); tells the holder's listeners (0x2E5950)
+and the match statistics handler ([world+18FA8h] vtable+20h, as at the press); zeroes the healed-so-far floats
+(+284h); unlinks the tick node +268h from the world's list 6 (0x2D2DB0), so
+no tick heals again; and unlinks its damage protectors (+294h, count +298h).
++2A8h and +2ACh stay as they were; nothing reads them while +2B0h is 0
+(action 0x33D700 sets them again; patch 77 reads the flag first). The unit
+was taken at the press (0x33D765). The painkiller (no influences, only a
+ranged pain protection) is left running.
+
+Simulation: hit_impl runs in every game for every hit, and the drug's state
+is the game's own (serialized: `m_active`, `m_activity_time_ms`, `m_delay_ms`,
+`m_applied_influence`), so a rollback, a late joiner and a replay agree; the
+patch keeps no state. With 256 bullets or more, bullet_manager::tick
+(0x321D10) runs bullets as tasks on several threads (0x3226F0), hits and all:
+the stops take a `vostok::Lock`, since every drug shares the world's list 6,
+and each reads +2B0h again under it (a second set_active(0) would unlink the
+nodes again: the kit's drug_activity list emptied, list 6 with byte 0FFh).
+`check_drug_interrupt_026g.py` runs the installed hook to the je on made-up
+objects (set_active stubbed: each healing drug in use stopped in slot order,
+in its use time and its active time; not a drug out of use, the painkiller,
+another item, any other or unnamed hit type, no inventory; the replay's EDI
+and ZF, every other register, the stack and the objects unchanged), and the
+game's own set_active(0) in the original exe in the use time, the active time
+and between them; and two bullet tasks on one holder, the second stopped by
+the first between its look and the lock (patched exe, the game's set_active):
+set_active once, both lists as the first stop left them.
+
+The hit player's quick slot of the stopped drug shows red for a second of game
+time (display only): patch 77's `consumable_activity` tells a stopped drug
+from a spent one by the timers set_active(0) leaves, and sends phase 3
+(section "Medical consumable activity (patch 77)").
+
 ### Names on the Tab map (patch 82)
 
 `map_names` (Rust, `vostok::GameWorldKeys`) is a lohook at 0x25CD1C in
@@ -2689,3 +2764,30 @@ with Unicorn from the game's code (`check_tab_cursor_026g.py`). Not run in a gam
   `[clan] name`. The friend list is the messaging client's vector at +0Ch (its begin) and +10h
   (its end), 5Ch bytes per friend with the name at +8. A3 07's reader (0x26C540) fills it, and
   0x26C4FF reads it.
+
+### World check (patch 87)
+
+Written 2026-10-31; the rules are in `world_frame_check.md`. PROVEN in the code, and both sites run
+with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a game.
+
+- **The loads.** `process_dynamic_match_info` (0x27BFF0: EDI the network client, ESI the packet's
+  reader `{begin, cursor, size}`) stores the generation (0x27C040), reads the flag, and loads the
+  world with `game_world_core::deserialize` (0x2D0B70; the core `[EDI+1F1C40h]+1F8h`, the reader,
+  1, 8; `ret 10h`) at two calls.
+- **Unpacked** (the flag not 0): 0x8000 bytes of the stack (0x27C05E), a mutable buffer at EBP-24h
+  `{allocator 0, begin, capacity 8000h, size}` (0x27C06D..0x27C084), the codec of `[EDI+4Ch]`
+  (vtable +4) into it, `mutable_buffer::resize` (0x7AB30) to its size, the packet's reader read to
+  its end (0x27C0B7), the four arguments pushed, a reader at EBP-14h. The lohook
+  `world_load.unpacked` is on the nine bytes 0x27C0D0..0x27C0D8 (`mov [ebp-14h],esi`,
+  `mov [ebp-10h],esi`, `mov [ebp-0Ch],edx`), before the call at 0x27C0D9; it reads the world from
+  the mutable buffer.
+- **Raw:** the lohook `world_load.raw` is on the six bytes at 0x27C0FF (`mov ecx,[edi+1F1C40h]`,
+  the target of the `je` at 0x27C053), before the pushes and the call at 0x27C111; the world is
+  the packet's reader from its cursor to its end.
+- **The exit `refused`** is the handler's epilogue 0x27C1E0 (`lea esp,[ebp-30h]` restores the
+  stack, the pushed arguments and the 0x8000 bytes with it). It skips the post-load steps
+  (0x27C116..0x27C1DF) and, on the unpacked path, the buffer's destructor (0x27C0DE..0x27C0FB),
+  which frees nothing with a null allocator. The generation stays stored: the match link is
+  closed.
+- **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
+  `engine_close_current_match`) with reason 2, as match.md section 25 has it.

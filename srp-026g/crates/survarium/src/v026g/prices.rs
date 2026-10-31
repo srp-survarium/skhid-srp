@@ -61,6 +61,9 @@
 //!   rule's level, or as [`EXCEPTIONS`] says;
 //! - drugs, the trap and grenades: by the factions at the ranks of
 //!   [`EXCEPTIONS`], one record for each faction that sold it;
+//! - a supply whose config names a faction (the coloured medkits,
+//!   `docs/notes/medicines.md`; no stock supply names one): by that faction
+//!   at the rule's level, as gear;
 //! - ammo: by the factions of [`EXCEPTIONS`], **at no rank** by the owner's
 //!   choice ([`AMMO_NEEDS_RANK`]). 0.26 sold ammo at a rank (patch note
 //!   0.26c) and 0.27a took that back ("Purchase of ammunition no longer
@@ -226,6 +229,24 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         // belong to any group" (the owner, 2026-10-19). Sold to everyone at
         // no rank, as the two above.
         ("novice_026_helmet", &[(0, 0)]),
+        // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner;
+        // docs/notes/stk2-outfits.md): no faction, "let's make them buyable
+        // the same way the beanie is" (the owner, 2026-10-31). Sold to
+        // everyone at no rank, as the cap, and they still drop.
+        ("stk2_bandit_026_torso", &[(0, 0)]),
+        ("stk2_bandit_026_legs", &[(0, 0)]),
+        ("stk2_bandit_026_boots", &[(0, 0)]),
+        ("stk2_novice_026_hood", &[(0, 0)]),
+        ("stk2_novice_026_torso", &[(0, 0)]),
+        ("stk2_novice_026_torso_v2", &[(0, 0)]),
+        ("stk2_novice_026_back", &[(0, 0)]),
+        ("stk2_novice_026_legs", &[(0, 0)]),
+        ("stk2_novice_026_boots", &[(0, 0)]),
+        ("stk2_novice_026_hand", &[(0, 0)]),
+        ("stk2_loner_026_torso", &[(0, 0)]),
+        ("stk2_loner_026_legs", &[(0, 0)]),
+        ("stk2_loner_026_boots", &[(0, 0)]),
+        ("stk2_loner_026_hand", &[(0, 0)]),
         // --- Ammo (W:8170, W:8172, W:8175, W:8176; PROVEN but where
         // said) ---
         ("ammo_12mm_buck", &[(SCAV, 1), (BM, 1)]),
@@ -368,6 +389,21 @@ pub const UNRELEASED: &[&str] = &[
     "ammo_12mm_buck2",
     // The STK2 Novice's cap (resource-porter pack novice-6).
     "novice_026_helmet",
+    // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner).
+    "stk2_bandit_026_torso",
+    "stk2_bandit_026_legs",
+    "stk2_bandit_026_boots",
+    "stk2_novice_026_hood",
+    "stk2_novice_026_torso",
+    "stk2_novice_026_torso_v2",
+    "stk2_novice_026_back",
+    "stk2_novice_026_legs",
+    "stk2_novice_026_boots",
+    "stk2_novice_026_hand",
+    "stk2_loner_026_torso",
+    "stk2_loner_026_legs",
+    "stk2_loner_026_boots",
+    "stk2_loner_026_hand",
 ];
 
 /// Whether buying ammo needs the seller's rank of [`EXCEPTIONS`]. The
@@ -544,8 +580,15 @@ pub fn sellers_of_in(
             sellers.sort_unstable();
             sellers
         }
-        _ if gear && params.faction != 0 => {
-            let level = seller_level(dictionary, params.faction, params.item_level);
+        // A supply whose config names a faction (the coloured medkits; no
+        // stock supply names one) is that faction's, as gear is.
+        _ if (gear || supply) && params.faction != 0 => {
+            let ranked = AMMO_NEEDS_RANK || params.kind != "ammo";
+            let level = if ranked {
+                seller_level(dictionary, params.faction, params.item_level)
+            } else {
+                0
+            };
             vec![(params.faction, level)]
         }
         _ if supply => vec![(0, 0)],
@@ -883,6 +926,54 @@ mod tests {
         // and 305.
         assert_eq!(dictionary.item_named("a9_91").unwrap().dict_id, 303);
         assert_eq!(dictionary.item_named("vsk_94").unwrap().dict_id, 305);
+    }
+
+    #[test]
+    fn the_stk2_outfits_are_sold_to_everyone_at_no_rank() {
+        // The STK2 outfits' 14 items (packs stk2-bandit, stk2-novice,
+        // stk2-loner; docs/notes/stk2-outfits.md): no faction, the
+        // Independent traders' as the Novice's knit cap, and sold as the cap
+        // is (the owner, 2026-10-31: "let's make them buyable the same way
+        // the beanie is"): by seller 0 at no rank, at the item's own price
+        // (the owner's stats). The test archive has not them: each is made
+        // from the stock piece its config copies, with its own name, price
+        // and no faction.
+        let dictionary = Dictionary::shared();
+        let items: [(u16, &str, &str, u32); 14] = [
+            (1864, "stk2_bandit_026_torso", "torso/edge_torso_1", 20900),
+            (1865, "stk2_bandit_026_legs", "legs/edge_legs_1", 10450),
+            (1866, "stk2_bandit_026_boots", "boots/edge_boots_1", 5230),
+            (1867, "stk2_novice_026_hood", "helmet/scavenger_helmet_5", 8080),
+            (1822, "stk2_novice_026_torso", "torso/blackmarket_torso_5", 12350),
+            (1868, "stk2_novice_026_torso_v2", "torso/blackmarket_torso_5", 13650),
+            (1869, "stk2_novice_026_back", "back/bm_back_1", 7920),
+            (1870, "stk2_novice_026_legs", "legs/scavenger_legs_3", 6180),
+            (1871, "stk2_novice_026_boots", "boots/scavenger_boots_3", 3090),
+            (1872, "stk2_novice_026_hand", "gloves/eq046_blackmarket_gloves_5", 2620),
+            (1873, "stk2_loner_026_torso", "torso/renesanse_torso_8", 23100),
+            (1874, "stk2_loner_026_legs", "legs/renesanse_legs_8", 11550),
+            (1875, "stk2_loner_026_boots", "boots/renesanse_boots_1", 5780),
+            (1876, "stk2_loner_026_hand", "gloves/scavenger_gloves_5", 5230),
+        ];
+        for (dict_id, name, donor, cost) in items {
+            assert!(UNRELEASED.contains(&name), "{name}");
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let Some(template) = dictionary.items.iter().find(|item| item.cfg_name == cfg) else {
+                // equipment-046's gloves are not in the test archive.
+                continue;
+            };
+            let params = *item_params(template.dict_id).unwrap();
+            let piece = Item {
+                dict_id,
+                name: name.to_owned(),
+                base_cost: cost,
+                cfg_name: format!("gameplay/items/armour/{}/{name}.options", donor.split('/').next().unwrap()),
+                ..template.clone()
+            };
+            let no_faction = ItemParams { dict_id, faction: 0, ..params };
+            assert_eq!(sellers_of(dictionary, &piece, &no_faction), [(0, 0)], "{name}");
+            assert_eq!(shop_cost(&piece), cost, "{name}");
+        }
     }
 
     #[test]
@@ -1364,6 +1455,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_supply_whose_config_names_a_faction_is_sold_by_it() {
+        // The coloured medkits: the stock medkit's row and config, but a
+        // faction (docs/notes/medicines.md).
+        let dictionary = Dictionary::shared();
+        let medkit = dictionary.item_named("medkit").unwrap();
+        let params = *item_params(medkit.dict_id).unwrap();
+        assert_eq!((params.faction, params.item_level), (0, 3));
+        let named = |faction: u8| ItemParams { faction, ..params };
+        // Not in EXCEPTIONS: the rule's level of the faction.
+        let coloured = Item {
+            name: "blackmarket_medkit".into(),
+            ..medkit.clone()
+        };
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &named(faction::BLACK_MARKET)),
+            [(faction::BLACK_MARKET, 3)]
+        );
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &named(faction::RENAISSANCE)),
+            [(faction::RENAISSANCE, 0)]
+        );
+        // With no faction: seller 0, as before.
+        assert_eq!(sellers_of(dictionary, &coloured, &params), [(0, 0)]);
+        // An EXCEPTIONS row still decides.
+        assert_eq!(
+            sellers_of(dictionary, medkit, &named(faction::EDGE)),
+            [(faction::SCAVENGERS, 3)]
+        );
+        // Ammo of a faction needs no rank.
+        let ammo = ItemParams {
+            kind: "ammo",
+            item_level: 9,
+            ..named(faction::BLACK_MARKET)
+        };
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &ammo),
+            [(faction::BLACK_MARKET, 0)]
+        );
+    }
+
     /// The live server's game data (`SRP_GAME_DATA`: stock 0.26g with
     /// skhid's patches 12, 14 and 17, revision 17's `server-game-data.db`,
     /// sha256 `83d4593a…`): the rules add exactly the ten items of
@@ -1495,8 +1627,9 @@ mod with_the_weapons_from_0_29a3 {
         let dictionary = Dictionary::parse(data.file(dictionary::PATH).unwrap()).unwrap();
         let params = item_params::derive(&data, &dictionary).unwrap();
         let params_of = |item: &Item| *params.iter().find(|p| p.dict_id == item.dict_id).unwrap();
-        // Every unreleased name is in it.
-        for name in UNRELEASED {
+        // Every unreleased name of the patch is in it: its ammo (the other
+        // names come with content packs, which this data need not have).
+        for name in UNRELEASED.iter().filter(|name| name.starts_with("ammo_")) {
             assert!(dictionary.item_named(name).is_some(), "{name}");
         }
         let new: Vec<&Item> = dictionary

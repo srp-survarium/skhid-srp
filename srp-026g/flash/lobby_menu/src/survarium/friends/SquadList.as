@@ -29,8 +29,11 @@ package survarium.friends
    public class SquadList extends UIComponent
    {
       
-      // a squad's most members (crates/session/src/squads.rs)
-      private static const MAX_SQUAD_MEMBERS:int = 3;
+      // a squad's most members: two (crates/session/src/squads.rs; the
+      // owner's of 2026-10-31). The panel has two places, and a squad of two
+      // is full: neither the friends' nor the chat's menu offers "Invite to
+      // squad" then (PlayerInfo.isSquadFull), so nothing invites a third.
+      private static const MAX_SQUAD_MEMBERS:int = 2;
       
       private static var _squadList:Array = [];
       
@@ -168,7 +171,8 @@ package survarium.friends
          }
          var itemData:* = event.itemData;
          var player:Object;
-         if(itemData)
+         // A search left open from before the squad filled invites nobody.
+         if(itemData && !PlayerInfo.isSquadFull)
          {
             player = itemData;
             trace("invite_to_squad::",player.name);
@@ -287,7 +291,7 @@ package survarium.friends
             i++;
          }
          PlayerInfo.isInSquad = memberCount > 0;
-         PlayerInfo.isSquadFull = memberCount == MAX_SQUAD_MEMBERS;
+         PlayerInfo.isSquadFull = memberCount >= MAX_SQUAD_MEMBERS;
          this.onNewIndex();
       }
       

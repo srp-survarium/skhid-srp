@@ -942,7 +942,9 @@ package survarium.controls
       // Play in a room or a room's queue (survarium.rooms): "Leave room" or
       // "Leave queue" (`word`), red, on whatever the game's own Play is (a
       // squad's member, a kit the game refuses: Leave needs none of its
-      // conditions), grey from a press until its answer (`asking`).
+      // conditions), grey from a press until its answer (`asking`). A
+      // squad's soldier elsewhere: greyed, "In squad" (its leader plays for
+      // both, squads.md; the owner's of 2026-10-31).
       // Otherwise the game's own label and look. `each`: the frame's call,
       // which leaves the game's own Play enabled as the game sets it.
       public function showRoomsPlay(leaving:Boolean, queued:Boolean, asking:Boolean, each:Boolean, nativePlay:Boolean, word:String) : void
@@ -961,14 +963,15 @@ package survarium.controls
             }
             this.showPlayReasons(blocked);
          }
+         var soldier:Boolean = !leaving && !queued && LocalPlayerProfile.squadSoldier();
          // In the case of the game's own label (its Play is in capitals).
          var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
-         var label:String = word;
+         var label:String = soldier ? LocalizationData.getName("st_srp_play_in_squad") : word;
          if(gameLabel != "" && gameLabel == gameLabel.toUpperCase())
          {
             label = label.toUpperCase();
          }
-         if(leaving || queued)
+         if(leaving || queued || soldier)
          {
             // The game sets its own label again (its language): ours over it
             // each time.
@@ -981,7 +984,7 @@ package survarium.controls
                btn.label = label;
             }
             this._roomsOurLabel = label;
-            this.tintPlay(RoomsLook.RED_TINT);
+            this.tintPlay(soldier ? new ColorTransform() : RoomsLook.RED_TINT);
          }
          else if(this._roomsPlayLabel != null)
          {

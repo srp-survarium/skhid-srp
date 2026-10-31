@@ -181,6 +181,7 @@ va	name	source	ret_cleanup	result
 0x00076920	vostok::physics::bullet_physics_world::object_query	manual	24	none; every hit (the callback 0x77320 never lowers the closest fraction) pushed by 0x78730 to the vector as a 28h record in ray_test's layout; a bare convex object's hit dereferences a null LocalShapeInfo (0x77403); inc [0x1F1D380]. Not for the ragdoll
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
@@ -1213,7 +1214,7 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
-0x002e5080	survarium::damage_model::hit_body_part	manual	0	
+0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
@@ -2108,5 +2109,20 @@ va	name	source	ret_cleanup	result
 0x0026afb0	survarium::messaging_client::send_important_message	manual	12	
 0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16	
 0x0021bd80	survarium::network_client::messaging_client	manual	0	EAX: the messaging client, network client +1E58A4h (the lobby client +1E0h, its +1E56C4h)
+0x00014730	vostok::resources::store_first_unmanaged_resource	manual	0	
+0x00059fb0	vostok::sound::sound_world::add_scene_to_active	manual	0	
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	manual	12	
+0x00056800	vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy>::dec	manual	0	
+0x000630f0	vostok::type_to_int<vostok::sound::sound_scene_creation_params>	manual	0	EAX
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	manual	0	EAX
+0x000176d0	boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >	manual	8	
+0x00059a60	vostok::sound::sound_world::tick	manual	0	
+0x001ec890	survarium::game::tick	manual	4	
+0x001ed030	survarium::game::clear_resources	manual	0	
+0x0021eab0	survarium::login_menu::on_activate	manual	0	
+0x00220400	survarium::lobby_menu::switch_to_level_loading	manual	8	
+0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	manual	0	
 0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
 0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	manual	8	
+0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
