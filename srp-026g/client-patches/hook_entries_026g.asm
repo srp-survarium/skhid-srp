@@ -1671,126 +1671,6 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
-; 0x202a18 player_cook::on_config_loaded before it pushes query_resources' arguments (mov edx,[ebp-2Ch] / mov eax,[ebp-5Ch]; both paths from 0x202A0F/0x202A11 join here); queried is after the call and its add esp, with EAX the callback's first word as 0x202A3D loads it: lohook -> spare_weapons_on_query
-global spare_weapons_on_query
-extern hook_spare_weapons_on_query
-spare_weapons_on_query:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_spare_weapons_on_query
-    mov edx, spare_weapons_on_query_replay
-    cmp eax, 0
-    je spare_weapons_on_query_go
-    mov edx, 0x202a1e
-    cmp eax, 1
-    je spare_weapons_on_query_go
-    mov edx, 0x202a43
-    cmp eax, 2
-    je spare_weapons_on_query_go
-    ud2
-spare_weapons_on_query_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-spare_weapons_on_query_replay:
-    db 0x8b, 0x55, 0xd4, 0x8b, 0x45, 0xa4
-    jmp 0x202a1e
-
-; 0x202dd0 player_cook on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): [esp+4] the queries_result, [esp+8] the stage: lohook -> spare_weapons_on_ready
-global spare_weapons_on_ready
-extern hook_spare_weapons_on_ready
-spare_weapons_on_ready:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_spare_weapons_on_ready
-    mov edx, spare_weapons_on_ready_replay
-    cmp eax, 0
-    je spare_weapons_on_ready_go
-    mov edx, 0x202dd6
-    cmp eax, 1
-    je spare_weapons_on_ready_go
-    ud2
-spare_weapons_on_ready_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-spare_weapons_on_ready_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x202dd6
-
-; 0x1f2100 player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor: lohook -> spare_weapons_on_destroy
-global spare_weapons_on_destroy
-extern hook_spare_weapons_on_destroy
-spare_weapons_on_destroy:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_spare_weapons_on_destroy
-    mov edx, spare_weapons_on_destroy_replay
-    cmp eax, 0
-    je spare_weapons_on_destroy_go
-    mov edx, 0x1f2106
-    cmp eax, 1
-    je spare_weapons_on_destroy_go
-    ud2
-spare_weapons_on_destroy_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-spare_weapons_on_destroy_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x1f2106
-
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
@@ -1837,3 +1717,81 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x202dd0 player_cook::on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): a player's subresource batch is in and the player is about to be made (a match's kit players, a late joiner's, the lobby's character): lohook -> weapon_pickup_on_player_made
+global weapon_pickup_on_player_made
+extern hook_weapon_pickup_on_player_made
+weapon_pickup_on_player_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_player_made
+    mov edx, weapon_pickup_on_player_made_replay
+    cmp eax, 0
+    je weapon_pickup_on_player_made_go
+    mov edx, 0x202dd6
+    cmp eax, 1
+    je weapon_pickup_on_player_made_go
+    ud2
+weapon_pickup_on_player_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_player_made_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x202dd6
+
+; 0x1f2100 player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor: lohook -> weapon_pickup_on_destroy
+global weapon_pickup_on_destroy
+extern hook_weapon_pickup_on_destroy
+weapon_pickup_on_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_destroy
+    mov edx, weapon_pickup_on_destroy_replay
+    cmp eax, 0
+    je weapon_pickup_on_destroy_go
+    mov edx, 0x1f2106
+    cmp eax, 1
+    je weapon_pickup_on_destroy_go
+    ud2
+weapon_pickup_on_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_destroy_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1f2106

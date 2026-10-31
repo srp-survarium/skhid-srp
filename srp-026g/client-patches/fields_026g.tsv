@@ -209,19 +209,6 @@ survarium::event_count	count	0x0	u16	one kit's count of one event; the game adds
 survarium::event_count	size	0x2	size	a u16 (player_shared_statistics::serialize 0x335750)
 survarium::shared_statistics	listener	0x31A0	obj<survarium::statistics_listener>	the event listener, a boost::function told after each count (notify_listener 0x2F5D40; 0x2F5610)
 survarium::statistics_listener	function	0x0	u32	not 0 once set: the game tells the listener only then (0x2F5610 neg/sbb/test)
-survarium::player_cook_frame	stage	-0x14	ptr<survarium::player_cook_stage>	player_cook::on_config_loaded (0x202500)'s stage, allocated 27Ch at 0x2025A8; its +9Ch the player's creation data (0x2058A0)
-survarium::player_cook_frame	requests_begin	-0x24	ptr<survarium::resource_request>	the subresource requests' begin, filled by 0x5FCB0 (0x20271A..0x2029A0); query_resources takes it in EAX at 0x202A28
-survarium::player_cook_frame	requests_end	-0x20	u32	the requests' end: (end - begin) / 8 is query_resources' count (0x202A2C..0x202A35)
-survarium::player_cook_frame	users	-0x5C	ptr<survarium::request_user>	the requests' user data: one pointer a request, 0 none (0x2026A2; the inventory's at index 4, 0x2028EA); query_resources' third stack argument (0x202A27)
-survarium::player_cook_frame	callback	-0x50	u32	the completion's boost function (on_subresources_loaded 0x202DD0, bound at 0x2029A5..0x2029FB): its first word, 0x9FD780|1 or 0; &it is query_resources' first stack argument (0x202A2F), and the code after the call reads it into EAX (0x202A3D)
-survarium::player_cook_frame	parent	-0x2C	u32	the parent query, the config query's (0x20258F); query_resources' fourth stack argument (0x202A26)
-survarium::player_cook_frame	recipe	-0x10	ptr<survarium::inventory_recipe>	the native inventory recipe, 1Ch allocated at 0x202821, filled 0x20284C..0x2028A9; bound to the completion (0x2029B3), which frees it (0x202E04)
-survarium::player_cook_frame	variant	-0xC0	obj<survarium::inventory_variant>	the inventory request's user data, on the stack (0x2028CE..0x2028EA)
-survarium::player_cook_stage	profile	0x9C	ptr<survarium::player_profile>	the creation data's profile (0x2058A0 copies 18h bytes from the query's user data +8); the inventory recipe's profile (0x20284F)
-survarium::player_cook_stage	place	0xA0	u8	the creation data's place (late join's query_players writes it at user data +0Ch)
-survarium::player_cook_stage	game_world	0xA4	u32	the creation data's game world (recipe +10h, 0x202872; cached at +1E4h, 0x2025E0)
-survarium::player_cook_stage	kit	0xB0	u8	the creation data's kit (recipe +4, 0x202856)
-survarium::player_cook_stage	lobby	0xB1	u8	the creation data's last byte: 1 for the lobby's character (setup_profile 0x284C34), 0 in a match (late join's query_players); it adds the 7Ch request (0x202974) and is the recipe's +18h (0x20287B)
 survarium::inventory_recipe	profile	0x0	u32	the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
 survarium::inventory_recipe	kit	0x4	u8	the kit (0x2C72E3)
 survarium::inventory_recipe	dictionary	0x8	u32	the items dictionary (0x202866)
@@ -233,8 +220,6 @@ survarium::inventory_recipe	size	0x1C	size	1Ch bytes (the allocation at 0x20281C
 survarium::inventory_variant	recipe	0x8	u32	the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
 survarium::inventory_variant	this	0x28	u32	the variant's own address (0x2028CE; the query copies the user data by it)
 survarium::inventory_variant	size	0x30	size	30h bytes, vtable 0x9FD808 at +0 (destroy +4 a bare ret 4, 0x75AF0: it owns nothing)
-survarium::player_cook_ready_frame	result	0x4	ptr<vostok::queries_result>	on_subresources_loaded (0x202DD0)'s first argument at its entry, the queries_result (0x202DDD; ret 0Ch)
-survarium::player_cook_ready_frame	stage	0x8	ptr<survarium::player_cook_stage>	its second, the stage (0x202E45)
 vostok::queries_result	count	0x38	u32	queries_result m_size (as vostok::carry_queries)
 vostok::queries_result	results	0x12C	obj<vostok::query_result>	the first result; the player cook reads results 0..4 at +12Ch, +40Ch, +6ECh, +9CCh, +0CACh, nine more from +0F8Ch (0x2030C8..0x20318F) and with +B1h one at +296Ch: never one past those
 vostok::query_result	inventory	0x0	ptr<survarium::inventory>	the result's resource, here an inventory (class 41h; late join's query_completed reads players the same way, 0x2E0 apart)
@@ -248,8 +233,15 @@ survarium::kit_slot	item	0x0	u16	the profile item's index (its record at profile
 survarium::kit_slot	size	0x4	size	a slot word
 vostok::resources::image	allocator	0x1F1D9C4	obj<vostok::allocator_slot>	the resources' allocator, the global every query passes (0x202A1E) and the player cook allocates its stage and recipe from (0x202584, 0x20280B)
 vostok::allocator_slot	allocator	0x0	ptr<u8>	the allocator itself (engine_malloc's ESI, engine_free's ECX)
-survarium::request_user	variant	0x0	u32	a request's user data pointer (0 none), as query_resources takes the array (0x202A27)
-survarium::request_user	size	0x4	size	one pointer a request
 survarium::player_profile	size	0x4634	size	a profile: player_profile::player_profile (0x2F73F0) constructs 4634h bytes, operator= (0x284D10) copies them through +4632h
 survarium::inventory_variant	vtable	0x0	u32	its vtable, 0x9FD808 (0x2028E0)
 survarium::inventory_variant	type_id	0x2C	u32	the recipe type's variant id, type_to_int<inventory_cooker_data *> 0x205C60 (0x2028BA)
+survarium::item	inventory_item	0x10	obj<survarium::item>	an active object's inventory item: a weapon's inventory slot holds the held item (+128h, the active object) + 10h (weapon_pickup.md)
+survarium::game	dictionary	0x53A4	u32	the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+survarium::game_world	pvp_match	0x4D4C	ptr<survarium::pvp_match>	the match's core wrapper (game_world::tick 0x1F789D; its +1F8h the world core game_world_core::move is given, 0x1F7C2F)
+survarium::pvp_match	spatial_tree	0x130	u32	the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+survarium::pvp_match	core	0x1F8	obj<survarium::core_world>	the world core (game_world_core::move's argument, 0x1F7C2F; network_client::on_idle 0x27D084)
+survarium::match_options	seed	0x577B0	u32	the match seed: the inventory recipe's +14h (0x20289E)
+survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the player cook's inventory request (class 41h, 0x2028ED)
+survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
+vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one

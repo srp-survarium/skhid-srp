@@ -123,6 +123,12 @@ unsafe extern "C" {
     pub fn engine_release_inventory(object: *mut c_void, count: *mut u32);
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_allocate_recipe(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX
+    pub fn engine_bind_member_callback(callback: *mut c_void, member: *const c_void, adjustment: u32, object: u32, padding: u32) -> *mut c_void;
+    /// 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+    pub fn engine_inventory_variant_type() -> u32;
+    /// 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
+    pub fn engine_dispatch_callbacks();
 }
 
 #[allow(dead_code)]
@@ -171,8 +177,6 @@ unsafe extern "C" {
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
-    /// the IAT slot 0x8701b4 (an import, stdcall): unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
-    pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
 }

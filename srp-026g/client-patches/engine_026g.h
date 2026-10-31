@@ -29,6 +29,7 @@ struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct query_callback;
 struct ray_result;
 struct render_model_instance;
 struct scene_model;
@@ -252,13 +253,19 @@ void engine_release_inventory(struct inventory *object, unsigned int *count);
 /* the IAT slot 0x870164 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_global_memory_status_ex)(void * status);
 
-/* the IAT slot 0x8701b4 (an import, stdcall) */
-extern unsigned int (__attribute__((stdcall)) *const engine_get_environment_variable_a)(const char * name, char * buffer, unsigned int size);
-
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
 
 /* the IAT slot 0x8701b8 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_current_process_id)(void);
+
+/* 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX */
+struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding);
+
+/* 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX */
+unsigned int engine_inventory_variant_type(void);
+
+/* 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0 */
+void engine_dispatch_callbacks(void);
 
 #endif

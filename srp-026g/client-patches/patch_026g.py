@@ -1189,7 +1189,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "late_join_insert", "spare_weapons")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "late_join_insert", "weapon_pickup")
 
 
 def rust_hooks(original):
@@ -2477,6 +2477,12 @@ CALLBACKS = (
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
      (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
+    ("a dropped gun's cook: gun_cook::cooked_entry", "patches.code", bytes.fromhex("57505768"), 0x27AA20,
+     "vostok::gun_cook::start binds it with 0x27D280 as late join's query_players binds query_completed: the "
+     "network client's boost member callback (ecx = the object, [esp+4] the queries_result), whose other "
+     "binding is 0x27AA20's; the marker is the compiled call's `push edi / push eax / push edi` (padding, "
+     "object, adjustment) before `push cooked_entry` (68h): a rebuild that changes it fails here",
+     ("check_weapon_pickup_026g.py", "the completion through the game's boost invoker 0x202300")),
 )
 
 

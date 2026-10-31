@@ -16,3 +16,5 @@ workspace = true
 # patch 76's solver and corpses' machine: pure Rust, tested in its own crate
 ragdoll = { path = "../../../crates/ragdoll" }
 artefact-carry = { path = "../../../crates/artefact-carry" }
+# patch 83's shared rules (the window, places, kits, weapon slots)
+weapon-pickup = { path = "../../../crates/weapon-pickup" }

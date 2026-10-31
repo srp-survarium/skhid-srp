@@ -75,9 +75,11 @@ global engine_player_insert
 global engine_profile_destroy
 global engine_release_inventory
 global engine_global_memory_status_ex
-global engine_get_environment_variable_a
 global engine_allocate_recipe
 global engine_get_current_process_id
+global engine_bind_member_callback
+global engine_inventory_variant_type
+global engine_dispatch_callbacks
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -94,7 +96,6 @@ engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::tran
 engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
 engine_player_insert equ 0x1f2720   ; 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
 engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
-engine_get_environment_variable_a equ 0x8701b4   ; the IAT slot 0x8701b4 (an import, stdcall)
 engine_get_current_process_id equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
 
 engine_cfg_child:
@@ -1056,6 +1057,53 @@ engine_allocate_recipe:
     mov esi, [esp + 24]   ; allocator
     mov eax, [esp + 28]   ; size
     call 0xe4f90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_bind_member_callback:
+    ; 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; padding -> 16
+    push dword [esp + 36]   ; object -> 12
+    push dword [esp + 36]   ; adjustment -> 8
+    push dword [esp + 36]   ; member -> 4
+    mov edi, [esp + 36]   ; callback
+    call 0x27d280
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_variant_type:
+    ; 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x205c60
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_dispatch_callbacks:
+    ; 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0xe5ab0
     pop edi
     pop esi
     pop ebx

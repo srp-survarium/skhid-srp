@@ -92,7 +92,14 @@ fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
     }
 }
 
-pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> { on_death(ctx) }
+/// The client player's death (the only one a client's players have: 0x1F28E0
+/// inlines the base's): patch 83 cooks the gun it held, then the carry's.
+pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
+        crate::weapon_pickup::died(&player, ctx.thread());
+    }
+    on_death(ctx)
+}
 pub fn on_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
         let carry = machine(&player, ctx);

@@ -1,0 +1,18 @@
+# Patch 83, dropped-weapon pickup (docs/notes/weapon_pickup.md), stage 1:
+# one gun cooked at each death that dropped one (vostok::gun_cook), kept by
+# donor life. The death is artefact_carry's carry.client_death and the
+# frame's step ragdoll's game_world.after_move: their handlers call
+# weapon_pickup::died / after_move (one detour per address). The sites are
+# sites_026g.tsv's; the logic is weapon_pickup.rs.
+name = "weapon_pickup"
+patch = 83
+
+# a player cook's batch is in: a late joiner's install may follow
+[[hook]]
+site = "player_cook.ready"
+handler = "on_player_made"
+
+# a player destroyed: the guns cooked from it go
+[[hook]]
+site = "player.destroy"
+handler = "on_destroy"

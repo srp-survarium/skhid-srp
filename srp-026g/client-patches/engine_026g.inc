@@ -231,10 +231,6 @@ extern engine_release_inventory
 ; the IAT slot 0x870164 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_global_memory_status_ex
-; unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
-; the IAT slot 0x8701b4 (an import, stdcall)
-; `call [symbol]`: stdcall, it pops its arguments
-extern engine_get_environment_variable_a
 ; struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)
 ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
 extern engine_allocate_recipe
@@ -242,3 +238,12 @@ extern engine_allocate_recipe
 ; the IAT slot 0x8701b8 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_current_process_id
+; struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding)
+; 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX
+extern engine_bind_member_callback
+; unsigned int engine_inventory_variant_type(void)
+; 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+extern engine_inventory_variant_type
+; void engine_dispatch_callbacks(void)
+; 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
+extern engine_dispatch_callbacks
