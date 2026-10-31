@@ -85,7 +85,9 @@ pub(super) struct CrouchCounts {
 
 impl CrouchCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { rings: vec![VecDeque::new(); n], stance: vec![Stance::Dead; n], totals: Totals::default() }
+        // The ring starts with the ticks before the match, not alive, so that the first tick has its place at the centre.
+        let before = VecDeque::from(vec![Seen { alive: false, crouch: false, fire: false }; NEAR_TICKS]);
+        Self { rings: vec![before; n], stance: vec![Stance::Dead; n], totals: Totals::default() }
     }
 
     /// A body's tick: the tick [`NEAR_TICKS`] back is counted once the ring holds the ticks after it.
