@@ -54,24 +54,11 @@ va	name	location	role	basis
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+4	scene renderer receiver	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+8	scene-view handle reference	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+12	projection matrix reference	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+4	scene_renderer receiver; world+0, channel+4, allocator+8	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+8	scene resource reference captured for queued command	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+12	first64-byte matrix source	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+16	second64-byte matrix source	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	stack+4	scene_renderer receiver; world/channel/allocator fields	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	stack+8	scene resource reference captured for queued command	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+4	scene_renderer receiver; world/channel/allocator fields	inferred
-0x00022280	vostok::render::scene_renderer::update_model	EAX	render-model resource reference checked for in-scene state	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+8	scene resource reference captured for queued command	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+12	first64-byte matrix source	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+16	second64-byte matrix source	inferred
 0x00022490	vostok::render::scene_renderer::update_skeleton	EDI	scene_renderer receiver	inferred
-0x00022490	vostok::render::scene_renderer::update_skeleton	stack+4	unknown	observed
-0x00022490	vostok::render::scene_renderer::update_skeleton	stack+8	unknown	observed
-0x00022490	vostok::render::scene_renderer::update_skeleton	stack+12	unknown	observed
-0x00022490	vostok::render::scene_renderer::update_skeleton	stack+16	unknown	observed
+0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+4	the render instance's pointer (&[[player+F290h]+108h])	observed
+0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+8	the bones' matrices (model space, rows, v * M), copied to the command's +58h	observed
+0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+0xC	a second matrix array copied to +1458h (mt_draw passes the same array)	observed
+0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+0x10	the count (at most 80)	observed
 0x00022520	vostok::render::scene_renderer::set_gamma_correction_factor	stack+4	scene_renderer receiver	inferred
 0x00022520	vostok::render::scene_renderer::set_gamma_correction_factor	stack+8	gamma correction factor float captured for queued callback	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+4	scene_renderer receiver	inferred
@@ -309,6 +296,9 @@ va	name	location	role	basis
 0x00038eb0	vostok::collision::sphere_geometry_instance::get_closest_point_to	stack+4	output float3 pointer	inferred
 0x00038eb0	vostok::collision::sphere_geometry_instance::get_closest_point_to	stack+8	input point pointer	inferred
 0x00038eb0	vostok::collision::sphere_geometry_instance::get_closest_point_to	stack+12	supplied matrix pointer	inferred
+0x0003af60	vostok::animation::skeleton::get_non_root_bones_count	ESI	the skeleton	observed
+0x0003b480	vostok::collision::animated_object::update	entry ESP+4	the animated_object (the player's hit model, +498h)	observed
+0x0003b480	vostok::collision::animated_object::update	entry ESP+8	the bone matrices (64 bytes each, skeleton order)	observed
 0x0003b5f0	vostok::collision::triangle_mesh_geometry::triangle_mesh_geometry	ESI	triangle_mesh_geometry receiver	inferred
 0x0003b5f0	vostok::collision::triangle_mesh_geometry::triangle_mesh_geometry	stack+4	allocator pointer	inferred
 0x0003b6e0	vostok::collision::triangle_mesh_geometry::initialize	EAX	triangle_mesh_geometry receiver, copied to EDI	inferred
@@ -510,10 +500,37 @@ va	name	location	role	basis
 0x0006f561		entry ESP+8		auto
 0x0006f561		entry ESP+4		auto
 0x0006f561		entry ESP+16		auto
+0x00075550	vostok::physics::bullet_physics_world::tick	ECX	the physics world	observed
+0x00075550	vostok::physics::bullet_physics_world::tick	entry ESP+4	the elapsed time, ms (u32; fild with the unsigned fix-up, times 0.001)	observed
+0x00075550	vostok::physics::bullet_physics_world::tick	entry ESP+8	a value stored at [dynamics world]+0ACh and 0x1F1D3A8 (meaning not read)	observed
+0x00075b00	vostok::physics::bullet_physics_world::add	ECX	the physics world	observed
+0x00075b00	vostok::physics::bullet_physics_world::add	entry ESP+4	the bt_constraint (its +4: the btTypedConstraint)	observed
+0x00075b20	vostok::physics::bullet_physics_world::remove	ECX	the physics world	observed
+0x00075b20	vostok::physics::bullet_physics_world::remove	entry ESP+4	the bt_constraint (its +4: the btTypedConstraint)	observed
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	ECX	the physics world (vtable 0x9E2EBC +48h; a player's +350h, the lobby menu's +3104h)	observed
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+4	the result (28h bytes), then from*, direction*, length (float), filter group, filter mask, 0, 1 (the lobby: 10h, 8)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+8	the ray's origin (float3*, game frame; z negated for Bullet)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+12	the ray's direction (float3*; not normalized: the end is origin + direction x length)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+16	the ray's length (float32)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+20	the ray's filter group (u16; an object is tried when its cmask has a bit of it; 0FFFFh every object, foot IK 24h)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+24	the ray's filter mask (u16): the object cgroup bits it hits (2 walkable: the level alone, 8 hittable, 40h hit models)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+28	argument for a group-40h object's filter delegate (boost::function at [user object+0F8h]+10h, 0x205E0, from needsCollision 0x75BD0); 0 when the mask has no 40h	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	low byte of entry ESP+32	nonzero (unflipped): m_flags bit 2 (0x75F2E), so a mesh hit gives the unflipped normal: the triangle's -(v1-v0)x(v2-v0) whichever side (0xB8482); 0: turned toward the ray's start; the game passes 1	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	ECX	the physics world	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+4	the bt_collision_shape (+108h the btCollisionShape; convex, or a compound's child 0)	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+8	the start float4x4* (game frame, via 0x74470)	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+12	the end float4x4*	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+16	the results vectora of 28h records {begin, end, allocator*, capacity end}; grows through the allocator's vtable +10h and frees with +18h	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+20	filter group (u16)	observed
+0x00076920	vostok::physics::bullet_physics_world::object_query	entry ESP+24	filter mask (u16)	observed
+0x0007a390	vostok::physics::create_primitive_shape	EDX	the primitive type (0 sphere, 1 box, 2 cylinder, 3 capsule; 0x7A1F0's table 0x7A374)	observed
+0x0007a390	vostok::physics::create_primitive_shape	ECX	the dimensions (float3*: sphere radius; box half extents; cylinder radius, half height; capsule radius, height between the centres)	observed
+0x0007a390	vostok::physics::create_primitive_shape	entry ESP+4	the local scale (float3*, given to setLocalScaling as is)	observed
+0x0007a390	vostok::physics::create_primitive_shape	entry ESP+8 low word	the material (u16 put in the face-data word +110h)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
@@ -536,6 +553,11 @@ va	name	location	role	basis
 0x00080fa0	vostok::network_core::buffer_writer::w<bool>	stack+12	diagnostic source line	observed
 0x00080fa0	vostok::network_core::buffer_writer::w<bool>	stack+16	diagnostic caller function name	observed
 0x00080fa0	vostok::network_core::buffer_writer::w<bool>	stack+20	diagnostic value label	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+4	the collision world (btCollisionWorld*: a physics world's +3Ch; 0x77B33, 0x77259)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+8	the cast shape (btConvexShape*, e.g. a bt_collision_shape's +108h)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+12	the start btTransform* (40h: basis rows +0/+10h/+20h, origin +30h; Bullet frame, z = -game z)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+16	the end btTransform* (same layout)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+20	the result callback (ConvexResultCallback*: +4 closest fraction, +8 group u16, +0Ah mask u16; ClosestConvexResultCallback vtable 0x9E2FA8)	observed
 0x000e0420	vostok::resources::resource_children::link_parent_resource	entry ESP+4	resource_children owner	observed
 0x000e0420	vostok::resources::resource_children::link_parent_resource	entry ESP+8	parent resource pointer	observed
 0x000e0420	vostok::resources::resource_children::link_parent_resource	entry ESP+12	quality value	observed
@@ -617,6 +639,7 @@ va	name	location	role	basis
 0x000fef60	vostok::render::renderer_cook::destroy_resource	entry ESP+4	resource pointer	observed
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	EAX	the first query_result	observed
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	entry ESP+4	the second query_result	observed
+0x0010d4e0	vostok::tasks::thread_pool::wait_for_all_children	entry ESP+4	the thread pool ([0A86730h]; TLS index at +6Ch)	observed
 0x001104b0	vostok::network::network_world::set_on_dispatch_callbacks	ECX	network-world receiver	observed
 0x001104b0	vostok::network::network_world::set_on_dispatch_callbacks	entry ESP+4..+35	32-byte by-value callback aggregate	observed
 0x00110620	vostok::network::network_world::network_world	EDI	network-world receiver	observed
@@ -628,6 +651,11 @@ va	name	location	role	basis
 0x00110b80	vostok::network::network_world::tick	entry ESP+4	single_threaded byte	observed
 0x00110dd0	vostok::network::network_world::clear_resources	ECX	network-world receiver	observed
 0x00110e10	vostok::network::network_world::dispatch_callbacks	ECX	network-world receiver	observed
+0x001113a0	vostok::animation::skeleton::get_bone_index	EAX	the skeleton ([[player+F290h]+10Ch])	observed
+0x001113a0	vostok::animation::skeleton::get_bone_index	ECX	the bone's name	observed
+0x001113f0	vostok::animation::find_bone_by_name	EAX	begin (skeleton+110h)	observed
+0x001113f0	vostok::animation::find_bone_by_name	entry ESP+4	end (skeleton+110h + 1Ch * count)	observed
+0x001113f0	vostok::animation::find_bone_by_name	entry ESP+8	the name	observed
 0x00111860	vostok::logging::has_passed_filters	entry ESP+4	the channel's name ("game" 0x9FA4E4)	observed
 0x00111860	vostok::logging::has_passed_filters	entry ESP+8	the level (4 info)	observed
 0x00111ed0	vostok::logging::log_message	entry ESP+4	&a boost::function (empty: its manager 0)	observed
@@ -2127,9 +2155,14 @@ va	name	location	role	basis
 0x001edbf0	survarium::game::play_ui_sound	stack+4	UI sound byte ID	inferred
 0x001f0090	survarium::items_dictionary::item_by_id	EAX	items dictionary	inferred
 0x001f0090	survarium::items_dictionary::item_by_id	stack+4	item ID	inferred
+0x001f17c0	survarium::player::collision_transform	ECX	the player's collision_user subobject (player+118h)	observed
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
-0x001f3480	survarium::player::update_camera	entry ESP+4	the player (its input handler at +F470h, null but for the local one)	observed
+0x001f2720	survarium::player::insert	ECX	the player	observed
+0x001f2720	survarium::player::insert	entry ESP+4	bool link (byte pushed as a dword): 1 links the tick lists and the models, as the rule spawn passes (0x316EA5)	observed
+0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
+0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
+0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
 0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
 0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	EAX	integer value pointer	observed
@@ -2148,11 +2181,12 @@ va	name	location	role	basis
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
 0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
 0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
+0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
-0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver	inferred
-0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true0 false2	inferred
+0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed
+0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true mode 0, false mode 2 at input+358h	observed
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	stack+4	game-world receiver	inferred
-0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	the game world (its player input handler at +4D58h set to mode 4)	observed
+0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	game world: input +4D58h set to mode 4; camera interface input+4 (attached spectator)	observed
 0x001f83d0	survarium::game_world::set_game_project	EAX	project resource pointer reference	inferred
 0x001f83d0	survarium::game_world::set_game_project	stack+4	world receiver	inferred
 0x001f8650	survarium::game_world::on_project_loaded	ECX	world receiver	inferred
@@ -2206,6 +2240,7 @@ va	name	location	role	basis
 0x00209ff0	survarium::chat_handler::add_squad_tab	EAX	chat handler	inferred
 0x00209ff0	survarium::chat_handler::add_squad_tab	EDI	channel selector	inferred
 0x0020a070	survarium::chat_handler::remove_squad_tab	EDX	chat handler	inferred
+0x00219990	survarium::network_client::match_options	ECX	the network client	observed
 0x0021c970	survarium::lobby_menu::input_handler	ECX	lobby receiver	inferred
 0x0021d2e0	survarium::lobby_menu::on_activate	ECX	lobby receiver	inferred
 0x0021d4a0	survarium::lobby_menu::on_deactivate	ECX	lobby receiver	inferred
@@ -2302,7 +2337,6 @@ va	name	location	role	basis
 0x00240200	survarium::player_input_handler::on_mouse_move	stack+16	mouse_z	inferred
 0x00241090	survarium::player_input_handler::on_before_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
 0x00241170	survarium::player_input_handler::on_after_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
-0x00241200	survarium::player_input_handler::alt_is_held	EAX	the player input handler	observed
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+4	handler	inferred
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+8	process_keyboard_look	inferred
 0x002421c0	survarium::player_input_handler::process_third_person_mode	EAX	player input-handler receiver used for the observed dispatch/input fields	observed
@@ -2321,8 +2355,8 @@ va	name	location	role	basis
 0x00243370	survarium::camera_director::set_position_direction	EAX	position vector reference	inferred
 0x00243370	survarium::camera_director::set_position_direction	ECX	direction vector reference	inferred
 0x00243440	survarium::camera_director::apply	stack+4	camera-director receiver	inferred
-0x00243510	survarium::camera_director::switch_to_camera	ESI	camera-director receiver	inferred
-0x00243510	survarium::camera_director::switch_to_camera	EDI	next camera interface	inferred
+0x00243510	survarium::camera_director::switch_to_camera	ESI	camera-director receiver; active camera interface +84h read then replaced at 243545	observed
+0x00243510	survarium::camera_director::switch_to_camera	EDI	next camera interface, stored at director+84h (243545)	observed
 0x002435b0	survarium::weapon_core::get_transform	ECX	whole weapon receiver	inferred
 0x002435b0	survarium::weapon_core::get_transform	stack+4	16-DWORD output buffer	inferred
 0x002435d0	survarium::weapon_core::set_transform	ECX	whole weapon receiver	inferred
@@ -2346,8 +2380,6 @@ va	name	location	role	basis
 0x00243d40	survarium::weapon::set_foreground	DL	foreground_flag	inferred
 0x00243dd0		ECX		auto
 0x00243dd0		entry ESP+4		auto
-0x00243fa0		ECX		auto
-0x00243fa0		entry ESP+4		auto
 0x00244570		ESI		auto
 0x002445e0		ECX		auto
 0x002445e0		entry ESP+4		auto
@@ -2371,6 +2403,7 @@ va	name	location	role	basis
 0x00244e10		ECX		auto
 0x00245250		ECX		auto
 0x002474a0	survarium::player::mt_draw	ECX	the player	observed
+0x002474a0	survarium::player::mt_draw	byte [EBX+0F4E2h] at 0x24757C	the player's model not seen the last frame (0x247519, setb); `je 0x247592` draws, then `cmp dword [ebx+12Ch],0 / jne 0x247811` culls; EAX = [player+F290h] live into 0x247592	observed
 0x00248ad0	survarium::step_manager::on_step	ECX	step_manager (+4 the game world)	observed
 0x00248ad0	survarium::step_manager::on_step	EAX	foot position (float3*; the ground ray starts 1 m above it, 2 m long)	observed
 0x00248ad0	survarium::step_manager::on_step	entry ESP+4	step direction (float3*)	observed
@@ -2498,6 +2531,10 @@ va	name	location	role	basis
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
 0x0027a790	survarium::network_client::close_current_match	ECX	network_client receiver	observed
 0x0027a790	survarium::network_client::close_current_match	stack+4	match-close case selector; enum meanings unassigned	observed
+0x0027a790	survarium::network_client::close_current_match	entry ESP+4	the reason (jump table 0x27A958): 2 disconnected_by_initiator, 0xE0 to the match server then as 1 (31 01 to the lobby, the world ended); 3 the world ended and the results shown (match.md sections 24, 25)	observed
+0x0027a9c0	survarium::network_client::get_active_player	ECX	the network client (its core [+1F1C40h]+1F8h)	observed
+0x0027a9c0	survarium::network_client::get_active_player	entry ESP+4	out pointer	observed
+0x0027a9c0	survarium::network_client::get_active_player	entry ESP+8	the place (byte)	observed
 0x0027b1f0	survarium::network_client::tick	ECX	network_client receiver	observed
 0x0027b1f0	survarium::network_client::tick	stack+4	time/count value used in elapsed-threshold comparisons	observed
 0x0027b570	survarium::network_client::process_set_time_request	EAX	packet buffer_reader	observed
@@ -2621,8 +2658,13 @@ va	name	location	role	basis
 0x002ca910		entry ESP+4		auto
 0x002cea30	survarium::animation_analysis_result_cook::translate_query	entry ESP+4	query object pointer; its +0x108 user-data field is tested	observed
 0x002d09c0		EAX		auto
+0x002d0ab0	survarium::game_world_core::active_player_ptr	ESI	the world core	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	CL	the place	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	out pointer	observed
 0x002d0b70		entry ESP+12		auto
 0x002d0b70		entry ESP+4		auto
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+4	the world core ([network_client+1F1C40h]+1F8h at the 0xE8 handler's loads 0x27C0D9, 0x27C111)	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+8	the buffer_reader at the world: its time (u32), then the body	observed
 0x002d1100		EAX		auto
 0x002d1100		entry ESP+4		auto
 0x002d1100		entry ESP+12		auto
@@ -2657,11 +2699,18 @@ va	name	location	role	basis
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+8	float k, the modifier's weight (1.0 at the weapon draw)	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+8	configuration object pointer copied to EBX	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+4	destination parameter object; only present keys overwrite its scalar fields	observed
+0x002d77c0	survarium::base_player::on_player_death	ECX	the player	observed
 0x002d7920	survarium::base_player::jump	entry ESP+4	base_player	observed
 0x002d7920	survarium::base_player::jump	EAX	jump direction, stored at base_player +0x338	observed
 0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
 0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
+0x002d93a0	survarium::base_player::assign_physics_transform	ECX	the player	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+8	the time (compared with m_inserted_time_in_ms +328h)	observed
+0x002d9930	survarium::base_player::activate_physics	EAX	the player	observed
+0x002d9980	survarium::base_player::deactivate_physics	EAX	the player	observed
+0x002d99c0	survarium::base_player::remove_alive	entry ESP+4	the player	observed
+0x002d99c0	survarium::base_player::remove_alive	entry ESP+8	bool: deactivate the physics first (1 from both death paths)	observed
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
 0x002d9a60	survarium::base_player::hit	stack+16	damage type	inferred
@@ -2669,6 +2718,16 @@ va	name	location	role	basis
 0x002d9ae0	survarium::base_player::hit	stack+12	bodypart descriptor	inferred
 0x002d9b90	survarium::base_player::hit_impl	stack+4	player receiver	inferred
 0x002d9b90	survarium::base_player::hit_impl	stack+8	hit_info record	inferred
+0x002d9b90	survarium::base_player::hit_impl	[EBP-4] at 0x2D9EFC	the killing bullet or 0 (+1Ch velocity LIKELY)	observed
+0x002d9b90	survarium::base_player::hit_impl	[EBP+0Ch] at 0x2D9EFC	the hit_info (+0 part-name pointer, +24h world hit point, +44h killer place); the victim is EBX; nothing of the last hit is kept on the player	observed
+0x002da4b0	survarium::base_player::computed_head_transform	EAX	the player	observed
+0x002da540	survarium::base_player::get_bone_transform	EDI	the player	observed
+0x002da540	survarium::base_player::get_bone_transform	entry ESP+4	out matrix	observed
+0x002da540	survarium::base_player::get_bone_transform	entry ESP+8	the bone's name (char*)	observed
+0x002da5b0	survarium::base_player::recompute_damage_collision_bones	ECX	the player	observed
+0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4	an object or 0; when set, its [+8]+4 byte is compared with the player's place +114h	observed
+0x002da850	survarium::base_player::insert	ECX	the base player	observed
+0x002da850	survarium::base_player::insert	entry ESP+4	bool link (byte): 1 links the world's tick lists	observed
 0x002daf60	survarium::base_player::serialize	ECX	player	inferred
 0x002daf60	survarium::base_player::serialize	stack+4	writer	inferred
 0x002db490	survarium::base_player::deserialize	ECX	player	inferred
@@ -2706,8 +2765,8 @@ va	name	location	role	basis
 0x002e17d0	survarium::weapon_core::load_magazine	ESI	whole weapon receiver	inferred
 0x002e18e0	survarium::weapon_core::unload_ammo	EAX	weapon receiver	inferred
 0x002e1a00	survarium::weapon_core::reload_one_round	EDI	whole weapon receiver	inferred
-0x002e1b50		ECX		auto
-0x002e1bf0		ECX		auto
+0x002e1b50		ECX	weapon receiver: actual aimed byte +5E8h set to 1 at 2E1B5A	observed
+0x002e1bf0		ECX	weapon receiver: actual aimed byte +5E8h cleared at 2E1BFB	observed
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+4	whole weapon receiver	inferred
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+8	three-float output storage	inferred
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+12	transform containing right and forward vectors	inferred
@@ -2814,16 +2873,9 @@ va	name	location	role	basis
 0x002fc4b0	survarium::inventory::inventory	EAX	inventory_storage	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	ECX	inventory receiver	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	stack+4	deallocation flags bit0	inferred
-0x002fc620	survarium::inventory::set_item	ESI	inventory	inferred
-0x002fc620	survarium::inventory::set_item	stack+4	item_resource_reference	inferred
-0x002fc620	survarium::inventory::set_item	EDI	slot	inferred
-0x002fc680	survarium::inventory::remove_item	ESI	inventory	inferred
-0x002fc680	survarium::inventory::remove_item	EAX	slot	inferred
 0x002fc6e0		ESI		auto
 0x002fc6e0		EFLAGS&0x400		auto
 0x002fc810	survarium::inventory::drop_carried_item	ECX	inventory	inferred
-0x002fc850	survarium::inventory::take_artefact	EAX	inventory receiver	inferred
-0x002fc850	survarium::inventory::take_artefact	stack+4	incoming artifact resource-pointer reference	inferred
 0x002fcaa0	survarium::inventory::action	EDI	inventory receiver	inferred
 0x002fcaa0	survarium::inventory::action	stack+4	item slot	inferred
 0x002fcaa0	survarium::inventory::action	stack+8	first forwarded item-action argument	inferred
@@ -2846,6 +2898,10 @@ va	name	location	role	basis
 0x002fff10		EFLAGS&0x400		auto
 0x002fff10		entry ESP+4		auto
 0x00300710		entry ESP+4		auto
+0x003009b0	survarium::victory_item_core::set_transform	ECX	the battery	observed
+0x003009b0	survarium::victory_item_core::set_transform	entry ESP+4	the matrix	observed
+0x00300a20	survarium::victory_item_core::get_transform	ECX	the battery	observed
+0x00300a20	survarium::victory_item_core::get_transform	entry ESP+4	out matrix	observed
 0x00301c40	survarium::victory_item_core::set_spotted	ECX	the battery's spottable interface (item+54h)	observed
 0x00301c40	survarium::victory_item_core::set_spotted	entry ESP+4	the spotter (base_player)	observed
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	ECX	the battery's spottable interface (item+54h)	observed
@@ -3330,10 +3386,14 @@ va	name	location	role	basis
 0x00344870	survarium::victory_item_core_animation_end_aware_state::deserialize	stack+4	reader	inferred
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	ECX	victory animation aware state	inferred
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	stack+4	writer	inferred
+0x00344c90	survarium::victory_item_core_base_state::is_user_dead	ECX	the state (+1Ch the battery)	observed
 0x00344cb0	survarium::victory_item_core_base_state::serialize	ECX	victory item base state	inferred
 0x00344cb0	survarium::victory_item_core_base_state::serialize	stack+4	writer	inferred
 0x00344d70	survarium::victory_item_core_base_state::deserialize	ECX	victory item base state	inferred
 0x00344d70	survarium::victory_item_core_base_state::deserialize	stack+4	reader	inferred
+0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+4	the state (+1Ch the battery, its +8 the user)	observed
+0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+8	out matrix (world)	observed
+0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+0Ch	out matrix (before the user's transform)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
@@ -3449,8 +3509,17 @@ va	name	location	role	basis
 0x0038ccf0	vostok::ai::fsm::deserialize	EDI	reader	inferred
 0x0038ccf0	vostok::ai::fsm::deserialize	stack+4	first forwarded context	inferred
 0x0038ccf0	vostok::ai::fsm::deserialize	stack+8	second forwarded context	inferred
+0x00391960	vostok::animation::animation_player::set_object_transform	EAX	the animation player (player+750h)	observed
+0x00391960	vostok::animation::animation_player::set_object_transform	EDX	the transform (player+40Ch)	observed
+0x00391960	vostok::animation::animation_player::set_object_transform	entry ESP+4	the animated object (the player)	observed
+0x003919a0	vostok::animation::animation_player::get_object_transform	EAX	the animation player	observed
+0x003919a0	vostok::animation::animation_player::get_object_transform	ECX	the animated object	observed
+0x003919a0	vostok::animation::animation_player::get_object_transform	EDI	out matrix	observed
 0x00396120		ECX		auto
 0x00396120		ECX&0xaaaaaaaa		auto
+0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+4	the tree (animation player+E100h)	observed
+0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+8	out matrix	observed
+0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+0xC	the animated object	observed
 0x003b9f40	vostok::render::device::device	ESI	device object receiver	observed
 0x003b9f40	vostok::render::device::device	entry ESP+4	DWORD stored at device+0x1B0	observed
 0x003b9f40	vostok::render::device::device	entry ESP+8	DWORD stored at device+0x1B4	observed
@@ -4386,6 +4455,7 @@ va	name	location	role	basis
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
+0x002d2770	survarium::game_world_core::deserialize	loop 0x2D2CB3..0x2D2D55 (the tail)	inserts every active place's current player: for each bit of the active places [core+18FD8h] (0x2D2CB3), the place record [core+18458h] + 30h x index, its current player [place + 4 x byte [place+0Ch]] gets vtable+20h (player::insert 0x1F2720 -> base_player::insert 0x2DA850, +33Fh := 1 at 0x2DA869 unconditionally) at 0x2D2D51 with link = newly active (the bit set in [ESP+7Ch], 0x2D2D21) || current player changed (byte [place+2Dh], 0x2D2D25); so after a world load (0xE8, 0x27C116) no alive player is out of the world	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed
 0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed
@@ -4439,7 +4509,7 @@ va	name	location	role	basis
 0x0025cd00	survarium::game_world::on_keyboard_action	ECX	the game world's input handler (game_world+1F8h; the hud at +4, the hud's cursor flag at +2E0h)	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+4	the input world	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+8	the key (DirectInput code: 2..4 the keys 1..3, 1Ch Enter, 1 Esc)	observed
-0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+12	the kind (1 down, 2 held, 3 up)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+12	the kind (1 down, 2 up, 3 held: the keyboard's process 0x3B9AF0, 1 and 2 an event polled, 3 every key down every tick)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+4	the chat handler (+0Dh in a match: set_mode's flag; +14h its movie)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+8	the channel (0 server, 1 general, 2 system, 3 clan, 4 private, 5 match, 6 and 7 the teams, 8 squad, 9)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
@@ -4467,6 +4537,7 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
 0x002da170	survarium::base_player::generate_killed_event	ESI	the victim (place +114h, world +120h, damage model +2E0h)	observed
+0x002da170	survarium::base_player::generate_killed_event	0x2DA3DF ESI/BL	victim / native fatal cause (1 headshot, 0 other, 3 suicide or no killer), preserved by enqueue at 0x2D0A60; victim+328h is the life spawn time. Cosmetic headwear hook replays mov eax,[esi+120h], outside patch 67's span.	verified
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+4	the time (the event's +24h)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+8	the killer's place (0FFh: none)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+0Ch	the hit's bone name (brain or face: a headshot)	observed
@@ -4526,3 +4597,272 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x003b7bd0	vostok::input::input_world::tick	ECX	the input world (0xAA5430, [game+5358h]; +0Ch, +10h the handlers' begin and end; +24h the keyboard, +28h the mouse, +20h the other device; +34h active, the tick does nothing without it): polls each device (vtable +18h, +20h, +1Ch), calls each handler's slot +14h with the world, has each device hand out what it polled (+1Ch, +24h, +20h, with the handlers), then each handler's slot +18h	observed
+0x003b7bd0	vostok::input::input_world::tick	entry ESP+4	the game's time (game+584Ch; game::tick's call at 0x1ECB67, before the game world's update at 0x1ECBE1)	observed
+0x003b8d20	vostok::input::platform::keyboard::execute	ECX	the keyboard (+914h the DirectInput device): GetDeviceData into +408h (14h a DIDEVICEOBJECTDATA, at most 40h), the count at +404h, each event's state (80h down) into +4 + 4 x its DIK; lost or not acquired: Acquire, the states cleared, read again	observed
+0x003b9af0	vostok::input::platform::keyboard::process	ECX	the keyboard (+4 the keys' states, 4 bytes a DIK, 80h down; +404h the events polled, +408h the events; +918h the input world it hands the handlers)	observed
+0x003b9af0	vostok::input::platform::keyboard::process	entry ESP+4	the handlers (begin, end: the input world's +0Ch): each event in order to each handler's slot 0 (the input world, the DIK, kind 1 for 80h down, 2 for up) until one answers 1, then kind 3 for each key down; the count cleared	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX	the keyboard (vtable 0xA25478 slot 0; the input world's vtable +24h gives it, as on_keyboard_action asks it for Tab, 0Fh)	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	entry ESP+4	the DIK	observed
+0x00306d50		ECX	the game material manager (the bullet manager's +94h)	observed
+0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h)	observed
+0x00306d50		EDI	the second material id (u16 in DI; the hit object's material)	observed
+0x003223e0	survarium::bullet_manager::play_particle	EAX	the position (float3*)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+4	the bullet manager (a bullet's +44h)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+8	the particle (a slot of the pair's +24h array: a resource pointer, its count +0D0h taken)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+12	the direction (float3*, made unit by it)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+16	the surface normal (float3*, made unit by it)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+20	the parameter (the pair's +74h)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+4	the bullet manager (a bullet's +44h)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+8	the sound (the pair's +18h slot: a resource pointer)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+12	the position (float3*)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	EAX	the bullet manager (a bullet's +44h)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+4	the decal (a slot of the material pair, +8h/+0Ch/+10h/+14h by the hit's kind: a resource pointer, its count +0D0h taken)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+8	its size (float)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+12	its second size (float; the same but for a ricochet)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+16	the position (float3*, the hit's point)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+20	the bullet's direction (float3*)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+24	the surface normal (float3*, the hit's +10h)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+28	the caller's third argument (0: none)	observed
+0x00321fa0	survarium::bullet_manager::add_decal	entry ESP+32	a flag (byte; the hit's +20h with that argument, else 0)	observed
+0x0032d4e0	survarium::bullet::check_collision	EAX	the bullet (+4 its id, +8 its shooter (+4 the place), +1Ch its velocity (LIKELY), +40h its ammo data (0x332440's: +0Ch k_power, +14h mass, +3Ch muzzle_speed, +50h combat_log_icon), +44h the bullet manager, +48h its material, +80h, +84h its segments)	observed
+0x00332440		entry ESP+4	the ammo data filled (the config's `data`: +0 distance, +4 dispersion, +8 k_damage, +0Ch k_power, +10h k_stamina_damage, +14h mass, +18h k_max_damage_distance, ... +28h air_resistance, +3Ch muzzle_speed, +50h combat_log_icon); EAX the config	observed
+0x002fc6e0	survarium::inventory::update_weight	ESI	the inventory (+10Ch its 23 slots' items, +180h m_carried_weight, +184h m_need_to_recalculate_weight)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	ESI	the velocity (a float3: the bullet's +1Ch, or the velocity a pierce or reflection lost)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	EDI	the object hit (+1Ch its owner)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	entry ESP+4	the bullet (+40h its ammo data)	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	ECX	the respawn rule (vtable 0xA16014 slot +44h; +138h + 4 x place: the place's respawn time, -1 none)	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+4	match_hud_state: +0 the hud's place (0FFh none); writes +08h the respawn seconds left, ceil((respawn time - now) x 0.001) (vostok::math::ceil 0x5D970; its body emulated: 0.3 -> 1, 8.65 -> 9, 9.0 -> 9), 0 for no place, no time or a time not after now	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+8	now, the game's time in ms	observed
+0x00236c30	survarium::game_world_ui::set_local_respawn_time	EAX	the respawn seconds left (hud+2Ch, update_ui 0x23B3FC); returns at once when equal to the last (the global 0xACFC30)	observed
+0x00236c30	survarium::game_world_ui::set_local_respawn_time	entry ESP+4	the hud; root.set_respawn_time with "%s %02d:%02d" (st_respawn_time_pref, minutes, seconds), "" for 0	observed
+0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	ESI	the data (F328h bytes, from profile_skin_visual_cook at 0x2045A9): +0 the bind pose's path and +118h the skeleton's (buffer_strings of 114h: begin, end, the buffer's end, then 104h bytes), +234h 20 part records of C0Ch (constructed by 0x127CB0 through the array helper 0x11100), +F324h the records in use (u8), +F325h the pushed byte	observed
+0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	entry ESP+4	a byte kept at +F325h (0 from 0x2045A7)	observed
+0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	ECX	a part record (C0Ch): +0 base_model, +114h part_name, +228h material (buffer_strings over their own 104h bytes), +33Ch..+348h four zeroed words, +34Ch the camouflage_decal_cook_parameters (0x119760); +C08h the part (on_configs_loaded writes 0 for the head, 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's and its additional_models; nothing reads +C08h directly)	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	entry ESP+12	the query's profile (player_profile: +58h + kit * 704h the kit's slots, +1568h the items of B4h, +4608h + part each part's record when the byte at entry ESP+17 is set; a match's player's is in the match options at place * 45FCh). In the body: [esp+1Ch] the new skeleton_combined_cook_data (0x2045B4; records from 1, 0x204735, the head's record 0 at the end, 0x205659, unless remove_head_model; at 0x2056F0 all are made); [esp+348h] the visual's name {begin, cursor, the buffer's end} over [esp+354h]..[esp+458h]: per part its item's id (`%d_`, 0x2051AC), camouflage (`%I64d`) or `0_` for none (0x204A7A), the name of the combined skin queried at 0x20579F (the resources' cache key)	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	entry ESP+16 low byte	the kit's index; the next byte (entry ESP+17): write each part's record index into the profile's +4608h	observed
+0x00128260	vostok::render::skeleton_combined_model_cook::query_resources_by_data	entry ESP+12	the skeleton_combined_cook_data: per record in use (+F324h) it queries resources/models/<base_model>.skinned_model/render/<part_name>/converted_model, <base_model>.skinned_model/settings and render/<part_name>/export_properties (0x1282F3..0x1283D7)	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+4	patch 65 (Blackout): the options' +57870h, the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes: emptied by the constructor 0x3183E3, logged 0x27BD08), hold "SRBO" when srp's block has tag 2 = 1	observed
+0x0023aa10	survarium::game_world_ui::update_player_icons	entry ESP+4	the one feed of the player icons movie (hud+10h, loaded with each game world at 0x1F8F69): its create_player_icon (0x23BE57), names (0x23C00D) and props (0x23B1C0, the 67h objects); patch 65 keeps this feed running and controls the movies' visibility for Blackout	observed
+0x002384c0	survarium::game_world_ui::show_player_list	ESI	the hud (game_world_ui): +0BAh the list shown; root.show_player_list on the hud movie when it changes	observed
+0x002384c0	survarium::game_world_ui::show_player_list	entry ESP+4 low byte	shown: Tab down, from game_world::on_keyboard_action (0x25CD34, the keyboard asked for DIK_TAB at every key)	observed
+0x00241250	survarium::player_input_handler::process_first_person_mode	entry ESP+4	the input handler (EBX in the body): its actions mask at +33Ch, one bit an action from action_present 0x242460 (forward 1, back 2, lstrafe 4, rstrafe 8, jump 10h, fire 20h, reload 40h, aim 80h, crouch 100h, sprint 200h, ... spot 10000000h); returns through 0x2421B0	observed
+0x001f9740	survarium::game_world::set_match	ESI	the game world (the game's +18h, constructed by game::game at 0x1E90A3): +4D4Ch the match it holds (0 in the lobby; on_finish_match's 0x1F8B40 lets it go); patch 65 reads it through the visual cook's game (0x9262320)	observed
+0x001e9070	survarium::game::game	entry ESP+4	the game: +18h its game_world (0x1E90A3); the profile skin visual cook (0x9262300) gets it at +20h (0x1E9988)	observed
+0x0027b880	survarium::network_client::process_static_match_info	EAX	the 0xE4 reader: after match_options::deserialize (0x27B928) it sets each profile's is_local byte (+45F0h) by the message's local index (0x27BE5F), before the match's world is made; patch 65 draws no band on that player	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	the part's item config	per part: its optional key `material` (0x9EEA04) is copied into the record's material buffer (+228h; 0x20545E, the head's 0x2055F4); `model_type` (0x9FD750) is read when the part's kind is 5	observed
+0x001284d0	vostok::render::skeleton_combined_model_cook::on_resources_loaded	the cook data's records (its loop 0x1286D0..0x128A77)	a record whose material buffer (+228h) is empty takes the model's settings' material_settings[<part_name>].material_name (0x1288C7..0x128917); a set one is kept (the item's own material overrides the model's); the name is then queried as a material resource (class 0Eh, 0x12899E)	observed
+0x0023bd60	survarium::game_world_ui::create_hud_icon	entry ESP+4..ESP+16	(ui, the icon's id byte, its kind byte: 0 a name renderer, 1 a marker; a float scale), `ret 10h`: root.create_player_icon(id, kind, scale) of the player icons' movie ([[ui+10h]+108h]+4, 0x23BE5B); set_hud_icon_type 0x23BEA0 (ui, id, type) its root.set_player_icon_type	observed
+0x001f29d0	survarium::player::initialize_player_icon	ESI	the player: his icon's id is his index (+114h byte, 0x1F29E8), kind 0, type from 0x2DE950; the name after it (0x1F2A9C, set_hud_icon_name)	observed
+0x00234880	survarium::game_world_ui::initialize_match	EBP	the hud: the match's objects' icons from id 25h (0x235771: 25h..2Eh kind 0 type 0Dh, 2Fh..34h kind 1 type 0, from 35h [ui+349h] more of kind 1 type 1); update_player_icons (0x23AA83) gives its objects' list (each visible by team, +1A4h) the ids from 25h too: a player's id is below 25h	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	BL at 0x25CD26	the Tab key down (the keyboard asked for DIK_TAB, 0x25CD22): given to show_player_list, then at 0x25CD39 `test bl,bl / jnz 0x25CF0D` sends every key to the function's end while it is down (before patch 58's kit keys at 0x25CD41)	observed
+0x002383b0	survarium::game_world_ui::show_profiles_selector	EAX, entry ESP+4 byte	the ui, show (1) or hide (0) the kits: nothing when the state (+2DFh) is that already or the game's +53C8h is set (0x2383D8); else root.select_player_profile(the kit chosen, 0x1F8120), root.show_profiles_selector(byte) and show_cursor(byte) (0x23845B)	observed
+0x0023b740	survarium::game_world_ui::update_local_player_state	EAX	the ui: at a change of the local player's alive byte (+33Ch) the quick slots and the stamina shown and the kits hidden (alive), or the other way (dead; show_profiles_selector 0x23B7F7)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	the callback's name	`profile_changed` (0xA03280, 0x233F06): game_world::select_profile(its index byte, 0x1F8070), then show_profiles_selector(false) (0x233F2C)	observed
+0x0025cf60	survarium::game_world::on_mouse_key_action	ECX	the input handler (the game world's +15Ch on): a button goes to the hud movie (the handler's +0Ch holder, 0x2AF610) while the cursor is shown (+2E0h), to the replay's (+18h) first; Tab plays no part	observed
+0x0027b880	survarium::network_client::process_static_match_info	ESI and [EBP-2Ch] at 0x27B92D	after its match_options::deserialize (0x27B928, which keeps ESI): ESI the options (0x27B921), the reader {begin, cursor, size} the frame's local at EBP-2Ch (0x27B903..0x27B90B, 0x27B925), its cursor where the options end (after the squads): patch 65's site static_info.options_read	observed
+0x001f08e0		[ESP+40h] and ESP+14h at 0x1F0971	a replay's chunk 1 reader (its one caller 0x218DDA, in replay_network_client); after its match_options::deserialize (0x1F096C): the options its first argument ([esp+40h], 0x1F095C), the reader its local at ESP+14h (made at 0x1F094C..0x1F0958); then pop esi, pop ebx, add esp 34h, ret 8: patch 65's site replay.options_read	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	[ESP+14h] at 0x25CD2C	Tab's byte stored for show_player_list's push (0x25CD28, loaded into ECX at 0x25CD2C); BL the same until 0x25CD39: patch 65's site keyboard.tab_state (BL cleared in a Blackout match)	observed
+0x001f2ad0	survarium::player::render_name	at 0x1F2F10: AL, ESI, EDI, ESP+14h	name visibility from Alt (key 38h) or crosshair; target player; game_world_ui; local-team snapshot (2 if absent). Target profile at player+6B8h, team at profile+45ECh. Earlier life/visibility/projection gates have passed; +114h selects HUD row (24h stride), +387h caches visibility and +389h OR 20h marks a change	observed
+0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	ECX	AvmTextField interface: -18h AS3 root, -1Ch raw AS3 pointer or -20h collectible pointer (low-bit tag). At 79D389 EBX is the decoded target. PIN join dump 2026-10-27: missing target reaches WillTrigger then null read at 74A800	observed
+0x0023b740	survarium::game_world_ui::update_local_player_state	at 0x23B7A0	ESI ui, EBP local player, EBX inventory, EDI quick-slot index 0..5, EAX mapped inventory slot; LEA EBX+EAX*4+10Ch then update_quick_slot 0x23A200; 17h sentinel leaves loop before this site	observed
+0x0033d390	survarium::medkit::set_active	medkit fields	+29Ch configured duration ms, +2A0h skill weight, +2A8h activity remaining ms, +2ACh use delay remaining ms, +2B0h active byte; duration = floor(apply_modifier(profile+kit*704h+F4h,34,duration,weight)), delay uses modifier 33; kit player+115h, profile player+6B8h	observed
+0x0033cac0	survarium::medkit::medkit	primary vtable	0xA1C79C written at 0x33CAE6; medical consumables use the same medkit class	observed
+0x0033d700	survarium::medkit::action	stack decrement	0x33D765 stores the decremented count at item+260h after set_active; holder+184h is marked for weight recalculation at 0x33D776. The zero-count item is not unlinked from its inventory slot, allowing its native delayed effect to continue.	observed
+0x00239cc0	survarium::game_world_ui::create_slot_value	entry ESP+8	the zero-based quick-slot index (EDI at 0x239DAC), copied unchanged into GFx slot_id at 0x239F23..0x239F32; the activity presentation uses the same index at 0x23B7A0	observed
+0x0033d390	survarium::medkit::set_active	activation delay	+2A4h configured delay ms; 0x33D45A..0x33D491 uses apply_modifier(profile+kit*704h+F4h,33,delay,1.0), truncates to u32 and stores +2ACh. Unlike effect duration, the delay does not use +2A0h skill weight.	observed
+0x002ffcc0	survarium::stackable_item::get_ui_description	medkit vtable+48h	medical items inherit this descriptor: writes item id at output+0 and stack count at +4; leaves cooldown byte +6 and timer word +2 zero. Medical activation needs its own native timing snapshot.	observed
+0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	at 0x15A950	EDI instance, EDX input count (reloaded at 0x15A94D); instance+290h previous, +229Ch current, +42A8h alternate matrix arrays, each a 128-matrix inline buffer vector; current and alternate contain transposed inverse_bind * pose; +62D8h first update copies current to previous for input count entries (0x15A950..0x15A983)	observed
+0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	ECX	skeleton render model; resizes inverse-bind vector at +140h to the input u16 count, skips each zero-terminated bone name, reads 9 floats (translation, rotation, scale), builds and inverts each matrix in file order (0x15A000..0x15A0C9); no animation-skeleton lookup	observed
+0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	EDI	reader {begin, cursor, size}; input starts with u16 bone count, then name and 36 bytes per bone; called by combined cook at 0x128D46 on its bind_pose resource	observed
+0x00128260	vostok::render::skeleton_combined_model_cook::query_resources_by_data	[entry ESP+12]+118h	bind-pose path buffer: queried as raw_data_class (3) at 0x1282A8..0x1282B6; profile_skin_visual_cook fills it from gameplay/bodyparts/default body_parts/bind_pose, whose mounted value is resources/models/character/human/scavengers/scavengers_01_torso_s1.skinned_model/render/bind_pose; the combined cook passes this resource to load_bind_pose at 0x128D46	observed
+0x00426ae1	setlocale	entry ESP+4	the category (LC_ALL 0, LC_COLLATE 1, LC_NUMERIC 4)	observed
+0x00426ae1	setlocale	entry ESP+8	the locale name (".1251", "C", ...)	observed
+0x000e3c10	vostok::core::preinitialize	EDI	stored at 0x1F1D63C (the object whose vtable+50h survarium::game::save_user_config asks for the user data folder); the -localization key 0xA81A88 read at 0xE3C52 into the global buffer_string 0x21E75E0 (default "original", 0x84E3E0), then setlocale(LC_ALL) from it: original/russian ".1251", english ".1252", polish ".1250", other names none; LC_COLLATE ".ACP" before, LC_NUMERIC "C" after	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	ECX	the command-line key (0xA81A88 localization: a buffer_string of its value and its name)	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	EAX	the buffer_string the value is copied into, or 0	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	EAX	the console command object (48h bytes: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Dh saved, +40h the buffer, +44h its size; vtable cc_string 0x9E7C2C; linked at the head of the list 0x1F1D66C)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+4	the name (+10h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+8	the buffer address of the string value (+40h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+12	the buffer's size (+44h; execute 0xEC8C0 copies a value with strncpy_s(buffer, size, value, size))	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+16	saved to user.cfg, a byte (+1Dh; 1 for r_current_render_configuration)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	ECX	the options' ExternalInterface (game_options+4, vtable 0x9FD478; +30h the game, game_options+34h)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+4	the movie (main_menu's GFx movie)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+8	the method name (accept_changes, cancel_changes, options_tab_changed, ...; an unknown one returns at 0x1FF96E)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+12	the arguments (GFx values, 24 bytes each: +4 the type, 6 a string, 40h its managed bit; +8 the value)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+16	the argument count	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	EAX	stamina; +18h minimum weight, +1Ch maximum, +20h speed penalty, +24h spend increase, +48h modifiers	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	entry ESP+4	carried weight in kg, supplied by base_player tick at 0x2DAAB5 after inventory::update_weight	observed
+0x00329290	survarium::player_stamina::player_stamina	EAX	stamina destination	observed
+0x00329290	survarium::player_stamina::player_stamina	ECX	40-byte stamina_base_parameters	observed
+0x00329290	survarium::player_stamina::player_stamina	entry ESP+4	player_params_modifiers_container pointer	observed
+0x002dbf40	survarium::base_player::can_sprint	entry ESP+4	player	observed
+0x002221e0	survarium::lobby_menu::update_player_items_weight	EAX	lobby menu; +6A0h profile, +9Ch game, +690h movie resource, +3118h configured capacity	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	EAX	kit index (low byte); profile+58h+704h*kit	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	ECX	equipment-compatible parameter index only; 0x2F7470 has an unchecked switch lookup at 0x2F7643; player modifier indices 26/31/32 are invalid and crash with equipped items; use 0x2D5AE0 on the kit modifier container for those	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+4	base value	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+8	profile	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+12	dictionary	observed
+0x00331840	survarium::weapon_recoil_parameters::load	ESI	recoil config node	observed
+0x00331840	survarium::weapon_recoil_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8	dispersion config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	ESI	breath_vibration config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	entry ESP+4	output parameter block	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	EAX	indexed config path node	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	entry ESP+4	root config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ESI	mutable scalar config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ECX	end iterator pointer	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	entry ESP+4	begin iterator	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	entry ESP+4	unused callback argument; ret 4	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	[0x021E75E0]	zero-terminated language name pointer; russian/ukrainian select ru, others en	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+4	the lobby menu	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+8	element: 0 the paper doll (with the slot), 1 the inventory, 2 the shop	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+4	renderer receiver; world+0, channel+4, allocator+8	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+8	scene resource reference captured for queued command	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+12	first 64-byte matrix source	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+16	second 64-byte matrix source	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	stack+4	renderer receiver; world/channel/allocator fields	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	stack+8	scene resource reference captured for queued command	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+4	renderer receiver; world/channel/allocator fields	observed
+0x00022280	vostok::render::scene_renderer::update_model	EAX	render-model resource reference checked for in-scene state	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+8	scene resource reference captured for queued command	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+12	first 64-byte matrix source	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+16	second 64-byte matrix source	observed
+0x001f28e0	survarium::player::on_player_death	ECX	client player; inlines remove_alive and inventory death, never calls base_player::on_player_death	observed
+0x00241200	survarium::player_input_handler::alt_is_held	EAX	player input handler; +334h world, +9Ch engine, vtable+38h input world, vtable+24h keyboard, vtable+0 key-down for DIK_RMENU B8h then DIK_LMENU 38h	verified
+0x00243fa0	survarium::weapon::on_hide	ECX	weapon; live even after its player changes held item	observed
+0x00243fa0	survarium::weapon::on_hide	entry ESP+4	was_visible; false skips all model removals	observed
+0x002fc620	survarium::inventory::set_item	ESI	inventory	observed
+0x002fc620	survarium::inventory::set_item	stack+4	item_resource_reference	observed
+0x002fc620	survarium::inventory::set_item	EDI	slot	observed
+0x002fc680	survarium::inventory::remove_item	ESI	inventory	observed
+0x002fc680	survarium::inventory::remove_item	EAX	slot	observed
+0x002fc850	survarium::inventory::take_artefact	EAX	inventory receiver	observed
+0x002fc850	survarium::inventory::take_artefact	stack+4	incoming artifact resource-pointer reference	observed
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	entry ESP+4	inventory receiver	observed
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	entry ESP+8	zero-based quick-slot ordinal	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	EAX	base_player receiver	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	entry ESP+4	previous input structure; action mask at +4	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	entry ESP+8	current input structure; action mask at +4	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	entry ESP+12	simulation time in milliseconds	observed
+0x00313470	survarium::artefact_base::on_taken	ECX	artefact receiver; invokes passive enable then sets state 3	observed
+0x00313490	survarium::artefact_base::on_removed	ECX	artefact receiver; disables active/passive then sets state 0	observed
+0x002e30f0	survarium::weapon_core::register_in_game_world	ECX	weapon inventory subobject; active-object prefix is ECX-16	observed
+0x002e30f0	survarium::weapon_core::register_in_game_world	entry ESP+4	game world core; active-object vector at +0x18B4C	observed
+0x002d4540	survarium::active_objects::append	ESI	fixed vector header: begin, end, capacity end; capacity 255 entries	observed
+0x002d4540	survarium::active_objects::append	entry ESP+4	pointer to the active-object pointer to append	observed
+0x00299830	survarium::empty_hands::empty_hands	EDI	destination; 0x168 bytes plus external animation pointer storage	observed
+0x00299830	survarium::empty_hands::empty_hands	entry ESP+4	animation pointer array; retained by caller, stored at +0x15C	observed
+0x00299830	survarium::empty_hands::empty_hands	entry ESP+8	animation count stored at +0x160; selected_animations requires nonempty array	observed
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	ECX	client update callback subobject; artefact base +0x398	observed
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	ECX	client update callback subobject; artefact base +0x498	observed
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	client update callback subobject; artefact base +0xf20	observed
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	client update callback subobject; artefact base +0x340	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EAX	portable core	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EDX	hand-expression metadata	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EDI	output expression pair	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	entry ESP+4	animation allocation buffer	observed
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EAX	portable core	observed
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EDI	reference to user-animation resource pointer	observed
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	entry ESP+4	destination storage, 0x200 bytes	observed
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	EAX	initial RNG seed; selector serialization 0x2FBBB0 labels this m_random.seed()	observed
+0x002fb8a0	survarium::weapon_user_animations_selector::~weapon_user_animations_selector	entry ESP+4	selector subobject; portable core +8	observed
+0x00231bc0	survarium::hit_animations_selector::~hit_animations_selector	ESI	hit selector subobject; portable core +0x60	observed
+0x002d86e0	survarium::base_player::apply_new_input	ECX	live player; incoming input is copied at 0x2D875F/0x2D876C before quick-slot processing	observed
+0x002d86e0	survarium::base_player::apply_new_input	entry ESP+4	simulation time	observed
+0x002d86e0	survarium::base_player::apply_new_input	entry ESP+8	immutable eight-byte input, angle pair then u32 actions; bits through 28 native	observed
+0x002daa60	survarium::base_player::tick	ECX	live player; copied to EBX, clock written at 0x2DAA7F before held tick	observed
+0x002daa60	survarium::base_player::tick	entry ESP+4	simulation time	observed
+0x002d6990	survarium::base_player::base_player	entry ESP+4	destination storage, copied to EBP at 0x2D6995	observed
+0x002daf60	survarium::base_player::serialize	at 0x2DB47E: EBX, EDI	live player and buffer writer at epilogue, after last native field	observed
+0x002db490	survarium::base_player::deserialize	at 0x2DBAB5: EBX, ESI	live player and reader after final native field; before physics post-restore	observed
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	EDI	live Lifebone object; assigns queries 0/1/2 at +4ACh/+4B0h/+4B4h	observed
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	entry ESP+4	queries_result; size +38h, first resource +12Ch, each query stride 2E0h	observed
+0x0025efe0	survarium::artefact<survarium::artefact_lifebone_core>::~artefact<survarium::artefact_lifebone_core>	ECX	live Lifebone; client callback +498h, world +4A4h, model +4ACh	observed
+0x003b2aa0	vostok::animation::bone_matrices_computer::convert_skeleton_branch	entry ESP+16	computed layer bits; child bone +18h must intersect this byte (3B2AF0), otherwise its matrix is uninitialized; render 1, damage 2	verified
+0x002d77c0	survarium::base_player::on_player_death	ECX	live player before remove_alive(1) and inventory death callback; ret 4	observed
+0x002fffd0	survarium::inventory_item::register_in_game_world	stack+4	core world stored at item+248h; ECX item, ret 4	observed
+0x00313200	survarium::artefact_base::tick	ECX	artefact; stack+4 delta ms, stack+8 now; death retires owned passive into state 5, unowned states only cool down	observed
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	ECX	callback base+0x398; client full-base vtable 0xA05F44, verified constructor writes	observed
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	ECX	callback base+0x498; client full-base vtable 0xA05FE4, verified constructor writes	observed
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	callback base+0xF20; client full-base vtable 0xA06084, verified constructor writes	observed
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	callback base+0x340; client full-base vtable 0xA06124, verified constructor writes	observed
+0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed
+0x00285540	survarium::simple_game_project::insert_static	EAX	project	observed
+0x002855b0	survarium::simple_game_project::remove_static	ESI	project	observed
+0x00285fa0	survarium::render_visual::insert	ECX	visual	observed
+0x00285fa0	survarium::render_visual::insert	entry ESP+4	scene	observed
+0x00285fe0	survarium::render_visual::remove	ECX	visual	observed
+0x00285fe0	survarium::render_visual::remove	entry ESP+4	scene	observed
+0x00291720	survarium::object_light::load	ECX	light	observed
+0x00291720	survarium::object_light::load	entry ESP+4	config	observed
+0x00291720	survarium::object_light::load	entry ESP+8	unused path	observed
+0x00291720	survarium::object_light::load	entry ESP+12	callback	observed
+0x00291790	survarium::object_light::insert	ECX	light	observed
+0x002917d0	survarium::object_light::remove	ECX	light	observed
+0x00285330	survarium::simple_game_project::~simple_game_project	ECX	project	observed
+0x00285750	survarium::simple_game_project::insert	ECX	project	observed
+0x00285750	survarium::simple_game_project::insert	entry ESP+4	physics world; forwarded to static collision insertion and NPC +1A8h, not scene +98h (camera director)	observed
+0x00285750	survarium::simple_game_project::insert	entry ESP+8	game_world_core; ESI after prologue, owns inserted objects and scheduler	observed
+0x0023daa0	survarium::base_game_scene::base_game_scene	at 0x23DB58	scene +98h receives the camera_director allocated (8Ch bytes) and constructed at 0x2431E0; never a physics world	observed
+0x0026dac0	survarium::base_game_statistics_handler::on_artefact_taken	ECX, entry ESP+4, entry ESP+8	the handler (vtable slot +10h; artefact_container_core::use_execute calls it at 0x31C85A), the place, the kit; passes AL place, EDX handler+8 (the shared statistics) and the kit on the stack to 0x2F55F0	observed
+0x002f55f0	survarium::shared_statistics::on_artefact_taken	AL, EDX, entry ESP+4	place, the shared statistics, kit: inc word [EDX + place x 1F8h + 1Eh + kit x 2] (event 5, no bound), then notify_listener 0x2F5D40 (place, 5, 1) when the listener at +31A0h is set; ret 4	observed
+0x0031c780	survarium::artefact_container_core::use_execute	at 0x31C810: EBX, EDI	EBX the user (a player), EDI the container; [EDI+54h] the world core, [core+18FA8h] the statistics handler (0 none: nothing counted); after the transfer (0x31C817) event 5 is counted for place [EBX+114h], kit [EBX+115h] (0x31C845). Patch 80's site artefact_container.transfer	observed
+0x002f4cf0	survarium::shared_statistics::finish_match	EAX, entry ESP+4	what it stores at +31C0h, the shared statistics: per place below +31E0h counts event 11 (+42h), 12 (+48h, the winner's team) and 27 (+A2h, protection 0) and tells the listener; event 16 is counted nowhere in 0.26g (no inc of a +60h..+64h cell in .text)	observed
+0x0031c6b0	survarium::artefact_container_core::can_use	ECX, entry ESP+4	the container, the user (a pointer to the player): usable only while the container's artefact [ECX+4Ch] is in state 2 ([+280h]) and the user's inventory [player+10Ch] has an artefact slot ([+16Ch] > 0) and [+178h] = 0 (0x31C6EC..0x31C70B); a free slot is not asked: a full inventory may take one	observed
+0x002dbb50	survarium::base_player::movement_speed	stack+4	the player (+115h kit, +6B8h profile, +15Ch and +190h the two speed tables read by 0x2F0980)	observed
+0x002dbb50	survarium::base_player::movement_speed	stack+10h	byte flag: also apply modifiers 4 and 20 through apply_modifiers 0x2D5BC0 and take the lower speed	observed
+0x002e2a30	survarium::weapon_core::initialize	EDI	the weapon; at 0x2E2C26..0x2E2C9C its movement node (+610h, value +61Ch) is added to the kit container (0x2D5A90) unless modifier 62 (Bear Arms, additive, apply_modifier 0x2D5AE0 with B 0) is above 0 and the value is not	observed
+0x00339630	survarium::bullet_manager::explode	ESI	the splash: grenade_set_core +278h (0x30A350) or a booby trap's (0x3055F0) 40h bytes: +28h splash_radius, +2Ch splash_min_damage, +30h splash_max_damage, +34h splash_pierce	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+4	the bullet manager (game_world_core +18F58h; +98h its physics world)	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+8	the blast's centre (float3*: a grenade's transform +30h, a trap's +1D0h)	observed
+0x00339630	survarium::bullet_manager::explode	entry ESP+12	the hit initiator (the thrower's +324h)	observed
+0x003393f0		EAX	the ray (float3*): from the blast to the point it reaches for, its length the trace's	observed
+0x003393f0		entry ESP+4	the bullet manager (+98h the physics world it traces, +94h the materials)	observed
+0x003393f0		entry ESP+8	the blast's centre (float3*), where the trace starts	observed
+0x003393f0		entry ESP+12	the strength the trace starts with (float: splash_pierce, ESI+34h at 0x3397CB)	observed
+0x003393f0		entry ESP+16	the target object: a hit of it ends the scan (a hit's object +0Ch; the player's hittable +118h at 0x3397DE); 0 none	observed
+0x00239420	survarium::game_world_ui::update_minimap_players	entry ESP+4	the game_world_ui; a place (0..13h, get_active_player vtable+50h) is listed when its player is in the world +33Fh (0x2394D1), alive +33Ch (0x2394DE) and on the local player's team ([+6B8h]+45ECh, 0x2394FD) or spotted (+348h > 0, 0x239505); the local player [client+4] need only exist (0x239450), not be in the world	observed
+0x00239a30	survarium::game_world_ui::update_minimap_local_player	entry ESP+4	the game_world_ui; sends only while the local player [client+4] is in the world (+33Fh, 0x239A72): a game that joined late gets its allies (update_minimap_players, called after it in update_ui: 0x23B499, 0x23B49F) before its own team until it spawns	observed
+0x0027a980	survarium::network_client::get_player	ECX	the network client (its core [+1F1C40h])	observed
+0x0027a980	survarium::network_client::get_player	entry ESP+4	out pointer	observed
+0x0027a980	survarium::network_client::get_player	entry ESP+8	the place (byte); process_dynamic_match_info sets the local player [client+4] through it after a world is loaded (vtable+4Ch, 0x27C13E), in the world or not	observed
+0x0025b9b0	survarium::game_world::play_particle	ECX	the game world's bullet_manager_engine (game_world+0ECh; its +(-50h) the world whose +5360h renderer's +200064h is the scene)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+4	the particle (a resource pointer*, taken by value)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+8	the position (float3*)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+12	the direction (float3*, unit)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+16	the surface normal (float3*, unit)	observed
+0x0025b9b0	survarium::game_world::play_particle	entry ESP+20	the material pair's particle_orientation (+74h, loaded at 0x307095): 0 the effect's y along the normal, else its z along the direction	observed
+0x0025cb10	vostok::math::create_rotation	EAX	the direction (float3*)	observed
+0x0025cb10	vostok::math::create_rotation	EDI	the normal (float3*, unit: copied as the j row)	observed
+0x0025cb10	vostok::math::create_rotation	ESI	the matrix out (float4x4)	observed
+0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	ESI	the stack (the manager's +20h free list or +30h pending stack)	observed
+0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	entry ESP+4	the node	observed
+0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	EDI	the stack	observed
+0x00321d10	survarium::bullet_manager::tick	ECX	the bullet manager	observed
+0x0026afb0	survarium::messaging_client::send_important_message	EDX	the message's text, a C string copied to 100h bytes ("" 0x9DB708 from the lobby's add_friend_name, 0x28C1E0)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+4	the messaging client (lobby client +1E56C4h): its +4 the lobby client, whose +8 the connection the 4D is made on (new_packet 0x37A0E0) and queued to (enqueue 0x379640); the caller checks the connection first (0x28C1B6..0x28C1D6)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+8	the target player's name, a C string, written as a u8-length string (0x26B024..0x26B03B)	observed
+0x0026afb0	survarium::messaging_client::send_important_message	entry ESP+12 low byte	the message type byte (0 friend request, 2 squad invite, 3 membership accepted; social.md 1.5)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	ECX	the hud (game_world_ui; +18h its game world, 0x233D69)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+4	the movie that called	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+8	the method's name, a C string (string compares from 0x233D38)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+12	the GFx arguments, 18h bytes each (profile_changed reads the first's +8 byte, 0x233F16)	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+16	the arguments' count	observed
+0x0021bd80	survarium::network_client::messaging_client	ECX	the network client (game +53ACh; slot +44h of its vtable 0x9FFB14)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CD1C: EAX, EDI	EAX the input world's keyboard (its vtable+24h's answer, 0x25CD1A), EDI the game world's input handler (the hud at +4); before the keyboard is asked for Tab (0x25CD22). Every key the game world is given passes here, a held one every tick (kind 3). Patch 82's site keyboard.key_state	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX+4	the keys' states: 256 u32 by DIK code, the key down when bit 80h of its low byte is set (movsx [ecx+eax*4+4] / shr 7 / and 1; execute 0x3B8D20 polls them before the keys are handed out)	observed
+0x003b82f0	vostok::input::input_world::create_devices	EDI	the input world: +20h the gamepad (0x3B8790), +24h the platform keyboard (0x91Ch bytes, its ctor 0x3B8BC0 writes the vtable 0xA25478 at 0x3B8BDC), +28h the mouse (0x3B94F0); the input world's vtable 0xA252D4 +24h is 0x79E40 (mov eax,[ecx+24h] / ret), the keyboard on_keyboard_action (0x25CD13) and render_name (0x1F2DC2) ask	observed
+0x00239420	survarium::game_world_ui::update_minimap_players	[esp+20h], [esp+1Ch]	the loop's place 0..13h (a u32 and its byte, both incremented at 0x23998A): each object's player_id is the place (0x2395AC), the same place initialize_match gives the hud's list rows as `id`, so a map icon and a Tab list row are matched by it	observed
+0x00234880	survarium::game_world_ui::initialize_match	EBX at 0x234FE4, [esp+190h] at 0x2350E0	root.list_set_players' rows: `id` (an int, type 3) the place ([esp+17h], 0x234EDB), `team` 1 ally / 2 enemy of the local player (0x23500E: setne + 1), `name` the place's profile name (+8 of the 45FCh-byte entry) as "[%s] %s" (0x9FB140) with its clan tag (+48h) when it has one, else the name alone, cut to 4Eh bytes	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	ECX	lobby_menu receiver	observed
+0x0028cbe0	survarium::lobby_menu::comment_about_user	entry ESP+4	Flash callback params; +8 points to 24-byte values: nickname, kind, mode	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+4	lobby_client pointer; link at +8	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
+0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed

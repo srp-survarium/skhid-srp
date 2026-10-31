@@ -37,6 +37,11 @@ package player_icons_fla
       public var movingLeft:Boolean;
       
       public var lastPosY:Number;
+
+      // force_interface_hidden's and force_interface_tab's states, for the layer frame 1 makes.
+      public var objectsForced:Boolean = false;
+
+      public var tabHeld:Boolean = false;
       
       public function MainTimeline()
       {
@@ -48,7 +53,42 @@ package player_icons_fla
       // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
       public function hide_interface(hidden:Boolean) : void
       {
+         // forced (Blackout, force_interface_hidden) the key does nothing: Tab alone shows the markers
+         if(this.objectsForced)
+         {
+            return;
+         }
          visible = !hidden;
+      }
+
+      // The interface forced hidden for a match (exe patch 62's hide_ui_force, Blackout; docs/notes/blackout.md):
+      // the match's objects' markers (HUDIconLayer.FIRST_OBJECT on: the batteries and the like) hidden, the
+      // players' markers and names shown only while Tab is held (force_interface_tab), as the hud's Tab view.
+      // Kept for frame 1's layer when told before it.
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this.objectsForced = forced;
+         if(forced)
+         {
+            visible = true;
+         }
+         this.applyForced();
+      }
+
+      // Tab held or let go (patch 62's hide_ui_icons tells it with the forced state); nothing when not forced.
+      public function force_interface_tab(held:Boolean) : void
+      {
+         this.tabHeld = held;
+         this.applyForced();
+      }
+
+      private function applyForced() : void
+      {
+         if(this.iconControl)
+         {
+            this.iconControl.objectsHidden = this.objectsForced;
+            this.iconControl.visible = !this.objectsForced || this.tabHeld;
+         }
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
@@ -103,6 +143,11 @@ package player_icons_fla
          trace("propsSetted");
       }
       
+      public function research_markers(... values) : void
+      {
+         this.iconControl.research_markers(values);
+      }
+
       public function set_player_icon_pos(id:uint, posX:Number, posY:Number, scale:Number) : void
       {
          this.iconControl.set_player_icon_pos(id,posX,posY,scale);
@@ -181,6 +226,7 @@ package player_icons_fla
          this.iconControl.register_icon_renderer(0,PlayerNameRenderer);
          this.iconControl.register_icon_renderer(1,MarkerRenderer);
          HUDMarker.setLabelRendererClass(MarkerLabel);
+         this.applyForced();
          addChildAt(this.iconControl,0);
          movingLeft = false;
          lastPosY = 0;

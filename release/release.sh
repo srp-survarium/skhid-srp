@@ -3,27 +3,29 @@
 #                           [--revision <n>] [--server-code auto|yes|no]
 #                           [--minutes <n> | --no-maintenance] [--now]
 #                           [--match-wait <minutes>] [--label <word>]
-#                           [--ref <branch>] [--dry-run] [--yes --i-know]
+#                           [--ref <branch>] [--no-bot-data] [--dry-run]
+#                           [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
 # built so without editing anything (build-zip --revision); after it went
 # out live, the release sets REVISION and tags itself (step 7). A feature PR
-# never changes REVISION or the revision table. After the preflight it waits
-# for the go; at the go players get a maintenance countdown at once, to end
-# 30 seconds after the last running match does (or one of --minutes <n>),
-# so Play locks and no match starts after it; during the countdown
-# everything is prepared and staged, and at the later of its end and the
-# staging's, once no match runs, it is all swapped in at once and srp is
-# made anew (the countdown hides the build). With --no-maintenance there is
-# no countdown: staged, then swapped as soon as no match runs (the downtime
-# is the recreate; lobby players reconnect). With --now there is no
-# countdown either, and no wait: staged, then swapped at once, matches
-# running or not (they end without results):
+# never changes REVISION or the revision table. After the preflight
+# everything is prepared and staged, which players do not see (a published
+# patch no list offers yet, a release folder, an image built at the lowest
+# priority); then it waits for the go; at the go players get a maintenance
+# countdown at once, to end 30 seconds after the last running match does (or
+# one of --minutes <n>), so Play locks and no match starts after it, and at
+# its end, once no match runs, it is all swapped in at once and srp is made
+# anew. With --no-maintenance there is no countdown: at the go, swapped as
+# soon as no match runs (the downtime is the recreate; lobby players
+# reconnect). With --now there is no countdown either, and no wait: at the
+# go, swapped at once, matches running or not (they end without results):
 #   1. preflight, nothing players see: ssh to the jump host and through it to
-#      the live host, the patches server, nix, $SKHID_GAME, $SKHID_STOCK_DB
-#      (its sha256), free disk here and there, srp-game-data, the
-#      release's revision <n> (the target exe's + 1, or --revision <n> above
+#      the live host, the patches server, nix, $SKHID_GAME (its original
+#      launcher, by sha256), $SKHID_STOCK_DB (its sha256), free disk here
+#      and there, srp-game-data, the release's revision <n> (the target
+#      exe's + 1, or --revision <n> above
 #      it), not below main's REVISION; live: main's REVISION (the last
 #      release's) not below the live exe's and below <n>, the tag
 #      026g-rev<n> and the branch release/record-rev<n> not on origin, a git
@@ -42,7 +44,8 @@
 #      revision, and patch_12 (the menus) in it from revision 12 on (or the
 #      --resources file); with
 #      --resources, the file is resources.db.patch_<the release's revision>,
-#      srp-game-data reads it, and it is neither published nor listed yet;
+#      srp-game-data reads it, and it is not listed yet (published already
+#      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
@@ -50,6 +53,17 @@
 #      about 2 min, in a worktree of the commit; a failure stops the run),
 #      and the server's source carries them (the server code is then built;
 #      --server-code no is refused, the dry run too);
+#      the bots' data files (release/bot-data.tsv, the benched maps and the
+#      routes table; $SKHID_BOT_DATA, a private folder laid out as the data
+#      volume): each present there with the sha256 and size the list gives
+#      (a missing or different file is a problem: the release stops), and
+#      each compared with the data volume's own (a read): those it lacks or
+#      has otherwise are put in at the swap (step 2 stages them, step 5
+#      puts them in place with srp26 stopped, the old ones kept in the
+#      folder for the rollback); and a warning about the maps' built grids
+#      and trees (mapdata/built, keyed by SIGHT_ALGO and GRID_ALGO): srp has
+#      no build command, a match builds a map it needs, on the host's one
+#      core (--no-bot-data leaves all of it out, said loudly);
 #      which server code differs between main and the target's tree;
 #      whether main changes what a match computes: a `next` row of
 #      srp-026g/crates/session/src/v026g/simulation_changes.tsv, which a PR
@@ -60,12 +74,28 @@
 #      also when the target's tree still has one: its server would take
 #      this release's revision for it); with none, a note when the exe's
 #      patches changed since the last tag;
-#   2. takes the release lock, then waits for the go: the owner's word that
-#      players may feel the release from now on (y at its prompt, n stops;
-#      or touch the go file it names under ~/.cache/skhid-release/; --yes
-#      does not give it; SKHID_RELEASE_GO=1 gives it beforehand). Nothing is
-#      planned, built or staged before it;
-#   3. at once after the go, plans the maintenance on the admin page, POSTed
+#   2. takes the release lock, then, nothing players see:
+#      release/upload-patch (with --resources: publishes it and adds its row
+#      to the list; no server offers it before the swap),
+#      release/build-server-db (of the list), release/build-zip (--ref: the
+#      commit checked in step 1; --revision: the release's; --patches: the
+#      list, with the new patch, whose every patch the exe requires at its
+#      start: patch 49); checks the two files as release/deploy does (live:
+#      and makes the item tables of the server data, srp-item-tables, so a
+#      tool failing on it stops here, before the go); makes the release
+#      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
+#      stages both in it (sha256 checked there, chmod 644), with
+#      changed.txt; with server code to build: tags the running image (by
+#      its ID) srp-026g:before-rev<rev>-<stamp>, unpacks main's source in the
+#      folder's src/ (with the rebuilt pages) and runs docker compose build
+#      srp26 there, its compilers reniced to 19 (the host has one core: the
+#      running matches keep it). A failure here stops before the go: the
+#      staged files removed, the image tag put back, nothing planned;
+#   3. waits for the go: the owner's word that players may feel the release
+#      from now on (y at its prompt, n stops; or touch the go file it names
+#      under ~/.cache/skhid-release/; --yes does not give it;
+#      SKHID_RELEASE_GO=1 gives it beforehand). Nothing is planned before it;
+#   4. at once after the go, plans the maintenance on the admin page, POSTed
 #      from the jump host (its address is in the SRP_ADMIN_IPS of the
 #      target; the token and the page's path go to curl on stdin), and sees
 #      the countdown on $SKHID_SITE/launcher/places/en. Its minutes:
@@ -79,26 +109,15 @@
 #      --minutes <n>: <n>. Play locks from the plan on (in the countdown's
 #      last 30 min), so no match starts after it. With --no-maintenance or
 #      --now: nothing is planned;
-#   4. during the countdown: release/upload-patch (with --resources:
-#      publishes it and adds its row to the list), release/build-server-db
-#      (of the list), release/build-zip (--ref: the commit checked in step
-#      1; --revision: the release's; --patches: the list, with the new
-#      patch, whose every patch the exe requires at its start: patch 49);
-#      checks the two files as release/deploy does; makes the release
-#      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
-#      stages both in it (sha256 checked there, chmod 644), with
-#      changed.txt; with server code to build: tags the running image (by
-#      its ID) srp-026g:before-rev<rev>-<stamp>, unpacks main's source in the
-#      folder's src/ (with the rebuilt pages) and runs docker compose build srp26 there;
-#   5. at the later of the planned time and the end of step 4 (staged after
-#      the planned time: at once), once the launcher page says the server is
+#   5. at the planned time, once the launcher page says the server is
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
-#      --match-wait more): shows what changes, y/N (no answer in
+#      --match-wait more): shows what changes, y/N (or touch the swap file
+#      it names beside the go file; no answer in
 #      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
-#      to --match-wait from the end of step 4), y/N, and "matches":0 once
+#      to --match-wait from the go), y/N, and "matches":0 once
 #      more right before the stop (else it waits again, within the same
-#      limit). With --now: right after step 4, no notice, no wait for
+#      limit). With --now: right after the go, no notice, no wait for
 #      "matches":0, y/N; right before the stop it says how many matches run,
 #      which the stop ends without results (the log keeps the number).
 #      The swap: srp26 stopped; srp.db, the old ZIP and server data (hard
@@ -123,17 +142,20 @@
 #      and without the server, the ZIP's, what it shipped: the merged PRs
 #      since the tag before), an entry in CHANGELOG-SKHID-026G.md for the
 #      owner to word, release/patches.tsv as offered, the pages step 1
-#      rebuilt, and <n> in place of
+#      rebuilt, the item tables of the server data where an item changed
+#      (srp-026g/docs/data/; a failure leaves them out, said), and <n> in place of
 #      a `next` row of simulation_changes.tsv (step 1); pushed as
 #      release/record-rev<n>, its PR opened and merged as a merge commit
 #      (gh). What gh could not do (the merge, when the token may not) is said
 #      at the end, loudly, and the run ends with 1: players have the
 #      release, main does not say so yet.
 # Stopped before the swap (a failure, a no, Ctrl-C) at any point after the
-# go: the maintenance cancelled when it was planned, the staged files
+# lock: the maintenance cancelled when it was planned, the staged files
 # removed (the folder stays, state stopped), the image tag put back; the
 # server is as it was (a published patch stays, with its row in the list:
-# none is ever deleted). A stop before the go only frees the lock.
+# none is ever deleted; before the go no server offered it: its row goes,
+# and the file too when this run uploaded it, so the revision can be made
+# again with other bytes).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
 #   --revision <n>      the release's revision instead of the target exe's + 1;
@@ -148,11 +170,11 @@
 #                       target's tree; yes: build anyway; no: never
 #   --minutes <n>       a countdown of <n> minutes, 1-10080, instead of the
 #                       one from the matches; planned right after the go too
-#   --no-maintenance    no countdown, the admin page never asked: staged
-#                       after the go, swapped as soon as $SKHID_SITE/api/stats
-#                       says "matches":0
+#   --no-maintenance    no countdown, the admin page never asked: after the
+#                       go, swapped as soon as $SKHID_SITE/api/stats says
+#                       "matches":0
 #   --now               no maintenance, no notice, no wait: after the go,
-#                       staged, then swapped at once, even with matches
+#                       swapped at once, even with matches
 #                       running (they end without results; the log says how
 #                       many); still the go, the y/N and the rollback.
 #                       --no-maintenance with it is the same; not with
@@ -160,11 +182,17 @@
 #   --match-wait <min>  how long to wait for "matches":0, then stop (nothing
 #                       swapped): after the planned time (default
 #                       $SKHID_MATCH_WAIT_MINUTES, else 15); with
-#                       --no-maintenance, after step 4 (default 120);
+#                       --no-maintenance, after the go (default 120);
 #                       ignored with --now
 #   --label <word>      ends the release folder's name
 #   --ref <branch>      with --test only: release that pushed branch instead
 #                       of main (a branch under review); live is always main
+#   --no-bot-data       leaves the bots' data files (release/bot-data.tsv) out:
+#                       not checked, not compared, not staged, not put in the
+#                       volume; for a release that must go without them (the
+#                       plan says so). Without it a release stops when
+#                       $SKHID_BOT_DATA is not set, or lacks a listed file, or
+#                       has one of another sha256
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
@@ -175,15 +203,17 @@
 here=$(cd "$(dirname "$0")" && pwd)
 
 # For release/test.sh only: another checkout, stand-ins for build-zip and
-# build-site, a shorter minute, another stock db.
+# build-site, a shorter minute, another stock db and launcher.
 REPO=${SKHID_TEST_REPO:-$ROOT}
 BUILD_ZIP=${SKHID_TEST_BUILD_ZIP:-$here/build-zip}
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 MINUTE=${SKHID_TEST_SECONDS_PER_MINUTE:-60}
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+# The original 0.26g launcher, which the players' one is built from.
+LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0
+no_maint=0 match_wait='' now=0 no_bot_data=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -194,6 +224,7 @@ while (($#)); do
     --minutes) (($# >= 2)) || usage 1; minutes=$2; shift 2 ;;
     --no-maintenance) no_maint=1; shift ;;
     --now) now=1; shift ;;
+    --no-bot-data) no_bot_data=1; shift ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
@@ -217,7 +248,7 @@ if ((now && no_maint)); then say "note: --now plans no maintenance anyway: --no-
 [[ $ref =~ ^[A-Za-z0-9._/-]+$ && $ref != -* ]] || die "$ref: not a branch name"
 [[ -z $label || $label =~ ^[A-Za-z0-9._-]+$ ]] || die "$label: a label is letters, digits, . _ -"
 need_cmds ssh curl jq sha256sum od git tar awk df
-load_env SKHID_JUMP SKHID_SITE SKHID_STOCK_DB SKHID_GAME SKHID_LOCALIZATION
+load_env SKHID_JUMP SKHID_SITE SKHID_STOCK_DB SKHID_GAME
 step_flags=()
 if ((test_server)); then
     use_target test
@@ -272,11 +303,11 @@ SWAP_WORK=$work
 log_to "$work/release.log"
 say "working in $work"
 
-# Where the run is: preflight (up to the go), planned (the go given, going
-# ahead, nothing moved: a stop puts things back), swapping (a stop rolls
+# Where the run is: preflight (up to the lock), planned (the lock taken:
+# staging, the go, the countdown; nothing moved: a stop puts things back), swapping (a stop rolls
 # back), finished. maint_planned: the maintenance was asked for (a stop
 # cancels it). ENDED: with --now, the matches the stop ended.
-phase=preflight start=0 end=0 image_tagged=0 maint_planned=0 ENDED=''
+phase=preflight start=0 end=0 image_tagged=0 maint_planned=0 go_given=0 ENDED=''
 
 clock() { date -u -d "@$1" +%H:%M:%S; }
 span() { local s=$1; printf '%d:%02d' $((s / 60)) $((s % 60)); }
@@ -455,19 +486,19 @@ maintenance_minutes() {
     fi
 }
 
-# Right after the preflight and the lock: nothing players see happens
+# After the staging (nothing players see): nothing players feel happens
 # without the go, the owner's word that players may feel the release from
 # now on; the maintenance is planned at once after it. y at this prompt (n
 # stops), or the go file (touch it from anywhere: another shell, the
 # release skill). Without a terminal (--yes) only the file.
 # SKHID_RELEASE_GO=1 gives it beforehand (release/test.sh). Ctrl-C stops:
-# nothing was done, the lock is freed.
+# nothing was planned; the staged files go, the lock is freed.
 GO_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release
 wait_for_go() {
     local go="$GO_DIR/go-$REL" answer tty=0
     if [[ ${SKHID_RELEASE_GO:-} == 1 ]]; then say "go: given beforehand (SKHID_RELEASE_GO=1)"; return; fi
     mkdir -p "$GO_DIR" && rm -f "$go"
-    progress "2. waiting for the go (players see nothing until it is given; then at once: $1)"
+    progress "3. waiting for the go (staged; players see nothing until it is given; then at once: $1)"
     say "Go: answer y here, or run: touch $go"
     if ((!yes)) && { exec 3</dev/tty; } 2>/dev/null; then tty=1; printf "Go? [y/n] " >&2; fi
     while :; do
@@ -487,15 +518,44 @@ wait_for_go() {
     if ((tty)); then exec 3<&-; fi
 }
 
-# At once after the go, before anything is built or staged (that happens
-# during the countdown): the maintenance planned on the admin page, seen on
-# the launcher page; the planned time into end.
+# The y/N before the swap: y or yes at the terminal (else on stdin, as
+# `yes |` gives; anything else is no), or the swap file, touched as the go
+# file is. The file is removed as the wait starts: an earlier one is no
+# answer. No answer in <seconds> is a no.
+swap_answer() {
+    local swap="$GO_DIR/swap-$REL" answer deadline input=1
+    deadline=$(($(date +%s) + $1))
+    mkdir -p "$GO_DIR" && rm -f "$swap"
+    say "Swap: answer y here, or run: touch $swap"
+    if ! { exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
+    printf "Go ahead? [y/N] " >&2
+    while (($(date +%s) < deadline)); do
+        if [[ -e $swap ]]; then rm -f "$swap"; printf '\n' >&2; say "swap: $swap"; exec 3<&-; return 0; fi
+        if ((input)); then
+            if read -r -t 2 answer <&3; then
+                exec 3<&-
+                if [[ $answer == y || $answer == yes ]]; then return 0; fi
+                return 1
+            elif (($? <= 128)); then
+                input=0 # stdin ended: the file only
+            fi
+        else
+            sleep 2 & wait $!
+        fi
+    done
+    exec 3<&-
+    return 1
+}
+
+# At once after the go (everything is staged before it): the maintenance
+# planned on the admin page, seen on the launcher page; the planned time
+# into end.
 plan_maintenance() {
     local answer said state seen='' _
     state=$(maintenance_state)
     case $state in planned* | down) die "the launcher page says \"$state\" before this run planned anything: a maintenance planned meanwhile (the admin page)? Nothing was swapped" ;; esac
     maintenance_minutes
-    progress "3. planning the maintenance in $MAINT_MINUTES min ($MAINT_WHY)"
+    progress "4. planning the maintenance in $MAINT_MINUTES min ($MAINT_WHY)"
     end=$(($(date +%s) + MAINT_MINUTES * MINUTE))
     maint_planned=1
     answer=$(admin_request tab=maint "minutes=$MAINT_MINUTES" lang=en) || answer=000
@@ -507,7 +567,7 @@ plan_maintenance() {
         nap 2
     done
     [[ -n $seen ]] || die "$TARGET_SITE/launcher/places/en does not show the maintenance ($state)"
-    progress "3. maintenance planned: the launcher says \"Maintenance in $seen min\"$( ((MAINT_MINUTES > 30)) || printf '; Play is locked'); building and staging now; the swap at $(clock "$end") UTC at the earliest"
+    progress "4. maintenance planned: the launcher says \"Maintenance in $seen min\"$( ((MAINT_MINUTES > 30)) || printf '; Play is locked'); everything is staged; the swap at $(clock "$end") UTC"
 }
 
 # Back once $TARGET_SITE/api/stats says "matches":0; at $limit (a time) a
@@ -600,15 +660,25 @@ shipped_prs() {
         SHIPPED_SINCE=$(git -C "$REPO" log --first-parent --diff-merges=first-parent -s -1 --format=%H \
             -G '^REVISION = ' "$commit" -- srp-026g/client-patches/patch_026g.py 2>/dev/null || true)
     fi
-    git -C "$REPO" log --first-parent --merges --format='%s%x1f%b%x1e' "${SHIPPED_SINCE:+$SHIPPED_SINCE..}$commit" |
+    # A merge commit "Merge pull request #<n> from <branch>", its title the
+    # body's first line; a squash merge is one commit "<title> (#<n>)".
+    git -C "$REPO" log --first-parent --format='%P%x1f%s%x1f%b%x1e' "${SHIPPED_SINCE:+$SHIPPED_SINCE..}$commit" |
         awk 'BEGIN { RS = "\036"; FS = "\037" }
             {
-                subject = $1; sub(/^\n+/, "", subject)
+                parents = $1; sub(/^\n+/, "", parents)
+                subject = $2
+                if (parents !~ / /) {
+                    if (subject !~ / \(#[0-9]+\)$/ || subject ~ /^Release revision [0-9]+ \(#/) next
+                    n = subject; sub(/.* \(#/, "", n); sub(/\)$/, "", n)
+                    sub(/ \(#[0-9]+\)$/, "", subject)
+                    print "#" n " " subject
+                    next
+                }
                 if (subject !~ /^Merge pull request #[0-9]+ from [^ ]+/) next
                 n = subject; sub(/^Merge pull request #/, "", n); sub(/ .*/, "", n)
                 from = subject; sub(/^Merge pull request #[0-9]+ from /, "", from); sub(/ .*/, "", from)
                 if (from ~ /\/release\/record-rev[0-9]+$/) next
-                title = $2; sub(/^\n+/, "", title); sub(/\n.*/, "", title)
+                title = $3; sub(/^\n+/, "", title); sub(/\n.*/, "", title)
                 if (title == "") title = from
                 print "#" n " " title
             }' | tac
@@ -678,6 +748,15 @@ record_files() { # <wt> <shipped>
         cp "$PATCH_LIST" "$wt/release/patches.tsv"
         LIST_RECORDED=1
     fi
+    # The item tables of the server data the release ships: only where an
+    # item changed (the record carries no table otherwise). Step 2 made them
+    # once; a failure here leaves them out of the record, not the record.
+    if ! ITEM_TABLES_REPORT=$("$ITEM_TABLES" "$data" --dir "$wt/$ITEM_TABLES_DIR" 2>&1); then
+        record_problem "the item tables: $(tail -n 3 <<<"$ITEM_TABLES_REPORT" | tr '\n' ' ')— the record goes without them; by hand, on a branch of main: $(q "$ITEM_TABLES") $(q "$data") --dir $ITEM_TABLES_DIR, then a PR of what it wrote"
+        ITEM_TABLES_REPORT=''
+        git -C "$wt" checkout --quiet -- "$ITEM_TABLES_DIR" 2>/dev/null || true
+        git -C "$wt" clean --quiet -fd -- "$ITEM_TABLES_DIR" 2>/dev/null || true
+    fi
     # The site's pages the preflight rebuilt, as the server has them now.
     if [[ -n $site_tree ]]; then
         for page in "${SITE_PAGES[@]}"; do
@@ -689,8 +768,10 @@ record_files() { # <wt> <shipped>
     fi
 }
 
+# The lines of the item tables' changes the record's message shows.
+ITEM_TABLES_SHOWN=${SKHID_TEST_ITEM_TABLES_SHOWN:-50}
 record_release() {
-    local tag branch wt shipped url answer line
+    local tag branch wt shipped url answer line lines
     tag=$(release_tag "$rev") branch=$(record_branch "$rev") wt=$work/record
     progress "7. the record: tag $tag on $(git -C "$REPO" log -1 --format=%h "$main_commit"), the commit \"Release revision $rev\" on main"
     EXE_WITH=$(awk '$2 == "with-server" { print $1 }' "$work/zip/exe.sha256" 2>/dev/null || true)
@@ -741,6 +822,16 @@ record_release() {
             say "damage/) rebuilt from the offered patches by release/build-site, as the"
             say "server has them now."
         fi
+        if grep -q ' change(s)$' <<<"$ITEM_TABLES_REPORT"; then
+            say
+            say "The item tables ($ITEM_TABLES_DIR/) of the server data it ships:"
+            # The message is the PR's body too (at most 65536 characters).
+            head -n "$ITEM_TABLES_SHOWN" <<<"$ITEM_TABLES_REPORT"
+            lines=$(grep -c . <<<"$ITEM_TABLES_REPORT")
+            if ((lines > ITEM_TABLES_SHOWN)); then
+                say "  ... and $((lines - ITEM_TABLES_SHOWN)) more lines: git diff shows them all"
+            fi
+        fi
         if [[ -n $SIM_NEXT ]]; then
             say
             say "It changes what a match computes ($SIM_NEXT): $rev in place of"
@@ -774,6 +865,31 @@ record_release() {
     git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
 }
 
+# A stop before the go: the row upload-patch added goes from the list (no
+# server offered the patch), and the file with it when this run uploaded it
+# (PATCH_UPLOADED: the preflight found none there) and /patches did not
+# offer it: the revision can then be made again with other bytes. A file
+# published before the run stays.
+PATCH_UPLOADED=0
+unlist_patch() {
+    local name=$1 sha
+    if awk -F '\t' -v n="$name" '$1 != n' "$PATCH_LIST" >"$PATCH_LIST.new" && mv "$PATCH_LIST.new" "$PATCH_LIST"; then
+        say "$name: its row is out of $PATCH_LIST again (stopped before the go, never offered)"
+    else
+        say "$name: its row is NOT out of $PATCH_LIST: take it out by hand before the next run with --resources"
+    fi
+    if ((!PATCH_UPLOADED)) || [[ $OLD_PATCHES == *"\"patch_${name##*_}\""* ]]; then
+        say "$name: the file stays on $PATCHES_LABEL (there before this run); a run with the same --resources takes it as it is"
+        return
+    fi
+    sha=$(sha256_of "$resources")
+    if on_patches "cd $(q "$PATCHES_DIR") && test \"\$(sha256sum < $(q "$name"))\" = $(q "$sha  -") && rm -f $(q "$name")"; then
+        say "$name: the file this run uploaded is off $PATCHES_LABEL again (never offered): the revision can be made again"
+    else
+        say "$name: the file is NOT off $PATCHES_LABEL: a run with other bytes is refused until it is (cd $PATCHES_DIR && rm $name, never offered)"
+    fi
+}
+
 # What a stop does, by phase.
 on_exit() {
     local status=$?
@@ -800,7 +916,11 @@ on_exit() {
             fi
         fi
         if ((maint_planned)); then cancel_maintenance; fi
-        if [[ -n $resources && -n ${published:-} ]]; then
+        if [[ -n $resources && -n ${published:-} ]] && ((!go_given)); then
+            # Before the go no server offered it: its row goes, and the file
+            # with it when this run uploaded it (unlist_patch).
+            unlist_patch "${resources##*/}"
+        elif [[ -n $resources && -n ${published:-} ]]; then
             say "${resources##*/} stays published on $PATCHES_LABEL, with its row in $PATCH_LIST (patches are never deleted); the server does not offer it yet. Next time: no --resources."
         fi
         ;;
@@ -853,7 +973,17 @@ if ((jump_ok)); then
 fi
 if command -v nix >/dev/null; then okay "nix"; else problem "nix is not installed here (the ZIP and srp-game-data are built with it)"; fi
 command -v python3 >/dev/null || command -v nix >/dev/null || problem "python3 (or nix to get it)"
-if [[ -d $SKHID_GAME ]]; then okay "SKHID_GAME: $SKHID_GAME"; else problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"; fi
+launcher=$SKHID_GAME/binaries/x86/survarium_launcher.exe
+[[ -f $launcher ]] || launcher=$SKHID_GAME/game/binaries/x86/survarium_launcher.exe
+if [[ ! -d $SKHID_GAME ]]; then
+    problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"
+elif [[ ! -f $launcher ]]; then
+    problem "SKHID_GAME: no binaries/x86/survarium_launcher.exe in $SKHID_GAME or its game folder (make_client_026g.py builds the players' launcher from it)"
+elif launcher_sha=$(sha256_of "$launcher"); [[ $launcher_sha != "$LAUNCHER_SHA" ]]; then
+    problem "SKHID_GAME: $launcher has sha256 $launcher_sha, not the original 0.26g launcher's ($LAUNCHER_SHA)"
+else
+    okay "SKHID_GAME: $SKHID_GAME, with the original launcher"
+fi
 if [[ -f $SKHID_STOCK_DB ]]; then
     stock=$(stock_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
@@ -988,9 +1118,10 @@ if [[ -n $resources ]]; then
     if ((patches_ok)) && [[ -f $resources ]]; then
         there=$(on_patches "cd $(q "$PATCHES_DIR") && if test -e $(q "$name"); then sha256sum < $(q "$name"); else echo none; fi" || echo "unknown")
         if [[ $there == none ]]; then
+            PATCH_UPLOADED=1
             okay "--resources: not on $PATCHES_LABEL yet"
         elif [[ ${there%% *} == "$(sha256_of "$resources")" ]]; then
-            problem "--resources: $name is already published, these same bytes, but not in $PATCH_LIST: add its row with release/upload-patch${step_flags[*]:+ ${step_flags[*]}} $resources, then run without --resources"
+            okay "--resources: on $PATCHES_LABEL already, these same bytes, not in $PATCH_LIST: taken as it is (and kept at a stop)"
         else
             problem "--resources: $name is already published with OTHER bytes (${there%% *}); a published patch is never replaced: make the next revision"
         fi
@@ -1001,14 +1132,15 @@ if [[ -n $rev ]] && ((rev >= MENUS_PATCH)) && [[ -z $(list_row "resources.db.pat
     ${resources##*/} != "resources.db.patch_$MENUS_PATCH" ]]; then
     problem "revision $rev needs resources.db.patch_$MENUS_PATCH (the menus) offered, and $PATCH_LIST has no row of it: release it (--resources) first"
 fi
-# The site's pages built from the game (the Maps tab, the calculator): each
+# The site's pages built from the game (the Maps tab, the calculator, and the
+# wiki's weapons and icons the calculator's build makes): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
 # with new content always is): rebuilt below, at the end of the preflight
 # (release/build-site, in a worktree of the commit), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
-SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage)
+SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/wiki)
 site_tree='' site_stale=0 want=''
 if ((!test_server)) && [[ -n $main_commit ]]; then
     site_with=''
@@ -1084,6 +1216,84 @@ if ((target_ok)); then
     fi
 fi
 
+# The bots' data files (release/bot-data.tsv): the benched maps and routes
+# table, from $SKHID_BOT_DATA, each as the list says (else the release stops);
+# compared with the data volume's own, the ones it lacks or has otherwise to
+# be put in at the swap. And the built maps (F5): said, not done (below).
+bd_dir=${SKHID_BOT_DATA:-} bd_ok=0 bd_bytes=0 bd_line=''
+if ((no_bot_data)); then
+    say "  WARNING  --no-bot-data: the bots' data files (release/bot-data.tsv) are neither checked nor put in the volume: the bots run on what the volume holds now"
+    bd_line="NOT TOUCHED (--no-bot-data): the bots run on what the volume holds now"
+else
+    read_bot_data_list
+    if ((${#BD_PATH[@]} == 0)); then
+        okay "the bots' data list (release/bot-data.tsv) is empty"
+        bd_line="none listed"
+    elif [[ -z $bd_dir ]]; then
+        problem "SKHID_BOT_DATA is not set in $RELEASE_ENV: the folder of the benched bots' data files, laid out as the data volume (release/bot-data check <folder>), or --no-bot-data"
+    elif [[ ! -d $bd_dir ]]; then
+        problem "SKHID_BOT_DATA: $bd_dir is not a folder"
+    elif bd_out=$(bot_data_check_folder "$bd_dir"); then
+        bd_ok=1
+        okay "the bots' data: ${#BD_PATH[@]} file(s) in $bd_dir, each with the sha256 and size of release/bot-data.tsv (what was benched)"
+    else
+        while IFS= read -r line; do problem "the bots' data: $line"; done <<<"$bd_out"
+    fi
+    if ((bd_ok && target_ok)) && [[ -n $RUN_VOLUME_DIR ]]; then
+        bot_data_volume_state
+        if ((${#BD_TODO[@]})); then
+            for i in "${BD_TODO[@]}"; do bd_bytes=$((bd_bytes + BD_SIZE[i])); done
+            okay "the bots' data on the $TARGET volume ($RUN_VOLUME_DIR): $BD_SAME file(s) as listed already, ${#BD_TODO[@]} to put in ($((bd_bytes / 1048576)) MB) at the swap:"
+            printf '             %s\n' "${BD_REPORT[@]}"
+            bd_line="${#BD_TODO[@]} file(s) put in the volume at the swap, with srp26 stopped ($BD_SAME already as listed); the old ones kept in the folder for the rollback"
+            have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (staged, and the old files kept)"; fi
+            have=$(on_target "df -Pk $(q "$RUN_VOLUME_DIR") | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((bd_bytes / 1048576 + 100))
+            if ((have < need)); then problem "free in the $TARGET data volume ($RUN_VOLUME_DIR): $have MB, $need wanted for the bots' data"; fi
+        else
+            okay "the bots' data on the $TARGET volume ($RUN_VOLUME_DIR): all $BD_SAME file(s) are as listed already"
+            bd_line="nothing to put: all $BD_SAME file(s) in the volume are as listed"
+        fi
+    elif ((bd_ok)); then
+        bd_line="the volume could not be read (above): its files are put in as listed"
+        BD_TODO=("${!BD_PATH[@]}")
+        BOT_DATA=1
+        for i in "${BD_TODO[@]}"; do bd_bytes=$((bd_bytes + BD_SIZE[i])); done
+        if ((target_ok)); then
+            have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (all $((bd_bytes / 1048576)) MB: the volume could not be read, so every file is put)"; fi
+        fi
+    fi
+fi
+# The maps' built grids and trees (mapdata/built, srp's own cache, written
+# by whichever match first needs a map): their key has SIGHT_ALGO and
+# GRID_ALGO of crates/mapdata and the map file's content, so a changed
+# algorithm or a replaced map file makes the first match on that map build
+# it again, on the host's one core (0.3-0.8 s off the match thread on a PC;
+# seconds there). srp has no command that builds them (a match asks:
+# bots/maps.rs `Maps::get`), so this release cannot do it before the swap:
+# it says so, and what is likely to rebuild.
+built_note=''
+if ((target_ok)) && [[ -n $main_commit && -n ${RUN_VOLUME_DIR:-} ]]; then
+    algo_main=$(git -C "$REPO" show "$main_commit:srp-026g/crates/mapdata/src/lib.rs" 2>/dev/null | grep -E '^pub const (SIGHT|GRID)_ALGO' | tr -s ' ' || true)
+    algo_live=$(on_target "cd $D && grep -E '^pub const (SIGHT|GRID)_ALGO' crates/mapdata/src/lib.rs 2>/dev/null | tr -s ' '; true" || true)
+    built_n=$(on_target "ls $(q "$RUN_VOLUME_DIR")/mapdata/built 2>/dev/null | wc -l" || echo '?')
+    maps_new=$(for i in "${BD_TODO[@]}"; do [[ ${BD_PATH[i]} == *.mapdata ]] && printf '%s\n' "${BD_PATH[i]}"; done | grep -c . || true)
+    if [[ -z $algo_main || -z $algo_live ]]; then
+        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants (SIGHT_ALGO, GRID_ALGO) could not be read on main or in the live tree: the first match on each map after the swap may build it (srp has no pre-build command)"
+    elif [[ $algo_main != "$algo_live" ]]; then
+        built_note="WARNING the built maps (mapdata/built, $built_n file(s) now): $(tr '\n' ' ' <<<"$algo_live")on the live tree, $(tr '\n' ' ' <<<"$algo_main")on main: the first match on each map after the swap builds its grid and tree again, on the host's one core (srp has no pre-build command, so none is done here): the first matches per map start late; watch CPU and RAM (the container is capped at 1600 MB)"
+    elif ((maps_new)); then
+        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants are the live tree's, but $maps_new map file(s) change: those maps are built again by the first match on each (srp has no pre-build command)"
+    else
+        built_note="the built maps (mapdata/built, $built_n file(s) now) keep their keys: the algorithm constants are the live tree's and no map file changes"
+    fi
+    case $built_note in WARNING*) say "  WARNING  ${built_note#WARNING }" ;; *) say "  note     $built_note" ;; esac
+fi
+
 # The site.
 state=$(maintenance_state)
 case $state in
@@ -1126,6 +1336,14 @@ if ((site_stale)); then
             fi
         fi
     fi
+fi
+
+# The item tables' tool (a live release's): step 2 runs it on the server
+# data before anything is staged, the record writes the tables of it
+# (srp-026g/docs/data/, only where an item changed). --test has no record.
+ITEM_TABLES='' ITEM_TABLES_REPORT=''
+if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
+    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
 fi
 
 # The server code: main's srp-026g build inputs against the live tree.
@@ -1246,6 +1464,9 @@ say "  new content: ${resources:-none}"
 say "  /patches will offer:"
 say_offered
 say "  server code: $(if ((build_code)); then say "built before the swap (docker compose build srp26)"; else say "not built"; fi)"
+say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the preflight stopped before it)}"
+if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
+if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
 if [[ -n $site_tree ]]; then
     say "  the Maps tab and the calculator: rebuilt from what /patches will offer (in the server's source; the record commits them)"
 elif ((site_stale)); then
@@ -1259,69 +1480,40 @@ fi
 scale=""
 ((MINUTE == 60)) || scale=" (a minute here is $MINUTE s)"
 if ((now)); then
-    say "  maintenance: NONE, NO NOTICE (--now)$scale: after the go, prepared and staged, then the swap at once, matches running or not (they end without results; it says how many); lobby players get a ~30 s \"server sync\" and reconnect"
+    say "  maintenance: NONE, NO NOTICE (--now)$scale: prepared and staged before the go, then at the go the swap at once, matches running or not (they end without results; it says how many); lobby players get a ~30 s \"server sync\" and reconnect"
 elif ((no_maint)); then
-    say "  maintenance: none (--no-maintenance)$scale; after the go, prepared and staged, then the swap as soon as $TARGET_SITE/api/stats says \"matches\":0 (up to $match_wait min, --match-wait); lobby players get a ~30 s \"server sync\" and reconnect"
+    say "  maintenance: none (--no-maintenance)$scale; prepared and staged before the go, then at the go the swap as soon as $TARGET_SITE/api/stats says \"matches\":0 (up to $match_wait min, --match-wait); lobby players get a ~30 s \"server sync\" and reconnect"
 elif [[ -n $minutes ]]; then
-    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; players see the countdown, Play is locked in its last 30 min; prepared and staged during it; the swap at the later of its end and the staging's, once \"matches\":0"
+    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; prepared and staged before the go; players see the countdown, Play is locked in its last 30 min; the swap at its end, once \"matches\":0"
 else
-    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; players see the countdown, Play is locked from then on; prepared and staged during it; the swap at the later of its end and the staging's, once \"matches\":0"
+    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; prepared and staged before the go; players see the countdown, Play is locked from then on; the swap at its end, once \"matches\":0"
 fi
 # What comes right after the go.
 if ((now)); then
-    after_go="the build and the staging, then the swap, NO notice (--now)"
+    after_go="the swap, NO notice (--now)"
 elif ((no_maint)); then
-    after_go="the build and the staging (--no-maintenance: no notice)"
+    after_go="the swap once no match runs (--no-maintenance: no notice)"
 else
-    after_go="the maintenance planned, then the build and the staging during the countdown"
+    after_go="the maintenance planned, then the swap at its end"
 fi
 
-# 2. The lock, then the go: nothing before it.
+# 2. The lock, then everything prepared and staged, which players do not
+# see (a patch no list offers yet, a release folder, an image built at the
+# lowest priority); a stop from here removes what is staged.
 if ((DRY_RUN)); then
     say
-    say "[dry run] 2. take the release lock on the jump host ($(lock_path)), then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it); nothing before it. Then at once: $after_go"
-    if ((!no_maint)); then
-        maintenance_minutes
-        say "[dry run] 3. right after the go: plan the maintenance in $MAINT_MINUTES min (now: $MAINT_WHY), from the jump host:"
-        say "  $(plan_command "minutes=$MAINT_MINUTES")"
-        say "[dry run] then: $TARGET_SITE/launcher/places/en must say \"Maintenance in $MAINT_MINUTES min\""
-    elif ((now)); then
-        say "[dry run] 3. no maintenance planned (--now: the admin page is never asked)"
-    else
-        say "[dry run] 3. no maintenance planned (--no-maintenance: the admin page is never asked)"
-    fi
+    say "[dry run] 2. take the release lock on the jump host ($(lock_path)); then, nothing players see:"
 else
     lock_take
-    say
-    if ((now)); then
-        say "Next, at the go, with NO maintenance and NO notice (--now): the patch, the server data, the ZIP and the image prepared and staged,"
-        say "then the swap at once, after one more y/N: running matches end WITHOUT RESULTS."
-    elif ((no_maint)); then
-        say "Next, at the go, with no maintenance: the patch, the server data, the ZIP and the image prepared and staged,"
-        say "then the swap as soon as $TARGET_SITE/api/stats says \"matches\":0 (up to $match_wait min), after one more y/N."
-    else
-        say "Next, at the go: the maintenance planned on $TARGET_SITE at once, $(if [[ -n $minutes ]]; then printf 'in %s min (--minutes)' "$minutes"; else printf 'to start 30 s after the last running match ends'; fi): Play locks;"
-        say "during the countdown the patch, the server data, the ZIP and the image prepared and staged; the swap at the later of"
-        say "the planned time and the staging's end, once no match runs, after one more y/N. From the plan on, a stop cancels it."
-    fi
-    wait_for_go "$after_go"
     phase=planned
-    start=$(date +%s)
-    # The scripts run from here are covered by the go.
+    # Its writes change nothing players feel; the go comes before the first
+    # that does (the maintenance, the swap).
     export SKHID_RELEASE_GO_AHEAD=1
-    if ((no_maint)); then
-        progress "2. the go: preparing now$( ((now)) && printf ' (--now: NO maintenance, NO notice)' || printf ' (--no-maintenance)')"
-    else
-        progress "2. the go: planning the maintenance now"
-        plan_maintenance
-    fi
 fi
-
-# 4. Prepared and staged, during the countdown.
 dry=()
 ((DRY_RUN)) && dry=(--dry-run)
 if [[ -n $resources ]]; then
-    progress "4. publishing ${resources##*/} on $PATCHES_LABEL"
+    progress "2. publishing ${resources##*/} on $PATCHES_LABEL"
     "$here/upload-patch" "${step_flags[@]}" "${dry[@]}" "$resources" </dev/null || die "upload-patch failed"
     ((DRY_RUN)) || published=1
 fi
@@ -1329,17 +1521,18 @@ data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
 build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
-    say "[dry run] 4. $( ((no_maint)) && printf 'after the go' || printf 'during the countdown'), build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
+    say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
-    say "[dry run]    then the checks of release/deploy on both, and the release folder:"
+    say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "<its sha256>"
     stage_upload "$zip" "$ZIP_NAME" "<its sha256>"
+    stage_bot_data "$bd_dir"
 else
-    progress "4. building the server data (release/build-server-db)"
+    progress "2. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
-    progress "4. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
+    progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
     planned_offer=$OFFERED
@@ -1347,9 +1540,18 @@ else
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
     check_exe_requires "$zip" "$work"
+    # The record's item tables of this data: made once now, so a tool that
+    # fails on it stops the release here, not after the swap.
+    if ((!test_server)); then
+        rm -rf "$work/item-tables"
+        if ! answer=$("$ITEM_TABLES" "$data" --dir "$work/item-tables" 2>&1); then
+            die "the item tables (srp-item-tables) of $data: $(tail -n 3 <<<"$answer" | tr '\n' ' ')— the record could not write them after the swap"
+        fi
+        say "the item tables of it: made (the record writes them)"
+    fi
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
-    progress "4. staging in the release folder $TARGET_DIR/$REL (not in place yet)"
+    progress "2. staging in the release folder $TARGET_DIR/$REL (not in place yet)"
     {
         say "release $REL: origin/$ref $(git -C "$REPO" log -1 --format='%h %s' "$main_commit"), revision $live_rev -> $rev"
         say
@@ -1358,14 +1560,19 @@ else
         say
         say "the players' ZIP, against the one the site hands out now:"
         grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" || say "  (no entry changed)"
+        say
+        say "the bots' data (release/bot-data.tsv), against the $TARGET volume: ${bd_line:-not checked}"
+        if ((${#BD_TODO[@]})); then printf '  %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
+        if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
     } >"$work/changed.txt"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "$DATA_SHA"
     stage_upload "$zip" "$ZIP_NAME" "$ZIP_SHA"
+    stage_bot_data "$bd_dir"
 fi
 if ((build_code)); then
-    progress "4. the server code: building the image from main's source"
+    progress "2. the server code: building the image from main's source"
     write_on live "cat > $REL_DIR/src.tar" "$src_tar"
     if ((!DRY_RUN)); then
         there=$(on_target "sha256sum < $REL_DIR/src.tar")
@@ -1373,31 +1580,66 @@ if ((build_code)); then
     fi
     write_on live "cd $REL_DIR && mkdir src && tar -xf src.tar -C src && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
     ((DRY_RUN)) || image_tagged=1
-    write_on live "cd $D && docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26"
+    # The host's one core keeps the running matches: the build's compilers
+    # reniced to 19 while it runs, every thread (pgrep -w: renice -p
+    # changes one thread only).
+    write_on live "cd $D && { docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26 & b=\$!; while kill -0 \$b 2>/dev/null; do pgrep -w -x 'rustc|cargo|cc1|cc1plus|cc|ld|collect2|as' | xargs -r renice -n 19 -p >/dev/null 2>&1; sleep 1; done; wait \$b; }"
 fi
 
-# 5. The swap, at the later of the planned time and the end of the staging,
-# once no match runs (--no-maintenance: no planned time; --now: at once).
+
+# 3. The go, then at once 4. the maintenance.
+if ((DRY_RUN)); then
+    say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it). Then at once: $after_go"
+    if ((!no_maint)); then
+        maintenance_minutes
+        say "[dry run] 4. right after the go: plan the maintenance in $MAINT_MINUTES min (now: $MAINT_WHY), from the jump host:"
+        say "  $(plan_command "minutes=$MAINT_MINUTES")"
+        say "[dry run] then: $TARGET_SITE/launcher/places/en must say \"Maintenance in $MAINT_MINUTES min\""
+    elif ((now)); then
+        say "[dry run] 4. no maintenance planned (--now: the admin page is never asked)"
+    else
+        say "[dry run] 4. no maintenance planned (--no-maintenance: the admin page is never asked)"
+    fi
+else
+    say
+    if ((now)); then
+        say "Next, at the go, with NO maintenance and NO notice (--now): the swap at once, after one more y/N:"
+        say "running matches end WITHOUT RESULTS."
+    elif ((no_maint)); then
+        say "Next, at the go, with no maintenance: the swap as soon as $TARGET_SITE/api/stats says \"matches\":0"
+        say "(up to $match_wait min), after one more y/N."
+    else
+        say "Next, at the go: the maintenance planned on $TARGET_SITE at once, $(if [[ -n $minutes ]]; then printf 'in %s min (--minutes)' "$minutes"; else printf 'to start 30 s after the last running match ends'; fi): Play locks;"
+        say "the swap at its end, once no match runs, after one more y/N. From the plan on, a stop cancels it."
+    fi
+    wait_for_go "$after_go"
+    go_given=1
+    start=$(date +%s)
+    if ((no_maint)); then
+        progress "3. the go: swapping next$( ((now)) && printf ' (--now: NO maintenance, NO notice)' || printf ' (--no-maintenance)')"
+    else
+        progress "3. the go: planning the maintenance now"
+        plan_maintenance
+    fi
+fi
+
+# 5. The swap, at the planned time, once no match runs (--no-maintenance:
+# no planned time; --now: at once).
 if ((DRY_RUN && now)); then
-    say "[dry run] 5. once staged: the swap at once, NO wait for matches (--now: the running ones end without results), y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the go: the swap at once, NO wait for matches (--now: the running ones end without results), y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=count_ended_matches
 elif ((DRY_RUN && no_maint)); then
-    say "[dry run] 5. once staged: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=match_check_before_stop
 elif ((DRY_RUN)); then
-    say "[dry run] 5. at the later of the planned time and the end of the staging (staged after it: at once): the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more), then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more), then y/N (no answer in $answer_wait min: no) and:"
 elif ((now)); then
-    progress "5. staged; --now: the swap at once, NO wait for matches, NO notice was given"
+    progress "5. --now: the swap at once, NO wait for matches, NO notice was given"
 elif ((no_maint)); then
-    progress "5. staged; waiting for \"matches\":0"
+    progress "5. waiting for \"matches\":0"
     limit=$(($(date +%s) + match_wait * MINUTE))
     wait_no_match "after $match_wait min of waiting (--match-wait)"
 else
-    if (($(date +%s) < end)); then
-        progress "5. staged before the planned time"
-    else
-        progress "5. staged after the planned time: the swap at once, once no match runs"
-    fi
     while (($(date +%s) < end)); do
         progress "5. waiting for the planned time ($(clock "$end") UTC)"
         left=$((end - $(date +%s)))
@@ -1429,6 +1671,10 @@ if ((!DRY_RUN)); then
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
+    if ((${#BD_TODO[@]})); then
+        say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
+        printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"
+    fi
     say "  /patches: ${OLD_PATCHES:-(no list)} -> $EXPECTED"
     if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
     say "  the ZIP's entries, against the live ZIP:"
@@ -1445,7 +1691,7 @@ if ((!DRY_RUN)); then
         say "(--yes --i-know: going ahead)"
     else
         say "(no answer in $answer_wait min is a no)"
-        ask_yes "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
+        swap_answer "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
     fi
     if ((now)); then
         SWAP_BEFORE_STOP=count_ended_matches
@@ -1469,7 +1715,7 @@ if ((DRY_RUN)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"
     else
         say "[dry run] 7. once it went out, the record: git tag -a $(release_tag "$rev") ${main_commit:0:7} (the UTC time, the ZIP's and the server data's sha256) and git push origin refs/tags/$(release_tag "$rev");"
-        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
+        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered, the item tables of the server data where an item changed$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
         say "[dry run]    it would ship (merged PRs): $(shipped_prs "$main_commit" | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
     fi
     say
@@ -1484,7 +1730,8 @@ phase=finished
 released_at=$(date -u +%s)
 say
 if ((now)); then say "--now: the stop ended ${ENDED:-an unknown number of} match(es) without results"; fi
-say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, the bots' data files it replaced (old-bot-data), changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
 if ((test_server)); then
     say "No record (--test): no commit, no tag."
 else

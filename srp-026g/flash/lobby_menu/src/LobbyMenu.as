@@ -29,7 +29,6 @@ package
    import flash.utils.setTimeout;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.DropdownMenu;
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.controls.TileList;
@@ -92,6 +91,7 @@ package
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
+   import survarium.controls.Transient;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -114,6 +114,7 @@ package
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.friends.FriendsMenu;
+   import survarium.friends.ChatMute;
    import survarium.friends.SquadInviteList;
    import survarium.friends.SquadList;
    import survarium.gsearch.LobbyGameLoad;
@@ -141,6 +142,7 @@ package
    import survarium.messages.MessageQuestInfo;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
+   import survarium.player.WeightEffects;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
@@ -460,14 +462,17 @@ package
       // bars, windows and chat are the root's children, and what the game first put on the stage is
       // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (every layer put
       // above the lobby: the front, top and top2 containers with messages, the wheels, the loading
-      // screen, the fades, the right-click menu, CLIK's popups) and over it _overlay, above every
-      // modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
+      // screen, the fades, the right-click menu), over them _transients (the transient windows
+      // while open, docs/notes/transient-windows.md, and CLIK's popups) and over it _overlay, above
+      // every modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
       // the status panel is), _cards (the item cards, drawn as the root is), CLIK's drag canvas and
       // the tooltips. toggle_interface hides the root, so all of it, in one step; nothing of the
       // interface is on the stage beside it.
       private var _stageLayer:Sprite;
 
       private var _layers:Sprite;
+
+      private var _transients:Sprite;
 
       private var _overlay:Sprite;
 
@@ -512,21 +517,27 @@ package
       }
 
       // The layers the game first put on the stage, in the root (see _stageLayer): made before
-      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go.
+      // anything is added; CLIK's popup canvas, the right-click menu and the transient windows are
+      // told where theirs go.
       private function makeStageLayer() : void
       {
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          _layers = new Sprite();
+         _transients = new Sprite();
          _overlay = new Sprite();
          _corner = new Sprite();
          _cards = new Sprite();
+         itemHintRenderer.addEventListener(Event.RESIZE,onWeaponDetailsResize);
+         itemHintRendererSec.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          this._stageLayer.addChild(this._layers);
+         this._stageLayer.addChild(this._transients);
          this._stageLayer.addChild(this._overlay);
          this._overlay.addChild(this._corner);
          this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
-         PopUpManager.layer = this._layers;
+         PopUpManager.layer = this._transients;
+         Transient.layer = this._transients;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1188,6 +1199,7 @@ package
          styleObject = new Object();
          styleObject.color = "#e9b838";
          style.setStyle("gold",styleObject);
+         style.setStyle(WeightEffects.WARNING_STYLE,{color:WeightEffects.WARNING_COLOR,display:"inline"});
          styleObject = new Object();
          styleObject.color = "#FEE2B2";
          style.setStyle("beige_bright",styleObject);
@@ -1239,6 +1251,7 @@ package
          this.profileSelector.y = 42;
          modifierWindow = new SrvModifiersControlReskin();
          notificationList = new SrvNotificationListSC();
+         this.notificationList.lobby = this;
          notificationListTemp = new SrvNotificationList();
          this.notificationList.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
          this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
@@ -1389,6 +1402,7 @@ package
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onHiddenKeyUp,false,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownStage);
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onKeyUpStage);
+         stage.addEventListener(Event.DEACTIVATE,this.clearDetailKeys);
          stage.addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
          stage.addEventListener(MouseCursorEvent.CURSOR_CHANGE,this.onChangeCursor);
          this.parseSpriteSheets();
@@ -1812,6 +1826,7 @@ package
             }
          }
          this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.alignComparisonHeader(secondData != null ? this.itemHintRendererSec : null);
          var delay:Number = 0.3;
          var length:Number = 0.2;
          this.itemHintRenderer.alpha = 0;
@@ -1859,6 +1874,7 @@ package
             this._cards.addChild(this.itemHintRendererSec);
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec);
             var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
             var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
             right.x = this.craftWindow.x - right.width - 3;
@@ -1874,6 +1890,7 @@ package
 
       private function onHintTargetRender(e:Event) : void
       {
+         this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec.parent != null ? this.itemHintRendererSec : null);
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
          {
             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.bundleList.y + 55;
@@ -1903,6 +1920,21 @@ package
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRenderer.width - 1;
          }
+      }
+
+      private function onWeaponDetailsResize(e:Event) : void
+      {
+         if(itemHintRenderer.parent == null) return;
+         itemHintRenderer.alignComparisonHeader(itemHintRendererSec.parent != null ? itemHintRendererSec : null);
+         if(_pdTarget != null && !craftOpen())
+         {
+            onHintTargetRender(null);
+            return;
+         }
+         var h:Number = itemHintRenderer.height;
+         if(itemHintRendererSec.parent != null) h = Math.max(h,itemHintRendererSec.height);
+         itemHintRenderer.y = Math.max(0,Math.min(itemHintRenderer.y,MainScene.stageHeight - h - 2));
+         if(itemHintRendererSec.parent != null) itemHintRendererSec.y = itemHintRenderer.y;
       }
       
       private function hideItemHint(e:Event) : void
@@ -3785,6 +3817,7 @@ package
          relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
+         var relocate:Function;
          if((value.is_stack))
          {
             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
@@ -3802,7 +3835,10 @@ package
          else
          {
             _relocateArray = [relocate_object];
-            this.player_profile._relocateFunction(_relocateArray);
+            // Read first, then called: Scaleform throws "is not a function" when the
+            // class's getter is called in place (as DragRegion does it).
+            relocate = this.player_profile._relocateFunction;
+            relocate(_relocateArray);
          }
       }
       
@@ -3918,12 +3954,13 @@ package
          this.player_profile.updateSlots(artifactSlots,itemSlots);
       }
       
-      public function update_player_items_weight(cur:Number, max:Number) : void
+      public function update_player_items_weight(cur:Number, max:Number, movement:Number = NaN, spending:Number = NaN, sprint:Number = NaN, skills:Number = NaN, bearArms:Number = NaN,
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN, spending19:Number = NaN, spending67:Number = NaN) : void
       {
          trace("load_weigth:",cur,max);
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
-         this.player_profile.updateWeight(cur,max);
+         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void
@@ -4060,6 +4097,8 @@ package
          {
             return;
          }
+         // it covers the lobby: the transient windows (over the layers) close
+         Transient.closeAll();
          var _back_back:MovieClip = new BackBlack();
          this._top_container.addChild(_back_back);
          _back_back.width = stage.stageWidth;
@@ -4123,20 +4162,15 @@ package
          {
             return true;
          }
-         // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
-         // not, so Esc never opens the game's menu over a modal
-         if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
-         {
-            trace("has_active_window::DropdownMenu");
-            return false;
-         }
-         var isAnyWindow:Boolean = !this._escapeHandled && (Modals.any() || stage.focus is TextField);
+         // a transient window (History, a dropdown's list) is over the modals: Esc closes it first
+         var isAnyWindow:Boolean = !this._escapeHandled && (Transient.any() || Modals.any() || stage.focus is TextField);
          _escapeHandled = false;
          return isAnyWindow;
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
       // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
+      // closes the top transient window (History, the match settings, a dropdown's list), then
       // takes the keys from a text box (unless the right-click menu is open), then closes the
       // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
       // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
@@ -4147,6 +4181,10 @@ package
          if(this.showInterface())
          {
             _hiddenKeyUp = Keyboard.ESCAPE;
+            return;
+         }
+         if(Transient.escape())
+         {
             return;
          }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
@@ -5366,8 +5404,9 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // the match loads: the message up goes (closed, not answered as Esc would), else the top
-         // modal closes
+         // the match loads: the transient windows close (the loading screen is under their layer),
+         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
             Message.close(Message.isAnyMessage());
@@ -5824,8 +5863,8 @@ package
       {
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
-         // A room left under the results (by Play, with its match's end):
-         // its window goes with them (after closeVS is off: its tab changes).
+         // The rooms window's tab, kept as it was under the results, follows it now (after closeVS
+         // is off: its tab changes).
          if(RoomsWindow.me != null)
          {
             RoomsWindow.me.resultsClosed();
@@ -5954,12 +5993,25 @@ package
       
       private function toggleReports(e:Event) : void
       {
-         this.notificationList.visible = !this.notificationList.visible;
-         setChildIndex(this.notificationList,numChildren - 1);
-         if(this.notificationList.visible)
+         this.showHistory(!this.notificationList.visible);
+      }
+
+      // History (the bottom bar's button) is a transient window (Transient): open over the
+      // windows; any other window opening, a press outside it or Esc closes it as its button does.
+      public function showHistory(value:Boolean) : void
+      {
+         this.notificationList.visible = value;
+         this.bottom_panel.btnShowLogList.selected = value;
+         if(!value)
          {
-            this.notificationListTemp.clear(true);
+            Transient.closed(this.notificationList);
+            return;
          }
+         this.notificationListTemp.clear(true);
+         Transient.open(this.notificationList,this.bottom_panel.btnShowLogList,function():void
+         {
+            showHistory(false);
+         });
       }
       
       private function updateButtonsLocal(value:String) : void
@@ -6238,6 +6290,7 @@ package
       
       private function onKeyUpStage(e:KeyboardEvent) : void
       {
+         if(e.keyCode == KeyCode.LEFT_SHIFT) MainScene.isShift = false;
          trace("KEY_DOWN_CODE_STAGE:",name,e.keyCode,e.target,e.currentTarget,e.isDefaultPrevented(),MainScene.isShift,"stage::",stage.focus);
          if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
          {
@@ -6270,6 +6323,12 @@ package
       {
          trace("root.enable_second_weapon",boolean);
          this.player_profile.enableSecondWeapon(boolean);
+      }
+
+      private function clearDetailKeys(e:Event) : void
+      {
+         MainScene.isShift = false;
+         MainScene.isCtrl = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void
@@ -6322,21 +6381,57 @@ package
          _escapeHandled = false;
       }
       
-      // The game's right-click menu with the one item, at the mouse: a
-      // player of the Rankings window or of a room.
+      // Shared player actions for the Rankings window and both room lists.
       public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
       {
          if(nickname == null || nickname == "")
          {
             return;
          }
-         SrvContextMenu.show([{
+         var options:Array = [{
             name:LocalizationData.getName("show_player_info_button_hint"),
             click_function:function(e:* = null):void
             {
                askPlayerInfo(nickname,player,how);
             }
-         }],0,0,owner);
+         }];
+         if(nickname != PlayerInfo.nickname)
+         {
+            var friend:Object = FriendsMenu.getFriend(nickname);
+            options.push({
+               name:LocalizationData.getName(friend != null ? "remove_from_friends" : "add_to_friends"),
+               click_function:function():void
+               {
+                  if(friend != null)
+                  {
+                     ExternalInterface.call("remove_friend",uint(friend.id));
+                  }
+                  else
+                  {
+                     ExternalInterface.call("add_friend_name",nickname);
+                  }
+               }
+            });
+            options = options.concat(ChatMute.options(nickname));
+            options.push({
+               name:LocalizationData.getName("send_message"),
+               click_function:function():void
+               {
+                  ExternalInterface.call("start_friend_message",nickname);
+               }
+            });
+            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && !SquadList.isInSquad(nickname))
+            {
+               options.push({
+                  name:LocalizationData.getName("invite_to_squad"),
+                  click_function:function():void
+                  {
+                     ExternalInterface.call("invite_to_squad",nickname);
+                  }
+               });
+            }
+         }
+         SrvContextMenu.show(options,0,0,owner);
       }
       
       private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void
@@ -6448,13 +6543,16 @@ package
       // the chat stays over it (the owner's of 2026-10-19).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
+         survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
          var panels:Array = [this.squadList,this.questList];
          for(var i:int = 0; i < panels.length; i++)
          {
             var panel:DisplayObject = panels[i] as DisplayObject;
             if(panel != null && panel.parent == this && getChildIndex(panel) > getChildIndex(window))
             {
-               setChildIndex(window,getChildIndex(panel));
+               // Move the persistent side panel back, not the room forward:
+               // a window opened more recently (History, for example) stays above.
+               setChildIndex(panel,getChildIndex(window));
             }
          }
          if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
@@ -6466,7 +6564,7 @@ package
       // A match's results: a player in a room gets the room's window opened
       // first, so the results go over it and closing them shows the room
       // (the owner's of 2026-10-20). Out of a room: nothing. The window is
-      // told the match is over (its chat, where we are now).
+      // told the match is over (its chat).
       private function showRoomUnderResults() : void
       {
          try

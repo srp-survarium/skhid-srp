@@ -67,32 +67,32 @@ package survarium.rooms
         internal function render():void
         {
             var tableW:Number = look._w - SIDE_W - 42;
-            look.text(look._content, win.say("servers") + ": " + win._total, 14, 52, 200, 16, RoomsLook.LIGHT);
+            look.text(look._content, win.say("st_srp_rooms_servers") + ": " + win._total, 14, 52, 200, 16, RoomsLook.LIGHT);
             win.message(52);
             if (win._code != RoomCode.NONE)
                 look._content.getChildAt(look._content.numChildren - 1).x = 220;
             else if (win._queueKey != 0)
             {
-                // Waiting in a full room's queue: our place, and a way out.
+                // Waiting in a full room's queue: our place and its name.
                 var queued:String = "";
                 for (var qi:int = 0; qi < win._rooms.length; qi++)
                     if (win._rooms[qi].key == win._queueKey)
                         queued = " · " + win._rooms[qi].name;
-                look.text(look._content, win.say("inQueue") + ": " + win._queuePlace + queued, 220, 52, 360, 16, RoomsLook.GOLD);
-                look.button(look._content, win.say("leaveQueue"), 590, 46, 170, onUnqueue, null, 32);
+                look.text(look._content, win.say("st_srp_rooms_in_queue") + ": " + win._queuePlace + queued, 220, 52, 360, 16, RoomsLook.GOLD);
             }
-            var cols:Array = [0, 0.29, 0.37, 0.46, 0.74, 0.84];
-            var heads:Array = ["name", "level", "max", "map", "players", "state"];
-            // The headers at their rows' x: the rows are in the scrolled box
-            // (at 14, tableW - 12 wide), the name 10 in.
+            var heads:Array = ["st_srp_rooms_name", "st_srp_rooms_level", "st_srp_rooms_max", "st_srp_rooms_map",
+                "st_srp_rooms_players", "st_srp_rooms_state"];
+            // The headers at their rows' x, each as wide as its column: the
+            // rows are in the scrolled box (at 14, tableW - 12 wide), the
+            // name 10 in.
             for (var h:int = 0; h < heads.length; h++)
-                look.text(look._content, win.say(heads[h]).toUpperCase(), 14 + (h == 0 ? 10 : (tableW - 12) * cols[h]), 84, 160,
-                    12, RoomsLook.DIM);
+                look.text(look._content, win.say(heads[h]).toUpperCase(), 14 + columnX(h, tableW - 12) + (h == 0 ? 10 : 0), 84,
+                    columnW(h, tableW - 12) - (h == 0 ? 10 : 0), 12, RoomsLook.DIM);
             look.line(look._content, 14, 106, tableW - 12);
             var inner:Sprite = look.scrollBox(14, 108, tableW - 12, look._h - RoomsLook.FOOT_H - 108 - 8);
             var sel:Object = null;
             if (win._rooms.length == 0)
-                look.text(inner, win.say(win.playLit() ? "none" : LocalPlayerProfile.mayCreate() ? "noneNoPlay" : "noneQuiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
+                look.text(inner, win.say(win.playLit() ? "st_srp_rooms_none" : LocalPlayerProfile.mayCreate() ? "st_srp_rooms_none_no_play" : "st_srp_rooms_none_quiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
             for (var i:int = 0; i < win._rooms.length; i++)
             {
                 var room:Object = win._rooms[i];
@@ -119,16 +119,25 @@ package survarium.rooms
                 // Our own room (the All rooms tab) in the yellow of a member's
                 // Rooms tab.
                 var mine:Boolean = win._room != null && room.key == win._room.key;
-                look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17,
-                    mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT);
-                look.text(row, String(room.level), tw * cols[1], 10, tw * 0.09, 17, RoomsLook.LIGHT);
-                look.text(row, win.levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, RoomsLook.LIGHT);
+                // A long name cut to its column, as the members' names are.
+                RoomsLook.fitName(look.text(row, "", 10, 10, columnW(0, tw) - 10, 17, mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT),
+                    (room.pin ? "PIN · " : "") + room.name, "");
+                look.text(row, String(room.level), columnX(1, tw), 10, columnW(1, tw), 17, RoomsLook.LIGHT);
+                // A private room has no max level: its cell empty.
+                look.text(row, room.pin ? "" : win.levelText(room.max), columnX(2, tw), 10, columnW(2, tw), 17, RoomsLook.LIGHT);
                 var e:Object = win.entry(room.map);
-                // No card leads alone yet (a tie, no votes): the start draws one.
-                look.text(row, e != null ? win.levelName(e.level) + " · " + win.weatherName(e.weather)
-                    : room.phase == RoomPhase.VOTE ? win.say("voting") : "", tw * cols[3], 10, tw * 0.27, 15, RoomsLook.GREY);
-                look.text(row, room.players + " / " + room.size * 2, tw * cols[4], 10, tw * 0.10, 17, RoomsLook.LIGHT);
-                _stateCells[String(room.key)] = look.text(row, win.phaseText(room), tw * cols[5], 10, tw * 0.16, 15,
+                // The next map, its weather under it; no card leads alone yet
+                // (a tie, no votes): the start draws one.
+                if (e != null)
+                {
+                    RoomsLook.fitName(look.text(row, "", columnX(3, tw), 4, columnW(3, tw), 14, RoomsLook.GREY), win.levelName(e.level), "");
+                    look.text(row, win.weatherName(e.weather), columnX(3, tw), 21, columnW(3, tw), 12, RoomsLook.DIM);
+                }
+                else
+                    look.text(row, room.phase == RoomPhase.VOTE ? win.say("st_srp_rooms_voting") : "", columnX(3, tw), 10, columnW(3, tw), 15,
+                        RoomsLook.GREY);
+                look.text(row, room.players + " / " + room.size * 2, columnX(4, tw), 10, columnW(4, tw), 17, RoomsLook.LIGHT);
+                _stateCells[String(room.key)] = look.text(row, win.phaseText(room), columnX(5, tw), 10, columnW(5, tw), 15,
                     room.phase == RoomPhase.IN_MATCH ? RoomsLook.GOLD : room.phase == RoomPhase.VOTE || room.phase == RoomPhase.COUNTDOWN ? 0x8FD18F : RoomsLook.GREY);
                 row.buttonMode = true;
                 row.mouseChildren = false;
@@ -153,11 +162,13 @@ package survarium.rooms
                     joinable = win._rooms[j];
             // A member queues for no room (from no room only): Join, off for
             // a full room and for its own.
-            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 && win._room == null
-                ? win.say("queue") : win.say("join");
-            var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
-                : [[win.say("new"), win.createView.onNew, null]]);
-            if (joinable != null && (!joins(joinable) || !mayGoIn(joinable)))
+            var queuedHere:Boolean = queuedFor(joinable);
+            var joinWord:String = queuedHere ? win.say("st_srp_rooms_leave_queue")
+                : joinable != null && joinable.players >= joinable.size * 2 && win._room == null
+                    ? win.say("st_srp_rooms_queue") : win.say("st_srp_rooms_join");
+            var made:Array = look.footer(joinable != null ? [[win.say("st_srp_rooms_new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
+                : [[win.say("st_srp_rooms_new"), win.createView.onNew, null]]);
+            if (joinable != null && !queuedHere && (!joins(joinable) || !mayGoIn(joinable)))
             {
                 made[1].enabled = false;
                 // Greyed by a reason (presets.md): the reasons in its tip.
@@ -173,7 +184,27 @@ package survarium.rooms
             renderSide(sel, tableW + 28);
         }
 
-        // The room chosen: its next map's render, what it is, and JOIN.
+        // The table's columns (name, level, max level, next map, players,
+        // state) as shares of its width: each as wide as its header and its
+        // texts are in every language (the longest map name, "Any", a vote's
+        // time), the name the rest (cut to it).
+        private static const COLS:Array = [0, 0.215, 0.303, 0.444, 0.731, 0.827, 1];
+
+        private static function columnX(c:int, w:Number):Number
+        {
+            return w * COLS[c];
+        }
+
+        // A column's texts' width, a gap before the next.
+        private static function columnW(c:int, w:Number):Number
+        {
+            return w * (COLS[c + 1] - COLS[c]) - 6;
+        }
+
+        // The room chosen: its next map's render, what it is, and JOIN. One
+        // layout whether a map is known or not (a vote with no card ahead
+        // alone, or a room before its vote, has none): the render's place
+        // and the two lines under it are kept, so nothing moves as votes come.
         private function renderSide(room:Object, x:Number):void
         {
             var panel:Shape = new Shape();
@@ -186,11 +217,16 @@ package survarium.rooms
             if (room == null)
                 return;
             var e:Object = win.entry(room.map);
+            // A private room has no max level (the owner's of 2026-10-26).
+            var facts:Array = [[win.say("st_srp_rooms_level"), String(room.level)]];
+            if (!room.pin)
+                facts.push([win.say("st_srp_rooms_max"), win.levelText(room.max)]);
+            facts.push([win.say("st_srp_rooms_players"), room.players + " / " + room.size * 2], [win.say("st_srp_rooms_state"), win.phaseText(room)]);
             // Its members below the facts (the owner's of 2026-10-20, "below
             // state"): the map's render made up to 60 lower when the panel is
             // short for the rows its players need at 18 each (two columns).
             var bottom:Number = look._h - RoomsLook.FOOT_H - 14;
-            var above:Number = 12 + 30 + (e != null ? 28 : 0) + 4 * 26 + (room.pin ? 36 : 0) + 10;
+            var above:Number = 12 + 30 + 48 + facts.length * 26 + (room.pin ? 36 : 0) + 10;
             var need:int = memberRows(room) * 18;
             var picH:int = 150 - int(Math.max(0, Math.min(60, need - (bottom - 52 - 150 - above))));
             if (e != null)
@@ -211,17 +247,30 @@ package survarium.rooms
                 look._content.addChild(framed);
                 framed.mask = crop;
             }
+            else
+            {
+                // No map yet: the render's place, empty, at its size.
+                var empty:Shape = new Shape();
+                empty.graphics.lineStyle(1, 0x26323C);
+                empty.graphics.beginFill(0x05080B, 1);
+                empty.graphics.drawRect(x, 52, SIDE_W, picH);
+                empty.graphics.endFill();
+                look._content.addChild(empty);
+            }
             var y:Number = 52 + picH + 12;
             look.text(look._content, room.name, x + 16, y, SIDE_W - 32, 20, 0xFFFFFF);
             y += 30;
             if (e != null)
             {
-                look.text(look._content, win.levelName(e.level) + " · " + win.weatherName(e.weather) + " · " + win.modeName(e.mode),
-                    x + 16, y, SIDE_W - 32, 15, RoomsLook.GREY);
-                y += 28;
+                // The map and its weather, the mode under them (the three
+                // are too long for one line in most languages).
+                look.text(look._content, win.levelName(e.level) + " · " + win.weatherName(e.weather), x + 16, y, SIDE_W - 32, 15,
+                    RoomsLook.GREY);
+                look.text(look._content, win.modeName(e.mode), x + 16, y + 20, SIDE_W - 32, 15, RoomsLook.GREY);
             }
-            var facts:Array = [[win.say("level"), String(room.level)], [win.say("max"), win.levelText(room.max)],
-                [win.say("players"), room.players + " / " + room.size * 2], [win.say("state"), win.phaseText(room)]];
+            else
+                look.text(look._content, win.say("st_srp_rooms_map_by_vote"), x + 16, y, SIDE_W - 32, 15, RoomsLook.GREY);
+            y += 48;
             for (var i:int = 0; i < facts.length; i++)
             {
                 look.text(look._content, facts[i][0], x + 16, y, 140, 15, RoomsLook.DIM);
@@ -233,7 +282,7 @@ package survarium.rooms
             if (room.pin)
             {
                 y += 6;
-                look.text(look._content, win.say("pin"), x + 16, y + 4, 60, 15, RoomsLook.DIM);
+                look.text(look._content, win.say("st_srp_rooms_pin"), x + 16, y + 4, 60, 15, RoomsLook.DIM);
                 _joinPin = look.input(look._content, x + 160, y, _pinText);
                 pinAsked(room);
                 y += 30;
@@ -257,8 +306,8 @@ package survarium.rooms
             return Math.max(1, room.phase == RoomPhase.IN_MATCH ? Math.min(n, int(room.size)) : int((n + 1) / 2));
         }
 
-        // The chosen room's members: one column while they fit at 18 a row;
-        // two otherwise, and while it plays its match, side 1 on the left
+        // The chosen room's members in two columns (one layout, however many;
+        // the owner's of 2026-10-29), and while it plays its match, side 1 on the left
         // and side 2 on the right (a bar of the side's colour), those not
         // in the match where there is room. Each row: the equipment level
         // in a column of its own, the red mark of a kit that cannot play,
@@ -281,9 +330,7 @@ package survarium.rooms
                 if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
                     playing = true;
             var cols:Array;
-            if (!playing && all.length * 18 <= _membersH)
-                cols = [all.slice()];
-            else if (!playing)
+            if (!playing)
                 cols = [all.slice(0, int((all.length + 1) / 2)), all.slice(int((all.length + 1) / 2))];
             else
             {
@@ -302,7 +349,7 @@ package survarium.rooms
             var rows:int = Math.max(1, Math.max(cols[0].length, cols.length > 1 ? cols[1].length : 0));
             var rowH:int = int(Math.max(12, Math.min(22, _membersH / rows)));
             var size:int = rowH >= 20 ? 14 : rowH >= 17 ? 13 : 12;
-            var colW:Number = cols.length == 1 ? MEMBERS_W : (MEMBERS_W - 12) / 2;
+            var colW:Number = (MEMBERS_W - 12) / 2;
             for (var c:int = 0; c < cols.length; c++)
                 for (var r:int = 0; r < cols[c].length; r++)
                     // Never past the panel's bottom (a window at its least).
@@ -442,7 +489,15 @@ package survarium.rooms
             if (room == null || win._steps.length > 0)
                 return;
             win.busy(e);
-            joinRoom(room);
+            if (queuedFor(room))
+                win.leaveQueue();
+            else
+                joinRoom(room);
+        }
+
+        private function queuedFor(room:Object):Boolean
+        {
+            return room != null && win._room == null && win._queueKey == room.key;
         }
 
         // Whether no reason greys Join (or Queue) for `room` (presets.md): a
@@ -511,11 +566,6 @@ package survarium.rooms
         internal function joinWith(room:Object, preset:int):void
         {
             joinRoom(room, preset);
-        }
-
-        private function onUnqueue(e:Event):void
-        {
-            win.ask(RoomsWire.UNQUEUE, 1);
         }
 
         // A friend's room (RoomsWindow.joinFriend; `room`: {key, players,

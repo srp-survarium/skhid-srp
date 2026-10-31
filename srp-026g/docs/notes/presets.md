@@ -131,7 +131,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   | sale, more | Used in Loadout 2 and Loadout 4. Sell anyway? | Використовується в комплектах 2 і 4. Продати? | Используется в комплектах 2 и 4. Продать? | Wird in Loadout 2 und 4 genutzt. Trotzdem verkaufen? | Używany w zestawach 2 i 4. Sprzedać? |
 
   The level's word is the kit tabs' own (`clan_players_level_label`, "Lvl."). The join popup's
-  lines (`RoomsText` `offerHigher`, `offerFits`, `code14`) say "Loadout" too. The movie's fonts
+  lines (`st_srp_rooms_offer_higher`, `_offer_fits`, `_code_14`) say "Loadout" too. The movie's fonts
   (CalibriBold, Calibri Bold) have every glyph of them.
 - **A sale asks first** (the owner's, 2026-10-23: "when selling an item which is equipped in any
   kit of any preset I should get a warning"): selling an item a preset uses, the active one's
@@ -164,7 +164,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   rows; the active row as the rooms list's selected room (gold-tinted, a gold bar at its left,
   white text); hover and press lighten a row and the title alike (`LocalPlayerProfile`'s
   `ROW_H`). A press on a row chooses it (one press to open, one to choose); a
-  press outside or Esc closes the list with no change. No step arrows: each step would choose a
+  press outside, Esc or a window opening closes the list with no change (a transient window:
+  `transient-windows.md`). No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
   is "Character"; while the kits are locked (a search, a match) it takes no press.
   - The movie asks for the list at its setup, on every account push, and every 2 s until the
@@ -183,7 +184,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     "Switch and enter", even when two tie: no button a loadout (the owner's, 2026-10-23: "one
     offer keeps the popup simple").
   - A room's gear range is its max level alone (the room's "level" is its members' match level,
-    no cap). A room of any max level (0) offers nothing [choice].
+    no cap). A room of any max level (0) offers nothing [choice]; nor does a private room (a
+    PIN), which has no max level (the owner's of 2026-10-26).
   - **Room allows more than the kits:** gear at most the max, and a preset higher than the gear
     fits: "Enter anyway" (the kits as they are) or "Switch and enter". None higher: joins, no popup.
   - **Gear over the max:** a preset fits: "Exit" (no join) or "Switch and enter". None fits: the
@@ -193,12 +195,28 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     the room Play would take now. "Switch and enter" from Play chooses, then Play picks again by
     the new gear [choice]. Not the queue of a full room, "Switch room" (it already takes the
     gear), nor making a room.
+  - **Play that would queue** (the owner's of 2026-10-30: "I want exactly the same
+    recommendation when I join a room with lower/higher gear"): no room of its bracket takes
+    it now and Play would wait in a queue. Play then offers what a Join of the other bracket's
+    room with a place would (the room Play would take with that gear), when the loadout offered
+    is of that bracket:
+    - gear 11-15, a level-10 room with a place, a saved loadout of level 10 or less: Join's
+      "gear over the max" offer;
+    - gear 10 or less, a level-15 room with a place, a saved loadout of level 11-15: Join's
+      "room allows more" offer.
+    - The same popup and text as that Join. Its first button is "Queue": Play as before, into
+      the queue. "Switch and enter" chooses the loadout; Play then takes that room by the new
+      gear.
+    - Nothing is offered when the Join would offer nothing, or only a loadout of the player's
+      own bracket (a gear-5 player whose best loadout is level 9, say). Then Play queues as
+      before: Play does not put a level-10 player into a level-15 room as it is. Nothing is
+      offered when Play makes its bracket's first room either.
   - The server decides the popup (the movie asks before joining); it shows over the Rooms window
     (Play opens it), the view under it inactive until a button. "Switch and enter" is one server
     action: choose, then the join; a choice refused joins nothing (code 14).
 - **Gone with the owner's change of the same day:** the Save and Apply buttons, saving into a
   preset by hand, an "apply" that left no preset active, and their requests on the wire.
-- **Texts:** short, the lobby's five languages; the movie's own (`LocalPlayerProfile`,
-  `RoomsText`), no content edit.
+- **Texts:** short; srp's dictionary texts (`st_srp_loadout_*`, `st_srp_rooms_*`,
+  `client-patches/localization`).
 - **Wire:** srp's `3B` ranking starts and `91` rows, as the rooms; no exe change.
 - **Release:** server and lobby movie together.

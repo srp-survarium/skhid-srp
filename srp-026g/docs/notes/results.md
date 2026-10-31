@@ -417,3 +417,47 @@ What follows from them:
 - The account level was the longest road: at the original's pace level 20 took about 67 hours of play and the skill tree's 81 points about 750; twice the experience makes them about 38 and 390 (`progression_pace.md` §7).
 
 Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs` `the_owners_rates_raise_silver_by_match_level_experience_and_reputation`, the own-terms part of `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`; `quests.rs`, the raised part of the scale test.
+
+## 14. The floor (the owner's, 2026-10-27)
+
+"The players with the fewest points usually need the silver most."
+
+- A player who stayed to the end and scored at least 30 (`pay::FLOOR_MIN_SCORE`) is paid at
+  least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
+  who stayed to the end; bots not counted; of two middle ones, the lower).
+- What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
+  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
+- Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
+  trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
+- On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
+  was paid 2.7k a match, the top quarter 21.9k; the lowest were also the lowest levels (16.9
+  against 31.2). With the floor the lowest quarter's pay rises to about 4.2k (91 of 555
+  players raised); all silver paid rises about 6 %.
+- `rewards.rs` `Shared::money_floor`, applied in `settle_player`.
+
+## 15. Payment-only farming limits (PR #691 revision, 2026-10-28)
+
+`reward_caps::Payment` clones the ordinary statistics after the existing battery policy, then
+applies the repeated-kill limit and Research allowance in that order. The result adapter carries
+this copy as `PlayerResult::pay_statistics`; only `Shared::lines` reads it. Without an override,
+ordinary statistics pay as before. An untrusted result cannot pay from either copy.
+
+Score, quest progress, kit usage and rating use the ordinary counters. This separation fixes the
+initial implementation's unintended reduction of score and combat quest counters. The existing
+battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
+median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
+See `kill_cap.md`, `research_mode.md` and `farm_cap_audit.md` for thresholds and audit limitations.
+
+## 16. PvE reward ceiling (owner's choice, 2026-10-28)
+
+PvE settles match rewards at `min(actual match level, 7)` (`pvb::MAX_REWARD_LEVEL`). One effective
+level in `Shared` selects both the dictionary's money/experience/reputation multipliers and the
+silver rate. At seven these are 4.97 / 1.3 / 1.3 and 170% silver with the default by-level rates.
+The usual `SRP_PVB_PAY` share (default 50% for silver and experience) and premium still apply.
+Lower-tier PvE and all PvP retain their normal level scaling. Equipment, bot kits and the actual
+match level are unchanged; this is a payment ceiling, not a change to combat simulation.
+
+The supplied 128/7 bot-match screenshot paid 49,992 base silver plus 24,996 premium = 74,988.
+At the ceiling, its silver scales by `(4.97 * 1.7) / (10.17 * 2.2)`, about 28.3k including premium,
+subject to per-cell rounding. No live balance is changed retroactively. The floor uses these
+capped base rewards; a sole human already earns their own median and gets no floor addition.

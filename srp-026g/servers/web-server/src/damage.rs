@@ -1,8 +1,10 @@
-//! The damage calculator, `/damage` on the 0.26g site: one page and the files
-//! it loads, built by `srp-026g/scripts/damage-calc/build_page.py --site` into
-//! `../damage/` from the game data of the latest content patch (the script's
-//! README says how). Every file is part of the binary. The page names each
-//! with `?v=<its hash>`, so they are sent to be kept for good.
+//! The damage calculator, `/wiki/calculator` on the 0.26g site (a section of
+//! the wiki, [`crate::wiki`]): one page and the files it loads, built by
+//! `srp-026g/scripts/damage-calc/build_page.py --site` into `../damage/` from
+//! the game data of the latest content patch (the script's README says how).
+//! Every file is part of the binary. The page names each with `?v=<its hash>`,
+//! so they are sent to be kept for good. The files keep their `/damage/`
+//! addresses.
 
 use std::io::Write;
 use std::net::{Shutdown, TcpStream};
@@ -10,7 +12,7 @@ use std::net::{Shutdown, TcpStream};
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
-pub(crate) const PATH: &str = "/damage";
+pub(crate) const PATH: &str = "/wiki/calculator";
 
 /// The page's Content-Security-Policy: the site's, with its own script,
 /// images (its files and the icons inside the script) and fonts.
@@ -123,4 +125,6 @@ margin:-20px calc(-1*max(16px,env(safe-area-inset-right,0px))) 22px calc(-1*max(
 .site .lang:hover{border-color:var(--ink-3);color:var(--ink)}\
 .site .badge{background:#d64531;color:#fff;font:700 .75rem system-ui,sans-serif;letter-spacing:.14em;padding:.2rem .55rem;border-radius:2px}\
 .site .note.test{max-width:1240px;margin:1rem auto 0;font-size:1rem;color:var(--ink-2);background:var(--bg);border-left:3px solid #d64531;padding:.7rem .9rem;border-radius:2px}\
-.site a{color:var(--accent)}";
+.site a{color:var(--accent)}\
+.site .breadcrumb{box-sizing:content-box;max-width:1240px;margin:14px auto 0;padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));font-size:.8rem;color:var(--ink-3)}\
+.site .breadcrumb a{color:var(--ink-2);text-decoration:none}";

@@ -1,5 +1,5 @@
 {
- "_about": "Weapon balance, release 1 (2026-10-18). Ported 0.29a3 weapons' armour piercing on the 0.26g scale by calibre; rate of fire and damage of the measured over-performers; Mosin and TOZ-122 up; item stamina-regeneration key spelt as the exe reads it. Values scored on the recorded live kills since revision 19; the red-dot sights ported from 0.51c5 glow as in 0.51c5 (constant_transparency 0.3, the round-12 merge had kept 1).",
+ "_about": "Dictionary text is maintained in client-patches/localization/*.tsv. Weapon balance, release 1 (2026-10-18). Ported 0.29a3 weapons' armour piercing on the 0.26g scale by calibre; rate of fire and damage of the measured over-performers; Mosin and TOZ-122 up; item stamina-regeneration key spelt as the exe reads it. Values scored on the recorded live kills since revision 19; the red-dot sights ported from 0.51c5 glow as in 0.51c5 (constant_transparency 0.3, the round-12 merge had kept 1).",
  "set": [
   {"file": "gameplay/items/weapons/wpn_kriss_vector.options", "path": "parameters/bullet_pierce", "from": 0.45, "to": 0.25},
   {"file": "gameplay/items/weapons/wpn_kriss_vector.options", "path": "parameters/bullet_damage", "from": 0.45, "to": 0.42},
@@ -78,26 +78,12 @@
   {"file": "gameplay/items/weapons/wpn_mosin_nagant.options", "prop_id": 3, "from": "35", "to": "40"},
   {"file": "gameplay/items/weapons/wpn_toz_122.options", "prop_id": 1, "from": "110", "to": "120"}
  ],
- "edit_text": [
-  {"file": "localization/english/localization", "path": "strings/st_svd_description", "from": "supply: 10 rounds", "to": "supply: 5 rounds"},
-  {"file": "localization/german/localization", "path": "strings/st_svd_description", "from": "für 10 Patronen", "to": "für 5 Patronen"},
-  {"file": "localization/polish/localization", "path": "strings/st_svd_description", "from": "w 10-nabojowy", "to": "w 5-nabojowy"},
-  {"file": "localization/russian/localization", "path": "strings/st_svd_description", "from": "на 10 патронов", "to": "на 5 патронов"},
-  {"file": "localization/original/localization", "path": "strings/st_svd_description", "from": "на 10 патронов", "to": "на 5 патронов"},
-  {"file": "localization/ukrainian/localization", "path": "strings/st_svd_description", "from": "на 10 набоїв", "to": "на 5 набоїв"}
- ],
+
  "add_entry": [
   {"files": "gameplay/static_game_parameters.options", "list": "ui_properties", "after": {"prop_id": 133}, "like": {"prop_id": 16}, "values": {"prop_id": 134, "prop_name": "st_inv_magazine_size", "min_value": "0", "max_value": "100"}},
   {"files": "gameplay/items/weapons/wpn_*.options", "list": "ui_desc/props_list", "after": {"prop_id": 4}, "like": {"prop_id": 4}, "values": {"prop_id": 134, "prop_value": "{parameters/magazine_capacity}"}, "only_if": "parameters/magazine_capacity"}
  ],
- "add_key": [
-  {"file": "localization/english/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Magazine"},
-  {"file": "localization/german/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Magazin"},
-  {"file": "localization/polish/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Magazynek"},
-  {"file": "localization/russian/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Магазин"},
-  {"file": "localization/original/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Магазин"},
-  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_inv_magazine_size", "text": "Магазин"}
- ],
+
  "rename_key": [
   {"files": "gameplay/items/*", "table": "parameters", "from": "stamina_regenation_speed_modifier", "to": "stamina_regeneration_speed_modifier"}
  ],

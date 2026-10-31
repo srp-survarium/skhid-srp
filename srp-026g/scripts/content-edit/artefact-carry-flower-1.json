@@ -1,0 +1,22 @@
+{
+  "_comment": "Held-only flower head. The native ground model remains full length.",
+  "make_held_flower": [
+    {
+      "files": [
+        "models/item/artefacts/artefact_givokost_single.model/render/export_properties",
+        "models/item/artefacts/artefact_givokost_single.model/render/givokost_single_vc/converted_model",
+        "models/item/artefacts/artefact_givokost_single.model/render/givokost_single_vc/export_properties",
+        "models/item/artefacts/artefact_givokost_single.model/settings"
+      ],
+      "sha256": {
+        "models/item/artefacts/artefact_givokost_single.model/render/export_properties": "21769ef61f1eea400e5b4a08caee35ef51e1421b1d72318b276bc46061974d06",
+        "models/item/artefacts/artefact_givokost_single.model/render/givokost_single_vc/converted_model": "2e82fb22822c76eebe073798576e6de7b949580d54e8cf2b49314a9363b4af57",
+        "models/item/artefacts/artefact_givokost_single.model/render/givokost_single_vc/export_properties": "e292f6a88ccd7d1932662e93a81baf0fe4e66a86f99d67347b69556560858da6",
+        "models/item/artefacts/artefact_givokost_single.model/settings": "9aa549875da20b1a3d97227c407c0cc9a72ab3cfced26fe0ec6e354cb058a75e"
+      },
+      "source": "models/item/artefacts/artefact_givokost_single.model/",
+      "output": "models/item/artefacts/artefact_givokost_single_held.model/",
+      "minimum_y": 0.425
+    }
+  ]
+}

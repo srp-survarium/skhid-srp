@@ -186,7 +186,7 @@ that rule is mended when the accounts load, and never plays.
 | `RUST_LOG` | `info` | The log level |
 | `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
-| `SRP_RECORD_MIN_PLAYERS` | `6` | A recording is kept once this many players (test bots not counted) have entered its match, late joiners included; the others are deleted when their match ends |
+| `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
 | `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). Off without `SRP_RECORD_DIR` or `SRP_GAME_MODES_DIR` (the lobby answers `off`) |
 | `SRP_GAME_MODES_DIR` | unset (off; the compose file sets `/srv/srp/data/game_modes`) | The game's `gameplay/game_modes/*.options` files, every patch's included (game data: never in the repository): copy them into the data volume's folder. `off` or empty in `.env`: replays off |
@@ -231,7 +231,7 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 | Variable | Default | What |
 |---|---|---|
 | `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
-| `SRP_PVB_MAX_GEAR` | 5 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15 |
+| `SRP_PVB_MAX_GEAR` | 15 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15; the bots wear that level (`player_bots.md` §8) |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
 | `SRP_PVB_PAY` | 0.5 | The share of a match's silver and experience such a match pays, 0 to 1. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |

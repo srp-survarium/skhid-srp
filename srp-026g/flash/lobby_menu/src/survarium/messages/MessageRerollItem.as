@@ -26,19 +26,9 @@ package survarium.messages
    import survarium.constants.ModificationState;
    import survarium.constants.MoneyType;
    import survarium.constants.RerollChoice;
-   import survarium.rooms.RoomsText;
 
    public class MessageRerollItem extends MessageAccept
    {
-
-      // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
-      // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
-      private static const REROLL_DESCRIPTION:Array = [
-         "You can change any modifier of an item, any number of times. You then choose one of three random modifiers.",
-         "Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.",
-         "Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.",
-         "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
-         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
 
       // The original movie places the game's lock hint (one modification an item) on this window;
       // since any modification may be changed it is not used (configUI hides it).
@@ -147,7 +137,9 @@ package survarium.messages
             trace("in:data::",this.labelText,this.labelChooseModifier,this.decriptionLabel,this.buttonCraft,this.buttonReroll,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.sellerIcon);
             this.labelText.text = LocalizationData.getName("item_modification");
             this.labelChooseModifier.text = LocalizationData.getName("choose_modifier");
-            this.decriptionLabel.text = String(REROLL_DESCRIPTION[RoomsText.language()]);
+            // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
+            // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
+            this.decriptionLabel.text = LocalizationData.getName("st_srp_reroll_description");
             // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
             // (items_rules: Reroll, the owner's rule of 2026-10-22)
             this.decriptionTimerLabel.text = "";

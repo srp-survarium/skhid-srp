@@ -74,7 +74,7 @@ services:
       # The worlds the match server accepted are kept here to compare.
       - SRP_SNAPSHOT_DIR=/srv/srp/data/snapshots
       # Every datagram of a match in and out, one file per match, kept when
-      # SRP_RECORD_MIN_PLAYERS (default 6, late joiners counted) have entered
+      # SRP_RECORD_MIN_PLAYERS (default 6 for PvP; 1 human for PvE) have entered
       # it; kept files over SRP_RECORD_MAX_MB (default 5000) together go
       # oldest first. `off`: no recordings.
       - SRP_RECORD_DIR=${SRP_RECORD_DIR:-/srv/srp/data/recordings}
@@ -217,6 +217,13 @@ services:
         && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     ports:
       - "${SRP26_HTTPS_PORT:-443}:443/tcp"
+    # Plain TCP only: Caddy (Go 1.24+) listens with multipath TCP wherever
+    # the kernel allows it, and 443 is published straight to it, which puts
+    # the kernel's MPTCP code (remote use-after-free, 2026) before anyone
+    # on the internet. Off in this container's network namespace, Go falls
+    # back to TCP; clients notice nothing.
+    sysctls:
+      net.mptcp.enabled: 0
     volumes:
       - caddy26-data:/data
     read_only: true

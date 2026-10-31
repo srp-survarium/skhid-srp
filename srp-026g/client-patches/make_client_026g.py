@@ -6,7 +6,6 @@ USAGE
 
     cd srp-026g/client-patches
     python make_client_026g.py <game folder> <output> --server=<host>:<port>
-        [--localization=ukrainian]   english, russian, ukrainian, german, polish
         [--cert-only | --cave=hash-mismatch]   another build of the exe (see patch_026g.py)
         [--no-late-join]             the exe without the late join: patch revision 4,
                                      for a server that asks for no later one
@@ -49,8 +48,7 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/play_skhid.bat
         starts it from that folder (the client finds its certificate by a
         path relative to the working directory) with the launch line:
-        survarium_skhid.exe -localization=<..>
-            -mt_allocator=768 -minimum_resources_memory_size=768
+        survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
         Full builds use the embedded server; -server=host:port can still
         override it. Cert-only passes -server= at launch as before.
         (-mt_allocator: the global multithreaded arena, 376 MiB by
@@ -99,7 +97,9 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/Skhid-network-setup.cmd
         Windows Firewall outbound allow rules for the three programs and,
         asked, a Microsoft Defender exclusion of game\binaries\x86; --undo removes
-        them, --dry-run prints the commands (Skhid-network-setup.cmd here).
+        them, --dry-run prints the commands. It asks Windows for
+        administrator rights itself (the UAC prompt) and says everything in
+        Russian (Skhid-network-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -167,8 +167,6 @@ VPN_HELP = "VPN.txt"
 NETWORK_SETUP = "Skhid-network-setup.cmd"
 # What a Linux unpacker makes executable.
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
-# The localizations the client knows (login_chat.md: the language byte).
-LOCALIZATIONS = ("english", "russian", "ukrainian", "german", "polish")
 
 
 def sha256(data):
@@ -250,11 +248,12 @@ def game_arguments(server, embedded=False):
             + "-mt_allocator=768 -minimum_resources_memory_size=768")
 
 
-def launch_line(server, localization, embedded=False):
-    return f"survarium_skhid.exe -localization={localization} " + game_arguments(server, embedded)
+def launch_line(server, embedded=False):
+    """The game's language is its own (Settings, patch 79): no -localization."""
+    return "survarium_skhid.exe " + game_arguments(server, embedded)
 
 
-def bat(server, localization, embedded=False):
+def bat(server, embedded=False):
     lines = [
         "@echo off",
     ]
@@ -265,8 +264,6 @@ def bat(server, localization, embedded=False):
         lines += ["rem Put the server address (host:1234) here, as given on the server page.",
                   f"set SERVER={server}"]
     lines += [
-        "rem Game language: english, russian, ukrainian, german or polish.",
-        f"set LANGUAGE={localization}",
         "rem It must run from this folder (game\\binaries\\x86): the game finds",
         "rem ..\\..\\resources\\ssl\\survarium_login_server.crt from where it is started.",
         'cd /d "%~dp0"',
@@ -278,7 +275,7 @@ def bat(server, localization, embedded=False):
         '"updater_skhid.exe" ready',
         "if errorlevel 1 goto not_ready",
         ":play",
-        'start "" ' + launch_line("%SERVER%", "%LANGUAGE%", embedded),
+        'start "" ' + launch_line("%SERVER%", embedded),
         "exit /b 0",
         ":not_ready",
         "echo Skhid has not finished updating the game's files (game\\resources.db.patch_*),",
@@ -330,22 +327,27 @@ def vpn_help():
 
 
 def network_setup():
-    """`Skhid-network-setup.cmd`: plain ASCII (cmd reads a script in the
-    console's code page) with CRLF line ends."""
-    script = crlf(Path(HERE, NETWORK_SETUP).read_bytes())
-    script.decode("ascii")
+    """`Skhid-network-setup.cmd`: kept in UTF-8, shipped in code page 866
+    (DOS Cyrillic) with CRLF line ends. cmd reads each line of a script in
+    the console's code page at the time; the script switches it to 866
+    (`chcp 866`) before its first Russian line, so everything above that
+    line is ASCII."""
+    text = Path(HERE, NETWORK_SETUP).read_bytes().decode("utf-8")
+    script = crlf(text.encode("cp866"))
+    switch = script.index(b"\r\nchcp 866 >nul 2>&1\r\n")
+    script[:switch].decode("ascii")
     return script
 
 
-def sh(server, localization, embedded=False):
+def sh(server, embedded=False):
     with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
         # Windows checkouts may use CRLF; Bash and the substitutions need LF.
         script = source.read().replace(b"\r\n", b"\n")
-    return script.replace(b"localization=english\n", f"localization={localization}\n".encode("ascii"), 1).replace(
+    return script.replace(
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 
 
-def readme(server, localization, description, files, embedded=False, site=None):
+def readme(server, description, files, embedded=False, site=None):
     """`site`: the bundle has the launcher and its updater, which ask it."""
     lines = [
         "SURVARIUM 0.26g - SKHID COMMUNITY SERVER FILES (UNOFFICIAL)",
@@ -391,7 +393,8 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "for newer Skhid files and installs them by itself.",
             "",
             "CANNOT REACH THE SERVER?",
-            f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows). In",
+            f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
+            "Russian) and answer Yes when Windows asks for administrator rights. In",
             f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
             "",
             "WHAT THE ARCHIVE ADDS",
@@ -418,8 +421,9 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "original archive first. It needs no administrator rights. What it did is in",
             "game\\binaries\\x86\\updater_skhid.log. If it cannot reach the server but the",
             "files are complete, PLAY still works.",
-            "The language is chosen in the launcher. A changed play_skhid.bat or",
-            "play_skhid.sh is kept until the server offers a newer archive.",
+            "The game's language is chosen in its Settings (Language), the launcher's",
+            "at its top. A changed play_skhid.bat or play_skhid.sh is kept until the",
+            "server offers a newer archive.",
             "",
         ]
     else:
@@ -442,18 +446,15 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "",
         ]
     lines += [
-        "To change the language without the launcher, open play_skhid.bat in a text" if site
-        else "To change the language, open play_skhid.bat in a text editor and set",
-        "editor and set LANGUAGE. On Linux, edit localization near the top of" if site
-        else "LANGUAGE. On Linux, edit localization near the top of play_skhid.sh;",
-        "play_skhid.sh; set server=host:port there to override the login address." if site
-        else "set server=host:port there to override the embedded login address.",
+        "The game's language is chosen in its Settings (Language); it applies at the",
+        "next start. On Linux, set server=host:port near the top of play_skhid.sh",
+        "to override the login address." if site
+        else "to override the embedded login address.",
         "",
         "OPTIONS (in play_skhid.bat)",
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -localization=   language: english, russian, ukrainian, german or polish",
         "  -mt_allocator=768, -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",
@@ -477,7 +478,7 @@ def readme(server, localization, description, files, embedded=False, site=None):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = [a for a in sys.argv[1:] if a.startswith("--")]
-    mode, check, server, localization = "section", False, None, "ukrainian"
+    mode, check, server = "section", False, None
     bugtrap_path = BUGTRAP_DLL
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
@@ -500,8 +501,6 @@ def main():
             mode = option[7:]
         elif option.startswith("--server="):
             server = parse_server(option[9:])
-        elif option.startswith("--localization=") and option[15:] in LOCALIZATIONS:
-            localization = option[15:]
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
         elif option.startswith("--updater="):
@@ -551,8 +550,8 @@ def main():
     files = [
         (os.path.join("game", EXE_DIR, "survarium_skhid.exe"), exe),
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
-        (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, localization, embedded)),
-        (LINUX_LAUNCHER, sh(server, localization, embedded)),
+        (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, embedded)),
+        (LINUX_LAUNCHER, sh(server, embedded)),
         (os.path.join("game", CERT_REL), srp_cert),
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
     ]
@@ -581,7 +580,7 @@ def main():
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
                   for name, data in sorted(launcher_pages.pages(site).items())]
     listed = [(name.replace(os.sep, "/"), sha256(data)) for name, data in files]
-    files.append(("README.txt", readme(server, localization, description, listed, embedded,
+    files.append(("README.txt", readme(server, description, listed, embedded,
                                        site if launcher else None)))
 
     if not check and archive:
@@ -605,7 +604,7 @@ def main():
     print(f"exe: {description}")
     if launcher_description:
         print(f"launcher: {launcher_description}")
-    print(f"launch line: {launch_line(server, localization, embedded)}")
+    print("launch line: " + launch_line(server, embedded))
     if check:
         print("--check: nothing was written")
 

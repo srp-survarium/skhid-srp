@@ -13,18 +13,20 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
+   import flash.text.TextFieldAutoSize;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
+   import scaleform.clik.events.ComponentEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.motion.Tween;
    import survarium.Util;
    import survarium.controls.Message;
-   import survarium.controls.Modals;
+   import survarium.controls.Transient;
    import survarium.controls.PlayerProfileBase;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -34,11 +36,12 @@ package survarium.player
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.constants.AmmoView;
+   import survarium.constants.ProfileSlot;
+   import survarium.item.ModificationRolls;
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
    import survarium.rooms.RoomsLook;
-   import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
    
    public class LocalPlayerProfile extends PlayerProfileBase implements ILocalPlayerProfile
@@ -63,6 +66,8 @@ package survarium.player
       
       public var buyPremium:MovieClip;
       
+      private var _weightIndicator:WeightIndicator;
+
       private var _weightC:Number = 0;
       
       // autobuy_changed's state: whether the autobuy (ammo) box is ticked
@@ -72,6 +77,9 @@ package survarium.player
       private static const AUTOBUY_AMMO:uint = 1;
       
       private var _weightM:Number = 0;
+      
+      // The exe's weight effects, before the kit's items are added to the speed.
+      private var _weightEffects:WeightEffects;
       
       private var _relocateFunctionRef:Function;
       
@@ -132,7 +140,7 @@ package survarium.player
       // The title's text (the owner's of 2026-10-23: bigger): 24 px, the
       // panel's stock title 22; still one line in the bar. Its field is
       // the bar's width less the caret's room each side, so the longest
-      // title of the five languages ("Loadout 3 · nicht spielbar") fits,
+      // title of the supported languages ("Loadout 3 · nicht spielbar") fits,
       // and set 1 px higher so the larger text stays centred in the bar.
       private static const TITLE_SIZE:int = 24;
       
@@ -161,24 +169,6 @@ package survarium.player
       
       // A choice shown before the server's answer, at most this long (ms).
       private static const PRESET_PENDING_MS:int = 5000;
-      
-      // The words, in the lobby's five languages (RoomsText.language: en, uk,
-      // ru, de, pl). Players see "Loadout", never "preset" (the owner's of
-      // 2026-10-23; presets.md has the table). The level's word is the kit
-      // tabs' own ("Lvl."), this one if it is missing. A sale's question:
-      // "one" for one loadout ({n}), "many" for more ({list}: each "item",
-      // the last after "and").
-      private static const PRESET_WORDS:Object = {
-         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw"],
-         "level":["Lvl.","Рів.","Ур.","Stufe","Poz."],
-         "empty":["empty","порожній","пустой","leer","pusty"],
-         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry"],
-         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu."],
-         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?"],
-         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?"],
-         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}"],
-         "sellAnd":[" and "," і "," и "," und "," i "]
-      };
       
       // The title bar's press area and its hover / open look (below the
       // title's text), the caret, and the open list (null: closed) with its
@@ -392,15 +382,13 @@ package survarium.player
          _relocateFunction = link;
       }
       
-      public function updateWeight(cur:Number, max:Number) : void
+      public function updateWeight(cur:Number, max:Number, effects:WeightEffects = null) : void
       {
          _weightC = cur;
          _weightM = max;
-         this.playerWeight.textFieldValue.styleSheet = MainScene.textStyleSheet;
-         var style:String = this._weightC < this._weightM ? "highlight" : "red";
-         this.playerWeight.textFieldValue.text = Util.styledChar(cur.toFixed(2),style) + " / " + Util.getNumberString(max);
-         this.playerWeight.progress_indicator.maximum = this._weightM;
-         this.playerWeight.progress_indicator.value = this._weightC;
+         _weightEffects = effects;
+         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
+         _weightIndicator.update(cur,max,withKitItems(effects));
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -507,6 +495,57 @@ package survarium.player
             trace("invalidateOnEquipped");
             equippedItems.invalidate();
          }
+         // A bonus rerolled or repaired changes the speed without a weight callback.
+         if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
+      }
+      
+      // What each of the kit's items adds (KitItems): the armour's and the pockets'
+      // movement (prop 105) and carry limit (prop 106) from their modifications
+      // (built-in, rolled, defects), one entry an item by its displayed name, and the
+      // first weapon's own movement parameter (the weapon in hand).
+      private function withKitItems(effects:WeightEffects) : WeightEffects
+      {
+         if(effects == null) return effects;
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var kit:KitItems = new KitItems();
+         for(var i:uint = 0; items != null && i < items.length; i++)
+         {
+            var item:ItemData = items[i] as ItemData;
+            if(item == null) continue;
+            var armour:Boolean = item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT;
+            var pocket:Boolean = item.slotId >= ProfileSlot.QUICK_1 && item.slotId <= ProfileSlot.QUICK_6;
+            if(armour || pocket)
+            {
+               // A pocket's booster has the effect's own icon (the shop's consumables
+               // filter icon is a thin stroke that suits none of them); armour its group's.
+               var group:Object = armour ? item.category : null;
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
+            }
+            else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
+               kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
+         }
+         return effects.withItems(kit);
+      }
+      
+      // The sum of a property over the item's modifications (built-in, rolled, defects):
+      // 105 movement speed, 106 carry limit (kg).
+      // A weapon's kill feed icon (ui_desc/combat_log_icon, property 161: weapon-kill-icon-ui-1), or -1.
+      private static function killIconOf(item:ItemData) : int
+      {
+         for each(var prop:Object in item.properties)
+            if(prop.prop_id == 161 && isFinite(ModificationRolls.value(prop))) return int(ModificationRolls.value(prop));
+         return -1;
+      }
+      
+      private static function propOf(item:ItemData, propId:uint) : Number
+      {
+         var sum:Number = 0;
+         for each(var modifier:Object in item.modifiers)
+            for each(var prop:Object in modifier.props)
+               if(prop.prop_id == propId && isFinite(ModificationRolls.value(prop))) sum += ModificationRolls.value(prop);
+         return sum;
       }
       
       public function refillItem(value:uint) : void
@@ -616,6 +655,7 @@ package survarium.player
       protected function onLocal(value:String = "") : void
       {
          this.playerWeight.textFieldLabel.text = LocalizationData.getName("equipment_weight");
+         if(_weightIndicator != null) _weightIndicator.refresh();
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
          this.showPresetTitle();
@@ -637,6 +677,10 @@ package survarium.player
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
          this.checkbox_autobuy.x = this.checkbox_autorepair.x;
+         // Its label as long as its text: the symbol's fixed width cut longer ones
+         // ("Automatikus vásá…"); the row has room up to the speed and weight.
+         this.checkbox_autobuy.textField.wordWrap = false;
+         this.checkbox_autobuy.textField.autoSize = TextFieldAutoSize.LEFT;
          this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
@@ -751,17 +795,16 @@ package survarium.player
       }
       
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
-      // each with its text: the game's own key where it has one ("#key"
-      // when it is missing), else ours, in the lobby's five languages.
+      // each with its text (the maintenance's: %1$s its minutes).
       private static const BLOCK_MAINTENANCE:int = 32;
       
       private static const REASONS:Array = [
-         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany"]},
-         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu"]},
-         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach"]},
-         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni"]},
-         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni"]},
-         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min"]}
+         {"bit":1,"key":"st_srp_loadout_block_locked"},
+         {"bit":2,"key":"st_srp_loadout_block_shared_slot"},
+         {"bit":4,"key":"st_srp_loadout_block_pocket_twice"},
+         {"bit":8,"key":"st_srp_loadout_block_ammo"},
+         {"bit":16,"key":"st_srp_loadout_block_weapon"},
+         {"bit":BLOCK_MAINTENANCE,"key":"st_srp_loadout_block_maintenance"}
       ];
       
       // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or
@@ -792,14 +835,8 @@ package survarium.player
             {
                continue;
             }
-            var text:String = reason.key != null ? LocalizationData.getName(String(reason.key)) : "";
-            if(text == "" || text.charAt(0) == "#")
-            {
-               text = String(reason.words[RoomsText.language()]);
-            }
-            // A line each, no full stop at its end (the owner's of
-            // 2026-10-23), the game's own texts too.
-            text = text.split("{n}").join(String(Math.max(0,me._maintenanceMinutes)));
+            // A line each, no full stop at its end (the owner's of 2026-10-23).
+            var text:String = LocalizationData.format(String(reason.key),Math.max(0,me._maintenanceMinutes));
             while(text.length > 0 && (text.charAt(text.length - 1) == "." || text.charAt(text.length - 1) == " "))
             {
                text = text.substr(0,text.length - 1);
@@ -888,15 +925,15 @@ package survarium.player
          }
          if(numbers.length == 1)
          {
-            return presetWord("sellOne").split("{n}").join(String(numbers[0]));
+            return LocalizationData.format("st_srp_loadout_sell_one",numbers[0]);
          }
          var items:Array = [];
          for each(var number:int in numbers)
          {
-            items.push(presetWord("sellItem").split("{n}").join(String(number)));
+            items.push(LocalizationData.format("st_srp_loadout_sell_item",number));
          }
          var last:String = String(items.pop());
-         return presetWord("sellMany").split("{list}").join(items.join(", ") + presetWord("sellAnd") + last);
+         return LocalizationData.format("st_srp_loadout_sell_many",items.join(", ") + LocalizationData.getName("st_srp_loadout_sell_and") + last);
       }
       
       // The roman numerals of the five loadouts (ItemRendererInv's badge).
@@ -943,11 +980,6 @@ package survarium.player
             n = last + 1;
          }
          return parts.join(" ");
-      }
-      
-      private static function presetWord(key:String) : String
-      {
-         return String(PRESET_WORDS[key][RoomsText.language()]);
       }
       
       // The title bar's press area over the panel, the title's text (which
@@ -997,6 +1029,7 @@ package survarium.player
          // itself (scaleform-movie-pitfalls) is found by its point.
          addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
          addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
+         addEventListener(ComponentEvent.HIDE,this.onPresetsGone);
          this.showPresetTitle();
          this._presetsRetry = new Timer(2000,0);
          this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
@@ -1058,9 +1091,11 @@ package survarium.player
          return this.presetName(i) + (detail != "" ? " · " + detail : "");
       }
       
+      // Players see "Loadout", never "preset" (the owner's of 2026-10-23;
+      // presets.md has the table).
       private function presetName(i:int) : String
       {
-         return presetWord("preset") + " " + (i + 1);
+         return LocalizationData.getName("st_srp_loadout_title") + " " + (i + 1);
       }
       
       // The level, or why there is none ("": not known yet).
@@ -1073,18 +1108,14 @@ package survarium.player
          }
          if(!preset.saved)
          {
-            return presetWord("empty");
+            return LocalizationData.getName("st_srp_loadout_empty");
          }
          if(preset.level < 0)
          {
-            return presetWord("unfit");
+            return LocalizationData.getName("st_srp_loadout_unfit");
          }
-         var level:String = LocalizationData.getName("clan_players_level_label");
-         if(level == null || level == "" || level == "clan_players_level_label")
-         {
-            level = presetWord("level");
-         }
-         return level + " " + preset.level;
+         // The kit tabs' own word ("Lvl.").
+         return LocalizationData.getName("clan_players_level_label") + " " + preset.level;
       }
       
       // The preset the title names: the one chosen while unanswered.
@@ -1173,8 +1204,7 @@ package survarium.player
          this.drawPresetTitle();
       }
       
-      // A press on the title opens or closes the list. A press on a row the
-      // list missed (given to the panel) chooses that row.
+      // A press on the title opens or closes the list.
       private function onPanelPress(e:MouseEvent) : void
       {
          if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
@@ -1191,17 +1221,12 @@ package survarium.player
             {
                this.openPresetList();
             }
-            return;
          }
-         if(e.target != this || this._presetList == null)
-         {
-            return;
-         }
-         this.choosePresetAt(e.stageX,e.stageY);
       }
       
-      // The row under a stage point chosen (a press given to the panel or
-      // the list itself: scaleform-movie-pitfalls).
+      // The row under a stage point chosen (a press given to the list itself:
+      // scaleform-movie-pitfalls; one given to the transient layer's holder comes
+      // to the list too, Transient.onHolderPress).
       private function choosePresetAt(stageX:Number, stageY:Number) : void
       {
          var i:int = 0;
@@ -1262,14 +1287,10 @@ package survarium.player
          this._presetList = list;
          this.fillPresetRows();
          addChild(list);
-         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
-         addEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
-         // a modal (Modals): Esc closes the list with no change
-         Modals.open(list,Modals.LOBBY,this.closePresetList,function():Boolean
-         {
-            return _presetList == list && list.stage != null;
-         });
+         // a transient window (Transient, docs/notes/transient-windows.md): a press outside the
+         // list and the title, Esc or a window opening closes it with no change
+         Transient.open(list,this._presetTitle,this.closePresetList);
       }
       
       private function rowText() : TextField
@@ -1407,7 +1428,7 @@ package survarium.player
          }
          var list:Sprite = this._presetList;
          this._presetList = null;
-         Modals.leave(list);
+         Transient.closed(list);
          for each(var row:Sprite in this._presetRows)
          {
             row.removeEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
@@ -1424,47 +1445,10 @@ package survarium.player
          {
             list.parent.removeChild(list);
          }
-         if(stage != null)
-         {
-            stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
-         }
-         removeEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
       }
       
-      // A press outside the title and the list closes it, no choice.
-      private function onStagePress(e:MouseEvent) : void
-      {
-         if(this._presetList == null)
-         {
-            return;
-         }
-         if(this._presetList.hitTestPoint(e.stageX,e.stageY,false) || this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
-         {
-            return;
-         }
-         this.closePresetList();
-      }
-      
-      // The panel hidden (closed, another window) closes the list.
-      private function watchPresetList(e:Event) : void
-      {
-         var at:DisplayObject = this;
-         while(at != null)
-         {
-            if(!at.visible)
-            {
-               this.closePresetList();
-               return;
-            }
-            at = at.parent;
-         }
-         if(stage == null)
-         {
-            this.closePresetList();
-         }
-      }
-      
+      // The panel hidden (another window) or gone closes the list.
       private function onPresetsGone(e:Event) : void
       {
          this._presetHover = false;
@@ -1659,7 +1643,7 @@ package survarium.player
          // owner's of 2026-10-23).
          if(done == PRESET_REFUSED)
          {
-            Message.showMessage("ok",presetWord("refused"));
+            Message.showMessage("ok",LocalizationData.getName("st_srp_loadout_refused"));
          }
       }
    }

@@ -106,15 +106,17 @@ use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::players::{self, Supplies};
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
-use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
+use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, event};
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
+use world_frame::{Frame, Places};
 
 use super::battery_cap;
+use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
@@ -748,6 +750,9 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
+    /// Uploads no game could load (`world_frame::Frame::parse`): sent to
+    /// nobody.
+    uploads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
     restores_unagreed: u32,
@@ -882,6 +887,8 @@ pub(crate) struct Game {
     mode_end_at: Option<u32>,
     state: Option<Observed>,
     best_streaks: Vec<u16>,
+    /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
+    kill_pairs: kill_cap::Pairs,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -956,6 +963,7 @@ impl Game {
             mode_end_at: None,
             state: None,
             best_streaks: vec![0; players],
+            kill_pairs: kill_cap::Pairs::default(),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -990,11 +998,12 @@ impl Game {
             "mode": map.mode,
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
+            "vs_bots": self.formed.vs_bots,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, header, now));
+        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
     }
 
     /// The places from `from` on, for a recording.
@@ -1312,6 +1321,7 @@ impl Game {
             inputs_relayed_late: 0,
             inputs_moved: 0,
             inputs_refused: 0,
+            uploads_refused: 0,
             resyncs: 0,
             restores_unagreed: 0,
             latest_input_ms: 0,
@@ -3559,6 +3569,19 @@ impl Game {
     }
 
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
+        // A solo human's inputs have no recipient. Keep the accepted
+        // action after rejection/retiming, not the unchecked inbound packet.
+        if self.formed.vs_bots
+            && !self.formed.places[index].driven
+            && let Some(recording) = self.recording.as_mut()
+        {
+            match what {
+                Relayed::Input(input) => recording.accepted_input(index, time, input, now),
+                Relayed::Profile { value, .. } => {
+                    recording.accepted_profile(index, time, *value, now)
+                }
+            }
+        }
         let message = relay(index, what);
         let clock = self.clock(now);
         for (other, peer) in self.peers.iter_mut().enumerate() {
@@ -3607,6 +3630,7 @@ impl Game {
         let clock = self.clock(now);
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
+        let places = Places::of(self.snapshot_players());
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3632,6 +3656,27 @@ impl Game {
                 return;
             }
         }
+        // A world no game could load goes to nobody: a game reads a world
+        // with no check of its own (world_frame_check.md), so its frame must
+        // walk from the front to its end, its mask name no place past the
+        // roster, and no section or player state be over the game's buffer
+        // for it. The game runs the same parse before it loads a world
+        // (exe patch 87). No world a game made was refused so (10 730 kept
+        // worlds). Its client stays asked: a world of its that loads may
+        // still come.
+        if let Err(refusal) = Frame::parse(&snapshot.body, places) {
+            peer.uploads_refused += 1;
+            if peer.uploads_refused <= REFUSED_LOGGED {
+                log::warn!(
+                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a game \
+                     could load, {refusal}; sent to nobody",
+                    snapshot.time,
+                    snapshot.body.len()
+                );
+            }
+            self.dump(&snapshot, index, "unloadable");
+            return;
+        }
         peer.asked = None;
         peer.unanswered_since = None;
         if !initial && let Some(asked_at) = peer.wrong_world_asked.take() {
@@ -3651,19 +3696,6 @@ impl Game {
         peer.simulating_at = Some(now);
         if !initial && let Some(asked) = peer.asked_clock.take() {
             observe_upload(&mut peer.upload_offset, asked, snapshot.time);
-        }
-        // The server needs no more of a world than its bytes; that it does
-        // not split into its sections here says the reader is wrong (no
-        // 0.26g world was seen when it was written) as likely as the world.
-        // It is used, saved to look at, and gives no results.
-        if Sections::candidates(&snapshot.body).is_empty() {
-            log::warn!(
-                "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) does not read as a \
-                 world (a mask, players and six sections); used as it is, without results",
-                snapshot.time,
-                snapshot.body.len()
-            );
-            self.dump(&snapshot, index, "unreadable");
         }
         if initial {
             self.first_snapshot(index, snapshot, now);
@@ -3811,6 +3843,11 @@ impl Game {
                     .max(player.longest_killstreak)
                     .max(u16::from(player.killstreak));
             }
+            let before = self
+                .state
+                .as_ref()
+                .and_then(|state| state.statistics.as_ref());
+            self.kill_pairs.observe(before, statistics, &teams);
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -4732,6 +4769,33 @@ impl Game {
                 statistics
             });
         let statistics = statistics.as_ref();
+        let payment = statistics.map(|played| {
+            let payment = super::reward_caps::Payment::of(
+                played,
+                &self.kill_pairs,
+                self.game_mode(),
+                self.formed.vs_bots,
+            );
+            for cut in &payment.objectives {
+                log::info!(
+                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.scored,
+                    cut.paid
+                );
+            }
+            for cut in &payment.kills {
+                log::info!(
+                    "Match {:#x}: place {}'s repeated kills counted {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.counted,
+                    cut.paid
+                );
+            }
+            payment
+        });
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
@@ -4786,6 +4850,10 @@ impl Game {
                     left,
                     time_in_match_ms: in_match,
                     statistics: own.cloned(),
+                    pay_statistics: payment
+                        .as_ref()
+                        .and_then(|p| p.statistics.players.get(index))
+                        .cloned(),
                     score: own.map_or(0, |player| {
                         snapshot::score(player, &self.formed.score_weights)
                     }),
@@ -4815,6 +4883,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
+            blackout: self.formed.blackout,
         }
     }
 
@@ -5942,15 +6011,16 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, the latest {} ms, resynced {} \
-         times, started once more after its first world {} times, round trip {} ms, {} messages \
-         to it sent again, our seq skipped ahead {} times, {} of {} relays and roster changes \
-         never acked, {} relayed late at their tick",
+         and discarded, {} moved, {} refused for their rotation, {} uploads no game could \
+         load, the latest {} ms, resynced {} times, started once more after its first world {} \
+         times, round trip {} ms, {} messages to it sent again, our seq skipped ahead {} times, \
+         {} of {} relays and roster changes never acked, {} relayed late at their tick",
         peer.inputs_received,
         peer.inputs_late,
         peer.inputs_discarded,
         peer.inputs_moved,
         peer.inputs_refused,
+        peer.uploads_refused,
         peer.latest_input_ms,
         peer.resyncs,
         peer.reloads,
@@ -6137,6 +6207,14 @@ impl Game {
         self.peers[index]
             .as_ref()
             .map_or(0, |peer| peer.inputs_refused)
+    }
+
+    /// How many of its uploads were sent to nobody: no game could load
+    /// them.
+    pub fn uploads_refused(&self, index: usize) -> u32 {
+        self.peers[index]
+            .as_ref()
+            .map_or(0, |peer| peer.uploads_refused)
     }
 
     pub fn rule_state(&self) -> u8 {

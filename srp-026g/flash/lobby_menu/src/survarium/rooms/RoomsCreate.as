@@ -6,7 +6,6 @@ package survarium.rooms
     import flash.display.Sprite;
     import flash.events.Event;
     import flash.events.MouseEvent;
-    import flash.geom.Point;
     import flash.text.TextField;
     import flash.utils.getTimer;
     import survarium.player.LocalPlayerProfile;
@@ -14,8 +13,8 @@ package survarium.rooms
     import survarium.constants.GameMode;
     import survarium.constants.RoomCode;
 
-    // Making a room: size, players to start, max level, wait, PIN, the
-    // modes, then the pool's tiles (a map and weather each). It opens as
+    // Making a private room: required PIN, modes, and the pool's map and
+    // weather tiles. It opens as
     // the player's last room made by hand, which the server keeps (`S1;F`,
     // the owner's of 2026-10-20) and the window has had since the lobby
     // came up (RoomsWindow._form; the owner's of 2026-10-25: opened filled,
@@ -23,16 +22,10 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH,
-            GameMode.RESEARCH];
-        // A slider after the design: the label and the gold value on one
-        // line, a thin track gold up to a round gold knob, its range small
-        // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
-        // slider is redrawn.
+        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch and Research.
+        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
         private static const TRACK_X:Number = 14;
-        private static const TRACK_W:Number = 406;
-        private static const KNOB_R:Number = 8;
-        private static const SLIDER_H:Number = 64;
         // The wait index sent when the wait is none of WAITS: 30 s.
         private static const WAIT_INDEX_DEFAULT:int = 3;
         // The window's defaults, the server's (room_settings::DEFAULT_*; a
@@ -52,8 +45,6 @@ package survarium.rooms
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
         private var _modesOff:Object = {};
-        internal var _sliders:Object = {};
-        private var _drag:String = null;
         // What the create on its way makes (`kept`): the window's start
         // once its room is made (`made`, Back pressed meanwhile too); none
         // once it is refused or Play chosen instead (`notMade`).
@@ -61,6 +52,7 @@ package survarium.rooms
         internal var _makePin:TextField;
         // What was typed in it, kept across redraws (a tile clicked, a mode).
         internal var _makePinText:String = "";
+        private var _createButton:Object;
 
         public function RoomsCreate(win:RoomsWindow)
         {
@@ -217,29 +209,28 @@ package survarium.rooms
         internal function render():void
         {
             var y:Number = 50;
-            look.text(look._content, win.say("name").toUpperCase(), 14, y, 100, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_name").toUpperCase(), 14, y, 100, 12, RoomsLook.DIM);
             look.text(look._content, myName(), 110, y - 3, FORM_W - 110, 17, RoomsLook.LIGHT);
             y += 30;
-            look.text(look._content, win.say("pin").toUpperCase(), 14, y + 4, 100, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_pin").toUpperCase(), 14, y + 4, 100, 12, RoomsLook.DIM);
             _makePin = look.input(look._content, 110, y, _makePinText);
-            look.text(look._content, win.say("pinHint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
+            _makePin.addEventListener(Event.CHANGE, onPinChange, false, 0, true);
+            look.text(look._content, win.say("st_srp_rooms_pin_hint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
             y += 38;
-            slider(y, win.say("size"), "size");
-            y += SLIDER_H;
-            slider(y, win.say("minPlayers"), "min");
-            y += SLIDER_H;
-            slider(y, win.say("max"), "max");
-            y += SLIDER_H;
-            slider(y, win.say("wait"), "wait");
-            y += SLIDER_H + 12;
-            // The modes: the two kinds of protective device apart, team
+            // Only private rooms can be made by hand; public rooms grow
+            // with Play's demand. A private room is started by its owner.
+            look.text(look._content, win.say("st_srp_rooms_private_room"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
+            y += 48;
+            // The modes the server's pool offers, in MODE_ORDER: the three kinds
+            // of protective device apart (plain, chargers, blackout), team
             // deathmatch and Research; a mode out takes all its entries out of
             // the pool. Rows of 24 px: four fit where three of 30 did.
-            look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
-            for (var mi:int = 0; mi < MODE_ORDER.length; mi++)
+            var offered:Array = poolModes();
+            for (var mi:int = 0; mi < offered.length; mi++)
             {
-                var mode:int = MODE_ORDER[mi];
+                var mode:int = offered[mi];
                 var toggle:Sprite = new Sprite();
                 toggle.x = 14;
                 toggle.y = y - 14;
@@ -262,10 +253,21 @@ package survarium.rooms
                 y += 24;
             }
             win.message(look._h - RoomsLook.FOOT_H - 30);
-            var made:Array = look.footer([[win.say("back"), onBack, null], [win.say("create"), onCreate, null]]);
+            var made:Array = look.footer([[win.say("st_srp_rooms_back"), onBack, null], [win.say("st_srp_rooms_create"), onCreate, null]]);
             // No map chosen: nothing to make, the button is off.
-            made[1].enabled = poolChosen();
+            _createButton = made[1];
+            _createButton.enabled = poolChosen() && _makePinText.length == RoomsWire.PIN_DIGITS;
             renderPool();
+        }
+
+        // Validate the PIN without replacing the focused input.
+        private function onPinChange(e:Event):void
+        {
+            if (_makePin == null)
+                return;
+            _makePinText = _makePin.text;
+            if (_createButton != null)
+                _createButton.enabled = poolChosen() && _makePinText.length == RoomsWire.PIN_DIGITS;
         }
 
         private function myName():String
@@ -298,11 +300,11 @@ package survarium.rooms
             for (var t:int = 0; t < tiles.length; t++)
                 if (tiles[t].on)
                     on++;
-            look.text(look._content, win.say("pool").toUpperCase() + ": " + on + " / " + tiles.length,
+            look.text(look._content, win.say("st_srp_rooms_pool").toUpperCase() + ": " + on + " / " + tiles.length,
                 x0 + 16, 58, 260, 16, RoomsLook.LIGHT);
-            look.text(look._content, win.say("poolHint"), x0 + 230, 60, w - 430, 14, RoomsLook.GREY);
-            look.button(look._content, win.say("all"), x0 + w - 190, 54, 84, onAll, true);
-            look.button(look._content, win.say("nothing"), x0 + w - 100, 54, 84, onAll, false);
+            look.text(look._content, win.say("st_srp_rooms_pool_hint"), x0 + 230, 60, w - 430, 14, RoomsLook.GREY);
+            look.button(look._content, win.say("st_srp_rooms_all"), x0 + w - 190, 54, 84, onAll, true);
+            look.button(look._content, win.say("st_srp_rooms_nothing"), x0 + w - 100, 54, 84, onAll, false);
             // The maps in the pool's order, each with its weathers.
             var rows:Array = [];
             var at:Object = {};
@@ -367,7 +369,7 @@ package survarium.rooms
                     edge.graphics.lineStyle(2, one.on ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
-                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : ""),
+                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("st_srp_rooms_experimental").toUpperCase() : ""),
                         0, ch - 22 + 3, cw, 12, 0xFFFFFF, "center");
                     chip.buttonMode = true;
                     chip.mouseChildren = false;
@@ -409,61 +411,6 @@ package survarium.rooms
             win.render();
         }
 
-        private function slider(y:Number, label:String, what:String):void
-        {
-            look.text(look._content, label.toUpperCase(), TRACK_X, y + 4, 260, 12, RoomsLook.DIM);
-            var value:TextField = look.text(look._content, "", TRACK_X + TRACK_W - 160, y - 2, 160, 18, RoomsLook.GOLD, "right");
-            var box:Sprite = new Sprite();
-            box.x = TRACK_X;
-            box.y = y + 24;
-            box.name = what;
-            box.buttonMode = true;
-            var hit:Shape = new Shape();
-            // Not alpha 0: Scaleform hit-tests no fully clear fill.
-            hit.graphics.beginFill(0x000000, 0.01);
-            hit.graphics.drawRect(-KNOB_R, -4, TRACK_W + 2 * KNOB_R, 28);
-            hit.graphics.endFill();
-            box.addChild(hit);
-            var bar:Shape = new Shape();
-            box.addChild(bar);
-            box.addEventListener(MouseEvent.MOUSE_DOWN, onSlide, false, 0, true);
-            look.route(box, function(control:DisplayObject, e:MouseEvent):void
-            {
-                startSlide(control.name, e.stageX);
-            });
-            look._content.addChild(box);
-            // Its range, small and dim right under the track, and a line under
-            // the whole: each slider a block of its own.
-            var list:Array = stops(what);
-            look.text(look._content, stopText(what, int(list[0])), TRACK_X, y + 40, 120, 11, 0x5E6E7A);
-            look.text(look._content, stopText(what, int(list[list.length - 1])), TRACK_X + TRACK_W - 120, y + 40, 120, 11,
-                0x5E6E7A, "right");
-            var rule:Shape = new Shape();
-            rule.graphics.beginFill(0x232C34, 1);
-            rule.graphics.drawRect(TRACK_X, y + SLIDER_H - 6, TRACK_W, 1);
-            rule.graphics.endFill();
-            look._content.addChild(rule);
-            _sliders[what] = {"box": box, "bar": bar, "value": value};
-            drawSlider(what);
-        }
-
-        private function stopText(what:String, v:int):String
-        {
-            return what == "wait" ? startText(v) : what == "size" || what == "min" ? v + " v " + v
-                : win.levelText(v);
-        }
-
-        // The time to start a wait makes: the vote's own 15 s and the wait
-        // (the owner's of 2026-10-19: the vote runs until the match starts,
-        // its time added to the wait; 30 s at the least).
-        private function startText(wait:int):String
-        {
-            var all:int = wait + RoomsWire.VOTE_SECS;
-            if (all < 60)
-                return all + " " + win.say("sec");
-            return int(all / 60) + " " + win.say("min") + (all % 60 != 0 ? " " + (all % 60) + " " + win.say("sec") : "");
-        }
-
         // A slider's places: the values it stops at, in order.
         private function stops(what:String):Array
         {
@@ -484,90 +431,18 @@ package survarium.rooms
             return list;
         }
 
-        private function valueOf(what:String):int
+        // The modes of the pool's entries, in MODE_ORDER.
+        private function poolModes():Array
         {
-            if (what == "max" && _max != RoomsWire.LEVEL_ANY && _max < win._gear)
-                _max = RoomsWire.LEVEL_ANY;
-            return what == "size" ? _size : what == "min" ? _minSide : what == "wait" ? _wait : _max;
-        }
-
-        private function drawSlider(what:String):void
-        {
-            var s:Object = _sliders[what];
-            if (s == null)
-                return;
-            var list:Array = stops(what);
-            var at:int = Math.max(0, list.indexOf(valueOf(what)));
-            var kx:Number = list.length > 1 ? TRACK_W * at / (list.length - 1) : 0;
-            var g:* = s.bar.graphics;
-            g.clear();
-            // Plain rectangles of one height: the gold part on the track
-            // exactly (Scaleform's round rectangles come out uneven).
-            g.beginFill(0x3A434B, 1);
-            g.drawRect(0, 8, TRACK_W, 4);
-            g.endFill();
-            if (kx > 0)
-            {
-                g.beginFill(RoomsLook.GOLD, 1);
-                g.drawRect(0, 8, kx, 4);
-                g.endFill();
-            }
-            g.beginFill(0x0B0E11, 1);
-            g.drawCircle(kx, 10, KNOB_R + 2);
-            g.endFill();
-            g.beginFill(RoomsLook.GOLD, 1);
-            g.drawCircle(kx, 10, KNOB_R);
-            g.endFill();
-            var v:int = valueOf(what);
-            s.value.text = stopText(what, v);
-        }
-
-        private function onSlide(e:MouseEvent):void
-        {
-            startSlide(e.currentTarget.name, e.stageX);
-        }
-
-        private function startSlide(what:String, stageX:Number):void
-        {
-            RoomsLook.clickSound();
-            _drag = what;
-            slideTo(stageX);
-            if (win.stage == null)
-                return;
-            win.stage.addEventListener(MouseEvent.MOUSE_MOVE, onSlideMove);
-            win.stage.addEventListener(MouseEvent.MOUSE_UP, onSlideUp);
-        }
-
-        private function onSlideMove(e:MouseEvent):void
-        {
-            slideTo(e.stageX);
-        }
-
-        private function onSlideUp(e:MouseEvent):void
-        {
-            e.currentTarget.removeEventListener(MouseEvent.MOUSE_MOVE, onSlideMove);
-            e.currentTarget.removeEventListener(MouseEvent.MOUSE_UP, onSlideUp);
-            _drag = null;
-        }
-
-        private function slideTo(stageX:Number):void
-        {
-            var s:Object = _drag != null ? _sliders[_drag] : null;
-            if (s == null)
-                return;
-            var local:Number = s.box.globalToLocal(new Point(stageX, 0)).x;
-            var list:Array = stops(_drag);
-            var at:int = Math.round(Math.max(0, Math.min(1, local / TRACK_W)) * (list.length - 1));
-            var v:int = int(list[at]);
-            if (_drag == "size")
-                _size = v;
-            else if (_drag == "min")
-                _minSide = v;
-            else if (_drag == "wait")
-                _wait = v;
-            else
-                _max = v;
-            drawSlider(_drag);
+            var modes:Array = [];
+            for (var m:int = 0; m < MODE_ORDER.length; m++)
+                for (var i:int = 0; i < win._pool.length; i++)
+                    if (int(win._pool[i].mode) == MODE_ORDER[m])
+                    {
+                        modes.push(MODE_ORDER[m]);
+                        break;
+                    }
+            return modes;
         }
 
         // The pool's entries by map and weather: a tile takes all its modes.
@@ -641,7 +516,7 @@ package survarium.rooms
                 return;
             win.busy(e);
             var typedPin:String = _makePin != null ? _makePin.text : "";
-            if (typedPin.length > 0 && typedPin.length != RoomsWire.PIN_DIGITS)
+            if (typedPin.length != RoomsWire.PIN_DIGITS)
             {
                 win.pinRefused();
                 return;
@@ -662,16 +537,14 @@ package survarium.rooms
             var used:int = win._pool.length > 0 ? int((win._pool.length + (RoomsWire.BITS_PER_CHUNK - 1)) / RoomsWire.BITS_PER_CHUNK) : 1;
             for (var c:int = 0; c < used && c < RoomsWire.CHUNKS; c++)
                 win._steps.push(RoomsWire.BITS + c * RoomsWire.CHUNK_STEP + chunks[c]);
-            var pinText:String = _makePin != null ? _makePin.text : "";
-            var withPin:Boolean = pinText.length > 0;
             var wait:int = RoomsWire.WAITS.indexOf(_wait);
             if (wait < 0)
                 wait = WAIT_INDEX_DEFAULT;
-            valueOf("max");
-            var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
+            // Keep the form's legacy fields on the wire; the server ignores
+            // them for a private room and remembers its map/mode selection.
+            var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + 1) * RoomsWire.MIN_SIDES + (_minSide - 1);
             win._steps.push(RoomsWire.CREATE + code);
-            if (withPin)
-                win._steps.unshift(RoomsWire.PIN + int(pinText));
+            win._steps.unshift(RoomsWire.PIN + int(typedPin));
             if (!any)
             {
                 win._steps = [];

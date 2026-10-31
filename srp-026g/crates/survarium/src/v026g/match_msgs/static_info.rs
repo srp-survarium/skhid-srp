@@ -14,6 +14,12 @@
 //! 20 × u8                 squad ids
 //! ```
 //!
+//! The client reads the fields above and nothing after them; srp's block
+//! after them ("SRPX", then tagged entries) is read by exe patches only:
+//! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
+//! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
+//! 0x1F096C); tag 1 is kept for team damage (#370).
+//!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
 //! So [`StaticInfo::new`] refuses what the client cannot hold, and
@@ -53,6 +59,7 @@ pub const MAX_MESSAGE: usize = 255 * 483;
 /// The new-player protection value that protects nothing: the damage
 /// factor is `max(0, 1 − 0.1 × value)`.
 pub const NO_PROTECTION: u32 = 10;
+
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.
 pub const KIT_USABLE: u8 = 0;
@@ -89,13 +96,18 @@ pub const FULL_CONDITION: u32 = 1_000_000;
 ///
 /// The match pays by the score of the events that are no kill and no help
 /// (`session::v026g::pay`), with these same weights.
+///
+/// An anomaly's artefact scores [`ARTEFACT_SCORE`] taken into an empty
+/// artefact slot and [`ARTEFACT_SCORE_SLOTS_FULL`] with every slot full
+/// (the owner, 2026-10-29; `docs/notes/artefact-score.md`): the game counts
+/// event 5 for each, exe patch 80 counts event 16 too for the first.
 pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     10.0, // kill (sourced)
     5.0,  // assist (sourced)
     0.0,  // death
     0.0,  // suicide
     0.0,  // team kill
-    2.0,  // artefact
+    ARTEFACT_SCORE_SLOTS_FULL, // artefact (every one an anomaly gives)
     10.0, // bring victory item (x0.01 by the client)
     2.5,  // teammate cure
     2.5,  // teammate rescue
@@ -106,7 +118,7 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     2.5,  // melee kill
     2.5,  // silent kill
     2.5,  // headshot kill
-    0.0,  // winning team victory item bonus
+    ARTEFACT_SCORE - ARTEFACT_SCORE_SLOTS_FULL, // an artefact into an empty slot (patch 80)
     35.0, // steal victory item (x0.01) (sourced)
     10.0, // recover victory item (x0.01)
     2.5,  // victory item found
@@ -119,6 +131,14 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // stolen battery brought home
     0.0,  // a new player's match
 ];
+
+/// An anomaly's artefact taken into an empty artefact slot: event 5 and
+/// event 16 together (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE: f32 = 15.0;
+/// An anomaly's artefact taken with every artefact slot full (it takes the
+/// first slot's place): event 5 alone. Less, so that a player hands one to
+/// a teammate first (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE_SLOTS_FULL: f32 = 5.0;
 
 /// What Research (mode 5) weighs otherwise: its rule counts a unit's
 /// capture in event 6 and a neutralisation in event 18 (hundredths, a
@@ -307,7 +327,17 @@ pub struct MatchOptions {
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// A Blackout match (srp's block, tag 2; exe patch 65,
+    /// `docs/notes/blackout.md`): no interface for anyone, the players'
+    /// markers on Tab. `false`: the entry not sent.
+    pub blackout: bool,
 }
+
+/// srp's block after the options: its magic, then tagged entries
+/// `{u8 tag, u8 len, len bytes}`.
+pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
+/// The entry of [`MatchOptions::blackout`]: one byte, 1.
+pub const SRPX_BLACKOUT: u8 = 2;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -350,6 +380,8 @@ pub enum StaticInfoError {
     Truncated,
     /// Reading: bytes are left over.
     Trailing(usize),
+    /// Reading: srp's block after the options is not one the patches read.
+    SrpBlock,
     /// Reading: the stream is not stored LZMA2 chunks.
     Lzma2,
     /// Reading: the local index is not below N.
@@ -386,6 +418,7 @@ impl std::fmt::Display for StaticInfoError {
             Self::TooLarge(len) => write!(f, "{len} bytes of options"),
             Self::Truncated => write!(f, "the options end early"),
             Self::Trailing(len) => write!(f, "{len} bytes after the options"),
+            Self::SrpBlock => write!(f, "srp's block after the options is not one the patches read"),
             Self::Lzma2 => write!(f, "not a stored LZMA2 stream"),
             Self::LocalIndex { index, roster } => {
                 write!(f, "local index {index} in a roster of {roster}")
@@ -599,6 +632,14 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
+    let mut block = Vec::new();
+    if options.blackout {
+        block.extend([SRPX_BLACKOUT, 1, 1]);
+    }
+    if !block.is_empty() {
+        out.extend(SRPX_MAGIC);
+        out.extend(block);
+    }
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -831,6 +872,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
+    let blackout = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -851,7 +893,34 @@ pub fn parse_options(
         match_id,
         match_level,
         score_weights,
+        blackout,
     })
+}
+
+/// srp's block after the options, if any: as patch 65's reader reads it, but
+/// strict (an unknown tag or a short entry is refused, so a test sees it).
+fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+    if reader.bytes.is_empty() {
+        return Ok(false);
+    }
+    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    let mut blackout = false;
+    while !reader.bytes.is_empty() {
+        let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let mut entry = Reader {
+            bytes: reader
+                .take(usize::from(len))
+                .map_err(|_| StaticInfoError::SrpBlock)?,
+        };
+        match (tag, len) {
+            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
+            _ => return Err(StaticInfoError::SrpBlock),
+        }
+    }
+    Ok(blackout)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -932,6 +1001,30 @@ mod tests {
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
+            blackout: false,
+        }
+    }
+
+    #[test]
+    fn blackout_is_an_entry_of_the_block_and_reads_back() {
+        let mut with = options(vec![alice()]);
+        let without = options_bytes(&with, dictionary()).unwrap();
+        with.blackout = true;
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // Another value or length, an unknown tag, another magic: refused.
+        for bad in [
+            &b"SRPX\x02\x01\x00"[..],
+            &b"SRPX\x02\x02\x01\x01"[..],
+            &b"SRPX\x09\x00"[..],
+            &b"SRPY\x02\x01\x01"[..],
+        ] {
+            assert_eq!(
+                parse_options(&[&without[..], bad].concat(), dictionary()),
+                Err(StaticInfoError::SrpBlock)
+            );
         }
     }
 
@@ -984,7 +1077,7 @@ mod tests {
         assert_eq!(SCORE_WEIGHTS[17], 35.0);
         // The events the client adds at the end, and the new ones, score
         // nothing.
-        for event in [2, 3, 4, 11, 12, 16, 22, 23, 24, 25, 26, 27] {
+        for event in [2, 3, 4, 11, 12, 22, 23, 24, 25, 26, 27] {
             assert_eq!(SCORE_WEIGHTS[event], 0.0, "{event}");
         }
         // On the wire: little-endian f32, 28 of them before the squads.
@@ -995,6 +1088,27 @@ mod tests {
             [0x00, 0x00, 0x20, 0x41, 0x00, 0x00, 0xA0, 0x40]
         );
         assert_eq!(weights[17 * 4..18 * 4], [0x00, 0x00, 0x0C, 0x42]);
+    }
+
+    #[test]
+    fn an_artefact_scores_15_into_an_empty_slot_and_5_with_every_slot_full() {
+        use super::super::snapshot::{self, event};
+        // What the clients count for one artefact taken with kit 1.
+        let taken = |slot_free: bool| {
+            let mut player = snapshot::PlayerStatistics::default();
+            player.events[event::ARTEFACT][1] = 1;
+            if slot_free {
+                player.events[event::WINNING_TEAM_VI_BONUS][1] = 1;
+            }
+            snapshot::score(&player, &SCORE_WEIGHTS)
+        };
+        assert_eq!(taken(true), 15);
+        assert_eq!(taken(false), 5);
+        // Research weighs them the same.
+        assert_eq!(
+            score_weights(super::super::super::maps::mode::RESEARCH)[event::WINNING_TEAM_VI_BONUS],
+            10.0
+        );
     }
 
     #[test]
@@ -1338,7 +1452,7 @@ mod tests {
         long.push(0);
         assert_eq!(
             parse_options(&long, dictionary()),
-            Err(StaticInfoError::Trailing(1))
+            Err(StaticInfoError::SrpBlock)
         );
         // Four kits announced: the fourth would overwrite the item table.
         let mut bytes = good.clone();

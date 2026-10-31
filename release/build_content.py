@@ -260,6 +260,15 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
 def edit_paths(edits, known):
     """The game paths an edit list reads: its `file`s, its `files` lists and what its `files` globs match."""
     paths = set()
+    if 'localization' in edits:
+        # The catalog compiler reads every existing dictionary, the UI mapping,
+        # and support files copied into newly registered language directories.
+        paths.update(p for p in known if p.startswith('localization/'))
+    if 'promote_rolled_defaults' in edits:
+        # Computed from the data (content_edit.py promoted_defaults): the modifications, the item
+        # dictionary and every equipment config; an item of the categories elsewhere stops the edit.
+        paths.update({'gameplay/items/modifications/modifications.options', 'gameplay/db_static_dictionaries'})
+        paths.update(p for p in known if p.startswith('gameplay/items/armour/'))
     for entries in edits.values():
         if not isinstance(entries, list):
             continue
@@ -345,6 +354,25 @@ def type_check(base, base_files, game, world):
     print(f'value types: every key the base has keeps its type across {len(world.bytes)} file(s)')
 
 
+def lamp_check(world):
+    """Every made client_project's breakable-lamp bindings name its own
+    objects (scripts/breakable-lamps/make_edits.py check_built): a wrong
+    index or a moved light, after any later edit, is a Problem."""
+    import importlib.util
+    path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'breakable-lamps' / 'make_edits.py'
+    spec = importlib.util.spec_from_file_location('lamp_edits', str(path))
+    lamps = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lamps)
+    projects = sorted(p for p in world.bytes if p.endswith('/client_project'))
+    problems = [problem for p in projects for problem in lamps.check_built(p, bytearray(world.bytes[p]))]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'LAMPS: {problem}')
+        raise Problem(f'{len(problems)} lamp binding(s) name no object of their map: no patch made')
+    print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
@@ -382,6 +410,7 @@ def main():
         # a key that exists in the base/live version keeps its type, a new key
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(base, base_files, game, world)
+        lamp_check(world)
 
         # What the sources make, against what players have.
         folder = work / 'world'

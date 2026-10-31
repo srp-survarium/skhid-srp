@@ -1,17 +1,23 @@
 package survarium.controls
 {
    import flash.display.Graphics;
-   import flash.display.Shape;
+   import flash.display.DisplayObject;
    import flash.display.Sprite;
+   import flash.filters.GlowFilter;
+   import flash.geom.Point;
+   import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
-   import survarium.data.LocalizationData;
+   import flash.text.TextFormat;
 
    // Research (mode 5): the research units under the teams' points. One circle
    // a unit, its letter, filled in the colour of its owner (the game's own
    // team blue, the other red, nobody grey), a ring as far round as the
-   // capture of the team taking it, and under them "Capturing unit..." while
-   // the game's own player is inside a unit his team is taking. The exe
-   // (research_native_026g.c) sends the state with HUD.research_update.
+   // capture of the team taking it, under a unit the time left of its
+   // capture or neutralisation while one runs; the unit the game's own player
+   // is inside larger (INSIDE), without a capture caption. The activity overlay
+   // is swords while contested, or ! while the enemy alone advances capture. The exe
+   // (research_arena) sends the state with
+   // HUD.research_update.
    public class ResearchUnits extends Sprite
    {
 
@@ -27,33 +33,60 @@ package survarium.controls
 
       protected static const RING:Number = 4;
 
-      protected static const SPACING:Number = 40;
+      // Room for a neighbour at INSIDE: 1.42 x (RADIUS + RING) + RADIUS + RING < SPACING.
+      protected static const SPACING:Number = 48;
 
-      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits).
-      public static const TOP:Number = RADIUS + RING + 8;
+      // The unit the game's own player is inside: larger, as retail's active
+      // highlight (0.27d CapturePointMarker: 34 / 46 against 24 / 46).
+      public static const INSIDE:Number = 34 / 24;
+
+      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits), room for one at INSIDE.
+      public static const TOP:Number = Math.ceil((RADIUS + RING) * INSIDE) + 4;
 
       protected var _units:Array = [];
 
-      protected var _caption:DefaultLabel3;
+      protected var _alerts:Array = [];
+
+      // A unit's time left, under its circle.
+      protected var _timers:Array = [];
+
+      protected static const TIMER_SIZE:Number = 16;
 
       public function ResearchUnits()
       {
          super();
          mouseEnabled = false;
          mouseChildren = false;
-         this._caption = new DefaultLabel3();
-         // As wide as its text, on one line. The symbol's field (Open Sans
-         // Condensed bold 30, 75 px wide) wraps: "Capturing unit..." broke
-         // inside its first word, the field's one line showed "Captu", and
-         // autoSize, which sizes to the widest line, kept it 75 px. The
-         // longest text, German's "Erfassen der Installation...", has 28
-         // letters; the font has every one of the five languages'.
-         this._caption.textField.wordWrap = false;
-         this._caption.textField.multiline = false;
-         this._caption.autoSize = TextFieldAutoSize.CENTER;
-         this._caption.y = RADIUS + RING + 6;
-         this._caption.visible = false;
-         addChild(this._caption);
+      }
+
+      public function followIndicator(indicator:DisplayObject, centre:Number, top:Number) : void
+      {
+         if(stage == null || parent == null || indicator.parent == null)
+         {
+            return;
+         }
+         var middle:Point = indicator.parent.globalToLocal(new Point(stage.stageWidth / 2,0));
+         indicator.x = middle.x - centre * indicator.scaleX;
+         var anchor:Point = parent.globalToLocal(indicator.localToGlobal(new Point(centre,top)));
+         x = Math.round(anchor.x);
+         y = Math.round(anchor.y);
+      }
+
+      // DisplayObject.getBounds includes hidden capture timers, retaining an
+      // empty row after a capture ends. Count only what is currently visible.
+      public function get contentBottom() : Number
+      {
+         var bottom:Number = 0;
+         for(var i:int = 0; i < this._units.length; i++)
+         {
+            bottom = Math.max(bottom,(RADIUS + RING) * this._units[i].scaleY);
+            var timer:TextField = this._timers[i];
+            if(timer.visible)
+            {
+               bottom = Math.max(bottom,timer.y + timer.height);
+            }
+         }
+         return bottom;
       }
 
       public static function colourOf(team:uint, ownTeam:uint) : uint
@@ -137,29 +170,74 @@ package survarium.controls
          g.endFill();
       }
 
-      // units: [{cp_id, owner, capturing, progress (0..100), inside_0, inside_1, local}]
+      // "0:12": the seconds left, rounded up.
+      public static function timeText(ms:Number) : String
+      {
+         var seconds:int = Math.ceil(ms / 1000);
+         var minutes:int = int(seconds / 60);
+         seconds = seconds % 60;
+         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+      }
+
+      // A unit's timer: DefaultLabel3's embedded font, smaller. The label
+      // supplies the font only; it is never added to the display list.
+      protected function makeTimer() : TextField
+      {
+         var source:TextField = new DefaultLabel3().textField;
+         var format:TextFormat = source.length > 0 ? source.getTextFormat() : source.defaultTextFormat;
+         var timer:TextField = new TextField();
+         format.size = TIMER_SIZE;
+         format.color = 0xFFFFFF;
+         timer.defaultTextFormat = format;
+         timer.embedFonts = true;
+         timer.selectable = false;
+         timer.mouseEnabled = false;
+         timer.multiline = false;
+         timer.wordWrap = false;
+         timer.autoSize = TextFieldAutoSize.CENTER;
+         timer.filters = [new GlowFilter(0,0.9,3,3,3)];
+         timer.visible = false;
+         return timer;
+      }
+
+      // units: [{cp_id, owner, capturing, progress (0..100), inside_0, inside_1, local, left (ms)}]
       public function update(units:Array, ownTeam:uint) : void
       {
          var i:int = 0;
          var unit:Object;
-         var shape:Shape;
+         var shape:Sprite;
          var g:Graphics;
-         var capturing:Boolean = false;
+         var timer:TextField;
+         var alert:ResearchAlert;
+         var contested:Boolean;
+         var advancing:uint;
          while(this._units.length < units.length)
          {
-            shape = new Shape();
+            shape = new Sprite();
             addChild(shape);
             this._units.push(shape);
+            alert = new ResearchAlert();
+            alert.scaleX = alert.scaleY = 2 * (RADIUS + RING) / 54;
+            alert.x = -54 * alert.scaleX / 2;
+            alert.y = -53 * alert.scaleY / 2;
+            shape.addChild(alert);
+            this._alerts.push(alert);
+            timer = this.makeTimer();
+            addChild(timer);
+            this._timers.push(timer);
          }
          while(this._units.length > units.length)
          {
             removeChild(this._units.pop());
+            removeChild(this._timers.pop());
+            ResearchAlert(this._alerts.pop()).setState(ResearchAlert.NONE);
          }
          while(i < units.length)
          {
             unit = units[i];
             shape = this._units[i];
             shape.x = (i - (units.length - 1) / 2) * SPACING;
+            shape.scaleX = shape.scaleY = unit.local ? INSIDE : 1;
             g = shape.graphics;
             g.clear();
             g.beginFill(0,0.45);
@@ -173,19 +251,20 @@ package survarium.controls
                drawRing(g,RADIUS,RING,unit.progress / 100,colourOf(unit.capturing,ownTeam));
             }
             drawLetter(g,unit.cp_id,RADIUS);
-            if(unit.local && unit.capturing == ownTeam && !(unit.owner == ownTeam && unit.progress >= 100))
+            alert = this._alerts[i];
+            contested = unit.inside_0 > 0 && unit.inside_1 > 0;
+            advancing = unit.inside_0 > 0 ? 0 : unit.inside_1 > 0 ? 1 : NO_TEAM;
+            alert.setState(ResearchAlert.forCapture(ownTeam,advancing,unit.left,contested));
+            timer = this._timers[i];
+            timer.visible = unit.left > 0;
+            if(timer.visible)
             {
-               capturing = true;
+               timer.text = timeText(unit.left);
+               timer.x = Math.round(shape.x - timer.width / 2);
+               timer.y = Math.round((RADIUS + RING) * shape.scaleY);
             }
             i++;
          }
-         if(capturing)
-         {
-            this._caption.text = LocalizationData.getName("research_capturing");
-            this._caption.validateNow();
-            this._caption.x = -Math.round(this._caption.width / 2);
-         }
-         this._caption.visible = capturing;
       }
    }
 }

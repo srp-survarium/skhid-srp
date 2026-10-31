@@ -17,8 +17,9 @@ standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
-box), `winhttp.dll`, `advapi32.dll` (one registry value read for "Watch
-replay") and `ntdll.dll` (two functions of the standard library's).
+box), `winhttp.dll`, `shell32.dll` (the Documents folder, where the game's
+user.cfg says the language its messages are in) and `ntdll.dll` (two
+functions of the standard library's).
 
 ## What it does, and does not
 
@@ -72,9 +73,8 @@ replay") and `ntdll.dll` (two functions of the standard library's).
   does hold the game folder's path) beside itself. `updater_skhid.lock`
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
-- No BitTorrent, no listening port, no UPnP, no registry write (one value
-  is read: the launcher's language, for "Watch replay"), no service, no
-  crash upload, no administrator rights (its manifest says `asInvoker`;
+- No BitTorrent, no listening port, no UPnP, no registry read or write, no
+  service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
 
@@ -179,7 +179,7 @@ and Windows' error code (`<name>: cannot be read: <words> (error <n>)`):
 patch file's write, rename, delete or read back, is the same stop.
 
 The stop's box is the updater's own (`MessageBoxW`, Windows' Retry and
-Cancel buttons), in the launcher's language (as "Watch replay"'s, below),
+Cancel buttons), in the game's language (as "Watch replay"'s, below),
 the launcher's line saying "Error" meanwhile. It names the file alone and,
 for Windows Security, the way out, one line each:
 
@@ -215,7 +215,7 @@ When the update server, or its list of patches, cannot be reached at all
 (WinHTTP's 12007 name not resolved, 12029 cannot connect, 12002 timeout,
 12030 connection cut off: `logic/src/network.rs`), after the usual tries,
 and the run ends in an error or in PLAY without an update check, the player
-is told in the updater's own box, in the launcher's language, with Retry
+is told in the updater's own box, in the game's language, with Retry
 and Cancel, as a stop above. Players in Russia meet it most: their
 providers block the server, and a VPN with the game's three programs in its
 split tunnelling gets them through (`VPN.txt` beside `Skhid.bat`). Three
@@ -281,18 +281,20 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe" -localization=<the launcher's language>
-   -mt_allocator=768 -minimum_resources_memory_size=768
-   -match_replay="<the file>"`. The game reads its command line as ANSI
+   `"<x86>\survarium_skhid.exe" -mt_allocator=768
+   -minimum_resources_memory_size=768 -match_replay="<the file>"`, no
+   `-localization=`: the game plays it in its own language (the one chosen
+   in its Settings, game patch 79). The game reads its command line as ANSI
    text and a value in quotes as one value, spaces and all (read in the exe:
    `srp-026g/docs/notes/client_patch.md` section 3.27). The path is given as
    it is when the ANSI code page holds every character of it and it is at
    most 259 bytes; else its short (8.3) form when that does; else the player
    is told to move the game to a folder with Latin letters.
 
-Every problem is a message box in the launcher's language (the value
-`language` of `HKCU\Software\Vostok Games\Survarium`, 0 to 4, read only;
-English when it is not there) and a line `replay: FAILED (<problem>): <text>`
+Every problem is a message box in the game's language (the `localization`
+line of `<Documents>\survarium\user.cfg`, which the game's Settings and the
+launcher's menu write, read only; English for a language the messages are
+not written in, or without one) and a line `replay: FAILED (<problem>): <text>`
 in `updater_skhid.log`. The log names the token by its first 6 hex digits
 only. No progress is shown while the replay downloads (at most 64 MiB).
 

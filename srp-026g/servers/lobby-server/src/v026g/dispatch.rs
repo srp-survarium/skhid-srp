@@ -303,8 +303,7 @@ impl Core<'_> {
                         self.push_account(who);
                     }
                     Err(error) => {
-                        log::info!("{}: purchase refused: {error}", who.name);
-                        self.deny(addr, id::SHOP, error.text_key());
+                        self.refuse_purchase(who, &error, error.text_key(), target_slot);
                     }
                 }
             }
@@ -421,6 +420,7 @@ impl Core<'_> {
             } => self.change_nickname(who, &nickname, ticket_item_id),
             // Not kept, and the player is told so.
             M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
+            M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
             M::HideVideoLink => {}
             M::Clan(request) => self.clan_request(who, &request, now),
 

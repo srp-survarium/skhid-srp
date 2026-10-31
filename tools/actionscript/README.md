@@ -23,6 +23,15 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   the build adds it as a DefineBitsLossless2 of a new character id before the code, bound
   to `<class>` by a SymbolClass after it; `<class>` is a `BitmapData` of the tree, as the
   original's own bitmaps are (the hud's `hudItems`), made with `new <class>()`.
+- **Tables.** Data the movie's code reads, which other tools read too (the
+  lobby's shop filters, which the wiki's icons take), is a table
+  `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
+  class `<Class>` into the copy of `src/` it compiles (a table naming a class
+  `src/` has is refused). Tab-separated, `#` lines comments; the header is
+  `list`, then `<field>:<type>` a column (`int`, `String`, or a qualified
+  class whose static constant the cell names, compiled as `Class.NAME`). Each
+  list is `public static const <list>:Array` of `{field: value}` rows, in the
+  file's order. Other tools read it with `flash_tree.read_table`.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
@@ -57,6 +66,59 @@ python3 -m unittest discover -s tools/actionscript
 # With a real compc build of a small tree:
 SRP_AS_TOOLS=/absolute/path/to/private/actionscript/tools.json python3 -m unittest discover -s tools/actionscript
 ```
+
+### Research UI
+
+The Research UI regression harness is `tests/ResearchUiHarness.as`. Put the newly
+built movies beside its output as `hud.swf` and `player_icons.swf`, then compile:
+
+```sh
+java -jar "$FLEX/lib/mxmlc.jar" +flexlib="$FLEX/frameworks" \
+  -library-path= -external-library-path="$FLEX/frameworks/libs/player/32.0/playerglobal.swc" \
+  -static-link-runtime-shared-libraries=true -debug=false -optimize=true -omit-trace-statements=false \
+  -output="$OUT/ResearchUiHarness.swf" tools/actionscript/tests/ResearchUiHarness.as
+```
+
+Run the SWF with Ruffle's filesystem access enabled (use a private virtual display for
+automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the absent
+caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested and enemy-capture pulses
+at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
+It also checks countdown spacing and restoration of other modes' timer styles.
+Enemy warnings cover both team orientations, friendly-owned and neutral units,
+neutralisation with the defender's progress, contested priority, completion, legacy
+packets, repeated updates, and offscreen/removed animation cleanup.
+The `ResearchAlert.as` implementation and warning bitmap are identical in both movie
+trees. The editable warning artwork is `art/ResearchWarning.svg`; render it to transparent
+54 x 53 RGBA at its natural size (the approved preview uses browser SVG/canvas rendering),
+then copy those same PNG bytes to both `bitmaps/ResearchWarning.png` files.
+The spacing regression includes hidden capture timers; centering is checked before
+resize with different initial positions and scaled, translated parents.
+Death/respawn transitions check immediate full-width text, late native label
+validation, animation frames, and removal of the Research field on mode exit.
+This exercises the controls; the game's Scaleform integration still needs a playtest.
+
+### Minimap
+
+`tests/MinimapHarness.as` checks the hud's minimap icons (`survarium.controls.Minimap`).
+Put the newly built hud movie beside its output as `hud.swf`, compile it as above
+(`-output="$OUT/MinimapHarness.swf" tools/actionscript/tests/MinimapHarness.as`) and run it
+the same way. It traces `MINIMAP PASS` or `MINIMAP FAIL`. A team-0 game that joined late
+gets its ally's data before its own team (update_local_player waits for its first spawn):
+the ally's icon is the enemy's until the team comes, then the ally's. It also checks an
+enemy, an ally taking and dropping the battery, an enemy carrier, a player that leaves,
+and a team-1 game.
+
+### Tab map names
+
+`tests/TabMapNamesHarness.as` checks the names on the Tab map (`srp-026g/docs/notes/tab-map-names.md`)
+with the hud movie's own Tab list (`SrvPlayerList`, its map) and corner minimap, fed as `HUD.as`
+feeds them (the hud's root does not run outside the game). Put the newly built hud movie beside
+its output as `hud.swf`, compile and run it as above. It traces `NAMES ... ok` lines and
+`NAMES RESULT pass` or `NAMES RESULT fail: ...`: no names without Alt; with Alt each other
+player's icon its place's name centred over it, the own icon and a place with no row none, the
+corner minimap none; the names following their icons over 100 updates with the same text fields;
+Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
+rows made again; and Blackout (the list kept hidden): none on screen.
 
 ## History
 

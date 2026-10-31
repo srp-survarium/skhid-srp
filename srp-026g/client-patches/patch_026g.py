@@ -30,6 +30,12 @@ USAGE (this script never touches the source exe):
         Only the bitmap at the end of the patches' mount and the PE
         checksum differ; each <n> is 1 to 255. Not with --no-late-join,
         --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --ragdoll-trace
+        the default build with patch 76's diagnostics on: every living hit
+        and every death's ragdoll start as a line of srp_ragdoll.csv in the
+        user data folder. A local build for us (never a release's:
+        release/build-zip does not pass it); only the Rust crate's
+        SRP_DIAGNOSTICS and the PE checksum differ
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -82,9 +88,10 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425D40 -DSTATE=0xA428E20 -DLIMITS=0xA425A98 warmup_look_026g.asm -o warmup_look_026g.section.bin
         nasm -f bin -DCAVE=0xA425A98 warmup_limits_026g.asm -o warmup_limits_026g.section.bin
     (checked in; STATE is 0xE20 of the late join's state page, checked)
-    (checked in). The commit_suicide key comes from suicide_key_026g.asm:
-        nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
-    (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
+    (checked in). The commit_suicide key is the Rust patch suicide_key, in
+    the arena's block patches.code (rust/patches, hooks_026g.py, link_026g.py;
+    docs/notes/rust_patches.md). A spot's hit on a battery's body comes from
+    spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
     (checked in). The camera on the death screen comes from death_camera_026g.asm,
     a section of its own, `.srpc`, on the page after the late join's state page:
@@ -343,8 +350,42 @@ Patches:
   join, client_patch.md section 3.32): the input builder (0x241250) never
   asked for action 1Fh, so the action mask never had bit 24, which the match
   simulation still reads as a hit on one's own head (0x2D8BC1). Its last
-  action call (0x242196) calls suicide_key_026g.asm at 0x980 of `.srp`
-  first, which sets bit 24 on the key going down;
+  action call (0x242196) calls the Rust patch suicide_key (the block
+  patches.code) first, which sets bit 24 on the key going down;
+- a killed player falls as a ragdoll (patch 76, with the late join;
+  docs/notes/ragdoll.md): the Rust patch ragdoll (the blocks patches.code
+  and .data, over the solver crate srp-026g/crates/ragdoll), six lohooks
+  (ragdoll.toml, sites_026g.tsv): game_world::tick after the simulation's
+  move (0x1F7C3C) steps every place's corpse (alive, or dead with its
+  life's spawn time +328h as the death's key: a rollback that undoes the
+  death drops the ragdoll, the same death simulated again keeps it) and
+  the ragdolls (eleven capsules, XPBD, the level read by ray_test);
+  mt_draw's cull (0x24757C) draws a corpse of ours; mt_draw after the bones
+  (0x247716) captures the death clip and writes the ragdoll's bones over
+  its stack array; mt_draw's read of the held item (0x24754F) poses a
+  corpse holding nothing (a battery carrier's once the battery drops,
+  when mt_draw updates no bone) from its ragdoll through update_skeleton;
+  update_camera (0x1F3643) gives the local player's view its ragdoll's
+  eye; bullet::check_collision after its ray (0x32D627) tests the bullet's
+  segment against the ragdolls: the part hit is pushed (once a bullet a
+  victim: the bullet's shooter and id and the corpse's death, so neither
+  a re-simulated tick nor the bullet's next segment pushes again), a
+  settled body wakes, and the game's body-hit particle and sound play
+  there; a bullet in a living player's hit model is kept (once a bullet)
+  and its death starts with its push (the round's momentum: the ammo's
+  mass, at most 0.04 kg, times the bullet's speed; a battery drops no gun),
+  the body a powered ragdoll (muscles that weaken from the death, the
+  kit's weight from the inventory on its parts). Drawn only: nothing a
+  match computes, keeps or hashes changes, the bullet goes on as before;
+- Blackout, a battery match with no interface (patch 65, a prototype, with
+  the late join; docs/notes/blackout.md; client_patch.md section 3.58): the
+  Rust patch blackout (rust/patches/src/blackout.rs, blackout.toml), five
+  lohooks at sites of its own (sites_026g.tsv): srp's block's tag 2 read
+  after each match_options::deserialize (0x27B92D, 0x1F0971); each frame's
+  update_player_icons (0x23AA10) tells the hud and the player icons the
+  forced interface and Tab; on_keyboard_action after its Tab test (0x25CD2C)
+  lets a key go on while Tab is held; the input builder's end (0x2421B0)
+  takes the moves and acts out of the mask while Tab is held;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -444,7 +485,9 @@ Patches:
   arena's blocks match_keys.code and .state): the game world's
   on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
   movie's root.select_kit_key for a key 1 to 3 going down while the hud
-  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
+  shows the cursor and has shown it for 300 ms (its handler's slot +14h,
+  0x9FC59C, after each poll, GetTickCount: a key pressed before then, or in
+  the frame the kits came, picks nothing), and goes on as before; the hud's constructor call (0x1F6845)
   registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
@@ -520,12 +563,14 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import collections
 import hashlib
 import os
 import re
 import struct
 import sys
 
+import hooks_026g
 import link_026g as linker
 
 IMAGE_BASE = 0x10000
@@ -655,7 +700,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 34
+REVISION = 39
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1130,15 +1175,39 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # 0x2D86E0 for every player's input): a hit on the player's own head bone
 # "brain" (vtable+20h = 0x2D9AE0 -> hit_impl 0x2D9B90), the attacker the
 # player; on_player_killed (0x2F4F38) counts a death and a suicide for it,
-# no kill. The builder's last call (spot, 0x242196, ebx = the handler) calls
-# suicide_key_026g.asm at SUICIDE_KEY_OFFSET of `.srp` (after the pickup
-# code, before the seek code): it asks 0x242460 for 1Fh, sets bit 24 when
-# the key went down (state 0, as spot does), and jumps to 0x242460 with the
-# original arguments and return address. No base relocation under the site.
-SUICIDE_KEY_OFFSET = 0x980
-SUICIDE_KEY_VA = SECTION_VA + SUICIDE_KEY_OFFSET
+# no kill. The builder's last call (spot, 0x242196, ebx = the handler) is a
+# Rust `call` hook, suicide_key::on_spot (the arena's block patches.code,
+# rust/patches, the framework's example patch, docs/notes/rust_patches.md):
+# before the spot query it asks action_present (0x242460) for 1Fh and sets
+# bit 24 when the key went down (state 0, as spot does), then does the spot
+# query the site wanted and returns its answer. No base relocation under the
+# site. (Until the Rust framework it was NASM at 0x980 of `.srp`; the port
+# before it, a Rust crate per patch with a tail jump.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
-SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), 0, 0xE8)
+
+# The Rust exe patches (docs/notes/rust_patches.md): the module names (for
+# link_026g.py --sizes) and the hooks the patches declare in their TOML,
+# applied like the other arena hooks (site VA, the bytes replaced, the
+# arena symbol of the generated entry, the opcode).
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "hud_options", "tab_cursor", "world_check")
+
+
+def rust_hooks(original):
+    """The Rust hooks' installs (site VA, the bytes replaced, the entry's
+    arena symbol, the opcode): a span hook's bytes read from `original`, the
+    exe being built from."""
+    read = hooks_026g.original_reader(original)
+    return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
+
+
+def __getattr__(name):
+    """RUST_HOOKS, for the checks: rust_hooks() of the exe SRP_026G_EXE names."""
+    if name == "RUST_HOOKS":
+        path = os.environ.get("SRP_026G_EXE")
+        if not path:
+            raise AttributeError("RUST_HOOKS needs the original exe: SRP_026G_EXE")
+        return rust_hooks(open(path, "rb").read())
+    raise AttributeError(name)
 
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
@@ -1333,6 +1402,19 @@ REPLAY_LINK_VA = SECTION_VA + REPLAY_LINK_OFFSET
 REPLAY_LINK_HANDLER = 0x28CDA0
 REPLAY_LINK_HOOK = (0x28CDB6, bytes.fromhex("6a016a006a00"), 0, 0xE9)
 REPLAY_LINK_BUFFER = 0x1E6144                 # in the lobby client
+
+# The Knowledge database callback (0x28CAB0) copies this fixed prefix to
+# its stack, appends ru/en and /Knowledgebase/List, then ShellExecuteA's it.
+# Keep the native browser call and stack cleanup, but skip both appends:
+# the wiki chooses its language from the browser and its own language switch.
+KNOWLEDGE_BASE_URL = b"https://026g.skhid.link/wiki"
+KNOWLEDGE_BASE_ORIGINAL = b"https://support.survarium.com/index.php?/\0"
+KNOWLEDGE_BASE = (
+    (0xA0A7A8, KNOWLEDGE_BASE_ORIGINAL,
+     (KNOWLEDGE_BASE_URL + b"\0").ljust(len(KNOWLEDGE_BASE_ORIGINAL), b"\0")),
+    (0x28CBA3, bytes.fromhex("e8d3a31900"), b"\x90" * 5),
+    (0x28CBB7, bytes.fromhex("e8bfa31900"), b"\x90" * 5),
+)
 
 # One upgrade on several items (patch 30, client_patch.md section 3.28):
 # shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
@@ -1982,12 +2064,24 @@ ARTEFACTS_SIZES = (
 #   0x26B916: with the option on, in a match, a player's line on a channel
 #   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
 # No base relocation is under a site and no branch aims inside one.
+# And a slot (MATCH_KEYS_POLL_SLOT): the game world's input handler's +14h
+# (its vtable 0x9FC588; `ret 4` at 0x75AF0 in the original), which the input
+# world's tick (0x3B7BD0) calls for every handler after it polled the devices
+# and before they hand out the keys: match_keys_poll sets the kits' screen's
+# state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
+# first poll the kits are up at, with its time; OPEN from the first poll 300
+# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# that went down in the frame the kits came, in play, is handed out in their
+# first tick and picks nothing, nor does one pressed in their first 300 ms
+# (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
     (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
+MATCH_KEYS_POLL_SLOT = (0x9FC59C, struct.pack("<I", 0x75AF0), "match_keys_poll")   # the handler's slot +14h
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
@@ -2021,7 +2115,7 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# 2Ah rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2050,8 +2144,20 @@ def hide_ui_table_writes(linked):
     table = linked.symbols["controls"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
-    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + len(CONTROLS_ADDED)]) + old[at + 1:])
+            for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
+
+
+# The rows `controls` adds after the game's 28h: (action, label key).
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
+# Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
+# own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
+# nothing in the game reads and had no default key, gets H (the binder's
+# set_default_controls 0x2078A0 binds each entry's +10h at its construction,
+# before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
+# 42nd of `controls`.
+ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -2146,6 +2252,7 @@ def weapon_camo_va(late_join):
 # {site VA: (kind, what, pops, why)}; pops and why for ABI only.
 SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
 INSTALLS = {
+    0x23B207: (CALLEE, "update_ui's update_player_icons, then the units' markers: icons", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -2186,7 +2293,7 @@ INSTALLS = {
     0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
     0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
     0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
-    0x242196: (CALLEE, "the input builder's last action call: suicide_key", None, None),
+    0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
     0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
@@ -2260,6 +2367,8 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    MATCH_KEYS_POLL_SLOT[0]: (SLOT, "the game world's input handler's slot +14h (vtable 0x9FC588; thiscall, the "
+                                    "input world; the input world's tick calls it after the poll): poll", None, None),
     # the key that hides the interface, patch 62 (in `.srpx`)
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
@@ -2292,6 +2401,14 @@ INSTALLS = {
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
 }
+# Explain weight in the lobby; presentation only, no simulation changes.
+WEIGHT_UI_HOOKS = (
+    (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
+    (0x2222EB, bytes.fromhex("e810f32e00"), "weight_ui_display", 0xE8),
+)
+INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
+INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2334,7 +2451,8 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
-)
+
+) + hooks_026g.installed_vtables()
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
 # is declared with the instruction that hands it over and the game's own
@@ -2439,6 +2557,12 @@ def audit_installs(data, writes, installs=None):
             sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
 
 
+# The Rust lohooks (hooks_026g.py): each a jmp to its generated entry,
+# which goes on past the span or replays it.
+for _va, _owner, _what in hooks_026g.lohook_sites():
+    INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+
+
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
 # README "The arena"). The exe's section table has room for twelve entries
 # (it is at 210h and the headers end at 400h, where the first section's
@@ -2472,11 +2596,13 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
-    # Research, patch 53: the asm's three entries and stubs, then the C code
+    ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
+    ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
+    # Research, patch 53: four aligned asm entries and stubs, then Rust
     ArenaBlock("research.code", "code", 0x1000,
-               ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
-    # its rule's cook and the hud's cache (research_native_026g.c rn_state)
-    ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
+               ("research_026g.asm", "research_arena/Cargo.toml")),
+    # its rule's cook and the hud's cache (research_arena's STATE)
+    ArenaBlock("research.state", "state", 0x1000, ("research_arena/Cargo.toml",)),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
@@ -2486,6 +2612,14 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    # The Rust exe patches (the framework's example is patch 34, the
+    # commit_suicide key): one crate, its generated hook entries, the arena's
+    # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
+    ArenaBlock("patches.code", "code", 0x1000, hooks_026g.arena_sources()),
+    # the crate's statics: patch 76's corpses and pool, shots and trace
+    # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
+    ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
+    ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
 )
 
 
@@ -2495,6 +2629,11 @@ def arena(blocks=None, tools=None):
     linked, or when ARENA's is not arena_026g.lock.json's."""
     default = blocks is None
     blocks = ARENA if default else tuple(blocks)
+    if default:
+        try:
+            hooks_026g.check_layers()                 # raw/vostok/patches (rust_patches.md)
+        except hooks_026g.Bad as error:
+            sys.exit(f"the Rust patches: {error}")
     try:
         linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
     except linker.LinkError as error:
@@ -2532,11 +2671,11 @@ def add_arena(data, linked):
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
-# docs/notes/research_mode.md): research_026g.asm's three entries and stubs,
-# then the C code of research_rule_026g.c and research_native_026g.c and its
-# constant data, in the arena's block research.code; the C code's state (the
+# docs/notes/research_mode.md): research_026g.asm's four aligned entries and stubs,
+# then research_arena and research-rule's Rust code and constant data, in
+# the arena's block research.code; the Rust code's state (the
 # rule's cook, the hud's cache: rn_state) in research.state, zeroed.
-# Three hooks, `call` or `jmp` to an entry:
+# Four hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
 #   rule's cook (class RESEARCH_CLASS) and does the two instructions;
@@ -2545,10 +2684,13 @@ def add_arena(data, linked):
 #   the movie (root.research_update) and their messages, then the compare;
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
 #   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
+# - update_ui's update_player_icons call at 0x23B207: world markers, before
+#   the HUD's 40 ms gate.
 # No base relocation is under a site and no branch aims inside one.
-RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the C code after it
-RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
+RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the Rust code after it
+RESEARCH_CLASS = 0x1E0                         # research_arena CLASS: the mode configs' rules[2]
 RESEARCH_HOOKS = (
+    (0x23B207, bytes.fromhex("e804f8ffff"), "research_icons", 0xE8),
     (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), "research_register", 0xE8),  # the game's constructor
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
@@ -2619,15 +2761,107 @@ def data_file_offset(va):
 # bytes, the new ones), in order. audit_installs reads it.
 WRITES = []
 
+# The one place build() writes (docs/notes/rust_patches.md, "The build"):
+# every write into the original's bytes (an install, a data or constant
+# patch, an in-place rewrite, a cave, a base relocation turned off) and every
+# section it adds goes through apply() / record_section(), which records its
+# owner (the named instance: the install table that holds its VA, a Rust
+# patch, or a section) and its span (file offsets), and stops the build when
+# two writes cover the same bytes. The PE header's counters (the number of
+# sections, SizeOfImage, SizeOfCode, the certificate directory, the
+# checksum) are the file's bookkeeping, updated by the section adders, not a
+# patch's write. selftest_026g.py replays APPLIED onto the original and
+# checks the image is exactly what build() made.
+Applied = collections.namedtuple("Applied", "owner kind va at new")
+APPLIED = []
+# Install tables that hold other named tables' rows: a write in both is the
+# aggregate's (one patch's whole install set) - GATHER is the gather events
+# and the gather lock, the late join's hooks and patches its many parts.
+INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES", "FORWARD_SCROLL_HOOKS")
+_INSTANCE_INDEX = {}
+_BUILDING = [False]                # inside build(): apply() records
 
-def patch_value(data, va, expected, new):
-    """As `patch`, for a value in .data."""
-    at = data_file_offset(va)
+
+def _install_rows(value):
+    """The install rows a module value holds: (VA, original bytes, ...) or a
+    tuple or list of them."""
+    is_row = lambda v: isinstance(v, tuple) and len(v) >= 2 and isinstance(v[0], int) \
+        and isinstance(v[1], (bytes, bytearray))
+    if is_row(value):
+        return [value]
+    if isinstance(value, (tuple, list)) and value and all(is_row(v) for v in value):
+        return list(value)
+    return []
+
+
+def instance_of(va):
+    """The named instance a write at `va` belongs to: the Rust patch whose
+    hook it is, else the one install table of this module that holds the VA
+    (an aggregate over its parts); the build stops on none or two."""
+    if not _INSTANCE_INDEX:
+        for name, value in globals().items():
+            if name.isupper() and name not in ("WRITES", "APPLIED"):
+                for row in _install_rows(value):
+                    _INSTANCE_INDEX.setdefault(row[0], set()).add(name)
+        for site, owner in hooks_026g.install_sites():
+            _INSTANCE_INDEX[site] = {f"rust:{owner}"}
+    names = _INSTANCE_INDEX.get(va, set())
+    names = (names & set(INSTANCE_AGGREGATES)) or names
+    if len(names) != 1:
+        sys.exit(f"{va:#x}: a write {'in no named instance' if not names else 'of ' + ', '.join(sorted(names))}: "
+                 "every write is one install table's (or a Rust patch's)")
+    return next(iter(names))
+
+
+def _claim(owner, kind, va, at, new):
+    """Records a write's span; stops on an overlap with any earlier one. A
+    write outside build() (a check patching its own copy) is not recorded."""
+    if not _BUILDING[0]:
+        return
+    hi = at + len(new)
+    for other in APPLIED:
+        if other.at < hi and at < other.at + len(other.new):
+            sys.exit(f"{kind} of {owner} at file {at:#x} ({va:#x}) overlaps {other.kind} of {other.owner} at file "
+                     f"{other.at:#x} ({other.va:#x}): two writes over the same bytes")
+    APPLIED.append(Applied(owner, kind, va, at, bytes(new)))
+
+
+def apply(data, at, va, expected, new, owner=None):
+    """Writes `new` over `expected` at file offset `at` (VA `va`): the build's
+    one writer of the original's bytes."""
     found = bytes(data[at:at + len(expected)])
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
+    if _BUILDING[0]:
+        _claim(owner or instance_of(va), "write", va, at, new)
     data[at:at + len(new)] = new
     WRITES.append((va, bytes(expected), bytes(new)))
+
+
+def instances_text(applied=None):
+    """Every named instance and what it wrote (`patch_026g.py <exe> --check
+    --installs`): its installs (VA, bytes), relocations turned off and
+    sections."""
+    applied = APPLIED if applied is None else applied
+    lines = []
+    for owner in sorted({a.owner for a in applied}):
+        mine = [a for a in applied if a.owner == owner]
+        lines.append(f"{owner}: {len(mine)}")
+        for a in mine:
+            where = f"{a.va:#x}" if a.va is not None else "-"
+            lines.append(f"    {a.kind:<15} {where:>10}  file {a.at:#x}  {len(a.new)} bytes")
+    return "\n".join(lines)
+
+
+def record_section(owner, at, size, slot):
+    """A section build() adds: its header slot and its file bytes, owned."""
+    _claim(owner, "section header", None, slot, bytes(40))
+    _claim(owner, "section", None, at, bytes(size))
+
+
+def patch_value(data, va, expected, new):
+    """As `patch`, for a value in .data."""
+    apply(data, data_file_offset(va), va, expected, new)
 
 
 def patch_section_value(data, va, expected, new):
@@ -2640,20 +2874,11 @@ def patch_section_value(data, va, expected, new):
             break
     else:
         sys.exit(f"{va:#x}: in no section")
-    found = bytes(data[at:at + len(expected)])
-    if found != expected or len(new) != len(expected):
-        sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
-    data[at:at + len(new)] = new
-    WRITES.append((va, bytes(expected), bytes(new)))
+    apply(data, at, va, expected, new)
 
 
-def patch(data, va, expected, new):
-    at = file_offset(va)
-    found = bytes(data[at:at + len(expected)])
-    if found != expected:
-        sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
-    data[at:at + len(new)] = new
-    WRITES.append((va, bytes(expected), bytes(new)))
+def patch(data, va, expected, new, owner=None):
+    apply(data, file_offset(va), va, expected, new, owner)
 
 
 class Headers:
@@ -2720,6 +2945,11 @@ def neutralize_relocs(data, ranges):
             e = struct.unpack_from("<H", data, at)[0]
             va = IMAGE_BASE + page + (e & 0xFFF)
             if e >> 12 == 3 and any(va + 4 > lo and va < hi for lo, hi in ranges):
+                # owned by the write the relocated dword is under
+                if _BUILDING[0]:
+                    owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
+                                  and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
+                    _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
                 struct.pack_into("<H", data, at, e & 0xFFF)
                 changed.append(va)
         o += block
@@ -2744,6 +2974,7 @@ def add_state_section(data, state_va):
     state_rva = state_va - IMAGE_BASE
     if name != SECTION_NAME or state_rva != align(rva + vsize, headers.section_alignment):
         sys.exit("the late join's state does not follow the code")
+    _claim(LATE_JOIN_STATE_NAME.rstrip(b"\0").decode(), "section header", None, slot, bytes(40))
     data[slot:slot + 40] = LATE_JOIN_STATE_NAME + struct.pack(
         "<IIIIIIHHI", LATE_JOIN_STATE_SIZE, state_rva, 0, 0, 0, 0, 0, 0, LATE_JOIN_STATE_CHARACTERISTICS)
     struct.pack_into("<H", data, headers.count_at, len(sections) + 1)
@@ -2788,6 +3019,7 @@ def add_section(data, cave):
     if (raw + raw_size) % 8:
         sys.exit("the certificate table would lose its 8-byte alignment")
 
+    record_section(SECTION_NAME.rstrip(b"\0").decode(), raw, raw_size, slot)
     out = bytearray(data[:raw]) + cave + b"\xCC" * (raw_size - len(cave)) + data[raw:]
     out[slot:slot + 40] = SECTION_NAME + struct.pack(
         "<IIIIIIHHI", len(cave), SECTION_RVA, raw_size, raw, 0, 0, 0, 0, SECTION_CHARACTERISTICS)
@@ -2823,6 +3055,7 @@ def add_code_section(data, name, va, code, characteristics):
     raw_size = align(len(code), headers.file_alignment)
     if (raw + raw_size) % 8:
         sys.exit("the certificate table would lose its 8-byte alignment")
+    record_section(name.rstrip(b"\0").decode(), raw, raw_size, slot)
     out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
     out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
@@ -2833,8 +3066,21 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
-          arena_blocks=None):
+def build(*args, **kwargs):
+    """build_image() with every write recorded by apply() (APPLIED, its
+    owners and spans, overlaps refused); APPLIED and WRITES stay this build's
+    after it returns."""
+    WRITES.clear()
+    APPLIED.clear()
+    _BUILDING[0] = True
+    try:
+        return build_image(*args, **kwargs)
+    finally:
+        _BUILDING[0] = False
+
+
+def build_image(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
+                arena_blocks=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2958,6 +3204,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     # Every build: `stage.focus` reads null for a focused object without its
     # ActionScript object (patch 52; no relocation under the 46 bytes).
     patch(data, *STAGE_FOCUS)
+    for va, expected, new in KNOWLEDGE_BASE:
+        patch_section_value(data, va, expected, new)
+    rewritten.extend((va, va + len(expected)) for va, expected, _ in KNOWLEDGE_BASE[1:])
     rewritten.append((STAGE_FOCUS[0], STAGE_FOCUS[0] + len(STAGE_FOCUS[1])))
     if mode == "hash-mismatch":
         if len(cave) > HASH_MISMATCH_SIZE:
@@ -2965,9 +3214,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         at = file_offset(HASH_MISMATCH_VA)
         if hashlib.sha256(data[at:at + HASH_MISMATCH_REGION]).hexdigest() != HASH_MISMATCH_SHA256:
             sys.exit(f"{HASH_MISMATCH_VA:#x}: on_hash_mismatch is not the original")
-        WRITES.append((HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
-                       cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))))
-        data[at:at + HASH_MISMATCH_REGION] = cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))
+        apply(data, at, HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
+              cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave)), owner="HASH_MISMATCH")
         rewritten.append((HASH_MISMATCH_VA, HASH_MISMATCH_VA + HASH_MISMATCH_REGION))
         where = "over on_hash_mismatch"
     else:
@@ -3170,8 +3418,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
         if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
             sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
-        WRITES.append((READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order))
-        data[at:at + READ_ORDER_SIZE] = read_order
+        apply(data, at, READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order, owner="READ_ORDER")
         if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
             sys.exit("a base relocation under hdd_manager_sorting_predicate")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
@@ -3217,19 +3464,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
-        suicide_key = open(suicide_key_bin(), "rb").read()
-        if PICKUP_OFFSET + len(pickup) > SUICIDE_KEY_OFFSET \
-                or SUICIDE_KEY_OFFSET + len(suicide_key) > WARMUP_KEYS_OFFSET \
+        if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
                 or WARMUP_KEYS_OFFSET + len(warmup_keys) > SEEK_CLEAR_OFFSET:
-            sys.exit("the pickup code, the suicide key, the warmup keys and the seek code do not fit")
-        # It begins `push dword [esp+0Ch]` and ends `jmp 0x242460`.
-        if suicide_key[:4] != bytes.fromhex("ff74240c") or suicide_key[-5:] != \
-                b"\xE9" + struct.pack("<i", ACTION_STATE_VA - (SUICIDE_KEY_VA + len(suicide_key))):
-            sys.exit(f"suicide_key_026g.section.bin was assembled for another address: -DCAVE={SUICIDE_KEY_VA:#x}")
-        va, expected, offset, opcode = SUICIDE_KEY_HOOK
-        patch(data, va, expected, hook_bytes(SUICIDE_KEY_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the suicide key's hook")
+            sys.exit("the pickup code, the warmup keys and the seek code do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
@@ -3407,7 +3644,6 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
             cave = cave + b"\xCC" * (SPOT_OFFSET - len(cave)) + spot
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
-            cave = cave + b"\xCC" * (SUICIDE_KEY_OFFSET - len(cave)) + suicide_key
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (SEEK_CLEAR_OFFSET - len(cave)) + seek_clear
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
@@ -3431,12 +3667,15 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                slot, old, symbol = MATCH_KEYS_POLL_SLOT
+                patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
@@ -3482,6 +3721,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
+                     "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
@@ -3496,11 +3736,13 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
-                     "the keys 1, 2 and 3 pick a kit while the kits are shown, "
+                     "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
+                     "they came or in their first 300 ms), "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3591,8 +3833,6 @@ def seek_clear_bin():
 
 def read_order_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "read_order_026g.bin")
-def suicide_key_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "suicide_key_026g.section.bin")
 
 
 def kit_change_bin():
@@ -3752,13 +3992,40 @@ def late_join_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "late_join_026g.section.bin")
 
 
+# vostok::trace's switch (rust/patches/src/vostok/trace.rs): "OFF\0" in
+# every build, 1 in a diagnostics build.
+DIAGNOSTICS_OFF = struct.pack("<I", int.from_bytes(b"OFF\0", "big"))
+
+
+def with_diagnostics(data):
+    """The build with the Rust patches' opt-in diagnostics on (patch 76's
+    srp_ragdoll.csv): the crate's SRP_DIAGNOSTICS, DIAGNOSTICS_OFF in every
+    build, made 1. A local build only: release/build-zip never passes
+    --ragdoll-trace."""
+    va = arena().symbols["SRP_DIAGNOSTICS"]
+    data = bytearray(data)
+    at = next((raw + va - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
+               if IMAGE_BASE + rva <= va < IMAGE_BASE + rva + min(vsize, rsize)), None)
+    if at is None:
+        raise SystemExit(f"SRP_DIAGNOSTICS at {va:#x} is in no section of the build")
+    if bytes(data[at:at + 4]) != DIAGNOSTICS_OFF:
+        raise SystemExit(f"SRP_DIAGNOSTICS at {va:#x} is not the build's off value")
+    data[at:at + 4] = struct.pack("<I", 1)
+    headers = Headers(data)
+    struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
+    return bytes(data)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
-    mode, bin_path, server = "section", None, None
+    mode, bin_path, server, list_installs = "section", None, None, False
     late_join, late_join_path, revision, required = True, None, None, None
+    diagnostics = False
     for option in options:
-        if option == "--cert-only":
+        if option == "--installs":
+            list_installs = True
+        elif option == "--cert-only":
             mode = "cert-only"
         elif option == "--no-late-join":
             late_join = False
@@ -3774,6 +4041,8 @@ def main():
             revision = parse_revision(option[11:])
         elif option.startswith("--required-patches="):
             required = parse_required_patches(option[len("--required-patches="):])
+        elif option == "--ragdoll-trace":
+            diagnostics = True
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -3796,10 +4065,17 @@ def main():
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
     data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
                               required_patches=required)
+    if diagnostics:
+        if late_join_code is None:
+            sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
+        data = with_diagnostics(data)
+        description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)
     print(f"{target}: {description}")
+    if list_installs:
+        print(instances_text())
 
 
 if __name__ == "__main__":

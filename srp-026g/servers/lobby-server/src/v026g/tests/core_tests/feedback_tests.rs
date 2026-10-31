@@ -19,13 +19,13 @@ fn not_found_bytes() -> (u8, Vec<u8>) {
 
 impl World {
     /// How many messages the lobby has pushed to the client so far.
-    fn mark(&self, index: usize) -> usize {
+    pub(super) fn mark(&self, index: usize) -> usize {
         self.core.links[&self.clients[index].0].pushed.len()
     }
 
     /// The messages pushed to the client since `mark`: `(id, body)`. The
     /// online counts (0x9F), repeated every few seconds, are left out.
-    fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
+    pub(super) fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
         self.core.links[&self.clients[index].0].pushed[mark..]
             .iter()
             .filter(|message| message.id_byte() != 0x9F)
@@ -213,6 +213,30 @@ fn a_friend_request_or_an_invite_for_nobody_is_answered_with_player_not_found() 
     let pushed = world.pushed_since(alice, mark);
     // `A3 08 <u16 0>`: the ignore list, empty.
     assert_eq!(pushed, [(0xA3, vec![8, 0, 0]), not_found_bytes()]);
+    world.assert_clean();
+}
+
+/// From a match (the Tab list's menu, exe patch 86) a friend request for a
+/// name that is no account (a bot's place) is dropped: the lobby's message
+/// box would only come up back in the lobby.
+#[test]
+fn a_friend_request_for_nobody_from_a_match_is_dropped_in_silence() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let carol = world.connect("Carol");
+    world.ask(alice, request::play(1));
+    world.ask(carol, request::play(1));
+    world.advance(PLAY_TO_MATCH);
+    for client in [alice, carol] {
+        world.take(client);
+    }
+    let mark = world.mark(alice);
+    world.ask(alice, request::important("Nobody", 0, ""));
+    assert!(world.denials_since(alice, mark).is_empty());
+    // One to a player is sent from the match as from the lobby.
+    let carol_mark = world.mark(carol);
+    world.ask(alice, request::important("Carol", 0, ""));
+    assert!(world.pushed_since(carol, carol_mark).iter().any(|(id, _)| *id == 0xA4));
     world.assert_clean();
 }
 
@@ -413,6 +437,7 @@ impl World {
             trusted_by: 2,
             vs_bots: false,
             private: false,
+            blackout: false,
             players: vec![PlayerResult {
                 place: 0,
                 session_id,
@@ -430,6 +455,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: Some(PlayerStatistics::default()),
+                pay_statistics: None,
                 supplies: None,
             }],
         };

@@ -105,6 +105,8 @@ pub(super) struct Player<'a> {
     /// The name it was last told is no player's (`st_player_not_found`),
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
+    /// The friend requests it may still send (`social`).
+    pub friend_requests: super::social::FriendRequestAllowance,
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
@@ -220,6 +222,8 @@ pub(super) struct Core<'a> {
     /// The match against bots being made, by the queue's match id: what
     /// it was chosen with (`pvb`, `play::launch`).
     pub pvb_launching: HashMap<u32, super::pvb::Choice>,
+    /// The bots' kits and when they were gathered (`play::Core::bot_kits`).
+    pub bot_kits: Option<(Instant, std::sync::Arc<session::v026g::bot_kits::BotKits>)>,
     /// "Watch replay" (`replay`): the process's replays, if srp gave them.
     pub replays: Option<&'a Replays>,
     /// The rooms (`rooms`).
@@ -284,6 +288,7 @@ impl<'a> Core<'a> {
             // time.
             pvb_holds: HashMap::new(),
             pvb_launching: HashMap::new(),
+            bot_kits: None,
             replays: None,
             rooms: Default::default(),
             room_launching: HashMap::new(),
@@ -680,6 +685,7 @@ impl<'a> Core<'a> {
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
+            friend_requests: super::social::FriendRequestAllowance::new(now),
             room_chat: None,
         };
         let mut link = Link {

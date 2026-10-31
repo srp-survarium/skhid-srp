@@ -21,8 +21,8 @@ game and the launcher, not to their .exe files.
 
 Select an English keyboard layout before launching. In our Wine tests, starting
 with Russian selected could leave text input broken after switching to English.
-The game language is a separate setting: edit localization near the top of the
-script to choose english, russian, ukrainian, german or polish.
+The game language is chosen in the game: Settings, Gameplay, Language (it
+applies at the next start).
 
 Full builds use the login address embedded in the executable. To override it,
 set server=host:port near the top of play_skhid.sh. Certificate-only builds have
@@ -43,11 +43,11 @@ again retries it.
 
 starts launcher_skhid.exe in the same Wine prefix instead of the game. It asks
 the server whether the Skhid files are still the current ones, installs newer
-ones (itself and this script included), and its PLAY button starts the game in
-the language chosen at its top. Without the word launcher the script starts
+ones (itself and this script included), and its PLAY button starts the game.
+Without the word launcher the script starts
 the game directly, as before, and looks for no updates. The launcher's page
 area stays empty under Wine (the script keeps Wine's browser engine off); its
-status line, language menu and PLAY button are what matter. This mode has not
+status line and PLAY button are what matter. This mode has not
 been run under Wine by us yet: if it fails, play without it and tell us what
 skhid-wine.log and updater_skhid.log say.
 

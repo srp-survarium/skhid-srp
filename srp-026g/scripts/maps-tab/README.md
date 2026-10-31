@@ -1,6 +1,6 @@
 # Maps tab
 
-The website's `/maps` (`srp-026g/servers/web-server/src/maps.rs`, spec in
+The website's `/wiki/maps`, a section of the wiki (`srp-026g/servers/web-server/src/maps.rs`, spec in
 `docs/notes/maps_tab.md`). It shows every playable map, by mode, with these
 points, each kind toggled on its own:
 

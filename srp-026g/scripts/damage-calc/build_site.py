@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the website's calculator (`/damage`) from the game as Skhid's players have it.
+"""Builds the website's calculator (`/wiki/calculator`) from the game as Skhid's players have it.
 
     python3 -I build_site.py --stock <resources.db> --patches <dir> --dbgrab <dbgrab> --ffdec <ffdec-cli.jar>
                              [--with <resources.db.patch_n>] [--list release/patches.tsv] [--work <dir>]
@@ -9,7 +9,9 @@ it, each checked by its sha256 (srp-026g/scripts/released-game). Every step
 of the README's build, in one: the configs and texts (dump_json.py,
 gen_calc_data.py), the lobby icons (lobby_menu.swf through FFDec,
 assets/tools/build_icons.py), then build_page.py --site into
-servers/web-server/damage/, and built-from.tsv there: release/release.sh
+servers/web-server/damage/ and the wiki's weapons and icons
+(../wiki/build.py, ../wiki/build_icons.py) into servers/web-server/wiki/,
+and built-from.tsv in damage/: release/release.sh
 rebuilds the page (release/build-site) when it offers other patches, and a
 web-server test fails a PR whose pages and list differ. Run the Maps tab's build first (srp-026g/scripts/maps-tab): the
 calculator takes its maps' names, order and minimaps from it; the renders are
@@ -62,6 +64,11 @@ def main():
                             str(raw / "flash_movies__lobby_menu.swf")], check=True, capture_output=True)
         run(HERE / "assets" / "tools" / "build_icons.py", json_dir, images, icons, "--webp")
         run(HERE / "build_page.py", "--site", work / "calc-data.json", SITE, icons / "icons", SITE / "maps", revision(rows))
+        run(HERE.parent / "wiki" / "build.py", "--calculator", SITE / "calc.js", "--out", SITE.parent / "wiki")
+        # The wiki's icons: the items', the modifications' and the shop filters'.
+        run(HERE.parent / "wiki" / "build_icons.py", "--json", json_dir, "--images", images,
+            "--item-icons", icons / "icons", "--swf", raw / "flash_movies__lobby_menu.swf", "--ffdec", args.ffdec,
+            "--lobby", SRP / "flash" / "lobby_menu", "--out", SITE.parent / "wiki" / "icons")
     write_built_from(SITE / "built-from.tsv", rows, "the calculator (srp-026g/scripts/damage-calc/build_site.py)")
     print(f"{SITE}: revision {revision(rows)}")
 

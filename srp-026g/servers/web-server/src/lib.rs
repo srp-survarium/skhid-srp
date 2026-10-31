@@ -41,13 +41,18 @@
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
 mod damage;
+mod icons;
+pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;
+mod equipment;
+mod modifiers;
 mod password_reset;
 mod patches;
 mod stats;
 mod v026g;
+mod wiki;
 
 pub use patches::OfferedPatch;
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
@@ -172,8 +177,7 @@ struct Stats {
     /// The 0.26g page.
     v026g: bool,
     /// The download holds the launcher (0.26g): the page tells players to
-    /// start that, and keeps the start script and the command line for
-    /// those who want them.
+    /// start that, and keeps the start script for those who want it.
     launcher: bool,
     /// The download's launcher brings the original game itself (0.26g):
     /// the page tells players to unpack into an empty folder, and names
@@ -668,11 +672,29 @@ impl Web {
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)));
+                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
             }
+        }
+        // A page's address from before it was the wiki's: the page where it
+        // is now, in the same language (the browser keeps a `#` itself).
+        if self.game.is_some()
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(path) = wiki::moved(&request.path)
+        {
+            let head = format!(
+                "HTTP/1.0 301 Moved Permanently\r\nLocation: {path}?lang={}\r\n\
+                 Content-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                request.lang.code()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.flush();
+            let _ = stream.shutdown(Shutdown::Write);
+            return;
         }
         let response = self.route(&request, &peer);
         let policy = if self.game.is_some() && launcher::serves(&request.path) {
@@ -681,6 +703,13 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some()
+            && matches!(
+                request.path.as_str(),
+                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT
+            )
+        {
+            damage::POLICY
         } else {
             POLICY
         };
@@ -940,6 +969,9 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
+                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT) => {
+                        return wiki_page(path, &request.target, request.lang);
+                    }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
                             launcher::language(path, request.lang),
@@ -1581,24 +1613,41 @@ fn page(lang: Lang, form: Form, message: &str) -> Response {
 
 /// The calculator: its page under the site's header.
 fn damage_page(lang: Lang) -> Response {
-    damage::page(lang, &tool_header(lang, damage::PATH))
+    damage::page(
+        lang,
+        &tool_header(lang, &lang.tr("Damage calculator", "Калькулятор шкоди")),
+    )
 }
 
-/// The Maps tab: its page under the site's header.
+/// The maps: their page under the site's header.
 fn maps_page(lang: Lang) -> Response {
-    maps::page(lang, &tool_header(lang, maps::PATH))
+    maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
-/// The site's header over a page of its own look (the calculator's, the
-/// Maps tab's), `path` the page shown.
-fn tool_header(lang: Lang, path: &str) -> String {
+fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, test_notice) = site_header(lang, true, test, other_url, path);
+    let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    let query = target.split_once('?').map_or("", |(_, query)| query);
+    wiki::page(path, query, lang, &format!("{header}{notice}"))
+}
+
+/// The site's header over a wiki page of its own look (the calculator's, the
+/// maps'), and the way back to the wiki; `name` the page shown.
+fn tool_header(lang: Lang, name: &str) -> String {
+    let connect = CONNECT.get();
+    let test = connect.is_some_and(|connect| connect.test_server);
+    let other_url = connect.and_then(|connect| connect.other_url.as_deref());
+    let (header, test_notice) = site_header(lang, true, test, other_url, wiki::PATH);
     format!(
-        "<div class=site><style>{}</style>{header}{test_notice}</div>",
-        damage::HEADER_STYLE
+        "<div class=site><style>{}</style>{header}{test_notice}\
+         <p class=breadcrumb><a href=\"{}?lang={}\">{}</a> / {}</p></div>",
+        damage::HEADER_STYLE,
+        wiki::PATH,
+        lang.code(),
+        lang.tr("Wiki", "Вікі"),
+        escape(name),
     )
 }
 
@@ -1632,7 +1681,7 @@ fn site_header(
             String::new(),
         )
     };
-    // The calculator and the maps are the 0.26g game's.
+    // The wiki (the calculator and the maps are in it) is the 0.26g game's.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1644,16 +1693,15 @@ fn site_header(
         )
     };
     let home_link = tab("/", &lang.tr("Home", "Головна"));
-    let damage_link = if v026g {
-        tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
-            + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
+    let wiki_link = if v026g {
+        tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
     let header = format!(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
-         <nav>{home_link}{damage_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
+         <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
         page_tag(lang, version, test),
     );
     (header, test_notice)
@@ -1760,12 +1808,12 @@ fn room_rules(lang: Lang, squads: bool) -> String {
     let cards = session::v026g::rooms::CARDS;
     let mut items = vec![
         lang.tr(
-            "Matches are played in rooms in the lobby: join one from the list, make your own (its size, max level, maps, wait and an optional PIN), or press Play.",
-            "Матчі грають у кімнатах у лобі: приєднайтеся до однієї зі списку, створіть свою (розмір, макс. рівень, мапи, очікування й PIN за бажанням) або натисніть «Грати».",
+            "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
+            "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
         ),
         lang.tr(
-            "Play puts you in the open room nearest your level, or makes a new one.",
-            "«Грати» ставить вас у відкриту кімнату, найближчу до вашого рівня, або створює нову.",
+            "Play uses rooms capped at equipment level 10 or 15, creating the first room when needed. Full rooms have a queue; six waiting Play users in the same bracket open another room. Players up to level 10 can also choose a level-15 room from Rooms.",
+            "«Грати» підбирає кімнату з максимальним рівнем спорядження 10 або 15, створюючи першу за потреби. У повні кімнати є черга; шість гравців, що очікують через «Грати» в одній групі рівнів, відкривають нову кімнату. Гравці до 10-го рівня також можуть вибрати кімнату до 15-го через список кімнат.",
         ),
         lang.tr(
             &format!(
@@ -1784,8 +1832,8 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
         ),
         lang.tr(
-            "Private rooms (with a PIN) give no rewards.",
-            "Приватні кімнати (з PIN) не дають нагород.",
+            "Private rooms (with a PIN) give no rewards. Their creator starts the match, with any number of players.",
+            "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
         ),
     ];
     if !squads {
@@ -1908,57 +1956,39 @@ fn home(lang: Lang, stats: Stats) -> String {
         lang.tr("registered", "зареєстровано"),
     );
     let version = if v026g { "0.26g" } else { "0.21d" };
-    // 0.26g: `-server=` (it has no `-client=`), and the exe that takes srp's
-    // certificate (`scripts/client-patch-026g`).
-    let server_key = if v026g { "-server" } else { "-client" };
-    let mut options = format!(
-        "<ul class=opts><li><code>{server_key}</code> {}</li><li><code>-localization</code> {}</li>",
+    // 0.21d: the start command, typed by hand. 0.26g's exe has the server and
+    // the memory sizes built in and its language is chosen in its Settings, so
+    // its page names no command line.
+    let command_line = format!(
+        "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
+        lang.tr(
+            "Start it with this command line:",
+            "Запустіть гру з такою командою:"
+        ),
+        lang.tr("english", "ukrainian"),
+        escape(address),
         lang.tr("server address", "адреса сервера"),
         lang.tr(
             "language: english, russian, ukrainian",
             "мова: english, russian, ukrainian"
         ),
     );
-    if v026g {
-        options += &format!(
-            "<li><code>-mt_allocator=768</code> {}</li><li><code>-minimum_resources_memory_size=768</code> {}</li>",
-            lang.tr(
-                "memory for the game (maps need more than the default), MB",
-                "пам'ять для гри (мапам замало типової), МБ"
-            ),
-            lang.tr("memory for resources, MB", "пам'ять для ресурсів, МБ"),
-        );
-    }
-    options += "</ul>";
-    let launch = if v026g {
-        format!(
-            "<pre>survarium_skhid.exe -localization={} -server={} -mt_allocator=768 -minimum_resources_memory_size=768</pre><p><small>{}</small></p>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-            lang.tr(
-                "Run it from the game's <code>game\\binaries\\x86</code> folder (the download's <code>play_skhid.bat</code> does).",
-                "Запускайте з теки гри <code>game\\binaries\\x86</code> (це робить <code>play_skhid.bat</code> із завантаження).",
-            ),
-        )
-    } else {
-        format!(
-            "<pre>survarium.exe -localization={} -client={}</pre>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-        )
-    };
-    let command_line = format!(
-        "{}{launch}{options}",
+    let language = format!(
+        "<p>{}</p>",
         lang.tr(
-            "Start it with this command line:",
-            "Запустіть гру з такою командою:"
-        ),
+            "Language: in the game, <b>Settings</b>, <b>Game</b>, <b>Language</b> (applies after a restart).",
+            "Мова: у грі, <b>Опції</b>, <b>Гра</b>, <b>Мова</b> (діє після перезапуску).",
+        )
+    );
+    let without_launcher = lang.tr(
+        "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
+        "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
     );
     // With the launcher in the download a player starts that and types
-    // nothing; the start script and the command line stay, folded away.
+    // nothing; the start script stays, folded away.
     let start = if with_launcher {
         format!(
-            "{}<p><small>{}</small></p><details><summary>{}</summary><p>{}</p>{command_line}</details>",
+            "{}<p><small>{}</small></p>{language}<details><summary>{}</summary><p>{without_launcher}</p></details>",
             if installs_game {
                 lang.tr(
                     "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
@@ -1982,11 +2012,9 @@ fn home(lang: Lang, stats: Stats) -> String {
                 )
             },
             lang.tr("Without the launcher", "Без лаунчера"),
-            lang.tr(
-                "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-                "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
-            ),
         )
+    } else if v026g {
+        format!("<p>{without_launcher}</p>{language}")
     } else {
         command_line
     };
@@ -3003,9 +3031,9 @@ mod tests {
     #[test]
     fn the_damage_calculator_is_the_026g_sites_only() {
         let web = web(None);
-        assert_eq!(web.route(&get("/damage"), "t").status, "404 Not Found");
+        assert_eq!(web.route(&get(damage::PATH), "t").status, "404 Not Found");
         let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("href=\"/damage"));
+        assert!(!home.contains("href=\"/wiki"));
         // The site's fonts are the calculator's, served on both servers.
         assert!(home.contains("src: url(\"/damage/fonts/pt-sans-regular.woff2?v="));
         assert!(crate::damage::file("/damage/fonts/pt-sans-regular.woff2").is_some());
@@ -3014,8 +3042,18 @@ mod tests {
     #[test]
     fn the_maps_are_the_026g_sites_only() {
         let web = web(None);
+        assert_eq!(web.route(&get(maps::PATH), "t").status, "404 Not Found");
+        // The old address leads nowhere either.
         assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
-        assert!(!web.route(&get("/"), "t").body.contains("href=\"/maps"));
+    }
+
+    #[test]
+    fn the_wiki_is_only_on_the_026g_site() {
+        let web = web(None);
+        for path in ["/wiki", "/wiki/weapons"] {
+            assert_eq!(web.route(&get(path), "t").status, "404 Not Found");
+        }
+        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
     }
 
     #[test]
@@ -3276,8 +3314,8 @@ mod tests {
             installs_game: false,
         };
         // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. The script and the command line are
-        // folded away below.
+        // download is needed once; how to change the language. The script
+        // is folded away below.
         for (lang, press, once, folded) in [
             (
                 Lang::En,
@@ -3307,7 +3345,9 @@ mod tests {
             assert!(!shown.contains("play_skhid.bat"), "{shown}");
             assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
             assert!(hidden.contains("play_skhid.bat"));
-            assert!(hidden.contains("<pre>survarium_skhid.exe -localization="));
+            assert!(shown.contains("<b>Language</b>") || shown.contains("<b>Мова</b>"), "{shown}");
+            assert!(!steps.contains("-localization"), "{steps}");
+            assert!(!steps.contains("<pre>"), "{steps}");
             assert_eq!(steps.matches("<details>").count(), 1);
             assert_eq!(steps.matches("</details>").count(), 1);
         }
@@ -3375,8 +3415,10 @@ mod tests {
         let page = home(Lang::En, stats(false));
         assert!(!page.contains("launcher_skhid.exe"));
         assert!(!page.contains("<details>"));
-        assert!(page.contains("Start it with this command line:<pre>survarium_skhid.exe"));
+        assert!(!page.contains("command line"));
+        assert!(!page.contains("-localization"));
         assert!(page.contains("<code>play_skhid.bat</code>"));
+        assert!(page.contains("<b>Settings</b>, <b>Game</b>, <b>Language</b>"));
     }
 
     #[test]

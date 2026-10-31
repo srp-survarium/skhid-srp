@@ -4,8 +4,9 @@
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a resources.db
 patch carrying it replaces the players' movie whole. It is built from source
-only: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript, and
-every lobby change is an edit of it (docs/notes/lobby-source.md). The whole
+only: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript, with
+the classes the build makes of its tables/ (the shop filters), and every lobby
+change is an edit of them (docs/notes/lobby-source.md). The whole
 tree is compiled in one Flex run, and the code goes into revision 24's movie in
 place of its code (tools/actionscript/flash_tree.py build): the graphics,
 fonts and symbol bindings are revision 24's. About 5 seconds.
@@ -45,7 +46,7 @@ OLDER = {
 # the last of a kind), one Flex run. The owner checked c3898574…, built from
 # this tree before the build compiled every tree from one place: the same
 # code laid out by compc in another order ("good, it works").
-RESULT_SHA256 = "8b099212b42baffd663e00d5f7a6447f2edf664999c11d7e01bf4c94c656791e"
+RESULT_SHA256 = "f9c8fb082bc724884638022f327a08d592a6dc20d789549df73eb8f5a0c22146"
 
 
 def build(movie, tools, report=print):

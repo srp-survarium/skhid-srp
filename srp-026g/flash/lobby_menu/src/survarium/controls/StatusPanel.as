@@ -199,6 +199,7 @@ package survarium.controls
          this.right_corner.btnShowDailyMessage.addEventListener(ButtonEvent.CLICK,this.showDailyMessage);
          trace("StatusPanel2",this.play_container.dropDownButton,this.panel_player.txLevel,this.matchSettings);
          this.dropDownButton = this.play_container.dropDownButton;
+         this.matchSettings.playContainer = this.play_container;
          this.dropDownButton.addEventListener(ButtonEvent.CLICK,this.showMatchSettings);
          this.panel_player.txLevel.text = "";
          this.matchSettings.visible = false;
@@ -206,7 +207,27 @@ package survarium.controls
       
       private function showMatchSettings(e:ButtonEvent) : void
       {
-         this.matchSettings.visible = !this.matchSettings.visible;
+         this.openMatchSettings(!this.matchSettings.visible);
+      }
+
+      // The match settings under Play (the arrow beside the mode) are a transient window
+      // (Transient): on the transient layer while open, over every window (the bar stays where it
+      // is); another window opening, a press outside them or Esc closes them as the arrow does.
+      // Their own dropdowns open from them.
+      private function openMatchSettings(value:Boolean) : void
+      {
+         this.matchSettings.visible = value;
+         if(value)
+         {
+            Transient.open(this.matchSettings,this.dropDownButton,function():void
+            {
+               openMatchSettings(false);
+            });
+         }
+         else
+         {
+            Transient.closed(this.matchSettings);
+         }
          dispatchEvent(new Event(MATCH_SETTINGS));
       }
       
@@ -550,7 +571,6 @@ package survarium.controls
          }
          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
          stage.addEventListener(Event.RESIZE,this.onStageResize);
-         stage.addEventListener(MouseEvent.CLICK,this.onStageClick);
          players = 0;
          games = 0;
       }
@@ -616,17 +636,6 @@ package survarium.controls
          this.left_corner.videoTutorial.visible = false;
          ExternalInterface.call("video_tutorial_hide_clicked");
          this.sortAdminMessages();
-      }
-      
-      private function onStageClick(e:MouseEvent) : void
-      {
-         if((this.matchSettings.visible) && Message.isAnyMessage() == -1)
-         {
-            if(e.target != this.dropDownButton && e.target != this.matchSettings && !this.matchSettings.contains(e.target))
-            {
-               this.showMatchSettings(null);
-            }
-         }
       }
       
       private function updateMatchSettings(e:Event) : void

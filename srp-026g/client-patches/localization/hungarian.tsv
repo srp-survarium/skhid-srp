@@ -1,0 +1,2819 @@
+key	text
+bm_back_1_desc	A leírás még nem érhető el.
+bm_back_1_name	„Marodeur” tároló
+k0	0
+k1	1
+k2	2
+k3	3
+k4	4
+k5	5
+k6	6
+k7	7
+k8	8
+k9	9
+kA	A
+kADD	+
+kAPOSTROPHE	'
+kB	B
+kBACK	Backspace
+kBACKSLASH	\\
+kC	C
+kCOMMA	,
+kD	D
+kDECIMAL	.
+kDELETE	Delete
+kDOWN	Down
+kE	E
+kEND	End
+kEQUALS	=
+kESCAPE	Esc
+kF	F
+kF1	F1
+kF10	F10
+kF11	F11
+kF12	F12
+kF13	F13
+kF14	F14
+kF15	F15
+kF2	F2
+kF3	F3
+kF4	F4
+kF5	F5
+kF6	F6
+kF7	F7
+kF8	F8
+kF9	F9
+kG	G
+kGRAVE	~
+kH	H
+kHOME	Home
+kI	I
+kINSERT	Insert
+kJ	J
+kK	K
+kL	L
+kLBRACKET	<
+kLCONTROL	LCtrl
+kLEFT	Left
+kLSHIFT	LShift
+kM	M
+kMINUS	-
+kN	N
+kNUMLOCK	NumLock
+kNUMPAD0	Num0
+kNUMPAD1	Num1
+kNUMPAD2	Num2
+kNUMPAD3	Num3
+kNUMPAD4	Num4
+kNUMPAD5	Num5
+kNUMPAD6	Num6
+kNUMPAD7	Num7
+kNUMPAD8	Num8
+kNUMPAD9	Num9
+kNUMPADCOMMA	NumComma
+kNUMPADENTER	NumEnter
+kNUMPADEQUALS	=
+kO	O
+kP	P
+kPAUSE	Pause
+kPERIOD	.
+kQ	Q
+kR	R
+kRBRACKET	>
+kRCONTROL	RControl
+kRETURN	Enter
+kRIGHT	Right
+kRSHIFT	RShift
+kS	S
+kSCROLL	ScrollLock
+kSEMICOLON	,
+kSLASH	/
+kSPACE	Space
+kSUBTRACT	-
+kT	T
+kTAB	Tab
+kU	U
+kUP	Up
+kV	V
+kW	W
+kX	X
+kY	Y
+kZ	Z
+mouse1	LMB
+mouse2	RMB
+mouse3	MMB
+mouse4	X1MB
+mouse5	X2MB
+mouse6	X3MB
+mouse7	X4MB
+mouse8	X5MB
+mouse_wheel_down	Görgő le
+mouse_wheel_up	Görgő fel
+st_a545_description	A leírás még nem érhető el.
+st_a545_name	A-545
+st_a9_91_description	A leírás még nem érhető el.
+st_a9_91_name	9A-91
+st_abilities	Képességek
+st_accept	Elfogadás
+st_accept_changes	Alkalmazás
+st_account	fiók
+st_account_trading_claim	Fiókkereskedelem
+st_achieved	elérve!
+st_achievements_label	A játékos eredményei
+st_action_premium_activated	Prémium aktiválva! A jutalmad:
+st_activate_premium	Prémium fiók aktiválása
+st_add	Hozzáadás
+st_add_profile_button_blocked_hint_text	Elérted a profilok maximális számát!
+st_add_profile_button_hint_text	Új karakterprofil hozzáadása
+st_add_to_clan_request	meghív ebbe a klánba: 
+st_add_to_clan_team_request	meghív a kláncsapatba
+st_add_to_friends	Hozzáadás a barátokhoz
+st_add_to_friends_request	Barátkérelem
+st_add_to_ignore	Hozzáadás a tiltólistához
+st_add_to_squad_request	Csatlakozás az osztaghoz
+st_additional_max_weight_name	Súlykorlát
+st_additive_quick_slot_size_modifier	Zsebkapacitás
+st_aek919k_description	Orosz kompakt géppisztoly, 9x18 PM lőszerrel. A kovrovi gépgyár fejlesztette az 1990-es években a belügyminisztérium és más rendvédelmi szervek számára. 20 lőszeres tárral, egyes és sorozatlövéssel.
+st_aek919k_name	AEK-919K "Kashtan"
+st_aim_time_description	Célzási sebesség:
+st_aim_time_name	Gyors reakció
+st_aim_toggle_action	Célzás 
+st_aiming_booster_description	Lejárt vényköteles tabletták. Az évek alatt gyengültek, de a nyugtató hatásuk még megvan.
+st_aiming_booster_name	Gyöngyajak-kivonat
+st_aiming_speed_correction_perc_name	Célzási sebesség
+st_ak12_description	A leírás még nem érhető el.
+st_ak12_name	AK-12
+st_ak12_premium_description	Új generációs orosz Kalasnyikov gépkarabély. Az Izsmas fejlesztése a 2010-es évek elejéről, szereléksínekkel, áttervezett tussal és kezelőszervekkel. 30 lőszeres tár, egyes lövés, rövid és folyamatos sorozat. Prémium változat különleges álcafestéssel.
+st_ak12_premium_name	AK-12M1
+st_ak74m_description	A Kalasnyikov korszerű változata, 5,45x39 lőszerrel. Rendszeresítése után jó hírnévre tett szert a hadseregben. Egyes és sorozatlövésre képes.
+st_ak74m_name	AK-74M
+st_ak74n_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett AK-74N.\n- 2000 darab 5.45x39 7N6M lőszer.</white>\n
+st_ak74n_bundle_name	AK-74N csomag
+st_ak74n_description	A leírás még nem érhető el.
+st_ak74n_name	AK-74N
+st_ak74u_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis mérete miatt széles körben használták az ejtőernyősök, a belügyminisztérium és biztonsági szolgálatok. Egyes és sorozatlövésre képes. 
+st_ak74u_name	AKS-74U
+st_ak74u_premium_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis mérete miatt széles körben használták az ejtőernyősök, a belügyminisztérium és biztonsági szolgálatok. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
+st_ak74u_premium_name	AKS-74U Corsair
+st_akmn_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes.
+st_akmn_name	AKM
+st_akmn_premium_2_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
+st_akmn_premium_2_name	AKM "Avenger"
+st_akmn_premium_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
+st_akmn_premium_name	AKM '65
+st_all_factions	Összes kereskedő
+st_all_quests	Összes feladat mutatása
+st_already_as_reserve_in_team	A játékos már tartalékos
+st_already_as_soldier_in_team	A játékos már a csapatban van.
+st_already_exist_clan_string	Ez a név már foglalt.
+st_already_has_status_clan_team	A játékost már meghívták, vagy már a kláncsapat tagja.
+st_already_in_clan_team	A játékos már a csapatban van.
+st_already_in_inventory	Ezt a tárgyat már megvetted. Így is megveszed?
+st_ambient_occlusion_options	Környezeti árnyékolás minősége
+st_ammo	Lőszer
+st_ammo_127x54_pt_description	A leírás még nem érhető el.
+st_ammo_127x54_pt_name	12.7x54 PT
+st_ammo_127x54_vps_description	A leírás még nem érhető el.
+st_ammo_127x54_vps_name	12.7x54 VPS
+st_ammo_127x55_description	A leírás még nem érhető el.
+st_ammo_127x55_name	12.7x55
+st_ammo_12mm_buck2_desc	Megerősített 12-es vadászlőszer. A nagyobb sörétek növelik az átütőerőt és a hatásos lőtávot. 
+st_ammo_12mm_buck2_name	12x70, kartács
+st_ammo_12mm_buck_desc	Szokványos sörétes vadászlőszer. Nagy sebzést okoz a páncélozatlan célpontoknak. 
+st_ammo_12mm_buck_name	12x70, sörét
+st_ammo_12mm_slug_desc	Teljes köpenyes lövedékű 12-es vadászlőszer. Nagy megállító- és átütőerővel rendelkezik. 
+st_ammo_12mm_slug_name	12x70, golyós
+st_ammo_30_description	Amerikai eredetű puskalőszer, 150 méterig hatásos. Az első civil lőszer füst nélküli lőporral. 
+st_ammo_30_name	.30-30 Winchester
+st_ammo_357m_description	Nagy erejű amerikai revolverlőszer. A szesztilalom idején vezették be a szokásos rendőrségi lőszer erősebb utódjaként. 
+st_ammo_357m_name	.357 Magnum
+st_ammo_45acp_description	A leírás még nem érhető el.
+st_ammo_45acp_name	.45 ACP
+st_ammo_46x30_description	A Heckler & Koch által az MP7-hez fejlesztett lőszer. Kis, kemény lövedéke közelről és közepes távolságból is átüti a testpáncélt.
+st_ammo_46x30_name	4.6x30
+st_ammo_545x39_7n10_description	A leírás még nem érhető el.
+st_ammo_545x39_7n10_name	5.45x39 7N10
+st_ammo_545x39_7n22_description	A leírás még nem érhető el.
+st_ammo_545x39_7n22_name	5.45x39 7N22
+st_ammo_545x39_7n6m_description	Kis impulzusú szovjet köztes lőszer acélmaggal. A könnyű lövedék nagy kezdősebessége lapos röppályát biztosít. 
+st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_description	NATO köztes lőszer, az amerikai .223 Remington alapján, 1980-ban szabványosítva. Könnyű, gyors lövedék lapos röppályával és kis visszarúgással.
+st_ammo_556x45_name	5.56x45
+st_ammo_57x28_description	Az FN Herstal 1990 körül fejlesztette a P90-hez, később a Five-seveN pisztolyhoz is. Könnyű, gyors lövedék testpáncél átütésére.
+st_ammo_57x28_name	5.7x28
+st_ammo_65x39_description	A leírás még nem érhető el.
+st_ammo_65x39_name	6.5x39 Grendel
+st_ammo_762x25_description	Az első szovjet egybeszerelt pisztolylőszer. Pisztolyokhoz és géppisztolyokhoz is használható. 
+st_ammo_762x25_name	7.62x25
+st_ammo_762x39_7n23_description	A leírás még nem érhető el.
+st_ammo_762x39_7n23_name	7.62x39 7N23
+st_ammo_762x39_description	Az 1943-ban tervezett 7.62x39 lőszert a világ három legerősebb puskalőszerének egyikeként tartják számon.
+st_ammo_762x39_m_description	A leírás még nem érhető el.
+st_ammo_762x39_m_name	7.62x39 RPD
+st_ammo_762x39_name	7.62x39
+st_ammo_762x51_M59_description	A katonai 7.62x51 M61 puskalőszer páncéltörő változata. A lövedék köpenyezett acélmaggal rendelkezik.
+st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_description	Elterjedt katonai lőszer teljes köpenyes lövedékkel. Mesterlövész- és civil fegyverekhez készült. 
+st_ammo_762x51_name	7.62x51
+st_ammo_762x54R_old_description	Raktárakból előkerült lőszer, korunk egyik legrégebbi puskalőszere. Kora és tárolási körülményei csökkentették a hatékonyságát.
+st_ammo_762x54R_old_name	7.62x54R
+st_ammo_9x18_description	Szovjet egybeszerelt lőszer az elavult 7.62 mm-es leváltására. Kedvező árú alaplőszer, nemfémes felületeken megfelelő átütőerővel.
+st_ammo_9x18_name	9x18 MP
+st_ammo_9x18_pbm_description	Páncéltörő 9x18 mm PBM 7N25 lőszer. A 9x18 PM-hez képest jóval nagyobb kezdősebesség és megállítóerő jellemzi.
+st_ammo_9x18_pbm_name	9x18 PBM
+st_ammo_9x19p_7n21_description	Túlnyomásos +P+ lőszer acél átütőmaggal. Megállítóereje meghaladja a kereskedelmi 9x19 Parabellum lőszerét. 
+st_ammo_9x19p_7n21_name	9x19 7N21
+st_ammo_9x19p_7n31_description	A leírás még nem érhető el.
+st_ammo_9x19p_7n31_name	9x19 7N31
+st_ammo_9x19p_para_description	9x19 Parabellum egybeszerelt pisztolylőszer teljes köpenyes lövedékkel. A második világháború után NATO-szabvány lett.
+st_ammo_9x19p_para_name	9x19 Parabellum
+st_ammo_9x21_description	A leírás még nem érhető el.
+st_ammo_9x21_name	9x21 SP-10
+st_ammo_ammo_762x54_7n13_description	Orosz 7.62x54R puskalőszer edzett acélmaggal a jobb átütésért. Géppuskákhoz és mesterlövészpuskákhoz használják, hevederben szállítva.
+st_ammo_ammo_762x54_7n13_name	7.62x54 7N13
+st_ammo_ammo_762x54_7n1_description	A leírás még nem érhető el.
+st_ammo_ammo_762x54_7n1_name	7.62x54 7N1
+st_ammo_bags_description	Kapsz egy extra lőszertáskát.
+st_ammo_bags_name	Lőszer
+st_ammo_equipped_label	Hátizsák
+st_ammo_label	Lőszer
+st_ammo_pab9_description	A leírás még nem érhető el.
+st_ammo_pab9_name	9x39 PAB-9
+st_ammo_sp5_description	A leírás még nem érhető el.
+st_ammo_sp5_name	9x39 SP-5
+st_ammo_sp6_description	A leírás még nem érhető el.
+st_ammo_sp6_name	9x39 SP-6
+st_ammo_storage_label	Raktár
+st_aniso_filtering_option	Anizotrop szűrés
+st_anomaly_damage_corr_perc_name	Anomáliasebzés
+st_anomaly_skills_label	Az Erdő ismerete.
+st_antialiasing_option	Élsimítás
+st_antitoxin_description	Összetett gyógyszer a szervezetben lévő mérgek semlegesítésére. A legjobb hatásért a káros behatás előtt vedd be. 
+st_antitoxin_name	Antitoxin
+st_apply_changes_msg	Alkalmazod a beállításokat?
+st_aps_description	A leírás még nem érhető el.
+st_aps_name	APS
+st_army_026_mask_desc	Egyetlen széles szemnyílású maszk a törölt S.T.A.L.K.E.R. 2-ből.
+st_army_026_mask_name	Katonai maszk
+st_artcontainer_time_corr_perc_name	Begyűjtési idő
+st_artefact_activated_message	Artefaktum aktiválva
+st_artefact_booster_description	Az artefaktumok begyűjtésére barkácsolt eszköz második változata. A beépített anomáliaelnyomó felgyorsítja a kinyerést.
+st_artefact_booster_name	Artefaktummester
+st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
+st_artefact_search_failed	Nem találtál artefaktumot
+st_artefact_search_success	Szereztél egy artefaktumot! 
+st_artefact_take_teammate	Artefaktum felvétele ({USE})
+st_ash12_description	A leírás még nem érhető el.
+st_ash12_name	Ash-12
+st_attention	Hiba történt a Survarium indítóprogramjának indításakor. Próbáld újra később.
+st_auto	Auto
+st_auto_button_hint	Automatikus lőszerutántöltés
+st_auto_repair_button_label	Automatikus javítás
+st_auto_repair_hint	Kisebb felszereléshibák automatikus javítása
+st_autobuy_button_label	Automatikus vásárlás
+st_autobuy_money	Lőszer hozzáadása
+st_autobuy_money_ammo	Lőszer
+st_autobuy_money_consulabels	Különleges felszerelés
+st_autorepair_money	Javítási költség
+st_back_use_action	Oxigénpalack
+st_backpack	Hátizsák
+st_ban_reason_account_trading	Fiók eladása vagy eladási kísérlet.
+st_ban_reason_administrator	Az adminisztrátorok döntése.
+st_ban_reason_advertising	Reklám terjesztése.
+st_ban_reason_bad_language	Trágár beszéd
+st_ban_reason_cheating	Külső szoftverek terjesztése, reklámozása vagy megvitatása.
+st_ban_reason_discuss_admins	Az adminisztrátorok intézkedéseinek megvitatása.
+st_ban_reason_faschism	Rasszista, náci vagy nacionalista megnyilvánulás.
+st_ban_reason_flood	Spam, üzenetáradat, tartalmatlan üzenetek.
+st_ban_reason_incorrect_info	Hamis információk terjesztése.
+st_ban_reason_insult	Sértegetés, provokáció.
+st_ban_reason_nickname	Érvénytelen karakternév.
+st_ban_reason_politics	Politikai vita.
+st_ban_reason_reallife_treating	Valós életbeli fenyegetés.
+st_ban_reason_teamkilling	Csapattársak megölése.
+st_bandit_026_mask_desc	Banditamaszk a törölt S.T.A.L.K.E.R. 2-ből.
+st_bandit_026_mask_name	Banditamaszk
+st_base_bandages_description	Teljesen meggyógyítja a karokat és lábakat. A törzs és a fej életerejének 35%-át visszaállítja, és ugyanennyivel csökkenti a fájdalmat.
+st_base_bandages_name	Kötszercsomag
+st_base_medkit_description	Alap elsősegélycsomag. Nemcsak a súlyos sebeket kezeli, hanem a sérült általános állapotát is javítja.
+st_base_medkit_name	Elsősegélycsomag
+st_base_painkiller_description	Erős érzéstelenítő, amely ideiglenesen növeli a fájdalomküszöböt. Megakadályozza, hogy a harcos nem halálos sérülésnél a fájdalomsokktól elájuljon. 
+st_base_painkiller_name	Érzéstelenítő
+st_base_trap_description	Szokványos vadászcsapda erős rugóval. Működésbe lépve egy nagy állat vagy ember lábát is eltöri. 
+st_base_trap_name	Csapda
+st_benelli_description	Olasz öntöltő sörétes puska, 12-es kaliberrel. A Benelli az 1990-es évek végén fejlesztette gázüzemű működéssel. Az amerikai tengerészgyalogság M1014 néven rendszeresítette. Csőtár a cső alatt, csak egyes lövés.
+st_benelli_name	Benelli M4 Super 90
+st_best	Legjobb
+st_best_explorer	FELFEDEZŐ
+st_best_explorer_artefacts	Artefaktumok:
+st_best_explorer_items	Tárgyak:
+st_best_player	JÁTÉKOS
+st_best_player_score	Pontszám:
+st_best_sniper	LÖVÉSZ
+st_best_sniper_accuracy	Pontosság:
+st_best_sniper_shots	Lövések:
+st_best_support	TÁMOGATÓ
+st_best_support_healed	Gyógyítva:
+st_best_support_saved	Megmentve:
+st_bind_text	Nyomd meg a gombot
+st_black_market_faction	Feketepiac
+st_blackmarket_bring_x_items_descr	A Vihar sem minket, sem az ellenséget nem kíméli. A túléléshez minél több akkumulátort kell a védelmi berendezéshez vinnünk. A területen szétszórva találhatók, de az ellenség bázisáról is ellophatjuk őket.
+st_blackmarket_bring_x_items_name	Közös ügy
+st_blackmarket_bring_x_items_obj	Keress és hozz akkumulátorokat:
+st_blackmarket_entrap_enemies_descr	Mit csináltál a járvány előtt? Talán állatoknak állítottál csapdát az erdőben? Ideje elővenni a régi tudást. Csakhogy most emberre vadászol!
+st_blackmarket_entrap_enemies_name	Orvvadász
+st_blackmarket_entrap_enemies_obj	Kapj el ellenségeket csapdával:
+st_blackmarket_grenade_enemies_descr	Hidd el, nincs jobb ajándék egy jó gránátnál. Főleg biztosítószeg nélkül! Ha ügyes vagy, egyszerre több ellenségnek is jut belőle. Csak a saját csapatodat ne ajándékozd meg vele.
+st_blackmarket_grenade_enemies_name	Egy kis ajándék!
+st_blackmarket_grenade_enemies_obj	Ölj meg ellenségeket gránáttal egy meccsben:
+st_blackmarket_headshots_descr	A golyóálló mellény életet menthet, de a fejlövéstől nem véd. Még a sisak sem nyújt teljes védelmet. A fejlövés időt, lőszert és idegeskedést spórol.
+st_blackmarket_headshots_name	Fejlövések
+st_blackmarket_headshots_obj	Ölj meg ellenségeket fejlövéssel:
+st_blackmarket_kd_ratio_descr	Féljenek csak tőlünk! Mi vagyunk a Feketepiac. Nem félünk meghalni, és szívesen magunkkal viszünk két-három ellenséget!
+st_blackmarket_kd_ratio_name	Félemlíts meg és uralkodj!
+st_blackmarket_kd_ratio_obj	Nyerj meccset legalább ekkora ölés/halál aránnyal:
+st_blackmarket_kill_enemies_descr	Ha a csata véget ért, az ellenség szétfutott és a zsákmányt elosztottátok, jó megosztani a dicsőséges pillanatokat a barátokkal. Legyen mit mesélned.
+st_blackmarket_kill_enemies_name	Személyes ügy
+st_blackmarket_kill_enemies_obj	Ölj meg ellenfeleket egy meccsben:
+st_blackmarket_kill_enemy_x_descr	A Guberálók nem a legádázabb ellenségeink. De néha helyre kell tenni őket. A legjobb, ha példát statuálunk.
+st_blackmarket_kill_enemy_x_name	Fejvadászat
+st_blackmarket_kill_enemy_x_obj	Öld meg a Guberálók tagjait egy meccsben:
+st_blackmarket_killstreak_descr	Néha túlerőben van az ellenség. Van, aki ezt gondnak látja. Szerintünk viszont minél többet ölünk meg, annál nagyobb a dicsőség. 
+st_blackmarket_killstreak_name	Halálgép
+st_blackmarket_killstreak_obj	Érj el ölési sorozatot:
+st_blackmarket_level_0	Ismeretlen
+st_blackmarket_level_1	Újonc
+st_blackmarket_level_2	Harcos
+st_blackmarket_level_3	Tizedes
+st_blackmarket_level_4	Százados
+st_blackmarket_level_5	Elit
+st_blackmarket_level_unlock_0	Gratulálunk! Feloldottad a Feketepiac feladatait!
+st_blackmarket_level_unlock_1	Gratulálunk! Mostantól a Feketepiac újonca vagy!
+st_blackmarket_level_unlock_2	Gratulálunk! Mostantól a Feketepiac harcosa vagy!
+st_blackmarket_level_unlock_3	Gratulálunk! Mostantól a Feketepiac tizedese vagy!
+st_blackmarket_level_unlock_4	Gratulálunk! A Feketepiac századosa lettél!
+st_blackmarket_level_unlock_5	Gratulálunk! Mostantól a Feketepiac elitjéhez tartozol!
+st_blackmarket_meele_kill_descr	Ha nem megy tisztán, készülj fel, hogy bepiszkolod a kezed. Ez különböztet meg minket másoktól. Bizonyítsd be, hogy közénk tartozol: dolgozz a kezeddel.
+st_blackmarket_meele_kill_name	Piszkos munka
+st_blackmarket_meele_kill_obj	Ölj meg ellenségeket közelharcban:
+st_blackmarket_represent	A Feketepiac felszerelését kell viselned.
+st_blackmarket_starter_bundle_descr	<white>Tartalma:\n- Banditakabát.\n- Banditanadrág.\n- Továbbfejlesztett UZI.\n- 2000 darab 9x19 Parabellum lőszer.</white>
+st_blackmarket_starter_bundle_name	Banditacsomag
+st_blackmarket_steal_box_descr	Két legyet egy csapásra! Ezt jegyezd meg! Ha ellopsz egy akkumulátort az ellenség bázisáról, őket védelem nélkül hagyod, a saját csapatodnak pedig sokat segítesz!
+st_blackmarket_steal_box_name	Rablás
+st_blackmarket_steal_box_obj	Lopj el egy akkumulátort az ellenség bázisáról, és vidd a sajátodra.
+st_blackmarket_win_score_descr	Mi jobb a győzelemnél? A teljes győzelem! Amikor az ellenségnek esélye sincs, sarokba szorulva könyörög, hogy érjen véget a rémálom.
+st_blackmarket_win_score_name	Uralom
+st_blackmarket_win_score_obj	Nyerj meccset ennyi bevitt akkumulátorral:
+st_blackmarket_win_x_games_descr	Semmi sem olyan édes, mint a győzelem! Zsákmány, dicsőség, tisztelet: a győztesé minden. A Feketepiac testvériségén belüli hírnévről nem is beszélve!
+st_blackmarket_win_x_games_name	Éljen a Feketepiac!
+st_blackmarket_win_x_games_obj	Nyerj meccseket:
+st_bm_boots_1_desc	Menő cowboycsizma. A katasztrófa előtt a rockerek és motorosok kötelező darabja volt.
+st_bm_boots_1_name	Kozákcsizma
+st_bm_boots_2_desc	Alacsony bőrcsizma, jól védi a lábat. A Feketepiac bázisán Pók mester készíti, minden darabon saját jelével. Kényelme állóképességet spórol sprintelés közben.
+st_bm_boots_2_name	Ropercsizma
+st_bm_boots_3_desc	Masszív cowboycsizma vasbetétekkel és pántokkal. A rang jele a Feketepiac bandái között.
+st_bm_boots_3_name	Choppercsizma
+st_bm_gloves_1_desc	Ujjatlan bőrkesztyű. Jól jön verekedéshez, lövöldözéshez vagy pipatöméshez egy hosszú út előtt. 2%-kal gyorsítja az újratöltést.
+st_bm_gloves_1_name	Motoroskesztyű
+st_bm_gloves_2_desc	Nehéz, fémtüskékkel erősített kesztyű. Jól jön, ha elfogy a lőszer, és ökölharc dönti el a csatát.
+st_bm_gloves_2_name	Tüskés kesztyű
+st_bm_helmet_1_desc	Bőr motorossisak. Védi a fejet a nehéz tárgyak ütéseitől. A Feketepiac harcosainak összetűzéseinél nélkülözhetetlen.
+st_bm_helmet_1_name	Motorossisak
+st_bm_helmet_5_desc	A leírás még nem érhető el.
+st_bm_helmet_5_name	Marodeur sisak
+st_bm_legs_1_desc	Klasszikus, tartós farmernadrág, amely véd a hidegtől. Egy fosztogató kemény munkával szerezte egy kifosztott boltból. Zsebeibe néhány csapda vagy gránát is belefér.
+st_bm_legs_1_name	Farmernadrág
+st_bm_legs_2_desc	Megerősített farmer védő térdbetétekkel. Védi a lábat a hidegtől és sérülésektől.
+st_bm_legs_2_name	Megerősített farmer
+st_bm_legs_4_desc	A leírás még nem érhető el.
+st_bm_legs_4_name	Banditanadrág
+st_bm_legs_5_desc	A leírás még nem érhető el.
+st_bm_legs_5_name	Marodeur nadrág
+st_bm_mask_1_desc	A leírás még nem érhető el.
+st_bm_mask_1_name	Korzár maszk
+st_bm_rep_modifier	Feketepiaci hírnév
+st_bm_torso_1_desc	Ujjatlan motorosdzseki, a Feketepiac egyszerű harcosainak viselete. Véd a szúró- és vágófegyverektől és a zord időjárástól. Külön zsebekkel lőszernek, csapdáknak és gránátoknak.
+st_bm_torso_1_name	Ujjatlan bőrdzseki
+st_bm_torso_2_desc	Nehéz, szegecselt kabát vastag bőrből, védőlemezekkel. Nevét a Feketepiac különösen termetes harcosairól kapta, akik először viselték. A karján lévő stilizált koponya gazdája félelmetlenségét jelzi a halállal szemben.
+st_bm_torso_2_name	Verőlegénykabát
+st_bm_torso_3_desc	A Feketepiac rohamosztagosának nehéz bőrkabátja, fémlemezekkel erősítve. A Korzárban rohamozó harcos látványa még tapasztalt túlélőket is megrémít. Külön zsebekkel lőszernek, csapdáknak és gránátoknak.
+st_bm_torso_3_name	Korzár kabát
+st_bm_torso_4_desc	A leírás még nem érhető el.
+st_bm_torso_4_name	Banditakabát
+st_bm_torso_5_desc	A leírás még nem érhető el.
+st_bm_torso_5_name	Marodeur kabát
+st_bonus_day	Nap
+st_bonus_victory	Győzelmi bónusz
+st_border_faction	Peremvidéki telepesek
+st_born_leader_compliment	Született parancsnok
+st_bot_or_cheater_claim	Bot vagy csaló
+st_breath_holding_time_description	Lélegzet-visszatartás ideje:
+st_breath_holding_time_name	Vastüdő
+st_bring_item_to_base	Vidd az akkumulátort a bázisodra!
+st_btn_add_premium_label	Arany vásárlása
+st_btn_add_premium_message	Arany vásárlása
+st_btn_add_rank_label	Rang hozzáadása
+st_btn_become_commander	Parancsnokká válás
+st_btn_cancel_decal	Mégse
+st_btn_change_name_label	Becenév módosítása
+st_btn_chat	Chat
+st_btn_clan_team_invite_memeber	Meghívás
+st_btn_close_upgrades_label	Tárgy kinézetének véglegesítése
+st_btn_craft_accept	Kész
+st_btn_craft_label	Fejlesztés
+st_btn_create_clan_team	Csapat létrehozása
+st_btn_disband_clan_label	Feloszlatás
+st_btn_disband_clan_team	Csapat feloszlatása
+st_btn_end_tutorial_label	Befejezés
+st_btn_equipment	Felszerelés
+st_btn_exchange_premium_money	Arany átváltása rubelre
+st_btn_exit_label	Kilépés
+st_btn_find_player	Játékos keresése
+st_btn_friends	Barátok
+st_btn_friends_online_filter	Online barátok
+st_btn_go_to_online_store	Folytatás
+st_btn_invite_clan_memeber_label	Meghívás
+st_btn_item_craft	Fejlesztés
+st_btn_join_team	Csatlakozás
+st_btn_kick_clan_memeber_label	Kirúgás
+st_btn_knowledge_base	Tudástár
+st_btn_leave_clan_label	Kilépés
+st_btn_leave_clan_team	Csapat elhagyása
+st_btn_no	Nem
+st_btn_not_ready	Nem kész
+st_btn_paperdoll	Felszerelés
+st_btn_premium_hint	Prémium fiók aktiválása
+st_btn_rank_down_clan_memeber_label	Lefokozás
+st_btn_rank_up_clan_memeber_label	Előléptetés
+st_btn_ready	Kész
+st_btn_remove_rank_label	Rang eltávolítása
+st_btn_reroll_change_label	Módosítás
+st_btn_reroll_choose_label	Választás
+st_btn_reroll_label	Módosítás
+st_btn_settings_label	Beállítások
+st_btn_show_log_list	Előzmények
+st_btn_show_log_list_hint	Az aktuális munkamenet eseményeinek mutatása
+st_btn_upgrade_hint	Tárgy kinézetének módosítása
+st_btn_upgrade_label	Kinézet
+st_btn_use_item	Használat
+st_btn_yes	Igen
+st_bundle_clik_hint	Kattints a csomagra a részletekért
+st_button_buy_profile_text	Karakterprofil vásárlása
+st_button_exit	Bezárás
+st_button_skip_tutorial_label	Oktatás kihagyása
+st_buy	Vásárlás
+st_buy_post_premium	Bónuszok átvétele
+st_buy_premium_with_discount	Vedd meg most kedvezménnyel!
+st_buy_profile_confirmation_text	Új karakter létrehozása? 
+st_buy_profile_price_text	A profil ára: 
+st_buy_treasure_maps	Térkép vásárlása
+st_camo_black_leather_01_name	Holló
+st_camo_black_leather_name	Fekete halál
+st_camo_blue_leather_name	Szellő
+st_camo_brown_leather_01_name	Bőr 2
+st_camo_brown_leather_02_name	Bőr 3
+st_camo_brown_leather_03_name	Bőr 4
+st_camo_brown_leather_04_name	Bőr 5
+st_camo_brown_leather_05_name	Ifrit
+st_camo_brown_leather_name	Bőr
+st_camo_camouflage_green_01_name	Vadőr
+st_camo_camouflage_green_name	Oakley
+st_camo_chemical_fabric_01_name	Zöld vegyvédelmi ruha
+st_camo_chemical_fabric_02_name	Zöld lomb
+st_camo_chemical_fabric_03_name	Kék ég
+st_camo_city_camo_name	Párduc
+st_camo_cyfra_01_camo_name	Digitális N
+st_camo_cyfra_02_camo_name	Digitális
+st_camo_cyfra_03_camo_name	Harcos
+st_camo_denim_01_name	Sötét farmer
+st_camo_denim_name	Farmer
+st_camo_desert_camo_name	Sivatag
+st_camo_fabric_brown_01_name	Száraz talaj
+st_camo_fabric_brown_02_name	Sivatagi vihar
+st_camo_fabric_brown_03_name	Skorpió
+st_camo_fabric_brown_name	Barna szövet
+st_camo_fabric_camouflage_name	Túlélő
+st_camo_fabric_green_01_name	Zöld szövet
+st_camo_fabric_green_name	Fehér szövet
+st_camo_fabric_grey_name	Szellem
+st_camo_flecktarn_01_camo_name	Flecktarn
+st_camo_flecktarn_02_camo_name	Erdő
+st_camo_generic_desc	A mellények és nadrágok kinézetablakában álcamintával változtathatod meg a megjelenésüket.
+st_camo_green_leather_name	Zöld bőr
+st_camo_izlom_name	Törés
+st_camo_khaki_fabric_01_name	Forró homok
+st_camo_khaki_fabric_02_name	Tűző nap
+st_camo_khaki_fabric_03_name	Por
+st_camo_multicam_name	Délibáb
+st_camo_new_year	Újév 2015
+st_camo_quilted_fabric_name	Steppelt szövet
+st_camo_red_leather_name	Légiós
+st_camo_rubber_green_01_name	Kereső
+st_camo_rubber_green_02_name	Sárga gumi
+st_camo_rubber_green_name	Zöld gumi
+st_camo_slot	Álcaminta
+st_camo_spekrt_01_name	Spektr-Ősz
+st_camo_spekrt_02_name	Spektr-Tavasz
+st_camo_spekrt_03_name	Spektr-Nyár
+st_camo_steam	Steam álcaminta
+st_camo_suede_leather_name	Velúr
+st_camo_ucp_name	UCP
+st_camo_vsr_name	MES
+st_camo_yellow_leather_name	Sárga bőr
+st_can_be_installed_on	Felszerelhető erre:
+st_can_sprint_description	Túlterhelten is sprintelhetsz.
+st_can_sprint_name	Sprint
+st_cancel	Mégse
+st_cannot_buy_item	A tárgy nem vásárolható meg
+st_cannot_craft_item	Ez a tárgy nem fejleszthető.
+st_cannot_pickup_item	Már viszel egy tárolót!
+st_cannot_pickup_item_broken_hand	Sérült a kezed! Nem veheted fel a tárolót.
+st_cannot_relocate_item	A tárgy nem helyezhető át
+st_cannot_repair_item	A tárgy nem javítható
+st_cannot_reroll_skills	Hiba a képességek visszaállításakor
+st_cannot_select_rerolled_modification	Hiba a módosítás cseréjekor
+st_cannot_upgrade_item	Hiba történt a tárgy módosításakor. Próbáld újra.
+st_cannot_use_drop_card	A rejtekhelytérkép nem használható.
+st_cant_add_clan_member	Hiba a játékos klánhoz adásakor
+st_cant_add_clan_team_member	Hiba a játékos csapathoz adásakor.
+st_cant_buy_clan_registration	Hiba a klánregisztráció kifizetésekor.
+st_cant_buy_premium_message	Nincs elég aranyrubeled a vásárláshoz.
+st_cant_cancel_clan_registration	Hiba a klánregisztráció visszavonásakor.
+st_cant_change_clan_team_battle_status	Hiba a csapatpozíció módosításakor.
+st_cant_change_commander_team_role	A parancsnoki szerep nem módosítható.
+st_cant_change_permission	Hiba a jogosultságok módosításakor.
+st_cant_change_rank_clan_member	Hiba a játékos rangjának módosításakor.
+st_cant_change_ready_state	Hiba a készenléti állapot módosításakor.
+st_cant_change_role_himself	A saját rangodat nem módosíthatod
+st_cant_change_status_clan_team_member	Hiba a játékos állapotának módosításakor.
+st_cant_clan_match_closed	Hiba a kláncsapat elhagyásakor.
+st_cant_create_clan	Hiba a klán létrehozásakor.
+st_cant_create_clan_rank	Hiba a klánrang létrehozásakor.
+st_cant_create_clan_team	Hiba a csapat létrehozásakor
+st_cant_delete_default_rank	Az alaprang nem törölhető
+st_cant_disband_clan_team	Hiba a csapat feloszlatásakor
+st_cant_find_player	Nem található ilyen nevű játékos.
+st_cant_invite_player_to_clan	Hiba a játékos klánba hívásakor
+st_cant_invite_player_to_clan_team	Hiba a játékos csapatba hívásakor.
+st_cant_kick_himself	Magadat nem rúghatod ki a klánból.
+st_cant_kick_member	Hiba a játékos klánból kirúgásakor.
+st_cant_leave_clan_team	Hiba a csapat elhagyásakor
+st_cant_oust_commander	Hiba a parancsnok cseréjekor
+st_cant_oust_yourself	Magadat nem rúghatod ki a csapatból.
+st_cant_rank_up_clan_member	Hiba a játékos előléptetésekor.
+st_cant_remove_clan_rank	Hiba a klánrang eltávolításakor.
+st_cant_remove_clan_team_member	Hiba a játékos csapatból kirúgásakor
+st_cant_remove_yourself	Magadat nem zárhatod ki a csapatból.
+st_cant_request_to_join_clan_team	Hiba a kláncsapatba jelentkezéskor.
+st_cant_reserve_clan	Hiba a név lefoglalásakor.
+st_cant_set_clan_team_commander	Hiba a kláncsapat parancsnokának kinevezésekor.
+st_cant_set_daily_message	Hiba a napi üzenet beállításakor.
+st_cant_set_yourself	Nem nevezheted ki magad csapatparancsnokká.
+st_cant_upgrade_while_repair_hint	Javítás közben nem fejlesztheted a tárgyat.
+st_capture_info	Berendezés elfoglalása…
+st_chamber_a_round_description	Zárfelhúzás sebessége:
+st_chamber_a_round_name	Gyors zárfelhúzás
+st_change	Átnevezés
+st_change_name_error	Hiba a karakter átnevezésekor.
+st_change_name_label	Becenév módosítása
+st_change_order	Sorrend módosítása
+st_change_profile	Profilváltás
+st_change_quest	Feladat cseréje
+st_change_quest_label	Feladat cseréje
+st_change_weapon_speed_description	Fegyverváltás sebessége:
+st_change_weapon_speed_name	Ügyes kezek
+st_character	Karakter
+st_character_decals_1_12_name	Jarilo
+st_character_decals_1_1_name	Irodalmár
+st_character_decals_1_2_name	Alfa osztag
+st_character_decals_1_3_name	Túlélő
+st_character_decals_1_4_name	Felfedező
+st_character_decals_1_5_name	Veterán
+st_character_decals_1_6_name	Mester
+st_character_decals_1_7_name	Legenda
+st_character_decals_1_8_name	Szárnyas huszárok
+st_character_decals_2_1_name	Guberáló újonc
+st_character_decals_2_2_name	Guberáló veterán
+st_character_decals_2_3_name	Feketepiaci újonc
+st_character_decals_2_4_name	Feketepiaci elit
+st_character_decals_2_5_name	Az Újjászületés Hadseregének katonája
+st_character_decals_2_6_name	Az Újjászületés Hadseregének ezredese
+st_character_decals_2_7_name	Peremvidéki vadász
+st_character_decals_2_8_name	Peremvidéki magiszter
+st_character_decals_3_10_name	Halálos
+st_character_decals_3_11_name	Állatkoponya
+st_character_decals_3_12_name	Lövedék
+st_character_decals_3_13_name	Gránát
+st_character_decals_3_14_name	Elsősegély
+st_character_decals_3_15_name	Célkereszt
+st_character_decals_3_16_name	Szpecnaz
+st_character_decals_3_17_name	VDV
+st_character_decals_3_18_name	Száz
+st_character_decals_3_19_name	Tőr
+st_character_decals_3_1_name	Biológiai veszély
+st_character_decals_3_20_name	Atomjel
+st_character_decals_3_21_name	DNS-spirál
+st_character_decals_3_2_name	Fegyvertilalom
+st_character_decals_3_3_name	Anarchia
+st_character_decals_3_4_name	Kalóz
+st_character_decals_3_5_name	Radioaktivitás
+st_character_decals_3_6_name	Robbanásveszély
+st_character_decals_3_7_name	Erdőtilalom
+st_character_decals_3_8_name	Életfa
+st_character_decals_3_9_name	Homokóra
+st_character_decals_4_10_name	Grúzia zászlaja
+st_character_decals_4_11_name	Üzbegisztán zászlaja
+st_character_decals_4_12_name	Tádzsikisztán zászlaja
+st_character_decals_4_13_name	Kirgizisztán zászlaja
+st_character_decals_4_14_name	Türkmenisztán zászlaja
+st_character_decals_4_15_name	Azerbajdzsán zászlaja
+st_character_decals_4_16_name	Örményország zászlaja
+st_character_decals_4_17_name	Németország zászlaja
+st_character_decals_4_18_name	Nagy-Britannia zászlaja
+st_character_decals_4_19_name	Franciaország zászlaja
+st_character_decals_4_1_name	A Szovjetunió zászlaja
+st_character_decals_4_20_name	Olaszország zászlaja
+st_character_decals_4_21_name	Spanyolország zászlaja
+st_character_decals_4_22_name	Lengyelország zászlaja
+st_character_decals_4_23_name	Románia zászlaja
+st_character_decals_4_24_name	Hollandia zászlaja
+st_character_decals_4_25_name	Görögország zászlaja
+st_character_decals_4_26_name	Portugália zászlaja
+st_character_decals_4_27_name	Csehország zászlaja
+st_character_decals_4_28_name	Belgium zászlaja
+st_character_decals_4_29_name	Magyarország zászlaja
+st_character_decals_4_2_name	Oroszország zászlaja
+st_character_decals_4_30_name	Svédország zászlaja
+st_character_decals_4_31_name	Ausztria zászlaja
+st_character_decals_4_32_name	Svájc zászlaja
+st_character_decals_4_33_name	Bulgária zászlaja
+st_character_decals_4_34_name	Szerbia zászlaja
+st_character_decals_4_35_name	Dánia zászlaja
+st_character_decals_4_36_name	Szlovákia zászlaja
+st_character_decals_4_37_name	Norvégia zászlaja
+st_character_decals_4_38_name	Írország zászlaja
+st_character_decals_4_39_name	Horvátország zászlaja
+st_character_decals_4_3_name	Ukrajna zászlaja
+st_character_decals_4_40_name	Bosznia-Hercegovina zászlaja
+st_character_decals_4_41_name	Törökország zászlaja
+st_character_decals_4_42_name	Az USA zászlaja
+st_character_decals_4_43_name	Kanada zászlaja
+st_character_decals_4_44_name	Brazília zászlaja
+st_character_decals_4_45_name	Argentína zászlaja
+st_character_decals_4_46_name	Ausztrália zászlaja
+st_character_decals_4_47_name	Finnország zászlaja
+st_character_decals_4_48_name	Új-Zéland zászlaja
+st_character_decals_4_49_name	Írország zászlaja
+st_character_decals_4_4_name	Fehéroroszország zászlaja
+st_character_decals_4_50_name	Skócia zászlaja
+st_character_decals_4_51_name	Anglia zászlaja
+st_character_decals_4_52_name	Dél-Korea zászlaja
+st_character_decals_4_53_name	Japán zászlaja
+st_character_decals_4_54_name	Kína zászlaja
+st_character_decals_4_55_name	India zászlaja
+st_character_decals_4_56_name	Indonézia zászlaja
+st_character_decals_4_57_name	Malajzia zászlaja
+st_character_decals_4_58_name	A Fülöp-szigetek zászlaja
+st_character_decals_4_59_name	Thaiföld zászlaja
+st_character_decals_4_5_name	Kazahsztán zászlaja
+st_character_decals_4_60_name	Vietnám zászlaja
+st_character_decals_4_61_name	Bolívia zászlaja
+st_character_decals_4_62_name	Chile zászlaja
+st_character_decals_4_63_name	Kolumbia zászlaja
+st_character_decals_4_64_name	Ecuador zászlaja
+st_character_decals_4_65_name	Paraguay zászlaja
+st_character_decals_4_66_name	Peru zászlaja
+st_character_decals_4_67_name	Uruguay zászlaja
+st_character_decals_4_68_name	Venezuela zászlaja
+st_character_decals_4_69_name	Albánia zászlaja
+st_character_decals_4_6_name	Lettország zászlaja
+st_character_decals_4_70_name	Kuba zászlaja
+st_character_decals_4_71_name	Szlovénia zászlaja
+st_character_decals_4_72_name	Angola zászlaja
+st_character_decals_4_73_name	Nigéria zászlaja
+st_character_decals_4_74_name	Dél-Afrika zászlaja
+st_character_decals_4_75_name	Wales zászlaja
+st_character_decals_4_7_name	Litvánia zászlaja
+st_character_decals_4_8_name	Észtország zászlaja
+st_character_decals_4_9_name	Moldova zászlaja
+st_character_decals_5_10_name	Grúzia címere
+st_character_decals_5_11_name	Üzbegisztán címere
+st_character_decals_5_12_name	Tádzsikisztán címere
+st_character_decals_5_13_name	Kirgizisztán címere
+st_character_decals_5_14_name	Türkmenisztán címere
+st_character_decals_5_15_name	Azerbajdzsán címere
+st_character_decals_5_16_name	Örményország címere
+st_character_decals_5_17_name	NATO-jelvény
+st_character_decals_5_18_name	ENSZ-jelvény
+st_character_decals_5_19_name	Németország címere
+st_character_decals_5_1_name	Vörös csillag
+st_character_decals_5_20_name	Nagy-Britannia címere
+st_character_decals_5_21_name	Franciaország címere
+st_character_decals_5_22_name	Olaszország címere
+st_character_decals_5_23_name	Spanyolország címere
+st_character_decals_5_24_name	Lengyelország címere
+st_character_decals_5_25_name	Románia címere
+st_character_decals_5_26_name	Hollandia címere
+st_character_decals_5_27_name	Görögország címere
+st_character_decals_5_28_name	Portugália címere
+st_character_decals_5_29_name	Csehország címere
+st_character_decals_5_2_name	Oroszország címere
+st_character_decals_5_30_name	Belgium címere
+st_character_decals_5_31_name	Magyarország címere
+st_character_decals_5_32_name	Svédország címere
+st_character_decals_5_33_name	Ausztria címere
+st_character_decals_5_34_name	Svájc címere
+st_character_decals_5_35_name	Bulgária címere
+st_character_decals_5_36_name	Szerbia címere
+st_character_decals_5_37_name	Dánia címere
+st_character_decals_5_38_name	Szlovákia címere
+st_character_decals_5_39_name	Norvégia címere
+st_character_decals_5_3_name	Ukrajna címere
+st_character_decals_5_40_name	Írország címere
+st_character_decals_5_41_name	Horvátország címere
+st_character_decals_5_42_name	Bosznia-Hercegovina címere
+st_character_decals_5_4_name	Fehéroroszország címere
+st_character_decals_5_5_name	Kazahsztán címere
+st_character_decals_5_6_name	Lettország címere
+st_character_decals_5_7_name	Litvánia címere
+st_character_decals_5_8_name	Észtország címere
+st_character_decals_5_9_name	Moldova címere
+st_character_decals_7_27_name	Lóheradísz
+st_character_decals_7_28_name	Patkó
+st_character_decals_7_9_name	Gyógynövények
+st_character_decals_generic_desc	A mellények és nadrágok kinézetablakában matricákkal változtathatod meg a megjelenésüket.
+st_characteristics_label	A játékos statisztikái
+st_chat_channel_clan	Klánchat
+st_chat_channel_clan_team	Kláncsapat
+st_chat_channel_general	Általános chat
+st_chat_channel_match	Mindenki
+st_chat_channel_private	Privát
+st_chat_channel_squad	Osztag
+st_chat_channel_system	Rendszer
+st_chat_channel_team	Csapat
+st_checkbox_battle_commander_permission	Harctéri parancsnok
+st_checkbox_clan_change_rank_permission	Játékosrangok módosítása
+st_checkbox_clan_daily_message_permission	Napi üzenet módosítása
+st_checkbox_clan_invite_permission	Meghívás
+st_checkbox_clan_member_kick_permission	Kirúgás
+st_checkbox_compare_items	Tárgyak összehasonlítása
+st_checkbox_compare_items_hint	Felszerelt tárgy leírásának mutatása
+st_checkbox_players_live_search	Azonnali játékoskeresés
+st_checkbox_show_locked_items	Nem elérhető
+st_checkbox_show_locked_items_hint	Nem elérhető tárgyak mutatása
+st_checkbox_show_offline_players	Offline játékosok mutatása
+st_checkbox_show_player_groups	Játékoscsoportok mutatása
+st_checkbox_show_shop_items	Bolt
+st_checkbox_show_shop_items_hint	Bolti tárgyak mutatása
+st_choose	Kiválasztás
+st_choose_faction_button_hint	Frakció kiválasztása
+st_choose_faction_description	A frakciók a felszerelés, fegyverek és lőszer fő forrásai. Feladataikkal növeled a hírneved, cserébe hozzáférsz a legjobb áruikhoz. Egyszerre csak egy frakcióval működhetsz együtt.
+st_choose_faction_label	Válassz frakciót
+st_choose_modifier	Bónusz cseréje:
+st_choose_premium_subscription	Válassz prémium előfizetést:
+st_claim_player	Panasz küldése
+st_claims_count_per_day_owerflow	Elérted a napi panaszlimitet.
+st_claims_count_per_user_owerflow	Ugyanarra a játékosra nem küldhetsz napi kétszer panaszt!
+st_clan	Klán
+st_clan_abbr_is_not_valid	Ez a rövidítés már foglalt
+st_clan_abbreviation	Klánrövidítés
+st_clan_abbreviation_default_text	Add meg a rövidítést
+st_clan_abbreviation_info	(3–6 karakter)
+st_clan_accept_button_label	Regisztráció
+st_clan_buy_registration_button_label	Fizetés
+st_clan_cancel_button_label	Regisztráció visszavonása
+st_clan_control_tab	Klánkezelés
+st_clan_creation_info_description	A klán regisztrálásához legalább 5 játékost kell toboroznod. Regisztráció után automatikusan csatlakoznak hozzá.
+st_clan_creation_info_label	Játékosok támogatásának megszerzése
+st_clan_daily_message	Napi üzenet
+st_clan_invite_1	Játékos
+st_clan_invite_2	sikeresen meghívva a klánba.
+st_clan_invite_accepted	Elfogadva
+st_clan_invite_pending	Klánmeghívó függőben
+st_clan_invite_player_button_label	Meghívás
+st_clan_invite_rejected	Elutasítva
+st_clan_kick_1	Biztosan kirúgod ezt a játékost:
+st_clan_kick_2	a klánból?
+st_clan_leave_button_label	Klán elhagyása
+st_clan_level_label	Klánszint
+st_clan_level_up_1	Klánszint
+st_clan_level_up_2	elérve.
+st_clan_manage_window_label	Klán
+st_clan_max_members_count_error	Elérted a klántagok maximális számát.
+st_clan_member_joined	csatlakozott a klánhoz.
+st_clan_member_kicked	kirúgva a klánból
+st_clan_member_left	kilépett a klánból.
+st_clan_name	Klánnév
+st_clan_name_and_abbr_are_not_valid	Ez a név vagy rövidítés már foglalt
+st_clan_name_default_text	Add meg a klán nevét
+st_clan_name_is_not_valid	Ez a név már foglalt
+st_clan_options_tab	Beállítások
+st_clan_players_level_label	Szint
+st_clan_players_list_availabe_postfix	lehetséges
+st_clan_players_list_availabe_prefix	Játékoslista 
+st_clan_players_name_label	Név
+st_clan_players_rank_label	Rang
+st_clan_players_ready	Kész
+st_clan_players_status_label	Állapot
+st_clan_rank	Klánranglista
+st_clan_rank_assistant	Parancsnokhelyettes
+st_clan_rank_commander	Parancsnok
+st_clan_rank_soldier	Katona
+st_clan_rank_warlord	Őrmester
+st_clan_registration_cost	Regisztráció\nköltsége
+st_clan_registration_paid	Kifizetve
+st_clan_reserve_name_button_label	Fiók nyitása
+st_clan_system_message_sender	Klánrendszer-üzenet
+st_clan_team_commander	Harctéri parancsnok
+st_clan_team_invite_2	sikeresen meghívva a kláncsapatba.
+st_clan_team_invites	Jelentkezések
+st_clan_team_is_full	Elérted a klánmeccs résztvevőinek maximális számát.
+st_clan_team_reserve	Tartalék
+st_clan_team_soldier	Csapatfelállás
+st_clan_team_window_label	Csapatfelállás
+st_clan_was_disbanded	A parancsnok feloszlatta a klánodat.
+st_clan_window_close_message	Biztosan elhagyod a csapatot?
+st_clan_window_close_message_commander	Biztosan elhagyod a csapatot?
+st_clan_window_label	Klánregisztráció
+st_clear	Törlés
+st_close	Bezárás
+st_collect_statistics_option	Statisztikagyűjtés engedélyezése
+st_compliment_count_per_day_owerflow	Elérted a napi dicséretlimitet.
+st_compliment_count_per_user_owerflow	Ugyanazt a játékost nem dicsérheted meg napi kétszer!
+st_compliment_player	Dicséret
+st_confirm	Megerősítés
+st_conflict_message	Ez a hozzárendelés a következőket módosítja:
+st_convert_weapon_slot_to_pocket_description	Kapsz egy extra rekeszt a különleges felszereléshez, de nem vihetsz második fegyvert.
+st_convert_weapon_slot_to_pocket_name	Mély zsebek
+st_cost	Ár
+st_count	Darabszám
+st_craft	Fejlesztés
+st_craft_message_broken_item	Sérült tárgy nem fejleszthető.
+st_craft_message_equipped_item	Meccskeresés közben nem fejleszthetsz felszerelt tárgyat.
+st_craft_message_modifers_count	A tárgy nem fejleszthető tovább. Elérted a bónuszok maximális számát.
+st_craft_message_modifiers_difference	Több bónusszal rendelkező tárgy nem használható donorként. Felcseréled őket?
+st_craft_result_fail_label	Sajnos az ügyetlen beavatkozás rontott a tárgyon.
+st_craft_result_neutral_label	Sajnos nem sikerült fejleszteni a tárgyat.
+st_craft_result_success_label	A tárgy fejlesztése sikerült!
+st_critical_damages	Súlyos meghibásodások
+st_crosshair_static_option	Statikus célkereszt
+st_crosshair_type_option	Célkereszt
+st_crouch_action	Guggolás (nyomva tartva)
+st_crouch_toggle_action	Guggolás
+st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
+st_current_value	\nJelenlegi érték:
+st_daily_bonus_description	Játssz mindennap, és az <highlight>első három</highlight> győzelemért <highlight>x2</highlight> tapasztalatot és hírnevet kapsz.
+st_daily_bonus_hint	Üdvözlőképernyő mutatása
+st_daily_bonus_label	Üdv újra
+st_daily_bonus_progress	Mai haladásod
+st_daily_bonus_reward_complete	<gold>Kész</gold>
+st_daily_bonus_reward_description	A <gold>7. napon</gold> ezt kapod:
+st_daily_bonus_victories	győzelem
+st_daily_message_label	Napi üzenet:
+st_day_short	nap
+st_dealy_breath_action	Lélegzet visszatartása
+st_decal_editor_description	Bal egérgomb – matrica felhelyezése\nALT – forgatás\nCTRL – méretezés
+st_decal_editor_label	Szerkesztési mód
+st_decal_slot	Matrica
+st_decorations_options	Díszletek minősége
+st_default_profile_name1	1. profil
+st_default_profile_name2	2. profil
+st_default_profile_name3	3. profil
+st_default_scope_name	Alapirányzék
+st_defeat	Vereség
+st_defuse_trap	Hatástalanítás ({USE})
+st_disband_clan_message	Biztosan feloszlatod a klánt?
+st_disband_clan_money_message	Biztosan feloszlatod a klánt? A regisztrációs számlára befizetett ezüst elvész.
+st_disband_squad	Osztag feloszlatása
+st_disconnected_from_lobby	Megszakadt a kapcsolat a lobbyszerverrel!
+st_dispersion_correction_perc_name	Csípőlövés szórása
+st_dispersion_from_hip_description	Csípőlövés pontossága:
+st_dispersion_from_hip_name	Pontosság
+st_dispersion_movement_influence_description	Pontosság mozgás közben:
+st_dispersion_movement_influence_name	Biztos fogás
+st_dont_have_permission	Nincs jogosultságod ehhez a művelethez.
+st_drop	Levétel
+st_drop_action	Eldobás
+st_drop_card_descr	Meccs után használd a rejtekhelytérképet további tárgyakért.
+st_drop_card_name	Rejtekhelytérkép
+st_duty_026_boots_desc	Nehéz páncélozott csizma, amelyet a Szolgálat harcosai viselnek a nehéz páncéljukhoz.
+st_duty_026_boots_name	Szolgálat-csizma
+st_duty_026_gloves_desc	Megerősített ujjatlan kesztyű, amelyet a Szolgálat harcosai viselnek a nehéz páncéljukhoz.
+st_duty_026_gloves_name	Szolgálat-kesztyű
+st_duty_026_head_desc	A Szolgálat kísérleti exoskeletonjának zárt sisakja, beépített légzőkészülékkel. Az egész fejet és arcot fedi.
+st_duty_026_helmet_name	Szolgálat-exoskeletonsisak
+st_duty_026_suit_desc	Kísérleti katonai exoskeleton. Rendkívüli ára és tervezési hibái miatt nem került sorozatgyártásba. Ukrajnán kívüli föld alatti üzemekben még készülnek kisebb sorozatok. Beépített artefaktumtárolóval.
+st_duty_026_suit_name	Szolgálat-exoskeleton
+st_edge_accuracy_descr	Egy pontos lövés többet ér egy tucat levegőbe lőtt golyónál. Főleg manapság, amikor minden lőszer ritka kincs. Bizonyítsd be, hogy méltó vagy a vadász névre.
+st_edge_accuracy_name	Mesterlövész
+st_edge_accuracy_obj	Nyerj meccset ekkora pontossággal:
+st_edge_back_1_desc	Az artefaktumok használata a Peremvidéki telepesek különlegessége. Ha értesz a keresésükhöz és tudod, mire valók, ez a nagy, 2 artefaktumot befogadó tároló jó választás. 
+st_edge_back_1_name	Dar 2M tároló
+st_edge_back_2_desc	A leírás még nem érhető el.
+st_edge_back_2_name	Sztalkerhátizsák
+st_edge_back_3_desc	A leírás még nem érhető el.
+st_edge_back_3_name	Szellő légzőrendszer
+st_edge_back_5_desc	A leírás még nem érhető el.
+st_edge_back_5_name	Vándor tároló
+st_edge_back_6_desc	A leírás még nem érhető el.
+st_edge_back_6_name	Zarándok tároló
+st_edge_boots_1_desc	Magas, könnyű csizma puha talppal. Tökéletes a zsákmány csendes követéséhez. Hosszú úton kevésbé fárasztó. 
+st_edge_boots_1_name	Vadászcsizma
+st_edge_boots_2_desc	A leírás még nem érhető el.
+st_edge_boots_2_name	Sztalkercsizma
+st_edge_boots_3_desc	A leírás még nem érhető el.
+st_edge_boots_3_name	Felfedezőcsizma
+st_edge_boots_4_desc	A leírás még nem érhető el.
+st_edge_boots_4_name	Mestercsizma
+st_edge_boots_5_desc	A leírás még nem érhető el.
+st_edge_boots_5_name	Őrzőcsizma
+st_edge_boots_6_desc	A leírás még nem érhető el.
+st_edge_boots_6_name	Zarándokcsizma
+st_edge_bring_x_items_descr	A Föld nem tűri az erőszakot. Minden agresszió újabb választ vált ki a természetből. Ezt hívjuk Viharnak. Megtanultunk túlélni és védekezni ellene, de akkumulátorokat kell találnunk a védelmi berendezéshez.
+st_edge_bring_x_items_name	Kereső
+st_edge_bring_x_items_obj	Keress és hozz akkumulátorokat:
+st_edge_defend_items_descr	A terület védelme minden Peremvidéki telepes szent kötelessége. Ha a bázisodat sem tudod megvédeni a fosztogatástól, hogyan mentenéd meg az emberiséget a pusztulástól? 
+st_edge_defend_items_name	Őrző
+st_edge_defend_items_obj	Nyerj meccset akkumulátorveszteség nélkül
+st_edge_find_artifacts_descr	Az erőnk a természettel való összhangban rejlik. Az artefaktumok nálunk bölcsebb erő ajándékai. Ha segítenek túlélni, ostobaság lenne nem használni őket.
+st_edge_find_artifacts_name	A természet ajándékai
+st_edge_find_artifacts_obj	Találj artefaktumokat egy meccsben:
+st_edge_gloves_2_desc	A leírás még nem érhető el.
+st_edge_gloves_2_name	Sztalkerkesztyű
+st_edge_gloves_3_desc	A leírás még nem érhető el.
+st_edge_gloves_3_name	Felfedezőkesztyű
+st_edge_gloves_4_desc	A leírás még nem érhető el.
+st_edge_gloves_4_name	Mesterkesztyű
+st_edge_gloves_5_desc	A leírás még nem érhető el.
+st_edge_gloves_5_name	Őrzőkesztyű
+st_edge_gloves_6_desc	A leírás még nem érhető el.
+st_edge_gloves_6_name	Zarándokkesztyű
+st_edge_grenade_enemies_descr	Ha a fegyver nem üti át a páncélt, a gránát mindig jól jön. Egy pontos dobás, és az ellenfeled a férgeké.
+st_edge_grenade_enemies_name	Dobó
+st_edge_grenade_enemies_obj	Ölj meg ellenségeket gránáttal egy meccsben:
+st_edge_headshots_descr	Sajnos a való világban nehéz elkerülni az erőszakot. Ha már meg kell ölnünk az ellenséget, tegyük gyorsan, egy fejlövéssel.
+st_edge_headshots_name	Kegyelem
+st_edge_headshots_obj	Ölj meg ellenségeket fejlövéssel:
+st_edge_helmet_1_desc	Erős bőrkapucni, amely az eső mellett az apró törmeléktől és gyenge lövedékektől is véd.
+st_edge_helmet_1_name	Vadászcsuklya
+st_edge_helmet_3_desc	A leírás még nem érhető el.
+st_edge_helmet_3_name	Felfedezőkalap
+st_edge_helmet_4_desc	A leírás még nem érhető el.
+st_edge_helmet_4_name	Mestercsuklya
+st_edge_helmet_5_desc	A leírás még nem érhető el.
+st_edge_helmet_5_name	Őrzősisak
+st_edge_helmet_6_desc	A leírás még nem érhető el.
+st_edge_helmet_6_name	Zarándoksisak
+st_edge_kd_ratio_descr	Áldozat vagy ragadozó vagy? Vadász vagy préda? Az apokalipszis utáni világban mindenki csak magára számíthat. Csak a legerősebbek élnek túl.
+st_edge_kd_ratio_name	Természetes kiválasztódás
+st_edge_kd_ratio_obj	Nyerj meccset legalább ekkora ölés/halál aránnyal:
+st_edge_legs_1_desc	Vastag mutánsbőrből készült nadrág, amely jól véd az anomáliáktól és a kis kaliberű lövedékektől. A mozgási sebességet 3%-kal növeli.
+st_edge_legs_1_name	Vadásznadrág
+st_edge_legs_2_desc	A leírás még nem érhető el.
+st_edge_legs_2_name	Sztalkernadrág
+st_edge_legs_3_desc	A leírás még nem érhető el.
+st_edge_legs_3_name	Felfedezőnadrág
+st_edge_legs_4_desc	A leírás még nem érhető el.
+st_edge_legs_4_name	Ljesij nadrág
+st_edge_legs_5_desc	A leírás még nem érhető el.
+st_edge_legs_5_name	Őrzőnadrág
+st_edge_legs_6_desc	A leírás még nem érhető el.
+st_edge_legs_6_name	Zarándoknadrág
+st_edge_level_0	Ismeretlen
+st_edge_level_1	Vadász
+st_edge_level_10	Magiszter
+st_edge_level_2	Vadőr
+st_edge_level_3	Vándor
+st_edge_level_4	Nyomkereső
+st_edge_level_5	Beavatott
+st_edge_level_6	Vén
+st_edge_level_7	Mester
+st_edge_level_8	Táltos
+st_edge_level_9	Őrző
+st_edge_level_unlock_0	Gratulálunk! Elérhetők a Peremvidéki telepesek feladatai!
+st_edge_level_unlock_1	Gratulálunk! Mostantól peremvidéki vadász vagy!
+st_edge_level_unlock_10	Gratulálunk! Mostantól peremvidéki magiszter vagy!
+st_edge_level_unlock_2	Gratulálunk! Mostantól peremvidéki vadőr vagy!
+st_edge_level_unlock_3	Gratulálunk! Mostantól peremvidéki vándor vagy!
+st_edge_level_unlock_4	Gratulálunk! Peremvidéki nyomkeresővé léptél elő!
+st_edge_level_unlock_5	Gratulálunk! Mostantól peremvidéki beavatott vagy!
+st_edge_level_unlock_6	Gratulálunk! Mostantól peremvidéki vén vagy!
+st_edge_level_unlock_7	Gratulálunk! Peremvidéki mesterré léptél elő!
+st_edge_level_unlock_8	Gratulálunk! Mostantól peremvidéki táltos vagy!
+st_edge_level_unlock_9	Gratulálunk! Mostantól peremvidéki őrző vagy!
+st_edge_mask_2_desc	A leírás még nem érhető el.
+st_edge_mask_2_name	Éjjellátó
+st_edge_mask_5_desc	A leírás még nem érhető el.
+st_edge_mask_5_name	Őrzőmaszk
+st_edge_meele_kill_descr	A természet erősnek és bátornak teremtette az embert. A fegyverek gyengévé és gyávává tették. Emlékezz erre, és ne lőj, ha nem muszáj.
+st_edge_meele_kill_name	A természet törvényei
+st_edge_meele_kill_obj	Ölj meg ellenségeket közelharcban:
+st_edge_rep_modifier	Peremvidéki hírnév
+st_edge_represent	A Peremvidéki telepesek felszerelését kell viselned.
+st_edge_reps_3_desc	A leírás még nem érhető el.
+st_edge_resp_1_desc	A leírás még nem érhető el.
+st_edge_resp_1_name	Malachit légzőkészülék
+st_edge_resp_3_name	Smaragd gázálarc
+st_edge_steal_box_descr	Nem kell saját kezűleg elpusztítanod az ellenséget. Elég meggyengíteni a Vihar elleni védelmüket, a természet elvégzi a többit.
+st_edge_steal_box_name	Titkos rajtaütés
+st_edge_steal_box_obj	Lopj el egy akkumulátort az ellenség bázisáról, és vidd a sajátodra.
+st_edge_torso_1_desc	Bőr vadászkabát védőamulettekkel a természet haragja ellen. A farkasbőr elriasztja a ragadozókat és félelmet kelt az ellenségben. Praktikus táskájában különleges felszerelést is vihetsz.
+st_edge_torso_1_name	Vadászkabát  
+st_edge_torso_2_desc	A leírás még nem érhető el.
+st_edge_torso_2_name	Sztalkerkabát
+st_edge_torso_3_desc	A leírás még nem érhető el.
+st_edge_torso_3_name	Felfedezőkabát
+st_edge_torso_4_desc	A leírás még nem érhető el.
+st_edge_torso_4_name	Ljesij mellény
+st_edge_torso_5_desc	A leírás még nem érhető el.
+st_edge_torso_5_name	Őrző golyóálló mellény
+st_edge_torso_6_desc	A leírás még nem érhető el.
+st_edge_torso_6_name	Zarándok golyóálló mellény
+st_edge_win_score_descr	Minél jobb a Vihar elleni védelmünk, annál könnyebb legyőzni az ellenséget. Minél több akkumulátort találunk, annál kevesebb marad nekik. A Vihar befejezi, amit elkezdtünk.
+st_edge_win_score_name	A háború művészete
+st_edge_win_score_obj	Nyerj meccset ennyi bevitt akkumulátorral:
+st_edge_win_x_games_descr	Készen kell állnunk magunk és földünk védelmére. Csak az ellenség legyőzésével vívhatjuk ki az élethez való jogot. Csak győzelemmel védhetjük meg területünket a betolakodóktól.
+st_edge_win_x_games_name	Őrségben
+st_edge_win_x_games_obj	Nyerj meccseket:
+st_elo_after	Jelenlegi értékelés
+st_elo_before	Csata előtti értékelés
+st_empty_ammo_message	Nincs elég lőszer!
+st_empty_clan_string	Add meg a klán nevét
+st_empty_name_string	Add meg a nevet
+st_enable_seeding_in_lobby_option	Seedelés engedélyezése
+st_eng_active_time_desc	Az aktivált eszközök tovább működnek.
+st_eng_active_time_name	Időtartam
+st_eng_electronic_desc	Megtanít a legújabb elektronikus eszközök és prototípusok használatára.
+st_eng_electronic_name	Elektronikai mérnök
+st_eng_encrypting_desc	Megvédi elektronikus eszközeidet az ellenséges feltöréstől.
+st_eng_encrypting_name	Titkosítás
+st_eng_explosive_master_desc	Növeli a gránátok és más robbanószerek sebzését.
+st_eng_explosive_master_name	Robbantási szakértő
+st_eng_fast_recoil_desc	Csökkenti az eszközök újrahasználatáig szükséges időt.
+st_eng_fast_recoil_name	Gyors újraindítás
+st_eng_hacker_desc	Lehetővé teszi az ellenséges elektronikus eszközök átprogramozását a saját oldaladra.
+st_eng_hacker_name	Hacker
+st_eng_sapper_desc	Lehetővé teszi az ellenséges csapdák észrevétlen hatástalanítását.
+st_eng_sapper_name	Tűzszerész
+st_engineer_succ_chance_corr_perc_name	Siker esélye
+st_engineer_use_time_corr_perc_name	Használati sebesség
+st_engineering_skills_descr	Megtanít a készülékek és eszközök kezelésére.
+st_engineering_skills_label	Műszaki képességek
+st_engineering_skills_name	Műszaki képességek
+st_enter_char_name	Add meg a nevet
+st_enter_chat_message	Írj üzenetet
+st_enter_name_warning	Tiltott karakterek
+st_enter_profile_name	Add meg a profil nevét
+st_enter_rank_name	Add meg a rang nevét
+st_enter_search_player_name	Add meg a keresett nevet
+st_eotech_552_collimator_desc	Az EOTech amerikai holografikus irányzéka. Világító pont helyett holografikus célképet vetít, és közönséges AA elemekkel működik. Hadseregek és rendőrségek széles körben használják.
+st_eotech_552_collimator_name	EOTech 552 irányzék
+st_equipment_cost	Teljes ár:
+st_equipment_level	Felszerelés szintje
+st_equipment_weight	Súly
+st_equipped	Felszerelve
+st_error_during_storing_user_comment	Adatbázishiba. Próbáld újra.
+st_error_while_using_premium_access_voucher	Hiba a prémium fiók aktiválásakor. Próbáld újra.
+st_event_capture_the_point_description	Berendezés elfoglalása
+st_event_kill_invader_description	Támadó megölése
+st_exchange_button	Átváltás
+st_exchange_window_label	Arany átváltása rubelre
+st_exitLabel	test
+st_exit_from_login	Kilépés
+st_exit_game_confirm_accept	Kilépés
+st_exit_game_confirm_cancel	Mégse
+st_exit_game_confirm_text	Biztosan kilépsz a játékból?
+st_exit_match_confirm_accept	Kilépés
+st_exit_match_confirm_cancel	Mégse
+st_exit_match_confirm_text	Biztosan elhagyod a meccset?
+st_exp_reward_match	Szerzett tapasztalat
+st_exp_reward_premium	Prémium bónusz
+st_experience	Tapasztalat
+st_experience_modifier	Kapott tapasztalat
+st_face_069d_balaclava_3_hole_desc	Kötött maszk szem- és szájnyílásokkal. Melegen tart és elrejti az arcot.
+st_face_069d_balaclava_3_hole_name	Háromlyukú maszk
+st_face_069d_balaclava_desc	Szorosan illeszkedő katonai maszk egy szemnyílással, sisak alá tervezve.
+st_face_069d_balaclava_name	Maszk
+st_face_069d_buff_desc	Koponyamintás csősál a szájra és orra húzva. Elrejti az arcot és kiszűri a port.
+st_face_069d_buff_name	Csősál
+st_face_069d_keffiyeh_desc	A fejre és arcra tekert pamutkendő. Véd a portól és széltől, és kissé tompítja a súroló ütéseket.
+st_face_069d_keffiyeh_name	Keffije
+st_face_069d_protective_mask_desc	Vászoncsuklya hegesztőszemüveggel és szűrős szájrésszel. Az egész fejet fedi, a szilánkoktól jobban véd, mint a gőzöktől.
+st_face_069d_protective_mask_name	Védőmaszk
+st_faction_1_description	A Guberálók felszerelése közép- és távolsági harcra, valamint anomáliák túlélésére készült. Veteránjaik mesterlövészpuskákhoz is hozzáférnek.
+st_faction_2_description	A Feketepiac bőrfelszerelése rosszul véd az anomáliáktól, de más veszélyek ellen jól használható. Fegyvereik közelharcra valók, elit katonáik AK74u-val harcolnak.
+st_faction_3_description	Az Újjászületés Hadseregének katonái a legszélesebb fegyver- és felszerelésválasztékhoz férnek hozzá. Bármilyen távolságból harcolhatnak, akár szennyezett területen is. A legjobbak szupernehéz testpáncélt és géppuskát kapnak.
+st_faction_4_description	A Peremvidéki telepesek felszerelése véd legjobban az anomáliáktól, és kiváló az artefaktumok kereséséhez és használatához. Fegyvereik inkább rajtaütésre, mint nyílt harcra valók.
+st_faction_blackmarket_blocked_text	A Feketepiac nem ad neked feladatot
+st_faction_edge_blocked_text	Maximális hírnév szükséges a Guberálóknál vagy a Feketepiacnál
+st_faction_info	Információ
+st_faction_join	Csatlakozás
+st_faction_mercenaries_blocked_text	Az Omega nem ad neked feladatot
+st_faction_renaissance_blocked_text	Maximális hírnév szükséges a Guberálóknál vagy a Feketepiacnál
+st_faction_reputation_label	Frakcióhírnév
+st_faction_scavengers_blocked_text	A Guberálók nem adnak neked feladatot
+st_faction_scientists_blocked_text	A tudósok nem adnak neked feladatot
+st_fall_damage_description	Esési sebzés:
+st_fall_damage_name	Ejtőernyős
+st_few_alpha_clan_string	Érvénytelen név
+st_filter_all	Összes
+st_filter_ammo	Lőszer
+st_filter_ammo_assault_rifle	Gépkarabélyok
+st_filter_ammo_machine_gun	Géppuskák
+st_filter_ammo_pistol	Pisztolyok
+st_filter_ammo_shotgun	Sörétes puskák
+st_filter_ammo_sniper_rifle	Mesterlövészpuskák
+st_filter_ammo_submachine_gun	Géppisztolyok
+st_filter_assault_rifle	Gépkarabélyok
+st_filter_body_armor	Testpáncélok
+st_filter_boots	Csizmák
+st_filter_camo	Álcaminták
+st_filter_decal	Matricák
+st_filter_device	Eszközök
+st_filter_equipment	Felszerelés
+st_filter_gloves	Kesztyűk
+st_filter_grenade	Gránátok
+st_filter_helmet	Sisak
+st_filter_inventory	Leltár
+st_filter_items	Tárgyak
+st_filter_machine_gun	Géppuskák
+st_filter_mask	Maszk
+st_filter_medkit	Gyógyszerek
+st_filter_mine	Aknák
+st_filter_pants	Nadrágok
+st_filter_pistol	Pisztolyok
+st_filter_rig	Mellények
+st_filter_scaner	Szkennerek
+st_filter_shop	Bolt
+st_filter_shop_and_inventory	Leltár és bolt
+st_filter_shotgun	Sörétes puskák
+st_filter_sniper_rifle	Mesterlövészpuskák
+st_filter_stimulator	Serkentők
+st_filter_submachine_gun	Géppisztolyok
+st_filter_upgrades	Fejlesztések
+st_filter_vouchers	Fogyóeszközök
+st_filter_weapons	Fegyverek
+st_final_countdown	Várakozás a meccs kezdetére:
+st_find_player	Játékos keresése
+st_finish_match_mode_02_loser_message	Vereség. Az ellenség összegyűjtötte az összes akkumulátort.
+st_finish_match_mode_02_winner_message	Győzelem! A csapatod összegyűjtötte az összes akkumulátort.
+st_finish_match_mode_03_loser_message	Vereség. Az ellenség összegyűjtötte az összes akkumulátort.
+st_finish_match_mode_03_winner_message	Győzelem! A csapatod összegyűjtötte az összes akkumulátort.
+st_finish_match_mode_04_loser_message	Vereség. A csapatod megsemmisült.
+st_finish_match_mode_04_winner_message	Győzelem! Minden ellenséget legyőztetek.
+st_finish_match_mode_05_draw_message	Döntetlen. Mindkét csapat ugyanannyit kutatott
+st_finish_match_mode_05_loser_message	Vereség. Az ellenség befejezte az anomáliák kutatását
+st_finish_match_mode_05_winner_message	Győzelem! A csapatod befejezte az anomáliák kutatását
+st_first_weapon_action	1. fegyver
+st_fix	Javítás
+st_fn_fnc_description	Belga gépkarabély, 5.56x45 lőszerrel. Az FN Herstal fejlesztette az 1970-es években, a belga hadsereg rendszeresítette. Licencelt változatai Svédországban és Indonéziában szolgálnak. 30 lőszeres tár, egyes és sorozatlövés.
+st_fn_fnc_name	FN FNC
+st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Herstal 1990 körül fejlesztette saját lőszerével együtt. Bullpup kialakítás, felül hosszirányban fekvő 50 lőszeres tár. Sok ország rendőrsége és különleges egysége használja. Egyes és sorozatlövés.
+st_fn_p90_name	FN P90
+st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
+st_fort_17_name	Fort 17
+st_fov_option	FOV
+st_freedom_026_boots_desc	Nehéz páncélozott csizma a Szabadság színeiben, nehéz páncélhoz.
+st_freedom_026_boots_name	Szabadság-csizma
+st_freedom_026_gloves_desc	Megerősített ujjatlan kesztyű a Szabadság színeiben, nehéz páncélhoz.
+st_freedom_026_gloves_name	Szabadság-kesztyű
+st_freedom_026_head_desc	A Szabadság exoskeletonjának zárt sisakja, beépített légzőkészülékkel. Az egész fejet és arcot fedi.
+st_freedom_026_helmet_name	Szabadság-exoskeletonsisak
+st_freedom_026_suit_desc	Kísérleti katonai exoskeleton a Szabadság színeire festve. Ára és tervezési hibái miatt nem került sorozatgyártásba, de föld alatti műhelyekben még készülnek kisebb sorozatok. Beépített artefaktumtárolóval.
+st_freedom_026_suit_name	Szabadság-exoskeleton
+st_friend_options_label	Barátbeállítások
+st_friend_search_hint	A kereséshez nyomj Entert
+st_friend_state_away	Távol
+st_friend_state_game	Online
+st_friend_state_lobby	Lobby
+st_friend_state_offline	Offline
+st_friendly_user_compliment	Barátságos
+st_friends_online	Online barátok
+st_friends_signin_notification_option	Értesítés a barátok belépéséről
+st_fullscreen_option	Teljes képernyő
+st_general_volume_option	Fő hangerő
+st_generic_money_name	Rubel
+st_geometry_quality_option	Geometria minősége
+st_go_to_knowledge_base_message	A tudástár új böngészőablakban nyílik meg.
+st_go_to_online_store_message	Az online bolt böngészőablakban nyílik meg. Folytatod?
+st_go_to_video_tutorial_message	A videóútmutató böngészőablakban nyílik meg. Folytatod?
+st_gold_2	X arany
+st_good_player_compliment	Kiváló játékos
+st_goto_shop	A boltba
+st_graphics_quality_option	Grafika minősége
+st_grenade_throw_power_description	Dobástáv:
+st_grenade_throw_power_name	Gránátos
+st_health_regen_correction_perc_name	Regeneráció
+st_hide_ammo	Lőszer elrejtése
+st_hide_interface_action	Kezelőfelület elrejtése
+st_hide_quest_list	Feladatablak elrejtése
+st_hide_spam_option	Spam elrejtése
+st_hide_squad_list	Osztagablak elrejtése
+st_hk416_description	Német gépkarabély, 5.56x45 lőszerrel. A Heckler & Koch AR-15-alapú fejlesztése rövid löketű gázdugattyúval, a 2000-es évek közepéről. Különleges erők és több NATO-hadsereg használja. EOTech 552 holografikus irányzékkal, 30 lőszeres tárral. Egyes és sorozatlövés.
+st_hk416_name	H&K 416A5
+st_hk_mp7_description	Német önvédelmi fegyver, 4.6x30 lőszerrel. A Heckler & Koch saját páncéltörő lőszerével együtt fejlesztette. 2001-ben vezették be, a Bundeswehr és rendőrségi különleges egységek használják. 20 lőszeres tár, egyes és sorozatlövés.
+st_hk_mp7_name	H&K MP7
+st_hk_mp7_silencer_description	Német önvédelmi fegyver, 4.6x30 lőszerrel, hangtompítós MP7A1 változatban. A Heckler & Koch saját páncéltörő lőszerével együtt fejlesztette. A Bundeswehr és rendőrségi különleges egységek használják. 20 lőszeres tár, egyes és sorozatlövés.
+st_hk_mp7_silencer_name	H&K MP7A1
+st_hk_mp7_silencer_special_description	Német önvédelmi fegyver, 4.6x30 lőszerrel, hangtompítós MP7A1 változatban. A Heckler & Koch saját páncéltörő lőszerével együtt fejlesztette. A Bundeswehr és rendőrségi különleges egységek használják. 20 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
+st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Artefaktum tartása
+st_hour_short	óra
+st_hud_tutorial_frame_0_text_1	Kamera irányítása
+st_hud_tutorial_frame_0_text_2	Nézz körül az egérrel
+st_hud_tutorial_frame_1_text_1	Mozgás
+st_hud_tutorial_frame_1_text_2	Mozogj a W, A, S, D gombokkal
+st_hud_tutorial_frame_2_text_1	Célzási mód
+st_hud_tutorial_frame_2_text_2	Célzáshoz tartsd nyomva a jobb\negérgombot, vagy nyomd meg\na középső egérgombot
+st_hud_tutorial_frame_3_text_1	Sprint
+st_hud_tutorial_frame_3_text_2	Sprinteléshez tartsd nyomva\na SHIFT-et, vagy nyomd meg az X-et
+st_hud_tutorial_frame_4_text_1	Ugrás
+st_hud_tutorial_frame_4_text_2	Ugráshoz nyomd meg a szóközt
+st_hud_tutorial_frame_5_text_1	Guggolás
+st_hud_tutorial_frame_5_text_2	Guggoláshoz tartsd nyomva a CTRL-t,\nvagy nyomd meg a C-t
+st_hud_tutorial_frame_6_text_1	Harcra fel!
+st_hud_tutorial_frame_6_text_2	Elvégezted a harci alapkiképzést.\nSok szerencsét!
+st_hud_tutorial_frame_6_text_3	A jutalmad:
+st_ignored	Tiltólista
+st_in_develepoment_hint	Fejlesztés alatt
+st_ingame_volume_option	Játék
+st_injury_penalty_description	Szórásbüntetés sérült kéznél:
+st_injury_penalty_name	Higgadtság
+st_inv_activation_time_sec	Aktiválás
+st_inv_activity_time_sec	Időtartam
+st_inv_additional_ammo_bags	Lőszertáskák
+st_inv_ano_armor	Szigetelés
+st_inv_armor	Páncél
+st_inv_arp	Páncélátütés
+st_inv_artefact_slots	Artefaktumtároló
+st_inv_buckshot	Sörét
+st_inv_clip_size	Lőszer csomagonként
+st_inv_clip_weight	Csomag súlya 
+st_inv_damage	Sebzés
+st_inv_damage_protection_infection	Fertőzés elleni védelem
+st_inv_damage_protection_pain	Fájdalomküszöb
+st_inv_device_slots	Tárgyrekeszek
+st_inv_dispersion	Szórás
+st_inv_heal_amount	Gyógyítás
+st_inv_heal_amount_infection	Fertőtlenítés 
+st_inv_heal_amount_pain	Érzéstelenítés
+st_inv_heal_broken_parts	Súlyos sebek gyógyítása
+st_inv_healing_body_head	Gyógyítás: törzs / fej
+st_inv_healing_limbs	Gyógyítás: karok / lábak
+st_inv_item_weight	Súly
+st_inv_magazine	Tartalék lőszer
+st_inv_magazine_size	Tár
+st_inv_max_damage_distance	Távolság  
+st_inv_move_speed_modifier	Mozgási sebesség
+st_inv_oxygen_amount	Oxigénkapacitás
+st_inv_pain_relief	Fájdalomcsillapítás
+st_inv_reload	Újratöltési sebesség
+st_inv_rpm	Tűzgyorsaság
+st_inv_splash_radius	Robbanási sugár
+st_inv_stamina_regen	Állóképesség-regeneráció
+st_inv_stopingpower	Megállítóerő
+st_inventory_label	Leltár
+st_inventrory	Felszerelés
+st_invite_from_friends_option	Meghívók csak barátoktól
+st_invite_to_clan	Meghívás a klánba
+st_invite_to_squad	Meghívás az osztagba
+st_item_bought	Vásárlás kész
+st_item_craft_description	Az előkészítés kész, kezdheted a fejlesztést.
+st_item_craft_description_choose_donor	Donortárgy kiválasztása
+st_item_craft_description_choose_item	Válassz fejlesztendő tárgyat.
+st_item_craft_description_no_items	Válassz fejlesztendő tárgyat.
+st_item_craft_donor_slot	Donortárgy
+st_item_craft_fail_label	Rontás esélye (−1 bónusz)
+st_item_craft_label	Fejlesztés
+st_item_craft_main_slot	Fejlesztendő tárgy
+st_item_craft_success_label	Siker esélye (+1 bónusz)
+st_item_damage_state	Állapot
+st_item_drop_chance_base	Tárgyszerzés alapesélye:
+st_item_drop_chance_by_premium	Prémium fiók
+st_item_drop_chance_label	Tárgyszerzés esélye
+st_item_drop_chance_match_result	Harci előny:
+st_item_drop_chance_penalty	Tétlenségi büntetés:
+st_item_drop_chance_team_premium	Prémium játékosok a meccsben:
+st_item_hint_label	Leltár
+st_item_hint_label_shop	Bolt
+st_item_level	Tárgyszint
+st_item_modification	Bónuszok cseréje
+st_item_piece_postfix	db
+st_item_props_kg	kg
+st_item_props_meters	m
+st_item_props_percent	%
+st_item_props_sec	s
+st_item_sell_precondition_faction_1	Guberáló hírnév szükséges
+st_item_sell_precondition_faction_2	Feketepiaci hírnév szükséges
+st_item_sell_precondition_faction_3	Hírnév szükséges az Újjászületés Hadseregénél
+st_item_sell_precondition_faction_4	Peremvidéki hírnév szükséges
+st_item_sold	Tárgy eladva
+st_items_notes	Készletek
+st_items_notes_frame_1_text_1	Javítod túlélési esélyeidet,\nha készleteket viszel a csatába
+st_items_notes_frame_1_text_2	Készlet lehet gránát, elsősegélycsomag,\ncsapda, akna és más hasonló tárgy
+st_items_notes_frame_2_text_1	A készletek a zsebekbe kerülnek
+st_items_notes_frame_3_text_1	A zsebek számát megfelelő\ntulajdonságú felszereléssel növelheted
+st_items_notes_frame_4_text_1	Egy rekeszbe korlátozott számú,\nazonos típusú tárgy fér 
+st_items_notes_frame_5_text_1	A zsebek kapacitását megfelelő\ntulajdonságú felszereléssel növelheted
+st_izh27_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett MP-27M Lancaster.\n- 1000 darab 12x70 sörétes lőszer.</white>
+st_izh27_bundle_name	MP-27M Lancaster csomag
+st_izh27_description	A leírás még nem érhető el.
+st_izh27_name	MP-27M Lancaster
+st_izh27_premium_2_description	Orosz bock sörétes puska, 12-es kaliberrel. Az izsevszki gépgyár Baikal néven gyártja, az egyik legelterjedtebb vadász- és sportduplapuska. Két cső, csövenként egy lövés. Külön vagy egyszerre is elsüthetők. Prémium változat különleges álcafestéssel.
+st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jump_action	Ugrás
+st_kedr_description	Szovjet géppisztoly, 9x18 PM lőszerrel. Jevgenyij Dragunov tervezte az 1970-es évek elején. Sorozatgyártása csak az 1990-es években indult az orosz belügyminisztérium és rendőrség számára. 30 lőszeres tár, egyes és sorozatlövés.
+st_kedr_name	PP-91 "Kedr"
+st_kg_postfix	kg
+st_kick_clan_message	Biztosan kirúgod a játékost a klánból?
+st_kiparis_description	9x18 PM lőszerű géppisztoly, amelyet már az 1970-es években megterveztek, de nem került tömeggyártásba. Az 1990-es években vették elő újra, amikor az orosz belügyi erőknek géppisztolyra volt szükségük. 30 lőszeres tárral.
+st_kiparis_name	OTs-02 Kiparis
+st_knowledge_skills_descr	Az új világ felfedezésével jobban megismered az artefaktumokat és anomáliákat.
+st_knowledge_skills_name	Világismeret
+st_knw_advanced_art_desc	Az aktivált artefaktumok tovább hatnak.
+st_knw_advanced_art_name	Artefaktumszakértő
+st_knw_artefact_hunter_desc	Lehetővé teszi a legújabb artefaktumdetektorok és artefaktumalapú eszközök használatát.
+st_knw_artefact_hunter_name	Artefaktumvadász
+st_knw_artefacts_desc	Lehetővé teszi az artefaktum belső energiájának felszabadítását és aktiválását.
+st_knw_artefacts_name	Artefaktum aktiválása
+st_knw_covering_desc	Anomáliában nehezebben vesznek észre.
+st_knw_covering_name	Fedezékben
+st_knw_empathy_desc	Csodával határos módon megérzed, ha új artefaktum születik a közelben.
+st_knw_empathy_name	Természetérzék
+st_knw_protecting_desc	Anomáliában extra védelmet kapsz a lövések és robbanások ellen.
+st_knw_protecting_name	Anomáliapajzs
+st_knw_synergy_desc	Az artefaktumok ereje a számukkal arányosan nő.
+st_knw_synergy_name	Szinergia
+st_kriss_vector_description	Amerikai géppisztoly, .45 ACP lőszerrel. A KRISS a 2000-es években mutatta be. Visszarúgáscsökkentő rendszere lefelé mozgatja a zárat, mérsékelve a csőemelkedést. Walther Competition II irányzékkal, 30 lőszeres tárral. Egyes lövés, rövid és folyamatos sorozat.
+st_kriss_vector_name	KRISS Vector
+st_label_invites	Meghívók
+st_label_leave_queue_btn	Sor elhagyása
+st_label_quenue	Várakozás a játékosokra:
+st_label_reports	Jelentések
+st_label_status	Állapot
+st_label_support	Rendszerüzenetek
+st_label_teamA	Szövetségesek
+st_label_teamB	Ellenfelek
+st_label_time_average	Várakozási idő:
+st_leave_button	Kilépés
+st_leave_clan_message	Biztosan elhagyod a klánt?
+st_leave_clan_money_message	Biztosan elhagyod a klánt? A regisztrációs számlára befizetett ezüst elvész.
+st_leave_squad	Osztag elhagyása
+st_left_strafe_action	Oldalazás balra
+st_less_then_hour	kevesebb mint egy óra
+st_level_01_name	Rudnya
+st_level_02_name	Iskola
+st_level_03_name	Vosztok radarállomás
+st_level_04_name	Vegyi üzem
+st_level_05_name	Tarakanovi erőd
+st_level_06_name	Mamajev-kurgán
+st_level_07_name	Vektor laboratórium
+st_level_08_name	Köln
+st_level_09_name	London
+st_level_10_name	Vosztok radarállomás (v0.21)
+st_level_11_name	Mamajev-kurgán (v0.21)
+st_level_12_name	Vegyi üzem (v0.11)
+st_level_13_name	Vosztok radarállomás (v0.11)
+st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
+st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
+st_lightning_quality_option	Megvilágítás minősége
+st_login_button_label	Belépés
+st_login_default_text	E-mail
+st_login_eula_label	Licencszerződés
+st_login_menu_accept	Elfogadás
+st_login_menu_cancel	Mégse
+st_login_menu_status_access_level_restriction	Nincs megfelelő hozzáférésed a belépéshez.
+st_login_menu_status_connecting	Bejelentkezés…
+st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Engedélyezd a játékot a tűzfalon (Skhid-network-setup.cmd). Oroszországban használj VPN-t, és add hozzá a játék .exe fájljait (VPN.txt).
+st_login_menu_status_invalid_user_or_password	Hibás e-mail vagy jelszó
+st_login_menu_status_invalid_version	Elavult játékverziót használsz.
+st_login_menu_status_sign_in_already_online	 A felhasználó már játékban van
+st_login_menu_status_sign_in_attempt_interval_violated	Túl sok bejelentkezési kísérlet. Próbáld újra 10 másodperc múlva.
+st_login_menu_status_user_banned	Ki vagy tiltva. 
+st_login_menu_status_user_not_confirmed	A fiókod nincs megerősítve. Használd az e-mailben kapott hivatkozást a megerősítéshez.
+st_login_str	E-mail
+st_lost_modifier	Elveszett bónusz
+st_loyalty_bonus_rep	Hűségbónusz
+st_m4a1_description	Amerikai karabély, 5.56x45 lőszerrel. Az M16 rövidebb, könnyebb változata, az amerikai haderő az 1990-es években rendszeresítette. Az M4A1 sorozatlövésre képes, különleges erők használják. 30 lőszeres tár, egyes és sorozatlövés.
+st_m4a1_name	M4A1
+st_magnum_description	Hatlövetű .357 Magnum revolver, 1955-ben mutatták be. Sokan kategóriája egyik legjobbjának tartják. Finom elsütésével és nagy pontosságával tűnik ki.
+st_magnum_name	Colt Python
+st_maintenance	Szerverkarbantartás folyik. Az alkalmazás bezárul.
+st_map	Pálya
+st_match_items_found	Megtalálva
+st_match_making_level	Meccsszint
+st_match_rewards	Harci jutalom
+st_match_settings_checkbox_PVE	Szabad játék
+st_match_settings_checkbox_PVE_hint	Egyéni túlélés más játékosok között, a könyörtelen Erdő zord körülményei közepette
+st_match_settings_checkbox_PVP	PvP
+st_match_settings_checkbox_PVP_hint	Harci mód, ahol a meccsszintet a felszerelés, a csapatbeosztást az egyéni értékelés határozza meg
+st_match_settings_checkbox_battery_charge	Védelmi berendezés
+st_match_settings_checkbox_battery_charge_hint	A csapatok akkumulátorokat gyűjtenek a védelmi berendezésekhez
+st_match_settings_checkbox_capture_points	Kutatás
+st_match_settings_checkbox_capture_points_hint	Harci mód kulcspontok elfoglalásával
+st_match_settings_checkbox_clan_match_hint	Kláncsapatok harci módjai
+st_match_settings_checkbox_rank_match	Rangsorolt meccs
+st_match_settings_checkbox_rank_match_hint	Véletlenszerűen kiválasztott kláncsapatok összecsapása a klánranglistán
+st_match_settings_checkbox_team_match	Csapatos deathmatch
+st_match_settings_checkbox_team_match_hint	Harci mód, ahol teljesen ki kell iktatni az ellenséget
+st_match_settings_checkbox_tournament_match	Versenymeccs
+st_match_settings_checkbox_tournament_match_hint	Kláncsapatok összecsapása a folyamatban lévő versenyen
+st_match_settings_checkbox_training_match	Gyakorlómeccs
+st_match_settings_checkbox_training_match_hint	Gyakorlószoba mód
+st_match_settings_clan_match	Klánmeccs
+st_match_time_is_up	Lejárt a meccsidő!
+st_max_carried_weight_description	Teherbírás:
+st_max_carried_weight_name	Erőember
+st_max_carried_weight_ultimate_description	A cipelt súly már nem lassít, de nem sprintelhetsz.
+st_max_carried_weight_ultimate_name	Nehézsúlyú
+st_med_combat_shock_desc	A súlyos végtagsérülések hátrányai néhány másodperccel később jelentkeznek.
+st_med_combat_shock_name	A csata hevében
+st_med_farmacial_desc	Meghosszabbítja a gyógyszerek hatását.
+st_med_farmacial_name	Gyógyszerészet
+st_med_fast_use_desc	Jelentősen csökkenti a gyógyszerek előkészítési idejét.
+st_med_fast_use_name	Gyors használat
+st_med_medical_desc	Lehetővé teszi a legújabb gyógyszerek és orvosi eszközök használatát.
+st_med_medical_name	Felcser
+st_med_reanimation_desc	Jelentősen javítja az újraélesztett szövetségesek állapotát.
+st_med_reanimation_name	Újraélesztés
+st_med_refining_desc	Növeli a gyógyszerek hatékonyságát.
+st_med_refining_name	Gyógyszertisztítás
+st_med_revive_desc	A megfelelő eszközzel újraélesztheted magad.
+st_med_revive_name	Utolsó erőfeszítés
+st_medicial_skills_descr	Javítja túlélési esélyeidet, és megtanít a gyógyszerek és orvosi eszközök használatára.
+st_medicial_skills_name	Túlélés és elsősegély
+st_meele_hit_range_description	A következő frissítésben lesz elérhető.
+st_meele_hit_range_name	Ugrás késsel
+st_meele_hit_ultimate_description	A következő frissítésben lesz elérhető.
+st_meele_hit_ultimate_name	Pöröly
+st_melee_action	Közelharc
+st_member_dont_have_battle_permission	A játékosnak nincs jogosultsága tábori parancsnokká válni.
+st_mercenaries_faction	Zsoldosok
+st_message_reroll_text	Visszaállítod a képességeidet?
+st_messages_censor_option	Üzenetszűrés bekapcsolása
+st_messages_only_from_friends_option	Privát üzenetek csak barátoktól
+st_microphone_sensitivity_option	Mikrofon érzékenysége
+st_minimap	Minitérkép
+st_minimap_bottom	Bal alsó sarok
+st_minimap_off	Rejtett minitérkép
+st_minimap_position	Minitérkép helye
+st_minimap_rotable_option	Minitérkép rögzítése
+st_minimap_top	Bal felső sarok
+st_missile_weapon_action	Gránát
+st_missions	Feladatok
+st_mm_button_back	Vissza
+st_mm_button_exit_to_os	Kilépés a Windowsba
+st_mm_button_leave_match	Meccs elhagyása
+st_mm_button_settings	Beállítások
+st_mm_match_found	Meccskeresés kész!\nVárakozás a szerverre.
+st_mode_02_description	Közeleg a Vihar. Csak úgy élhettek túl, ha akkumulátorokat találtok a pályán, és helyreállítjátok a Vihart semlegesítő védelmi állomásokat. Minél több akkumulátor, annál jobb a védelem. A legtöbbet gyűjtő csapat nyer.
+st_mode_02_name	Védelmi berendezés
+st_mode_03_description	Közeleg a Vihar. Csak úgy élhettek túl, ha akkumulátorokat találtok a pályán, és helyreállítjátok a Vihart semlegesítő védelmi állomásokat. Minél több akkumulátor, annál jobb a védelem. A legtöbbet gyűjtő csapat nyer.
+st_mode_03_name	Védelmi berendezés
+st_mode_04_description	Szilárdítsd meg csapatod állásait minél több ellenség kiiktatásával. Minden elesett harcos egy pontot von le a csapata erősítési pontjaiból. Az a csapat nyer, amelynek a meccs végén több erősítési pontja marad.
+st_mode_04_name	Csapatos deathmatch
+st_mode_05_description	Foglaljátok el a mobil kutatóegységeket. Minden elfoglalt egység anomáliakutatási pontokat termel a csapatnak. A meccs végén a legtöbb ponttal rendelkező csapat nyer.
+st_mode_05_name	Kutatás
+st_modification_screen_edit_decal_hint	A matrica méretéhez és helyéhez kattints a rekeszére
+st_modification_screen_hint	Húzd az álcázást vagy matricát a leltárból a tárgy módosítási rekeszébe
+st_modified	Módosítva
+st_modifier_reroll_description	Egy tárgyon csak egy bónuszt cserélhetsz le, de azt akárhányszor. Minden cserénél három véletlenszerű bónusz közül választhatsz.
+st_modifier_reroll_timer_description	Ezüsttel csak 6 óránként egyszer próbálkozhatsz.
+st_module_is_installed_on	A modul erre van felszerelve:
+st_money	Pénz
+st_money_modifier	Kapott ezüst
+st_money_reward_match	Meccsjutalom
+st_money_reward_premium	Prémium bónusz
+st_money_reward_quest	Feladatjutalom
+st_monitor_ajust	Monitorbeállítás
+st_monitor_count_option	Aktív monitor
+st_mosin_description	Forgó-tolózáras puska, 7.62x54 mm lőszerrel. Az orosz cári hadsereg rendszeresítette, mindkét világháborúban bevált. Rögzített, 5 lőszeres tár. 
+st_mosin_name	Moszin karabély
+st_motion_blur_amount_options	Mozgáselmosás
+st_mouse_invertion_option	Egér megfordítása
+st_mouse_sensitivity_option	Egérérzékenység
+st_move_backward_action	Hátra
+st_move_forward_action	Előre
+st_move_speed_weapon_penalty_description	A nagy méretű fegyverek már nem lassítják a mozgást.
+st_move_speed_weapon_penalty_name	Fegyverviselés
+st_move_to_reserve	Tartalékba
+st_move_to_team	Áthelyezés a csapatba
+st_movement_speed_correction_perc_name	Mozgási sebesség
+st_movement_speed_description	Mozgási sebesség:
+st_movement_speed_name	Fürge
+st_movement_speed_when_aiming_description	Mozgási sebesség célzás közben:
+st_movement_speed_when_aiming_name	Harci állás
+st_mp153_description	Orosz öntöltő, simacsövű sörétes puska, 12x70 lőszerrel. Alacsony ára és megbízhatósága népszerű vadász- és sportfegyverré tette. Cső alatti, 4 lőszeres csőtár.
+st_mp153_name	MP-153 Baikal
+st_msbs_carbine_description	Lengyel moduláris karabély, 5.56x45 lőszerrel. A varsói katonai műszaki egyetem és a radomi fegyvergyár fejlesztette a 2010-es években. A lengyel hadsereg Grot néven rendszeresítette. EOTech 552 irányzék, 30 lőszeres tár. Egyes lövés, rövid és folyamatos sorozat.
+st_msbs_carbine_name	MSBS Radon
+st_multiplicative_breath_vibration_modifier	Irányzék kilengése
+st_multiplicative_chamber_a_round_time_modifier	Csőre töltési idő
+st_multiplicative_device_damage_modifier	Eszközsebzés
+st_multiplicative_recoil_modifier	Visszarúgás
+st_multiplicative_reliability_modifier	Megbízhatóság
+st_multiplicative_reload_time_modifier	Újratöltési sebesség
+st_multiplicative_respawn_time_modifier	Újraéledési idő
+st_multiplicative_splash_radius_modifier	Robbanási sugár
+st_multiplicative_stamina_spending_modifier	Állóképesség-fogyasztás
+st_munition	Felszerelés
+st_music_volume_option	Zene
+st_must_be_in_clan_team	Kláncsapatban kell lenned.
+st_my_place	Saját helyezés
+st_neostead_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés.
+st_neostead_name	NeoStead 2000
+st_neostead_premium_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés. Prémium változat különleges álcafestéssel.
+st_neostead_premium_name	NeoStead 2000 M2
+st_new_items_unlocked	új tárgy a boltban:
+st_new_level_reached	Új szintet értél el!
+st_new_modifier	Új bónusz
+st_next_ammo_action	Lőszertípus váltása
+st_next_fire_queue_action	Tűzmód váltása
+st_next_weapon	Következő fegyver
+st_nickname	Név
+st_no_available_resolution	Nem támogatott
+st_no_faction_button_label	Választás
+st_no_faction_message_label	Együttműködés a frakciókkal
+st_no_faction_message_text	A frakciók a felszerelés, fegyverek és lőszer fő forrásai. Feladataikkal növeled a hírneved, cserébe hozzáférsz a legjobb áruikhoz. Egyszerre csak egy frakcióval működhetsz együtt.
+st_non_faction_items	Független kereskedők
+st_non_sport_behavior_claim	Csapattárs megölése
+st_not_all_team_members_ready	Nem minden játékos jelezte, hogy kész.
+st_not_enough_money	Nincs elég pénz a tranzakcióhoz.
+st_not_enought_money_for_repair	Nincs elég pénz a javításra
+st_not_enougth_money	Nincs elég fedezet
+st_not_enougth_money_for_reroll	Nincs elég pénz a képességek visszaállítására 
+st_not_logged_id	Azonosítási hiba. Indítsd újra a játékot.
+st_not_ready	Nem kész
+st_notes_if_you_read	Elolvasás után
+st_notes_reward	ezt kapod:
+st_novice_026_helmet_desc	Kezdő sztalker kötött sapkája a törölt S.T.A.L.K.E.R. 2-ből.
+st_novice_026_helmet_name	Újonc kötött sapkája
+st_of	/
+st_ok	OK
+st_on_enemy_theft_item	Az ellenség ellopott egy akkumulátort a bázisotokról. Állítsd meg!
+st_on_spawn_victory_item	Az akkumulátor feltöltődött! Vidd a bázisodra.
+st_one_handed	Másodlagos
+st_online_store	Arany vásárlása
+st_onyx_activation_hint	Ónix aktiválva! %s mp-ig 75%-kal csökkenti a beérkező lövedékek sebzését és páncélátütését.
+st_onyx_pickup_hint	Ónix artefaktum. 5%-kal csökkenti a játékost érő lövedékek sebzését és páncélátütését.
+st_open	Megnyitás
+st_options_2taa	2xTAA
+st_options_adjust_gamma	Gamma:
+st_options_apply	Alkalmazás
+st_options_cancel	Mégse
+st_options_chat	Chat:
+st_options_chat_keys	Chat:
+st_options_controller	Irányítás
+st_options_cross_type	Célkereszt:
+st_options_custom	Egyéni
+st_options_default_controls	Alapbeállítások
+st_options_default_video	Alapbeállítások
+st_options_friends	Barátok:
+st_options_fxaa	FXAA
+st_options_game	Játék:
+st_options_gameplay	Játék
+st_options_hbao	HDAO
+st_options_high	Magas
+st_options_lobby	Lobby:
+st_options_low	Alacsony
+st_options_medium	Közepes
+st_options_minimum	Minimális
+st_options_off	Ki
+st_options_ok	OK
+st_options_on	Be
+st_options_optimal_video	Optimális beállítások
+st_options_sound	Hang
+st_options_ssao	SSAO
+st_options_ssdo	SSDO
+st_options_ultra	Ultra
+st_options_video	Grafika
+st_options_voice	Beszéd:
+st_options_volume	Hangerő:
+st_other	Egyéb
+st_oust_commander	Parancsnok cseréje
+st_overweight_penalty_description	Súly hatása a mozgási sebességre:
+st_overweight_penalty_name	Gyűjtögető
+st_oxygen_tank_description	A Guberálók táborában barkácsolt oxigénpalack. A légzőgázt sűrítve, nem cseppfolyósítva tárolja.
+st_oxygen_tank_name	Oxigénpalack
+st_pain_healt_correction_perc_name	Fájdalomküszöb
+st_paperdoll_btn_ammo	Lőszer
+st_paperdoll_btn_fix	Javítás
+st_paperdoll_btn_weight	Súly
+st_paperdoll_label	Karakter
+st_particles_quality_options	Részecskék minősége
+st_password_default_text	Jelszó
+st_password_str	Jelszó
+st_pause_game_action	Szünet
+st_pd_artefact	Artefaktum
+st_pd_back	hátizsák
+st_pd_foot	csizma
+st_pd_hands	kesztyű
+st_pd_head	sisak
+st_pd_legs	nadrág
+st_pd_mask	maszk
+st_pd_torso	kabát
+st_pd_weapon	Fegyver
+st_percent_postfix	%
+st_personal_statistics	Személyes eredmények
+st_phy_adrenalin_desc	Minden kapott találat kissé gyorsítja a mozgásodat, és visszatölti az állóképességed egy részét.
+st_phy_adrenalin_name	Adrenalinlöket
+st_phy_athlet_desc	Csökkenti a cipelt súly hatását a mozgási sebességre.
+st_phy_athlet_name	Atléta
+st_phy_ignor_pain_desc	Sprintelés közben sokkal kevésbé érzed a fájdalmat.
+st_phy_ignor_pain_name	Fájdalom elnyomása
+st_phy_melee_rush_desc	Növeli a távolságot, ahonnan közelharcban megölheted az ellenséget.
+st_phy_melee_rush_name	Ugrás késsel
+st_phy_second_breath_desc	Ha kimerülsz, az állóképességed teljesen visszatöltődik. Legfeljebb percenként egyszer lép működésbe.
+st_phy_second_breath_name	Újult erő
+st_phy_sprinter_desc	Növeli a sprint sebességét.
+st_phy_sprinter_name	Sprinter
+st_phy_war_rage_desc	Közelharci öléssel teljesen visszatöltöd az állóképességed és megszünteted a sérülések fájdalmát.
+st_phy_war_rage_name	Harci düh
+st_physical_skills_descr	Növeli a mozgási sebességet, teherbírást és az állóképesség regenerálódását.
+st_physical_skills_label	Fizikai edzés
+st_physical_skills_name	Fizikai edzés
+st_picatinny_scope_medium_name	Távcsövek / irányzékok
+st_pickup_item	Felvétel ({USE})
+st_ping_postfix	ms
+st_pkp_pecheneg_description	Orosz általános célú géppuska, 7.62x54R lőszerrel. A CNIITOCSMAS fejlesztette a PKM alapján, 2001-ben rendszeresítették. Kényszerléghűtéses nehéz csöve hosszú sorozatokat enged csőcsere nélkül. 100 lőszeres heveder, egyes és sorozatlövés.
+st_pkp_pecheneg_name	PKP "Pecheneg"
+st_place	Hely
+st_play_button	Játék
+st_player_equipment_level	Felszerelés szintje
+st_player_info_label	Játékos adatai:
+st_player_is_already_in_clan	A játékos már klánban van.
+st_player_level	SZINT
+st_player_not_found	A játékos nem található.
+st_player_skills_check_failed	Hiba a képességfejlesztés megerősítésekor.
+st_players_list_filter_text	Szűrés név szerint
+st_pm_description	Makarov pisztoly, 9x18 PM lőszerrel. 1948-ban tervezték a Tokarev leváltására. A hadsereg és rendvédelmi szervek oldalfegyvere lett. 8 lőszeres tárral.
+st_pm_name	PM
+st_pockets	Zsebek
+st_point	pont
+st_points_aviable	Elérhető pontok
+st_points_earned	A szinted
+st_post_process_options	Utófeldolgozás minősége
+st_pp2000_description	A leírás még nem érhető el.
+st_pp2000_name	PP-2000
+st_ppsh_description	Spagin géppisztolya, a győzelem legendás fegyvere. Egyes országokban az 1980-as évek végéig használták. 35 lőszeres szekrénytárral.
+st_ppsh_name	PPSH-41
+st_premium	Prémium
+st_premium_3_day	3 nap
+st_premium_3_day_descr	(72 óra)
+st_premium_3_month	3 hónap
+st_premium_3_month_descr	(90 nap)
+st_premium_6_month	6 hónap
+st_premium_6_month_descr	(180 nap)
+st_premium_access_1d_voucher_descr	Ez az utalvány egy napra aktiválja a prémium fiókot.
+st_premium_access_1d_voucher_name	Prémium fiók
+st_premium_action	Akció!
+st_premium_advert	Aktiváld most a prémiumot,\nés megkapod e meccs összes bónuszát
+st_premium_ally_members	A prémium játékosoknak köszönhetően
+st_premium_bonus	Tapasztalat\nBevétel\nHírnév
+st_premium_bonus_experience	TÖBB TAPASZTALAT!
+st_premium_bonus_item_search	TÁRGYKERESÉSI BÓNUSZ!
+st_premium_bonus_money	HARCI JUTALOM!
+st_premium_bonus_profile	Felszerelésprofil
+st_premium_bonus_reputation	FRAKCIÓHÍRNÉV-BÓNUSZ!
+st_premium_button_advert	PRÉMIUM vásárlása
+st_premium_day	24 óra
+st_premium_day_descr	(24 óra)
+st_premium_discount	Kedvezmény
+st_premium_left	Hátralévő:
+st_premium_money	Arany
+st_premium_money_name	Arany
+st_premium_month	Hónap
+st_premium_month_descr	(30 nap)
+st_premium_post_reward_descr	Aktiváld most a prémium fiókot,\nés jutalmul megkapod az elmúlt hét\nösszes bónuszát!
+st_premium_post_reward_label	Hozz ki többet a játékból prémium fiókkal!
+st_premium_profile_hint	Prémium fiókkal elérhető
+st_premium_profile_unlock_description	A harmadik felszerelésprofil csak prémium fiókkal érhető el
+st_premium_reward_part_1	Csata után találsz 
+st_premium_reward_part_2	több tárgyat
+st_premium_week	Hét
+st_premium_week_descr	(7 nap)
+st_premium_year	Év
+st_premium_year_descr	(365 nap)
+st_prepare_to_battle_notes	Felkészülés a csatára
+st_prepare_to_battle_notes_frame_1_text_1	Egy meccsben két csapat van
+st_prepare_to_battle_notes_frame_2_text_1	Szövetségeseidet a fejük feletti\njelek mutatják
+st_prepare_to_battle_notes_frame_2_text_2	csapattársak nevének mutatása
+st_prepare_to_battle_notes_frame_3_text_1	Légy óvatos, az ellenség\nrejtőzködhet
+st_prepare_to_battle_notes_frame_3_text_2	Mozogj óvatosan
+st_prepare_to_battle_notes_frame_4_text_1	A sérülésjelző a tested\naktuális állapotát mutatja
+st_prepare_to_battle_notes_frame_4_text_2	Használj elsősegélycsomagot,\nenyhíti a fájdalmat és gyógyítja a sebeket
+st_prepare_to_battle_notes_frame_5_text_1	Súlyos sérülés érheti\na kezedet vagy lábadat
+st_prepare_to_battle_notes_frame_5_text_2	Ez rontja a lövési pontosságot\nés a mozgási sebességet
+st_prepare_to_battle_notes_frame_6_text_1	Ha mindkét karod eltörik,\nnem használhatsz\nkétkezes fegyvert
+st_prepare_to_battle_notes_frame_7_text_1	Ha mindkét lábad eltörik,\nnem tudsz mozogni
+st_prev_weapon	Előző fegyver
+st_private_messages_in_game_option	Chat elrejtése meccs közben
+st_profile	Profil
+st_profile_check_failed	Fegyver nélkül nem léphetsz csatába!
+st_profile_check_failed_weapon	Fegyver nélkül nem léphetsz csatába!
+st_profile_check_failed_weapon_ammo	Nem léphetsz csatába, kevés a lőszer a hátizsákodban!
+st_profile_check_failed_weapon_ammo_in_inv	Nem léphetsz csatába, kevés a lőszer a leltáradban!
+st_profile_play_time	Játékidő
+st_profile_rename	Profil átnevezése
+st_profile_rename_label	Profil átnevezése
+st_profile_selection_warning	Profilváltáskor +20 másodperc újraéledési idő
+st_profile_warning_weapon	A profil nem aktív: nincs fegyver
+st_profile_warning_weapon_ammo	A profil nem aktív: kevés a lőszer a hátizsákban
+st_profile_warning_weapon_ammo_in_inv	A profil nem aktív: kevés a lőszer a raktárban
+st_ptt_action	PTT
+st_ptt_button_option	PTT
+st_put_item	Lerakás ({USE})
+st_quest_change_warning	Figyelem! A feladatcsere csökkenti a frakcióhűséged!
+st_quest_completed	Feladat teljesítve!
+st_quest_failed	Feladat sikertelen!
+st_quest_progress	Feladat előrehaladása
+st_quest_reward_info	A végső jutalom a meccs szintjétől függ
+st_quests	Feladatok
+st_quests_label	Feladatok
+st_quests_progress_text_alpha_option	Átlátszóság
+st_quick_fix	Gyors javítás
+st_quick_use_action_1	1. tárgy
+st_quick_use_action_2	2. tárgy
+st_quick_use_action_3	3. tárgy
+st_quick_use_action_4	4. tárgy
+st_quick_use_action_5	5. tárgy
+st_quick_use_action_6	6. tárgy
+st_rank_up_to_commander_message	Biztosan átadod ennek a játékosnak a klánparancsnoki szerepet?
+st_ranking	Ranglista
+st_ranking_diff	Különbség
+st_rattle_activation_hint	Csörgő aktiválva! Az ellenség nem hallja a lépteidet.
+st_rattle_pickup_hint	Csörgő artefaktum. 50%-kal halkítja a lépteid zaját.
+st_rdgm_descr	A leírás még nem érhető el.
+st_rdgm_name	RDG-M füstgránát
+st_reach_level	elérte a következő <green>szintet</green>:
+st_ready	Kész
+st_refill_ammo_btn	Alkalmazás
+st_refill_ammo_label	Lőszer
+st_regen_booster_description	Régi katonai fejadag. A FÁK-országok hadseregei sikerrel használták a válság előtt. Gyorsítja az anyagcserét, és még egész finom is.
+st_regen_booster_name	Fejadag
+st_registration_str	Fiók létrehozása
+st_regular_fix	Javítás
+st_regular_money	Ezüst
+st_reload_speed_description	Újratöltési sebesség
+st_reload_speed_name	Újratöltés
+st_relocate	Áthelyezés
+st_rem700_description	Amerikai puska, 7.62x51 lőszerrel. Sport-, vadász- és mesterlövészfegyverként is elismert. 5 lőszeres tárral.
+st_rem700_name	Remington 700
+st_rem700_premium_description	Amerikai puska, 7.62x51 lőszerrel. Sport-, vadász- és mesterlövészfegyverként is elismert. 5 lőszeres tár. Prémium változat különleges álcafestéssel.
+st_rem700_premium_name	Remington 700 "Executioner"
+st_rem870_description	Amerikai pumpás sörétes puska, 12x70 lőszerrel. Rendőrségi és vadászfegyverként is elterjedt. A vadászváltozat cső alatti csőtára 4 lőszert fogad. 
+st_rem870_name	Remington 870
+st_remove	Eltávolítás
+st_remove_from_friends	Eltávolítás a barátok közül
+st_remove_from_ignore	Eltávolítás a tiltólistáról
+st_remove_from_squad	Eltávolítás az osztagból
+st_remove_from_team	Kirúgás a csapatból
+st_ren_back_1_desc	A leírás még nem érhető el.
+st_ren_back_1_name	Rohamhátizsák
+st_ren_back_3_desc	A leírás még nem érhető el.
+st_ren_back_3_name	Zarja 4N palack
+st_ren_back_5_desc	A leírás még nem érhető el.
+st_ren_back_5_name	UKV-1 palack
+st_ren_boots_1_desc	Megbízható katonai csizma, védi a lábat a mechanikai sérülésektől és kisebb csapdáktól. 
+st_ren_boots_1_name	Katonai csizma
+st_ren_boots_3_desc	A leírás még nem érhető el.
+st_ren_boots_3_name	Felderítőcsizma
+st_ren_boots_4_desc	A leírás még nem érhető el.
+st_ren_boots_4_name	Molot UM-2 csizma
+st_ren_boots_5_desc	A leírás még nem érhető el.
+st_ren_boots_5_name	OZK-18KB csizma
+st_ren_boots_6_desc	A leírás még nem érhető el.
+st_ren_boots_6_name	Zubr UM-4 csizma
+st_ren_gloves_1_desc	A leírás még nem érhető el.
+st_ren_gloves_1_name	Rohamkesztyű
+st_ren_gloves_4_desc	A leírás még nem érhető el.
+st_ren_gloves_4_name	Molot UM-2 kesztyű
+st_ren_gloves_5_desc	A leírás még nem érhető el.
+st_ren_gloves_5_name	OZK-18KB kesztyű
+st_ren_gloves_6_desc	A leírás még nem érhető el.
+st_ren_gloves_6_name	Zubr UM-4 kesztyű 
+st_ren_helmet_1_desc	Szovjet ejtőernyőssisak. Fontos jelkép az Újjászületés Hadseregének. Jól véd az ütésektől, a bevarrt acéllemezek kis kaliberű lövedékeket is megállítanak.
+st_ren_helmet_1_name	Ejtőernyőssisak
+st_ren_helmet_2_desc	A leírás még nem érhető el.
+st_ren_helmet_2_name	Vityaz-S sisak
+st_ren_helmet_3_desc	A leírás még nem érhető el.
+st_ren_helmet_3_name	Felderítősisak
+st_ren_helmet_4_desc	A leírás még nem érhető el.
+st_ren_helmet_4_name	Molot UM-2 sisak
+st_ren_helmet_5_desc	A leírás még nem érhető el.
+st_ren_helmet_5_name	OZK-18KB sisak
+st_ren_helmet_6_desc	A leírás még nem érhető el.
+st_ren_helmet_6_name	Zubr UM-4 sisak
+st_ren_legs_1_desc	Terepmintás nadrág házilag megerősített térdvédőkkel. Jó minősége és kényelmes szabása szabad mozgást enged, teljes felszereléssel is gyorsabb haladást biztosít. Extra tárgyzsebbel. 
+st_ren_legs_1_name	Katonai nadrág
+st_ren_legs_2_desc	A leírás még nem érhető el.
+st_ren_legs_2_name	Sturm nadrág
+st_ren_legs_3_desc	A leírás még nem érhető el.
+st_ren_legs_3_name	Felderítőnadrág
+st_ren_legs_4_desc	A leírás még nem érhető el.
+st_ren_legs_4_name	Molot UM-2 nadrág
+st_ren_legs_5_desc	A leírás még nem érhető el.
+st_ren_legs_5_name	OZK-18KB nadrág
+st_ren_legs_6_desc	A leírás még nem érhető el.
+st_ren_legs_6_name	Zubr UM-4 nadrág
+st_ren_mask_2_desc	A leírás még nem érhető el.
+st_ren_mask_2_name	Rohammaszk
+st_ren_mask_3_desc	A leírás még nem érhető el.
+st_ren_mask_3_name	Zanaves légzőkészülék
+st_ren_mask_5_desc	A leírás még nem érhető el.
+st_ren_mask_5_name	PMK-7S gázálarc
+st_ren_rep_modifier	Hírnév az Újjászületés Hadseregénél
+st_ren_torso_1_desc	Szokványos II. osztályú katonai golyóálló mellény, az apokalipszis utáni világhoz igazítva. Sok zsebébe rengeteg lőszer és felszerelés fér.
+st_ren_torso_1_name	Katonai golyóálló mellény
+st_ren_torso_2_desc	A leírás még nem érhető el.
+st_ren_torso_2_name	Sturm golyóálló mellény
+st_ren_torso_3_desc	A leírás még nem érhető el.
+st_ren_torso_3_name	Sokol golyóálló mellény
+st_ren_torso_4_desc	A leírás még nem érhető el.
+st_ren_torso_4_name	Molot UM-2 golyóálló mellény
+st_ren_torso_5_desc	A leírás még nem érhető el.
+st_ren_torso_5_name	OZK-18KB golyóálló mellény
+st_ren_torso_6_desc	A leírás még nem érhető el.
+st_ren_torso_6_name	Zubr UM-4 golyóálló mellény
+st_renaissance_bring_x_items_descr	Az új világ új kihívások elé állít minket. A túléléshez nem elég legyőzni az ellenséget. Aktiválnunk kell egy különleges berendezést, amely megvéd a Vihartól.
+st_renaissance_bring_x_items_name	Védelem a Vihar ellen
+st_renaissance_bring_x_items_obj	Keress és hozz akkumulátorokat:
+st_renaissance_defend_items_descr	A háborúban nincsenek apróságok. A jó védelem éppolyan fontos, mint a támadás. Védd a bázist az ellenségtől, ne vesszen kárba bajtársaid vére.
+st_renaissance_defend_items_name	Biztos védelem
+st_renaissance_defend_items_obj	Nyerj meccset akkumulátorveszteség nélkül
+st_renaissance_faction	Az Újjászületés Hadserege
+st_renaissance_grenade_enemies_descr	A gránátok támadásban és védekezésben is beváltak. Mindenképpen tudnod kell használni őket.
+st_renaissance_grenade_enemies_name	Gránátos
+st_renaissance_grenade_enemies_obj	Ölj meg ellenségeket gránáttal egy meccsben:
+st_renaissance_headshots_descr	Bizonyítsd be, hogy mesterien bánsz a fegyverekkel. Mindegy, géppisztoly vagy mesterlövészpuska van nálad. A jó katona mindig pontosan céloz. 
+st_renaissance_headshots_name	Mesterlövész
+st_renaissance_headshots_obj	Ölj meg ellenségeket fejlövéssel:
+st_renaissance_kd_ratio_descr	A jó katona nem fanatikus gyilkos. Az önuralom és fegyelem emel ki a tömegből és tesz erősebbé. Bizonyítsd be a gyakorlatban! 
+st_renaissance_kd_ratio_name	Fölény!
+st_renaissance_kd_ratio_obj	Nyerj meccset legalább ekkora ölés/halál aránnyal:
+st_renaissance_kill_enemies_descr	A háború az háború. Nem mindig lehet kevés vérrel győzni, ezért gyorsan végezz az ellenséggel. Minden megölt ellenfél közelebb visz a győzelemhez!
+st_renaissance_kill_enemies_name	Hatásos tűz
+st_renaissance_kill_enemies_obj	Ölj meg ellenfeleket egy meccsben:
+st_renaissance_killstreak_descr	Katonai dicsőség vár rád a csatatéren. De csak az igazi hős érdemelheti ki! Bizonyítsd be, hogy méltó vagy az Újjászületés Hadseregének hőse címre!
+st_renaissance_killstreak_name	Hős!
+st_renaissance_killstreak_obj	Érj el ölési sorozatot:
+st_renaissance_level_0	Ismeretlen
+st_renaissance_level_1	Katona
+st_renaissance_level_10	Ezredes
+st_renaissance_level_2	Őrvezető
+st_renaissance_level_3	Őrmester
+st_renaissance_level_4	Főtörzsőrmester
+st_renaissance_level_5	Zászlós
+st_renaissance_level_6	Hadnagy
+st_renaissance_level_7	Százados
+st_renaissance_level_8	Őrnagy
+st_renaissance_level_9	Alezredes
+st_renaissance_level_unlock_0	Gratulálunk! Feloldottad az Újjászületés Hadseregének feladatait!
+st_renaissance_level_unlock_1	Gratulálunk! Mostantól az Újjászületés Hadseregének katonája vagy!
+st_renaissance_level_unlock_10	Gratulálunk! Az Újjászületés Hadseregének ezredese lettél!
+st_renaissance_level_unlock_2	Gratulálunk! Mostantól az Újjászületés Hadseregének őrvezetője vagy!
+st_renaissance_level_unlock_3	Gratulálunk! Mostantól az Újjászületés Hadseregének őrmestere vagy!
+st_renaissance_level_unlock_4	Gratulálunk! Mostantól az Újjászületés Hadseregének főtörzsőrmestere vagy!
+st_renaissance_level_unlock_5	Gratulálunk! Mostantól az Újjászületés Hadseregének zászlósa vagy!
+st_renaissance_level_unlock_6	Gratulálunk! Mostantól az Újjászületés Hadseregének hadnagya vagy!
+st_renaissance_level_unlock_7	Gratulálunk! Az Újjászületés Hadseregének századosa lettél!
+st_renaissance_level_unlock_8	Gratulálunk! Mostantól az Újjászületés Hadseregének őrnagya vagy!
+st_renaissance_level_unlock_9	Gratulálunk! Mostantól az Újjászületés Hadseregének alezredese vagy!
+st_renaissance_meele_kill_descr	Az Újjászületés Hadseregének katonái testben és lélekben is erősek. Kitartás és bátorság vezet a győzelemhez. Tanulj meg közelharcban védekezni.
+st_renaissance_meele_kill_name	Gyors reakció
+st_renaissance_meele_kill_obj	Ölj meg ellenségeket közelharcban:
+st_renaissance_represent	Az Újjászületés Hadseregének felszerelését kell viselned.
+st_renaissance_steal_box_descr	Szemtől szemben harcolni tiszteletre méltó, de nem mindig hatásos. Egy jó szabotázs az ellenséges vonalak mögött megfordíthatja a csatát és győzelmet hozhat!
+st_renaissance_steal_box_name	Szabotőr
+st_renaissance_steal_box_obj	Lopj el egy akkumulátort az ellenség bázisáról, és vidd a sajátodra.
+st_renaissance_win_score_descr	Soha ne üljünk a babérjainkon: ez az Újjászületés Hadseregének jelmondata. Minél több akkumulátort kötünk be, annál kevésbé sújt a Vihar.
+st_renaissance_win_score_name	Dicsőséges győzelem!
+st_renaissance_win_score_obj	Nyerj meccset ennyi bevitt akkumulátorral:
+st_renaissance_win_x_games_descr	Lépésről lépésre, csatáról csatára, győzelemről győzelemre: így születik újjá a hadseregünk! Nincs hová hátrálni. Győzelem bármi áron!
+st_renaissance_win_x_games_name	A hazáért!
+st_renaissance_win_x_games_obj	Nyerj meccseket:
+st_rename_account_voucher_descr	Ezzel az utalvánnyal ingyen megváltoztathatod a karaktered nevét.
+st_rename_account_voucher_name	Karakterátnevezési utalvány
+st_rep_reward_match	Hírnévszerzés
+st_rep_reward_premium	Prémium bónusz
+st_rep_reward_quest	Feladatjutalom
+st_repair_time	Javítás alatt
+st_repair_time_label	idő
+st_repair_voucher_descr	A javítókészlettel bármilyen súlyos felszereléshibát kijavíthatsz.
+st_repair_voucher_name	Javítókészlet
+st_repair_window_label	Javítás
+st_reputation	Hírnév
+st_reroll	Visszaállítás
+st_reroll_message_broken_item	Sérült tárgyat nem módosíthatsz.
+st_reroll_modifier_lock_hint	Csak ezt a bónuszt cserélheted.
+st_reroll_timer_hint	Elérhető ennyi idő múlva:
+st_research_unit_a_captured	Az A egység elfoglalva
+st_research_unit_a_lost	Az A egység elveszett
+st_research_unit_b_captured	B egység elfoglalva
+st_research_unit_b_lost	B egység elveszett
+st_research_unit_c_captured	C egység elfoglalva
+st_research_unit_c_lost	C egység elveszett
+st_resolution_option	Felbontás
+st_respawn_booster_description	Civil FD3 rádió. Harcban rendkívül hasznos az egységek megszervezéséhez és a harcosok együttműködéséhez.
+st_respawn_booster_name	Rádió
+st_respawn_time_pref	Újraéledés:
+st_resupply_check_empty_inventory	Nincs elég lőszer a raktárban
+st_resupply_check_full_ammo	A lőszerkészlet tele
+st_resupply_finished	Lőszer és készletek feltöltve!
+st_revenue	Bevétel
+st_reward	Jutalom
+st_rgd5_descr	Támadó kézigránát élőerő ellen. Robbanáskor a szétszakadó burkolat repeszei szóródnak szét.
+st_rgd5_name	RGD-5 gránát
+st_rgo_descr	A leírás még nem érhető el.
+st_rgo_name	RGO
+st_right_strafe_action	Oldalazás jobbra
+st_rpd_description	A leírás még nem érhető el.
+st_rpd_name	RPD
+st_rpk_description	A leírás még nem érhető el.
+st_rpk_name	RPK-74M
+st_saiga_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. A K változat rövid csövű, behajtható tussal. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_name	Saiga-12K
+st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_premium_name	Saiga-12S
+st_save_password_str	Jelszó mentése
+st_scav_back_1_desc	Házilag készített artefaktumtároló hátizsák formájában. Hasznos felszerelés artefaktumvadászathoz.
+st_scav_back_1_name	Hátizsák tárolóval
+st_scav_boots_1_desc	Durva csizma egy szemétdombról vagy holttestről. Védi a lábat a sérülésektől, nehéz utakon gyakran életmentő.
+st_scav_boots_1_name	Bőrcsizma
+st_scav_boots_2_desc	Hermetikusan zárt lábvédelem mérgező felületeken. Olyan helyekre is eljuthatsz benne, ahová a legtöbb túlélő nem.
+st_scav_boots_2_name	Vegyvédelmi csizma
+st_scav_boots_3_desc	Erős, vízálló bakancs acél orrmerevítővel és béléssel. Felbecsülhetetlen zsákmány egy guberálónak. Zord időben jelentősen javítja a túlélés esélyét. 2%-kal növeli a mozgási sebességet.
+st_scav_boots_3_name	Katonai bakancs
+st_scav_gloves_1_desc	Egyszerű ujjatlan kesztyű. Melegen tartja és védi a kezet a küldetéseken. Kényelmes: nem kell levenni, ha elővennél vagy használnál valamit. 2%-kal gyorsítja a célzást.
+st_scav_gloves_1_name	Ujjatlan kesztyű
+st_scav_gloves_2_desc	Gumírozott szigetelőkesztyű szennyezett és anomális anyagok kezeléséhez. Minden artefaktumvadásznak kötelező.
+st_scav_gloves_2_name	Vegyvédelmi kesztyű
+st_scav_gloves_4_desc	A leírás még nem érhető el.
+st_scav_gloves_4_name	Durva kesztyű
+st_scav_helmet_1_desc	A leírás még nem érhető el.
+st_scav_helmet_1_name	Szerelősisak
+st_scav_legs_1_desc	Durva nadrág. Melegen tartja a lábat és bírja a romok közti barangolást.
+st_scav_legs_1_name	Vászonnadrág
+st_scav_legs_2_desc	A Guberálók által készített szigetelőnadrág. Védi a lábat a mérgező anyagoktól. Praktikus zsebébe pár elsősegélycsomag vagy gránát is belefér.
+st_scav_legs_2_name	Vegyvédelmi nadrág
+st_scav_legs_3_desc	Gondosan varrt, tartós nadrág térdvédőkkel és extra felszerelésrögzítőkkel. Jól védi a lábat nehéz körülmények között. Praktikus zsebébe pár elsősegélycsomag vagy gránát is belefér.
+st_scav_legs_3_name	Terepnadrág
+st_scav_legs_4_desc	A leírás még nem érhető el.
+st_scav_legs_4_name	Túlélőnadrág
+st_scav_legs_5_desc	A leírás még nem érhető el.
+st_scav_legs_5_name	Megerősített nadrág
+st_scav_rep_modifier	Guberáló hírnév
+st_scav_resp_1_desc	A Guberálók által módosított légzőkészülék. Véd a mérgező gőzöktől és a radioaktív portól.
+st_scav_resp_1_name	Borostyán légzőkészülék
+st_scav_torso_1_desc	Könnyű, egyszerűen készíthető steppelt kabát. A guberáló első öltözete. Segít túlélni a rossz időt. Tágas zsebeibe elsősegélycsomag, gránát és extra lőszer fér. 
+st_scav_torso_1_name	Steppelt kabát
+st_scav_torso_2_desc	Nélkülözhetetlen szennyezett területek felderítéséhez. Védi a törzset és karokat a mérgező anyagokkal való érintkezéstől. Beépített artefaktumtárolóval.
+st_scav_torso_2_name	Vegyvédelmi kabát
+st_scav_torso_3_desc	A Guberálók által könnyített katonai golyóálló mellény. Egy halott katonáról vagy kifosztott katonai raktárból származik. Sok zsebébe elsősegélycsomag, gránát és extra lőszer fér.
+st_scav_torso_3_name	Könnyű golyóálló mellény
+st_scav_torso_4_desc	A leírás még nem érhető el.
+st_scav_torso_4_name	Túlélőkabát
+st_scav_torso_5_desc	Steppelt pamutkabát, belül hajlított fémlemezekkel, kívül bőrfoltokkal erősítve. Jó választás tapasztalt guberálónak.
+st_scav_torso_5_name	Megerősített vattakabát
+st_scavenger_starter_bundle_descr	<white>Tartalma:\n- Túlélőkabát.\n- Túlélőnadrág.\n- Továbbfejlesztett OTs-02 Kiparis.\n- 1000 darab 9x18 PM lőszer.</white>
+st_scavenger_starter_bundle_name	Túlélő csomag
+st_scavengers_accuracy_descr	Mi értelme mindenfelé lövöldözni? Egyetlen golyó is elég egy élet kioltásához. Tanulj meg takarékoskodni a lőszerrel.
+st_scavengers_accuracy_name	Lövészeti képességek
+st_scavengers_accuracy_obj	Nyerj meccset ennél nagyobb pontossággal:
+st_scavengers_bring_x_items_descr	Nem mindig fegyverrel nyerjük a csatát. Ne feledd a fő célt: minél több akkumulátort gyűjteni a védelmi berendezéshez.
+st_scavengers_bring_x_items_name	Hozzájárulás a győzelemhez
+st_scavengers_bring_x_items_obj	Keress és hozz akkumulátorokat:
+st_scavengers_defend_items_descr	Az ellenség nem mindig játszik a szabályok szerint. Védd a bázisodat, és hiúsítsd meg az akkumulátorlopási kísérleteket.
+st_scavengers_defend_items_name	Tulajdonvédelem
+st_scavengers_defend_items_obj	Nyerj meccset akkumulátorveszteség nélkül
+st_scavengers_faction	Guberálók
+st_scavengers_find_artifacts_descr	Keress artefaktumokat az anomáliákban. Kemény csatában erősítsd magad egy övre tett artefaktummal. Az anomáliavédelem sokat segít a keresésben.
+st_scavengers_find_artifacts_name	Artefaktumkeresés
+st_scavengers_find_artifacts_obj	Találj artefaktumokat egy meccsben:
+st_scavengers_grenade_enemies_descr	A jó gránátdobás éppolyan fontos, mint a pontos lövés. Néha csak gránáttal érheted el az ellenséget.
+st_scavengers_grenade_enemies_name	Pontos dobás
+st_scavengers_grenade_enemies_obj	Ölj meg ellenségeket gránáttal egy meccsben:
+st_scavengers_kd_ratio_descr	Hősnek lenni nem nehéz. Életben maradni az. Minél tovább élsz, annál hasznosabb vagy a csapatnak. De ne légy gyáva, aki folyton a sarokban bujkál. Tanulj meg túlélni!
+st_scavengers_kd_ratio_name	Túlélés
+st_scavengers_kd_ratio_obj	Nyerj meccset legalább ekkora ölés/halál aránnyal:
+st_scavengers_kill_enemies_descr	Szemtől szemben az ellenséggel nincs helye érzelgősségnek. A párbajnak csak egy győztese lehet. Jobb, ha te vagy az!
+st_scavengers_kill_enemies_name	Önvédelem
+st_scavengers_kill_enemies_obj	Ölj meg ellenfeleket egy meccsben:
+st_scavengers_level_0	Ismeretlen
+st_scavengers_level_1	Kezdő
+st_scavengers_level_2	Bizonyított
+st_scavengers_level_3	Tapasztalt
+st_scavengers_level_4	Edzett
+st_scavengers_level_5	Veterán
+st_scavengers_level_unlock_0	Gratulálunk! Elérhetők a Guberálók feladatai!
+st_scavengers_level_unlock_1	Gratulálunk! Mostantól kezdő guberáló vagy!
+st_scavengers_level_unlock_2	Gratulálunk! Mostantól bizonyított guberáló vagy!
+st_scavengers_level_unlock_3	Gratulálunk! Mostantól tapasztalt guberáló vagy!
+st_scavengers_level_unlock_4	Gratulálunk! Mostantól edzett guberáló vagy!
+st_scavengers_level_unlock_5	Gratulálunk! A Guberálók veteránja lettél!
+st_scavengers_meele_kill_descr	Ha elkerülhetetlen a konfliktus, oldd meg gyorsan és csendben. Ha észrevétlenül odalopózol az ellenséghez és leteríted, sokkal kevesebb figyelmet keltesz, mint egy lövöldözéssel.
+st_scavengers_meele_kill_name	Felhajtás nélkül
+st_scavengers_meele_kill_obj	Ölj meg ellenségeket közelharcban:
+st_scavengers_represent	Guberáló felszerelést kell viselned.
+st_scavengers_steal_box_descr	Dupla öröm akkumulátort elvenni az ellenségtől. Van, aki lopásnak hívja, de ha az ellenség nem védi a tulajdonát, akkor nincs is rá szüksége.
+st_scavengers_steal_box_name	Apró lopás
+st_scavengers_steal_box_obj	Lopj el egy akkumulátort az ellenség bázisáról, és vidd a sajátodra.
+st_scavengers_win_score_descr	Minél több akkumulátort aktiváltok a berendezésben, annál nagyobb a győzelmi jutalom.
+st_scavengers_win_score_name	Hibátlan győzelem
+st_scavengers_win_score_obj	Nyerj meccset ennyi bevitt akkumulátorral:
+st_scavengers_win_x_games_descr	Kegyetlen világban élünk. A győztesé minden, a vesztesnek csak a maradék jut. Ne feledd: a győztes csapat nagyobb jutalmat kap.
+st_scavengers_win_x_games_name	A győzelem íze
+st_scavengers_win_x_games_obj	Nyerj meccseket:
+st_scientists_faction	Intézet
+st_search_label	Keresés
+st_search_range	Meccsszint
+st_second_weapon_action	2. fegyver
+st_seconds_short	mp
+st_seed_settings	Visszaosztás a lobbyban
+st_seeding_max_upload_in_kb_option	Feltöltési sebesség korlátja:
+st_select_send_to_action	Címzett kiválasztása
+st_sell	Eladás
+st_send	Küldés  
+st_send_message	Üzenet küldése
+st_send_message_action	Üzenet küldése
+st_server_maintenance	A rendszeres szerverkarbantartásig hátralévő idő
+st_settings	Beállítások
+st_settings_label	Beállítások
+st_shading_quality_option	Shaderek minősége
+st_shadow_quality_option	Árnyékok minősége
+st_shooting_skills_label	Lövészeti kiképzés
+st_shop	Bolt
+st_shop_label	Bolt
+st_shop_scope_1p69_hyperon_description	4x nagyítású távcső
+st_shop_scope_1p69_hyperon_name	Zenit Hyperion távcső, 4x
+st_shop_scope_acog_ta31_description	4x nagyítású távcső
+st_shop_scope_acog_ta31_name	TA31 távcső, 4x
+st_shop_scope_aimpoint_compm4_description	Svéd vöröspontos irányzék 2 MOA ponttal, akár nyolc év folyamatos használatra elég elemmel. Az amerikai hadsereg M68 CCO néven rendszeresítette. Picatinny-sínre szerelhető.
+st_shop_scope_aimpoint_compm4_name	CompM4 irányzék
+st_shop_scope_cobra_ekp_8_description	Orosz irányzék négy választható vörös célképpel. Gyors célzást tesz lehetővé két nyitott szemmel. Kalasnyikov-típusú fegyverek oldalsínjére szerelhető.
+st_shop_scope_cobra_ekp_8_name	Kobra EKP-8 irányzék
+st_shop_scope_docter_description	Kompakt német nyitott reflexirányzék vörös ponttal. Könnyű és gyorsan célozható, sörétes puskákhoz, pisztolyokhoz és rövid fegyverekhez készült.
+st_shop_scope_docter_name	Docter irányzék
+st_shop_scope_elcan_specterdr_description	4x nagyítású távcső
+st_shop_scope_elcan_specterdr_name	SpecterDR távcső, 4x
+st_shop_scope_eotech_552_description	Amerikai holografikus irányzék: 65 MOA gyűrű, középen 1 MOA ponttal, AA elemekkel. Gyors célzás közeli és közepes távolságon. Picatinny-sínre szerelhető.
+st_shop_scope_eotech_552_name	EOTech 552 irányzék
+st_shop_scope_leupold_deltapoint_description	Kompakt amerikai reflexirányzék vörös háromszög céljellel. Pisztolyokhoz és könnyű fegyverekhez készült, kis mérete nem zavarja a használatot.
+st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint irányzék
+st_shop_scope_leupold_mk4_description	4x nagyítású távcső
+st_shop_scope_leupold_mk4_name	Leupold MK4 távcső, 4x
+st_shop_scope_pso_1_description	4x nagyítású távcső
+st_shop_scope_pso_1_name	PSO-1 távcső, 4x
+st_shop_scope_pso_1_old_description	4x nagyítású távcső
+st_shop_scope_pso_1_old_name	PSO-1 O távcső, 4x
+st_shop_scope_pu_3_5x_description	3,5x nagyítású távcső
+st_shop_scope_pu_3_5x_name	PU távcső, 3,5x
+st_shop_showcase	Főoldal
+st_short_clan_string	A név túl rövid
+st_show_ammo	Lőszer mutatása 
+st_show_character_action	Karakterablak
+st_show_enemy_killed_marker	Ölésjelző mutatása
+st_show_friends_action	Barátok
+st_show_inventory_action	Leltár
+st_show_options_action	Beállítások
+st_show_player_info_button_hint	Játékosadatok mutatása
+st_show_player_info_hint	Dupla kattintás az adatokhoz
+st_show_quest_list	Feladatablak mutatása
+st_show_quests_progress_option	Feladathaladás mutatása meccs közben
+st_show_shop_action	Bolt
+st_show_squad_list	Osztagablak mutatása
+st_skills_already_rerolled	A képességek már vissza vannak állítva
+st_sks_description	Öntöltő Szimonov-karabély, 7.62x39 lőszerrel. A szovjet hadsereg 1949-ben rendszeresítette, később automata puskák váltották fel. Rögzített, 10 lőszeres tárral.
+st_sks_name	SKS
+st_sks_premium_2_description	Öntöltő Szimonov-karabély, 7.62x39 lőszerrel. A szovjet hadsereg 1949-ben rendszeresítette, később automata puskák váltották fel. Rögzített, 10 lőszeres tár. Prémium változat különleges álcafestéssel.
+st_sks_premium_2_name	SKS "Arrow Head"
+st_sks_premium_description	Öntöltő Szimonov-karabély, 7.62x39 lőszerrel. A szovjet hadsereg 1949-ben rendszeresítette, később automata puskák váltották fel. Rögzített, 10 lőszeres tár. Prémium változat különleges álcafestéssel.
+st_sks_premium_name	SKS-MF
+st_slide1_button_accept_label	Következő
+st_slide1_text	Üdv, túlélő! Szerencséd volt, hogy túlélted a világ végét. Hetekig tartó bolyongás után végre olyan helyre értél, amelyet még nem nyelt el az Erdő.
+st_slide1_text_enter_name	Milyen nevet választasz az új világban?
+st_slide1_tutorial_reward	Az oktatás végén ezt a jutalmat kapod:
+st_slot_control_label	Mennyiség
+st_slots	Rekeszek
+st_sniper_skills_descr	Javítja a fegyverkezelést. Növeli a lövési pontosságot és a célzási sebességet.
+st_sniper_skills_name	Lövészeti kiképzés
+st_snp_fast_draw_desc	Képességeidnek köszönhetően gyorsabban váltasz fegyvert.
+st_snp_fast_draw_name	Gyors fegyverváltás
+st_snp_fast_reload_desc	Megtanultál gyorsabban újratölteni.
+st_snp_fast_reload_name	Gyors újratöltés
+st_snp_fast_shot_desc	Gyorsítja a zárfelhúzást az öntöltő fegyvereknél.
+st_snp_fast_shot_name	Gyors zárfelhúzás
+st_snp_iron_breath_desc	Célzás közben tovább tarthatod vissza a lélegzeted.
+st_snp_iron_breath_name	Vastüdő
+st_snp_sniper_desc	Jelentősen javítja a pontosságot mesterlövész-, taktikai és reflexirányzékokkal.
+st_snp_sniper_name	Mesterlövész
+st_snp_steady_breath_desc	Gyorsabban regenerálódsz a lélegzet visszatartása után.
+st_snp_steady_breath_name	Egyenletes kilégzés
+st_snp_steady_grip_desc	Növeli a lövési pontosságot mozgás közben.
+st_snp_steady_grip_name	Biztos fogás
+st_soc_vepr_description	Orosz öntöltő Vepr-karabély, 7.62x39 lőszerrel. A vjatszkije poljani Molot gyár készíti vadász- és sportfegyverként, az RPK géppuska megerősített tokjára építve. 10 lőszeres tár, csak egyes lövés.
+st_soc_vepr_name	SOK-94
+st_socom16_description	A leírás még nem érhető el.
+st_socom16_name	SOCOM 16
+st_sort	Rendezés
+st_sort_cost	Ár szerint
+st_sort_label	Szűrő
+st_sort_level	Szint szerint
+st_sort_reset	Visszaállítás
+st_space_symbol_clan_string	Érvénytelen elválasztók
+st_spam_filter_block_notification	A spamszűrő blokkolta az üzeneted. Várj ennyit:
+st_spam_filter_block_notification_fin	mp
+st_spas12_description	A leírás még nem érhető el.
+st_spas12_name	Franchi SPAS-12
+st_special_offer	Különleges ajánlat
+st_speed_booster_description	Koffeines, taurinos energiaital. Élénkít és serkenti a központi idegrendszert.
+st_speed_booster_name	Tornado energiaital
+st_spot_action	Ellenség megjelölése
+st_spring_activation_hint	Rugó aktiválva! Mozgási és célzási sebesség +10%. Gyorsabb állóképesség-regeneráció! A lövedékek nem lassítanak!
+st_spring_pickup_hint	Rugó artefaktum. 5%-kal növeli a mozgási és célzási sebességet.
+st_sprint_action	Sprint (nyomva tartva)
+st_sprint_toggle_action	Sprint 
+st_squad	Osztag
+st_squad_list_locked_hint	Kláncsapatban nem hozhatsz létre osztagot
+st_squad_not_ready	Az osztag nem áll készen
+st_sr2m_description	A leírás még nem érhető el.
+st_sr2m_name	SR-2M "Veresk"
+st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 2000 darab 9x39 SP-6 lőszer.</white>\n
+st_sr3m_bundle_name	SR-3M "Vikhr" csomag
+st_sr3m_description	A leírás még nem érhető el.
+st_sr3m_name	SR-3M "Vikhr"
+st_srp_attachments	Szerelékek
+st_srp_crosshair_dynamic	Dinamikus célkereszt
+st_srp_crosshair_hidden	Rejtett célkereszt
+st_srp_crosshair_static	Statikus célkereszt
+st_srp_equipment029_bm_back_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_6_name	Őrszem hátizsák
+st_srp_equipment029_bm_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_8_name	M-1 életfenntartó rendszer
+st_srp_equipment029_bm_back_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_back_9_name	Fátyol antiradar
+st_srp_equipment029_bm_boots_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_5_name	Vipera csizma
+st_srp_equipment029_bm_boots_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_8_name	Omikron csizma
+st_srp_equipment029_bm_boots_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_boots_9_name	Zsoldoscsizma
+st_srp_equipment029_bm_gloves_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_6_name	Őrszemkesztyű
+st_srp_equipment029_bm_gloves_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_8_name	Omikron kesztyű
+st_srp_equipment029_bm_gloves_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_gloves_9_name	Zsoldoskesztyű
+st_srp_equipment029_bm_helmet_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_6_name	Vipera sisak
+st_srp_equipment029_bm_helmet_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_8_name	Omikron sisak
+st_srp_equipment029_bm_helmet_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_helmet_9_name	Zsoldossisak
+st_srp_equipment029_bm_legs_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_5_premium_name	Marodeur MKII nadrág
+st_srp_equipment029_bm_legs_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_6_name	Vipera nadrág
+st_srp_equipment029_bm_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_7_name	Őrszemnadrág
+st_srp_equipment029_bm_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_8_name	Omikron nadrág
+st_srp_equipment029_bm_legs_8_premium_name	Omikron MKII nadrág
+st_srp_equipment029_bm_legs_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_legs_9_name	Zsoldosnadrág
+st_srp_equipment029_bm_mask_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_mask_8_name	Omikron maszk
+st_srp_equipment029_bm_torso_5_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_5_premium_name	Marodeur MKII kabát
+st_srp_equipment029_bm_torso_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_6_name	Vipera golyóálló mellény
+st_srp_equipment029_bm_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_7_name	Őrszemkabát
+st_srp_equipment029_bm_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_8_name	Omikron golyóálló mellény
+st_srp_equipment029_bm_torso_8_premium_name	Omikron MKII golyóálló mellény
+st_srp_equipment029_bm_torso_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_bm_torso_9_name	Zsoldoskabát
+st_srp_equipment029_edge_boots_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_boots_0_name	Mokaszin
+st_srp_equipment029_edge_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_helmet_7_name	Harcos sisak
+st_srp_equipment029_edge_legs_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_0_name	Állatbőr nadrág
+st_srp_equipment029_edge_legs_1_desc	Vastag mutánsbőrből készült nadrág, amely jól véd az anomáliáktól és a kis kaliberű lövedékektől. A mozgási sebességet 3%-kal növeli.
+st_srp_equipment029_edge_legs_1_name	Vadásznadrág
+st_srp_equipment029_edge_legs_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_4_name	Ljesij nadrág
+st_srp_equipment029_edge_legs_5_special_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_5_special_name	A Nap Őrzője nadrág
+st_srp_equipment029_edge_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_7_name	Harcos nadrág
+st_srp_equipment029_edge_legs_7_premium_name	Berzerker nadrág
+st_srp_equipment029_edge_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_legs_8_premium_name	Követő nadrág
+st_srp_equipment029_edge_torso_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_0_name	Állatbőr mellény
+st_srp_equipment029_edge_torso_1_desc	Bőr vadászkabát védőamulettekkel a természet haragja ellen. A farkasbőr elriasztja a ragadozókat és félelmet kelt az ellenségben. Praktikus táskájában különleges felszerelést is vihetsz.
+st_srp_equipment029_edge_torso_1_name	Vadászkabát  
+st_srp_equipment029_edge_torso_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_4_name	Ljesij mellény
+st_srp_equipment029_edge_torso_5_special_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_5_special_name	A Nap Őrzője mellény
+st_srp_equipment029_edge_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_7_name	Harcos kabát
+st_srp_equipment029_edge_torso_7_premium_name	Berzerker kabát
+st_srp_equipment029_edge_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_edge_torso_8_premium_name	Követő kabát
+st_srp_equipment029_ren_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_back_8_name	Ejtőernyős hátizsák
+st_srp_equipment029_ren_boots_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_boots_0_name	Közlegény csizma
+st_srp_equipment029_ren_legs_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_0_name	Közlegény nadrág
+st_srp_equipment029_ren_legs_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_3_premium_name	Sokol-M nadrág
+st_srp_equipment029_ren_legs_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_4_premium_name	Molot UM-2A nadrág
+st_srp_equipment029_ren_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_legs_8_name	Ejtőernyős nadrág
+st_srp_equipment029_ren_legs_8_premium_name	Gárda nadrág
+st_srp_equipment029_ren_torso_0_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_0_name	Közlegény kabát
+st_srp_equipment029_ren_torso_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_3_premium_name	Sokol-M golyóálló mellény
+st_srp_equipment029_ren_torso_4_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_4_premium_name	Molot UM-2A golyóálló mellény
+st_srp_equipment029_ren_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_ren_torso_8_name	Ejtőernyős golyóálló mellény
+st_srp_equipment029_ren_torso_8_premium_name	Gárda golyóálló mellény
+st_srp_equipment029_scav_back_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_7_name	Tábori rádió
+st_srp_equipment029_scav_back_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_8_name	Nagy hátizsák
+st_srp_equipment029_scav_back_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_back_9_name	Dupla palack
+st_srp_equipment029_scav_boots_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_10_name	Nomád csizma
+st_srp_equipment029_scav_boots_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_8_name	Harci csizma
+st_srp_equipment029_scav_boots_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_boots_9_name	Tűzoltócsizma
+st_srp_equipment029_scav_gloves_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_10_name	Nomád kesztyű
+st_srp_equipment029_scav_gloves_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_6_name	Szabotőrkesztyű
+st_srp_equipment029_scav_gloves_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_7_name	Nyomkereső kesztyű
+st_srp_equipment029_scav_gloves_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_8_name	Harci kesztyű
+st_srp_equipment029_scav_gloves_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_gloves_9_name	Tűzoltókesztyű
+st_srp_equipment029_scav_helmet_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_10_name	Nomád sisak
+st_srp_equipment029_scav_helmet_3_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_3_name	Guberáló csuklya
+st_srp_equipment029_scav_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_7_name	Nyomkereső sisak
+st_srp_equipment029_scav_helmet_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_8_name	Harci sisak
+st_srp_equipment029_scav_helmet_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_helmet_9_name	Fémsisak
+st_srp_equipment029_scav_legs_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_10_name	Nomád nadrág
+st_srp_equipment029_scav_legs_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_6_name	Szabotőrnadrág
+st_srp_equipment029_scav_legs_6_premium_name	Gerillanadrág
+st_srp_equipment029_scav_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_7_name	Nyomkereső nadrág
+st_srp_equipment029_scav_legs_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_8_name	Harci nadrág
+st_srp_equipment029_scav_legs_8_premium_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_8_premium_name	Veterán nadrág
+st_srp_equipment029_scav_legs_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_legs_9_name	Tűzoltónadrág
+st_srp_equipment029_scav_mask_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_mask_9_name	Barrier gázálarc
+st_srp_equipment029_scav_torso_10_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_10_name	Nomád golyóálló mellény
+st_srp_equipment029_scav_torso_6_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_6_name	Szabotőrkabát
+st_srp_equipment029_scav_torso_6_premium_name	Gerillakabát
+st_srp_equipment029_scav_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_7_name	Nyomkereső golyóálló mellény
+st_srp_equipment029_scav_torso_8_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_8_name	Harci golyóálló mellény
+st_srp_equipment029_scav_torso_8_premium_name	Veterán golyóálló mellény
+st_srp_equipment029_scav_torso_9_desc	A leírás még nem érhető el.
+st_srp_equipment029_scav_torso_9_name	Tűzoltó golyóálló mellény
+st_srp_equipment046_blackmarket_boots_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_boots_10_name	Páncélozott csizma
+st_srp_equipment046_blackmarket_boots_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_boots_7_name	Őrszemcsizma
+st_srp_equipment046_blackmarket_gloves_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_gloves_10_name	Páncélozott kesztyű
+st_srp_equipment046_blackmarket_gloves_5_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_gloves_5_name	Marodeur kesztyű
+st_srp_equipment046_blackmarket_helmet_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_helmet_10_name	Nehéz páncélsisak
+st_srp_equipment046_blackmarket_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_helmet_7_name	Őrszemsisak
+st_srp_equipment046_blackmarket_legs_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_legs_10_name	Nehéz páncélozott nadrág
+st_srp_equipment046_blackmarket_legs_4_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_legs_4_name	Motorosnadrág
+st_srp_equipment046_blackmarket_torso_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_torso_10_name	Nehéz golyóálló mellény
+st_srp_equipment046_blackmarket_torso_2_premium_desc	A leírás még nem érhető el.
+st_srp_equipment046_blackmarket_torso_2_premium_name	Banditakabát MK II
+st_srp_equipment046_bm_back_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_bm_back_10_name	Lőszeres hátizsák
+st_srp_equipment046_bm_mask_10_desc	A leírás még nem érhető el.
+st_srp_equipment046_bm_mask_10_name	Páncélozott maszk
+st_srp_equipment046_edge_back_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_back_6_name	Sztalkerhátizsák
+st_srp_equipment046_edge_back_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_back_7_name	Talizmán
+st_srp_equipment046_edge_boots_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_boots_7_name	Varázslócsizma
+st_srp_equipment046_edge_gloves_5_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_gloves_5_name	Harcos kesztyű
+st_srp_equipment046_edge_gloves_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_gloves_7_name	Varázslókesztyű
+st_srp_equipment046_edge_helmet_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_helmet_6_name	Sztalkersisak
+st_srp_equipment046_edge_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_helmet_7_name	Veles sisak
+st_srp_equipment046_edge_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_legs_7_name	Veles nadrág
+st_srp_equipment046_edge_mask_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_mask_6_name	Éjjellátó
+st_srp_equipment046_edge_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_torso_7_name	Veles golyóálló mellény
+st_srp_equipment046_renesanse_boots_3_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_boots_3_name	OZK-UV csizma
+st_srp_equipment046_renesanse_boots_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_boots_7_name	Mesterlövész csizma
+st_srp_equipment046_renesanse_gloves_3_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_gloves_3_name	OZK-UV kesztyű
+st_srp_equipment046_renesanse_gloves_5_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_gloves_5_name	Felderítőkesztyű
+st_srp_equipment046_renesanse_gloves_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_gloves_7_name	Mesterlövész kesztyű
+st_srp_equipment046_renesanse_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_helmet_7_name	Mesterlövész sisak
+st_srp_equipment046_renesanse_legs_3_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_legs_3_name	OZK-UV nadrág
+st_srp_equipment046_renesanse_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_legs_7_name	Mesterlövész nadrág
+st_srp_equipment046_renesanse_mask_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_mask_7_name	Spektr-M hőkamera
+st_srp_equipment046_renesanse_torso_3_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_torso_3_name	OZK-UV golyóálló mellény
+st_srp_equipment046_renesanse_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_torso_7_name	Mesterlövész golyóálló mellény
+st_srp_equipment046_scavenger_boots_5_desc	A leírás még nem érhető el.
+st_srp_equipment046_scavenger_boots_5_name	Szabotőrcsizma
+st_srp_equipment046_scavenger_boots_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_scavenger_boots_7_name	Nyomkereső csizma
+st_srp_equipment069_leagues_back_2_desc	A leírás még nem érhető el.
+st_srp_equipment069_leagues_back_2_name	Szanitéctáska
+st_srp_equipment069_leagues_back_5_desc	A leírás még nem érhető el.
+st_srp_equipment069_leagues_back_5_name	Katonahátizsák
+st_srp_exchange_balance	Egyenleg
+st_srp_exchange_button	Átváltás
+st_srp_exchange_gold	Arany
+st_srp_exchange_pay	Fizetsz
+st_srp_exchange_receive	Kapsz
+st_srp_exchange_short_gold	Nincs elég arany
+st_srp_exchange_short_silver	Nincs elég ezüst
+st_srp_exchange_title	Átváltás
+st_srp_hide_hit_markers_option	Találatjelzők elrejtése
+st_srp_hide_quests_option	Feladatok elrejtése
+st_srp_hide_scores_option	Pontszámok elrejtése
+st_srp_hud_add_friend	Hozzáadás a barátokhoz
+st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve
+st_srp_hud_friend_sent	Barátkérelem elküldve
+st_srp_hud_mute_hide	Chat elrejtése
+st_srp_hud_mute_mask	Chat mutatása <muted> formában
+st_srp_hud_mute_not_sent	Nincs elküldve
+st_srp_hud_muted	Chat némítva
+st_srp_hud_unmute	Némítás feloldása
+st_srp_hud_unmuted	Némítás feloldva
+st_srp_inventory_search	Keresés
+st_srp_language_option	Nyelv:
+st_srp_language_restart	Újraindítás után lép életbe.
+st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
+st_srp_loadout_block_locked	Ez a profil zárolva van
+st_srp_loadout_block_maintenance	Szerverkarbantartás %1$s perc múlva
+st_srp_loadout_block_pocket_twice	Azonos tárgytípus két zsebben
+st_srp_loadout_block_shared_slot	Két tárgy ugyanabban a rekeszben
+st_srp_loadout_block_weapon	Nincs fegyver
+st_srp_loadout_empty	üres
+st_srp_loadout_refused	Nem sikerült kiválasztani az összeállítást.
+st_srp_loadout_sell_and	 és 
+st_srp_loadout_sell_item	%1$s. összeállítás
+st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
+st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
+st_srp_loadout_title	Összeállítás
+st_srp_loadout_unfit	nem használható
+st_srp_login_account_hint	A fiók az első belépéskor jön létre
+st_srp_map_chemical_plant	Vegyi üzem
+st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_cologne	Köln
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamajev-kurgán
+st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	Iskola
+st_srp_map_tarakanovsky_fort	Tarakanovi erőd
+st_srp_map_vector	Vektor laboratórium
+st_srp_map_vostok	Vosztok radarállomás
+st_srp_map_vostok_v011	Vosztok radarállomás (v0.11)
+st_srp_map_vostok_v021	Vosztok radarállomás (v0.21)
+st_srp_matches_another_joining	Másik játékos csatlakozik
+st_srp_matches_balanced	A meccs már kiegyensúlyozott
+st_srp_matches_cannot_join	Most nem csatlakozhatsz
+st_srp_matches_closed	Ez a meccs le van zárva
+st_srp_matches_ends_soon	A meccs hamarosan véget ér
+st_srp_matches_full	Nincs szabad hely ebben a meccsben
+st_srp_matches_in_match	Már meccsben vagy
+st_srp_matches_in_squad	Előbb lépj ki az osztagból
+st_srp_matches_joining	csatlakozás…
+st_srp_matches_maintenance	A karbantartás kezdete után ér véget
+st_srp_matches_mode_protective_device	Védelmi berendezés
+st_srp_matches_no_answer	Nincs válasz, próbáld újra
+st_srp_matches_no_late_join	A meccs nem fogad új játékosokat
+st_srp_matches_no_place	Nincs szabad hely ebben a meccsben
+st_srp_matches_none	Most nincs meccs
+st_srp_matches_not_in_play	A meccs még nem kezdődött el
+st_srp_matches_outdated	Frissítsd a játékot
+st_srp_matches_played_before	Ebben a meccsben már játszottál
+st_srp_matches_queued	Előbb állítsd le a keresést
+st_srp_matches_starting	indul
+st_srp_matches_title	Meccsek
+st_srp_matches_waiting	várakozás
+st_srp_mode_blackout	Védelmi berendezés: áramszünet
+st_srp_mode_chargers	Védelmi berendezés: töltők
+st_srp_mode_protective_device	Védelmi berendezés
+st_srp_mode_research	Kutatás
+st_srp_mode_team_deathmatch	Csapatos deathmatch
+st_srp_optics	Távcsövek
+st_srp_options_hud	HUD:
+st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
+st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva
+st_srp_pvb_busy	%1$s (foglalt)
+st_srp_pvb_checking	Ellenőrzés…
+st_srp_pvb_clan_match	Előbb kapcsold ki a „Klánmeccs” opciót
+st_srp_pvb_demo_start	Demó: a szerver most elindítaná a meccset: %1$s
+st_srp_pvb_gear_max	A felszerelés szintje legfeljebb %1$s lehet
+st_srp_pvb_gear_max_yours	A felszerelés szintje legfeljebb %1$s lehet (a tiéd: %2$s)
+st_srp_pvb_generic	Most nem indítható botmeccs
+st_srp_pvb_hint	Meccs botok ellen, a saját csapatodban is botokkal
+st_srp_pvb_in_match	Már meccsben vagy
+st_srp_pvb_in_squad	Előbb lépj ki az osztagból
+st_srp_pvb_maintenance	Hamarosan karbantartás, nem indul új botmeccs
+st_srp_pvb_no_answer	A szerver nem válaszol
+st_srp_pvb_off	A botmeccsek most ki vannak kapcsolva
+st_srp_pvb_outdated	Frissítsd a játékot
+st_srp_pvb_retry	Nincs válasz, próbáld újra
+st_srp_pvb_searching	Előbb állítsd le a keresést
+st_srp_pvb_team_size	%1$s ellen %2$s
+st_srp_pvb_title	Botok ellen
+st_srp_pvb_unknown_choice	Ez a pálya vagy csapatméret most nem érhető el
+st_srp_replay_asking	A meccs visszajátszásának lekérése a szerverről…
+st_srp_replay_being_made	A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n%1$s
+st_srp_replay_busy	A szerver most más felvételekkel dolgozik. Próbáld újra egy perc múlva.
+st_srp_replay_close	BEZÁRÁS
+st_srp_replay_demo_quest	Hozzájárulás a győzelemhez
+st_srp_replay_demo_rank	«%1$s»: elérted a 3. rangot. Új tárgyak kaphatók a boltban.
+st_srp_replay_demo_seller	Guberálók
+st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
+st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
+st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
+st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.
+st_srp_replay_made_now	Most készül. Várakozás: %1$s mp.
+st_srp_replay_no_answer	A szerver nem válaszolt. Próbáld újra később.
+st_srp_replay_not_recorded	Erről a meccsről nem készült felvétel: 6-nál kevesebb játékos volt, vagy a rögzítés ki volt kapcsolva.
+st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vettél.
+st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
+st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
+st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
+st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_size	%1$s,%2$s MB
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
+st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
+st_srp_replay_title	Visszajátszás
+st_srp_replay_waiting	Várakozás: %1$s mp.
+st_srp_reroll_description	Egy tárgy bármelyik bónuszát akárhányszor lecserélheted. Ezután három véletlenszerű bónusz közül választhatsz.
+st_srp_rooms_all	Összes
+st_srp_rooms_all_rooms	Összes szoba
+st_srp_rooms_any	Bármelyik
+st_srp_rooms_back	Vissza
+st_srp_rooms_code_10	A tulajdonos eltávolított a szobából.
+st_srp_rooms_code_11	Előbb lépj ki a kláncsapatból.
+st_srp_rooms_code_12	A felszerelésed meghaladja a szintkorlátot.
+st_srp_rooms_code_13	Az összeállításod nem volt használható (hiányzó fegyver vagy kevés lőszer), ezért kikerültél a szobából.
+st_srp_rooms_code_14	Nem sikerült kiválasztani az összeállítást.
+st_srp_rooms_code_16	Nyomd meg a Játék gombot egy nyilvános szobához.
+st_srp_rooms_code_2	Ez a szoba már nem létezik.
+st_srp_rooms_code_3	Hibás PIN.
+st_srp_rooms_code_4	Ez a szoba megtelt.
+st_srp_rooms_code_5	Meccsben vagy.
+st_srp_rooms_code_6	Most túl sok szoba van.
+st_srp_rooms_code_7	Frissítsd a játékot.
+st_srp_rooms_code_8	Válassz legalább egy pályát.
+st_srp_rooms_code_9	Hamarosan karbantartás.
+st_srp_rooms_code_label	kód
+st_srp_rooms_countdown	Kezdés
+st_srp_rooms_create	Létrehozás
+st_srp_rooms_enter_anyway	Belépés így is
+st_srp_rooms_exit	Kilépés
+st_srp_rooms_experimental	kís.
+st_srp_rooms_in_match	Játékban
+st_srp_rooms_in_queue	Sorban
+st_srp_rooms_join	Csatlakozás
+st_srp_rooms_join_in	Belépés %1$s mp múlva, vagy azonnal a Belépés a meccsbe gombbal
+st_srp_rooms_join_match	Belépés a meccsbe
+st_srp_rooms_join_room	Belépés a szobába
+st_srp_rooms_join_why_1	Másik játékos csatlakozik a meccshez. Utána te következel.
+st_srp_rooms_join_why_2	Egy játékosnak még tölt a játék. Hamarosan újra lehet csatlakozni.
+st_srp_rooms_join_why_3	Kevesebb mint 30 mp van hátra. A következő meccsben játszhatsz.
+st_srp_rooms_join_why_4	A meccs megtelt.
+st_srp_rooms_join_why_5	Hamarosan szerverkarbantartás. Már nem lehet csatlakozni.
+st_srp_rooms_join_why_6	A meccs véget ér. A következőben játszhatsz.
+st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz csatlakozhatsz.
+st_srp_rooms_joined_room	%1$s belépett a szobába
+st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
+st_srp_rooms_leave	Kilépés
+st_srp_rooms_leave_queue	Sor elhagyása
+st_srp_rooms_leave_room	Szoba elhagyása
+st_srp_rooms_left_room	%1$s kilépett a szobából
+st_srp_rooms_level	Szint
+st_srp_rooms_map	Pálya
+st_srp_rooms_map_by_vote	A pályát szavazás dönti el
+st_srp_rooms_max	Max. szint
+st_srp_rooms_modes	Módok
+st_srp_rooms_my_room	Saját szoba
+st_srp_rooms_name	Név
+st_srp_rooms_new	Privát szoba
+st_srp_rooms_next_map	Következő
+st_srp_rooms_none	Még nincs szoba. Hozz létre egyet, vagy nyomd meg a Játék gombot.
+st_srp_rooms_none_no_play	Még nincs szoba. Hozz létre egyet.
+st_srp_rooms_none_quiet	Még nincs szoba.
+st_srp_rooms_nothing	Egyik sem
+st_srp_rooms_offer_fits	A felszerelésed szintje (%2$s) meghaladja a szoba korlátját (%1$s). A(z) %3$s. összeállítás szintje %4$s.
+st_srp_rooms_offer_higher	A szoba szintkorlátja %1$s, a felszerelésed %2$s. A(z) %3$s. összeállítás szintje %4$s.
+st_srp_rooms_offer_unfit	Az összeállításod nem használható. A(z) %1$s. összeállítás szintje %2$s.
+st_srp_rooms_open	szabad
+st_srp_rooms_open_slots	%1$s szabad
+st_srp_rooms_owner_tag	tulajdonos
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	A PIN 4 számjegyből áll.
+st_srp_rooms_pin_hint	4 számjegy szükséges
+st_srp_rooms_players	Játékosok
+st_srp_rooms_playing	Meccs folyamatban
+st_srp_rooms_pool	Pályakészlet
+st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
+st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
+st_srp_rooms_queue	Sor
+st_srp_rooms_queue_room	Sorba állás
+st_srp_rooms_room	Szoba
+st_srp_rooms_room_chat	Szobachat
+st_srp_rooms_servers	Szobák
+st_srp_rooms_start_hint	Ha mindenki bent van, nyomd meg az Indítás gombot.
+st_srp_rooms_start_match	Indítás
+st_srp_rooms_starts	A meccs kezdéséig
+st_srp_rooms_state	Állapot
+st_srp_rooms_switch_enter	Váltás és belépés
+st_srp_rooms_switch_to	Szobaváltás
+st_srp_rooms_switch_who	%1$s szobája · %2$s játékos
+st_srp_rooms_switch_why	Igazságosabb meccs: ellenfelek felszerelése max. %1$s. szint
+st_srp_rooms_team_1	1. csapat
+st_srp_rooms_team_2	2. csapat
+st_srp_rooms_teams	A csapatok a meccs elején véletlenszerűen állnak össze.
+st_srp_rooms_teams_later	A csapatok a meccs után módosíthatók.
+st_srp_rooms_teams_member	A csapatokat a szoba létrehozója állítja össze.
+st_srp_rooms_teams_owner	A « és » gombokkal mozgathatod a játékosokat a csapatok között.
+st_srp_rooms_unfit_gear	A felszerelésed meghaladja a szintkorlátot. Csökkentsd a szintjét, különben kezdéskor kikerülsz a szobából.
+st_srp_rooms_unfit_kit	Az összeállításod nem használható (nincs fegyver vagy kevés a lőszer). Javítsd ki, különben kezdéskor kikerülsz a szobából.
+st_srp_rooms_vote	Szavazz a következő pályára
+st_srp_rooms_voting	Szavazás
+st_srp_rooms_waiting	Várakozás a játékosokra
+st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
+st_srp_rooms_waiting_short	Várakozás
+st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
+st_srp_skills	Képességek
+st_srp_speed_label	Sebesség
+st_srp_speed_title	Mozgási sebesség: %1$s
+st_srp_static_minimap_option	Statikus minitérkép
+st_srp_unit_kg	%1$s kg
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Alap célzási nagyítás
+st_srp_weapon_chamber	Csőre töltési idő
+st_srp_weapon_draw_time	Elővételi idő
+st_srp_weapon_full_damage	Teljes sebzés hatótávja
+st_srp_weapon_hip_spread	Csípőlövés szórása
+st_srp_weapon_holster_time	Elrakási idő
+st_srp_weapon_kick_side	Vízszintes visszarúgás
+st_srp_weapon_kick_side_variability	Vízszintes ingadozás
+st_srp_weapon_kick_up	Függőleges visszarúgás
+st_srp_weapon_kick_up_variability	Függőleges ingadozás
+st_srp_weapon_minimum_damage	Minimális sebzés
+st_srp_weapon_minimum_damage_from	Minimális sebzés kezdete
+st_srp_weapon_recoil_heading	Visszarúgás, szórás, kilengés
+st_srp_weapon_reload	Újratöltés
+st_srp_weapon_shift_hint	Részletek: tartsd a Shiftet
+st_srp_weapon_spread_growth	Szórás növekedési sebessége
+st_srp_weapon_spread_max	Maximális többletszórás
+st_srp_weapon_spread_per_shot	Szórásnövekedés lövésenként
+st_srp_weapon_spread_recovery	Pontosság visszaállása
+st_srp_weapon_stamina_damage	Állóképesség-sebzés
+st_srp_weapon_stats	A fegyver statisztikái
+st_srp_weapon_sway_cycle	Kilengési ciklus
+st_srp_weapon_sway_horizontal	Vízszintes kilengés
+st_srp_weapon_sway_vertical	Függőleges kilengés
+st_srp_weather_before_rain	eső előtt
+st_srp_weather_day	nappal
+st_srp_weather_evening	este
+st_srp_weather_night	éjszaka
+st_srp_weather_rain	eső
+st_srp_weight_base	Alapkorlát: %1$s
+st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
+st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.
+st_srp_weight_penalty	%1$s% súlybüntetés
+st_srp_weight_speed	Mozgási sebesség: %1$s
+st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
+st_srp_weight_title	A súly hatásai
+st_stamina_boost_name	Újult erő
+st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:
+st_stamina_loss_on_hit_description	Állóképesség-büntetés sérüléskor.
+st_stamina_loss_on_hit_name	Megállíthatatlan
+st_stamina_regen_correction_perc_name	Állóképesség-regeneráció
+st_stamina_regeneration_speed_description	Állóképesség-regeneráció sebessége:
+st_stamina_regeneration_speed_name	Légzés
+st_stamina_spending_speed_description	Állóképesség-fogyasztás:
+st_stamina_spending_speed_name	Állóképesség
+st_start_chat_action	Chat
+st_start_match_welcome_message	Keress akkumulátorokat, és vidd őket a bázisodra!
+st_start_match_welcome_message_2	Keresd meg és védd az akkumulátortöltő állomásokat!
+st_start_match_welcome_message_3	Iktass ki minél több ellenséget!
+st_start_match_welcome_message_5	Keresd meg és foglald el a kutatóegységeket!
+st_statistic_sync_text	Meccsstatisztikák fogadása
+st_statistics_daily_bonus	Napi bónusz
+st_statistics_equipment_bonus	Felszerelésbónusz
+st_statistics_exp	Szerzett tapasztalat:
+st_statistics_money	Szerzett pénz:
+st_statistics_rating_delta	Értékelés változása
+st_statistics_score	Szerzett pontok:
+st_statistics_score_game_events	Meccsaktivitási jutalmak
+st_statistics_score_help	Szövetséges segítése
+st_statistics_score_kills	Megölt ellenségek
+st_statistics_score_match	A meccs eredményéért
+st_statistics_score_premium	Prémium fiók
+st_statistics_score_quests	Teljesített feladatokért
+st_stats_accuracy	Pontosság:
+st_stats_artefacts_gathered	Begyűjtött artefaktumok:
+st_stats_assists	Asszisztok:
+st_stats_deaths	Halálok:
+st_stats_headshots	Fejlövések:
+st_stats_healed	Gyógyítás:
+st_stats_items_defended	Megvédett akkumulátorok:
+st_stats_items_gathered	Megtalált akkumulátorok:
+st_stats_kills	Ölések:
+st_stats_max_killstreak	Ölési sorozat:
+st_stats_melee_kills	Közelharci ölések:
+st_stats_saved	Megmentve:
+st_stats_silent_kills	Csendes ölések:
+st_stats_stolen_victory_items	Ellopott akkumulátorok:
+st_status_str	Állapot:
+st_storage	Raktár
+st_string_pattern_error	A név érvénytelen karaktert tartalmaz, vagy túl hosszú/rövid
+st_support	Támogatás
+st_survival_notes	Egy túlélő feljegyzései
+st_survival_notes_complete	Befejezted
+st_survival_skills_label	Túlélési képességek
+st_sv_98_description	A leírás még nem érhető el.
+st_sv_98_name	SV-98
+st_svd_description	Öntöltő Dragunov mesterlövészpuska, 7.62x54 lőszerrel. Évekig a szovjet hadsereg fő mesterlövészpuskája volt. 5 lőszeres tárral. 
+st_svd_name	SVD
+st_swear_clan_string	A szöveg trágárságot tartalmaz
+st_swearing_claim	Trágár beszéd
+st_team_already_has_commander	A kláncsapatnak már van parancsnoka.
+st_team_member_is_not_commander	A csapattag nem parancsnok.
+st_texture_quality_option	Textúrák minősége
+st_there_is_no_item_in_inventory	A tárgy nem található a leltárban
+st_thief_item	Tároló felvétele
+st_throw_grenade_action	Gránát használata
+st_time_current	Játékosok keresése:
+st_time_was_resynchronized	Kapcsolat helyreállítása…
+st_to_all	Mindenkinek
+st_top100	Top 100
+st_total	Összesen
+st_tournaments	Versenyek
+st_toz122_description	Többlövetű huzagolt karabély, 7.62x51 lőszerrel. Kifejezetten amatőr és hivatásos vadászatra tervezve. 5 lőszeres szekrénytárral.
+st_toz122_name	TOZ-122
+st_toz34_description	Egymás feletti csövű vadászpuska, 12x70 lőszerrel. Az első sorozatgyártott vadászpuskák egyike. Kis súly és szűk szóráskép jellemzi. 
+st_toz34_name	TOZ-34
+st_toz66_description	Lefűrészelt csövű vadászduplapuska, 12x70 lőszerrel. Mivel szinte egyszerre két lövést adhat le, közeli távon különösen hatékony. 
+st_toz66_name	TOZ-66
+st_trap_damage	Csapdasebzés
+st_treasure_map_advert	Használd a rejtekhelytérképet további tárgyakért.
+st_tt_description	Az 1933-ban bevezetett Tulai Tokarev 7.62x25 mm lőszert használ. Az 1930-as években tervezték az első szovjet öntöltő katonai pisztolynak. 8 lőszeres tárral.
+st_tt_name	TT-33
+st_turn_down_action	
+st_turn_left_action	
+st_turn_right_action	
+st_turn_up_action	
+st_tutorial_apply_ammo_message_1	Erősítsd meg az <tutorial_highlight>Alkalmazás</tutorial_highlight> vagy <tutorial_highlight>Lőszer elrejtése</tutorial_highlight> gombbal.
+st_tutorial_choose_ammo_message_1	A lőszerek száma a dobozon látható. Különböző lőszertípusok dobozaiban eltérő mennyiség lehet.
+st_tutorial_choose_ammo_message_2	Vidd a lehető legtöbb lőszert.
+st_tutorial_choose_faction_message_1	Egyszerre csak egy frakcióval működhetsz együtt. Hírnevet kétféleképpen szerezhetsz: sikeres harci akciókkal és a frakció feladatainak teljesítésével.
+st_tutorial_choose_faction_message_2	Csatlakozz egy frakcióhoz.
+st_tutorial_choose_wpn_message_1	Egyszerre csak két fegyvert vihetsz csatába. Gondold meg, mivel akarsz harcolni.
+st_tutorial_choose_wpn_message_2	Húzd a Moszin karabélyt vagy a\nPPS-41-et az üres fegyverrekeszbe.
+st_tutorial_click_ammo_message_1	Csak korlátozott mennyiségű lőszert vihetsz. <tutorial_highlight>Kattints a Lőszer mutatása gombra</tutorial_highlight>, és válaszd ki, hány töltényt viszel a csatába.
+st_tutorial_click_inventory_message_1	Sajnos nem az Erdő az új világ egyetlen veszélye. Az állam összeomlott, mindenki magára maradt. Mindenért harcolni kell: ételért, gyógyszerért, a túlélés jogáért. A régi rejtekhelyek fegyverei nem a legjobbak, de jobbak a semminél.
+st_tutorial_click_inventory_message_2	Nyisd meg a Felszerelés lapot, és adj fegyvert és páncélt a karakterednek.
+st_tutorial_complete_label	Gratulálunk!\nBefejezted az oktatást.
+st_tutorial_complete_reward_label	Jutalmad a teljesítésért:
+st_tutorial_equip_drop_message_1	Új fegyvert és felszerelést többféleképpen szerezhetsz. Minden csata után van esély tárgyat találni a harctéren. A frakciókkal való kapcsolat javításával az egyedi áruikhoz is hozzáférhetsz.
+st_tutorial_equip_drop_message_2	Nyisd meg a frakcióválasztó ablakot.
+st_tutorial_exit_warning	Ha elhagyod az oktatást, később nem térhetsz vissza és a jutalmat sem kapod meg. Biztos vagy benne?
+st_tutorial_press_play_message_1	Az első csatához kattints a <tutorial_highlight>Játék</tutorial_highlight> gombra. További segítség az <tutorial_highlight>Egy túlélő feljegyzései</tutorial_highlight> részben, amelyet a csata után is elolvashatsz.
+st_two_handed	Elsődleges
+st_ump45_description	A leírás még nem érhető el.
+st_ump45_name	H&K UMP45
+st_unknown_faction	Semleges
+st_unlimited_upload	korlátlan
+st_use_action	Használat
+st_use_artefact_container	Artefaktum begyűjtése ({USE})
+st_use_fix_voucher	Javítókészlet
+st_use_item_message	Biztosan használod ezt a tárgyat?
+st_use_ladder	Létra
+st_use_microphone_option	Mikrofon használata
+st_use_resupply_zone	Lőszer feltöltése ({USE})
+st_use_two_double_handed_weapons_description	Két kétkezes fegyvert vihetsz a meccsbe.
+st_use_two_double_handed_weapons_name	Terminátor
+st_using_progress_message	Haladás:
+st_uzi_description	Géppisztoly, 9x19 lőszerrel. 1954-ben tervezték az izraeli hadseregnek. A világ egyik legnépszerűbb fegyvere lett. Egyes és sorozatlövésre képes.
+st_uzi_name	Uzi
+st_uzi_premium_2_description	Géppisztoly, 9x19 lőszerrel. 1954-ben tervezték az izraeli hadseregnek. A világ egyik legnépszerűbb fegyvere lett. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
+st_uzi_premium_2_name	UZI "Shadow"
+st_val_description	A leírás még nem érhető el.
+st_val_name	AS "Val"
+st_valmet_description	Finn gépkarabély, 7.62x39 lőszerrel. A Valmet és Sako Kalasnyikov-alapú fejlesztése. A finn haderő 1962-ben rendszeresítette, innen a neve. Pontosságáról és sarkvidéki megbízhatóságáról ismert. 30 lőszeres tár, egyes és sorozatlövés.
+st_valmet_name	Valmet Rk.62
+st_vepr_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. A vjatszkije poljani Molot gyár az RPK megerősített tokjára építi. A 2000-es években vezették be sportlövészetre, vadászatra és biztonsági szolgálatoknak. 8 lőszeres szekrénytár, csak egyes lövés.
+st_vepr_12_name	Vepr-12
+st_vepr_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. A vjatszkije poljani Molot gyár az RPK megerősített tokjára építi. A 2000-es években vezették be sportlövészetre, vadászatra és biztonsági szolgálatoknak. 8 lőszeres tár, csak egyes lövés. Prémium változat különleges álcafestéssel.
+st_vepr_12_premium_name	Vepr-12 Molot
+st_vepr_description	A leírás még nem érhető el.
+st_vepr_name	Vepr
+st_vepr_premium_description	Orosz Vepr-karabély, 5.45x39 lőszerrel. A vjatszkije poljani Molot gyár az RPK-74 megerősített tokjára építi. 30 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
+st_vepr_premium_name	Vepr Wanderer
+st_victory	Győzelem
+st_victory_screen_no_dropped_item	Nem találtál semmit a csatatéren.
+st_vityaz_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett PP-19-01 Vityaz.\n- 2000 darab 9x19 Parabellum lőszer.</white>
+st_vityaz_bundle_name	PP-19-01 Vityaz csomag
+st_vityaz_description	Géppisztoly, 9x19 lőszerrel. 2004-ben tervezték az orosz különleges erők igényeire. Egyes és sorozatlövésre képes.
+st_vityaz_name	PP-19-01 Vityaz
+st_voice_chat_volume_option	Hangchat
+st_vsk94_description	A leírás még nem érhető el.
+st_vsk94_name	VSK-94
+st_vsk94_premium_description	Orosz mesterlövészpuska, 9x39 lőszerrel. A tulai KBP az 1990-es években fejlesztette a 9A-91-ből, hangtompítóval és mesterlövésztussal, halk közeli és középtávú lövésekhez. 20 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
+st_vsk94_premium_name	VSK-94 Guardian
+st_vss_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett VSS "Vintorez".\n- 1000 darab 9x39 SP-5 lőszer.</white>\n
+st_vss_bundle_name	VSS "Vintorez" csomag
+st_vss_description	A leírás még nem érhető el.
+st_vss_name	VSS "Vintorez"
+st_vssk_camo_description	Orosz forgó-tolózáras mesterlövészpuska, 12.7x55 lőszerrel. A tulai CKIB SZOO fejlesztette a 2000-es években nagy hangtompítóval, különleges egységeknek fedezék mögötti vagy páncélozott célok csendes leküzdésére. 5 lőszeres tár, csak egyes lövés. Különleges álcafestéssel.
+st_vssk_camo_name	SV-1367 Dusk
+st_vssk_description	A leírás még nem érhető el.
+st_vssk_name	VSSK "Vychlop"
+st_vsync_option	Függőleges szinkronizálás
+st_vz58_description	Csehszlovák gépkarabély, 7.62x39 lőszerrel. Jiří Čermák tervezte, 1958-ban rendszeresítették. Kalasnyikovra hasonlít, de saját rövid löketű dugattyúval és reteszeléssel működik. A P változat rögzített fatusú. 30 lőszeres tár, egyes és sorozatlövés.
+st_vz58_name	vz. 58 P
+st_waiting_for_players	Várakozás a többi játékosra:
+st_walther_competition2_collimator_desc	Német Walther vöröspontos irányzék, eredetileg sportlövészetre. Cső alakú házában világító célzópont található.
+st_walther_competition2_collimator_name	Competition II irányzék
+st_wasted	Fogyasztás
+st_weapon_aim_action	Célzás (nyomva tartva)
+st_weapon_could_not_be_used	Sérült karok! Nem használhatsz fegyvert
+st_weapon_fire_action	Lövés
+st_weapon_reload_action	Újratöltés
+st_wear	Alkalmazás
+st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.
+st_weight_booster_name	Anomális Erő fehérje
+st_winchester1894_description	Egy amerikai mérnök 1894-es terve, amelyet 2006-ig gyártottak. Az egyik legismertebb és legnépszerűbb vadászpuska lett. Alsókulcsos ismétlő, 6 lőszeres csőtárral.
+st_winchester1894_name	Winchester Model 1894
+st_wrong_skill_points_count	Hibás képességpontszám
+st_wrong_symbol_clan_string	A szöveg nem nyomtatható karaktert tartalmaz
+st_you_have_no_voucher_for_premium	Nincs prémiumaktiváló utalványod
+st_you_have_no_voucher_for_rename	Nincs karakterátnevezési utalványod
+st_you_have_no_voucher_for_repair	Nincs javítókészleted.
+st_youtube_video_tutorial_button	Nézd meg a videóútmutatót!

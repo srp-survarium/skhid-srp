@@ -9,6 +9,30 @@ release that made it what it is now.
 
 ---
 
+## 28 Oct, 18:37 — Game update 37: matchmaking, Research warnings and map data (update required)
+
+<!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. Shipped: #691, #692, #463, #694, #695, #696. -->
+
+Update through the Skhid launcher before playing.
+
+- **Matchmaking:** public 8v8 rooms now open on demand, with equipment
+  brackets and improved queue transitions. Manually created rooms are
+  private. Blackout joins the normal mode pool.
+- **Research:** enemy capture and neutralisation attempts now trigger
+  pulsing warnings.
+- **Kit selection:** a short grace period when the kit screen opens
+  prevents a key pressed just before death from accidentally changing
+  your kit.
+- **Rewards:** farming limits now account for combat activity. Rewards
+  against bots are capped at equipment level 7, and eligible finishers
+  receive a minimum silver payout.
+- **Replays:** solo matches against bots can now be recorded and watched
+  from History.
+- **Map data:** removed 163.5 MiB of unused vegetation editor data across
+  four supported maps and both variants. All 172,493 plant placements
+  remain unchanged.
+
+
 ## 18 Oct, 14:43 — Game update 21: weapon balance, magazine on the weapon card, crash reports as ZIPs (update required)
 
 Start `Skhid.bat`: the launcher updates the game (`survarium_skhid.exe`
@@ -632,3 +656,125 @@ kept and can be put back).
 - TODO: #456 SVD at equipment level 15
 - TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
 - TODO: #458 Revert Research HUD markers (#367) for rev 34
+
+## 26 Oct, 15:08 — Game update 35: Blackout, London spawns and ragdolls (update required)
+
+<!-- Revision 35 (026g-rev35), released 2026-10-26 15:08 UTC. To be worded for players; what it shipped: -->
+
+Close the game and start `Skhid.bat`. The launcher installs revision 35 and
+its new game content. Older game versions can no longer sign in.
+Recordings made before revision 35 can no longer be watched, because this
+update changes what a match computes.
+
+- **Blackout — a new Protective device mode.** Collect batteries with the
+  usual rules, but with the normal interface hidden: no crosshair, minimap,
+  health or ammunition display, score, kill feed or objective markers.
+  Hold **Tab** to check ammunition, quick-use items, player markers, match
+  time and chat history. Looking around still works while checking, but
+  movement and other actions pause; release Tab, then press an action again
+  to use it. When dead, Tab also shows your kits, and **1–3** still selects
+  a kit. Chat appears while typing. Blackout awards **double match points,
+  silver, experience and reputation**; PIN rooms still give no rewards.
+  It is available in the normal room mode pool, and room creators can
+  deselect it.
+- **London:** removed the anomalies and moved both teams' spawn points
+  inside their buildings, onto the first floor above ground level. Each
+  side has ten spawn positions, used consistently in Protective device,
+  Protective device with chargers, Team deathmatch and Research.
+- **Ragdolls:** bodies now collapse in response to the killing hit, carry
+  their running momentum and settle against the ground and stairs. Dropped
+  weapons fall beside them, and further shots can move a body again. The
+  death camera follows your body's head while still letting you look
+  around. Bodies do not block bullets or battery pickup.
+- **Private rooms:** the creator starts the match with **Start** and uses
+  the **« / »** buttons to arrange both teams. You can start alone at
+  **1 v 0**, practise with uneven teams such as **1 v 10**, or fill all
+  twenty places, with up to ten players per side. The game keeps the
+  chosen teams between matches and waits for the creator to start again.
+- **Death effect:** the view gradually dims, loses colour and narrows
+  around the edges during the respawn countdown. Its pace follows the
+  time left, the scene remains visible, and the view clears on respawn.
+  Kit selection and the rest of the interface stay readable above it.
+- **Weapon icons:** weapons added from later versions now show their own
+  kill-feed icons, including the HK416, P90, MP7, Saiga-12K and Pecheneg.
+  The M4A1 also uses the correct M4 icon.
+- **Minimap:** choosing Hidden now keeps it hidden after restarting the
+  game or loading another match. Changing its position takes effect
+  immediately.
+- **Crash reports:** the crash window now shows useful details even when
+  Windows cannot save a memory dump, with a **Copy** button for reporting
+  them. Reports also retain game logs containing Cyrillic, Polish or
+  other supported local characters instead of discarding those logs.
+
+## 27 Oct, 21:18 — TODO: the owner's words (update required)
+
+<!-- Revision 36 (026g-rev36), released 2026-10-27 21:18 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #556 Changelog: revision 35 for players
+- TODO: #558 release: ship and check the bots' data files (maps, routes table) with the release
+- TODO: #566 release: the bots' foliage file in the bot data list
+- TODO: #578 Bots at every equipment level, in the top players' kits
+- TODO: #569 Rooms: a private room has no max level
+- TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
+- TODO: #686 Fix Research markers and countdown layout using Rust
+- TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending
+
+## 29 Oct, 20:32 — TODO: the owner's words (update required)
+
+<!-- Revision 38 (026g-rev38), released 2026-10-29 20:32 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #698 Changelog: revision 37 for players, including rewards and solo replays
+- TODO: #727 Add weapons wiki, recoil comparison and detailed game tooltips
+- TODO: #739 Shop: buy an item by dropping it on its slot
+- TODO: #721 Game languages: ten dictionaries as TSVs, Belarusian, Czech/Hungarian/Finnish/Serbian, Language in Settings
+- TODO: #741 Rust patches: typed raw handles, layout only in raw
+- TODO: #745 Weapon rolls: recoil and aim time take effect; chamber time on the card
+- TODO: #716 Flag of Serbia decal: red over blue over white
+- TODO: #746 Site: the wiki takes the calculator and the maps, and gets a modifiers page
+- TODO: #750 Equipment through 0.29: 84 pieces, balanced against native gear
+- TODO: #752 Weapons wiki: shots at their own moments, views hold at their last shot, no Next shot
+- TODO: #699 Detach selected helmets on fatal headshots
+- TODO: #754 Equipment: its texts in all ten languages (release 38 content build)
+- TODO: #753 Weapons wiki: sideways kick at a degree a unit; smooth camera shake
+- TODO: #757 Wiki: Equipment, every armour piece with its protection, weight and bonuses
+- TODO: #755 Notes: what the 0.26g armour parameters do
+- TODO: #756 Headwear: the 0.29 helmets fly off on fatal headshots; the knit cap doesn't
+- TODO: #758 Wiki modifiers: Can roll leaves out what an item comes with
+- TODO: #760 Exoskeleton boots and gloves without their black areas (pack exo-gear@1)
+- TODO: #763 Exo boots' lobby icons at the stock boots' angle (exo-gear@2)
+- TODO: #762 Release: per-release item tables (equipment, weapons) in the record
+- TODO: #761 Wiki equipment: flying off only in the card's details
+- TODO: #759 Built-in bonuses at the second-strongest strength; exoskeleton suits buffed
+- TODO: #751 Carry and share artefacts with animated hand poses and death drops
+- TODO: #765 Match: an anomaly artefact pickup scores 15 (5 with full containers)
+- TODO: #770 Equipment 0.29: no donor placeholder descriptions
+- TODO: #771 Equipment 0.29: German placeholder descriptions too
+- TODO: #773 Weapon card: chambering time shows only the new value
+- TODO: #774 Exoskeleton gloves keep their stock icons (exo-gear@3)
+- TODO: #775 Equipment 0.29: no shader 0.26g lacks (Watchman gloves crash)
+- TODO: #777 Artefact carry: H held, then a quick key, raises the artefact
+- TODO: #779 Artefact carry: H's up comes from the key handler (stuck carry key)
+
+## 30 Oct, 17:44 — TODO: the owner's words (update required)
+
+<!-- Revision 39 (026g-rev39), released 2026-10-30 17:44 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #804 caddy26: plain TCP only (net.mptcp.enabled=0)
+- TODO: #787 Launcher: the language is the game's, every language, kept in user.cfg
+- TODO: #783 Artefact carry: H's key states as the engine defines them
+- TODO: #790 Artefact carry: no gun falls from a carrier's death
+- TODO: #792 Late join: a loaded world puts its alive players into it (patch 82)
+- TODO: #806 Equipment from 0.31a2 and 0.46c2: 35 of the owner's 38 picks (pack equipment-046@4)
+- TODO: #825 Backpacks from 0.69: the Medic's bag and the Soldier's backpack (pack equipment-069@1), into main
+- TODO: #793 Rooms: the chosen room's card keeps one layout through the vote
+- TODO: #786 Release: build and stage before the go, then the maintenance and a quick swap
+- TODO: #789 Lobby: the kit's movement speed beside the weight
+- TODO: #828 Release: close four gaps found in releases 36-38
+- TODO: #831 Minimap: a late joiner's allies get the ally's icon
+- TODO: #832 Revert #792: the world load already inserts its players (patch 82 never acts)
+- TODO: #829 Hud: the Double cylinder's quick-slot icon
+- TODO: #834 Wear the exoskeleton boots under full-length trousers
+- TODO: #781 Artefact carry: the held hand breathes and flexes its fingers
+- TODO: #835 Ragdoll: no headshot launch (exp_neg is 0 from 20)
+- TODO: #764 Add breakable map lamps with the Rust patch framework
+- TODO: #838 Wiki icons: read the shop filters from FiltersWindow's list functions

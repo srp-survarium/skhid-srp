@@ -68,7 +68,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::launcher_language();
+    let language = win::game_language();
     let request = match replay::parse(arguments) {
         Ok(request) => request,
         Err(error) => {
@@ -126,8 +126,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
         log!("replay: {target} cannot be given to the game (ANSI command line)");
         return tell(quiet, language, &Problem::Path);
     };
-    let localization = replay::localization(language);
-    let Some(command) = replay::game_command(&game, localization, &path) else {
+    let Some(command) = replay::game_command(&game, &path) else {
         log!("replay: no command line for {path}");
         return tell(quiet, language, &Problem::Path);
     };

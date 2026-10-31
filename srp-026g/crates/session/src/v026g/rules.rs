@@ -21,7 +21,7 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{covered_slots, item_params, shop_unit};
-use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment};
+use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment, SHOP_SLOT};
 use survarium::v026g::lobby::{
     Bought, CONDITION_UNIT, FULL_CONDITION, Repaired, ServicePrices, limits,
 };
@@ -203,6 +203,11 @@ pub fn move_items(
             }
             relocation.item_id =
                 owned_stack(&changed, &relocation).ok_or(ActionError::NoSuchItem)?;
+            // A stack dropped from the shop on a pocket: what was missing is
+            // bought above, and goes in from the inventory.
+            if relocation.source_slot == SHOP_SLOT {
+                relocation.source_slot = INVENTORY_SLOT;
+            }
         }
         resolved.push(relocation);
     }
@@ -1643,6 +1648,69 @@ mod tests {
             ),
             Err(ActionError::NotInSlot)
         );
+    }
+
+    /// A stack dropped from the shop's list on a pocket (an energy drink on
+    /// slot 14, 2026-10-29): the ammo dialog names it from `SHOP_SLOT`, item
+    /// 0, one wanted. It is bought and put in; it was refused as `WrongSlot`.
+    #[test]
+    fn a_stack_dropped_from_the_shop_on_a_pocket_is_bought_into_it() {
+        const POCKET: u8 = 14;
+        let dictionary = Dictionary::shared();
+        let mut account = rich_and_known(10_000);
+        let drink = dictionary
+            .items
+            .iter()
+            .find(|item| {
+                item.is_stack
+                    && dictionary.fits(item.dict_id, POCKET)
+                    && step_cost(&account, dictionary, item.dict_id).is_ok_and(|cost| cost > 0)
+            })
+            .expect("a pocket item sold for silver")
+            .dict_id;
+        let cost = step_cost(&account, dictionary, drink).unwrap();
+        let money = account.generic_money;
+        let dialog = [Relocation {
+            item_id: 0,
+            dict_id: drink,
+            source_slot: SHOP_SLOT,
+            target_slot: POCKET,
+            count: 1,
+            count_in_inventory: 1,
+        }];
+        move_items(&mut account, 1, &dialog, NOW).unwrap();
+        let bought = account
+            .inventory
+            .iter()
+            .find(|item| item.dict_id == drink)
+            .expect("bought");
+        assert_eq!(
+            account.kits[0].slots[usize::from(POCKET)].map(|slot| slot.item_id),
+            Some(bought.item_id)
+        );
+        assert_eq!(account.generic_money, money - cost);
+
+        // Dropped again on another pocket while one holds it: one pocket an
+        // item type, so nothing is bought or moved.
+        let before = account.clone();
+        let again = [Relocation {
+            target_slot: POCKET + 1,
+            ..dialog[0]
+        }];
+        assert_eq!(
+            move_items(&mut account, 1, &again, NOW),
+            Err(ActionError::PocketTaken)
+        );
+        assert_eq!(account, before);
+
+        // Not enough silver: nothing changes.
+        let mut poor = rich_and_known(0);
+        let before = poor.clone();
+        assert_eq!(
+            move_items(&mut poor, 1, &dialog, NOW),
+            Err(ActionError::NotEnoughMoney)
+        );
+        assert_eq!(poor, before);
     }
 
     /// One pocket an item type (`docs/notes/one-pocket-a-type.md`).

@@ -101,6 +101,7 @@ for file in files("gameplay__items__weapons__wpn_"):
     p = cfg["parameters"]
     weapons[key_of(file)] = {
         **ui(cfg),
+        "category": by_cfg[cfg_of(file)]["item_category"],
         "type": p["type"],
         "premium": key_of(file).endswith("_premium"),
         "item_level": p.get("item_level", 0),
@@ -117,6 +118,13 @@ for file in files("gameplay__items__weapons__wpn_"):
         "stamina_damage": r(p.get("stamina_damage", 0)),
         "reload_time": r(p.get("reload_time", 0)),
         "weight": r(p.get("weight", 0)),
+        # The wiki uses the same source data, including the detailed weapon card.
+        # Missing optional parameters stay absent; native defaults are applied
+        # by the presentation schema, never by substituting arbitrary zeroes.
+        **{k: r(p[k]) for k in ("aim_time", "show_time", "hide_time", "aim_zoom_factor",
+                                "base_dispersion", "movement_speed_modifier") if k in p},
+        **{section: {k: r(v) for k, v in cfg.get(section, {}).items()}
+           for section in ("dispersion", "recoil", "breath_vibration")},
         "modifiers": nonzero_modifiers(p),
         "default_modifications": cfg.get("default_modifications", []),
         "available_modifications_mask": p.get("available_modifications_mask", ""),
@@ -318,8 +326,14 @@ for table in (weapons, armour):
 level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
+# The player's stance spread (character_dispersion_params): the wiki's spread
+# model takes the standing still values, aimed and from the hip.
+stance = load("gameplay__players__default.player.json")["player"]["character_dispersion_params"]
+character_dispersion = {k: r(stance[k]) for k in ("idle_dispersion", "idle_aim_dispersion")}
+
 out = {
     "source": "Survarium 0.26g resources.db (build 0.26g0)",
+    "character_dispersion": character_dispersion,
     "level_names": level_names,
     "mods": mods,
     "drugs": drugs,

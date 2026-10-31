@@ -416,6 +416,8 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
             }
         }
     }
+    // The new equipment pack also grants the other two factions' native bonuses.
+    given.extend([1270, 1280]);
     let data: Vec<String> = given
         .iter()
         .map(|&id| {
