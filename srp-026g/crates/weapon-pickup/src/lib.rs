@@ -7,9 +7,12 @@
 //!   patch 78 already reads as no carry command and keeps from the game;
 //! - the server's check of it and the client's twin ([`allowed`],
 //!   [`sane`]): the client never sends what the server would drop;
-//! - a drop's window ([`WINDOW_MS`]) and the one synced record a player
-//!   carries in its state ([`Record`]): its own drop (open or taken) and the
-//!   gun it borrows, if any.
+//! - a drop, open until its gun leaves the world with its body (the place's
+//!   player removed: its respawn or its departure), and the one synced
+//!   record a player carries in its state ([`Record`]): its own drop (open or
+//!   taken) and the gun it borrows, if any;
+//! - the rule of a pickup ([`decide`]): the held gun replaced by any gun, as
+//!   the carry rules after the skill modifiers allow ([`CarryRule`]).
 #![cfg_attr(not(test), no_std)]
 
 /// Patch 78's marker bit (unused by the game; bits 30, 31 stay clear).
@@ -18,8 +21,6 @@ pub const CHORD: u32 = 1 << 29;
 pub const QUICK: u32 = 63 << 14;
 /// Use (bit 21).
 pub const USE: u32 = 1 << 21;
-/// How long a dead player's gun can be taken, simulation milliseconds.
-pub const WINDOW_MS: u32 = 5_000;
 /// A match's places (core's buffer holds 20).
 pub const PLACES: u8 = 20;
 
@@ -72,6 +73,14 @@ impl WeaponSlot {
         match self {
             WeaponSlot::First => 7,
             WeaponSlot::Second => 10,
+        }
+    }
+
+    /// The other weapon slot.
+    pub const fn other(self) -> WeaponSlot {
+        match self {
+            WeaponSlot::First => WeaponSlot::Second,
+            WeaponSlot::Second => WeaponSlot::First,
         }
     }
 
@@ -145,23 +154,26 @@ pub fn sane(actions: u32, sender: Place, places: u8) -> bool {
     command(actions).is_none_or(|target| allowed(sender, target, places))
 }
 
-/// A player's own drop: the gun it held at its death, while it can be taken.
+/// A player's own drop: the gun it held at its death, while its body (and
+/// the gun on it) is in the world. The place's player taken out of the world
+/// (base_player::remove(1): its respawn, its departure) ends it: the drop is
+/// [`Drop::None`] again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Drop {
-    /// No drop: never died holding a gun of its two.
+    /// No drop: not dead holding a gun of its two, or its body gone.
     None,
-    /// Died holding `slot`'s gun of `kit` at `died`.
+    /// Died holding `slot`'s gun of `kit` at `died` (the death's key).
     Open { kit: Kit, slot: WeaponSlot, died: Ms },
     /// That gun was taken (once only).
     Taken,
 }
 
 impl Drop {
-    /// The kit and slot that can be taken at `now`: open and within the
-    /// window (each death has its own gun).
-    pub fn available(self, now: Ms) -> Option<(Kit, WeaponSlot)> {
+    /// The kit and slot that can be taken: an open drop's (each death has
+    /// its own gun).
+    pub fn available(self) -> Option<(Kit, WeaponSlot)> {
         match self {
-            Drop::Open { kit, slot, died } if now.since(died) < WINDOW_MS => Some((kit, slot)),
+            Drop::Open { kit, slot, .. } => Some((kit, slot)),
             _ => None,
         }
     }
@@ -243,6 +255,46 @@ impl Record {
     }
 }
 
+/// A gun's handedness: its item's `double_handed` property (weapon+5E9h,
+/// from its config, 0x30AB8D..0x30ABC0), not a guess from its kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Handedness {
+    One,
+    Two,
+}
+
+impl Handedness {
+    pub const fn from_double_handed(double_handed: bool) -> Handedness {
+        if double_handed { Handedness::Two } else { Handedness::One }
+    }
+}
+
+/// What a kit may carry in its two weapon slots, after its skill modifiers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarryRule {
+    /// `disable_second_weapon` (modifier 64): only slot 7 holds a gun.
+    OneWeapon,
+    /// The normal rule: at most one double-handed gun.
+    OneDoubleHanded,
+    /// `use_two_double_handed_weapons` (modifier 25): both may be.
+    TwoDoubleHanded,
+}
+
+impl CarryRule {
+    /// The rule from the kit's two modifier sums (both modifiers additive,
+    /// the list at 0x927E08: apply_modifier of 0 with weight 1 is the sum);
+    /// a sum above 0 has the skill, and `disable_second_weapon` wins.
+    pub fn from_modifiers(disable_second_weapon: f32, use_two_double_handed_weapons: f32) -> CarryRule {
+        if disable_second_weapon > 0.0 {
+            CarryRule::OneWeapon
+        } else if use_two_double_handed_weapons > 0.0 {
+            CarryRule::TwoDoubleHanded
+        } else {
+            CarryRule::OneDoubleHanded
+        }
+    }
+}
+
 /// What the picker is at the tick its command is played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Picker {
@@ -250,6 +302,9 @@ pub struct Picker {
     pub alive: bool,
     /// The weapon slot whose gun is in its hands, if one of its two is.
     pub held: Option<WeaponSlot>,
+    /// The gun in its other weapon slot, if any.
+    pub other: Option<Handedness>,
+    pub rule: CarryRule,
     pub borrow: Option<Borrow>,
 }
 
@@ -261,10 +316,13 @@ pub enum Refusal {
     Borrowing,
     /// No gun of its two in its hands.
     NoGunInHands,
-    /// Its own place, or a drop not available (none, taken, past 5 s).
+    /// Its own place, or a drop not available (none, taken, its body gone).
     NotAvailable,
-    /// The spare is not of the held gun's kind (a rifle for a pistol).
-    OtherKind,
+    /// `disable_second_weapon`: a gun held in slot 10, or one beside it.
+    SecondWeaponDisabled,
+    /// A double-handed gun beside another, without
+    /// `use_two_double_handed_weapons`.
+    TwoDoubleHanded,
 }
 
 /// A pickup every client plays: `picker`'s held slot takes `target`'s spare.
@@ -275,10 +333,14 @@ pub struct Take {
 
 /// The rule of a pickup command (the owner's, `weapon_pickup.md`): a living
 /// picker with one of its guns in hands and no borrowed one, an available
-/// drop of another place, and a spare of the held gun's kind (both two-handed
-/// or both not).
-pub fn decide(picker: Picker, target: Place, drop: Drop, now: Ms,
-              same_kind: impl FnOnce(Kit, WeaponSlot) -> bool) -> Result<Take, Refusal> {
+/// drop of another place; the held gun is replaced (never the other slot's)
+/// by any gun the carry rule allows beside the other slot's: with
+/// [`CarryRule::OneWeapon`] only a gun held in slot 7 with slot 10 empty,
+/// with [`CarryRule::OneDoubleHanded`] no double-handed gun beside another.
+/// `incoming` gives the drop's gun's handedness (asked only when the other
+/// slot holds a double-handed gun).
+pub fn decide(picker: Picker, target: Place, drop: Drop,
+              incoming: impl FnOnce(Kit, WeaponSlot) -> Handedness) -> Result<Take, Refusal> {
     if !picker.alive {
         return Err(Refusal::Dead);
     }
@@ -289,9 +351,16 @@ pub fn decide(picker: Picker, target: Place, drop: Drop, now: Ms,
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
-    let (kit, slot) = drop.available(now).ok_or(Refusal::NotAvailable)?;
-    if !same_kind(kit, slot) {
-        return Err(Refusal::OtherKind);
+    let (kit, slot) = drop.available().ok_or(Refusal::NotAvailable)?;
+    match picker.rule {
+        CarryRule::OneWeapon if own == WeaponSlot::Second || picker.other.is_some() => {
+            return Err(Refusal::SecondWeaponDisabled);
+        }
+        CarryRule::OneDoubleHanded
+            if picker.other == Some(Handedness::Two) && incoming(kit, slot) == Handedness::Two => {
+            return Err(Refusal::TwoDoubleHanded);
+        }
+        _ => {}
     }
     Ok(Take { borrow: Borrow { donor: target, kit, slot, own } })
 }
@@ -309,6 +378,16 @@ impl Ammo {
     pub fn grant(capacity: u8, loaded: u8, chamber: bool) -> Ammo {
         Ammo { loaded: loaded.min(capacity), chamber, reserve: u16::from(capacity) }
     }
+}
+
+/// The crate's refill of a borrowed stack, for free (the owner, 2026-10-31:
+/// "it refills it up to your ammo slots"): as the native refill does for
+/// one's own ammo, the slot's `allowance` less what the gun holds of it
+/// (its magazine and chamber, when the stack is the gun's selected one),
+/// never below what the stack has.
+pub fn crate_reserve(allowance: u16, stack: u16, magazine: Option<(u8, bool)>) -> u16 {
+    let held = magazine.map_or(0, |(loaded, chamber)| u16::from(loaded) + u16::from(chamber));
+    stack.max(allowance.saturating_sub(held))
 }
 
 #[cfg(test)]
@@ -348,13 +427,12 @@ mod tests {
     }
 
     #[test]
-    fn a_drop_is_open_for_five_seconds() {
+    fn a_drop_is_open_until_it_ends() {
         let drop = Drop::Open { kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second, died: Ms(u32::MAX - 1000) };
-        let at = |ms: u32| Ms((u32::MAX - 1000).wrapping_add(ms));
-        assert_eq!(drop.available(at(0)), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
-        assert!(drop.available(at(4_999)).is_some());
-        assert_eq!(drop.available(at(5_000)), None);
-        assert_eq!(Drop::Taken.available(at(0)), None);
+        assert_eq!(drop.available(), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
+        assert_eq!(Drop::Taken.available(), None);
+        assert_eq!(Drop::None.available(), None);
+        assert_eq!(Ms(5).since(Ms(u32::MAX - 4)), 10, "time wraps");
     }
 
     #[test]
@@ -379,25 +457,58 @@ mod tests {
     }
 
     #[test]
-    fn a_pickup_takes_an_available_drop_of_the_same_kind_once() {
+    fn a_pickup_takes_an_available_drop_once() {
         let me = Place::new(1).unwrap();
-        let picker = Picker { place: me, alive: true, held: Some(WeaponSlot::Second), borrow: None };
+        let picker = Picker { place: me, alive: true, held: Some(WeaponSlot::Second), other: None,
+                              rule: CarryRule::OneDoubleHanded, borrow: None };
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
         let drop = Drop::Open { kit, slot: WeaponSlot::First, died: Ms(1_000) };
-        let take = decide(picker, donor, drop, Ms(3_000), |_, _| true).unwrap();
+        let rifle = |_, _| Handedness::Two;
+        let take = decide(picker, donor, drop, rifle).unwrap();
         assert_eq!(take.borrow, Borrow { donor, kit, slot: WeaponSlot::First, own: WeaponSlot::Second });
-        assert_eq!(decide(picker, donor, drop, Ms(6_000), |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, Drop::Taken, Ms(3_000), |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, me, drop, Ms(3_000), |_, _| true), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, drop, Ms(3_000), |_, _| false), Err(Refusal::OtherKind));
-        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, Ms(3_000), |_, _| true),
-                   Err(Refusal::Dead));
-        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, Ms(3_000), |_, _| true),
-                   Err(Refusal::NoGunInHands));
-        assert_eq!(decide(Picker { borrow: Some(take.borrow), ..picker }, donor, drop, Ms(3_000), |_, _| true),
+        assert_eq!(decide(picker, donor, Drop::Taken, rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, donor, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
+        assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
+        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
+        assert_eq!(decide(Picker { borrow: Some(take.borrow), ..picker }, donor, drop, rifle),
                    Err(Refusal::Borrowing));
+    }
+
+    #[test]
+    fn the_held_gun_is_replaced_as_the_carry_rules_allow() {
+        let picker = Picker { place: Place::new(1).unwrap(), alive: true, held: Some(WeaponSlot::Second),
+                              other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded, borrow: None };
+        let (donor, kit) = (Place::new(4).unwrap(), Kit::new(0).unwrap());
+        let drop = Drop::Open { kit, slot: WeaponSlot::First, died: Ms(1_000) };
+        let (rifle, pistol) = (|_, _| Handedness::Two, |_, _| Handedness::One);
+        // Any gun for any gun: a rifle for the held pistol beside a pistol.
+        assert_eq!(decide(picker, donor, drop, rifle).unwrap().borrow.own, WeaponSlot::Second);
+        // Beside a rifle: a pistol yes, a rifle no, unless modifier 25.
+        let beside = Picker { other: Some(Handedness::Two), ..picker };
+        assert!(decide(beside, donor, drop, pistol).is_ok());
+        assert_eq!(decide(beside, donor, drop, rifle), Err(Refusal::TwoDoubleHanded));
+        assert!(decide(Picker { rule: CarryRule::TwoDoubleHanded, ..beside }, donor, drop, rifle).is_ok());
+        // Modifier 64: slot 7 alone.
+        let one = Picker { rule: CarryRule::OneWeapon, other: None, ..picker };
+        assert_eq!(decide(one, donor, drop, pistol), Err(Refusal::SecondWeaponDisabled));
+        assert!(decide(Picker { held: Some(WeaponSlot::First), ..one }, donor, drop, rifle).is_ok());
+        assert_eq!(decide(Picker { held: Some(WeaponSlot::First), other: Some(Handedness::One), ..one }, donor,
+                          drop, pistol), Err(Refusal::SecondWeaponDisabled));
+        assert_eq!(CarryRule::from_modifiers(0.0, 0.0), CarryRule::OneDoubleHanded);
+        assert_eq!(CarryRule::from_modifiers(0.0, 1.0), CarryRule::TwoDoubleHanded);
+        assert_eq!(CarryRule::from_modifiers(1.0, 1.0), CarryRule::OneWeapon);
+        assert_eq!(CarryRule::from_modifiers(f32::NAN, f32::NAN), CarryRule::OneDoubleHanded);
+    }
+
+    #[test]
+    fn the_ammunition_granted_and_refilled() {
         assert_eq!(Ammo::grant(30, 12, true), Ammo { loaded: 12, chamber: true, reserve: 30 });
         assert_eq!(Ammo::grant(8, 9, false).loaded, 8);
+        assert_eq!(crate_reserve(120, 10, Some((25, true))), 94);
+        assert_eq!(crate_reserve(120, 10, None), 120);
+        assert_eq!(crate_reserve(30, 50, Some((30, false))), 50, "never below what it has");
+        assert_eq!(crate_reserve(0, 5, None), 5, "a slot without an allowance");
     }
 }
