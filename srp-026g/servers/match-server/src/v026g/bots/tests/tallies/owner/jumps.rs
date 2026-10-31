@@ -682,8 +682,42 @@ impl JumpCounts {
             {
                 let recs = &run.recs[p.place];
                 let ri = run.index(p.t).min(recs.len().saturating_sub(1));
-                let (keys, speed) = recs.get(ri).map_or((0, 0.0), |r| (r.keys, r.speed));
+                // The speed the stand-in picked the clip by: the last step before the press (the press's own tick makes
+                // none, the body is in the jump from it).
+                let keys = recs.get(ri).map_or(0, |r| r.keys);
+                let speed = recs.get(ri.saturating_sub(1)).map_or(0.0, |r| r.speed);
                 let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
+                // `SRP_BENCH_JUMP_TRACE=x,z;x,z`: the records of the failed presses (came down, or nowhere) at those take-offs
+                // (within 0.6 m), 1 s before to 2 s after, the first 3 at each a run.
+                if let Ok(spots) = std::env::var("SRP_BENCH_JUMP_TRACE")
+                    && landing.is_none_or(|l| l.to.y < to.y - UP_SLACK_M)
+                    && let Some(spot) = spots.split(';').position(|s| {
+                        let v: Vec<f32> = s.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                        v.len() == 2 && (from.x - v[0]).hypot(from.z - v[1]) <= 0.6
+                    })
+                {
+                    static TRACED: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+                    let mut traced = TRACED.lock().unwrap_or_else(|e| e.into_inner());
+                    if traced.len() <= spot {
+                        traced.resize(spot + 1, 0);
+                    }
+                    if traced[spot] < 3 {
+                        traced[spot] += 1;
+                        eprintln!(
+                            "jumptrace\t{spot}\t{}\t{}\tlink ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}); came down {}",
+                            p.place, p.t, from.x, from.y, from.z, to.x, to.y, to.z,
+                            landing.map_or("nowhere".into(), |l| format!("at ({:.2}, {:.2}, {:.2}) {}", l.to.x, l.to.y, l.to.z, if l.sprint { "sprint clip" } else { "short clip" }))
+                        );
+                        for k in ri.saturating_sub(20)..(ri + 40).min(recs.len()) {
+                            let r = &recs[k];
+                            eprintln!(
+                                "jumptrace\t{spot}\t{}\t{}\t{:+}\t{:.2}\t{:.2}\t{:.2}\t{:#x}\t{:.0}\t{}\t{:.2}\t{}\t{:#x}\t{}",
+                                p.place, p.t, k as i64 - ri as i64, r.feet.x, r.feet.y, r.feet.z, r.keys,
+                                r.yaw.to_degrees(), u8::from(r.air), r.speed, r.walk, r.why, u8::from(r.has_route)
+                            );
+                        }
+                    }
+                }
                 eprintln!(
                     "jumprow\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{:.3}\t{}\t{}\t{:.2}\t{}\t{}\t{}",
                     p.place,
