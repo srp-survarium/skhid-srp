@@ -20,23 +20,6 @@ pub const DEFAULT_PAY: f64 = 0.5;
 /// The most `SRP_PVB_MAX_MATCHES` may be.
 pub const MOST_MATCHES: usize = 20;
 
-/// `SRP_PVB`: `on`/`off` (and 1/0, true/false, yes/no); anything else is
-/// an error in the log and off.
-pub fn enabled_from(value: Option<&str>) -> bool {
-    match value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        None | Some("") => false,
-        Some("on" | "1" | "true" | "yes") => true,
-        Some("off" | "0" | "false" | "no") => false,
-        Some(other) => {
-            log::error!("SRP_PVB is `{other}`; it must be on or off. Using off");
-            false
-        }
-    }
-}
-
 /// `SRP_PVB_MAX_MATCHES`: 1 to [`MOST_MATCHES`].
 pub fn max_matches_from(value: Option<&str>) -> usize {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -72,9 +55,9 @@ fn var(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
-/// [`enabled_from`] of the environment.
+/// `SRP_PVB`: off unless `on`.
 pub fn enabled() -> bool {
-    enabled_from(var("SRP_PVB").as_deref())
+    crate::switch("SRP_PVB", false)
 }
 
 /// [`max_matches_from`] of the environment.
@@ -105,9 +88,6 @@ mod tests {
 
     #[test]
     fn the_settings_read_as_documented() {
-        assert!(!enabled_from(None));
-        assert!(enabled_from(Some(" ON ")));
-        assert!(!enabled_from(Some("maybe")));
         assert_eq!(max_matches_from(None), 5);
         assert_eq!(max_matches_from(Some("3")), 3);
         assert_eq!(max_matches_from(Some("0")), 5);

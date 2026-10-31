@@ -272,15 +272,11 @@ fn lobby_to_client(id: u8) -> Option<MessageInfo> {
     })
 }
 
-/// The mask bytes of ED/EE for a roster: `(players - 1) / 8 + 1` (client
-/// 0x279610). Zero players gives 0, the client's value before it knows the
-/// roster.
+/// The mask bytes of ED/EE for a roster: `(players - 1) / 8 + 1` in C's
+/// division (client 0x279610), so 1 for no players too. Before the client
+/// knows the roster it has 0 (0x2792E2).
 pub fn mask_bytes(players: u8) -> usize {
-    if players == 0 {
-        0
-    } else {
-        (usize::from(players) - 1) / 8 + 1
-    }
+    (usize::from(players).max(1) - 1) / 8 + 1
 }
 
 /// The length of an ED/EE payload from its own bytes, as the client works it
@@ -407,7 +403,8 @@ mod tests {
 
     #[test]
     fn the_player_inputs_length_counts_the_mask() {
-        assert_eq!(mask_bytes(0), 0);
+        assert_eq!(mask_bytes(0), 1);
+        assert_eq!(mask_bytes(1), 1);
         assert_eq!(mask_bytes(8), 1);
         assert_eq!(mask_bytes(9), 2);
         assert_eq!(mask_bytes(20), 3);

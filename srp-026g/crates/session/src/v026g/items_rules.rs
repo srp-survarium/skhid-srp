@@ -184,13 +184,7 @@ impl std::error::Error for ItemError {}
 /// `false`).
 pub fn defects_enabled() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| {
-        let value = std::env::var(DEFECTS_VAR).unwrap_or_default();
-        !matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "off" | "0" | "no" | "false"
-        )
-    })
+    *ENABLED.get_or_init(|| crate::switch(DEFECTS_VAR, true))
 }
 
 // ------------------------------------------------------------ the item

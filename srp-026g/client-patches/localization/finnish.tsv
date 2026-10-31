@@ -2454,7 +2454,6 @@ st_srp_matches_in_match	Olet jo ottelussa
 st_srp_matches_in_squad	Poistu ensin ryhmästä
 st_srp_matches_joining	liitytään…
 st_srp_matches_maintenance	Päättyy huollon alkamisen jälkeen
-st_srp_matches_mode_protective_device	Suojalaite
 st_srp_matches_no_answer	Ei vastausta, yritä uudelleen
 st_srp_matches_no_late_join	Otteluun ei oteta uusia pelaajia
 st_srp_matches_no_place	Ottelussa ei ole tilaa
@@ -2465,6 +2464,7 @@ st_srp_matches_played_before	Olet jo pelannut tässä ottelussa
 st_srp_matches_queued	Lopeta ensin haku
 st_srp_matches_starting	alkaa
 st_srp_matches_title	Ottelut
+st_srp_matches_versus	vs
 st_srp_matches_waiting	odottaa
 st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit

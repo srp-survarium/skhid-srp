@@ -2454,7 +2454,6 @@ st_srp_matches_in_match	Ви вже в матчі
 st_srp_matches_in_squad	Спершу залиште загін
 st_srp_matches_joining	приєднання…
 st_srp_matches_maintenance	Завершиться після початку обслуговування
-st_srp_matches_mode_protective_device	Захисний пристрій
 st_srp_matches_no_answer	Немає відповіді, спробуйте ще
 st_srp_matches_no_late_join	Матч не приймає нових гравців
 st_srp_matches_no_place	У матчі немає вільних місць
@@ -2465,6 +2464,7 @@ st_srp_matches_played_before	Ви вже грали в цьому матчі
 st_srp_matches_queued	Спершу скасуйте пошук
 st_srp_matches_starting	старт
 st_srp_matches_title	Матчі
+st_srp_matches_versus	на
 st_srp_matches_waiting	очікування
 st_srp_mode_blackout	Захисний пристрій: блекаут
 st_srp_mode_chargers	Захисний пристрій: зарядники

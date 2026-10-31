@@ -295,31 +295,15 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: parse_switch(
-                "SRP_RESYNC_WORLD_ONLY",
-                var("SRP_RESYNC_WORLD_ONLY").as_deref(),
-                false,
-            ),
+            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
             restore_limit: parse_number(
                 "SRP_RESTORE_LIMIT",
                 var("SRP_RESTORE_LIMIT").as_deref(),
                 0,
             ),
-            clock_correction: parse_switch(
-                "SRP_CLOCK_CORRECTION",
-                var("SRP_CLOCK_CORRECTION").as_deref(),
-                true,
-            ),
-            check_initial_world: parse_switch(
-                "SRP_CHECK_INITIAL_WORLD",
-                var("SRP_CHECK_INITIAL_WORLD").as_deref(),
-                true,
-            ),
-            compress_state: parse_switch(
-                "SRP_COMPRESS_STATE",
-                var("SRP_COMPRESS_STATE").as_deref(),
-                true,
-            ),
+            clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
+            check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
+            compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
@@ -425,21 +409,6 @@ fn parse_late_inputs(value: Option<&str>) -> LateInputs {
                  relay"
             );
             LateInputs::Relay
-        }
-    }
-}
-
-fn parse_switch(name: &str, value: Option<&str>, default: bool) -> bool {
-    match value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        None | Some("") => default,
-        Some("on" | "1" | "true" | "yes") => true,
-        Some("off" | "0" | "false" | "no") => false,
-        Some(other) => {
-            log::error!("{name} is `{other}`; it must be `on` or `off`");
-            default
         }
     }
 }
