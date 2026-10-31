@@ -703,6 +703,13 @@ pub(crate) fn after_death(u: f32) -> Back {
     }
 }
 
+/// Where he may go after a death from the point he held: the other points of its area ([`plan_area`]) and another spot of his
+/// scenario ([`other_spot`]).
+pub(crate) struct Elsewhere {
+    pub(crate) near: Vec<Vec3>,
+    pub(crate) other: Option<Vec3>,
+}
+
 impl LiveReturn {
     fn new(at: Vec3, seed: u32, me: &PlaceView, now: u32) -> Self {
         Self {
@@ -714,17 +721,17 @@ impl LiveReturn {
         }
     }
 
-    /// One think: the point he holds now, or none while he waits (he plays as any bot). The transition over (hold, a new life,
-    /// the wait over).
-    fn step(&mut self, t: &Think<'_>, options: &CamperOptions) -> Option<Vec3> {
-        let away = t.now.saturating_sub(self.last_think);
-        self.last_think = t.now;
-        if t.me.spawned != self.life {
-            self.life = t.me.spawned;
-            self.hold = self.respawned(t, options, away);
+    /// One think at `now` of the body `me`: the point he holds now, or none while he waits (he plays as any bot). The transition
+    /// over (hold, a new life, the wait over); `elsewhere` is asked only on a new life.
+    fn step(&mut self, now: u32, me: &PlaceView, elsewhere: &dyn Fn(Vec3) -> Elsewhere) -> Option<Vec3> {
+        let away = now.saturating_sub(self.last_think);
+        self.last_think = now;
+        if me.spawned != self.life {
+            self.life = me.spawned;
+            self.hold = self.respawned(now, away, elsewhere);
         }
         self.hold = match self.hold {
-            StillHold::Waiting { until, to } if t.now >= until => StillHold::Holding { at: to },
+            StillHold::Waiting { until, to } if now >= until => StillHold::Holding { at: to },
             hold => hold,
         };
         match self.hold {
@@ -733,24 +740,23 @@ impl LiveReturn {
         }
     }
 
-    /// A new life, `dead_ms` after the last think of the old one: where to, and when.
-    fn respawned(&mut self, t: &Think<'_>, options: &CamperOptions, dead_ms: u32) -> StillHold {
+    /// A new life at `now`, `dead_ms` after the last think of the old one: where to, and when.
+    fn respawned(&mut self, now: u32, dead_ms: u32, elsewhere: &dyn Fn(Vec3) -> Elsewhere) -> StillHold {
         let at = match self.hold {
             StillHold::Holding { at } | StillHold::Waiting { to: at, .. } => at,
         };
         let back = after_death(self.rng.range(0.0, 1.0));
         let wait = |rng: &mut Rng, median_ms: f32| {
             let total = median_ms * LIVE_SPREAD.powf(rng.range(-1.0, 1.0));
-            t.now + (total as u32).saturating_sub(dead_ms)
+            now + (total as u32).saturating_sub(dead_ms)
         };
         let to = match back {
             Back::Same => Some(at),
             Back::Near => {
-                let area = plan_area(t.tactics, t.side, at, options.crouch);
-                let others = area.get(1..).unwrap_or(&[]);
-                (!others.is_empty()).then(|| others[(self.rng.range(0.0, others.len() as f32) as usize).min(others.len() - 1)])
+                let near = elsewhere(at).near;
+                (!near.is_empty()).then(|| near[(self.rng.range(0.0, near.len() as f32) as usize).min(near.len() - 1)])
             }
-            Back::Elsewhere => other_spot(t.tactics, t.side, options, at),
+            Back::Elsewhere => elsewhere(at).other,
         };
         match (back, to) {
             (Back::Same, _) => {
@@ -881,8 +887,12 @@ impl BenchCamper {
                 let Some(side) = bot.side else {
                     return false;
                 };
-                let think = Think { now, me, enemy: None, tactics, side };
-                let Some(at) = live.step(&think, &self.options) else {
+                let options = self.options;
+                let elsewhere = |at: Vec3| Elsewhere {
+                    near: plan_area(tactics, side, at, options.crouch).get(1..).map(<[Vec3]>::to_vec).unwrap_or_default(),
+                    other: other_spot(tactics, side, &options, at),
+                };
+                let Some(at) = live.step(now, me, &elsewhere) else {
                     // Waiting to go back: he plays as any bot meanwhile, his legs his play's.
                     bot.control = Driver::Own;
                     return false;
@@ -1137,18 +1147,10 @@ mod tests {
     /// once otherwise; he plays as any bot while he waits; the first life holds his first spot.
     #[test]
     fn the_live_returning_camper_goes_back_at_the_live_rates() {
-        let tactics = tactics();
-        let options = CamperOptions { returns: ReturnRule::Live, ..CamperOptions::OFF };
-        // A route point of his side with area points near it and another spot far from it (a test that passes when he has
-        // nowhere else to go is no test).
-        let spot = tactics
-            .routes_of(0)
-            .flat_map(|r| r.points.iter().copied())
-            .find(|&p| plan_area(&tactics, 0, p, false).len() >= 2 && other_spot(&tactics, 0, &options, p).is_some())
-            .expect("a spot with somewhere else to go");
-        let step = |live: &mut LiveReturn, now: u32, life: u32| {
-            live.step(&Think { now, me: &me_at(spot, 0, 1.0, life), enemy: None, tactics: &tactics, side: 0 }, &options)
-        };
+        // His area's other points 4-5 m off and another spot 40 m off.
+        let spot = Vec3::new(0.0, 0.0, 0.0);
+        let elsewhere = |_: Vec3| Elsewhere { near: vec![Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0)], other: Some(Vec3::new(40.0, 0.0, 0.0)) };
+        let step = |live: &mut LiveReturn, now: u32, life: u32| live.step(now, &me_at(spot, 0, 1.0, life), &elsewhere);
         let (mut same, mut near, mut other, mut waits_same, mut waits_near) = (0u32, 0u32, 0u32, Vec::new(), Vec::new());
         for seed in 0..1_000u32 {
             let me = me_at(spot, 0, 1.0, 0);
@@ -1165,7 +1167,7 @@ mod tests {
                     assert_eq!(step(&mut live, until, 7), Some(spot));
                 }
                 StillHold::Waiting { until, to } => {
-                    assert!((2.9..=8.1).contains(&to.distance_xz(spot)), "{to:?}");
+                    assert!((3.9..=5.1).contains(&to.distance_xz(spot)), "{to:?}");
                     near += 1;
                     waits_near.push((until - 11_000 + 8_000) as f32 / 1_000.0);
                 }
