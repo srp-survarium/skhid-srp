@@ -67,6 +67,21 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The lip guard's gaps ([`Feel::lip_guard_full`](super::super::motor::Feel::lip_guard_full)): ticks asked for a glide with no move key
+/// and those changed, ticks asked only for the floors about the reckoned feet and those changed, walks held for the feet to either side,
+/// bots given up and watched again, glide ticks changed while given up.
+pub(super) fn lip_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::counts::lip_gaps().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "lip_glide_asked {} lip_glide_changed {} lip_about_asked {} lip_about_changed {} lip_side_held {} lip_gave_up {} lip_watched_again {} lip_given_up_glide_changed {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
+            ));
+        },
+    )
+}
+
 /// The reflex's own side steps refused at a lip and asked the other side (`drive_tick`, `clear_step_sees_lip`):
 /// the other side clear, or both refused (the bot stands), standing to aim or weaving a walk, from a floor in a
 /// lip's band or out of it; and the steps taken to the other side (`clear_step_slides_along`).

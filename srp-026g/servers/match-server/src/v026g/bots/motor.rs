@@ -141,6 +141,12 @@ pub struct Feel {
     /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
     /// to a stop on a lip's floors; 0 is off (the default is 2).
     pub lip_guard_ticks: u32,
+    /// The lip guard's three gaps closed (`false`, the default: as it was): a body that let go of its keys at a rim and still
+    /// glides is asked too (the stop it makes is played, braking if it goes over); the guard also looks at the floors
+    /// [`body::RECKONING_M`] about the reckoned feet, and holds a walk that would fall from the feet that far to the side; and a
+    /// bot it gave up (after holding its keys too often) is watched again once it has moved 0.5 m or changed its keys, not after a
+    /// timer, and is asked for the glide meanwhile ([`drive::LipWatch::GaveUp`]).
+    pub lip_guard_full: bool,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the walk looks as far as anywhere; the default is 0.8).
     pub lip_look_ahead_m: Metres,
     /// A body above a drop of the route that is within its look-ahead aims at the drop's landing, not past it
@@ -254,6 +260,7 @@ impl Default for Feel {
             hop_every_s: Positive::of(4.0),
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 2,
+            lip_guard_full: false,
             lip_look_ahead_m: Metres::of(0.8),
             drop_aim: true,
             unclear_aim: true,
@@ -3041,6 +3048,20 @@ pub mod counts {
     /// Of the unclear look-aheads (rule on), those clear at the floor's heights: steered at, not back.
     pub fn unclear_floor() {
         add(12);
+    }
+
+    static LIP_GAPS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+
+    /// The lip guard's gaps ([`Feel::lip_guard_full`]): 0 asked for a glide (no move key, speed), 1 of those a swap or brake, 2 asked
+    /// only because of the floors about the reckoned feet, 3 of those a swap or brake, 4 a walk the shifted feet would have fallen from
+    /// (held, the plain stop was safe), 5 given up (entered `GaveUp`), 6 watched again after moving or changing keys, 7 ticks
+    /// asked for a glide only while given up.
+    pub fn lip_gap(k: usize) {
+        LIP_GAPS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn lip_gaps() -> [u64; 8] {
+        std::array::from_fn(|k| LIP_GAPS[k].load(Ordering::Relaxed))
     }
 
     static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];

@@ -1859,16 +1859,34 @@ const LIP_HELD_SCORE: u8 = 3;
 /// The score at which the guard gives a bot up for [`LIP_OFF_MS`].
 const LIP_GIVE_UP: u8 = 30;
 const LIP_OFF_MS: u32 = 3_000;
+/// [`Feel::lip_guard_full`]: a body with no move key held is still a glide to stop when it is faster than this (m/s).
+const LIP_GLIDE_MPS: f32 = 0.5;
+/// [`Feel::lip_guard_full`]: a bot the guard gave up is watched again when it has moved this far from where it was given up (m).
+const LIP_RESUME_M: f32 = 0.5;
 
 /// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
 /// walk, not saved it (a bot braked at a rim it must turn at, again and again). The score rises with each
 /// tick the keys are changed and falls with each that they are not; past [`LIP_GIVE_UP`] the guard leaves
 /// the bot's keys alone for [`LIP_OFF_MS`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum LipWatch {
     Watching(u8),
     /// Left off until this time (ms).
     Off(u32),
+    /// [`Feel::lip_guard_full`]: given up at these feet with these keys held; watched again once the body has moved
+    /// [`LIP_RESUME_M`] from them or holds other move keys. Asked for the glide of a stop meanwhile ([`LipMay::Glide`]).
+    GaveUp { feet: Vec3, keys: u32 },
+}
+
+/// What the guard may do with a bot's keys this tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LipMay {
+    /// Change them.
+    Keys,
+    /// Only the keys of a tick with no move key held, the glide of a stop.
+    Glide,
+    /// Leave them.
+    No,
 }
 
 impl Default for LipWatch {
@@ -1882,7 +1900,7 @@ impl LipWatch {
     fn after(self, guard: LipGuard, time: u32) -> (Self, bool) {
         match self {
             Self::Off(until) if time < until => (self, false),
-            Self::Off(_) => Self::Watching(0).after(guard, time),
+            Self::Off(_) | Self::GaveUp { .. } => Self::Watching(0).after(guard, time),
             Self::Watching(score) => {
                 let score = match guard {
                     LipGuard::Swapped(_) | LipGuard::Braked(_) => score.saturating_add(LIP_HELD_SCORE),
@@ -1894,6 +1912,36 @@ impl LipWatch {
                     (Self::Watching(score), true)
                 }
             }
+        }
+    }
+
+    /// [`Self::after`] with [`Feel::lip_guard_full`]: the bot given up is not left for a timer but for where it is and what it
+    /// presses (`feet`, `keys` now), and the guard may still change a tick with no move key.
+    fn after_full(self, guard: LipGuard, time: u32, feet: Vec3, keys: u32) -> (Self, LipMay) {
+        const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+        let score = match self {
+            Self::GaveUp { feet: at, keys: held } => {
+                if feet.distance_xz(at) < LIP_RESUME_M && keys & MOVE == held & MOVE {
+                    return (self, LipMay::Glide);
+                }
+                #[cfg(test)]
+                motor::counts::lip_gap(6);
+                0
+            }
+            Self::Off(until) if time < until => return (self, LipMay::No),
+            Self::Off(_) => 0,
+            Self::Watching(score) => score,
+        };
+        let score = match guard {
+            LipGuard::Swapped(_) | LipGuard::Braked(_) => score.saturating_add(LIP_HELD_SCORE),
+            LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => score.saturating_sub(1),
+        };
+        if score >= LIP_GIVE_UP {
+            #[cfg(test)]
+            motor::counts::lip_gap(5);
+            (Self::GaveUp { feet, keys }, LipMay::Glide)
+        } else {
+            (Self::Watching(score), LipMay::Keys)
         }
     }
 }
@@ -1920,38 +1968,96 @@ pub(super) enum LipGuard {
 /// of the drops the route makes (a fall there is the route's). Every unplanned fall of the bench was off a
 /// lip (`WalkGrid::near_lip`), with the keys pushing the body over or its glide carrying it.
 pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32) -> LipGuard {
+    lip_guard_with(grid, kin, me, turn, keys, planned, hold, false)
+}
+
+/// [`lip_guard`] with the three gaps closed when `full` ([`Feel::lip_guard_full`]): a body with no move key held that still
+/// glides is asked too (its stop is played, the brake against the velocity the way out); the floors [`body::RECKONING_M`]
+/// about the reckoned feet count for a lip's floors (the reckoned floor may be off the lip's band while the body is on it); and a
+/// walk is held when the same stop from the feet [`body::RECKONING_M`] to either side, where there is a floor, would fall.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32, full: bool) -> LipGuard {
     const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
     let node = grid.locate(me.feet, 1.5);
+    let speed = me.velocity[0].hypot(me.velocity[1]);
     // On a lip's floors, or about to be (the glide of a stop is a stride or more).
     let ahead = Vec3::new(me.feet.x + me.velocity[0] * LIP_LOOK_S, me.feet.y, me.feet.z + me.velocity[1] * LIP_LOOK_S);
     let on_lip = |node: Option<NodeId>| node.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node));
-    if keys & MOVE == 0 || hold == 0 || !(on_lip(node) || on_lip(grid.locate(ahead, 1.0))) {
+    let glide = full && keys & MOVE == 0 && speed > LIP_GLIDE_MPS;
+    if (keys & MOVE == 0 && !glide) || hold == 0 {
         return LipGuard::Clear;
+    }
+    let plain = on_lip(node) || on_lip(grid.locate(ahead, 1.0));
+    // The floors about the reckoned feet: the body is up to the reckoning's error from them.
+    let about = full
+        && !plain
+        && [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]
+            .iter()
+            .any(|&(dx, dz)| on_lip(grid.locate(Vec3::new(me.feet.x + dx * body::RECKONING_M, me.feet.y, me.feet.z + dz * body::RECKONING_M), 1.0)));
+    if !(plain || about) {
+        return LipGuard::Clear;
+    }
+    #[cfg(test)]
+    {
+        if glide {
+            motor::counts::lip_gap(0);
+        } else if about {
+            motor::counts::lip_gap(2);
+        }
     }
     let at = body::Estimate::of_view(me, node);
     let stop = body::Stop { kin, level: 1.0, grid, planned, hold };
-    let up = |keys: u32| body::stays_up(&at, keys, turn, &stop);
-    if up(keys) {
-        return LipGuard::Safe;
+    // The same body a reckoning's error to either side, where the floor is (across the way it goes).
+    let sides: Vec<body::Estimate> = if full && speed > 0.3 {
+        let (ux, uz) = (me.velocity[0] / speed, me.velocity[1] / speed);
+        [(-uz, ux), (uz, -ux)]
+            .iter()
+            .filter_map(|&(px, pz)| {
+                let feet = Vec3::new(me.feet.x + px * body::RECKONING_M, me.feet.y, me.feet.z + pz * body::RECKONING_M);
+                let node = grid.locate(feet, 0.5)?;
+                Some(body::Estimate { feet, node: Some(node), ..at })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let up = |keys: u32| body::stays_up(&at, keys, turn, &stop) && sides.iter().all(|side| body::stays_up(side, keys, turn, &stop));
+    let guard = {
+        if up(keys) {
+            LipGuard::Safe
+        } else {
+            #[cfg(test)]
+            if full && body::stays_up(&at, keys, turn, &stop) {
+                motor::counts::lip_gap(4);
+            }
+            let brake = (speed > 0.5).then(|| {
+                let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
+                (keys & !MOVE) | motor::keys_toward(relative)
+            });
+            // The same walk slower (no sprint, then crouched), then without the side keys, then none, then the brake.
+            let walk = keys & !key::SPRINT;
+            let straight = keys & !(key::LEFT | key::RIGHT);
+            let found = [walk, walk | key::CROUCH, straight, (straight & !key::SPRINT) | key::CROUCH, keys & !MOVE]
+                .into_iter()
+                .chain(brake)
+                .filter(|&k| k != keys)
+                .find(|&k| up(k));
+            match (found, brake) {
+                (Some(found), _) => LipGuard::Swapped(found),
+                (None, Some(brake)) => LipGuard::Braked(brake),
+                (None, None) => LipGuard::Doomed,
+            }
+        }
+    };
+    #[cfg(test)]
+    if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) {
+        if glide {
+            motor::counts::lip_gap(1);
+        } else if about {
+            motor::counts::lip_gap(3);
+        }
     }
-    let speed = me.velocity[0].hypot(me.velocity[1]);
-    let brake = (speed > 0.5).then(|| {
-        let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
-        (keys & !MOVE) | motor::keys_toward(relative)
-    });
-    // The same walk slower (no sprint, then crouched), then without the side keys, then none, then the brake.
-    let walk = keys & !key::SPRINT;
-    let straight = keys & !(key::LEFT | key::RIGHT);
-    let found = [walk, walk | key::CROUCH, straight, (straight & !key::SPRINT) | key::CROUCH, keys & !MOVE]
-        .into_iter()
-        .chain(brake)
-        .filter(|&k| k != keys)
-        .find(|&k| up(k));
-    match (found, brake) {
-        (Some(found), _) => LipGuard::Swapped(found),
-        (None, Some(brake)) => LipGuard::Braked(brake),
-        (None, None) => LipGuard::Doomed,
-    }
+    guard
 }
 
 /// [`lip_guard`] on the tick's decision.
@@ -1977,14 +2083,31 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         let (walked, _) = route.progress(me.feet);
         route.drop_landings(walked, PLANNED_DROP_M, truth)
     });
+    let full = bot.motor.feel.lip_guard_full;
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
     } else {
-        lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, bot.motor.feel.lip_guard_ticks)
+        lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, bot.motor.feel.lip_guard_ticks, full)
     };
-    let (watch, may) = bot.lip_watch.after(guard, time);
-    bot.lip_watch = watch;
-    let guard = if may { guard } else { LipGuard::Clear };
+    let guard = if full {
+        const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+        let (watch, may) = bot.lip_watch.after_full(guard, time, me.feet, decision.keys);
+        bot.lip_watch = watch;
+        match may {
+            LipMay::Keys => guard,
+            // Given up: only the glide of a tick with no move key is still asked.
+            LipMay::Glide if decision.keys & MOVE == 0 && matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) => {
+                #[cfg(test)]
+                motor::counts::lip_gap(7);
+                guard
+            }
+            LipMay::Glide | LipMay::No => LipGuard::Clear,
+        }
+    } else {
+        let (watch, may) = bot.lip_watch.after(guard, time);
+        bot.lip_watch = watch;
+        if may { guard } else { LipGuard::Clear }
+    };
     #[cfg(test)]
     {
         bot.bench_guard_at = (me.velocity, me.feet);
@@ -2316,6 +2439,64 @@ mod tests {
             }
         }
         assert!(slowed > 0);
+    }
+
+    /// [`Feel::lip_guard_full`], the key-less tick: a body at a rim that has let go of its keys glides on over it, and only the
+    /// full guard asks (and brakes it); it leaves a body that is slow, or far from the rim, alone.
+    #[test]
+    fn a_glide_over_a_rim_with_no_key_held_is_braked_by_the_full_guard() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2;
+        let at_rim = on_the_slab(55.4, toward, 3.5);
+        assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear, "as it was: nothing to let go of");
+        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true), LipGuard::Braked(_) | LipGuard::Swapped(_)));
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true), LipGuard::Clear, "no glide");
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true), LipGuard::Clear, "far from the rim");
+        // With the keys held it is the same as ever.
+        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full);
+        assert_eq!(walk(true), walk(false));
+    }
+
+    /// [`Feel::lip_guard_full`], the floors about the reckoned feet: at the edge of the lip's band the full guard looks where the
+    /// old one does not, and never the other way about.
+    #[test]
+    fn the_full_guard_looks_at_the_floors_about_the_reckoned_feet() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2;
+        let (mut wider, mut narrower) = (0, 0);
+        for k in 0..60 {
+            let me = on_the_slab(50.0 + k as f32 * 0.1, toward, 0.1);
+            let old = lip_guard(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD) != LipGuard::Clear;
+            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true) != LipGuard::Clear;
+            wider += usize::from(new && !old);
+            narrower += usize::from(old && !new);
+        }
+        assert_eq!((wider > 0, narrower), (true, 0), "wider {wider} narrower {narrower}");
+    }
+
+    /// [`Feel::lip_guard_full`], the give-up is a state with what ends it: kept while the body stays near where it was given up and
+    /// holds the same move keys (asked for the glide only), watched again once it has moved or presses other keys.
+    #[test]
+    fn a_bot_given_up_is_watched_again_when_it_moves_or_changes_its_keys() {
+        let (home, keys) = (Vec3::new(10.0, 2.0, 10.0), key::FORWARD);
+        let mut watch = LipWatch::default();
+        let mut may = LipMay::Keys;
+        for k in 0..u32::from(LIP_GIVE_UP / LIP_HELD_SCORE + 1) {
+            (watch, may) = watch.after_full(LipGuard::Swapped(0), k * 50, home, keys);
+        }
+        assert_eq!((watch, may), (LipWatch::GaveUp { feet: home, keys }, LipMay::Glide));
+        // Minutes later, still there and still pressing it: still given up (no timer).
+        let (kept, may) = watch.after_full(LipGuard::Safe, 600_000, home + Vec3::new(0.2, 0.0, 0.0), keys | key::CROUCH);
+        assert_eq!((kept, may), (watch, LipMay::Glide));
+        // Moved 0.5 m, or other move keys: watched again, the guard may change keys.
+        let (moved, may) = watch.after_full(LipGuard::Safe, 1_000, home + Vec3::new(LIP_RESUME_M, 0.0, 0.0), keys);
+        assert_eq!((moved, may), (LipWatch::Watching(0), LipMay::Keys));
+        let (turned, may) = watch.after_full(LipGuard::Safe, 1_000, home, key::BACK);
+        assert_eq!((turned, may), (LipWatch::Watching(0), LipMay::Keys));
     }
 
     #[test]

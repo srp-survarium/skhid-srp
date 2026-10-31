@@ -104,6 +104,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),
         side_slides(),
+        lip_gaps(),
         request_gaps(),
         shots_heard(),
         holder_stand_sight(),
