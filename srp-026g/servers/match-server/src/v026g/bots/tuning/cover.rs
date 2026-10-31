@@ -221,13 +221,14 @@ pub struct CoverTuning {
     /// there is no share to weigh. On by default.
     pub spot_cost: Option<SpotCost>,
     /// The spots HoldExit and Crossfire hold are weighed by how many bearings the enemy's human routes can see them
-    /// from (A195, `SpotQuery::exposure`). `None` (off): the order is by height and nearness, as it was.
+    /// from (A195, `SpotQuery::exposure`). `None` (off): the order is by height and nearness, as it was. On by default (#908: score +2.9 %
+    /// z +2.4, kills +3.2 %, deaths -3.0 % in the by-side bench).
     pub hold_exposure: Option<Exposure>,
 }
 
 impl Default for CoverTuning {
     fn default() -> Self {
-        Self { pierce: Some(PierceCover::default()), spot_cost: Some(SpotCost::of(0.5)), hold_exposure: None }
+        Self { pierce: Some(PierceCover::default()), spot_cost: Some(SpotCost::of(0.5)), hold_exposure: Some(Exposure::measured()) }
     }
 }
 
@@ -246,11 +247,11 @@ impl CoverTuning {
 mod tests {
     use super::*;
 
-    /// [A195] The exposure term is off by default; a file that names it with no numbers gets the measured ones, a weight that
-    /// is not positive and finite, or a name it does not know, is refused.
+    /// [A195] The exposure term is on by default with the measured numbers; a file that names it with no numbers gets the same, a weight that
+    /// is not positive and finite, or a name it does not know, is refused, and `null` turns it off.
     #[test]
-    fn the_hold_exposure_is_off_by_default_and_a_file_gets_the_measured_numbers() {
-        assert!(CoverTuning::default().hold_exposure.is_none());
+    fn the_hold_exposure_is_on_by_default_and_a_file_gets_the_measured_numbers() {
+        assert_eq!(CoverTuning::default().hold_exposure, Some(Exposure::measured()));
         let on: CoverTuning = serde_json::from_str(r#"{"hold_exposure": {}}"#).unwrap();
         assert_eq!(on.hold_exposure, Some(Exposure::measured()));
         let tuned: CoverTuning = serde_json::from_str(r#"{"hold_exposure": {"weight": 1.0}}"#).unwrap();

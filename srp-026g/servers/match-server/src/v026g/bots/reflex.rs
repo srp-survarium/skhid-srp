@@ -1104,7 +1104,8 @@ pub struct FireTuning {
     /// The pause after a burst is drawn from the best players' quartiles for the target's distance (inverse CDF through the floor,
     /// `q1`, the median, `q3` and the top) instead of `aim.pause_ms`'s flat draw, at the distances the rows cover (the bots' far
     /// pause: median 450-500 ms from the shot, the best players' 200 ms from the end of the trigger; C2). `None` (the default):
-    /// the flat draw; `Some` is on, the players' numbers being [`BurstPause::players`].
+    /// the flat draw; `Some` is on, the players' numbers being [`BurstPause::players`]. On by default (#902: far shots +10 % z +4.3, far
+    /// hits +9.6 % z +2.8 in the by-side bench, no cost).
     pub burst_pause: Option<BurstPause>,
     /// A tap's hold, ms.
     pub tap_ms: (u32, u32),
@@ -1171,7 +1172,7 @@ impl Default for FireTuning {
                 burst(60.0, 0.36, (300, 1_100)),
                 burst(f32::MAX, 0.61, (250, 650)),
             ],
-            burst_pause: None,
+            burst_pause: Some(BurstPause::players()),
             tap_ms: (100, 200),
             semi_wait: vec![
                 wait(20.0, (0, 150)),
@@ -7112,6 +7113,7 @@ mod tests {
     fn the_pause_is_drawn_from_the_best_players_quartiles_far_and_only_when_on() {
         let mut fire = FireTuning::default();
         let mut rng = Rng::new(7);
+        fire.burst_pause = None;
         assert_eq!(fire.pause_ms(AutoClass::Rifle, 45.0, &mut rng), None, "off");
         fire.burst_pause = Some(BurstPause::players());
         let pause = fire.burst_pause.clone().unwrap();
@@ -7137,10 +7139,12 @@ mod tests {
         }
     }
 
-    /// The switch is one value: off by default, and an empty object in a tuning patch is the players' numbers.
+    /// The switch is one value: on by default with the players' numbers, an empty object in a tuning patch is the same, `null` is off.
     #[test]
-    fn the_burst_pause_is_off_by_default_and_an_empty_patch_is_the_players_numbers() {
-        assert_eq!(FireTuning::default().burst_pause, None);
+    fn the_burst_pause_is_on_by_default_and_an_empty_patch_is_the_players_numbers() {
+        assert_eq!(FireTuning::default().burst_pause, Some(BurstPause::players()));
+        let off: FireTuning = serde_json::from_str(r#"{"burst_pause": null}"#).expect("a null burst pause");
+        assert_eq!(off.burst_pause, None);
         let fire: FireTuning = serde_json::from_str(r#"{"burst_pause": {}}"#).expect("an empty burst pause");
         assert_eq!(fire.burst_pause, Some(BurstPause::players()));
     }
