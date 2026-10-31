@@ -165,6 +165,8 @@ struct Cache {
     /// while something holds it.
     grids: HashMap<u64, Weak<WalkGrid>>,
     sights: HashMap<u64, Weak<RayTree>>,
+    /// By project: how the build that made its map made it (a map taken back from the dropped is that build's).
+    made: HashMap<String, Made>,
 }
 
 enum Entry {
@@ -234,6 +236,11 @@ impl Maps {
 
     pub fn dir(&self) -> Option<&Path> {
         self.dir.as_deref()
+    }
+
+    /// How `project`'s map was made by the build that made it, once one has.
+    pub fn made(&self, project: &str) -> Option<Made> {
+        lock(&self.cache).made.get(project).copied()
     }
 
     /// The hazard margin the shared tactics are built for: the tuning's
@@ -322,6 +329,7 @@ impl Maps {
                             built.how(),
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
+                        cache.made.insert(name.clone(), built.made());
                         cache.insert_ready(&name, Arc::new(base), keep);
                     }
                     Err(reason) => {
@@ -437,9 +445,9 @@ impl Cache {
     }
 }
 
-/// Where a grid or tree came from, for the log.
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Source {
+/// Where a grid, tree or tactics came from: for the log, and for the pre-build's check ([`prebuild`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
     /// Another project of the same geometry has it.
     Shared,
     /// Read from its built file.
@@ -456,7 +464,26 @@ struct Built {
     tactics: Source,
 }
 
+/// How a map's grid, sight tree and tactics were made by the build that made it ([`Maps::made`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Made {
+    pub grid: Source,
+    pub sight: Source,
+    pub tactics: Source,
+}
+
+impl Made {
+    /// Whether nothing of it was built: every part read from its file or shared with another project of the geometry.
+    pub fn none_built(self) -> bool {
+        [self.grid, self.sight, self.tactics].iter().all(|&source| source != Source::Built)
+    }
+}
+
 impl Built {
+    fn made(&self) -> Made {
+        Made { grid: self.grid, sight: self.sight, tactics: self.tactics }
+    }
+
     fn how(&self) -> String {
         let word = |source: Source| match source {
             Source::Shared => "shared",
@@ -605,6 +632,61 @@ fn build(
             tactics,
         },
     ))
+}
+
+/// One map of a pre-build ([`prebuild`]): how the first store made it and in how long, and its digests (grid, sight tree,
+/// tactics), which a second store read back the same.
+#[derive(Clone, Debug)]
+pub struct Prebuilt {
+    pub project: String,
+    pub made: Made,
+    pub seconds: f32,
+    pub digests: [u64; 3],
+}
+
+/// `project`'s map from `maps`, waiting up to `limit` for its build.
+fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<TacticsBase>, String> {
+    let started = Instant::now();
+    loop {
+        match maps.get(project) {
+            MapState::Ready(base) => return Ok(base),
+            MapState::Absent(why) => return Err(format!("{project}: {why}")),
+            MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            other => return Err(format!("{project}: {other:?} after {:?}", started.elapsed())),
+        }
+    }
+}
+
+/// The bots' maps of `projects` built ahead of a release (A197): a store from `store` (the server's own,
+/// [`crate::v026g::bot_maps`], so the files have the keys the server computes) makes each map, one at a time, and writes
+/// its grid, sight tree and tactics to its built folder; then a second store from `store` (a restart) loads each again and
+/// must read every part (or share it) with the same digests. Err names the first project a restart would build again, or
+/// read otherwise: a key the server would not find fails here, not in the first live match on the map.
+pub fn prebuild(store: impl Fn() -> Arc<Maps>, projects: &[String], limit: std::time::Duration) -> Result<Vec<Prebuilt>, String> {
+    let digests = |base: &TacticsBase| [base.world.grid.digest(), base.world.sight.digest(), base.digest()];
+    let first = store();
+    let mut done = Vec::with_capacity(projects.len());
+    for project in projects {
+        let started = Instant::now();
+        let base = ready(&first, project, limit)?;
+        let made = first.made(project).ok_or_else(|| format!("{project}: ready with no build"))?;
+        done.push(Prebuilt { project: project.clone(), made, seconds: started.elapsed().as_secs_f32(), digests: digests(&base) });
+    }
+    drop(first);
+    let second = store();
+    for map in &done {
+        let base = ready(&second, &map.project, limit)?;
+        let made = second.made(&map.project).ok_or_else(|| format!("{}: ready with no build", map.project))?;
+        if !made.none_built() {
+            return Err(format!("{}: a restart built it again ({made:?}): its files are not where the server looks", map.project));
+        }
+        if digests(&base) != map.digests {
+            return Err(format!("{}: read back otherwise than built ({:?} vs {:?})", map.project, digests(&base), map.digests));
+        }
+    }
+    Ok(done)
 }
 
 /// Bytes a built world holds: the grid, the sight tree and what is left of
@@ -905,6 +987,65 @@ mod tests {
             };
             assert!(fine, "{name} written over");
         }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A197: the maps built ahead of a release (`srp-build-maps`: [`prebuild`] through [`crate::v026g::bot_maps`]) are what
+    /// the server's own store (`parse_mapdata_dir`, as the server makes it from its settings) reads at load, grid, sight
+    /// tree and tactics alike, with the same digests: their keys are the server's.
+    #[test]
+    fn a_prebuilt_map_is_read_by_the_servers_store() {
+        let dir = temp_dir("prebuilt");
+        let built = dir.join("built");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let done = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
+        assert_eq!(done.len(), 1);
+        assert!(done[0].made.grid == Source::Built && done[0].made.sight == Source::Built && done[0].made.tactics == Source::Built);
+        let server = crate::v026g::parse_mapdata_dir(
+            dir.to_str(),
+            KEEP as u32,
+            AT_ONCE as u32,
+            built.to_str(),
+            &tuning,
+        )
+        .unwrap();
+        let base = wait_ready(&server, project, Duration::from_secs(10));
+        assert_eq!(server.made(project), Some(Made { grid: Source::Read, sight: Source::Read, tactics: Source::Read }));
+        assert_eq!([base.world.grid.digest(), base.world.sight.digest(), base.digest()], done[0].digests);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A pre-build a restart would not read back fails the run (here: a store that keeps no files), naming the map.
+    #[test]
+    fn a_prebuild_whose_files_a_restart_does_not_find_fails() {
+        let dir = temp_dir("prebuilt-none");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let store = || Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default());
+        let why = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap_err();
+        assert!(why.starts_with("tiny/day_4: a restart built it again"), "{why}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The keys carry the tuning's grid: a server tuned otherwise than the pre-build does not find its grid and builds it
+    /// again (what the pre-build's own read-back catches when it runs with the server's tuning).
+    #[test]
+    fn a_server_tuned_otherwise_builds_the_prebuilt_grid_again() {
+        let dir = temp_dir("prebuilt-other");
+        let built = dir.join("built");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
+        let mut other = crate::v026g::bots::tuning::Tuning::default();
+        other.grid = GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() };
+        let server = crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other).unwrap();
+        wait_ready(&server, project, Duration::from_secs(10));
+        assert_eq!(server.made(project).map(|made| made.grid), Some(Source::Built));
         let _ = std::fs::remove_dir_all(dir);
     }
 
