@@ -621,6 +621,63 @@ pub fn slide_capped(
     slide_up_to(grid, node, from, to, max_rise)
 }
 
+/// How far past a floor's centre the client's capsule stays held at a ledge, metres: the lattice drops a body at its last cell's
+/// boundary (0.125 m past the centre), the client's capsule (r 0.38) stays grounded until the hemisphere no longer reaches the edge
+/// and the slope slide takes it from about 0.31 m (`bullet_character_controller::step_down` 0x7E1B0 with `impassable_slope`
+/// 0x7DE10, which refuses a hit only for a climb); the last cell's centre lies up to 0.25 m inside the edge. The value is the
+/// support the live players show at lip floors: of 62,000 on-ground samples of Vector Laboratory, those whose nearest floor is a
+/// lip floor stand 0.18-0.32 m past its centre in 20 % of the cases (2.5-2.7 % at floors with no lip near), and the samples
+/// beyond 0.4 m are the drops themselves.
+#[cfg(test)]
+pub const SUPPORT_M: f32 = 0.435;
+
+/// [`slide_capped`] for the stand-in's body at a ledge: a step off a ledge ([`dropped_to`]) is not the fall until the feet are
+/// [`SUPPORT_M`] past the centre of the floor they are held by (that floor or one it walks to). The bots' reckoning and the lip
+/// guard keep [`slide`]: the server's picture of a body falls at the lattice's boundary, the client's body later.
+#[cfg(test)]
+pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, max_rise: f32, support_m: f32) -> (NodeId, Vec3, bool) {
+    let half = grid.cell_size() * 0.5;
+    let (dx, dz) = (to.x - from.x, to.z - from.z);
+    let steps = ((dx.abs().max(dz.abs()) / half).ceil() as usize).max(1);
+    let (sx, sz) = (dx / steps as f32, dz / steps as f32);
+    let mut at = from;
+    for _ in 0..steps {
+        let tries = [(sx, sz), (sx, 0.0), (0.0, sz)];
+        let moved = tries.iter().find_map(|&(mx, mz)| {
+            if mx == 0.0 && mz == 0.0 {
+                return None;
+            }
+            let point = Vec3::new(at.x + mx, at.y, at.z + mz);
+            let base = grid.position(node).y;
+            // A step down onto a floor lower than a step is a fall, whether the cell is walked to or the drop skips one.
+            let walked = floor_under(grid, node, point, max_rise).map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)));
+            let fall = match walked {
+                Some((next, _)) if grid.position(next).y >= base - max_rise => return walked,
+                Some((next, _)) => Some((next, grid.position(next))),
+                None => dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next))),
+            }?;
+            // Held: the nearest floor of this one and those it walks to (not down a drop) within the support.
+            let held = std::iter::once(node)
+                .chain(
+                    grid.links(node)
+                        .filter(|(_, kind)| !kind.is_leap())
+                        .map(|(next, _)| next)
+                        .filter(|&next| grid.position(next).y >= base - max_rise && grid.position(next).y - base <= max_rise),
+                )
+                .map(|n| (n, grid.position(n).distance_xz(point)))
+                .filter(|&(_, d)| d <= support_m)
+                .min_by(|a, b| a.1.total_cmp(&b.1));
+            Some(held.map_or(fall, |(n, _)| (n, Vec3::new(point.x, grid.position(n).y, point.z))))
+        });
+        let Some((next, point)) = moved else {
+            break;
+        };
+        node = next;
+        at = point;
+    }
+    (node, at, at == from)
+}
+
 fn slide_up_to(
     grid: &WalkGrid,
     mut node: NodeId,
@@ -1091,6 +1148,50 @@ pub(super) mod tests {
         }
         assert!(feet.x > 11.0 && feet.y.abs() < 0.1, "{feet:?}");
         assert_eq!(grid.locate(feet, 0.5), Some(node));
+    }
+
+    /// The stand-in's body at a ledge is held by the client's capsule: [`slide_supported`] lets the feet go past the last floor's
+    /// boundary and drops them only [`SUPPORT_M`] past its centre, where [`slide_capped`] falls at the cell boundary; a body walking
+    /// along the edge stays up.
+    #[test]
+    fn a_body_at_a_ledge_is_held_to_the_clients_support_not_the_lattices_boundary() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let start = grid.locate(Vec3::new(8.0, 2.0, 5.0), 0.5).unwrap();
+        // The last floor cell centre of the top along the walk.
+        let last = (0..grid.len() as NodeId)
+            .map(|n| grid.position(n))
+            .filter(|p| p.y > 1.9 && (p.z - 5.0).abs() < 0.2)
+            .map(|p| p.x)
+            .fold(f32::MIN, f32::max);
+        let first_fall = |held: bool| {
+            let (mut node, mut feet) = (start, grid.position(start));
+            for _ in 0..80 {
+                let (before, to) = (feet, feet + Vec3::new(0.05, 0.0, 0.0));
+                (node, feet, _) = if held { slide_supported(&grid, node, feet, to, grid.body().step, SUPPORT_M) } else { slide_capped(&grid, node, feet, to, grid.body().step) };
+                if feet.y < 1.0 {
+                    // Where the feet were the tick before the fall (the fall puts them on the landing).
+                    return Some(before.x - last);
+                }
+            }
+            None
+        };
+        let (lattice, held) = (first_fall(false).expect("falls"), first_fall(true).expect("falls"));
+        assert!(lattice < 0.2, "the lattice drops the body at the boundary: {lattice}");
+        assert!(held > SUPPORT_M - 0.1 && held < SUPPORT_M + 0.35, "the capsule holds it to about the support: {held}");
+        // Along the edge at 0.3 m past the last centre, it stays up for 4 m.
+        let mut node = grid.locate(Vec3::new(last, 2.0, 5.0), 0.5).unwrap();
+        let mut feet = Vec3::new(last + 0.3, 2.0, 5.0);
+        for _ in 0..80 {
+            let to = feet + Vec3::new(0.0, 0.0, 0.05);
+            (node, feet, _) = slide_supported(&grid, node, feet, to, grid.body().step, SUPPORT_M);
+        }
+        assert!(feet.y > 1.9, "along the edge it stays up: {feet:?}");
     }
 
     /// With `JumpSnap::ByKeys` a jump the clip cannot make does not take the reckoned body up: a 1.2 m ledge pressed with

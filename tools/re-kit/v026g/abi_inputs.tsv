@@ -4676,4 +4676,11 @@ va	name	location	role	basis
 0x002da4b0	survarium::base_player::update_head_matrix	EAX	the base_player (transform +40Ch, animation player +750h, skeleton +408h)	observed
 0x002daa60	survarium::base_player::tick	entry ESP+4	the time, ms	observed
 0x002daa60	survarium::base_player::tick	ECX	the base_player	observed
+0x0007ac50	vostok::physics::get_wall_slide_vector	ESI	float[3]* the move m	observed
+0x0007ac50	vostok::physics::get_wall_slide_vector	EDI	float[3]* the wall's normal n	observed
+0x0007ac50	vostok::physics::get_wall_slide_vector	entry ESP+4	float[3]* the slide vector (written; the caller pops it)	observed
+0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	ECX	bullet_character_controller	observed
+0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	entry ESP+4	float[3]* the unit walk direction (kept through the recursion)	observed
+0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	entry ESP+8	float[3]* the move of this sweep	observed
+0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	entry ESP+12	int the depth (0 to 2)	observed
 0x002e3cb0	survarium::weapon_core::fire_pred	ECX	the weapon_core (player +8h, state +5ECh, rounds +5E5h, chambered +5F1h)	observed

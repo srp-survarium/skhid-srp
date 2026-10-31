@@ -1337,3 +1337,124 @@ decides as 0741a7c0):
   nearest: batt deaths a bot-minute +0.013 ± 0.007, reversals +1.42 ±
   0.71). Team kills over the 192 runs: batt 0 / 1 / 1, tdm 3 / 1 / 1 (tip,
   the stand-in's hurts, the gate).
+
+### The client's wall slide, and the stand-in's capsule (A191, 2026-10-31)
+
+The stand-in slid a body along every wall of the lattice at full speed and let it through every gap the grid has, so no bench showed
+the stalls the live game has at door jambs (A66: the stand-in passed the 717 jamb on Chemical Plant at 4.8-5.9 m/s). The rule the
+client moves a capsule by is `bullet_character_controller::player_step` 0x7BDA0 → `step_forward` 0x7D590 → `step_forward_impl` 0x7D2A0
+(PROVEN, read from the exe, `get_wall_slide_vector` 0x7AC50 run with Unicorn: equal to the rule below at 0, 10, 20, 25, 26, 30, 45, 60
+and 80 degrees):
+
+- The move of the tick (velocity × dt) is swept as a capsule; with a contact, the body goes to the contact (the sweep's fraction `t`) and
+  the rest of the move, `(1 - t)`, is slid: `unit(m - n (m·n) + K n) × |m| × f(c) × (1 - t)` for the unit move `m` and the wall's
+  horizontal unit normal `n`, `c = |m·n|`, `f = 1` when `c < D`, else `(1 - c) / (1 - D)`. Then the part of the slide that points
+  back against the first direction of the walk is taken off, a slide with `|v|² < 1e-5` ends the move, and up to three sweeps are made
+  (depth 0 to 2), while `cc_wall_slide` (0xA7203F, default on) holds.
+- `D` is `cc_wall_full_slide_dot` (0xA7AB14), `K` is `cc_wall_slide_bouncing_factor` (0xA7D5D8). The exe's defaults (0.9, 0.001) are not
+  the game's: `startup.cfg` of `resources.db` sets `cc_wall_full_slide_dot 0.50` and `cc_wall_slide_bouncing_factor 0.080` (with
+  `cc_wall_slide on`, `cc_wall_normal_via_ray on`, `cc_wall_normal_via_ray_offset 0.030`, `cc_move_step_margin 0.040`,
+  `cc_stand_move_complex_test on`, `cc_step_height 0.80`). So a wall met within 60 degrees of its normal takes speed
+  (30 degrees off the normal: 27 % of the rest of the move is slid; 45 degrees: 59 %; head on: all of it is lost), and a wall met
+  within 30 degrees of its plane is slid along at full speed.
+- The contact normal is the horizontal part of the sweep's (`character_move_sweep_callback::addSingleResult` 0x895F0); with
+  `cc_wall_normal_via_ray` and a move more head-on than `D` the exe takes a face's normal from a ray instead (0x89B80, LIKELY: a ray
+  along the move, 0.03 m past the contact). At a jamb's corner that is the difference between the round normal of the capsule's hemisphere
+  and the face's: a body walking at the face is stopped, one 0.25 m beside its edge slides round it at about half speed.
+- Not read: the Bullet sweep itself (`character_controller_move_step_tester::convex_sweep_test` 0x85A90 with the complex test on) and
+  the second half of 0x89B80; the stand-in takes the sweep to be an exact circle of the capsule's radius 0.38 m in the walls'
+  horizontal sections (GUESS: the complex test's shapes).
+
+`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER`, on unless `off`): the walker mesh's
+faces that are not ground (steeper than the client's slope, or `dont_walk`) are cut by horizontal planes, the body is a circle of radius
+0.38 m in those sections, pushed out of a wall it overlaps (at most 0.15 m a tick) and moved by the rule above; the lattice then walks
+it to where the rule put it (ledges, floors and the sprint lift stay the lattice's and the intended move's). Tests-only: the bots'
+reckoning does not know it.
+
+**The capsule's shape (the first version was wrong).** The controller sweeps the capsule lifted from below by the step height (0.80,
+`step_up`), so it spans 0.8 to 1.8 m over the feet with round ends (the hemispheres' centres at 1.18 and 1.42 m): the full radius is
+there only between 1.18 and 1.42 m, and a face at 0.9 m or at 1.75 m meets a hemisphere (0.26 and 0.23 m). The first version cut the
+walls at 0.9, 1.2, 1.5 and 1.75 m, all at the full radius, and counted crouched players as standing. Against the live players' samples
+that showed as "false walls": 2-5 % of the samples on levels 01, 05, 06 and 08 stood under 0.30 m of a wall. Grouped by the face they
+stood at (`false_walls`), they were the big architecture meshes (walls of sheds and houses, bridges, a train, the wall pieces of level
+05), not props, rails, foliage or stand-in meshes (the bullet `collision` a walking body gets for a missing `walker_collision`:
+0 to 4 of 400-1300 samples): the faces were right, the profile was not. With the cuts at 1.05, 1.3 and 1.55 m (0.95 m crouched), the
+live samples under 0.30 m of a wall are 0.00-0.03 % on every file. READ, not run: the controller's complex move test
+(`cc_stand_move_complex_test on`, `character_controller_move_step_tester` 0x85A90) may use other shapes than one capsule.
+
+**Against live players (A191).** Of the live alive samples of the 12+ human matches (the reach record's `human/*.tsv`, 250 ms apart, on
+the ground; `live_wall_clearance` in `standin_capsule.rs`) measured to those sections: the first percentile of the distance to a wall is
+0.363-0.399 m on every one of the 72 files (0.378-0.399 on 67 of them), the fifth 0.385-0.508 m: the hold is the capsule's radius. The
+grid keeps its floors 0.3175 m from a wall (`exact_clearance`, A66), so the stand-in's lattice put bodies where a live capsule never
+stands. The share of the grid's floors the capsule does not fit (under 0.38 m): 0.7-1.2 % on levels 01, 02, 03, 06, 1.9 % on 04, 2.3 %
+on 07, 2.5 % on 08, 5.1 % on 05 (`grid_floor_clearance`, with the first shape: an upper bound).
+
+**717 door on Chemical Plant** (`door_corner.rs`, the A66 walk of fx-struct without the door gates, 12 starts that climb the ramp and
+turn 68 degrees, both days; `SRP_BENCH_STAND_IN_CORNER` off against on):
+
+| | closest jamb | ms under the controller's 0.41 m | ms under the radius 0.38 m | ms under 1 m/s | ms within 4 m of the door | stuck notes | reached |
+|---|---|---|---|---|---|---|---|
+| lattice (off) | 0.32 m | 1200 | 500 | 450 | 22500 | 0 | 12 of 12 |
+| capsule (on) | 0.39 m | 300 | 0 | 650 | 22300 | 1 | 12 of 12 |
+
+The capsule keeps the body off the jamb and the pass is no slower (22.3 against 22.5 s within 4 m); it does not stall for long. So the
+wall slide alone does not hold a body at this door the way the live bots' stalls 0.5-0.9 m south of its line were seen: that needs the
+bot's steering (A66's look-ahead into the jamb) on top. NOT shown here.
+
+**Bench** (`real_bot_cost`, TDM and batteries, 10v10, tiers 4-5, 9-10 and 13-15, seeds 1 and 2, `SRP_BENCH_VIEW_ERROR=1`; one
+binary, `SRP_BENCH_STAND_IN_CORNER` off against on; 6 runs a map and arm; contacts are the `contact::contacts` counter of A66, stuck
+the route "is stuck" notes, and their rate a bot-minute):
+
+| map | contacts off / on | contact seconds off / on | stuck off / on | stuck a bot-minute off / on |
+|---|---|---|---|---|
+| level_01 day 2 | 288 / 289 | 243 / 249 | 58 / 68 | 0.175 / 0.204 |
+| level_01 day 4 | 286 / 216 | 238 / 168 | 43 / 51 | 0.130 / 0.153 |
+| level_02 day 2 | 601 / 585 | 565 / 506 | 162 / 201 | 0.489 / 0.600 |
+| level_02 day 4 | 325 / 298 | 291 / 252 | 66 / 96 | 0.199 / 0.287 |
+| level_03 day 3 | 339 / 294 | 285 / 264 | 46 / 75 | 0.140 / 0.228 |
+| level_04 day 2 | 488 / 519 | 457 / 477 | 105 / 142 | 0.318 / 0.426 |
+| level_05 day 2 | 569 / 492 | 498 / 432 | 84 / 114 | 0.255 / 0.345 |
+| level_05 day 4 | 387 / 365 | 339 / 314 | 69 / 81 | 0.214 / 0.252 |
+| level_06 day 2 | 499 / 523 | 451 / 499 | 156 / 211 | 0.462 / 0.622 |
+| level_06 day 4 | 425 / 468 | 400 / 410 | 138 / 174 | 0.413 / 0.519 |
+| level_07 day 4 | 670 / 617 | 637 / 522 | 224 / 217 | 0.673 / 0.648 |
+| level_08 day 4 | 274 / 256 | 216 / 214 | 74 / 63 | 0.231 / 0.198 |
+| all (72 runs) | 5151 / 4922 | 4620 / 4308 | 1225 / 1493 | 0.309 / 0.375 |
+
+Of 4.1 million moves of walking bodies with the capsule on, 4.5 % met a wall, 1.0 % made under a tenth of the move (stopped), 2.3 %
+under nine tenths (slowed), and 0.6 % began inside a wall's radius (pushed out, at most 0.15 m a tick). The bench takes as long as before
+(a TDM smoke pair: 328.2 s off, 328.9 s on). Stuck notes +22 %,
+contacts −4 %, idle seconds +8 %.
+
+**Against the live bots' stuck rate** (the 2026-10-24 owner matches, `analysis/out/headline_table.md`; their builds, not today's):
+"is stuck" notes a bot-minute, live / bench off / bench on: level_08 day 4 0.13 / 0.23 / 0.20, level_06 day 4 0.27-0.28 / 0.41 / 0.52,
+level_01 day 2 0.14 / 0.18 / 0.20, level_02 day 4 0.12 / 0.20 / 0.29; all live matches 0.12-0.28. Both stand-ins sit above the 10/24 bots
+(off 1.25-1.8 times, on 1.5-2.4 times); the first, wrong shape sat at 2.2-3.6 times (0.50 overall). A current live rate by map (the host's
+logs) is needed to tell the stand-ins apart; there is none in the private folder.
+
+**What holds the bots** (the stuck notes of tier 9-10, seeds 1 and 2, TDM and batteries, sorted by the geometry at the spot,
+`stuck_causes`: the capsule swept toward the route's next waypoint, and a search over the 0.1 m lattice of points where the capsule fits;
+"humans use the spot" is 5 or more live samples within 1 m at the same height):
+
+| cause | off | on | on, humans use the spot |
+|---|---|---|---|
+| the spot is within the capsule's reach of a wall (clearance under 0.36 m) | 130 | 86 | 16 |
+| the next waypoint has no point the capsule fits within 0.5 m | 31 | 72 | 28 |
+| the way to the waypoint is blocked and no capsule way exists (a gap narrower than 2 × 0.38 m) | 2 | 18 | 0 |
+| blocked, but a way exists (steering into a wall it could go round) | 24 | 45 | 19 |
+| a body beside | 25 | 35 | 15 |
+| nothing in the sweep (a ledge, a jump, a lift, the recovery) | 238 | 292 | 116 |
+| all | 450 | 548 | 194 |
+
+The capsule moves stuck notes from "the spot is inside a wall's reach" (−44: the capsule pushes the body off) to the waypoint being
+inside it (+41), the way blocked (+37) and bodies beside (+10); "nothing in the sweep" also rises (+54), which is the changed
+dynamics, not a wall.
+
+**The notes with nothing in the sweep** (`stuck_causes`; tier 9-10, seeds 1 and 2; lattice / capsule): of 450 / 548 stuck notes, 238 / 292
+have no wall between the spot and the route's next waypoint. By kind: the next waypoint 0.5 m or more lower with the spot at or near a
+lip or fall 77 / 74; lower but away from a lip 32 / 42; at a lip on the level 15 / 17; the next waypoint higher (a lift or jump up, 0.6 m
+and over) 13 / 26; pressed along a wall (within 0.45 m) 9 / 6; open level 92 / 127. About 40 % are at ledges in both arms, so the
+ledge reckoning and the edge hold act on them; the rise of "open level" (+35) and of the lifts and jumps up (+13) is the capsule's. The
+stand-in's lift counters show the capsule arriving at faces slower (slow contacts at links of 0.80 m or less: 122 against 828; lifts made
+at 0.80-0.95 m: 3 against 6), not read further. The share of the grid's floors the capsule does not fit (under 0.38 m of a wall section;
+corrected shape): 0.5-0.7 % on levels 01, 02, 03, 06, 1.1 % on 07, 1.4 % on 04, 1.7 % on 08, 3.4 % on 05.
