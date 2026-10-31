@@ -993,6 +993,8 @@ pub struct TeamKnowledge {
     /// The team's held threat spots and the jobs on them, as the plays read
     /// them (the commander's, `threat::Picture`).
     pub threat: std::sync::Arc<super::threat::Picture>,
+    /// [threat.breach] The team's Breaches on held spots, as the plays read them (the commander's, `breach.rs`).
+    pub breaches: std::sync::Arc<Vec<super::breach::Breach>>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).

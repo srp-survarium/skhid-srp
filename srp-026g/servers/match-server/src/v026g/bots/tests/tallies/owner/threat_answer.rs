@@ -25,7 +25,7 @@ pub(super) struct ThreatAnswerCounts {
     searches: [u64; 4],
     checks: [u64; 2],
     spent: [u64; 3],
-    jobs: [[u64; 11]; 2],
+    jobs: [[u64; 12]; 2],
     lives_from: usize,
     by_tag: [[u64; 3]; 4],
     offers: std::collections::BTreeMap<String, u64>,

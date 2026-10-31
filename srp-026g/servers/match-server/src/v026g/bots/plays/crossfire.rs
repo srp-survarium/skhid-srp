@@ -169,6 +169,18 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         }
         out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }
+    // [threat.breach] A Breach's pinner: the same pin while its crossers go (F.E.A.R.'s suppress while others advance).
+    if cx.tuning.threat.breach.is_some()
+        && let Some((b, crate::v026g::bots::breach::BreachRole::Pinner)) = crate::v026g::bots::breach::role_in(&cx.team.breaches, cx.me.place)
+        && let Some(line) = cx.team.threat.line(b.spot)
+    {
+        let target = TargetRef::ThreatSpot(line.id);
+        let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
+        let has_spot = matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || has_fine_spot(cx, &choke)
+            || has_peek_spot(cx, &choke);
+        out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, target, JOB_KEY + b.spot, JOB_HEALTH, has_spot));
+    }
     // A crossfire needs two: some teammate alive.
     if cx.view.team(cx.me.team).all(|p| p.place == cx.me.place) {
         return;

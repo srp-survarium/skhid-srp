@@ -157,6 +157,26 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
+            // [threat.breach] The killing team's kill feed: the enemy it killed, and its killer when one's kills rose.
+            if self.tunings.of(1 - team as u8).threat.breach.is_some() {
+                let killers: Vec<Place> = after
+                    .places
+                    .iter()
+                    .zip(&before.places)
+                    .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
+                    .map(|(now, _)| now.place)
+                    .collect();
+                let kills = &mut self.teams[1 - team].features.threat.kills;
+                kills.retain(|k| time.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
+                kills.push(super::breach::Kill {
+                    victim: a.place,
+                    killer: match killers[..] {
+                        [killer] => Some(killer),
+                        _ => None,
+                    },
+                    time,
+                });
+            }
             if self.tunings.of(team as u8).threat.spots {
                 let killers: Vec<Place> = after
                     .places
