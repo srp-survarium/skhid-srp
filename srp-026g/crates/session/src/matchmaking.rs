@@ -539,18 +539,21 @@ impl Matchmaking {
             .map(|(match_id, index, _)| (match_id, index))
     }
 
-    /// The places of a match being played whose seats are kept (bit `i`:
-    /// place `i`): not given up, so their players may still come back
+    /// The places of a match being played whose seats are kept, with
+    /// their accounts: not given up, so their players may still come back
     /// ([`Self::back_to_seat`]) though they are not in it now. A place
     /// given up (left by its own word, a failed join) is not.
-    pub fn held_places(&self, match_id: u32) -> u32 {
+    pub fn held_places(&self, match_id: u32) -> Vec<(usize, u32)> {
         let inner = self.inner.locked();
         let Some(seats) = inner.matches.get(&match_id) else {
-            return 0;
+            return Vec::new();
         };
-        (0..seats.len().min(32))
-            .filter(|&index| !inner.given_up.contains(&(match_id, index)))
-            .fold(0, |held, index| held | 1 << index)
+        seats
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !inner.given_up.contains(&(match_id, *index)))
+            .map(|(index, seat)| (index, seat.player.account_id))
+            .collect()
     }
 
     /// A match being played, as it was formed.

@@ -1008,6 +1008,29 @@ impl Rooms {
         true
     }
 
+    /// [`Self::admit`] for a party out of the queue together (a squad):
+    /// all of them on places of one side ([`Room::has_places`]), each
+    /// after the one before (the first beside `beside`), or none.
+    pub fn admit_party(&mut self, accounts: &[u32], key: u32, beside: Option<u32>) -> bool {
+        let Some(room) = self.rooms.get(&key) else {
+            return false;
+        };
+        if accounts.is_empty()
+            || accounts
+                .iter()
+                .any(|account_id| self.of_account.contains_key(account_id))
+            || !room.has_places(accounts.len(), beside)
+        {
+            return false;
+        }
+        let mut beside = beside;
+        for &account_id in accounts {
+            self.admit(account_id, key, beside);
+            beside = Some(account_id);
+        }
+        true
+    }
+
     /// The owner takes the member at `place` of its room's list out; it
     /// may not come back. The member's account.
     pub fn kick(&mut self, owner: u32, place: usize) -> Option<u32> {

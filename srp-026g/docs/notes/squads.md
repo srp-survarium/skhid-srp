@@ -66,6 +66,10 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
 - **Sides:** drawn at the start with the squad on one side (`rooms::sides`, as before), one
   squad in the match (its id; the Tab list's icon). Its second member late (below) plays in no
   match squad.
+- **A pair alone plays no match** (the owner's of 2026-10-31): an open room whose only members
+  who can play are one squad counts nobody for its start and waits as usual (no vote, no new
+  text) until a third can play; then the pair is on one side. A private room plays its
+  owner's arrangement, as before.
 - **Late join:** a member whose mate is in the match goes in on its mate's side, or waits for
   the next match while that side is full. Two who wait together go in together, both places
   reserved at once at the match server (`append_players`, `join_running_group`), on a side
@@ -87,5 +91,12 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   drawn (the font has them), so every language fits; the name keeps its place and is cut a
   tag's width earlier (no layout jump). Wire: the state's `S;<marks>` row, the members list's
   `squad` field (`lobby.md` §2.16.3).
+- **The scale-out** (six waiting Play users open a room): the queue's order, a pair together
+  or not at all: at its cut both stay queued.
+- **Known, not done** (the review of #884, for later):
+  - in a private room a pair waiting to go in late goes in together, on the team its owner
+    put the first on, even when its owner split the two;
+  - Play's loadout offer is for the room the asker alone would take; a pair's Play may go to
+    another room (its bracket the higher gear of the two).
 - **Release:** the live `.env` has `SRP_SQUADS=off`; squads are back with `SRP_SQUADS=on`
   (or the line removed) and the lobby movie of this change.

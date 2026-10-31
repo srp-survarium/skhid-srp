@@ -495,15 +495,25 @@ impl Core<'_> {
 
     /// Each side's places kept for players who are not in the match now
     /// ([`LateRule::kept`]).
+    /// A place is kept only while its player is a member of the match's
+    /// room: one the room let go (its game gone past the ~90 s, or Leave)
+    /// frees it.
     fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [usize; 2] {
         let Some(live) = live else {
             // Not said: the whole roster counts as in it.
             return [0; 2];
         };
-        let held = self.store.matchmaking().held_places(match_id);
+        let room = self.rooms.all().find(|room| {
+            matches!(room.stage, session::v026g::rooms::Stage::InMatch { match_id: id, .. } if id == match_id)
+        });
         let mut kept = [0; 2];
-        for (place, &(_, team)) in running.seats.iter().enumerate().take(32) {
-            if live.present >> place & 1 == 0 && held >> place & 1 == 1 {
+        for (place, account_id) in self.store.matchmaking().held_places(match_id) {
+            let away = place >= 32 || live.present >> place & 1 == 0;
+            let member = room.is_some_and(|room| room.members.contains(&account_id));
+            if let Some(&(_, team)) = running.seats.get(place)
+                && away
+                && member
+            {
                 kept[usize::from(team.min(1))] += 1;
             }
         }

@@ -423,3 +423,114 @@ fn a_place_kept_for_a_player_who_may_come_back_counts_on_its_side() {
     assert_eq!(seat_of(&world, id, alice).1, 0);
     assert_eq!(seat_of(&world, id, bob).1, 0);
 }
+
+/// A kept place frees once the room lets its player go (its game gone past
+/// the ~90 s, or Leave): 2 v 2, one of team 0 gone (kept, still a member),
+/// one of team 1 out of the room but still playing: no side has a place
+/// for Carol until the room drops the gone one.
+#[test]
+fn a_kept_place_frees_when_the_room_lets_its_player_go() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = playing(&mut world, 2, 4);
+    let on = |world: &World, side: u8| {
+        players
+            .iter()
+            .copied()
+            .find(|&player| seat_of(world, id, player).1 == side)
+            .unwrap()
+    };
+    let (gone, leaver) = (on(&world, 0), on(&world, 1));
+    without(&mut world, ticket, id, &[gone]);
+    rows(&mut world, leaver, ROOM_LEAVE, 1);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(room_of(&world, carol), Some(key));
+    assert_eq!(go_in(&mut world, ticket, &[carol]), [None]);
+    assert_eq!(join_row(&state(&mut world, carol)), Some("J;-1;4"));
+    // The room drops the gone one (its session over): its place is free.
+    world.core.room_gone(world.ids[gone].0);
+    assert_eq!(go_in(&mut world, ticket, &[carol]), [Some(ticket)]);
+    assert_eq!(seat_of(&world, id, carol).1, 0);
+}
+
+/// A queued pair goes in as one: the first no longer fitting the room
+/// (its gear now over the room's bracket) takes both out of the queue, and
+/// Play takes both into one room of its bracket; neither is left behind.
+#[test]
+fn a_queued_pair_that_does_not_fit_leaves_the_queue_together() {
+    let mut world = World::new();
+    let first = world.connect("First");
+    play(&mut world, first);
+    let room = room_of(&world, first).expect("a room");
+    let members = fill(&mut world, room, 0);
+    let (alice, bob) = pair(&mut world);
+    play(&mut world, alice);
+    assert_eq!(queued(&world, bob), Some((room, 2)));
+    with_gear(&mut world, alice, 15);
+    rows(&mut world, members[0], ROOM_LEAVE, 1);
+    rows(&mut world, members[1], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    let (a, b) = (room_of(&world, alice), room_of(&world, bob));
+    assert!(a.is_some() && a != Some(room), "{a:?}");
+    assert_eq!(a, b);
+    assert_eq!((queued(&world, alice), queued(&world, bob)), (None, None));
+}
+
+/// The scale-out keeps a pair together at its cut: 15 waiting alone fill
+/// the new room but one place, and the pair behind them stays queued, both.
+#[test]
+fn the_scale_out_keeps_a_pair_together_at_its_cut() {
+    let mut world = World::new();
+    let first = world.connect("First");
+    play(&mut world, first);
+    let room = room_of(&world, first).expect("a room");
+    fill(&mut world, room, 0);
+    let singles: Vec<usize> = (0..15)
+        .map(|n| world.connect(&format!("Single{n}")))
+        .collect();
+    let (alice, bob) = pair(&mut world);
+    let now = world.now;
+    for &player in singles.iter().chain([&alice, &bob]) {
+        world
+            .core
+            .rooms
+            .enqueue_play(world.ids[player].0, 0, room, now)
+            .unwrap();
+    }
+    world.advance(Duration::from_secs(1));
+    let next = room_of(&world, singles[0]).expect("the new room");
+    assert_ne!(next, room);
+    assert!(
+        singles
+            .iter()
+            .all(|&player| room_of(&world, player) == Some(next))
+    );
+    assert_eq!(world.core.rooms.get(next).unwrap().free_places(), 1);
+    assert_eq!((room_of(&world, alice), room_of(&world, bob)), (None, None));
+    assert!(queued(&world, alice).is_some() && queued(&world, bob).is_some());
+}
+
+/// The owner's of 2026-10-31: a pair alone in a room plays no match
+/// against itself; the room waits, and a third player starts it, the pair
+/// on one side.
+#[test]
+fn a_pair_alone_waits_and_a_third_starts_the_match_with_the_pair_on_one_side() {
+    let mut world = World::new();
+    let (alice, bob) = pair(&mut world);
+    play(&mut world, alice);
+    let room = room_of(&world, alice).expect("a room");
+    assert_eq!(room_of(&world, bob), Some(room));
+    world.advance(VOTE_AND_WAIT * 2);
+    assert!(sent_to_match(&world.take(alice)).is_none());
+    assert!(sent_to_match(&world.take(bob)).is_none());
+    assert_eq!(header(&state(&mut world, alice))[PHASE], "0", "waiting");
+    let carol = world.connect("Carol");
+    play(&mut world, carol);
+    assert_eq!(room_of(&world, carol), Some(room));
+    world.advance(VOTE_AND_WAIT * 2);
+    let (_, alice_team) = sent_to_match(&world.take(alice)).expect("Alice's match");
+    let (_, bob_team) = sent_to_match(&world.take(bob)).expect("Bob's match");
+    let (_, carol_team) = sent_to_match(&world.take(carol)).expect("Carol's match");
+    assert_eq!(alice_team, bob_team);
+    assert_ne!(alice_team, carol_team);
+}

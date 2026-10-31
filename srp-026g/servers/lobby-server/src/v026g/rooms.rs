@@ -1141,9 +1141,21 @@ impl Core<'_> {
                     // queued, including the player who would make the room.
                     break;
                 };
-                for (who, gear) in waiting.iter().skip(1).take(usize::from(QUICK_SIZE) * 2 - 1) {
-                    // One that cannot join now waits in its queue.
-                    let _ = self.rooms.join(who.account_id, *gear, key, now);
+                // In the queue's order, a squad together (both, beside each
+                // other) or neither: one that cannot join now (the room
+                // full, or one place for a pair) waits in its queue.
+                let squads = self.store.squads();
+                for (who, gear) in waiting.iter().skip(1) {
+                    if self.rooms.key_of(who.account_id) == Some(key) {
+                        continue;
+                    }
+                    let mate = squads.mate_of(who.account_id).and_then(|mate| {
+                        waiting
+                            .iter()
+                            .find(|(other, _)| other.account_id == mate)
+                            .map(|(other, gear)| (other.account_id, *gear))
+                    });
+                    let _ = self.rooms.join_with(who.account_id, *gear, mate, key, now);
                 }
                 log::info!(
                     "Room {key}: opened for queued Play users, max level {}",
@@ -1630,28 +1642,36 @@ impl Core<'_> {
                     .filter_map(|(account_id, _)| gear_of(*account_id))
                     .max()
                     .unwrap_or(0);
-                let mut beside = None;
-                for (account_id, choice) in party {
-                    // Beside its mate: the one let in with it, or one in the
-                    // room already.
-                    let mate = self.store.squads().mate_of(account_id).filter(|mate| {
-                        self.rooms
-                            .get(key)
-                            .is_some_and(|room| room.members.contains(mate))
-                    });
-                    let fits = self.room_fit_of(account_id).is_ok()
+                let fits = |account_id: u32, choice: QueueChoice| {
+                    self.room_fit_of(account_id).is_ok()
                         && gear_of(account_id).is_some_and(|gear| {
                             self.rooms.get(key).is_some_and(|room| {
                                 room.lets_in(gear)
                                     && (choice == QueueChoice::Chosen
                                         || PublicBracket::of(party_gear).contains(room))
                             })
-                        });
-                    if fits && self.rooms.admit(account_id, key, beside.or(mate)) {
+                        })
+                };
+                let all_fit = party
+                    .iter()
+                    .all(|&(account_id, choice)| fits(account_id, choice));
+                let accounts: Vec<u32> = party.iter().map(|(account_id, _)| *account_id).collect();
+                // Beside its mate in the room already (one alone).
+                let beside = self.store.squads().mate_of(accounts[0]).filter(|mate| {
+                    self.rooms
+                        .get(key)
+                        .is_some_and(|room| room.members.contains(mate))
+                });
+                // A pair goes in as one, or neither does.
+                if all_fit && self.rooms.admit_party(&accounts, key, beside) {
+                    for account_id in accounts {
                         log::info!("Account {account_id}: from room {key}'s queue into it");
-                        beside = Some(account_id);
-                        continue;
                     }
+                    continue;
+                }
+                // Out of the queue, all of it; Play's go where Play takes
+                // them (the first's Play takes its mate along).
+                for (account_id, choice) in party {
                     if choice == QueueChoice::Play
                         && let Some(who) = self.who_is(account_id)
                     {
@@ -1899,11 +1919,25 @@ impl Core<'_> {
         let counted: HashSet<u32> = if self.maintenance_is_near() {
             HashSet::new()
         } else {
+            let squads = self.store.squads();
             self.rooms
                 .all()
                 .filter(|room| !matches!(room.stage, Stage::InMatch { .. }))
-                .flat_map(|room| room.members.iter().copied())
-                .filter(|&member| self.room_ready(member).is_some())
+                .flat_map(|room| {
+                    let ready: Vec<u32> = room
+                        .members
+                        .iter()
+                        .copied()
+                        .filter(|&member| self.room_ready(member).is_some())
+                        .collect();
+                    // A squad alone is no match (the owner's of 2026-10-31:
+                    // a pair is never played against itself): its room
+                    // waits for a third.
+                    let pair_alone = room.is_open()
+                        && ready.len() == 2
+                        && squads.mate_of(ready[0]) == Some(ready[1]);
+                    if pair_alone { Vec::new() } else { ready }
+                })
                 .collect()
         };
         let rng = &mut self.rng;
@@ -2028,6 +2062,13 @@ impl Core<'_> {
                 }
             }
             parties.push((party, strength));
+        }
+        // A squad alone plays no match against itself (the owner's of
+        // 2026-10-31): the room waits for a third.
+        if arranged.is_none() && parties.len() == 1 && parties[0].0.len() > 1 {
+            log::info!("Room {key}: no match yet: only a squad can play");
+            self.rooms.not_started(key, now);
+            return;
         }
         let player_value = i64::from(self.settings.balance.player_value());
         let sides = match &arranged {
