@@ -282,6 +282,9 @@ extern engine_read_file
 ; void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)
 ; 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
 extern engine_lobby_character_setup_profile
+; void engine_lobby_character_release_player(struct lobby_character *character, unsigned int byte)
+; 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
+extern engine_lobby_character_release_player
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach

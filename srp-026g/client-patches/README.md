@@ -2787,8 +2787,7 @@ Round 7 (2026-10-30, the lobby audit; `../docs/notes/lobby-scenes.md`, "The came
 - **The captures' sweep** (`camera_sweep.rs`, diagnostics builds only, `--ragdoll-trace`, with
   `srp_camera_sweep.txt` in the user data folder): the camera at a script's poses, the squad's
   characters the account's own (`squad`), the scene without anyone in it (`empty`: the lobby's
-  three characters put 100 m under the floor, their players made again there), for static
-  captures of every lobby.
+  three characters drop their players, 0x284AA0), for static captures of every lobby.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 

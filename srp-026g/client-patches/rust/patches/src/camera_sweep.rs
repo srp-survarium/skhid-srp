@@ -14,10 +14,10 @@
 //! capture script waits for. After the last pose the camera stays there.
 //! A line `squad` makes both squad panels' characters the account's own
 //! (setup_profile with its profile and chosen kit) when the second pose
-//! starts, for the full squad's view. A line `empty` puts the lobby's own and
-//! both squad panels' characters 100 m under the floor (their players made
-//! again there) when the second pose starts, for the lobby window's pictures
-//! of the empty scene (lobby-scenes.md). A line `pick <id>` (the player's own
+//! starts, for the full squad's view. A line `empty` has the lobby's own and
+//! both squad panels' characters drop their players when the second pose
+//! starts, for the lobby window's pictures of the empty scene
+//! (lobby-scenes.md). A line `pick <id>` (the player's own
 //! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
 //! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
 //! next pose starts, for captures of its change (lobby-scenes.md); a line
@@ -130,8 +130,6 @@ fn number(word: &[u8]) -> Option<f32> {
 }
 
 const DEGREE: f32 = core::f32::consts::PI / 180.0;
-/// How far under the floor `empty` puts the characters (m).
-const EMPTY_DEPTH: f32 = 100.0;
 
 /// The script's poses; a line that is not four numbers (or a comment, or
 /// empty) is passed over. None when no pose is in it.
@@ -297,9 +295,9 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
         if new == Some(1) && script.squad {
             camera.show_squad_dummies();
         }
-        // the empty scene from the second pose on (the profile there by then, as for `squad`)
+        // the empty scene from the second pose on (the start's players made by then)
         if new == Some(1) && script.empty {
-            camera.sink_characters(EMPTY_DEPTH);
+            camera.empty_characters();
         }
         if let Some(step) = logged
             && let Some(file) = TraceFile::open(thread, LOG)

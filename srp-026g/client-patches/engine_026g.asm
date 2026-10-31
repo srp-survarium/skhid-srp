@@ -90,6 +90,7 @@ global engine_release_model
 global engine_lobby_camera_ray
 global engine_read_file
 global engine_lobby_character_setup_profile
+global engine_lobby_character_release_player
 global engine_explosion_reach
 global engine_show_cursor
 global engine_send_important
@@ -1212,6 +1213,22 @@ engine_lobby_character_setup_profile:
     push dword [esp + 28]   ; character -> 4
     mov eax, [esp + 28]   ; profile
     call 0x284b10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_lobby_character_release_player:
+    ; 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; byte -> 4
+    mov esi, [esp + 24]   ; character
+    call 0x284aa0
     pop edi
     pop esi
     pop ebx

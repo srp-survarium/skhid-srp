@@ -351,4 +351,3 @@ vostok::input::keyboard	keys	0x4	obj<vostok::input::key_state>	each key's state 
 vostok::input::key_state	state	0x0	u8	bit 80h: the key is down (is_key_down 0x3B8D00: movsx / shr 7 / and 1)
 vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8D00 indexes key x 4)
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
-survarium::lobby_character	position	0x8	f32	where its player is put, a float3 (the ctor's from its eax 0x28474C; on_player_ready gives it to the player's vtable+1Ch at 0x285060, with the yaw +14h)

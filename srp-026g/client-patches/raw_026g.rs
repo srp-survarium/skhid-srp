@@ -145,6 +145,8 @@ unsafe extern "C" {
     pub fn engine_lobby_camera_ray(camera: Option<LobbyCamera>, point: *const f32, distance: *mut f32, direction: *const f32);
     /// 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
     pub fn engine_lobby_character_setup_profile(profile: Option<PlayerProfile>, character: Option<LobbyCharacter>, kit: u32);
+    /// 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
+    pub fn engine_lobby_character_release_player(character: Option<LobbyCharacter>, byte: u32);
     /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
     pub fn engine_explosion_reach(ray: *const f32, manager: Option<BulletManager>, centre: *const f32, strength: f32, target: *const c_void) -> f32;
     /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
@@ -6049,30 +6051,6 @@ impl KeyStateStorage {
     }
 }
 
-/// A survarium::lobby_character (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LobbyCharacter(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl LobbyCharacter {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-
-    /// +0x8 (f32): where its player is put, a float3 (the ctor's from its eax 0x28474C; on_player_ready gives it to the player's vtable+1Ch at 0x285060, with the yaw +14h)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn position(self) -> *mut f32 {
-        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
-    }
-}
-
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -6261,6 +6239,21 @@ pub struct LobbyCamera(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl LobbyCamera {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::lobby_character (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCharacter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCharacter {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
