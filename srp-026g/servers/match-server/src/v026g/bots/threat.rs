@@ -257,31 +257,35 @@ pub fn searched(_: Searched) {}
 
 #[cfg(test)]
 thread_local! {
-    static ROUNDED: std::cell::RefCell<std::collections::HashMap<usize, u32>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// By place: the last detour's time and the metres the match's detours added to their routes.
+    static ROUNDED: std::cell::RefCell<std::collections::HashMap<usize, (u32, f32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// The bot at `place` took a route round the covered regions at `time` (the
+/// The bot at `place` took a route round the covered regions at `time`, `added_m` longer than the way it replaced (the
 /// bench's count of what follows).
 #[cfg(test)]
-pub fn rounded(place: usize, time: u32) {
+pub fn rounded(place: usize, time: u32, added_m: f32) {
     ROUNDED.with(|m| {
-        m.borrow_mut().insert(place, time);
+        let mut m = m.borrow_mut();
+        let e = m.entry(place).or_insert((time, 0.0));
+        *e = (time, e.1 + added_m.max(0.0));
     });
 }
 
 #[cfg(not(test))]
-pub fn rounded(_: usize, _: u32) {}
+pub fn rounded(_: usize, _: u32, _: f32) {}
 
 /// Whether the bot at `place` took such a route within `ms` before `time`
 /// (one stamped later than `time` is another match's).
 #[cfg(test)]
 pub fn rounded_within(place: usize, time: u32, ms: u32) -> bool {
-    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&t| t <= time && time - t <= ms))
+    ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&(t, _)| t <= time && time - t <= ms))
 }
 
-/// When the bot at `place` last took such a route (the bench's count of detours by team: a new stamp is a new one).
+/// When the bot at `place` last took such a route, and the metres the match's detours added (the bench's count of detours
+/// by team: a new stamp is a new one).
 #[cfg(test)]
-pub fn rounded_at(place: usize) -> Option<u32> {
+pub fn rounded_at(place: usize) -> Option<(u32, f32)> {
     ROUNDED.with(|m| m.borrow().get(&place).copied())
 }
 

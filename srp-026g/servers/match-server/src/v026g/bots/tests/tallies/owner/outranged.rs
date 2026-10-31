@@ -40,8 +40,9 @@ struct Deaths {
     /// keep out of), as of the victim's last living tick.
     context: [DeathContext; 3],
     /// Routes round the covered regions taken (`threat::rounded`, one a poll that keeps one: a long detour counts each
-    /// poll that chose it again).
+    /// poll that chose it again), and the metres they added to the ways they replaced.
     detours: u32,
+    detour_m: f64,
 }
 
 /// A detour this soon before a death counts as on one, ms.
@@ -72,6 +73,11 @@ struct DeathContext {
     deaths: u32,
     detoured: u32,
     covered: u32,
+    /// Detoured, and standing in the regions the team's held kill spots cover (an enemy's held line; the same in both arms
+    /// of a bench: a remembered sniper's lanes are not in them).
+    detoured_in_kill_lines: u32,
+    /// Not detoured, in those regions.
+    other_in_kill_lines: u32,
 }
 
 /// A living bot's place in the threat picture, read each tick (the last one before a death is the death's).
@@ -79,8 +85,10 @@ struct DeathContext {
 struct Living {
     detoured: bool,
     covered: bool,
-    /// The stamp of the bot's last detour seen ([`crate::v026g::bots::threat::rounded_at`]).
-    last_round: Option<u32>,
+    /// In the regions the team's held kill spots cover (not the sensed snipers').
+    kill_lines: bool,
+    /// The bot's last detour seen and the metres added so far ([`crate::v026g::bots::threat::rounded_at`]).
+    last_round: Option<(u32, f32)>,
 }
 
 #[derive(Default)]
@@ -139,21 +147,47 @@ impl Topic for OutrangedCounts {
         if self.living.len() < game.bodies.len() {
             self.living.resize(game.bodies.len(), Living::default());
         }
+        use crate::v026g::bots::threat::{KeptOut, rounded_at, rounded_within};
         let grid = &game.world.grid;
+        // By team, the regions its held kill spots cover, sorted.
+        let kill_lines: Vec<Vec<u32>> = (0..2)
+            .map(|team| {
+                let mut r = bots
+                    .teams
+                    .get(team)
+                    .map(|state| state.features.threat.spots.covered_regions_kept(game.tick, KeptOut::KillsOnly))
+                    .unwrap_or_default();
+                r.sort_unstable();
+                r.dedup();
+                r
+            })
+            .collect();
+        let regions = bots.tactics().map(|t| t.regions());
         for (place, body) in game.bodies.iter().enumerate() {
             let Some(bot) = bots.bots.get(place).and_then(Option::as_ref) else {
                 continue;
             };
-            let round = crate::v026g::bots::threat::rounded_at(place);
-            if round.is_some() && round != self.living[place].last_round {
-                self.deaths[usize::from(bot.team).min(1)].detours += 1;
+            let team = usize::from(bot.team).min(1);
+            let round = rounded_at(place);
+            if let Some((at, m)) = round {
+                let (last_at, last_m) = self.living[place].last_round.map_or((None, 0.0), |(t, m)| (Some(t), m));
+                if last_at != Some(at) {
+                    self.deaths[team].detours += 1;
+                }
+                // A new match clears the sums: a smaller one starts again.
+                let added = if m >= last_m { m - last_m } else { m };
+                self.deaths[team].detour_m += f64::from(added);
             }
             self.living[place].last_round = round;
             if body.health <= 0.0 {
                 continue;
             }
-            self.living[place].detoured = crate::v026g::bots::threat::rounded_within(place, game.tick, DETOUR_MS);
-            self.living[place].covered = bot.threat.exposed_at(grid, body.feet);
+            let living = &mut self.living[place];
+            living.detoured = rounded_within(place, game.tick, DETOUR_MS);
+            living.covered = bot.threat.exposed_at(grid, body.feet);
+            living.kill_lines = regions.is_some_and(|map| {
+                grid.locate(body.feet, 1.5).is_some_and(|n| kill_lines[team].binary_search(&map.of(n)).is_ok())
+            });
         }
         for (team, lanes) in self.lanes.iter_mut().enumerate() {
             if let Some(state) = bots.teams.get(team) {
@@ -216,6 +250,13 @@ impl Topic for OutrangedCounts {
             c.deaths += 1;
             c.detoured += u32::from(living.detoured);
             c.covered += u32::from(living.covered);
+            if living.kill_lines {
+                if living.detoured {
+                    c.detoured_in_kill_lines += 1;
+                } else {
+                    c.other_in_kill_lines += 1;
+                }
+            }
             self.deaths[vt].after_sighting += u32::from(after);
             if sniper {
                 self.deaths[kt].sniper_kills += 1;
@@ -271,11 +312,14 @@ impl OutrangedCounts {
             });
             if let Some(map) = v.as_object_mut() {
                 map.insert("detour_polls".to_owned(), d.detours.into());
+                map.insert("detour_added_m".to_owned(), (d.detour_m.round() as u64).into());
                 for by in Killer::ALL {
                     let c = d.context[by as usize];
                     map.insert(format!("deaths_by_{}", by.name()), c.deaths.into());
                     map.insert(format!("deaths_by_{}_detoured_10s", by.name()), c.detoured.into());
                     map.insert(format!("deaths_by_{}_in_covered", by.name()), c.covered.into());
+                    map.insert(format!("deaths_by_{}_detoured_in_kill_lines", by.name()), c.detoured_in_kill_lines.into());
+                    map.insert(format!("deaths_by_{}_undetoured_in_kill_lines", by.name()), c.other_in_kill_lines.into());
                 }
             }
             v

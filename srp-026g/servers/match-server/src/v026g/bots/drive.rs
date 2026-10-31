@@ -1201,7 +1201,7 @@ fn drive_tick_inner(
                                     let less = threat::exposure(&round, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
                                     if less.metres < seen.metres {
                                         threat::searched(threat::Searched::Round);
-                                        threat::rounded(bot.place, time);
+                                        threat::rounded(bot.place, time, round.length() - plain.length());
                                         kept_m = less.metres;
                                         detour = Some(round);
                                     } else {
@@ -1247,7 +1247,7 @@ fn drive_tick_inner(
                             match way {
                                 Ok(Some(local)) if stuck::worth_round(local.length(), s1 - s0) => {
                                     threat::searched(threat::Searched::Round);
-                                    threat::rounded(bot.place, time);
+                                    threat::rounded(bot.place, time, local.length() - (s1 - s0));
                                     detour = Some(plain.spliced(s0, s1, &local));
                                 }
                                 Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
