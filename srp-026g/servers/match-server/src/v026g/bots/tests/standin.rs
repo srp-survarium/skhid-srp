@@ -1152,7 +1152,11 @@ impl Game {
                         self.landings.push(landing);
                     }
                 } else {
-                    let (mut node, mut feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    let (mut node, mut feet, _) = if stand_in_edge() {
+                        slide_supported(grid, node, body.feet, to, grid.body().step, body::SUPPORT_M)
+                    } else {
+                        slide_capped(grid, node, body.feet, to, grid.body().step)
+                    };
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
                     if !pushing {

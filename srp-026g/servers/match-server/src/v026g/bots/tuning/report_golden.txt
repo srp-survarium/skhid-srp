@@ -12,21 +12,22 @@ switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.inve
 switches ON pace: calm_sprint ring_death_spots ring_radar
 switches ON perch: on
 switches ON sense: sight_refresh sprint_body_mps=4.6
-switches ON smoke: anti_sniper cross_lane react_watch sight spot_rules throw_keeps_route
+switches ON smoke: anti_sniper cross_lane forming_client react_watch sight spot_rules throw_keeps_route
 switches ON spacing: apart apart_follow buddy
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: area crossfire_out_of_lines detour job job_line_by_id job_objective job_open_staffed lane_weighted lanes_pierce pair_up_hidden recast spots sprint trade_out_of_lines whole_route whole_route_booked
 switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump react.on react.pass react.shot
-switches ON unstick: blind_stop_ms=4500 home_no_way_ms=20000 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
-switches OFF aim: combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
+switches ON unstick: blind_stop_ms=4500 home_gate_max_ms=90000 home_no_way_ms=20000 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
+switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_close combat.grenade_close_pace combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
-switches OFF feel: fight_lift floor_height_clear
+switches OFF feel: fight_lift floor_height_clear lip_guard_full
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease
+switches OFF think: door_centres
 switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes sniper_memory
 switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
@@ -34,7 +35,7 @@ switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped com
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values kin: jump_snap=by_keys pitch_scale=client
+switch values kin: edge=lattice jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}

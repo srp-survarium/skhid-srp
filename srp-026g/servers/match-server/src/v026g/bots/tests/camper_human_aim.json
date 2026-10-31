@@ -114,6 +114,14 @@
     "grenade_wall_m": 10.0,
     "grenade_off_m": 8.0,
     "grenade_off_y_m": null,
+    "grenade_close": false,
+    "grenade_close_m": [
+      4.0,
+      12.0
+    ],
+    "grenade_close_margin_m": 2.0,
+    "grenade_close_fresh_ms": 1500,
+    "grenade_close_pace": null,
     "grenade_lane_m": 2.0,
     "grenade_places": 3,
     "grenade_tracks": true,
@@ -359,7 +367,7 @@
     "settle_guns": "scoped",
     "settle_k": 1.0,
     "settle_max_wait_ms": 5000,
-    "band_cross_deg": 0.0,
+    "band_cross_deg": null,
     "stand_strafe": false,
     "stand_strafe_hold_ms": 400,
     "threat_shot_ms": 1000,
