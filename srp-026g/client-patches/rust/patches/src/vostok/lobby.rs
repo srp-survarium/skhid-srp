@@ -3,20 +3,19 @@
 //! movies (lobby_menu::query_resources 0x21E450), and takes the results in
 //! on_render_scenes_ready (0x220B20). At `lobby_menu.scene_request` the query's
 //! list is built and not yet asked: its fourth request (the project) can be
-//! another lobby's project, or a lobby's config to see whether it is there.
+//! another lobby's project.
 //! At `lobby_menu.scenes_ready` the results are in and nothing has used them:
 //! the lobby may ask the whole query again instead.
 //!
-//! A change of lobby during a session: the lobby asks its query again
-//! ([`DrawnLobby::ask`]) with only its config, then its project in it
-//! ([`SceneQuery::ask_alone`]), the scene behind the lobby movie's black
-//! ([`Shade`], `srp_scene_fade`) while its project loads, and puts the
-//! project in the old one's place ([`ScenesReady::swap_in`]): the project
-//! halves of lobby_menu::clear_resources (0x21D080) and
-//! on_render_scenes_ready (0x220B20), in their order. Once per run a census
-//! query asks every lobby's config ([`SceneQuery::ask_configs`]). `0xA1`'s
-//! srp bytes are the lobby picks ([`Picks`]); the exe sends the saved one
-//! with the game's own ranking request ([`SquadId::send_pick`]).
+//! A change of lobby during a session: behind the lobby movie's black
+//! ([`Shade`], `srp_scene_fade`) the lobby asks its query again
+//! ([`DrawnLobby::ask`]) with only its project in it
+//! ([`SceneQuery::ask_alone`]), and puts the project in the old one's place
+//! ([`ScenesReady::swap_in`]): the project halves of
+//! lobby_menu::clear_resources (0x21D080) and on_render_scenes_ready
+//! (0x220B20), in their order. `0xA1`'s srp bytes are the lobby picks
+//! ([`Picks`]); the exe sends the saved one with the game's own ranking
+//! request ([`SquadId::send`]).
 
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -37,19 +36,6 @@ enum ResourceClass {
     GameProject = 0x40,
 }
 
-/// What the lobby's query asks for in its project's place.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SceneRequest {
-    /// A lobby's project (`lobby_scene/<id>`): its cook needs the project's
-    /// config; without one it reads a null config and the game crashes
-    /// (project_cooker_simple::create_game_objects, 0x22C11E).
-    Project(&'static CStr),
-    /// A lobby's config (`resources/projects/lobby_scene/<id>/client_project`),
-    /// as a binary config, with no user data: a missing file fails only this
-    /// result.
-    Config(&'static CStr),
-}
-
 /// The lobby's query at `lobby_menu.scene_request`.
 pub struct SceneQuery<'t> {
     frame: raw::LobbyQueryFrame,
@@ -64,32 +50,26 @@ impl<'t> SceneQuery<'t> {
         Some(SceneQuery { frame, _thread: ctx.thread() })
     }
 
-    /// Puts `request` in the project's place. The name is a static, alive
-    /// as long as the query reads it.
-    pub fn ask(&mut self, request: SceneRequest) {
-        let (name, class, keeps_data) = match request {
-            SceneRequest::Project(name) => (name, ResourceClass::GameProject, true),
-            SceneRequest::Config(name) => (name, ResourceClass::BinaryConfig, false),
-        };
-        // SAFETY: the frame's request of the project and its user data
-        // pointer, written by query_resources before this site and read by
-        // the query after it; a static C string outlives the query.
+    /// Puts the project `name` (`lobby_scene/<id>`) in the project's place,
+    /// the lobby menu's variant still its user data. The name is a static,
+    /// alive as long as the query reads it.
+    pub fn ask(&mut self, name: &'static CStr) {
+        // SAFETY: the frame's request of the project, written by
+        // query_resources before this site and read by the query after it; a
+        // static C string outlives the query.
         unsafe {
             let slot = self.frame.scene();
             slot.set_name(name.as_ptr().cast_mut().cast());
-            *slot.class() = class as u32;
-            if !keeps_data {
-                self.frame.scene_data().set_data(core::ptr::null_mut());
-            }
+            *slot.class() = ResourceClass::GameProject as u32;
         }
     }
 
-    /// Puts `request` in the project's place and `filler` (a lobby's
-    /// config, as a binary config, no user data) in every other: the
+    /// Puts the project `name` in the project's place and `filler` (a
+    /// lobby's config, as a binary config, no user data) in every other: the
     /// lobby's query with nothing in it but its project, for a swap (no
     /// second render scene, sound scene or movie is made).
-    pub fn ask_alone(&mut self, request: SceneRequest, filler: &'static CStr) {
-        self.ask(request);
+    pub fn ask_alone(&mut self, name: &'static CStr, filler: &'static CStr) {
+        self.ask(name);
         // SAFETY: the frame's eight requests and their user data pointers
         // (an array each from `requests` and `user_data`, QUERY_REQUESTS
         // long: the count query_resources passes, 0x21E5E7), written before
@@ -103,25 +83,6 @@ impl<'t> SceneQuery<'t> {
                     continue;
                 }
                 slot.set_name(filler.as_ptr().cast_mut().cast());
-                *slot.class() = ResourceClass::BinaryConfig as u32;
-                data.at(index).set_data(core::ptr::null_mut());
-            }
-        }
-    }
-}
-
-impl SceneQuery<'_> {
-    /// Every request a binary config with no user data: `configs` in the
-    /// first places, `filler` in the others: the census of the lobbies'
-    /// packs (each result there or not).
-    pub fn ask_configs<const N: usize>(&mut self, configs: [&'static CStr; N], filler: &'static CStr) {
-        // SAFETY: as ask_alone.
-        unsafe {
-            let (first, data) = (self.frame.requests(), self.frame.user_data());
-            for index in 0..QUERY_REQUESTS {
-                let name = configs.get(index).copied().unwrap_or(filler);
-                let slot = first.at(index);
-                slot.set_name(name.as_ptr().cast_mut().cast());
                 *slot.class() = ResourceClass::BinaryConfig as u32;
                 data.at(index).set_data(core::ptr::null_mut());
             }
@@ -149,19 +110,12 @@ impl<'t> ScenesReady<'t> {
         Some(ScenesReady { menu, results, thread: ctx.thread() })
     }
 
-    /// Whether the project's place holds what `asked` asked for, usable: a
-    /// config there, or a project with its camera track (which
-    /// on_render_scenes_ready plays without a check).
-    pub fn loaded(&self, asked: SceneRequest) -> bool {
-        // SAFETY: the results are alive for the call; result 3's resource
-        // is what was asked there (a binary config or a project), 0 when it
-        // failed, and its kind is read only as what was asked.
-        unsafe {
-            match asked {
-                SceneRequest::Config(_) => *self.results.scene() != 0,
-                SceneRequest::Project(_) => self.results.project().is_some_and(|project| *project.track() != 0),
-            }
-        }
+    /// Whether the project's place holds a project with its camera track
+    /// (which on_render_scenes_ready plays without a check).
+    pub fn loaded(&self) -> bool {
+        // SAFETY: the results are alive for the call; result 3's resource is
+        // the project asked there, 0 when it failed.
+        unsafe { self.results.project().is_some_and(|project| *project.track() != 0) }
     }
 
     /// Asks the lobby's whole query again (its list rebuilt, and
@@ -171,15 +125,6 @@ impl<'t> ScenesReady<'t> {
         // SAFETY: the lobby menu is alive (its own callback runs); its query
         // only builds a request list and asks the resources, as its ctor did.
         unsafe { raw::engine_lobby_query_resources(Some(self.menu)) }
-    }
-
-    /// Whether result `index`'s resource came (a census's configs).
-    pub fn config_at(&self, index: usize) -> bool {
-        if index >= QUERY_REQUESTS {
-            return false;
-        }
-        // SAFETY: the results are alive for the callback; eight of them.
-        unsafe { *self.results.each().at(index).resource() != 0 }
     }
 
     /// Puts the results' project (one with its track: `loaded`) in the place
@@ -346,9 +291,18 @@ impl<'t> HiddenLobby<'t> {
         Some(HiddenLobby { menu, _thread: ctx.thread() })
     }
 
+    /// At `lobby_menu.activate`: the lobby menu about to be shown again.
+    pub fn at_shown(ctx: &'t Context<'_>) -> Option<HiddenLobby<'t>> {
+        // SAFETY: the context is this site's: on_activate's ECX, the lobby
+        // menu, alive for the call on the game's thread.
+        let menu = unsafe { raw::site::lobby_menu_activate::menu(ctx)? };
+        Some(HiddenLobby { menu, _thread: ctx.thread() })
+    }
+
     /// The black over the scene (the lobby movie's).
     pub fn shade(&self, shade: Shade) {
-        // SAFETY: the lobby menu is alive (its own on_deactivate runs).
+        // SAFETY: the lobby menu is alive (its own on_deactivate or
+        // on_activate runs).
         unsafe { shade_scene(self.menu, shade) }
     }
 }
@@ -388,9 +342,9 @@ impl<'t> DrawnLobby<'t> {
         }
     }
 
-    /// Tells the lobby window what it shows: the pick, the lobby shown and
-    /// the lobbies there (bit `id - 1`), as `root.srp_lobby_state`.
-    pub fn tell(&self, state: [u32; 3]) {
+    /// Tells the lobby window what it shows: the pick and the lobby shown,
+    /// as `root.srp_lobby_state`.
+    pub fn tell(&self, state: [u32; 2]) {
         // SAFETY: as shade.
         if let Some(movie) = unsafe { lobby_movie(self.menu) } {
             movie.invoke_uints(c"root.srp_lobby_state", &state);
@@ -457,12 +411,17 @@ impl<'t> SquadId<'t> {
         Some(SquadId { client, reader, _thread: ctx.thread() })
     }
 
-    /// For no squad (id 0), srp's two bytes after the id; none for a squad
-    /// (they come after its members, `SquadRead`).
+    /// The squad id the handler kept (+1EAAA4h): 0 no squad.
+    pub fn squad_id(&self) -> u32 {
+        // SAFETY: the client's field, written by the handler before the site.
+        unsafe { *self.client.squad_id() }
+    }
+
+    /// For no squad (id 0), srp's two bytes after the id (a squad's come
+    /// after its members, `SquadRead`); none when the message ends short.
     pub fn picks(&self) -> Option<Picks> {
-        // SAFETY: the client's field, written by the handler before the site;
-        // the live reader.
-        unsafe { if *self.client.squad_id() == 0 { picks_at(self.reader) } else { None } }
+        // SAFETY: the live reader.
+        unsafe { picks_at(self.reader) }
     }
 
     /// Sends srp `3B` at `start` (one of its reserved starts).

@@ -15,9 +15,8 @@ package survarium.lobbypick
 
    // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): four cards, a picture and a name
    // each. A click on one picks that lobby: srp is told (its 3B at PICK_BASE + id, the lobby's id),
-   // gives the pick back in 0xA1, and the exe shows that lobby behind its fade. The pick is marked;
-   // a lobby whose pack is not there is dimmed and takes no click. What it shows the exe tells it
-   // (`state`, from root.srp_lobby_state). Presses are taken by the window itself and found by
+   // gives the pick back in 0xA1, and the exe shows that lobby behind its fade. The pick is marked.
+   // What it shows the exe tells it (`state`, from root.srp_lobby_state). Presses are taken by the window itself and found by
    // where they are (Scaleform gives presses on a container's children to the container).
    public class LobbyWindow extends Sprite
    {
@@ -35,11 +34,9 @@ package survarium.lobbypick
       private static const NAME_H:Number = 26;
       private static const GOLD:uint = 0xE0A64E;
       private static const LIGHT:uint = 0xE8EEF2;
-      private static const DIM:uint = 0x5F707C;
 
-      // what the exe said: the pick (id), the lobby shown, the lobbies there (bit id - 1)
+      // what the exe said: the pick (id)
       private var _pick:int = 1;
-      private var _there:uint = 15;
       // a click's pick, until the exe says it
       private var _asked:int = 0;
 
@@ -115,11 +112,10 @@ package survarium.lobbypick
          }
       }
 
-      // The exe's state (root.srp_lobby_state): the pick, the lobby shown, the lobbies there.
-      public function state(pick:uint, shown:uint, there:uint) : void
+      // The exe's state (root.srp_lobby_state): the pick, the lobby shown.
+      public function state(pick:uint, shown:uint) : void
       {
          this._pick = int(pick);
-         this._there = there;
          if(this._asked == this._pick)
          {
             this._asked = 0;
@@ -137,7 +133,6 @@ package survarium.lobbypick
          for(var i:int = 0; i < 4; i++)
          {
             var id:int = i + 1;
-            var there:Boolean = (this._there & 1 << i) != 0;
             var mark:Shape = this._marks[i];
             mark.graphics.clear();
             if(id == this.marked())
@@ -145,12 +140,11 @@ package survarium.lobbypick
                mark.graphics.lineStyle(3,GOLD);
                mark.graphics.drawRect(0,0,CARD_W,CARD_H);
             }
-            Bitmap(this._cards[i]).alpha = there ? 1 : 0.3;
-            TextField(this._names[i]).textColor = !there ? DIM : id == this.marked() ? GOLD : LIGHT;
+            TextField(this._names[i]).textColor = id == this.marked() ? GOLD : LIGHT;
          }
       }
 
-      // A press: the card under it picked (a lobby there, not the pick already), and the window closed.
+      // A press: the card under it picked (not the pick already), and the window closed.
       private function onDown(e:MouseEvent) : void
       {
          var ex:MouseEventEx = e as MouseEventEx;
@@ -167,10 +161,6 @@ package survarium.lobbypick
                continue;
             }
             var id:int = i + 1;
-            if((this._there & 1 << i) == 0)
-            {
-               return;
-            }
             if(id != this.marked())
             {
                this._asked = id;

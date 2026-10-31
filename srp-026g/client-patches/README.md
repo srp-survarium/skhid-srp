@@ -3718,12 +3718,9 @@ the Room (`lobby_scene/camp_069`, the default), the Basement (the classic,
 (`lobby_scene/hangar_046`). The pick is kept in user.cfg as `srp_lobby`
 (registered at game::on_configs_loaded's start in the site's chain after
 patch 79's handler; user.cfg written when it changed), and the start's query
-asks its lobby in the classic's place (0x21E5CC). Another lobby than the
-classic is first asked as its config alone (a missing project would crash
-the project's cook); when those results come (on_render_scenes_ready's
-start, 0x220B20) the query is asked again with the lobby's project, or the
-classic's when the config is not there or the project has no camera track.
-Patch 45 takes the weapon's spot from the lobby project's `srp_lobby` table
+asks its project in the classic's place (0x21E5CC). The four lobbies ship
+with the game: a project without its camera track is a bug, logged in
+srp_patches.log. Patch 45 takes the weapon's spot from the lobby project's `srp_lobby` table
 (Round 6).
 
 The window sends srp the pick (`3B` at 2 095 000 000 + id); srp keeps it
@@ -3734,19 +3731,18 @@ srp without a pick (the sign-in) is sent the saved one (the lobby client's
 0x270070). In a squad the lobby is the commander's pick.
 
 A change shows at once: at the lobby camera's tick (0x2840F2, after patch
-45's flight) with another lobby wanted than the one shown, the patch asks
-that lobby's config alone while the old lobby is drawn (the first frame asks
-every lobby's config: the window dims a missing one); then the scene fades to
+45's flight) with another lobby wanted than the one shown, the scene fades to
 black under every panel (the movie's `srp_scene_fade`, stepped a frame each,
-the loading spinner on it), the project is asked and put in the old one's
-place behind the black: the project halves of lobby_menu::clear_resources and
+the loading spinner on it), then the patch asks that lobby's project alone
+and puts it in the old one's place behind the black: the project halves of lobby_menu::clear_resources and
 on_render_scenes_ready redone with the game's own functions (the old
 project's remove and static collisions, the track player's stop, the
 release; the new one's vtable+0Ch, its track's effect through the emitter's
 vtable, the insert and its collisions), the eye adaptation reset (the
 engine's byte 0xAC914C) and the camera at its stock pose; six frames later
-the black fades out. A lobby that is not there keeps the one shown, with no
-fade; a match entered during a change leaves no black; once
+the black fades out. A project that fails behind the black is logged and the
+black fades out over the lobby shown; a match entered during a change leaves
+no black; once
 game::clear_resources (0x1ED030) runs nothing is asked. One enum (`Scene`),
 one transition function (`Scene::step`). See `check_lobby_scene_026g.py` and
 `../scripts/lobby-fade/check.sh`.

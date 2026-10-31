@@ -19,8 +19,8 @@ package
    //   panel drawn over it; a second call: one black, still the first child;
    // - gone (0, 0): off the display list;
    // - the lobby window (srp_lobby_window, its button's toggle): four cards, the state the exe
-   //   tells (srp_lobby_state: the pick 3 marked, the Bunker's pack not there: dimmed), opened and
-   //   closed, then left open (check.sh's window.png).
+   //   tells (srp_lobby_state: the pick 3 marked), opened and closed, then left open (check.sh's
+   //   window.png).
    // Prints "FADE ..." lines (trace) and ends with "FADE RESULT pass" or "FADE RESULT fail: ...".
    public class FadeHarness extends Sprite
    {
@@ -121,7 +121,7 @@ package
          lobby.srp_scene_fade(0,0);
          if(shade.parent != null)
             failures.push("gone: the black still on the root");
-         lobby.srp_lobby_state(3,2,11);
+         lobby.srp_lobby_state(3,2);
          lobby.srp_lobby_window();
          setTimeout(this.window,200);
       }

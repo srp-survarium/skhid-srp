@@ -25,10 +25,10 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   dictionary keys (`client-patches/localization`), every language's.
 - **The pick is kept in user.cfg** as the console variable `srp_lobby` (`srp_lobby 3`), written by
   the exe (user.cfg saved at once when it changed), read once into `Lobby` (`Lobby::parse`): no
-  line, an empty or unknown value is the Room. The classic stands in only for a missing pack or
-  project.
+  line, an empty or unknown value is the Room. The four lobbies ship with the game (the owner,
+  2026-10-30: "lobby files can't be missing"): there is no fallback for a missing one.
 - **The window** (`LobbyWindow`, the lobby movie's ActionScript): the four cards in id order, the
-  pick framed in gold, a lobby whose pack is not there dimmed and taking no click. A click sends
+  pick framed in gold. A click sends
   srp the pick (`request_players_range(2 095 000 000 + id, 1)`, srp's `3B` at a reserved start,
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown, there)`), at its first frame and at each change.
@@ -65,19 +65,12 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 - The lobby menu is made once, at the game's start (`game::create_lobby_menu`), and asks for its
   scene with its movies in one query (0x21E450); the exe asks for the saved pick's lobby there
   instead of `lobby_scene/day`.
-- **A missing project would crash the game:** the project's cook reads its config without a
-  check (`project_cooker_simple::create_game_objects`, a null config read at 0x22C11E; seen in a
-  game, 2026-10-29). So another lobby than the classic is asked first as its config alone
-  (`resources/projects/lobby_scene/<id>/client_project`, a binary config, no user data): a
-  missing file fails only that result. When the results come, nothing has used them yet: the
-  exe asks the whole query again, with the lobby's project when its config was there, else with
-  the classic's. The classic is asked at once, as the stock game does.
-- **A project without its camera track is the classic too:** on_render_scenes_ready plays the
-  project's track (project+1E4h) without a check; such a project's results are let go and the
-  query asked again with the classic.
-- The classic itself failing is the stock game's failure (as without the patch).
-- Another lobby costs one more query at the start (its config, the lobby's movies with it).
-- Never a black scene, never a crash.
+- **A project that fails to load is a bug** (the four ship with the game; one without its camera
+  track is logged in `srp_patches.log`, and the lobby menu takes its results as they are, as the
+  stock game would). A missing project crashes the project's cook (a null config read at
+  0x22C11E, `project_cooker_simple::create_game_objects`; seen in a game, 2026-10-29): the
+  release's pack check is what keeps that from players.
+- Nothing more than the stock game's query: the pick's project in the classic's place.
 
 ## A change shown at once
 
@@ -87,30 +80,25 @@ against the original's code on the same objects; captured in a game, below):
 
 - **One state machine** (`Scene` in `lobby_scene.rs`, one transition function `Scene::step`): not
   asked; starting (the start's query, as above); loaded, with the lobby shown, whether it is drawn
-  (drawn, hidden, closed), the lobbies whose packs are there (none: not looked for yet) and where
-  a change is (`Change`: settled; the census out; probing a lobby's config; darkening; loading
-  behind the black; holding, frames drawn behind the black; brightening). The events: the query
+  (drawn, hidden, closed) and where a change is (`Change`: settled; broken, a lobby whose project
+  failed, not asked again until another is wanted; darkening; loading behind the black; holding,
+  frames drawn behind the black; brightening). The events: the query
   built (`lobby_menu.scene_request`), its results (`lobby_menu.scenes_ready`), a frame of the
   lobby drawn (`lobby_camera.view`, the lobby camera's tick, after patch 45's flight), the lobby
   hidden (`lobby_menu::on_deactivate` 0x21D4A0, a match), shown (`on_activate` 0x21D2E0), the
   game closing (`game::clear_resources` 0x1ED030). The wanted lobby is `Squad::lobby` of the
   saved pick and the squad at each event: a pick changed, a squad changed, a load done or failed,
   a fade done, a match entered and the close all come as those.
-- **The census:** the first frame asks the lobby's query once with every lobby's config (a binary
-  config each, no user data): which packs are there. A missing one's card is dimmed, and it is
-  never asked.
-- **A frame with another lobby wanted than the one shown:** the lobby's query is asked again
-  (query_resources 0x21E450 with the menu) with that lobby's config alone (the other seven
-  requests that config, no user data: no second render scene, sound scene or movie is made). The
-  old lobby is drawn, and turns with the mouse, while it comes (a config read: cheap). Not there:
-  nothing more, no fade.
-- **Then the black, then the load:** the scene fades to black (`FADE_OUT`, 0.25 s), the exe
+- **A frame with another lobby wanted than the one shown: the black, then the load.** The scene
+  fades to black (`FADE_OUT`, 0.25 s), the exe
   stepping it a frame each (`srp_scene_fade(per mille, loading)`, by at most a 30th of a second a
   frame: after a stall the fade still plays over its frames; the movie's own tween would have
   ended during the stall, seen 2026-10-30), a black under every panel, over the 3D scene (the
   root's first child; the interface stays; get_mouse_over leaves it out, so the camera still
-  turns), the game's loading spinner on it. Whole, the lobby's project is asked (alone, as
-  above): its load and its cook's hitches happen behind the black.
+  turns), the game's loading spinner on it. Whole, the lobby's query is asked again
+  (query_resources 0x21E450 with the menu) with that lobby's project alone (the other seven
+  requests its config, a binary config, no user data: no second render scene, sound scene or
+  movie is made): its load and its cook's hitches happen behind the black.
 - **Its project in** (in the results' callback, `ScenesReady::swap_in` / `put_in`): the project
   halves of `lobby_menu::clear_resources` (0x21D080..0x21D100) and `on_render_scenes_ready`
   (0x220DA2..0x220EC3, 0x22193E..0x221975), in their order, each step the game's own function:
@@ -136,19 +124,21 @@ against the original's code on the same objects; captured in a game, below):
   the camera at its ctor's pose (yaw, pitch, side 0, distance 1.96 m; not while patch 45's camera
   is at the bench or flying). `HOLD_FRAMES` (6) frames are drawn behind the black, the
   adaptation is reset again, the spinner goes and the scene fades in (`FADE_IN`, 0.4 s).
-- **A project that fails behind the black** (no camera track): the black fades back over the
-  lobby shown, and that lobby is marked not there.
-- **The last lobby wanted wins:** a change while a config is probed asks the new one's (back to
-  the one shown lets it go); while a project loads behind the black, the new one is asked behind
-  the same black.
+- **A project that fails behind the black** (no camera track: a bug): logged in
+  `srp_patches.log`, nothing put in, the black stepped out over the lobby shown, and that lobby is
+  not asked again until another one is wanted.
+- **The last lobby wanted wins:** a change during the fade to black asks, once black, the lobby
+  wanted then (back to the one shown: the black stepped out, nothing asked); while a project loads
+  behind the black, the new one is asked behind the same black.
 - **A match entered during a change:** the black is gone at once; a project that comes while the
-  lobby is hidden is put in at once. The lobby on return is the wanted one.
+  lobby is hidden is put in at once; back in the lobby while it loads, the black and the spinner
+  again. The lobby on return is the wanted one.
 - **The game closing:** from then on nothing is asked and results are let go without the lobby
   menu being touched.
 - **Where the time goes** (2026-10-30, headless on this machine, a diagnostics build's
   `srp_lobby_scene.txt`: each action with the lobby's frame count and the clock's milliseconds;
   three changes, the Basement to the Bunker, the Room to the Hangar, a squad joined and left):
-  the probe's config came in the same frame (6..7 ms); the black took 8 frames; the project's load
+  (with the config probe of then, 6..7 ms, gone since) the black took 8 frames; the project's load
   behind it 10..12 frames, 3.9..6.9 s, the frames going on at the lobby's rate meanwhile (its cook
   is the resource system's, off the game's own frame but for its results' callback); the swap
   (`put_in`, the game's thread, in the results' callback) 0..3 ms. The game drew the lobby at
@@ -255,13 +245,12 @@ Game captures: the diagnostics build's `camera_sweep` (client_patch.md section 3
 
 ## Checks
 
-- Rust tests of the picks, the squad, the census and the transitions (`lobby_scene.rs`: the
-  start's paths, a change probed then faded, loaded behind the black, swapped and faded in, a
-  stall's frame not skipping the fade, a missing pack never asked, a project without its track
-  faded back, the last lobby wanted winning, a match entered at every frame of a change, the
-  close; every sequence of six events of eight kinds, under three loads: a swap only behind the
-  black or while not drawn, a query only while drawn, one query at a time, no black left once
-  settled), `check_lobby_scene_026g.py` (Unicorn; client_patch.md 3.59), selftest check 81 (the
+- Rust tests of the picks, the squad and the transitions (`lobby_scene.rs`: the start, a change
+  faded, loaded behind the black, swapped and faded in, a stall's frame not skipping the fade, a
+  broken project logged, faded back and not asked again, the last lobby wanted winning, a match
+  entered at every frame of a change, the close; every sequence of six events of eight kinds,
+  under two loads: a swap only behind the black or while not drawn, one query at a time, no
+  black left once settled), `check_lobby_scene_026g.py` (Unicorn; client_patch.md 3.59), selftest check 81 (the
   nine sites, the stock code the swap redoes, the squad reader, the eye adaptation's byte, the
   lobby movie's holder, the 3B sender), `check_engine_026g.py` (the virtual rows),
   `check_weapon_table_026g.py` (the spot from the project's config, the turned bench),
@@ -276,7 +265,7 @@ Game captures: the diagnostics build's `camera_sweep` (client_patch.md section 3
   the black stepped in, the spinner, the new lobby, the black stepped out, the camera at its
   stock pose, the exposure within 2 % of its settled value once the black was gone; srp got the
   saved pick at the sign-in. (Before the pick, 2026-10-29: the faction's saved lobby from the
-  first frame, a missing pack the classic, no crash.)
+  first frame.)
 - An early finding of this PR, that user.cfg is never read under Wine, was wrong: it was this
   work's own headless prefix (load_cc_script got no resource for `user_data/user.cfg` there, the
   cause not found); in a local-clients `run.py` prefix the file is read and the saved faction

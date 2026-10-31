@@ -453,7 +453,7 @@ package
 
       private var _sceneSpinner:MovieClip;
 
-      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown, there].
+      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown].
       private var _lobbyWindow:LobbyWindow;
 
       private var _lobbyState:Array;
@@ -5999,14 +5999,14 @@ package
          }
       }
 
-      // What the lobby window shows (exe patch 81): the player's pick, the lobby shown and the
-      // lobbies whose packs are there (bit id - 1), told by the exe when one changes.
-      public function srp_lobby_state(pick:uint, shown:uint, there:uint) : void
+      // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by
+      // the exe when one changes.
+      public function srp_lobby_state(pick:uint, shown:uint) : void
       {
-         this._lobbyState = [pick,shown,there];
+         this._lobbyState = [pick,shown];
          if(this._lobbyWindow != null)
          {
-            this._lobbyWindow.state(pick,shown,there);
+            this._lobbyWindow.state(pick,shown);
          }
       }
 
@@ -6035,7 +6035,7 @@ package
             this._lobbyWindow.onClose = this.closeLobbyWindow;
             if(this._lobbyState != null)
             {
-               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1],this._lobbyState[2]);
+               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1]);
             }
          }
          var window:LobbyWindow = this._lobbyWindow;
