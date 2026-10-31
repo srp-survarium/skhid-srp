@@ -805,6 +805,7 @@ impl Tactics {
         &self.base
     }
 
+
     /// The human routes of this map and mode, put on its floors; a route
     /// left with no point is dropped.
     pub fn set_routes(&mut self, routes: Vec<super::routes::HumanRoute>) {
