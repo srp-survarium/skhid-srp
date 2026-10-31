@@ -31,7 +31,9 @@ Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
   root.srp_friend_request(place, sent); a place that is not a number answers
   nothing; both return as the function does (`ret 10h`); an unknown method
   goes on to the original's dispatch in both builds; the original answers
-  and sends nothing.
+  and sends nothing;
+- keys held under the cursor, tick after tick: no Invoke and no cursor
+  call (the cursor is shown once, at Ctrl's press).
 """
 import struct
 import sys
@@ -196,6 +198,25 @@ def main():
         report(ok, f"{what or '...'}: {'on, as the original' if want is None else 'taken'}"
                    f"{', cursor ' + str([c[2] for c in b[4]]) if b[4] else ''}")
         assert b[0] in (KEY_PAST, hide.SENTINEL)
+
+    print("the keys held under the cursor, tick after tick (the keyboard's kind 3 for every key down)")
+    ours.hud(1, 0)
+    shown_once = ours.key(LCTRL, DOWN)[4] == shown
+    ticks, invokes, cursor, taken_all, on_all = 100, 0, 0, True, True
+    for _ in range(ticks):
+        for key in (TAB, LCTRL, W):
+            b = ours.key(key, HELD)
+            invokes += len(ours.invokes())
+            cursor += len(b[4])
+            if key == LCTRL:
+                taken_all &= b[0] == hide.SENTINEL
+            else:
+                on_all &= b[0] == KEY_PAST
+    report(shown_once and invokes == 0 and cursor == 0 and taken_all and on_all,
+           f"{ticks} ticks of Tab, Ctrl and W held with the cursor shown: {invokes} Invokes, {cursor} cursor "
+           "calls (none: the cursor is shown once, at Ctrl's press); Ctrl taken, Tab and W on")
+    ours.key(TAB, UP)
+    ours.key(LCTRL, UP)
 
     print("a Blackout match: no list, every key on")
     payload = blackout.empty_options(blackout.srpx((2, b"\x01")))
