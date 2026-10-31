@@ -63,6 +63,7 @@ mod bench;
 mod bench_spread;
 mod blind_walk;
 mod camper;
+mod door_corner;
 mod driving;
 mod eye;
 mod fights;
