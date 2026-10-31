@@ -25,6 +25,7 @@ switches OFF feel: fight_lift floor_height_clear
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
+switches OFF smoke: forming_client
 switches OFF spacing: apart_ease
 switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes sniper_memory
 switches OFF traps: at_defeated

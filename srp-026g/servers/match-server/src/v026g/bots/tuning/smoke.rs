@@ -11,6 +11,11 @@ pub struct SmokeTuning {
     /// Every sight of an enemy (noticing him, the aim's look at his parts) is blocked by the clouds in the match
     /// (`smoke::Veil`). Off: no cloud is read and bots see through smoke, as they did.
     pub sight: bool,
+    /// A forming cloud hides from the client's 1.24 s after the blast (`smoke::CLIENT_FORMING_MS`, where a line
+    /// through its middle is 75 % opaque: one puff's texture averages 0.291 alpha, PROVEN; the layering LIKELY),
+    /// not the RDG-M shape's 0.7 s (a GUESS from the alpha keys alone, when the middle line is about 0.45 opaque):
+    /// a bot sees through a forming cloud as long as a human's client lets him, never longer. Off: 0.7 s.
+    pub forming_client: bool,
     /// After its target went into smoke, a bot that was firing keeps firing at the last point it saw of him this
     /// long, ms, as a player sprays a smoke he just lost a man in: continuing fire only, never a new burst at a
     /// man it did not see, and at where he was, not where he is (0: it stops at once). The owner's cap for fire
@@ -117,6 +122,7 @@ impl Default for SmokeTuning {
     fn default() -> Self {
         Self {
             sight: true,
+            forming_client: false,
             spray_ms: 750,
             thin_m: Positive::of(2.0),
             react_watch: true,
