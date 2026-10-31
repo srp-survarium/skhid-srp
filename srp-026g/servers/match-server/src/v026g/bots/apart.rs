@@ -163,10 +163,34 @@ pub enum LaneUse {
     Applied,
     /// The shifted point is not one the body walks to in a line (a wall, a corner).
     NoRoom,
-    /// The shifted point is on another floor than the route's point, or near a lip or a fall.
-    UnsafeFloor,
+    /// The shifted point is on another floor than the route's point, or near a lip or a fall: why.
+    UnsafeFloor(Unsafe),
     /// The route has a gate, a jump or a drop within reach, or its end is near: the route's own line is kept.
     RouteBusy,
+}
+
+impl LaneUse {
+    /// The bench's number of the use: 0 idle, 1 applied, 2 no room, 3 unsafe floor, 4 route busy.
+    pub fn code(self) -> u8 {
+        match self {
+            Self::Idle => 0,
+            Self::Applied => 1,
+            Self::NoRoom => 2,
+            Self::UnsafeFloor(_) => 3,
+            Self::RouteBusy => 4,
+        }
+    }
+}
+
+/// Why a lane's shifted point is not a floor to walk to (A212, the bench's counts): the body itself has no grid floor under it or stands near a lip or a fall, or the shifted point
+/// has no floor, is near a lip or a fall, or lies on another floor than the route's point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsafe {
+    BodyNoFloor,
+    BodyAtEdge,
+    NoFloor,
+    AtEdge,
+    OtherFloor,
 }
 
 /// Whether the bot behind should ease off: a living teammate within `within_m`, ahead of it (in the cone of its heading) and moving along it at over 1 m/s. A teammate standing

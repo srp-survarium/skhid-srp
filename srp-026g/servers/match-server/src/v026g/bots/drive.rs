@@ -1552,18 +1552,25 @@ fn drive_tick_inner(
                             Some(offset_m) => {
                                 let grid = &tactics.world.grid;
                                 let off_edge = |node: NodeId| !(grid.near_lip(node) || grid.is_lip(node) || grid.near_fall(node));
-                                let body_ok = grid.locate(me.feet, 1.5).is_some_and(off_edge);
-                                let safe = |shifted: Vec3, target: Vec3| {
-                                    grid.locate(shifted, 0.6).is_some_and(|node| off_edge(node) && (grid.position(node).y - target.y).abs() < LANE_FLOOR_M)
+                                let body = match grid.locate(me.feet, 1.5) {
+                                    None => Err(apart::Unsafe::BodyNoFloor),
+                                    Some(node) if !off_edge(node) => Err(apart::Unsafe::BodyAtEdge),
+                                    Some(_) => Ok(()),
                                 };
-                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body_ok, safe: &safe }))
+                                let safe = |shifted: Vec3, target: Vec3| match grid.locate(shifted, 0.6) {
+                                    None => Err(apart::Unsafe::NoFloor),
+                                    Some(node) if !off_edge(node) => Err(apart::Unsafe::AtEdge),
+                                    Some(node) if (grid.position(node).y - target.y).abs() >= LANE_FLOOR_M => Err(apart::Unsafe::OtherFloor),
+                                    Some(_) => Ok(()),
+                                };
+                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body, safe: &safe }))
                             }
                             None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                         },
                     };
                     #[cfg(test)]
                     {
-                        bot.bench_lane = bot.motor.lane_use as u8;
+                        bot.bench_lane = bot.motor.lane_use;
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
