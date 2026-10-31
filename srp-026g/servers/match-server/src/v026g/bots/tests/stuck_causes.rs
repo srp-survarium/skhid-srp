@@ -54,6 +54,21 @@ enum Way {
     GoalInside,
 }
 
+/// What a note with nothing in the sweep to the waypoint is about, by the route's next waypoint and the grid at the spot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum FreeKind {
+    /// The next waypoint is 0.6-1.11 m higher: a lift or a standing jump.
+    UpLow,
+    /// The next waypoint is over 1.11 m higher: a jump up.
+    UpHigh,
+    /// The next waypoint is 0.5 m or more lower: a drop.
+    Down,
+    /// The spot is a lip floor or near a lip or a fall, on the level.
+    Lip,
+    /// None of these: on the level, away from a ledge.
+    Level,
+}
+
 fn clearance(sections: &Sections, segs: &mut Vec<Seg>, at: (f32, f32), y: f32) -> f32 {
     sections.near(at, y, false, 1.0, segs);
     segs.iter().map(|s| nearest(s, at).1).fold(1.0f32, f32::min)
@@ -127,7 +142,7 @@ fn stuck_causes() {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_STUCK_NOTES is not set");
         return;
     };
-    type Row = (String, [f32; 3], Option<[f32; 3]>, bool);
+    type Row = (String, [f32; 3], Option<[f32; 3]>, bool, String);
     let mut by_project: HashMap<String, Vec<Row>> = HashMap::new();
     for line in std::fs::read_to_string(&notes).unwrap().lines() {
         let f: Vec<&str> = line.split('\t').collect();
@@ -136,10 +151,12 @@ fn stuck_causes() {
         }
         let num = |i: usize| f[i].parse::<f32>().unwrap_or(f32::NAN);
         let next = (!num(5).is_nan()).then(|| [num(5), num(6), num(7)]);
-        by_project.entry(f[1].to_string()).or_default().push((f[0].to_string(), [num(2), num(3), num(4)], next, f[8] == "1"));
+        by_project.entry(f[1].to_string()).or_default().push((f[0].to_string(), [num(2), num(3), num(4)], next, f[8] == "1", f.get(11).copied().unwrap_or("?").to_string()));
     }
     let mut totals: HashMap<(String, Cause), u32> = HashMap::new();
     let mut human_totals: HashMap<(String, Cause), u32> = HashMap::new();
+    let mut free_totals: HashMap<(String, FreeKind), u32> = HashMap::new();
+    let mut level_recovery: HashMap<(String, String), u32> = HashMap::new();
     let mut projects: Vec<_> = by_project.into_iter().collect();
     projects.sort_by(|a, b| a.0.cmp(&b.0));
     for (project, rows) in projects {
@@ -150,7 +167,8 @@ fn stuck_causes() {
         let mut segs = Vec::new();
         let mut per: HashMap<(String, Cause), u32> = HashMap::new();
         let humans = humans_of(&project);
-        for (arm, at, next, beside) in rows {
+        let mut free_per: HashMap<(String, FreeKind), u32> = HashMap::new();
+        for (arm, at, next, beside, recovery) in rows {
             let here = (at[0], at[2]);
             let clear = clearance(&sections, &mut segs, here, at[1]);
             let cause = if beside {
@@ -178,6 +196,26 @@ fn stuck_causes() {
             } else {
                 Cause::NoWaypoint
             };
+            if cause == Cause::LineFree {
+                let rise = next.map_or(0.0, |n| n[1] - at[1]);
+                let node = world.grid.locate(mapdata::Vec3::new(at[0], at[1], at[2]), 1.0);
+                let kind = if rise > 1.11 {
+                    FreeKind::UpHigh
+                } else if rise > 0.6 {
+                    FreeKind::UpLow
+                } else if rise < -0.5 {
+                    FreeKind::Down
+                } else if node.is_some_and(|n| world.grid.is_lip(n) || world.grid.near_lip(n) || world.grid.near_fall(n)) {
+                    FreeKind::Lip
+                } else {
+                    FreeKind::Level
+                };
+                *free_per.entry((arm.clone(), kind)).or_default() += 1;
+                *free_totals.entry((arm.clone(), kind)).or_default() += 1;
+                if kind == FreeKind::Level {
+                    *level_recovery.entry((arm.clone(), recovery.clone())).or_default() += 1;
+                }
+            }
             let used = humans.iter().filter(|h| (h[0] - at[0]).hypot(h[2] - at[2]) <= 1.0 && (h[1] - at[1]).abs() <= 1.5).count() >= 5;
             if used {
                 *human_totals.entry((arm.clone(), cause)).or_default() += 1;
@@ -188,9 +226,18 @@ fn stuck_causes() {
         let mut keys: Vec<_> = per.keys().cloned().collect();
         keys.sort();
         println!("{project}: {}", keys.iter().map(|k| format!("{} {:?} {}", k.0, k.1, per[k])).collect::<Vec<_>>().join(", "));
+        let mut fkeys: Vec<_> = free_per.keys().cloned().collect();
+        fkeys.sort();
+        println!("    nothing in the sweep: {}", fkeys.iter().map(|k| format!("{} {:?} {}", k.0, k.1, free_per[k])).collect::<Vec<_>>().join(", "));
     }
     let mut keys: Vec<_> = totals.keys().cloned().collect();
     keys.sort();
+    let mut fkeys: Vec<_> = free_totals.keys().cloned().collect();
+    fkeys.sort();
+    println!("FREE ALL: {}", fkeys.iter().map(|k| format!("{} {:?} {}", k.0, k.1, free_totals[k])).collect::<Vec<_>>().join(", "));
+    let mut rkeys: Vec<_> = level_recovery.keys().cloned().collect();
+    rkeys.sort();
+    println!("FREE LEVEL RECOVERY: {}", rkeys.iter().map(|k| format!("{} {} {}", k.0, k.1, level_recovery[k])).collect::<Vec<_>>().join(", "));
     println!("ALL: {}", keys.iter().map(|k| format!("{} {:?} {} (humans use the spot {})", k.0, k.1, totals[k], human_totals.get(k).copied().unwrap_or(0))).collect::<Vec<_>>().join(", "));
 }
 
