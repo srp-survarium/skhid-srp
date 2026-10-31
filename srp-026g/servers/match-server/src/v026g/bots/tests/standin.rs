@@ -72,6 +72,36 @@ pub(crate) const RESPAWN_BATTERIES_MS: u32 = 8_000;
 /// The same in Team Deathmatch: 8 s, less the radio's 20 %.
 pub(crate) const RESPAWN_TDM_MS: u32 = 6_400;
 
+/// A respawn point is taken while a living body stands within this of it, m (the check volumes of the game's point: GUESS, the shapes were not read; the points lie 1.5-3 m apart).
+const SPAWN_FREE_M: f32 = 1.0;
+
+/// Whether a spawn goes onto a free point of the team's, as the game's respawn rule does (`SRP_BENCH_SPAWN_POINTS`, on unless `random`: the old draw).
+pub(crate) fn spawn_on_free_points() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    !OLD_DRAW.get() && *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
+}
+
+thread_local! {
+    /// A test whose counts were pinned on the old draw of a spawn (a random point with replacement, 2 m of jitter) holds an [`OldSpawnDraw`].
+    static OLD_DRAW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The old spawn draw for this thread while it lives (the pinned soaks of `eye.rs`).
+pub(crate) struct OldSpawnDraw(());
+
+impl OldSpawnDraw {
+    pub(crate) fn scope() -> Self {
+        OLD_DRAW.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldSpawnDraw {
+    fn drop(&mut self) {
+        OLD_DRAW.set(false);
+    }
+}
+
 /// The respawn delay of a death, ms, as the game gives it: the mode's
 /// `respawn_time` times `max(0, 1 + the radio's respawn_time_modifier)`
 /// (the respawn rule 0x316AA0 through the getter 0x2D5AE0, PROVEN), up to
@@ -889,8 +919,27 @@ impl Game {
             .filter(|s| s.team == side)
             .map(|s| s.position)
             .collect();
-        let point = spawns[self.rng.below(spawns.len())];
-        let at = point + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
+        // The game's respawn rule gives a spawning place a free point of its team and spawns it ON the point (`select_respawn_points` 0x3171D0: a point whose
+        // two check volumes meet no body, taken in the rule's random order; 1,809 live bodies in their first 3 s: median 0.01 m from a point, 8 of 1,801 on a
+        // point another team-mate stood on, 0 of 790 pairs within 1 m). The bench does too (`SRP_BENCH_SPAWN_POINTS=random` keeps the old draw: a random point of the team with replacement and 2 m of jitter). The old draw is
+        // not what puts bots on each other: the overlap in a life's first 10 s is the same with either (A175).
+        let (point, at) = if spawn_on_free_points() {
+            let free: Vec<Vec3> = spawns
+                .iter()
+                .copied()
+                .filter(|&s| {
+                    !self.bodies.iter().enumerate().any(|(other, b)| {
+                        other != place && b.alive && b.feet.distance_xz(s) < SPAWN_FREE_M && (b.feet.y - s.y).abs() < 2.0
+                    })
+                })
+                .collect();
+            let pool = if free.is_empty() { &spawns } else { &free };
+            let point = pool[self.rng.below(pool.len())];
+            (point, point)
+        } else {
+            let point = spawns[self.rng.below(spawns.len())];
+            (point, point + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0)))
+        };
         // Off by up to 2 m, but only onto a floor a walk from a spawn gets
         // to and back from: the offset can land on a floor below or beside
         // the spawn that no way leaves (Rudnya: 0.7 % of offsets, one spawn
@@ -1062,7 +1111,7 @@ impl Game {
         for place in suicides {
             self.kill(place, place, Kill::Own, tick);
         }
-        if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
+        if self.walls.is_none() && (self.bodies.iter().any(|b| b.flight.is_some()) || (stand_in_edge() && stand_in_fall())) {
             let walker = self.world.map.walker_triangles();
             self.walls = Some(if walker.is_empty() {
                 self.world.sight.clone()
@@ -1177,7 +1226,13 @@ impl Game {
                         to
                     };
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        slide_supported(grid, node, body.feet, target, grid.body().step, body::SUPPORT_M)
+                        let slid = slide_supported(grid, node, body.feet, target, grid.body().step, body::SUPPORT_M);
+                        // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
+                        let walls = self.walls.as_deref().filter(|_| stand_in_fall());
+                        match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
+                            Some((n, f)) => (n, f, false),
+                            None => slid,
+                        }
                     } else {
                         slide_capped(grid, node, body.feet, target, grid.body().step)
                     };
