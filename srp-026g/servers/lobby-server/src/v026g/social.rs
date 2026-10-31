@@ -40,7 +40,10 @@
 //!   them: they are pushed at sign-in and after each change (`A3 07`,
 //!   `A3 08`), and the friends' statuses when one changes (`A3 09`, with
 //!   exactly the friends of the last `A3 07`). The old `u8 result`
-//!   answers are gone: the client would read them as a search list.
+//!   answers are gone: the client would read them as a search list. A
+//!   player may send [`FRIEND_REQUEST_BURST`] friend requests at once and
+//!   one every [`FRIEND_REQUEST_EVERY`] after (the client keeps the same
+//!   allowance: exe patch 86's Tab list menu, `docs/notes/tab-cursor-friends.md`).
 //! - **Squads** are the store's (`session::Squads`), formed as in 0.21d:
 //!   invite (`4D` type 2); the invited client's "membership accepted"
 //!   back (`4D` type 3) and then its answer (`50`), in that order
@@ -81,6 +84,40 @@ use super::core::{Core, Who};
 /// notice; there the limit only stops a script.
 pub(super) const CHAT_BURST: f32 = 10.0;
 const CHAT_PER_SECOND: f32 = 1.0;
+/// Friend requests a player may send at once, and the time that earns one
+/// more [choice, docs/notes/tab-cursor-friends.md: a few at once in the
+/// lobby's search, no stream of requests]. Exe patch 86 (`tab_cursor.rs`,
+/// the Tab list's menu) keeps the same allowance on the client.
+pub(super) const FRIEND_REQUEST_BURST: u32 = 5;
+pub(super) const FRIEND_REQUEST_EVERY: Duration = Duration::from_secs(10);
+
+/// What a player may still send of friend requests, and when that was
+/// counted: [`FRIEND_REQUEST_BURST`] at first, one more each
+/// [`FRIEND_REQUEST_EVERY`], never more than the burst.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FriendRequestAllowance {
+    saved: Duration,
+    at: Instant,
+}
+
+impl FriendRequestAllowance {
+    pub(super) fn new(now: Instant) -> Self {
+        Self { saved: FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST, at: now }
+    }
+
+    /// One request now, if the allowance has one.
+    pub(super) fn take(&mut self, now: Instant) -> bool {
+        let earned = now.saturating_duration_since(self.at);
+        self.saved = (self.saved + earned).min(FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST);
+        self.at = now;
+        if self.saved < FRIEND_REQUEST_EVERY {
+            return false;
+        }
+        self.saved -= FRIEND_REQUEST_EVERY;
+        true
+    }
+}
+
 /// `st_player_not_found`, "Player not found.": in every language of the
 /// 0.26g localization and referred to by nothing in the client (exe or
 /// lobby SWF), so a text the server sent. [LIKELY for a name the messaging
@@ -358,8 +395,10 @@ impl Core<'_> {
 
     /// `4D`: an important message for another player.
     /// - A friend request goes to the named player, who answers it with
-    ///   `50` (now, or when it signs in). A name that is no account is
-    ///   answered with "Player not found." ([`Core::player_not_found`]).
+    ///   `50` (now, or when it signs in), within the sender's
+    ///   [`FriendRequestAllowance`] (one over it is dropped). A name that
+    ///   is no account is answered with "Player not found."
+    ///   ([`Core::player_not_found`]), except to a player in a match.
     ///   One to a friend, or to a player who ignores the sender, is
     ///   dropped in silence: the game has no text for either, and an
     ///   ignore is not given away.
@@ -388,9 +427,22 @@ impl Core<'_> {
         };
         match kind {
             important::FRIEND_REQUEST => {
+                let Some(player) = self.player_mut(who.addr) else {
+                    return;
+                };
+                if !player.friend_requests.take(now) {
+                    log::info!("{}: too many friend requests; one to {target_name} dropped", who.name);
+                    return;
+                }
+                let in_match = player.in_match.is_some();
                 let Some(target) = target else {
                     log::info!("{}: no player {target_name} to befriend", who.name);
-                    self.player_not_found(who, target_name, now);
+                    // From a match (the Tab list's menu: a bot's place has no
+                    // account) the lobby's message box would come up only
+                    // back in the lobby, for a player long gone: none.
+                    if !in_match {
+                        self.player_not_found(who, target_name, now);
+                    }
                     return;
                 };
                 let already = self

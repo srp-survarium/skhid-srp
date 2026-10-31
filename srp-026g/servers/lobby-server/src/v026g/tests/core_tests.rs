@@ -1161,12 +1161,10 @@ fn a_finished_match_brings_its_players_back_to_the_lobby() {
     assert_eq!(world.store.match_count(), 0);
     assert!(world.core.matches.is_empty());
 
-    // Both came by Play: out of their room after its match (the owner's of
-    // 2026-10-20), and Play again makes the next one.
-    assert!(world.core.rooms.is_empty());
-    world.ask(alice, request::play(1));
-    world.ask(bob, request::play(1));
-    world.advance(PLAY_TO_MATCH);
+    // Both came by Play and are in their room still (the owner's of
+    // 2026-10-31): its next vote makes the next match.
+    assert_eq!(world.core.rooms.len(), 1);
+    world.advance(PLAY_TO_MATCH + Duration::from_secs(15));
     let again = sent_to_match(&world.take(alice)).expect("a second match").0;
     assert_ne!(again, match_id);
 
@@ -1431,6 +1429,41 @@ fn a_friend_request_waits_for_a_player_who_is_away() {
         message,
         Decoded::Important { kind: 0, sender_name, .. } if sender_name == "Alice"
     )));
+    world.assert_clean();
+}
+
+/// A friend request is sent within the sender's allowance: five at once,
+/// then one more every ten seconds (the Tab list's menu keeps the same on
+/// the client, exe patch 86); one over it is dropped.
+#[test]
+fn friend_requests_come_five_at_once_then_one_every_ten_seconds() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let names = ["Bob", "Carol", "Dave", "Erin", "Frank", "Grace"];
+    let others: Vec<usize> = names.iter().map(|name| world.connect(name)).collect();
+    world.take(alice);
+    for &other in &others {
+        world.take(other);
+    }
+    let asked = |world: &mut World, other: usize| {
+        world.take(other).iter().any(|message| {
+            matches!(message, Decoded::Important { kind: 0, sender_name, .. } if sender_name == "Alice")
+        })
+    };
+    for (name, &other) in names.iter().zip(&others).take(5) {
+        world.ask(alice, request::important(name, 0, ""));
+        assert!(asked(&mut world, other), "{name}");
+    }
+    let grace = others[5];
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "the sixth at once");
+    // (the asks themselves took a little of the test's time)
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "five seconds after");
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(asked(&mut world, grace), "ten seconds after");
     world.assert_clean();
 }
 

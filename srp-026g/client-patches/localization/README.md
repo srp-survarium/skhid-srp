@@ -52,12 +52,14 @@ stock cards write it: `%1$ss`, `%1$sс`; maps, modes and weathers `st_srp_map_*`
 `st_srp_mode_*`, `st_srp_weather_*`). No movie holds language text, and adding or
 changing a language never touches an `.as` file.
 
-- **How a movie gets them.** The exe hands the lobby and login movies their texts
-  through `set_localization_data`, by the movie's table of
+- **How a movie gets them.** The exe hands the lobby, login and match hud movies their
+  texts through `set_localization_data`, by the movie's table of
   `localization/flash_movies_localizations.options` (UI key to dictionary key). The
-  content compile (`localization-1.json`) adds every `st_srp_` key to the lobby's and
-  the login's tables under its own name (`FLASH_MOVIES`, `flash_rows` in
-  `localization_026g.py`): a new key needs no mapping of its own.
+  content compile (`localization-1.json`) adds every `st_srp_` key to the lobby's and the
+  login's tables under its own name, and only the `st_srp_hud_*` keys to the hud's
+  (`FLASH_MOVIES`, `flash_rows` in `localization_026g.py`; the hud is given its texts at
+  every match start): a new key needs no mapping of its own. The hud's LocalizationData
+  has `getName` only: no values.
 - **In ActionScript:** `LocalizationData.getName("st_srp_rooms_join")`, or
   `LocalizationData.format("st_srp_rooms_switch_who", name, players)` for a text
   with values. Write the key in full in the source: the check finds it there.

@@ -5852,8 +5852,8 @@ package
       {
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
-         // A room left under the results (by Play, with its match's end):
-         // its window goes with them (after closeVS is off: its tab changes).
+         // The rooms window's tab, kept as it was under the results, follows it now (after closeVS
+         // is off: its tab changes).
          if(RoomsWindow.me != null)
          {
             RoomsWindow.me.resultsClosed();
@@ -6504,7 +6504,7 @@ package
       // A match's results: a player in a room gets the room's window opened
       // first, so the results go over it and closing them shows the room
       // (the owner's of 2026-10-20). Out of a room: nothing. The window is
-      // told the match is over (its chat, where we are now).
+      // told the match is over (its chat).
       private function showRoomUnderResults() : void
       {
          try

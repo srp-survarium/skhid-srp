@@ -131,6 +131,11 @@ fn filtered(blackout: bool, tab: TabState, held: ActionMask, built: ActionMask) 
     (built.without(still), still)
 }
 
+/// The match (or replay) is a Blackout match: Tab shows no list.
+pub fn forced(thread: &Thread) -> bool {
+    BLACKOUT.get(thread)
+}
+
 fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
     let mut on = false;
     if let Some(mut read) = read {
