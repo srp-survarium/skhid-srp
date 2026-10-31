@@ -140,6 +140,7 @@ pub use team::PinFromCover;
 pub use team::PinRule;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
+pub use team::SniperMemory;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
@@ -669,6 +670,8 @@ mod tests {
         assert_eq!(wrong(|t| t.aim.wander_s = 0.0), "aim.wander_s");
         assert_eq!(wrong(|t| t.aim.combat.strafe_run_ms = (0, 5)), "aim.combat.strafe_run_ms");
         assert_eq!(wrong(|t| t.aim.combat.recoil_pull = 2.0), "aim.combat.recoil_pull");
+        assert_eq!(wrong(|t| t.aim.combat.band_cross_deg = Some(95.0)), "aim.combat.band_cross_deg");
+        assert_eq!(wrong(|t| t.aim.combat.band_cross_deg = Some(-5.0)), "aim.combat.band_cross_deg");
         assert_eq!(wrong(|t| t.personalities.clear()), "personalities: shares must sum to 1");
         // Several wrong at once: the first section in the sorted list says so.
         assert_eq!(

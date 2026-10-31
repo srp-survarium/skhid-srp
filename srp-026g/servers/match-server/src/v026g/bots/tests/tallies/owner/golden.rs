@@ -162,6 +162,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                 at: tick.saturating_sub(300),
                 to: Vec3::new(feet[place].0, next(150) as f32 / 100.0, feet[place].1),
                 sprint: next(2) == 0,
+                fall_v: None,
             });
         }
         game.team_kills = (k / 700) as u32;

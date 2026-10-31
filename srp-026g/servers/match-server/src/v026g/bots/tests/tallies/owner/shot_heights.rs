@@ -22,7 +22,7 @@ const POSITIONS: [&str; 2] = ["first", "later"];
 const STANCES: [&str; 3] = ["stand", "crouch", "air"];
 
 /// Whether a shot at `tick` is the first of a run, the shooter's last shot having been at `last`.
-fn first_of_run(last: Option<u32>, tick: u32) -> bool {
+pub(super) fn first_of_run(last: Option<u32>, tick: u32) -> bool {
     last.is_none_or(|last| tick >= last + RUN_GAP_MS)
 }
 

@@ -205,14 +205,22 @@ impl CarryTally {
 
     /// The deaths of a step (the statistics `before` it), by the play.
     pub(crate) fn deaths(&mut self, before: &[(u32, u32, u32)], game: &Game, bots: &Bots) {
+        // [A192] The Crossfire arrivals of the step (`plays::crossfire::bench`).
+        for (place, time) in super::plays::crossfire::bench::take() {
+            self.dump(place, time, "arrives Crossfire");
+        }
         for (place, (now, was)) in game.stats.iter().zip(before).enumerate() {
-            if now.1 <= was.1 {
-                continue;
-            }
             let play = bots.bots[place]
                 .as_ref()
                 .and_then(|b| b.assignment.as_ref())
                 .map(|a| a.kind);
+            // [A192] A kill, by the play the killer ran (the Crossfire gates).
+            if now.0 > was.0 {
+                self.dump(place, game.tick, &format!("kills {} (on {play:?})", now.0 - was.0));
+            }
+            if now.1 <= was.1 {
+                continue;
+            }
             if play == Some(super::plays::PlayKind::Intercept) {
                 self.intercept_deaths += 1;
             }

@@ -33,7 +33,8 @@
 
 use mapdata::Vec3;
 
-use super::hazards::ARRIVE_MPS;
+use super::hazards::{ARRIVE_MPS, escape_reach_m};
+use super::tactics::StepOutPick;
 use super::kin;
 use super::live_grenades::{LiveGrenade, Phase, Whose};
 use super::rng::Rng;
@@ -170,9 +171,10 @@ pub struct Blast {
 pub trait Surroundings {
     /// Whether nothing lies between `from` and `to`.
     fn sees(&self, from: Vec3, to: Vec3) -> bool;
-    /// The floor for `me` to step to, to be out of `blast`, by at most `reach_m` of walking; none if no better
-    /// place is in reach.
-    fn way_out(&self, me: &PlaceView, blast: &Blast, reach_m: f32) -> Option<Vec3>;
+    /// The floor for `me` to step to, to be out of `blast`, by at most `reach_m` of walking (with `routed`, by a planned route of
+    /// that length, else by link distance), and which floor of the search it was; none if no better place is in reach. With
+    /// none out of the blast within `reach_m`, the floor farthest from it within `far_m`.
+    fn way_out(&self, me: &PlaceView, blast: &Blast, reach_m: f32, far_m: f32, routed: bool) -> Option<(Vec3, StepOutPick)>;
 }
 
 /// What the avoidance did, by [`Notice`] (Told, Saw, Heard); summed over a match by the bench.
@@ -188,6 +190,9 @@ pub struct AvoidStats {
     pub out_at_act: [u32; 3],
     /// No floor in reach better than where it stood.
     pub no_way: [u32; 3],
+    /// The floor a step went to, by how it was found: the nearest outside the radius, a later one (the nearer routes were
+    /// longer than the reach), the farthest in reach (none outside by its route).
+    pub way: [u32; 3],
     /// A step begun from `Clear` (it walked in, or a way opened).
     pub retried: [u32; 3],
     /// At the blast, a bot that was stepping: out of its radius, or not.
@@ -213,6 +218,7 @@ impl AvoidStats {
             held: minus(&self.held, &before.held),
             out_at_act: minus(&self.out_at_act, &before.out_at_act),
             no_way: minus(&self.no_way, &before.no_way),
+            way: minus(&self.way, &before.way),
             retried: minus(&self.retried, &before.retried),
             escaped: minus(&self.escaped, &before.escaped),
             caught: minus(&self.caught, &before.caught),
@@ -233,6 +239,7 @@ impl AvoidStats {
         plus(&mut self.held, &other.held);
         plus(&mut self.out_at_act, &other.out_at_act);
         plus(&mut self.no_way, &other.no_way);
+        plus(&mut self.way, &other.way);
         plus(&mut self.retried, &other.retried);
         plus(&mut self.escaped, &other.escaped);
         plus(&mut self.caught, &other.caught);
@@ -524,10 +531,14 @@ fn attempt(
         radius: known.radius_m + c.margin_m,
         blast_at: known.blast_at,
     };
-    let reach_m = ARRIVE_MPS * known.blast_at.saturating_sub(now) as f32 / 1000.0;
+    let left_ms = known.blast_at.saturating_sub(now);
+    let far_m = ARRIVE_MPS * left_ms as f32 / 1000.0;
+    let routed = c.escape;
+    let reach_m = if routed { escape_reach_m(left_ms) } else { far_m };
     let k = known.how.index();
-    match around.way_out(me, &blast, reach_m) {
-        Some(to) => {
+    match around.way_out(me, &blast, reach_m, far_m, routed) {
+        Some((to, pick)) => {
+            stats.way[pick as usize] += 1;
             if !first_try {
                 stats.retried[k] += 1;
             } else if (me.chest() - known.rest).length() >= blast.radius {
@@ -627,8 +638,8 @@ mod tests {
             self.sees
         }
 
-        fn way_out(&self, _: &PlaceView, _: &Blast, _: f32) -> Option<Vec3> {
-            self.out
+        fn way_out(&self, _: &PlaceView, _: &Blast, _: f32, _: f32, _: bool) -> Option<(Vec3, StepOutPick)> {
+            self.out.map(|to| (to, StepOutPick::Nearest))
         }
     }
 
@@ -755,6 +766,47 @@ mod tests {
             sum.add(each);
         }
         assert_eq!(sum, avoid.stats);
+    }
+
+    /// The reach asked of the map for a way out is the pace a body can count on over the time left ([`escape_reach_m`]), not
+    /// the sprint's 5 m/s over all of it; the floor's pick is counted.
+    #[test]
+    fn the_reach_asked_for_a_way_out_is_the_escape_pace_of_the_time_left() {
+        struct Reach(std::cell::Cell<f32>, std::cell::Cell<bool>);
+        impl Surroundings for Reach {
+            fn sees(&self, _: Vec3, _: Vec3) -> bool {
+                false
+            }
+
+            fn way_out(&self, _: &PlaceView, _: &Blast, reach_m: f32, _: f32, routed: bool) -> Option<(Vec3, StepOutPick)> {
+                self.1.set(routed);
+                self.0.set(reach_m);
+                Some((OUT, StepOutPick::Later))
+            }
+        }
+        let me = view(0, Vec3::new(0.0, 0.0, 9.0), [0.0, 0.0]);
+        let around = Reach(std::cell::Cell::new(0.0), std::cell::Cell::new(false));
+        let off = AvoidTuning { bot_pockets: false, escape: true, ..tuning() };
+        let assumed = [LiveGrenade { whose: Whose::Assumed, ..grenade() }];
+        let mut avoid = Avoid::default();
+        let mut rng = Rng::new(1);
+        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed }, &off, &mut rng, &around);
+        let acts = avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed }, &off, &mut rng, &around);
+        assert_eq!(acts, Action::Go(OUT));
+        let Some(Decision::Stepping(known)) = avoid.decided else { panic!("{:?}", avoid.decided) };
+        let left = known.blast_at - 2_500;
+        assert_eq!(around.0.get(), escape_reach_m(left));
+        assert!(around.0.get() < 5.0 * left as f32 / 1000.0, "less than the sprint's pace over all of it");
+        assert_eq!(avoid.stats.way, [0, 1, 0]);
+        assert!(around.1.get(), "by the planned route");
+        // With the escape off: the sprint's pace over all the time left, by link distance, as it was.
+        let old = AvoidTuning { escape: false, ..off };
+        let mut avoid = Avoid::default();
+        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed }, &old, &mut rng, &around);
+        avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed }, &old, &mut rng, &around);
+        let Some(Decision::Stepping(known)) = avoid.decided else { panic!("{:?}", avoid.decided) };
+        assert_eq!(around.0.get(), ARRIVE_MPS * (known.blast_at - 2_500) as f32 / 1000.0);
+        assert!(!around.1.get());
     }
 
     /// Two assumed grenades known at once (a volley, two throwers) are each refused and counted once however many looks the

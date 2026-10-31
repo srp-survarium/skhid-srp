@@ -27,6 +27,7 @@
 //! on bodies and statistics, the map once its grid is built; and the
 //! inputs the bots make.
 
+pub mod aim_settle;
 pub mod aimpoint;
 pub mod anomalies;
 pub mod apart;
@@ -40,6 +41,7 @@ pub mod contact;
 pub mod control;
 pub mod crossing;
 pub mod curve;
+pub mod doors;
 pub mod encode;
 pub mod escape;
 pub mod field_source;
@@ -311,6 +313,9 @@ pub struct Bot {
     /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
     #[cfg(test)]
     pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
+    /// The reflex's mirror of the kick at each of its last ticks (`time`, [`Reflex::seen`]): what the stand-in's own kick is read against.
+    #[cfg(test)]
+    pub(crate) bench_mirror: std::collections::VecDeque<(u32, (f32, u8))>,
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
@@ -493,6 +498,8 @@ impl Bot {
             bench_guard_at: ([0.0; 2], Vec3::ZERO),
             #[cfg(test)]
             bench_est: std::collections::VecDeque::new(),
+            #[cfg(test)]
+            bench_mirror: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
             #[cfg(test)]

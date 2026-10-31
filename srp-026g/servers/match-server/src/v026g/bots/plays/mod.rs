@@ -1004,6 +1004,48 @@ impl Ctx<'_> {
         self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
     }
 
+    /// [threat.sniper_memory, #25b] An objective play's share of its score for its way through a remembered sniper's
+    /// lanes (`SniperMemory::way_weight`): Collect, Escort and Intercept, the bot not carrying (its way home is its own,
+    /// `collect::way_home`); 1 with no sniper spot held, the switch off, or no place for the target.
+    fn sniper_way_weight(&self, kind: PlayKind, target: TargetRef) -> f32 {
+        let Some(memory) = self.tuning.threat.sniper_memory else {
+            return 1.0;
+        };
+        if !matches!(kind, PlayKind::Collect | PlayKind::Escort | PlayKind::Intercept)
+            || self.me.carrying.is_some()
+            || self.team.threat.sniper_regions.is_empty()
+        {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        let exposed_m = self.sniper_way_m(to);
+        super::threat::sniper_way_tally::weighed(self.me.team, exposed_m);
+        memory.way_weight(exposed_m)
+    }
+
+    /// [threat.sniper_memory] The metres of the straight way from the bot to `to` that lie in the held sensed snipers'
+    /// lanes (`Picture::sniper_regions`, the regions their casts see), sampled every `threat::STEP_M` (as `way_home`
+    /// weighs its ways: straight, the floors under them).
+    pub fn sniper_way_m(&self, to: Vec3) -> f32 {
+        let regions = &self.team.threat.sniper_regions;
+        if regions.is_empty() {
+            return 0.0;
+        }
+        let (grid, map) = (&self.tactics.world.grid, self.tactics.regions());
+        let from = self.me.feet;
+        let step = super::threat::STEP_M;
+        let steps = (from.distance_xz(to) / step).ceil().max(1.0) as usize;
+        let inside = (1..=steps)
+            .filter(|&k| {
+                let p = from + (to - from) * (k as f32 / steps as f32);
+                grid.locate(p, 1.5).is_some_and(|n| regions.binary_search(&map.of(n)).is_ok())
+            })
+            .count();
+        inside as f32 * from.distance_xz(to) / steps as f32
+    }
+
     /// A team job's candidate (K2, `threat::Job`): scored by the role, `ThreatTuning::job_score` times the
     /// health gate `health` (a play's own gate), in the objective band with `job_objective`.
     pub fn job_candidate(&self, kind: PlayKind, target: TargetRef, slot: u32, health: f32) -> Option<Candidate> {
@@ -1060,12 +1102,19 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
-        let (score, why) = curve::score(considerations, |input| {
+        #[cfg(test)]
+        fairness::scoring(Some(kind));
+        let (mut score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
+        if !score.is_zero() {
+            score = Score::new(score.get() * self.sniper_way_weight(kind, target));
+        }
+        #[cfg(test)]
+        fairness::scoring(None);
         (!score.is_zero()).then(|| Candidate {
             kind,
             target,
