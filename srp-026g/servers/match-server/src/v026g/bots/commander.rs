@@ -88,17 +88,25 @@ fn threat_tick(
     // The jobs (K2) and the picture the plays read, every tick (the bots
     // move).
     let held = threat.spots.held_lines(now, rules);
-    // [threat.concede] The held lines whose shooter's area the team conceded (design-p1c §3), by id, sorted; and the
-    // memory's areas left open long enough forgotten.
-    let conceded: Vec<u32> = match tuning.threat.concede {
+    // [threat.concede] The held lines whose shooter's area the team conceded or tried (design-p1c §3), by id, sorted; and
+    // the memory's areas left open long enough forgotten.
+    let concede = match tuning.threat.concede {
         Some(_) => {
             threat.spot_memory.forget_old(now);
             let memory = &threat.spot_memory;
-            let mut ids: Vec<u32> = held.iter().filter(|l| memory.conceded_at(l.at, now)).map(|l| l.id).collect();
-            ids.sort_unstable();
-            ids
+            let mut offers = super::concede::Offers::default();
+            for line in &held {
+                match memory.area_at(line.at).map(|area| memory.offers(area, now)) {
+                    Some(super::concede::Offer::None) => offers.conceded.push(line.id),
+                    Some(super::concede::Offer::NotLike(last)) => offers.tried.push((line.id, last)),
+                    Some(super::concede::Offer::Any) | None => {}
+                }
+            }
+            offers.conceded.sort_unstable();
+            offers.tried.sort_unstable_by_key(|&(id, _)| id);
+            offers
         }
-        None => Vec::new(),
+        None => super::concede::Offers::default(),
     };
     if tuning.threat.job {
         let mates: Vec<threat::Mate> = bots
@@ -153,7 +161,7 @@ fn threat_tick(
         let areas = objective.home_spots(&tactics.world.map);
         let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
         let spots = &threat.spots;
-        let unheld = |id| if conceded.binary_search(&id).is_ok() { threat::JobEnd::Conceded } else { spots.unheld_why(id, now) };
+        let unheld = |id| if concede.is_conceded(id) { threat::JobEnd::Conceded } else { spots.unheld_why(id, now) };
         // A role's bot stands out of every held line, or of the holds' only (the switch off).
         let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
         let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
@@ -205,7 +213,7 @@ fn threat_tick(
         }
     }
     let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
-    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, conceded };
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, concede };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }

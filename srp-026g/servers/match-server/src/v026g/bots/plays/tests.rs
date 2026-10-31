@@ -563,7 +563,8 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     s.team.threat = Arc::new(Picture { held: vec![line.clone()], ..Picture::default() });
     assert_eq!(collect(&s), Some(clear), "held, not conceded");
     assert_eq!(roam(&s), Some(roam_clear));
-    s.team.threat = Arc::new(Picture { held: vec![line], conceded: vec![7], ..Picture::default() });
+    let concede = crate::v026g::bots::concede::Offers { conceded: vec![7], tried: Vec::new() };
+    s.team.threat = Arc::new(Picture { held: vec![line], concede, ..Picture::default() });
     let weighed = collect(&s).expect("weighed, not refused");
     assert!((weighed - clear * Concede::default().objective_weight()).abs() < 1e-4, "{weighed} vs {clear}");
     assert_eq!(roam(&s), None, "a roam into his lane is refused");

@@ -184,10 +184,23 @@ impl Bots {
                     && let Some((_, sensed, at)) = self.last_sensed(killer, team, &[])
                     && sensed + threat::SENSED_MS >= time
                 {
+                    // [threat.concede] Whether his spot here was a hold before this death (the K2 jobs' kills): only then
+                    // is the death a failed try on his area (`camper-decision-map.md` §2).
+                    let threat_tuning = &self.tunings.of(team as u8).threat;
+                    let held = threat_tuning.concede.is_some()
+                        && self.teams[team].features.threat.spots.held_of(killer, time, threat_tuning.job_kills as usize).iter().any(|s| s.distance_xz(at) <= threat::AREA_M);
                     self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time, threat::SpotRules::of(&self.tunings.of(team as u8).threat));
-                    // [threat.concede] And a failed try on his area (design-p1c §3, item 11).
+                    // [threat.concede] And a failed try on his area (design-p1c §3, item 11): what the bot was doing on him.
                     if let Some(concede) = self.tunings.of(team as u8).threat.concede {
-                        super::concede::died(&mut self.teams[team].features.threat, team as u8, a.place, death.at, killer, at, time, &concede.rules());
+                        if held {
+                            let answering = self.bots.iter().flatten().find(|b| b.place == a.place).and_then(|b| b.assignment.as_ref()).is_some_and(|p| {
+                                p.kind == plays::PlayKind::Answer && p.target == plays::TargetRef::Place(killer)
+                            });
+                            let play = if answering { super::concede::TryKind::Answer } else { super::concede::TryKind::Peek };
+                            super::concede::died(&mut self.teams[team].features.threat, team as u8, a.place, death.at, killer, at, play, time, &concede.rules());
+                        } else {
+                            super::concede::tally(team as u8, super::concede::Tally::DeathBeforeHold);
+                        }
                     }
                 }
             }

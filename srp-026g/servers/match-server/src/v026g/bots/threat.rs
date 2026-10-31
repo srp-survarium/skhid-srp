@@ -2026,9 +2026,9 @@ pub struct Picture {
     pub held: Vec<HeldLine>,
     pub jobs: Vec<Job>,
     pub sniper_regions: Vec<u32>,
-    /// [threat.concede] The held lines whose shooter's area the team has conceded (`concede.rs`), by id, sorted: the plays
-    /// aimed into one are refused, or weighed down for the objective.
-    pub conceded: Vec<u32>,
+    /// [threat.concede] The held lines whose shooter's area the team has conceded or tried (`concede.rs`): the plays aimed
+    /// into a conceded one are refused, or weighed down for the objective; a try on a tried one differs from its last.
+    pub concede: super::concede::Offers,
 }
 
 impl Picture {
@@ -2040,12 +2040,12 @@ impl Picture {
     /// [threat.concede] The conceded held line whose shooter's area `p` lies in (within [`AREA_M`] of its spot) or whose
     /// lanes cover `p`, if any.
     pub fn conceded_at(&self, p: Vec3) -> Option<&HeldLine> {
-        if self.conceded.is_empty() {
+        if self.concede.conceded.is_empty() {
             return None;
         }
         self.held
             .iter()
-            .filter(|l| self.conceded.binary_search(&l.id).is_ok())
+            .filter(|l| self.concede.is_conceded(l.id))
             .find(|l| l.at.distance_xz(p) <= AREA_M || l.covers(p))
     }
 
@@ -3058,7 +3058,7 @@ mod tests {
                 passed: Vec::new(),
             }],
             sniper_regions: Vec::new(),
-            conceded: Vec::new(),
+            concede: Default::default(),
         };
         assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
         assert!(picture.job_of(3).is_none());

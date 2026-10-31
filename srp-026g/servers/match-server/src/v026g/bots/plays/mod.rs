@@ -1040,7 +1040,7 @@ impl Ctx<'_> {
         let Some(concede) = self.tuning.threat.concede else {
             return 1.0;
         };
-        if self.team.threat.conceded.is_empty() || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply) {
+        if self.team.threat.concede.conceded.is_empty() || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply) {
             return 1.0;
         }
         let Some(to) = self.point_of(target) else {

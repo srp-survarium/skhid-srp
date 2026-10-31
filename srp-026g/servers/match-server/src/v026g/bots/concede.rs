@@ -54,10 +54,11 @@ pub enum Abort {
     NoCrossers,
 }
 
-/// What was tried: a team job, or a lone bot's own peek (item 15).
+/// What was tried: a team job, the sniper answer (play 28, one bot), or a lone bot's own peek (item 15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TryKind {
     Job(JobKind),
+    Answer,
     Peek,
 }
 
@@ -102,6 +103,26 @@ pub struct ConcedeRules {
     pub retry_ms: u32,
 }
 
+/// What the plays read of the team's memory of tries (`threat::Picture::concede`, `camper-decision-map.md`): the held
+/// lines whose shooter's area is conceded, and those whose area was tried with its last try, by line id, sorted.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Offers {
+    pub conceded: Vec<u32>,
+    pub tried: Vec<(u32, Try)>,
+}
+
+impl Offers {
+    /// Whether held line `line`'s area is conceded.
+    pub fn is_conceded(&self, line: u32) -> bool {
+        self.conceded.binary_search(&line).is_ok()
+    }
+
+    /// The last failed try on held line `line`'s area, while it is tried (not conceded, not open).
+    pub fn last_try(&self, line: u32) -> Option<Try> {
+        self.tried.binary_search_by_key(&line, |&(id, _)| id).ok().map(|i| self.tried[i].1)
+    }
+}
+
 /// What may be tried on an area now.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Offer {
@@ -135,7 +156,10 @@ pub enum Change {
 /// `concede` object).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tally {
-    /// A death recorded on an area: a lone try's (a bot that held no role on its shooter's spot) or a job role's.
+    /// A death to a shooter before his spot was a hold (2 kills): how the team found him, not a try (not recorded).
+    DeathBeforeHold,
+    /// A death recorded on an area: a lone try's (a bot that held no role on its shooter's spot, the answer play's
+    /// included) or a job role's.
     DeathPeek,
     DeathJob,
     /// A retry that failed (a failure on an area already tried), by the kind of the failed try.
@@ -164,7 +188,8 @@ pub enum Tally {
 }
 
 /// The [`Tally`]s, in order, and their names in the tally.
-pub const TALLIES: [(Tally, &str); 17] = [
+pub const TALLIES: [(Tally, &str); 18] = [
+    (Tally::DeathBeforeHold, "deaths_before_hold"),
     (Tally::DeathPeek, "deaths_peek"),
     (Tally::DeathJob, "deaths_job"),
     (Tally::RetryPeek, "retries_failed_peek"),
@@ -258,15 +283,17 @@ pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &Conc
 }
 
 /// A bot of team `team` died at `from` to `shooter`, whom the team sensed at `at` lately (the K1 spot's rule,
-/// `ThreatSpots::died`): a failed try on his area. A bot that held a role of a job on his spot failed that job
-/// ([`Failed::HolderDown`]); any other made a lone try ([`Failed::Untraded`]: his death opens the area again, so a death
-/// traded before he kills again is undone).
+/// `ThreatSpots::died`), his spot a hold already (`camper-decision-map.md` §2: the deaths that make the hold are how the
+/// team finds him, `facts.rs` counts them apart): a failed try on his area, the one record of a death. A bot that held a
+/// role of a job on his spot failed that job ([`Failed::HolderDown`]); any other failed what it was doing, `play` (the
+/// answer play on him, else a lone peek: [`Failed::Untraded`], his death opens the area again, so a death traded before
+/// he kills again is undone).
 #[allow(clippy::too_many_arguments)]
-pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) {
+pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shooter: Place, at: Vec3, play: TryKind, now: u32, rules: &ConcedeRules) {
     let role = threat.jobs.iter().filter(|j| j.shooter == shooter).find_map(|j| j.role_of(victim));
     let (kind, why) = match role {
         Some(role) => (TryKind::Job(JobKind::Flank), Failed::HolderDown { role }),
-        None => (TryKind::Peek, Failed::Untraded),
+        None => (play, Failed::Untraded),
     };
     let memory = &mut threat.spot_memory;
     let area = memory.area_of(at, Some(shooter), now);
@@ -524,10 +551,11 @@ mod tests {
     #[test]
     fn two_lone_deaths_to_a_shooter_concede_his_area_until_he_dies() {
         let mut threat = TeamThreat::default();
-        died(&mut threat, 1, 3, Vec3::new(20.0, 0.0, 0.0), 7, SPOT, 1_000, &RULES);
+        died(&mut threat, 1, 3, Vec3::new(20.0, 0.0, 0.0), 7, SPOT, TryKind::Peek, 1_000, &RULES);
         assert!(!threat.spot_memory.conceded_at(SPOT, 1_000), "one death");
-        // Sensed 2 m off: his area, its centre moved.
-        died(&mut threat, 1, 4, Vec3::new(21.0, 0.0, 3.0), 7, Vec3::new(2.0, 0.0, 0.0), 5_000, &RULES);
+        // Sensed 2 m off: his area, its centre moved; the answer play's try.
+        died(&mut threat, 1, 4, Vec3::new(21.0, 0.0, 3.0), 7, Vec3::new(2.0, 0.0, 0.0), TryKind::Answer, 5_000, &RULES);
+        assert!(matches!(threat.spot_memory.last_try(threat.spot_memory.area_at(SPOT).expect("kept")), Some((TryKind::Answer, _, 5_000))));
         assert!(threat.spot_memory.conceded_at(SPOT, 5_000));
         assert!(threat.spot_memory.area_at(Vec3::new(30.0, 0.0, 0.0)).is_none(), "far from it: no area");
         shooter_died(&mut threat, 1, 8, 6_000, &RULES);
