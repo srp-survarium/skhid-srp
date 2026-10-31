@@ -328,17 +328,25 @@ pub struct CommitTuning {
     /// rule): with spots no longer blocked by passers-by, more offers were
     /// scored on older places (the bench's stale reads +13-15 %, their share
     /// unchanged); a running one keeps its choke (`crossfire_point`).
+    /// On with `held_in_pass` (`fresh-a192-20261031T0312`, by side, 96 pairs):
+    /// Crossfire arrivals 385 vs 206, kills while holding 67 vs 33, "no spot
+    /// apart" ends 9 vs 341, stale enemy reads -62 %, score +3.0 %, delivered
+    /// +4.3 %; the drop-one arms put the gain on this switch.
     pub crossfire_apart_mates: bool,
     /// [A192] The commander's slots held by the bots kept on them are
     /// rebuilt as each bot of the pass is given up: a slot freed earlier in
     /// the same pass is free for the rest of it. Off: the held slots are
     /// found once before the pass (a bot that lost its Collect slot took a
     /// filler for one pass, then the Collect back: 35 flips within 3 s).
+    /// On with `crossfire_apart_mates` (its bench): those flips 21 vs 38.
     pub held_in_pass: bool,
     /// [A192] A Crossfire offer's score is taken times the chance it is
     /// still wanted at arrival, `exp(-walk_s / tau)`, the walk at a run's
     /// pace to the choke (the bench: of the takes that ended before the
-    /// spot, the walk's median time to the end was about 13 s). None: off.
+    /// spot, the walk's median time to the end was about 13 s). None: off,
+    /// the default: with 13 s the drop-one arm without it held more (arrivals
+    /// 409 vs 388, kills while holding 78 vs 56, takes a match 14.4 vs 12.7)
+    /// for deaths before arrival a take 0.268 vs 0.285 (`drop-a192-20261031T0043`).
     pub crossfire_arrival_tau_s: Option<f32>,
 }
 
@@ -356,8 +364,8 @@ impl Default for CommitTuning {
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
-            crossfire_apart_mates: false,
-            held_in_pass: false,
+            crossfire_apart_mates: true,
+            held_in_pass: true,
             crossfire_arrival_tau_s: None,
         }
     }
