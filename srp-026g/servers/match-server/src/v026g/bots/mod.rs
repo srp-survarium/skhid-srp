@@ -725,13 +725,6 @@ impl Bots {
         }
     }
 
-    pub fn has_entered(&self, place: Place) -> bool {
-        self.bots
-            .get(place)
-            .and_then(Option::as_ref)
-            .is_some_and(|bot| bot.entered.is_some())
-    }
-
     /// Whether a bot waits to see its body in a world (just entered, or
     /// dead).
     pub fn need_world(&self) -> bool {
