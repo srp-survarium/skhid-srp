@@ -1191,6 +1191,127 @@ fn keep_input(
     }
 }
 
+/// What a recording holds of the players, for tables (`srp-rec-table`, local analysis tool): every input the server
+/// relayed or accepted, by (match ms, place), read as [`convert_file`] reads them; every world the clients uploaded, by its
+/// item time (match ms), each upload's body; and the report.
+pub struct Tables {
+    pub inputs: BTreeMap<(u32, u8), InputValue>,
+    pub worlds: BTreeMap<u32, Vec<Vec<u8>>>,
+    pub report: Report,
+}
+
+/// [`Tables`] of a recording, by the converter's own reading (the relays' copies resolved as [`finish`] does).
+pub fn tables_of_file(path: &Path, notes: &[Record]) -> Result<Tables, ConvertError> {
+    let mut gather = Gather::new(notes)?;
+    record::read_each(path, |record| gather.push(record)).map_err(ConvertError::Read)?;
+    let Gather { mut report, offset, counts, copies, messages, worlds, accepted_inputs, .. } = gather;
+    let mut starts = Vec::with_capacity(counts.len() + 1);
+    let mut total = 0usize;
+    for &count in &counts {
+        starts.push(total);
+        total += count as usize;
+    }
+    starts.push(total);
+    let mut sent = vec![(0u32, 0u8); total];
+    {
+        let mut fill = starts.clone();
+        for &(at_ms, place, id) in copies.iter() {
+            let at = &mut fill[id as usize];
+            sent[*at] = (at_ms, place);
+            *at += 1;
+        }
+    }
+    for id in 0..counts.len() {
+        sent[starts[id]..starts[id + 1]].sort_unstable();
+    }
+    let times_of = |id: usize| &sent[starts[id]..starts[id + 1]];
+    let mut inputs: BTreeMap<(u32, u8), InputValue> = BTreeMap::new();
+    for ((time, player), bytes) in accepted_inputs {
+        keep_input(&mut inputs, &mut report, time, player, &bytes);
+    }
+    let mut by_id: Vec<(u8, usize, &[u8])> = vec![(0, 0, &[]); counts.len()];
+    for ((message_id, mask_len, payload), &id) in &messages {
+        by_id[id] = (*message_id, *mask_len, payload);
+    }
+    let mut behind: BTreeMap<u8, Vec<u32>> = BTreeMap::new();
+    for id in 0..counts.len() {
+        let times = times_of(id);
+        for &(at_ms, place) in times {
+            let from = times.partition_point(|&(t, _)| t + LOOKBACK_MS < at_ms);
+            let to = times.partition_point(|&(t, _)| t <= at_ms + NEAR_AFTER_MS);
+            let others = || times[from..to].iter().filter(|&&(_, other)| other != place);
+            if others().any(|&(t, _)| t + BEHIND_MS < at_ms) && !others().any(|&(t, _)| t + BEHIND_MS >= at_ms) {
+                behind.entry(place).or_default().push(at_ms);
+            }
+        }
+    }
+    for signs in behind.values_mut() {
+        signs.sort_unstable();
+    }
+    drop(sent);
+    let lagging = |place: u8, at_ms: u32| {
+        behind.get(&place).is_some_and(|signs| {
+            let next = signs.partition_point(|&t| t + LAG_HOLD_MS < at_ms);
+            signs.get(next).is_some_and(|&t| t <= at_ms + LAG_HOLD_MS)
+        })
+    };
+    for &(at_ms, place, id) in copies.iter() {
+        if lagging(place, at_ms) {
+            continue;
+        }
+        let clock = (i64::from(at_ms) - offset).max(0) as u32;
+        let (message_id, mask_len, payload) = by_id[id as usize];
+        match message_id {
+            0xEB => {
+                if let Some(time) = resolve(payload[0], 0, clock, &mut report) {
+                    keep_input(&mut inputs, &mut report, time, payload[1], &payload[2..10]);
+                }
+            }
+            0xEC => {
+                if let Some(time) = resolve(payload[0], payload[1], clock, &mut report) {
+                    keep_input(&mut inputs, &mut report, time, payload[2], &payload[3..11]);
+                }
+            }
+            0xED | 0xEE => {
+                let precise = message_id == 0xEE;
+                let head = if precise { 2 } else { 1 };
+                if payload.len() < head + mask_len {
+                    continue;
+                }
+                let ms = if precise { payload[1] } else { 0 };
+                let Some(time) = resolve(payload[0], ms, clock, &mut report) else {
+                    continue;
+                };
+                let mask = &payload[head..head + mask_len];
+                let players: Vec<u8> = (0..(mask_len * 8) as u8).filter(|p| mask[usize::from(p / 8)] & (1 << (p % 8)) != 0).collect();
+                let n = players.len();
+                let rest = &payload[head + mask_len..];
+                if rest.len() < 8 * n {
+                    continue;
+                }
+                let (actions, rest) = rest.split_at(4 * n);
+                let (rot_x, rot_y) = rest.split_at(2 * n);
+                for (i, &player) in players.iter().enumerate() {
+                    let mut bytes = [0u8; 8];
+                    bytes[0..2].copy_from_slice(&rot_x[2 * i..2 * i + 2]);
+                    bytes[2..4].copy_from_slice(&rot_y[2 * i..2 * i + 2]);
+                    bytes[4..8].copy_from_slice(&actions[4 * i..4 * i + 4]);
+                    keep_input(&mut inputs, &mut report, time, player, &bytes);
+                }
+            }
+            _ => {}
+        }
+    }
+    report.inputs = inputs.len();
+    report.world_times = worlds.len();
+    Ok(Tables { inputs, worlds, report })
+}
+
+/// The start of the tick a time is in; here for the CLI's summary.
+pub fn tick_of(time: u32) -> u32 {
+    time / TICK_MS
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
