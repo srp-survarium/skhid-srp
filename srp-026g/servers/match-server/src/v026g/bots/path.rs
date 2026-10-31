@@ -1278,6 +1278,11 @@ impl Route {
             .next()
     }
 
+    /// The door gates of this route ([`Route::door_centred`]): the corners put at the middle of a doorway.
+    pub fn gates(&self) -> &[Vec3] {
+        &self.gates
+    }
+
     /// This route with its corner at `at` a door gate (tests of the walk).
     #[cfg(test)]
     pub fn with_gate(mut self, at: Vec3) -> Self {

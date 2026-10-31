@@ -135,6 +135,13 @@ impl Passes {
                 spots.push(Spot { kind: Kind::Door, at });
             }
         }
+        // A route with door gates has its doorway's middle as a corner: its legs on either side are short, so no leg of it
+        // crosses the doorway on its own.
+        for &at in route.gates() {
+            if !spots.iter().any(|s: &Spot| s.kind == Kind::Door && s.at.distance_xz(at) < 1.0) {
+                spots.push(Spot { kind: Kind::Door, at });
+            }
+        }
         for w in points.windows(3) {
             let (a, b, c) = (w[0].at, w[1].at, w[2].at);
             let (u, v) = ((b.x - a.x, b.z - a.z), (c.x - b.x, c.z - b.z));
