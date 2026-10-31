@@ -70,7 +70,7 @@ pub(super) fn key_away(me: &PlaceView, view: &MatchView, within_m: f32) -> Away 
 
 /// A side of the bot's heading.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Side {
+pub enum Side {
     Left,
     Right,
 }
@@ -87,7 +87,7 @@ impl Side {
 
 /// The line a bot walks (A175, `spacing.lane`): the route's own, or one beside it on a side until a time. The walk steers at the route's point shifted by [`Lane::offset`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum Lane {
+pub enum Lane {
     #[default]
     Centre,
     Over { side: Side, until: u32 },

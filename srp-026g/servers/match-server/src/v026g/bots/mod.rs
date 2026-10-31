@@ -303,6 +303,11 @@ pub struct Bot {
     /// The step apart from a teammate of the last drive tick (`spacing.apart`): 0 no teammate inside, 1 taken, 2 refused (no clear ground that side), 3 held off (the reflex strafes or fires, a use is held, a side key is down).
     #[cfg(test)]
     pub(crate) bench_apart: u8,
+    /// The line the bot walks (`spacing.lane`, A175): the route's own, or one beside it.
+    pub(crate) lane: apart::Lane,
+    /// What the lane did to the steering point in the last walk tick: [`apart::LaneUse`] as a number.
+    #[cfg(test)]
+    pub(crate) bench_lane: u8,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -494,6 +499,9 @@ impl Bot {
             bench_stepped: 0,
             #[cfg(test)]
             bench_apart: 0,
+            lane: apart::Lane::Centre,
+            #[cfg(test)]
+            bench_lane: 0,
             #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]

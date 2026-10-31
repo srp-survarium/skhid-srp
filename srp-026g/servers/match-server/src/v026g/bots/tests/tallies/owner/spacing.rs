@@ -137,7 +137,9 @@ struct TeamSpacing {
     advance: Advance,
     /// The 1 m pair-seconds by what the step apart did on the pair's two bodies that tick (the worse of the two): nothing asked (no mate inside in the bot's picture), taken, refused (no clear
     /// ground that side), held off (the reflex strafes or fires, a use is held, a side key down).
-    apart_state: [u64; 6],
+    apart_state: [u64; 7],
+    /// The living bot-seconds by lane (`spacing.lane`): in the centre, and over with what the lane did that tick ([`apart::LaneUse`]: idle, applied, no room, unsafe floor, route busy).
+    lane_seconds: [u64; 6],
     /// Spacing per number of living mates (1 to [`MATES_STRATA`], the last 9 and more).
     by_mates: [Stratum; MATES_STRATA],
     /// The living pairs and those within 1 m by the age of the younger body ([`AGE_EDGES_S`]): [pairs, within 1 m].
@@ -214,6 +216,8 @@ pub(super) struct SpacingCounts {
     goal: Vec<Option<Vec3>>,
     /// The step apart each bot took (or not) on its last tick.
     apart: Vec<u8>,
+    /// Each bot's lane now: 0 the centre, 1 + the lane's use when over.
+    lane: Vec<u8>,
     /// What the commander gave each bot to do (its target).
     target: Vec<crate::v026g::bots::plays::TargetRef>,
     /// The 1 m pair-seconds by the plays of the two bodies (sorted names), by team.
@@ -246,6 +250,7 @@ impl SpacingCounts {
             last_killer: vec![None; n],
             goal: vec![None; n],
             apart: vec![0; n],
+            lane: vec![0; n],
             target: vec![crate::v026g::bots::plays::TargetRef::None; n],
             overlap_plays: Default::default(),
             born: vec![None; n],
@@ -271,6 +276,12 @@ impl Topic for SpacingCounts {
         }
         if let Some(apart) = self.apart.get_mut(place) {
             *apart = bot.map_or(0, |b| b.bench_apart);
+        }
+        if let Some(lane) = self.lane.get_mut(place) {
+            *lane = bot.map_or(0, |b| match b.lane {
+                crate::v026g::bots::apart::Lane::Centre => 0,
+                crate::v026g::bots::apart::Lane::Over { .. } => 1 + b.bench_lane,
+            });
         }
         if let Some(target) = self.target.get_mut(place) {
             *target = bot.and_then(|b| b.assignment.as_ref().map(|a| a.target)).unwrap_or(crate::v026g::bots::plays::TargetRef::None);
@@ -378,6 +389,9 @@ impl Topic for SpacingCounts {
             ts.mates += mates;
             ts.enemies += u64::from(enemy_mask.count_ones());
             ts.clumped += u64::from(mates >= 3);
+            if self.side[place].is_some() {
+                ts.lane_seconds[usize::from(self.lane[place]).min(5)] += 1;
+            }
             ts.pack_samples[0] += 1;
             ts.pack_samples[1] += u64::from(pack_mask.count_ones() >= PACK);
             if alive_mates > 0 {
@@ -544,6 +558,7 @@ impl SpacingCounts {
                 "progress_level_sum": c.advance.level_sum,
                 "progress_levels_fifths": c.advance.levels,
                 "overlap_1m_apart_none_taken_refused_heldoff": c.apart_state,
+                "lane_seconds_centre_over_idle_applied_noroom_unsafe_routebusy": c.lane_seconds,
                 "overlap_1m_moving_pair_goal_under5_5_20_20up_none": c.in_file_goals,
                 "killed_by_bullet_or_other": c.killed_by,
                 "killed_by_shooters_1_2_3": c.shooters,

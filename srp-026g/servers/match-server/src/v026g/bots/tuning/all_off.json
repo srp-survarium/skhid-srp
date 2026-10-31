@@ -117,6 +117,7 @@
   },
   "spacing": {
     "apart": false,
+    "apart_tie": false,
     "lane": null
   },
   "sense": {

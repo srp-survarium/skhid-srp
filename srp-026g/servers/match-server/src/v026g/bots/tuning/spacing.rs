@@ -50,6 +50,9 @@ pub struct SpacingTuning {
     /// Where the step aside is refused (no clear ground either side: a corridor, a lip) and a teammate inside `apart_m` is ahead and moving the same way, the bot behind lets go of
     /// forward for the tick: the one ahead pulls away and the file opens (the live players' nearest mate is a median 21 m away). Off: it walks on his heels.
     pub apart_ease: bool,
+    /// A teammate exactly on the bot's line (within 0.15 m across) is stepped away from to the side the lower place takes; where that side is refused and the other is clear, the bot
+    /// steps to the other (29 % of the 1 m pair-seconds the step aside leaves are refused with the other side clear). Off: the refused step is dropped.
+    pub apart_tie: bool,
     /// A175 (the A175 note, 2026-10-31): bots of one team that go the same way walk one line at one speed, with nothing between them (no collision for teammates): of the pairs
     /// moving alike within 16 m 26.6 % are on the same line (under 0.5 m across) against the live players' 12.4 %, and the step aside (one key for one tick) is pulled back by the
     /// route steering. With a lane a bot with a teammate in file on its line walks a parallel line `offset_m` to the side away from him (`bots/apart.rs` [`Lane`]), by shifting the
@@ -65,7 +68,7 @@ pub struct LaneTuning {
     pub offset_m: Metres,
     /// A teammate walking the same way within this far along the bot's heading, ahead or behind, is in file, m.
     pub look_m: Metres,
-    /// … and within this across it, m (a teammate farther to the side is already on a line of his own).
+    /// â€¦ and within this across it, m (a teammate farther to the side is already on a line of his own).
     pub line_m: Metres,
     /// The lane is kept this long after the teammate is gone, ms (so a pair does not weave).
     pub hold_ms: u32,
@@ -79,6 +82,6 @@ impl Default for LaneTuning {
 
 impl Default for SpacingTuning {
     fn default() -> Self {
-        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false, lane: None }
+        Self { buddy: true, callouts: Callouts::SeenAndHeard, apart: true, apart_m: Metres::of(1.1), apart_follow: true, apart_ease: false, apart_tie: false, lane: None }
     }
 }

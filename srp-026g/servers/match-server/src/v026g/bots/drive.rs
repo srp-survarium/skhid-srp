@@ -11,6 +11,9 @@ pub(super) const LEAD_OWN_MOST_MS: u32 = 100;
 /// A body farther than this off its route plans again, metres.
 pub(super) const OFF_ROUTE_M: f32 = 3.0;
 
+/// A lane's shifted steering point is on the route's floor when its grid floor is within this of the route point's height, m.
+const LANE_FLOOR_M: f32 = 0.5;
+
 /// A goal that moved this much is planned to again, metres.
 pub(super) const REPLAN_MOVED_M: f32 = 2.0;
 
@@ -1527,13 +1530,40 @@ fn drive_tick_inner(
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
                     }
                     let walks_the_route = aim.is_none();
+                    // [spacing.lane] A teammate in file on the bot's line: the walk steers at a point beside the route's, where the ground there is the route's own floor.
+                    let lane_offset = match tuning.spacing.lane {
+                        Some(lane) => {
+                            let band = match bot.lane {
+                                apart::Lane::Centre => lane.line_m.get(),
+                                apart::Lane::Over { .. } => lane.line_m.get() + 2.0 * lane.offset_m.get(),
+                            };
+                            bot.lane = bot.lane.next(time, apart::in_file(me, view, lane.look_m.get(), band), lane.hold_ms);
+                            bot.lane.offset(lane.offset_m.get())
+                        }
+                        None => None,
+                    };
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
                             bot.motor.walk_aiming(route, &pose, OFF_ROUTE_M, clear, aim)
                         }
-                        None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
+                        None => match lane_offset {
+                            Some(offset_m) => {
+                                let grid = &tactics.world.grid;
+                                let off_edge = |node: NodeId| !(grid.near_lip(node) || grid.is_lip(node) || grid.near_fall(node));
+                                let body_ok = grid.locate(me.feet, 1.5).is_some_and(off_edge);
+                                let safe = |shifted: Vec3, target: Vec3| {
+                                    grid.locate(shifted, 0.6).is_some_and(|node| off_edge(node) && (grid.position(node).y - target.y).abs() < LANE_FLOOR_M)
+                                };
+                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body_ok, safe: &safe }))
+                            }
+                            None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
+                        },
                     };
+                    #[cfg(test)]
+                    {
+                        bot.bench_lane = bot.motor.lane_use as u8;
+                    }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
                     contact::contacts::count(counted, me.feet);
@@ -1672,27 +1702,35 @@ fn drive_tick_inner(
     }
     if tuning.spacing.apart {
         let away = apart::key_away(me, view, tuning.spacing.apart_m.get());
-        if away != 0 {
+        if away.key != 0 {
             let follows = !tuning.spacing.apart_follow
                 && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
             let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
-            let keys = decision.keys | away;
-            let to = me.feet + side_step(keys, away, me.yaw, tactics.clear_step_sees_lip);
+            let keys = decision.keys | away.key;
+            let to = me.feet + side_step(keys, away.key, me.yaw, tactics.clear_step_sees_lip);
             let clear = !held_off && tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
             if clear {
                 decision.keys = keys;
             }
-            let eased = !held_off && !clear && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
+            // The other side, when this one is refused: tried for a teammate on the line (`apart_tie`), and in the bench for the count of the refused steps whose other side was clear.
+            let tie = tuning.spacing.apart_tie && away.tie;
+            let other_clear = !held_off && !clear && (cfg!(test) || tie) && {
+                let other = away.other_key();
+                let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
+                tactics.clear_step_for(me.feet, other_to, time, bot.side, intent.objective)
+            };
+            let tied = tie && other_clear;
+            if tied {
+                decision.keys |= away.other_key();
+            }
+            let eased = !held_off && !clear && !tied && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
             if eased {
                 decision.keys &= !(key::FORWARD | key::SPRINT);
             }
             #[cfg(test)]
             {
-                // A refused step (2) whose other side is clear is 5: the bot is against a wall on the side away from him, not in a corridor.
-                let other = if away == key::LEFT { key::RIGHT } else { key::LEFT };
-                let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
-                let other_clear = !held_off && !clear && tactics.clear_step_for(me.feet, other_to, time, bot.side, intent.objective);
-                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else if other_clear { 5 } else { 2 };
+                // A refused step (2) whose other side is clear is 5: the bot is against a wall on the side away from him, not in a corridor; 6 is the step to the other side (`apart_tie`).
+                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if tied { 6 } else if eased { 4 } else if other_clear { 5 } else { 2 };
             }
         }
     }

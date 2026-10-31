@@ -3675,6 +3675,45 @@ mod tests {
         assert_eq!(heading(true, 2.9), heading(false, 2.9));
     }
 
+    /// A lane (A175) moves the steering point sideways on a plain stretch of the route, and keeps the route's own point where the shifted one is no room, is not the route's floor, or the
+    /// route has its end, a gate or a jump near; each with its reason.
+    #[test]
+    fn a_lane_moves_the_steering_point_over_only_where_the_route_is_plain_and_the_ground_is_the_routes() {
+        use super::super::apart::LaneUse;
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let line = || Route::new(vec![p(0.0, 0.0), p(30.0, 0.0)]);
+        let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let walk = |route: &mut Route, pose: &Pose, lane: Option<(f32, bool, bool)>, clear: bool| {
+            // `clear` false: the points off the route's line (across it by more than half a metre) are no room.
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            let safe_floor = lane.is_some_and(|(_, _, safe)| safe);
+            let safe = move |_: Vec3, _: Vec3| safe_floor;
+            let aim = lane.map(|(offset_m, body_ok, _)| LaneAim { offset_m, body_ok, safe: &safe });
+            let (decision, walked) = motor.walk_in_lane(route, pose, 5.0, |p: Vec3| clear || p.z.abs() < 0.5, aim);
+            assert_eq!(walked, Walked::OnTheWay);
+            (decision.turn.0, motor.lane_use)
+        };
+        // Without a lane the point is dead ahead (no turn); with one it is 0.9 m to the left of the route's point, 2.6 m on: a turn to the left, and the other way for the right.
+        let (straight, idle) = walk(&mut line(), &pose, None, true);
+        assert_eq!((straight.abs() < 1e-4, idle), (true, LaneUse::Idle));
+        let (left, used) = walk(&mut line(), &pose, Some((0.9, true, true)), true);
+        let (right, _) = walk(&mut line(), &pose, Some((-0.9, true, true)), true);
+        assert_eq!(used, LaneUse::Applied);
+        assert!(left.abs() > 0.05 && right.abs() > 0.05 && left * right < 0.0, "{left} {right}");
+        // The shifted point is not one the body walks to in a line: the route's own point, counted.
+        assert_eq!(walk(&mut line(), &pose, Some((0.9, true, true)), false), (straight, LaneUse::NoRoom));
+        // Not the route's floor, or the body itself at a lip: the route's own point.
+        assert_eq!(walk(&mut line(), &pose, Some((0.9, true, false)), true), (straight, LaneUse::UnsafeFloor));
+        assert_eq!(walk(&mut line(), &pose, Some((0.9, false, true)), true), (straight, LaneUse::UnsafeFloor));
+        // The route's last stretch (6 m): its own line.
+        let near_end = Pose { feet: Vec3::new(26.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        assert_eq!(walk(&mut line(), &near_end, Some((0.9, true, true)), true).1, LaneUse::RouteBusy);
+        // A gate within reach: its own line.
+        let gated = || Route::new(vec![p(0.0, 0.0), p(5.0, 0.0), p(30.0, 0.0)]).with_gate(Vec3::new(5.0, 0.0, 0.0));
+        assert_eq!(walk(&mut gated(), &pose, Some((0.9, true, true)), true).1, LaneUse::RouteBusy);
+    }
+
     /// B8 (Vector Laboratory, match 223ad08c bot 3, 138-200 s): a Drop of 3.58 m over 0.35 m across whose later legs come
     /// back under the way in (the route is a hairpin on one line). The route's distance is across the ground, so at the
     /// take-off the look-ahead (about 2.5 m, even 0.8 m under the lip cap) reaches the lower legs, horizontally the way the
