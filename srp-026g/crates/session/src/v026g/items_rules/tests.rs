@@ -2344,3 +2344,84 @@ fn a_decal_placed_on_a_weapon_asks_for_the_account() {
     assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 0));
     assert_ne!(account.kits[0].revision, revision);
 }
+
+/// A weapon's upgrades are the weapon kit's (`survarium::v026g::weapon_kit`):
+/// six logical slots kept in the account, at most three records on the
+/// wire, which the strict client model holds; an account saved before the
+/// kit (a rifle's decal in 0, its camouflage in 2, its scope in 3: the
+/// logical slots are those it was saved in) needs no rewrite, it is sent
+/// packed. Armour keeps three records sent as they are.
+#[test]
+fn a_weapons_upgrades_go_to_the_client_packed_in_the_weapon_kit() {
+    use survarium::v026g::weapon_kit::{self, KIT_MAGIC};
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let vest = give(&mut account, "edge_torso_2", &[]);
+    assert!(is_weapon(dict("ak_74m")) && !is_weapon(dict("edge_torso_2")));
+    assert_eq!(upgrade_capacity(dict("ak_74m")), 6);
+    assert_eq!(upgrade_capacity(dict("edge_torso_2")), limits::UPGRADES);
+    let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
+    let scope = account.add_item(69, FULL_CONDITION);
+    let first = account.add_item(decal(), FULL_CONDITION);
+    let saved = vec![
+        Upgrade {
+            id: first,
+            a: decal().into(),
+            value: 0x0102_0304,
+            param: 0,
+        },
+        Upgrade {
+            id: camo,
+            a: dict("camo_city").into(),
+            value: 0,
+            param: 2,
+        },
+        Upgrade {
+            id: scope,
+            a: 362,
+            value: 0,
+            param: 3,
+        },
+    ];
+    account.item_mut(rifle).unwrap().upgrades = saved.clone();
+    account.item_mut(vest).unwrap().upgrades = vec![Upgrade {
+        id: camo,
+        a: dict("camo_city").into(),
+        value: 0,
+        param: 3,
+    }];
+    let sent = wire::item_descr_at(account.item(rifle).unwrap(), NOW).upgrades;
+    let kit = u64::from(KIT_MAGIC) << 56 | 3 << 48 | u64::from(dict("camo_city"));
+    assert_eq!(
+        sent.iter()
+            .map(|u| (u.id, u.a, u.value, u.param))
+            .collect::<Vec<_>>(),
+        [
+            (first, u32::from(decal()), 0x0102_0304, 0),
+            (scope, 362, kit, 3)
+        ]
+    );
+    // unpacked: the account's own, the camouflage named by its dict id
+    let logical = weapon_kit::unpack(&sent).expect("a kit the client takes");
+    assert_eq!(
+        logical.iter().map(|u| (u.a, u.param)).collect::<Vec<_>>(),
+        [
+            (u32::from(decal()), 0),
+            (u32::from(dict("camo_city")), 2),
+            (362, 3)
+        ]
+    );
+    // the vest's camouflage as it is (slot 3, value 0: no kit)
+    let vest_sent = wire::item_descr_at(account.item(vest).unwrap(), NOW).upgrades;
+    assert_eq!((vest_sent[0].param, vest_sent[0].value), (3, 0));
+    assert!(!weapon_kit::is_kit(&vest_sent[0]));
+    // the client takes it; the account was not rewritten
+    let client = client_of(&account);
+    let held = client
+        .inventory()
+        .iter()
+        .find(|item| item.item_id == rifle)
+        .unwrap();
+    assert_eq!(held.upgrades, sent);
+    assert_eq!(account.item(rifle).unwrap().upgrades, saved);
+}

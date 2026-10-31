@@ -112,10 +112,10 @@ package survarium.upgrade
 
       protected static const SEPARATOR_MAX_HEIGHT:Number = 5;
       
-      // A weapon's decals: one. The game keeps three upgrade records an item (an inline array of the
-      // item record), and a scoped weapon holds its scope and its camouflage besides (the server's
-      // WEAPON_DECAL_SLOTS; the owner, 2026-10-21).
-      protected static const WEAPON_DECALS:int = 1;
+      // A weapon's decals: two, as armour's (the server's WEAPON_DECAL_SLOTS). A weapon's upgrades
+      // come packed into at most three records, the weapon kit (docs/notes/weapon-kit.md, exe patch
+      // 68): kitUpgrades gives the window their slots.
+      protected static const WEAPON_DECALS:int = 2;
 
       // each slot's place as the movie has it (armour's window): [x, y, scaleX, scaleY] by slot
       protected var _slotPlaces:Dictionary;
@@ -211,6 +211,67 @@ package survarium.upgrade
          return !fits(hostDictId,int(item.dictId));
       }
       
+      // A weapon's upgrades by its logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle 4,
+      // grip 5): the records as they come (the decals), the weapon kit's record (exe patch 68 gives
+      // its object kit_own, the kit's own slot, and kit_camo, kit_muzzle, kit_grip, the dict ids it
+      // names, 0 none; it reads and checks the record) as its own item in its own slot, and each dict
+      // id it names as the inventory's item of that id. docs/notes/weapon-kit.md.
+      public static function kitUpgrades(upgrades:Array) : Array
+      {
+         var out:Array = [];
+         var i:int = 0;
+         var upgrade:Object = null;
+         var named:Array = null;
+         var k:int = 0;
+         var item:Object = null;
+         if(!upgrades)
+         {
+            return out;
+         }
+         while(i < upgrades.length)
+         {
+            upgrade = upgrades[i];
+            i++;
+            if(!upgrade || upgrade.kit_own == undefined)
+            {
+               out.push(upgrade);
+               continue;
+            }
+            if(uint(upgrade.id) != 0)
+            {
+               out.push({
+                  "id":upgrade.id,
+                  "param":int(upgrade.kit_own)
+               });
+            }
+            named = [[CosmeticSlot.DECAL_3,int(upgrade.kit_camo)],[CosmeticSlot.MUZZLE,int(upgrade.kit_muzzle)],[CosmeticSlot.GRIP,int(upgrade.kit_grip)]];
+            k = 0;
+            while(k < named.length)
+            {
+               item = named[k][1] != 0 ? inventoryItemOf(named[k][1]) : null;
+               if(Boolean(item))
+               {
+                  out.push({
+                     "id":item.itemId,
+                     "param":named[k][0]
+                  });
+               }
+               k++;
+            }
+         }
+         return out;
+      }
+
+      // The inventory's item of a dictionary id (a kit names its camouflage, muzzle device and grip so).
+      public static function inventoryItemOf(dictId:int) : Object
+      {
+         if(!instance || !instance._inventory)
+         {
+            return null;
+         }
+         return instance._inventory.getInventoryItemOf(dictId);
+      }
+
       public static function inventoryItem(itemId:uint) : Object
       {
          if(!instance || !instance._inventory)
@@ -375,6 +436,7 @@ package survarium.upgrade
          var j:uint = 0;
          var slot:UpgradeSlot = null;
          var slotData:Object = null;
+         var upgrades:Array = null;
          if(Boolean(this._data))
          {
             trace("UW:upgrade_item_selected::",this._data.itemId,"up",this._data.upgrades.length,resetSlots,"decalSlots::",this._data.decalAvailable,"camoSlots::",this._data.camoAvailable);
@@ -422,7 +484,8 @@ package survarium.upgrade
             }
             if(Boolean(this._data.upgrades) && resetSlots)
             {
-               upgradeCount = int(this._data.upgrades.length);
+               upgrades = hostDictId >= 0 ? kitUpgrades(this._data.upgrades) : this._data.upgrades;
+               upgradeCount = int(upgrades.length);
                i = 0;
                while(i < upgradeCount)
                {
@@ -431,12 +494,12 @@ package survarium.upgrade
                   while(j < slotCount)
                   {
                      slot = this._slots[j];
-                     trace("UW::slotId::",slot.visible,slot.index,this._data.upgrades[i].id,this._data.upgrades[i].param);
-                     if(slot.visible && slot.index == this._data.upgrades[i].param || slot.index == CosmeticSlot.CAMOUFLAGE && this._data.upgrades[i].param == undefined)
+                     trace("UW::slotId::",slot.visible,slot.index,upgrades[i].id,upgrades[i].param);
+                     if(slot.visible && slot.index == upgrades[i].param || slot.index == CosmeticSlot.CAMOUFLAGE && upgrades[i].param == undefined)
                      {
-                        if(!slot.data || slot.data.itemId != this._data.upgrades[i].id)
+                        if(!slot.data || slot.data.itemId != upgrades[i].id)
                         {
-                           slotData = this.create_item(this._data.upgrades[i].id);
+                           slotData = this.create_item(upgrades[i].id);
                            slot.data = slotData;
                            if(resetSlots)
                            {

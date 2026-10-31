@@ -113,7 +113,7 @@ pub struct Movie<'t> {
 /// A GFx value's type (Scaleform::GFx::Value's, 0x2384E2): a bool, an
 /// unsigned int, a string; with the managed bit, a string its node holds.
 const GFX_BOOL: u32 = 2;
-const GFX_UINT: u32 = 4;
+pub(super) const GFX_UINT: u32 = 4;
 pub(super) const GFX_STRING: u32 = 6;
 pub(super) const GFX_MANAGED: u32 = 0x40;
 

@@ -92,15 +92,15 @@ pub const PRICE_LEVELS: usize = 16;
 /// The modifications a reroll offers (`83 46 07`).
 pub const REROLL_CHOICES: usize = 3;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
-/// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
+/// for `decal_available`, 0x28779F; a weapon's, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
-/// [srp] A weapon's one decal slot ([`WEAPON_DECAL_SLOTS`]): the client
-/// keeps at most three upgrade records an item (`limits::UPGRADES`, an
-/// inline array of the item record; past it a fatal assert), and a scoped
-/// weapon holds its scope (3) and camouflage (2) besides. The owner,
-/// 2026-10-21: one decal on weapons for now. Patch 47 bakes it.
-pub const WEAPON_DECAL_SLOTS: [u8; 1] = [0];
+/// [srp] A weapon's two decal slots, as armour's: a weapon holds up to six
+/// upgrades in logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle
+/// 4, grip 5, [`super::weapon_kit`]), which go to the client packed into at
+/// most three records (the client keeps three an item, `limits::UPGRADES`;
+/// client patch 68 reads the kit). Patch 47 bakes both decals.
+pub const WEAPON_DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
 /// `camo_available`, `srp-026g/scripts/weapon-camo`): 2, since a weapon's 3
