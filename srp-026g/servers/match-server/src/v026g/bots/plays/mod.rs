@@ -1102,6 +1102,8 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
+        #[cfg(test)]
+        fairness::scoring(Some(kind));
         let (mut score, why) = curve::score(considerations, |input| {
             given
                 .iter()
@@ -1111,6 +1113,8 @@ impl Ctx<'_> {
         if !score.is_zero() {
             score = Score::new(score.get() * self.sniper_way_weight(kind, target));
         }
+        #[cfg(test)]
+        fairness::scoring(None);
         (!score.is_zero()).then(|| Candidate {
             kind,
             target,

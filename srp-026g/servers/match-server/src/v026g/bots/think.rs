@@ -1028,6 +1028,9 @@ pub(super) fn decide(
     let mut rng = bot.rng.clone();
     #[cfg(test)]
     super::hold_trace::at(me.feet);
+    // [A192] The bench's Crossfire arrivals (a note as its walk ends at the spot).
+    #[cfg(test)]
+    let crossfire_going = running.kind() == PlayKind::Crossfire && running.step_name() == "Going";
     let step = plays::step(&mut running, target, &cx, &mut rng);
     // A hold on a spot a teammate of a lower place has claimed gives way
     // (S1); the point it means to be at is its claim.
@@ -1043,6 +1046,10 @@ pub(super) fn decide(
     };
     bot.rng = rng;
     let step_name = running.step_name();
+    #[cfg(test)]
+    if crossfire_going && step_name == "Hold" {
+        plays::crossfire::bench::arrived(bot.place, now);
+    }
     bot.running = Some(running);
     if let Some(at) = claim {
         state.knowledge.claim(me.place, at, now);
