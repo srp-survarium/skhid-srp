@@ -39,6 +39,9 @@ struct Deaths {
     /// regions taken within [`DETOUR_MS`] before, and those standing in the covered regions (`Bot::threat`, what the routes
     /// keep out of), as of the victim's last living tick.
     context: [DeathContext; 3],
+    /// Routes round the covered regions taken (`threat::rounded`, one a poll that keeps one: a long detour counts each
+    /// poll that chose it again).
+    detours: u32,
 }
 
 /// A detour this soon before a death counts as on one, ms.
@@ -76,6 +79,8 @@ struct DeathContext {
 struct Living {
     detoured: bool,
     covered: bool,
+    /// The stamp of the bot's last detour seen ([`crate::v026g::bots::threat::rounded_at`]).
+    last_round: Option<u32>,
 }
 
 #[derive(Default)]
@@ -139,13 +144,16 @@ impl Topic for OutrangedCounts {
             let Some(bot) = bots.bots.get(place).and_then(Option::as_ref) else {
                 continue;
             };
+            let round = crate::v026g::bots::threat::rounded_at(place);
+            if round.is_some() && round != self.living[place].last_round {
+                self.deaths[usize::from(bot.team).min(1)].detours += 1;
+            }
+            self.living[place].last_round = round;
             if body.health <= 0.0 {
                 continue;
             }
-            self.living[place] = Living {
-                detoured: crate::v026g::bots::threat::rounded_within(place, game.tick, DETOUR_MS),
-                covered: bot.threat.exposed_at(grid, body.feet),
-            };
+            self.living[place].detoured = crate::v026g::bots::threat::rounded_within(place, game.tick, DETOUR_MS);
+            self.living[place].covered = bot.threat.exposed_at(grid, body.feet);
         }
         for (team, lanes) in self.lanes.iter_mut().enumerate() {
             if let Some(state) = bots.teams.get(team) {
@@ -262,6 +270,7 @@ impl OutrangedCounts {
                 "deaths_to_camper_at_objective": d.to_camper_at_objective,
             });
             if let Some(map) = v.as_object_mut() {
+                map.insert("detour_polls".to_owned(), d.detours.into());
                 for by in Killer::ALL {
                     let c = d.context[by as usize];
                     map.insert(format!("deaths_by_{}", by.name()), c.deaths.into());

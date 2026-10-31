@@ -279,6 +279,12 @@ pub fn rounded_within(place: usize, time: u32, ms: u32) -> bool {
     ROUNDED.with(|m| m.borrow().get(&place).is_some_and(|&t| t <= time && time - t <= ms))
 }
 
+/// When the bot at `place` last took such a route (the bench's count of detours by team: a new stamp is a new one).
+#[cfg(test)]
+pub fn rounded_at(place: usize) -> Option<u32> {
+    ROUNDED.with(|m| m.borrow().get(&place).copied())
+}
+
 /// A new match: the detours of the last are forgotten. The map is the
 /// thread's and the bench runs match after match on one thread, so a time
 /// of an earlier match read as "within" until the new clock passed it
