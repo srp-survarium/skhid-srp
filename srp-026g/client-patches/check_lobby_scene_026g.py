@@ -129,6 +129,13 @@ class Run(language.Run):
         for at in SWAP_STUBS:
             self.emu.hook_add(UC_HOOK_CODE, self.swap_stub, begin=at, end=at)
 
+    def lobby_variable(self):
+        """on_configs_loaded's start run: `srp_lobby`'s node, found by its name (a later handler of
+        the chain, patch 88's, registers after it)."""
+        before = self.read(language.LIST_HEAD)
+        _, _, head = self.start()
+        return language.named(self, language.registered(self, head, before), "srp_lobby")
+
     def log_open(self, emu, address, size, _):
         self.logged += 1
 
@@ -353,20 +360,23 @@ def main():
     stock, ours = Run(original), Run(patched)
     expect = lambda ok, text: print("ok", text) if ok else sys.exit("FAIL " + text)
 
-    # on_configs_loaded's start: the variable, once, after patch 79's and patch 83's
+    # on_configs_loaded's start: the variable, once, after patch 79's and patch 83's, before patch 88's
     head_before = ours.read(language.LIST_HEAD)
     _, _, head = ours.start()
-    variable = language.console_variable(ours, head)
-    names = [ours.text(ours.read(node + 0x10)).decode() for node in language.registered(ours, head, head_before)]
-    expect(variable[0] == "srp_lobby" and variable[2] == 4 and variable[3] == 1
-           and names[0] == "srp_lobby" and names[-1] == "localization" and names.count("srp_lobby") == 1,
-           f"configs.start: `srp_lobby`, a saved string of 4 bytes, at the head of the console's list, "
-           f"after patch 79's `localization` and patch 83's (the site's chain: {', '.join(names)})")
+    nodes = language.registered(ours, head, head_before)
+    names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
+    node = language.named(ours, nodes, "srp_lobby")
+    variable = language.console_variable(ours, node)
+    expect(variable[0] == "srp_lobby" and variable[2] == 4 and variable[3] == 1 and names.count("srp_lobby") == 1
+           and names[-1] == "localization" and names[0] == "s_music_volume"
+           and names.index("s_music_volume") < names.index("srp_lobby") < names.index("localization"),
+           f"configs.start: `srp_lobby`, a saved string of 4 bytes, in the console's list once, after patch 79's "
+           f"`localization` and patch 83's, before patch 88's `s_music_volume` (newest first: {', '.join(names)})")
     _, _, again = ours.start()
     expect(again == head, "configs.start again: registered once")
     buffer = variable[1]
     ours.emu.mem_write(language.TEXT, b"2\0")
-    ours.call_at(language.EXECUTE, (language.TEXT,), {UC_X86_REG_ECX: head})
+    ours.call_at(language.EXECUTE, (language.TEXT,), {UC_X86_REG_ECX: node})
     expect(ours.text(buffer) == b"2", "user.cfg's line `srp_lobby 2` sets it "
            "(cc_string::execute 0xEC8C0)")
 
@@ -410,8 +420,8 @@ def main():
     ]
     for label, value, steps in cases:
         fresh = Run(patched)
-        _, _, fresh_head = fresh.start()
-        fresh.emu.mem_write(fresh.read(fresh_head + 0x40), value.encode() + b"\0")
+        fresh_node = fresh.lobby_variable()
+        fresh.emu.mem_write(fresh.read(fresh_node + 0x40), value.encode() + b"\0")
         for i, (result, asked, keeps_data, flow) in enumerate(steps):
             requests, data, _ = fresh.query()
             others_same = requests[:3] + requests[4:] == stock_requests[:3] + stock_requests[4:] \
@@ -441,9 +451,9 @@ def a_change(patched, stock, stock_requests, expect):
         """A fresh game whose lobby `lobby` was taken at its start (the saved pick `value`), the
         lobby and its camera made up, its first frame ticked (`r.first`: its invokes)."""
         r = Run(patched)
-        _, _, head = r.start()
-        r.saved = lambda text: r.emu.mem_write(r.read(head + 0x40), text.encode() + b"\0")
-        r.saved_text = lambda: r.text(r.read(head + 0x40))
+        node = r.lobby_variable()
+        r.saved = lambda text: r.emu.mem_write(r.read(node + 0x40), text.encode() + b"\0")
+        r.saved_text = lambda: r.text(r.read(node + 0x40))
         r.saved(value)
         requests, _, _ = r.query()
         assert requests[3] == (lobby, 0x40), requests[3]

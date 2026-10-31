@@ -4128,7 +4128,8 @@ def test_lobby_scene(original, image, before):
     for site in ("lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
                  "lobby_menu.scenes_ready",
                  "lobby_menu.activate", "lobby_menu.deactivate", "game.clear_resources"):
-        h = hooks[site]
+        # a shared site (game.clear_resources, with patch 88's music) jumps to its chain's one entry
+        h = heads.get(site, hooks[site])
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]
         new = P.hook_bytes(entry, va, old, 0, 0xE9)
