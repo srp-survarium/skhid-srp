@@ -1,5 +1,5 @@
 {
- "_about": "The rifle scopes (the owner, 2026-10-26; pack rifle-scopes; srp-026g/docs/notes/weapon_scopes.md, section 6): 184 items_compatibility rows, each weapon and new scope it fits (the lobby movie's scope pairs; scripts/rifle-scopes/fit.tsv), and the Aimpoint CompM4 at x2 as 0.46c2 and 0.69d0 have it: data/fov_factor 0.8 -> 0.5 on its item and its 25 variants, its name with x2 in the six languages. Made by scripts/rifle-scopes/make_pack.py.",
+ "_about": "The rifle scopes (the owner, 2026-10-26; pack rifle-scopes; srp-026g/docs/notes/weapon_scopes.md, section 6): 184 items_compatibility rows, each weapon and new scope it fits (the lobby movie's scope pairs; scripts/rifle-scopes/fit.tsv), and the Aimpoint CompM4 at x2 as 0.46c2 and 0.69d0 have it: data/fov_factor 0.8 -> 0.5 on its item and its 25 variants (its name with x2 is in client-patches/localization). Made by scripts/rifle-scopes/make_pack.py.",
  "set": [
   {"file": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options", "path": "data/fov_factor", "from": 0.8, "to": 0.5},
   {"file": "gameplay/items/scopes/fit_a_545_aimpoint_compm4.options", "path": "data/fov_factor", "from": 0.8, "to": 0.5},
@@ -27,14 +27,6 @@
   {"file": "gameplay/items/scopes/fitn_aimpoint_compm4_valmet.options", "path": "data/fov_factor", "from": 0.8, "to": 0.5},
   {"file": "gameplay/items/scopes/fitn_aimpoint_compm4_vepr_12.options", "path": "data/fov_factor", "from": 0.8, "to": 0.5},
   {"file": "gameplay/items/scopes/fitn_aimpoint_compm4_vepr_12_premium.options", "path": "data/fov_factor", "from": 0.8, "to": 0.5}
- ],
- "edit_text": [
-  {"file": "localization/english/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "CompM4 collimator", "to": "CompM4 collimator, x2"},
-  {"file": "localization/german/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "CompM4 Kollimator", "to": "CompM4 Kollimator, x2"},
-  {"file": "localization/polish/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "Kolimator CompM4", "to": "Kolimator CompM4, x2"},
-  {"file": "localization/russian/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "Коллиматор CompM4", "to": "Коллиматор CompM4, x2"},
-  {"file": "localization/original/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "Коллиматор CompM4", "to": "Коллиматор CompM4, x2"},
-  {"file": "localization/ukrainian/localization", "path": "strings/st_shop_scope_aimpoint_compm4_name", "from": "Коліматор CompM4", "to": "Коліматор CompM4, x2"}
  ],
  "add_value": [
   {"files": ["gameplay/db_static_dictionaries"], "table": "items_compatibility", "key": "compatibility_211300003", "value": {"first_item": 3, "second_item": 2113}},

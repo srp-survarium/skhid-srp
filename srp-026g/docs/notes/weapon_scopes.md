@@ -242,11 +242,12 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
   (albedo, normal, smoothness as roughness, metalness as fresnel; retexture.py).
 - **Shop**: items 2113..2119 by seller 0 at no rank at their base_cost (as every scope item with a
   pair, `prices::sellers_of_in`); icons rendered from the models (render_icon.py) in column 4 of the
-  consumables atlas (rows 13 to 19); names and short descriptions in the six languages (texts.tsv).
-  The CompM4's name says x2.
+  consumables atlas (rows 13 to 19); names and short descriptions in the six languages of the pack
+  (texts.tsv) and in all ten of `client-patches/localization/*.tsv`, which `localization-1.json`
+  compiles last. The CompM4's name says x2 there.
 - **Size**: 191 items (7 shop items, 184 variants), 139 weapon models with a moved eye (a copy of a
   weapon's model, about 0.3 MB each), 24 textures; the content patch grows by about 170 MB.
-- **Checked**: `release/build-content` changes only the dictionary, the six localization tables,
+- **Checked**: `release/build-content` changes only the dictionary, the localization tables,
   the lobby movie (the icons) and the 26 CompM4 configs, and adds the pack's files; srp starts on the
   data with 353 scope pairs (169 before) and no variant left out. A review sheet renders each scope
   on three weapons, outside and aimed (`review.py`). **Not run in a game.** The in-game check: each

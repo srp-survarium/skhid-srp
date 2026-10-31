@@ -32,8 +32,9 @@ For each scope: its shop item (dict ids of scopes.tsv: 2113..2119) made from the
 collimator) or the TA31's (a scope), its price (base_cost: seller 0 sells it), its texts
 (texts.tsv) and its icon (render_icon.py, in column 4 of the consumables atlas).
 The edit list: an items_compatibility row for each weapon and scope it fits (the lobby movie's
-scope pairs) and the CompM4 at x2 (data/fov_factor 0.8 -> 0.5 on its item and every variant of it,
-its name with "x2").
+scope pairs) and the CompM4 at x2 (data/fov_factor 0.8 -> 0.5 on its item and every variant of it).
+The texts players see, and the CompM4's name with x2, are in client-patches/localization/*.tsv
+(localization-1.json compiles every language from them, last).
 """
 import argparse
 import hashlib
@@ -64,12 +65,6 @@ EYE_TOLERANCE = 0.0003
 RETICLE_FROM = ('fitn_aimpoint_compm4_m4a1', lib.DOT)
 COMPM4 = 'shop_scope_aimpoint_compm4'
 COMPM4_FOV = (0.8, 0.5)
-COMPM4_NAMES = {'english': ('CompM4 collimator', 'CompM4 collimator, x2'),
-                'german': ('CompM4 Kollimator', 'CompM4 Kollimator, x2'),
-                'polish': ('Kolimator CompM4', 'Kolimator CompM4, x2'),
-                'russian': ('Коллиматор CompM4', 'Коллиматор CompM4, x2'),
-                'original': ('Коллиматор CompM4', 'Коллиматор CompM4, x2'),
-                'ukrainian': ('Коліматор CompM4', 'Коліматор CompM4, x2')}
 SHOP_TEMPLATE = {'C': 'shop_scope_aimpoint_compm4', 'S': 'shop_scope_acog_ta31'}
 
 
@@ -417,15 +412,13 @@ def write_edit_list(live, compat, weapons):
                                if lib.leaves(v).get('/srp_scope_fit/scope') == COMPM4)
     sets = [{'file': f'gameplay/items/scopes/{n}.options', 'path': 'data/fov_factor', 'from': COMPM4_FOV[0],
              'to': COMPM4_FOV[1]} for n in compm4]
-    texts = [{'file': f'localization/{lang}/localization', 'path': 'strings/st_shop_scope_aimpoint_compm4_name',
-              'from': frm, 'to': to} for lang, (frm, to) in COMPM4_NAMES.items()]
     about = ("The rifle scopes (the owner, 2026-10-26; pack rifle-scopes; srp-026g/docs/notes/weapon_scopes.md, "
              f"section 6): {len(rows)} items_compatibility rows, each weapon and new scope it fits (the lobby movie's "
              "scope pairs; scripts/rifle-scopes/fit.tsv), and the Aimpoint CompM4 at x2 as 0.46c2 and 0.69d0 have it: "
-             f"data/fov_factor 0.8 -> 0.5 on its item and its {len(compm4) - 1} variants, its name with x2 in the six "
-             "languages. Made by scripts/rifle-scopes/make_pack.py.")
+             f"data/fov_factor 0.8 -> 0.5 on its item and its {len(compm4) - 1} variants (its name with x2 is in "
+             "client-patches/localization). Made by scripts/rifle-scopes/make_pack.py.")
     lines = ['{', ' "_about": ' + json.dumps(about, ensure_ascii=False) + ',']
-    for op, entries in (('set', sets), ('edit_text', texts), ('add_value', rows)):
+    for op, entries in (('set', sets), ('add_value', rows)):
         lines.append(f' "{op}": [')
         lines += ['  ' + json.dumps(e, ensure_ascii=False) + (',' if i < len(entries) - 1 else '')
                   for i, e in enumerate(entries)]
