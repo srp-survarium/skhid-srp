@@ -14,7 +14,10 @@
 //! capture script waits for. After the last pose the camera stays there.
 //! A line `squad` makes both squad panels' characters the account's own
 //! (setup_profile with its profile and chosen kit) when the second pose
-//! starts, for the full squad's view. A line `pick <id>` (the player's own
+//! starts, for the full squad's view. A line `empty` puts the lobby's own and
+//! both squad panels' characters 100 m under the floor (their players made
+//! again there) when the second pose starts, for the lobby window's pictures
+//! of the empty scene (lobby-scenes.md). A line `pick <id>` (the player's own
 //! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
 //! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
 //! next pose starts, for captures of its change (lobby-scenes.md); a line
@@ -74,6 +77,7 @@ pub struct Script {
     poses: [Pose; MOST],
     count: usize,
     squad: bool,
+    empty: bool,
 }
 
 impl Script {
@@ -81,6 +85,7 @@ impl Script {
         poses: [Pose { hold: 0.0, yaw: 0.0, pitch: 0.0, distance: 0.0, eye: Eye::Orbit, change: Change::Nothing }; MOST],
         count: 0,
         squad: false,
+        empty: false,
     };
 }
 
@@ -125,6 +130,8 @@ fn number(word: &[u8]) -> Option<f32> {
 }
 
 const DEGREE: f32 = core::f32::consts::PI / 180.0;
+/// How far under the floor `empty` puts the characters (m).
+const EMPTY_DEPTH: f32 = 100.0;
 
 /// The script's poses; a line that is not four numbers (or a comment, or
 /// empty) is passed over. None when no pose is in it.
@@ -138,6 +145,10 @@ pub fn parse(text: &[u8]) -> Option<Script> {
         let line = line.split(|&c| c == b'#').next().unwrap_or(&[]);
         if line.trim_ascii() == b"squad" {
             script.squad = true;
+            continue;
+        }
+        if line.trim_ascii() == b"empty" {
+            script.empty = true;
             continue;
         }
         if let Some(next) = change_of(line.trim_ascii()) {
@@ -286,6 +297,10 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
         if new == Some(1) && script.squad {
             camera.show_squad_dummies();
         }
+        // the empty scene from the second pose on (the profile there by then, as for `squad`)
+        if new == Some(1) && script.empty {
+            camera.sink_characters(EMPTY_DEPTH);
+        }
         if let Some(step) = logged
             && let Some(file) = TraceFile::open(thread, LOG)
         {
@@ -365,7 +380,10 @@ mod tests {
         assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Lobby::Hangar046)));
         assert_eq!(changes.poses[3].change, Change::Squad(Squad::None), "a line that is no change passed over");
         let flight = parse(b"squad\n0.5 -90 -14.3 1.2 4.25 1.3 3.05 21\n").unwrap();
-        assert!(flight.squad && flight.count == 1);
+        assert!(flight.squad && !flight.empty && flight.count == 1);
+        let empty = parse(b"empty\n45 0 0 1.96\npick 2\n25 0 0 1.96\n").unwrap();
+        assert!(empty.empty && !empty.squad && empty.count == 2);
+        assert_eq!(empty.poses[1].change, Change::Own(Lobby::Classic));
         assert_eq!(flight.poses[0].eye, Eye::Flight { point: [4.25, 1.3, 3.05], side: 21.0 * DEGREE });
         let mut line = [0u8; 64];
         let n = log_line(&mut line, 3, &script.poses[2]);

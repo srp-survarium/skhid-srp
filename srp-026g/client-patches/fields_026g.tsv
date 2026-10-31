@@ -298,6 +298,7 @@ skhid::weapon_table	request	0x2C	u32	REQUEST: +1 at every request of patch 45's 
 skhid::weapon_table	target_zoom	0x4C	f32	TARGET_ZOOM: the bench's zoom (the original's 65 degrees whatever uro_fov), 1 back
 survarium::lobby_camera_ticker	menu	0x84	ptr<survarium::lobby_menu>	the camera's +88h: its lobby menu (the ctor's ecx, 0x283BEF)
 survarium::lobby_menu	movie	0x690	ptr<vostok::ui::movie_holder>	its movie's holder: [[+690h]+108h]+4 the lobby movie (fill_squad_info 0x2277E1, root.show_squad; the tutorial's root.clean_highlight 0x2A4FF6)
+survarium::lobby_menu	character	0x694	ptr<survarium::lobby_character>	the lobby's own character, at (0, 0, 0) (made at 0x21CCD2, kept at 0x21CCE6; patch 32's MENU_CHARACTER)
 survarium::lobby_menu	squad_right	0x698	ptr<survarium::lobby_character>	the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
 survarium::lobby_menu	squad_left	0x69C	ptr<survarium::lobby_character>	the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
 survarium::lobby_menu	account_profile	0x6A0	ptr<survarium::player_profile>	the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
@@ -350,3 +351,4 @@ vostok::input::keyboard	keys	0x4	obj<vostok::input::key_state>	each key's state 
 vostok::input::key_state	state	0x0	u8	bit 80h: the key is down (is_key_down 0x3B8D00: movsx / shr 7 / and 1)
 vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8D00 indexes key x 4)
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
+survarium::lobby_character	position	0x8	f32	where its player is put, a float3 (the ctor's from its eax 0x28474C; on_player_ready gives it to the player's vtable+1Ch at 0x285060, with the yaw +14h)

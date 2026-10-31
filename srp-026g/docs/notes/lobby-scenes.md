@@ -30,7 +30,9 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 - **The window** (`LobbyWindow`, the lobby movie's ActionScript): the four cards in id order, two
   by two, each a rooms map-vote card (`RoomsRoom`): 280 x 190, the lobby's render over the whole
   card (`RoomsLook.cover`, as `mapRender`), its name in white on a band of black at 0.62 along the
-  bottom 58 px; the pick framed gold (3 px), the others 1 px. A click sends
+  bottom 58 px; the pick framed gold (3 px), the others 1 px. The pictures are the empty scenes
+  (the owner, 2026-10-31: no character), from the stock camera, made by the diagnostics sweep's
+  `empty` (`camera_sweep.rs`; never in a release). A click sends
   srp the pick (`request_players_range(2 095 000 000 + id, 1)`, srp's `3B` at a reserved start,
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown)`), at its first frame and at each change.

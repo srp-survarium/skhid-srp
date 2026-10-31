@@ -183,6 +183,31 @@ impl<'t> LobbyCamera<'t> {
         }
     }
 
+    /// A diagnostics build's empty lobby (camera_sweep.rs, the lobby window's pictures): the
+    /// lobby's own character and both squad panels' characters put `depth` m under where they
+    /// stand and their players made again there (setup_profile with the account's profile and
+    /// chosen kit: on_player_ready, 0x285060, puts a player at its character's position), so
+    /// the scene is drawn without anyone in it, its camera and light as ever. Whether they are
+    /// there (false: no lobby menu or profile).
+    pub fn sink_characters(&self, depth: f32) -> bool {
+        // SAFETY: the camera's lobby menu (the ctor's), its account profile and its three
+        // characters, made by the menu's ctor and alive while the menu is; a character's
+        // position is three f32 at +8h, read only by on_player_ready; setup_profile on the
+        // game's thread, as show_kit calls it.
+        unsafe {
+            let Some(menu) = self.ticker.menu() else { return false };
+            let Some(profile) = menu.account_profile() else { return false };
+            let kit = u32::from(*profile.chosen_kit());
+            let mut sunk = false;
+            for character in [menu.character(), menu.squad_right(), menu.squad_left()].into_iter().flatten() {
+                *character.position().add(1) -= depth;
+                raw::engine_lobby_character_setup_profile(Some(profile), Some(character), kit);
+                sunk = true;
+            }
+            sunk
+        }
+    }
+
     /// The distance the camera's collision ray (0x2844D0, the lobby's static
     /// collisions) leaves of `distance` from `point` back along `forward`.
     pub fn ray_cut(&self, point: Vec3, forward: Vec3, distance: f32) -> f32 {

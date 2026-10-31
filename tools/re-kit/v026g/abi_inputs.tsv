@@ -2567,6 +2567,10 @@ va	name	location	role	basis
 0x002845c0	survarium::lobby_camera::set_target	XMM0	float height of the point	observed
 0x002845c0	survarium::lobby_camera::set_target	XMM1	float distance	observed
 0x002845c0	survarium::lobby_camera::set_target	entry ESP+4	float side angle (turns the view only)	observed
+0x00284730	survarium::lobby_character::lobby_character	EAX	the position, a float3 (copied to +8h; the menu's 0x21CCD2 (0, 0, 0), 0x21CD33 (1, 0, 0.5), 0x21CD94 (-1, 0, 0.5))	observed
+0x00284730	survarium::lobby_character::lobby_character	ECX	the lobby menu (kept at +D2BCh)	observed
+0x00284730	survarium::lobby_character::lobby_character	entry ESP+4	the new lobby_character	observed
+0x00284730	survarium::lobby_character::lobby_character	entry ESP+8	the menu's physics world (+3104h; kept at +D2C0h)	observed
 0x002849f0	survarium::lobby_character::update	entry ESP+4	the lobby_character (kept in EBX)	observed
 0x00284b10	survarium::lobby_character::setup_profile	EAX	the profile to copy (account profile, 0x4634 bytes)	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+4	the lobby_character	observed
