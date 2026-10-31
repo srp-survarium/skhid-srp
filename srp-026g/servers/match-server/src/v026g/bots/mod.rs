@@ -34,6 +34,7 @@ pub mod apart;
 pub mod arc;
 pub mod artefact_know;
 pub mod body;
+pub mod breach;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
