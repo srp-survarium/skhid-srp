@@ -1923,6 +1923,8 @@ enum HoldLegs {
 
 /// [A208] A hold walking to its point stands once this near it, metres.
 const HOLD_AT_M: f32 = 1.5;
+/// [A208] Two crossings this near are the same one, metres (`crossing_of`'s 2 m steps and a step's slack).
+const HOLD_SAME_CROSSING_M: f32 = 3.0;
 
 /// [A208, the bench's] A thrown smoke's crossing, watched until the bot comes to it or this time passes.
 #[cfg(test)]
@@ -3037,6 +3039,8 @@ pub struct Reflex {
     smoke_throw: Option<SmokeThrowing>,
     /// [A208] A hold for a cloud under way.
     cloud_hold: Option<CloudHolding>,
+    /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
+    hold_ended: Option<(Vec3, u32)>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -3971,6 +3975,13 @@ impl Reflex {
         if self.cloud_hold.is_some() || self.smoke_throw.is_some() || self.throw.is_some() || self.target.is_some() {
             return false;
         }
+        // One hold a crossing: one ended there (a hit, an enemy close, the cap) is not begun again for the same cloud.
+        if self
+            .hold_ended
+            .is_some_and(|(crossing, ended)| crossing.distance_xz(wait.line.crossing) <= HOLD_SAME_CROSSING_M && now < ended + wait.cap_ms)
+        {
+            return false;
+        }
         self.begin_hold(wait, me, now);
         true
     }
@@ -4296,6 +4307,7 @@ impl Reflex {
         };
         if let Some(why) = end {
             self.cloud_hold = None;
+            self.hold_ended = Some((w.line.crossing, now));
             self.smoke_notes.push(format!("walks on after holding for the cloud ({:?}): {why:?}", w.waits_for));
             #[cfg(test)]
             {
@@ -10980,7 +10992,7 @@ mod tests {
     #[test]
     fn a_thrower_holds_short_of_its_crossing_until_its_cloud_hides_the_line() {
         use crate::v026g::bots::smoke::{Cloud, CloudWait, Clouds, MatchMs, Placed, SmokeAim, SmokeGrenade, SmokeLine, SmokePlan, SmokeUse, WaitsFor};
-        use crate::v026g::bots::tuning::{SmokeTuning, WaitForCloud};
+        use crate::v026g::bots::tuning::{CloudWaiters, SmokeTuning, WaitForCloud};
         let c = CombatTuning::default();
         let pitch = 0.3;
         let line = SmokeLine { eye: Vec3::new(40.0, 1.6, 20.0), target: Vec3::new(0.0, 1.3, 20.0), crossing: Vec3::new(0.0, 0.0, 20.0) };
@@ -11066,6 +11078,18 @@ mod tests {
             reflex.smoke_throwing(&me, now, &c, 0.1);
         }
         assert!(!reflex.holds_for_cloud() && reflex.can_smoke());
+        // A mate's cloud (crossers): a hold from now, capped from its begin; one ended at a crossing is not begun there
+        // again for that cloud.
+        let crossers = SmokeTuning { wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }), ..SmokeTuning::default() };
+        let mates = CloudWait::of(&crossers, &grenade, line, Some(7), WaitsFor::Mates, hold).expect("crossers");
+        let mut reflex = Reflex::default();
+        assert!(reflex.hold_for_cloud(mates, &me, 10_000));
+        reflex.cloud_holding(&me, &view, &memory, 10_000 + mates.cap_ms - 50, 0.1);
+        assert!(reflex.holds_for_cloud());
+        reflex.cloud_holding(&me, &view, &memory, 10_000 + mates.cap_ms, 0.1);
+        assert!(!reflex.holds_for_cloud(), "the cap from the hold's begin");
+        assert!(!reflex.hold_for_cloud(mates, &me, 10_000 + mates.cap_ms + 50), "not twice at one crossing");
+        assert!(reflex.hold_for_cloud(mates, &me, 10_000 + 2 * mates.cap_ms + 50), "a later cloud");
     }
 
     /// The view is held for the grenade from the key's press to the launch and
