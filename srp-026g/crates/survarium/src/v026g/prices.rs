@@ -61,6 +61,9 @@
 //!   rule's level, or as [`EXCEPTIONS`] says;
 //! - drugs, the trap and grenades: by the factions at the ranks of
 //!   [`EXCEPTIONS`], one record for each faction that sold it;
+//! - a supply whose config names a faction (the coloured medkits,
+//!   `docs/notes/medicines.md`; no stock supply names one): by that faction
+//!   at the rule's level, as gear;
 //! - ammo: by the factions of [`EXCEPTIONS`], **at no rank** by the owner's
 //!   choice ([`AMMO_NEEDS_RANK`]). 0.26 sold ammo at a rank (patch note
 //!   0.26c) and 0.27a took that back ("Purchase of ammunition no longer
@@ -544,8 +547,15 @@ pub fn sellers_of_in(
             sellers.sort_unstable();
             sellers
         }
-        _ if gear && params.faction != 0 => {
-            let level = seller_level(dictionary, params.faction, params.item_level);
+        // A supply whose config names a faction (the coloured medkits; no
+        // stock supply names one) is that faction's, as gear is.
+        _ if (gear || supply) && params.faction != 0 => {
+            let ranked = AMMO_NEEDS_RANK || params.kind != "ammo";
+            let level = if ranked {
+                seller_level(dictionary, params.faction, params.item_level)
+            } else {
+                0
+            };
             vec![(params.faction, level)]
         }
         _ if supply => vec![(0, 0)],
@@ -1360,6 +1370,47 @@ mod tests {
         };
         assert_eq!(
             sellers_of(dictionary, denim, &named),
+            [(faction::BLACK_MARKET, 0)]
+        );
+    }
+
+    #[test]
+    fn a_supply_whose_config_names_a_faction_is_sold_by_it() {
+        // The coloured medkits: the stock medkit's row and config, but a
+        // faction (docs/notes/medicines.md).
+        let dictionary = Dictionary::shared();
+        let medkit = dictionary.item_named("medkit").unwrap();
+        let params = *item_params(medkit.dict_id).unwrap();
+        assert_eq!((params.faction, params.item_level), (0, 3));
+        let named = |faction: u8| ItemParams { faction, ..params };
+        // Not in EXCEPTIONS: the rule's level of the faction.
+        let coloured = Item {
+            name: "blackmarket_medkit".into(),
+            ..medkit.clone()
+        };
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &named(faction::BLACK_MARKET)),
+            [(faction::BLACK_MARKET, 3)]
+        );
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &named(faction::RENAISSANCE)),
+            [(faction::RENAISSANCE, 0)]
+        );
+        // With no faction: seller 0, as before.
+        assert_eq!(sellers_of(dictionary, &coloured, &params), [(0, 0)]);
+        // An EXCEPTIONS row still decides.
+        assert_eq!(
+            sellers_of(dictionary, medkit, &named(faction::EDGE)),
+            [(faction::SCAVENGERS, 3)]
+        );
+        // Ammo of a faction needs no rank.
+        let ammo = ItemParams {
+            kind: "ammo",
+            item_level: 9,
+            ..named(faction::BLACK_MARKET)
+        };
+        assert_eq!(
+            sellers_of(dictionary, &coloured, &ammo),
             [(faction::BLACK_MARKET, 0)]
         );
     }

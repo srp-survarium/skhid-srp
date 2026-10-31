@@ -1,0 +1,25 @@
+# The medicines: one row each, the owner's table (2026-10-31; srp-026g/docs/notes/medicines.md), each
+# standing on its own. make_pack.py makes every config of it whole, from 0.26g's medkit.options, at
+# gameplay/items/medicines/<name>.options.
+# dict_id: bandages 66 and the Medikit 67 are 0.26g's rows (their configs repointed here by
+# content-edit medicines-1, their base_cost the dictionary's); the coloured medkits' the donor's own,
+# free in 0.26g and every pack (0.27d's 390 and 391; 0.46c2's 1196: its 759 and 760 are the Rattle's).
+# key: the name and description keys are <key>_name and <key>_description
+# (client-patches/localization/*.tsv).
+# faction: who sells it (0: srp's prices.rs EXCEPTIONS row, the Scavengers; 2 Black Market,
+# 3 Renaissance, 4 Fringe), from parameters/faction. level: item_level (the shop rank: Black Market the
+# level, Renaissance and Fringe the level - 5); mm: match_making_level. cost: silver (base_cost).
+# use, active: seconds before it heals, and how long it heals. kg: weight.
+# limbs, body_head, pain, toxins: % of each pool it heals (arms and legs; body and head; pain;
+# infection, the pool toxic and radiation damage drain): 100 heals 1 a second (0.26g's medkit, the
+# body full in 1 s), less is that share of the pool over the active time.
+# injuries: removes the limbs' injuries (hand_damage, leg_damage). toxins > 0 also takes away
+# poisoning and radiation sickness.
+# row, col: the icon's cell of LobbyMenu_AmmoIcons; source: stock (0.26g's own), 0.27d's atlas cell,
+# or 0.46c2's single icon (donor.sha256).
+# name	dict_id	key	colour	faction	level	mm	cost	use	active	kg	limbs	body_head	pain	toxins	injuries	row	col	source	english
+bandages	66	st_base_bandages	white	0	1	1	10	1	1	0.1	100	35	35	0	yes	2	2	stock	Pack of bandages
+medkit	67	st_base_medkit	orange	0	3	3	20	2	3	0.2	100	100	10	0	yes	15	1	stock	Medikit
+military_medkit	390	st_military_medkit	blue	3	6	3	40	1	1	0.3	100	60	20	0	yes	16	3	0.27d [16, 3]	Military Medkit
+blackmarket_medkit	1196	st_blackmarket_medkit	green	2	3	3	40	2	2	0.3	0	100	100	0	no	17	3	0.46c2 ammo_3_28	Black Market Medkit
+science_medkit	391	st_science_medkit	yellow	4	6	3	40	2	3	0.3	100	100	0	100	yes	14	1	0.27d [14, 1]	Science Medkit

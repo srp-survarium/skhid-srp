@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Gratulálunk! Mostantól a Feketepiac harcosa vagy
 st_blackmarket_level_unlock_3	Gratulálunk! Mostantól a Feketepiac tizedese vagy!
 st_blackmarket_level_unlock_4	Gratulálunk! A Feketepiac századosa lettél!
 st_blackmarket_level_unlock_5	Gratulálunk! Mostantól a Feketepiac elitjéhez tartozol!
+st_blackmarket_medkit_description	Teljesen meggyógyítja a törzset és a fejet, és megszünteti a fájdalmat. A karokat és lábakat nem kezeli.
+st_blackmarket_medkit_name	Feketepiaci elsősegélycsomag
 st_blackmarket_meele_kill_descr	Ha nem megy tisztán, készülj fel, hogy bepiszkolod a kezed. Ez különböztet meg minket másoktól. Bizonyítsd be, hogy közénk tartozol: dolgozz a kezeddel.
 st_blackmarket_meele_kill_name	Piszkos munka
 st_blackmarket_meele_kill_obj	Ölj meg ellenségeket közelharcban:
@@ -1454,6 +1456,8 @@ st_message_reroll_text	Visszaállítod a képességeidet?
 st_messages_censor_option	Üzenetszűrés bekapcsolása
 st_messages_only_from_friends_option	Privát üzenetek csak barátoktól
 st_microphone_sensitivity_option	Mikrofon érzékenysége
+st_military_medkit_description	Teljesen meggyógyítja a karokat és lábakat. A törzs és a fej életerejének 60%-át visszaállítja, és 20%-kal csökkenti a fájdalmat.
+st_military_medkit_name	Katonai elsősegélycsomag
 st_minimap	Minitérkép
 st_minimap_bottom	Bal alsó sarok
 st_minimap_off	Rejtett minitérkép
@@ -2025,6 +2029,8 @@ st_scavengers_win_score_obj	Nyerj meccset ennyi bevitt akkumulátorral:
 st_scavengers_win_x_games_descr	Kegyetlen világban élünk. A győztesé minden, a vesztesnek csak a maradék jut. Ne feledd: a győztes csapat nagyobb jutalmat kap.
 st_scavengers_win_x_games_name	A győzelem íze
 st_scavengers_win_x_games_obj	Nyerj meccseket:
+st_science_medkit_description	Teljesen meggyógyítja a karokat, a lábakat, a törzset és a fejet. Meggyógyítja a mérgezést és a sugárbetegséget.
+st_science_medkit_name	Tudományos elsősegélycsomag
 st_scientists_faction	Intézet
 st_search_label	Keresés
 st_search_range	Meccsszint

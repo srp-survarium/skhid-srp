@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Вітаємо! Ви тепер боєць Чор�
 st_blackmarket_level_unlock_3	Вітаємо! Ви тепер десятник Чорного ринку!
 st_blackmarket_level_unlock_4	Вітаємо! Ви тепер сотник Чорного ринку!
 st_blackmarket_level_unlock_5	Вітаємо! Ви тепер еліта Чорного ринку!
+st_blackmarket_medkit_description	Повністю лікує тіло, голову та біль. Не лікує руки і ноги.
+st_blackmarket_medkit_name	Аптечка Чорного Ринку
 st_blackmarket_meele_kill_descr	Ми готові забруднити руки, якщо цього вимагає завдання, і саме цим ми відрізняємося від інших. Доведи, що ти один із нас – попрацюй руками.
 st_blackmarket_meele_kill_name	Брудна робота
 st_blackmarket_meele_kill_obj	Убити суперників у ближньому бою:
@@ -1454,6 +1456,8 @@ st_message_reroll_text	Скинути навички?
 st_messages_censor_option	Цензура повідомлень
 st_messages_only_from_friends_option	Отримувати приватні повідомлення лише від друзів
 st_microphone_sensitivity_option	Чутливість мікрофона
+st_military_medkit_description	Повністю лікує руки і ноги. Відновлює 60% здоров'я тіла та голови і 20% болю.
+st_military_medkit_name	Військова аптечка
 st_minimap	Мінімапа
 st_minimap_bottom	Нижній лівий кут
 st_minimap_off	Прихована мінімапа
@@ -2025,6 +2029,8 @@ st_scavengers_win_score_obj	Виграти бій із рахунком прин
 st_scavengers_win_x_games_descr	Ми живемо в жорстокому світі. Переможець отримує все, а переможений вимушений удовольнятися крихтами. Запам'ятай: переможна команда одержує більшу винагороду.
 st_scavengers_win_x_games_name	Смак перемоги
 st_scavengers_win_x_games_obj	Виграти боїв:
+st_science_medkit_description	Повністю лікує руки, ноги, тіло та голову. Виліковує отруєння і променеву хворобу.
+st_science_medkit_name	Наукова аптечка
 st_scientists_faction	Інститут
 st_search_label	Пошук
 st_search_range	Рівень матчу

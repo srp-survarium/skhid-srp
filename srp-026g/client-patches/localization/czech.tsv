@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Gratulujeme! Teď jsi bojovník Černého trhu!
 st_blackmarket_level_unlock_3	Gratulujeme! Teď jsi desátník Černého trhu!
 st_blackmarket_level_unlock_4	Gratulujeme! Byl jsi povýšen na setníka Černého trhu!
 st_blackmarket_level_unlock_5	Gratulujeme! Teď patříš k elitě Černého trhu!
+st_blackmarket_medkit_description	Zcela vyléčí trup a hlavu a odstraní bolest. Neléčí ruce a nohy.
+st_blackmarket_medkit_name	Lékárnička Černého trhu
 st_blackmarket_meele_kill_descr	Když to nejde čistě, připrav se ušpinit si ruce. Tím se lišíme od ostatních. Dokaž, že k nám patříš. Pusť se do toho vlastníma rukama.
 st_blackmarket_meele_kill_name	Špinavá práce
 st_blackmarket_meele_kill_obj	Zabij nepřátele zblízka:
@@ -1454,6 +1456,8 @@ st_message_reroll_text	Resetovat dovednosti?
 st_messages_censor_option	Zapnout filtr vulgarit
 st_messages_only_from_friends_option	Soukromé zprávy jen od přátel
 st_microphone_sensitivity_option	Citlivost mikrofonu
+st_military_medkit_description	Zcela vyléčí ruce a nohy. Obnoví 60% zdraví trupu a hlavy a zmírní bolest o 20%.
+st_military_medkit_name	Vojenská lékárnička
 st_minimap	Minimapa
 st_minimap_bottom	Levý dolní roh
 st_minimap_off	Skrytá minimapa
@@ -2025,6 +2029,8 @@ st_scavengers_win_score_obj	Vyhraj zápas s počtem donesených baterií:
 st_scavengers_win_x_games_descr	Žijeme v krutém světě. Vítěz bere všechno, poraženému zbývají drobky. Pamatuj, vítězný tým získá větší odměnu.
 st_scavengers_win_x_games_name	Chuť vítězství
 st_scavengers_win_x_games_obj	Vyhraj zápasy:
+st_science_medkit_description	Zcela vyléčí ruce, nohy, trup a hlavu. Vyléčí otravu a nemoc z ozáření.
+st_science_medkit_name	Vědecká lékárnička
 st_scientists_faction	Institut
 st_search_label	Hledat
 st_search_range	Úroveň zápasu

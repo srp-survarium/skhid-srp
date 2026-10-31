@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Віншуем! Вы цяпер баец Чорн�
 st_blackmarket_level_unlock_3	Віншуем! Вы цяпер дзясятнік Чорнага Рынку!
 st_blackmarket_level_unlock_4	Віншуем! Вы цяпер сотнік Чорнага Рынку!
 st_blackmarket_level_unlock_5	Віншуем! Вы цяпер эліта Чорнага Рынку!
+st_blackmarket_medkit_description	Цалкам лечыць цела, галаву і боль. Не лечыць рукі і ногі.
+st_blackmarket_medkit_name	Аптэчка Чорнага Рынку
 st_blackmarket_meele_kill_descr	Калі не можаш выканаць працу чыста - будзь гатовы запэцкаць рукі. Менавіта гэтым мы і адрозніваемся ад астатніх. Дакажы, што ты адзін з нас - папрацуй рукамі.
 st_blackmarket_meele_kill_name	Брудная праца
 st_blackmarket_meele_kill_obj	Забіць праціўнікаў у бліжнім баі:
@@ -1454,6 +1456,8 @@ st_message_reroll_text	Скінуць навыкі?
 st_messages_censor_option	Уключыць цэнзуру паведамленняў
 st_messages_only_from_friends_option	Прымаць асабістыя паведамленні толькі ад сяброў
 st_microphone_sensitivity_option	Адчувальнасць мікрафона
+st_military_medkit_description	Цалкам лечыць рукі і ногі. Аднаўляе 60% здароўя цела і галавы і 20% болю.
+st_military_medkit_name	Армейская аптэчка
 st_minimap	Мінікарта
 st_minimap_bottom	Ніжні левы вугал
 st_minimap_off	Схаваная мінікарта
@@ -2025,6 +2029,8 @@ st_scavengers_win_score_obj	Выйграць бой з лікам прынесе
 st_scavengers_win_x_games_descr	Мы жывём у жорсткім свеце. Пераможцу дастаецца ўсё, а таму, хто прайграў, застаюцца толькі крошкі. Запомні: каманда, якая перамагла ў баі, атрымлівае большую ўзнагароду.
 st_scavengers_win_x_games_name	Смак перамогі
 st_scavengers_win_x_games_obj	Выйграць баёў:
+st_science_medkit_description	Цалкам лечыць рукі, ногі, цела і галаву. Вылечвае атручванне і прамянёвую хваробу.
+st_science_medkit_name	Навуковая аптэчка
 st_scientists_faction	Інстытут
 st_search_label	Пошук
 st_search_range	Узровень матча
