@@ -25,6 +25,48 @@ pub(crate) enum SpotRule {
 /// pillar, seeing down a lane).
 pub(crate) const HIDDEN_RATIO: f32 = 0.5;
 
+/// Which team the stand-in camper stands on (`SRP_BENCH_CAMPER_SIDE`). The place `SRP_BENCH_CAMPER` names is on team 0 for a place under
+/// the team size, so the camper was on team 0 in every match, and in a by-side head to head the one team that meets him is always the
+/// same one: a by-side split of a camper cell is lopsided by construction (the pooled A+B cancels it).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum CamperSide {
+    /// The team of the place named.
+    #[default]
+    Given,
+    /// The same role's place on the other team ([`mirror_place`]).
+    Mirror,
+    /// The given place on an even seed, its mirror on an odd one: the cells of a run, and of both its arms, split between the teams.
+    BySeed,
+}
+
+impl CamperSide {
+    /// Unset: [`Self::Given`]; `mirror`, `seed`; anything else is refused.
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("given") => Ok(Self::Given),
+            Some("mirror") => Ok(Self::Mirror),
+            Some("seed") => Ok(Self::BySeed),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_SIDE={other:?}: given, mirror or seed")),
+        }
+    }
+
+    /// The place the camper takes in the match of `seed` with `per_team` bots a side, from the place named.
+    pub(crate) fn place(self, named: Place, per_team: usize, seed: u32) -> Place {
+        match self {
+            Self::Given => named,
+            Self::Mirror => mirror_place(named, per_team),
+            Self::BySeed if seed % 2 == 1 => mirror_place(named, per_team),
+            Self::BySeed => named,
+        }
+    }
+}
+
+/// The place of the same role on the other team: the places of team 0 are `0..per_team`, those of team 1 the next `per_team`, and a team's
+/// k-th place has the k-th role (`loadouts::bot_roles`).
+pub(crate) fn mirror_place(place: Place, per_team: usize) -> Place {
+    if place < per_team { place + per_team } else { place - per_team }
+}
+
 /// The stand-in camper's fidelity options, each off when unset: a spot rule,
 /// the stance at the spot and the weapon (`settings.rs`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -41,6 +83,8 @@ pub(crate) struct CamperOptions {
     pub(crate) at: CamperAt,
     /// Where he looks at his spot, and whether scoped ([`Watch`]).
     pub(crate) watch: Watch,
+    /// Which team he stands on ([`CamperSide`]).
+    pub(crate) side: CamperSide,
 }
 
 impl CamperOptions {
@@ -51,6 +95,7 @@ impl CamperOptions {
         moving: None,
         at: CamperAt::Free,
         watch: Watch::Around,
+        side: CamperSide::Given,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -83,6 +128,7 @@ impl CamperOptions {
             moving: MoveOptions::parse(get("SRP_BENCH_CAMPER_MOVE").as_deref(), get("SRP_BENCH_CAMPER_DWELL_S").as_deref())?,
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
             watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
+            side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
         })
     }
 }
@@ -287,17 +333,20 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_MOVE", "1"),
         ("SRP_BENCH_CAMPER_AT", "container"),
         ("SRP_BENCH_CAMPER_WATCH", "lane"),
+        ("SRP_BENCH_CAMPER_SIDE", "seed"),
     ])
     .expect("known values");
     assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
     assert!(all.moving.is_some());
     assert_eq!(all.watch, Watch::Lane);
+    assert_eq!(all.side, CamperSide::BySeed);
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
         ("SRP_BENCH_CAMPER_GUN", "short"),
         ("SRP_BENCH_CAMPER_AT", "batery"),
         ("SRP_BENCH_CAMPER_WATCH", "lanes"),
+        ("SRP_BENCH_CAMPER_SIDE", "team1"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
         assert!(with(pairs).is_err(), "{bad:?}");
@@ -311,7 +360,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);
@@ -490,4 +539,21 @@ pub(crate) fn with_the_sight_refresh_the_stand_in_camper_holds_its_spot_and_a_te
     assert!(camper.0 >= 100, "camper {camper:?}, mate {mate:?}");
     assert!(f64::from(camper.1) >= 0.95 * f64::from(camper.0), "camper {camper:?}, mate {mate:?}");
     assert!(f64::from(mate.1) <= 0.2 * f64::from(mate.2), "camper {camper:?}, mate {mate:?}");
+}
+
+/// The camper's team: given (the place named), its mirror on the other team, or by the seed's parity; the mirror of a mirror is the place.
+#[test]
+pub(crate) fn the_camper_side_picks_the_team_of_the_place() {
+    let per_team = 10;
+    assert_eq!(mirror_place(1, per_team), 11);
+    assert_eq!(mirror_place(11, per_team), 1);
+    assert_eq!(mirror_place(mirror_place(4, per_team), per_team), 4);
+    assert_eq!(CamperSide::Given.place(1, per_team, 3), 1);
+    assert_eq!(CamperSide::Mirror.place(1, per_team, 2), 11);
+    assert_eq!((CamperSide::BySeed.place(1, per_team, 2), CamperSide::BySeed.place(1, per_team, 3)), (1, 11));
+    // The same role: a team's k-th place has the k-th role.
+    let roles = survarium::v026g::loadouts::bot_roles(&(0..2 * per_team).map(|p| u8::from(p >= per_team)).collect::<Vec<u8>>());
+    assert_eq!(roles[1], roles[mirror_place(1, per_team)]);
+    assert_eq!(CamperSide::parse(None), Ok(CamperSide::Given));
+    assert!(CamperSide::parse(Some("team1")).is_err());
 }
