@@ -33,7 +33,7 @@ item's faction (none), level, slots and drop weight from its config in the serve
 
 | id | item | slot | level | config copied (card, sounds; numbers its own, see Stats) | model | icon |
 |---|---|---|---|---|---|---|
-| 1864 | Leather bomber jacket | torso | 6 | Hunter's jacket (83, 6) | `bandit_01_torso_s1` + the native forearms, skin | [1, 9] |
+| 1864 | Leather bomber jacket | torso | 6 | Hunter's jacket (83, 6) | `bandit_01_torso_s1` + bare forearms grown from the native hands' wrist | [1, 9] |
 | 1865 | Track pants | legs | 6 | Hunter's pants (84, 6) | `bandit_01_legs_s1` | [2, 9] |
 | 1866 | Sneakers | boots (`data_full`) | 6 | Hunter's boots (85, 6) | `bandit_01_boot` | [3, 9] |
 | 1867 | Novice's hood | helmet (masks go under it) | 4 | Mounting helmet (330, 4) | `neutral_01_helmet`, grown down round the neck | [4, 9] |
@@ -234,6 +234,19 @@ against 10.1.
   `stk2-loner@11` (their icons only).
 - The owner's stats (Stats, above), approved as proposed. Packs `stk2-bandit@11`,
   `stk2-novice@12`, `stk2-loner@12`, with the two fixes below.
+- "The hands are too big ... they don't fit the original palms" and "the sweater or
+  something is still seen" (the owner's screenshots: a pink band between the bomber's hem
+  and the Loner's pants): the forearms were the native torso's, its sweater's sleeves (57
+  to 62 mm round the arm at the top, against the hands' 31 mm wrist), and the faces taken
+  for them let the sweater's waist through below the hem (they were picked along the
+  forearm's direction, which in the bind pose also runs down to the hips). They are now
+  grown from the native hands' wrist ring (its own vertices and weights first, so the skin
+  goes on from the hand's) up to 5 cm below the elbow, 1.3 times the wrist at the top,
+  with the hands' skin; nothing of the native torso is left in the bomber. Checked in the
+  game's clips (aiming, sprinting): with no gloves and the Rough, Black Market and
+  researcher's gloves (the cuffs cover the forearms), and over the Loner's pants, the
+  jeans, the track pants and three stock trousers from the side and from below (the hem
+  over every waist, no gap). Pack `stk2-bandit@12`.
 - "Let's make them buyable the same way the beanie is": sold by seller 0 to everyone at
   no rank at their prices, and still dropped (srp's `prices`, no pack change).
 - "The sweater is seen through the leather jacket": the bomber's bare forearms were the
@@ -273,7 +286,7 @@ against 10.1.
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@11`, `stk2-novice@12`,
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@12`, `stk2-novice@12`,
   `stk2-loner@12` (their pack.json sha256s). `release/build-content` composes them; the
   release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
