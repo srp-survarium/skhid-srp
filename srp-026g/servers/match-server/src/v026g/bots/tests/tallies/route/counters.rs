@@ -642,6 +642,21 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The drops a body held at their top shut to its searches (`unstick.drop_shut`, `stuck::drop_shuts`): the shuts, the
+/// landings shut, and what followed each: stuck again at the spot within 10 s, off it (down, or 2 m away), still there
+/// after 30 s, killed itself first (the rest: a new life or another shut ended the watch).
+pub(super) fn drop_shuts() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::drop_shuts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "drop_shuts {} drop_shut_landings {} drop_shut_again {} drop_shut_left {} drop_shut_still {} drop_shut_self_kills {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
+            ));
+        },
+    )
+}
+
 /// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
 /// came with one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, within 1.2 m (`stuck::fix_gaps`).
 pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {

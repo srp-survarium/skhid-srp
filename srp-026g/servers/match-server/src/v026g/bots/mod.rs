@@ -1440,6 +1440,8 @@ impl Bots {
         {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
+            bot.stuck.watch_drop(time, feet, true);
+            #[cfg(test)]
             if after_gap {
                 stuck::fix_gaps::count(1);
             }
@@ -1475,6 +1477,27 @@ impl Bots {
                     route_text
                 ),
             );
+            // [unstick] Held at the top of a drop its route goes down (A199): the drops off where it stands are shut to its
+            // searches, so the next one takes another way down, or none is left (`Stuck::hopeless`).
+            if let Some(shut) = self.tunings.of(bot.team).unstick.drop_shut
+                && let Some(tactics) = self.tactics.as_ref()
+                && bot.route.as_ref().is_some_and(|(route, _)| route.heads_down_from(feet))
+            {
+                let landings = stuck::drops_off(&tactics.world.grid, feet, shut.near_m.get());
+                if !landings.is_empty() {
+                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms);
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!(
+                            "shuts {} drops off {:?} to its searches for {} s: held at their top",
+                            landings.len(),
+                            feet.to_array(),
+                            shut.kept_ms / 1_000
+                        ),
+                    );
+                }
+            }
             let (side, other) = if bot.rng.unit() < 0.5 {
                 (key::LEFT, key::RIGHT)
             } else {
@@ -1562,6 +1585,8 @@ impl Bots {
             }
             return notes;
         }
+        #[cfg(test)]
+        bot.stuck.watch_drop(time, feet, false);
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
         if bot.control.reacts()
             && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
