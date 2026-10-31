@@ -3707,7 +3707,7 @@ player cook's own inventory request (41h) from a copy of the player's profile
 whose kit keeps that weapon slot and the ammunition slots, its completion a
 boost member callback (0x27D280) to a naked thiscall entry of ours. The gun
 is kept by donor life (place + spawn time), a replayed death reuses it, and
-it is given back past the 5 s window and a 3 s margin, at its donor's
+it is given back 3 s after its body leaves the world (base_player::remove(1)), at its donor's
 destruction (player::~player 0x1F2100) or by the later stages. A pickup whose
 gun is not in yet waits on dispatch_callbacks (0xE5AB0, as 0xE5C20 does),
 at most 2 s, refusing while a player cook has completed since the last frame
@@ -3735,24 +3735,31 @@ server reads the native fields from `FIELDS_AT` (players.rs, motion.rs). At
 the input's apply point (artefact_carry's `carry.filter` calls
 `weapon_pickup::on_filter` with the raw actions first) a pickup command
 (patch 78's bit 29 with two or more quick bits) is decided by
-`weapon_pickup::decide`, the death's cooked gun found (or cooked and waited
-for) and installed by `vostok/pickup.rs`: the game's inventory::set_item
-(0x2FC620) swaps the held own gun with the cooked one, its ammunition goes
-to free ammunition slots of the picker (remove_item 0x2FC680, set_item) and
-the gun's +5ACh is rebound to them, the gun is bound to the core (+4,
+`weapon_pickup::decide` (the held gun replaced by any gun the carry rules
+allow after the kit's modifiers 64 and 25, read with apply_modifier
+0x2D5AE0, and the guns' double_handed +5E9h), the death's cooked gun found
+(or cooked and waited for) and installed by `vostok/pickup.rs`: the game's
+inventory::set_item (0x2FC620) swaps the held own gun with the cooked one,
+its ammunition goes into the swapped-out gun's ammunition slots (the own
+stacks parked in the cooked inventory until the restore), then free ones
+(remove_item 0x2FC680, set_item), and the gun's +5ACh is rebound to them, the gun is bound to the core (+4,
 +258h, the own gun's registry id +0Ch and core+18B4Ch's entry, the bullet
 manager +5A0h, no autoload +5F4h), the switch is replayed (deactivate(1),
 forget_active_object 0x3919E0, held = pending, set_user, initialize,
 activate(1)) with the donor's magazine and chamber and one magazine in
 reserve. base_player::remove(1) (`pickup.remove`, 0x2DA790), the player's
 destruction and a loaded record without the borrow put everything back
-before the native code runs (held left to remove / the reader); a loaded
+before the native code runs (held left to remove / the reader), and
+remove(1) ends the place's drop (its body and gun leave the world there:
+the respawn tick, a departure); a loaded
 record naming a borrow that is not installed installs it without the
 switch (0x2DB62B switches the held object itself). The crate's checks and
 use (`pickup.can_use` 0x2F809C, `pickup.use_hint` 0x2F80E4,
 `pickup.resupply` 0x2F81B8, `pickup.client_resupply` 0x2954EF) hand the
-native resupply a 188h view with the own gun in its slot; the borrowed
-reserve is refilled to a magazine for free and is "available" while below.
+native resupply a 188h view with the own gun and the own parked stacks in
+their slots; each borrowed stack is refilled to the picker's allowance for
+its slot less the magazine and chamber, for free, and is "available" while
+below.
 Every refusal is logged to `srp_patches.log`. `check_weapon_pickup_026g.py`
 runs it on the game's own set_item, remove_item and set_owner. A row of
 `simulation_changes.tsv`. The prompt, the ragdoll's gun and the input
@@ -3771,8 +3778,8 @@ are taken out of the scene as patch 78 takes a carrier's (the native draw
 skipped). At `player_icons.update_start` artefact_carry's on_hud, after its
 own targets, asks `weapon_pickup::aim`: the eye's (player+44Ch) 2.2 m segment
 entering a kept box padded by 5 cm, patch 78's ray (0x24, 2) clear up to it,
-the drop open within 5 s, its gun made here and `weapon_pickup::decide` (the
-kind too) yes; the hud's `show_artefact_offer("st_weapon_pick_up", name)`
+the drop open (its body in the world), its gun made here and
+`weapon_pickup::decide` (the carry rules too) yes; the hud's `show_artefact_offer("st_weapon_pick_up", name)`
 with the gun's ui_desc/text_descriptions/name (its dictionary entry +114h ->
 +108h, as fill_items_dictionary_impl 0x286410 reads it) translated
 (0x1FF0F0). At `input_builder.end` (artefact_carry's on_input_end, after

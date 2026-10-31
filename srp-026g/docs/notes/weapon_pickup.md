@@ -1,24 +1,40 @@
 # Dropped weapon pickup
 
-## Spec (the owner's rules, 2026-10-27..30; my picks marked)
+## Spec (the owner's rules, 2026-10-27..31; my picks marked)
 
 - A player picks up the gun a dead player dropped: Use (the crate's and the
   artefact's key and prompt style, "Pick up <gun> (E)") while looking at that
   gun's bounding box on its own ragdoll, within the artefact's reach (2.2 m).
   Each client decides from where the gun lies on its own screen; nothing
   checks positions.
-- A drop can be taken for 5 s of simulation time after the death, once.
-  Whether the donor has respawned does not matter.
+- A drop can be taken once, until the gun disappears (the owner, 2026-10-31):
+  the dead player's body and the gun on it leave the world when the place's
+  player is taken out of it, base_player::remove(1) in the simulation (the
+  respawn tick 0x3169A0, a departure, a snapshot's kit change), the same
+  tick on every client. That ends the drop. Typically the respawn, 8 s after
+  the death by the modes' options (less with `respawn_booster`); in a mode
+  without respawns, the match's end or the player leaving.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
-- The picker's own ammo crate refills the borrowed gun's reserve to one
-  magazine, for free (nobody's storage is charged); its own guns as before.
+- "Your ammo is replaced" (the owner, 2026-10-31): the borrowed gun's
+  ammunition goes into the slots of the gun it replaces (the picker's own
+  stacks there are kept aside and come back with the own gun); more
+  stacks than those slots: free ammunition slots, then the gun binds the
+  ones placed. A pickup is never refused for room.
+- The picker's own ammo crate "refills it up to your ammo slots": each
+  borrowed stack to the picker's allowance for its slot, less the gun's
+  magazine and chamber for the selected one, never lowered, for free
+  (nobody's storage is charged); its own guns as before.
 - On the picker's death the borrowed gun vanishes (not dropped again) and the
   next life has the original loadout.
-- My picks: the picked gun replaces the gun in hands, only of the same kind
-  (two-handed for two-handed, pistol for pistol), so a pair is never illegal;
-  a player holds at most one borrowed gun; nothing in hands but a gun of its
-  two: no pickup.
+- The replacement rule (Codex's, approved): the gun in hands is replaced,
+  never the other slot's; any gun for any gun; the carry rules after the
+  skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
+  slot 7 (a gun held in slot 10 is not replaced), and without
+  `use_two_double_handed_weapons` (modifier 25) a double-handed gun is
+  refused while the other slot holds one. Handedness is the item's
+  `double_handed` (weapon+5E9h). My picks: a player holds at most one
+  borrowed gun; nothing in hands but a gun of its two: no pickup.
 - Synced: only each player's record (its drop: open with its kit, slot and
   death time, or taken; and the gun it borrows), 12 bytes at the start of its
   state. The command rides in the input (patch 78's bit 29 with a pattern of
@@ -27,29 +43,28 @@
 - My picks for stage 2a (the owner: "just don't overcomplicate the
   feature", smallest version everywhere):
   - the records are kept by place, not by kit player object: a state is a
-    place's (its current kit's player), so a drop survives a respawn with
-    another kit; the borrow is the current player's;
-  - the borrowed gun's ammunition goes to free ammunition slots of the
-    picker (8, 9, 11, 12, 19..22, first free first) and the gun is rebound
-    to them, so the native inventory snapshots its reserve; no free slot
-    for it: the pickup is refused (deterministic, logged);
+    place's (its current kit's player); base_player::remove(1) of the
+    place's player clears its record (its drop and its borrow);
   - the magazine and chamber are those of the donor's gun in its slot when
     the donor's current player is of the drop's kit, else a full magazine;
     the reserve is one magazine; any other bound stack of the gun is empty;
+  - the modifiers are read as the native code sums them: apply_modifier
+    0x2D5AE0 of 0 with weight 1 on the current kit's container (both are
+    additive), above 0 is the skill;
   - a refused pickup changes nothing and is logged; the client cannot
     install a gun its cook failed to make (logged loudly: that client
     then differs);
-  - the crate's free refill sets the reserve to one magazine when below,
-    and its checks say "available" while it is below;
+  - the crate's checks say "available" while a borrowed stack is below its
+    refill;
   - a gun given back (its holder's death, respawn, destruction, a rollback)
-    stays cooked until its death's window and margin end (a rollback can
+    stays cooked until 3 s after its body left the world (a rollback can
     take it again); a loaded world's gun is freed at the next frame.
 - My picks for stage 2b (the same rule):
-  - the prompt shows only when the pickup would be taken now (the drop open
-    within 5 s, its gun made on this client, the picker alive with a gun of
-    its own in hands, no borrow, the same kind), as patch 78's take prompt;
-    patch 78's own targets (a teammate's offer, a ground artefact) come
-    first; the nearest gun wins;
+  - the prompt shows only when the pickup would be taken now (the drop open,
+    its gun made on this client, the picker alive with a gun of its own in
+    hands, no borrow, the carry rules), as patch 78's take prompt; patch
+    78's own targets (a teammate's offer, a ground artefact) come first; the
+    nearest gun wins;
   - the target is the gun's model box as the renderer has it, padded by
     5 cm, along the eye's 2.2 m segment; the level's ray (patch 78's) must
     be clear up to it;
@@ -81,28 +96,34 @@ cooked gun).
   (its world core): the death sets the place's drop (open with kit, slot
   and the tick's +324h when it held one of its own two guns; none when it
   held a borrowed gun, which vanishes, or anything else), a pickup the
-  picker's borrow and the donor's drop taken, base_player::remove(1) and
-  the player's destruction the borrow none. The server reads the native
+  picker's borrow and the donor's drop taken, base_player::remove(1) the
+  whole record empty (the drop ends with the body, the borrow with the
+  life), the player's destruction the borrow none. The server reads the native
   fields from `FIELDS_AT = 2 + Record::BYTES`.
 - **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule
   (`weapon_pickup::decide`: alive, no borrow, its own gun held and pending
-  in slot 7 or 10, another place's open drop within 5 s at the picker's
-  +324h) first without the gun; the gun of that death from the cache, or
-  (a death this client did not see) cooked from the donor's profile, waited
-  for if not in; the kind (+5E9h of both); then the install:
+  in slot 7 or 10, another place's open drop, the carry rule: the other
+  slot's gun's +5E9h and the kit's modifiers 64 and 25 through
+  apply_modifier 0x2D5AE0) first without the gun's handedness; the gun of
+  that death from the cache, or (a death this client did not see) cooked
+  from the donor's profile, waited for if not in; the rule again with the
+  cooked gun's +5E9h; then the install:
   - every check before the first write: the own gun a client weapon in its
-    slot, held and pending; the cooked slot a client weapon; each bound
-    ammunition slot (+5ACh, +5B0h) holding a stack; a free ammunition slot
-    of the picker for each;
+    slot, held and pending; the cooked slot a client weapon; its binding
+    (+5ACh, +5B0h at most 8, +5B1h below it) and each placed stack there;
   - the gun bound to the world: +4 and +258h the core (player+120h), +0Ch
     the own gun's registry id, +5A0h the own gun's bullet manager, +5F4h 0;
     core+18B4Ch begin[id] = the gun (bind_to_game_core 0x2E30F0 never
     called: it appends);
-  - each stack moved (one reference more across: remove_item 0x2FC680 from
-    the cooked inventory, set_item 0x2FC620 into the free slot, its +248h
-    the core) and the gun's +5ACh index rewritten to it;
+  - each stack moved, the selected one first, into a slot of the own gun's
+    binding that the other slot's gun does not bind, the own stack there
+    parked in the cooked slot it came from (two set_items, one reference
+    more on each across), else into a free ammunition slot (remove_item
+    0x2FC680, set_item 0x2FC620); its +248h the core; the gun's +5ACh
+    indices rewritten to the slots, +5B0h the stacks placed, +5B1h 0 (the
+    cooked binding saved for the restore);
   - the guns swapped by set_item (the borrowed one into the picker's slot,
     the own one into the cooked slot; both held by one reference more
     across), each owner set by the item's own set_owner (vtable+28h);
@@ -113,8 +134,9 @@ cooked gun).
     magazine (+5E5h, the chamber +5F1h) and the reserve (the retained
     stack's +260h = the capacity +5E4h), activate(1) 0x244610.
 - **The restore** (`vostok::pickup::restore`): everything back as cooked
-  (the gun's saved +4, +0Ch, +258h, +5A0h, the stacks and +5ACh back in the
-  cooked inventory, the own gun in its slot and its registry entry); the
+  (the gun's saved +4, +0Ch, +258h, +5A0h, its stacks back in the cooked
+  inventory and the own parked stacks back in their slots, +5ACh, +5B0h,
+  +5B1h as cooked, the own gun in its slot and its registry entry); the
   held object is left as it is. At base_player::remove(1) (`pickup.remove`
   0x2DA790; flag 0, a snapshot's same-kit removal, is left alone) remove
   then deactivates the borrowed gun itself and unloads the own loadout into
@@ -129,30 +151,41 @@ cooked gun).
   set_users the new one when they differ, and the inventory reader then
   finds the slots as the snapshot has them).
 - **The crate**: `pickup.can_use` 0x2F809C and `pickup.use_hint` 0x2F80E4
-  (before check_resupply's `mov ecx,[eax+10Ch]`): a borrowed reserve below
-  a magazine exits to "available" (0x2F80B3, 0x2F8116); else ECX is a 188h
-  view of the inventory with the own gun in its slot and the moved slots
-  empty, the loadout the profile names (what check_weapon_pickup.py proves
-  check_resupply and resupply_from_profile read). `pickup.resupply` 0x2F81B8
-  and `pickup.client_resupply` 0x2954EF (before resupply_from_profile's
-  inventory): the borrowed reserve to a magazine, free, the real
-  inventory's weight marked, EAX the view.
-- **The cache**: a gun installed is lent (never freed by the window or its
-  donor's destruction); given back, it is kept until its death's window and
-  margin end, so a rollback that takes it again finds it.
+  (before check_resupply's `mov ecx,[eax+10Ch]`): a borrowed stack below its
+  refill exits to "available" (0x2F80B3, 0x2F8116); else ECX is a 188h
+  view of the inventory with the own gun in its slot and the own parked
+  stacks where the borrowed ones are (a free slot's empty), the loadout the
+  profile names (what check_weapon_pickup.py proves check_resupply and
+  resupply_from_profile read). `pickup.resupply` 0x2F81B8 and
+  `pickup.client_resupply` 0x2954EF (before resupply_from_profile's
+  inventory): each borrowed stack to `crate_reserve`: the picker's
+  allowance for its slot (profile +98h + kit x 704h + 4 x slot +2, none for
+  an item FFFFh, as resupply_from_profile 0x2FDD56..0x2FDD71) less the
+  gun's magazine and chamber for the selected stack, never lowered, free;
+  the real inventory's weight marked, EAX the view (the native refill then
+  refills the own parked stacks, charging the own storage).
+- **The cache**: a gun installed is lent (never freed by its body's end or
+  its donor's destruction); kept, it is freed 3 s after its donor's
+  remove(1) (the body left the world: `Origin::Death.gone`), so a rollback
+  that takes it again finds it.
 - **For stage 2b**: `borrowing(thread, player)`, `instance(thread, place,
   died)`; the death's body (player object and life) kept with the place's
   record (below).
 - **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe, the
   game's own set_item, remove_item and set_owner; the switch's calls and
   the byte writer recorded): the records written at a death and read back;
-  a gun of another kind, the picker's own place, a second command, a
-  command after 5 s refused with nothing changed; the pickup's slots,
-  owners, references, bindings, switch calls, magazine and reserve; the
-  crate's view, its "available" exits and its refill at both finish_use
-  sites; a loaded record without and with the borrow; remove(0) and
-  remove(1); a record that does not decode; a lent gun kept past its
-  window and freed once given back; no branch into the new spans.
+  a rifle for a held pistol taken; a second double-handed gun refused, then
+  taken with modifier 25; a gun held in slot 10 refused with modifier 64
+  (the game's apply_modifier); the picker's own place, a second command, a
+  command after the donor's remove(1) refused with nothing changed, one 60 s
+  after the death with the body there taken; the pickup's slots (the
+  borrowed stack in the own gun's slot 8, the own stack parked), owners,
+  references, bindings, switch calls, magazine and reserve; the crate's
+  view, its "available" exits and its refill (108 - 18 = 90, no storage
+  charged, never lowered) at both finish_use sites; a loaded record without
+  and with the borrow; remove(0) and remove(1) (the own ammunition back);
+  a record that does not decode; a lent gun kept past its body's end and
+  freed 3 s after once given back; no branch into the new spans.
   `check_artefact_carry_026g.py` (the composed filter), cargo test and
   clippy of `client-patches/rust`, `weapon-pickup`, `survarium`,
   `match-server`, `session`.
@@ -186,8 +219,8 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   position m[12..14], forward m[8..10]) 2.2 m segment into the box padded by
   5 cm (the box's frame from the transform's rows, taken as orthogonal);
   the nearest whose drop a pickup would take now (the body still the
-  drop's and dead, the drop open within 5 s at the viewer's +324h, its cook
-  made here, `decide` with the kind yes) and with patch 78's ray (group
+  drop's, the drop open, its cook made here, `decide` with the carry rules
+  yes) and with patch 78's ray (group
   0x24, mask 2) clear up to it, and a place the server allows
   (`weapon_pickup::allowed` with match_options +577B5h). The hud is told
   `root.show_artefact_offer("st_weapon_pick_up", name)`: the name key from
@@ -215,8 +248,9 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   with its translated name; Use's press becomes the pickup command, held it
   stays off the game; the command played takes it, its gun is then out of
   the scene and the prompt gone; no prompt looking away, beyond 2.2 m,
-  behind a wall, after 5 s, for a gun of another kind or a place the match
-  lacks; the 5 cm padding. Unit tests of the segment test and the press.
+  behind a wall, a second double-handed gun, modifier 64 with the gun in
+  slot 10 or a place the match lacks; offered 60 s after the death, gone
+  with the body's remove(1); the 5 cm padding. Unit tests of the segment test and the press.
   `check_artefact_carry_026g.py`, `check_ragdoll_026g.py`,
   `check_blackout_026g.py` (the composed handlers),
   `check_localization_026g.py`, the carry Ruffle harness
@@ -313,8 +347,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   a cook still running is abandoned and its completion frees everything.
   Freed: a death's gun when the world core's time (+18FC0h, at the frame's
   `game_world.after_move`, ragdoll's handler calling
-  `weapon_pickup::after_move`) is 5 s (`WINDOW_MS`) + 3 s (a rollback's
-  reach) past the death; any gun of a donor player at its destruction
+  `weapon_pickup::after_move`) is 3 s (a rollback's reach) past its donor's
+  base_player::remove(1) (`pickup.remove`: the body and its gun left the
+  world, typically the respawn 8 s after the death); any gun of a donor player at its destruction
   (`player.destroy` 0x1F2100: it leaves; every player at the match's
   teardown); a gun the later stages give back (`give_back`: its holder died
   or left). A holder's inventory keeps its own native reference.
@@ -360,7 +395,7 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its
   recipe and profile copy, a replayed death, no gun, the completion through
-  the game's invoker, the window's end, an empty result, a donor destroyed
+  the game's invoker, the body's end (remove(1)) and 3 s, an empty result, a donor destroyed
   while its gun cooks; every allocation freed once. `check_artefact_carry_026g.py`
   and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
   cargo test and clippy of `client-patches/rust`. The wait is not run (no
