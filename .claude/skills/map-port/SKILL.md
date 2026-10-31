@@ -5,7 +5,7 @@ description: Port a map from another Survarium build (0.69d, 0.46c2, 0.27d, 0.21
 
 # Porting a map into 0.26g
 
-Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@1`,
+Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@3`,
 resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 - resource-porter `docs/survarium-069d-to-026.md`: every conversion choice, with numbers;
@@ -40,7 +40,7 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
    with the packs folder named: `release.env` sets `SKHID_PACKS_DIR` itself, so wrap it,
    ```sh
    # release-modes.env
-   . /home/sheep/Projects/survarium/skhid-srp/private/release/release.env
+   . <main checkout>/private/release/release.env
    SKHID_PACKS_DIR=/mnt/hdd/Projects/rudnya-069d/packs-modes   # <id>-<version> -> the pack
    ```
    and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --out <content dir>`.
@@ -72,10 +72,13 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 - Static render geometry is the hard budget: the vertex pool holds 88 MB; beyond it the
   client logs "No enough memory in vertices pool" and draws holes. Native maps load
   43-48 MiB; Rudnya (v0.69) is 35.6 MiB (TDM), 40.9 MiB (charging stations).
-- Measure every build: `python3 -I private/rudnya-ref069/tool/geometry.py <bundle>
+- Measure every build: `python3 -I <rig>/geometry.py <bundle>
   projects/<ns>_<level>/<day>/client_project` (overlay files first, then the stock db);
   resource-porter `examples/geometry_bytes` reads one db.
-- Textures: Rudnya keeps every imported texture at full size (605 MiB); Duga capped at 1024.
+- Textures: Rudnya keeps every imported texture at full size: 0.69d's never exceed what
+  0.26g's stock maps use for the same kind (2048; terrain normal and gloss maps 1024). Duga
+  capped at 1024. `reuse_native_textures` draws 0.26g's own file where 0.69d kept the same
+  image (it re-encoded most of what it kept from 0.26): 238 of Rudnya's 463, 345 MiB.
 
 ## Pitfalls met on Rudnya, and their fixes
 
@@ -110,8 +113,8 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 ## Checking against the donor
 
-- **The rig:** `private/rudnya-ref069/tool/` (Python
-  `/nix/store/lpvndzx6hki91r2g8sliszm81j9ajsb6-python3-3.13.15-env/bin/python3 -I`):
+- **The rig** (`<rig>`: its tools, kept outside the repository with the map's work; a
+  Python with pillow and numpy, `python3 -I`):
   - `ref069.py batch POSES --map <key> --out DIR`: 0.69d itself, the project loaded as the
     login scene (`--level level_01/day_tdm`, `level_01/day_br` for the battery modes);
   - `ref026.py start|shot|stop --runtime DIR`: the port, in a runtime of its own;
@@ -119,11 +122,11 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 - **The final check is the sweep** (owner, 2026-10-31): about 100+ generated locations,
   flagged by region, not a handful of chosen views.
   - `sweep_poses.py --work <bundle> --content <content dir>` writes
-    `private/rudnya-ref069/poses-sweep.json`: interiors from the probe and light volumes,
+    `<rig>/../poses-sweep.json`: interiors from the probe and light volumes,
     roofs, the fog, the horizon (the backdrop), terrain overlay edges, every mode object,
     spawns; cameras inside geometry or buried are skipped (`geoq` ray-casts the collision).
   - `sweep.py run --build <name> --content <content dir> [--fresh]`, then
-    `private/rudnya-ref069/report-<name>/index.html`, worst first, with black / dark /
+    `<rig>/../report-<name>/index.html`, worst first, with black / dark /
     hole / cast / gap flags on an 8 x 6 tile grid. `sweep.py compare --build <name>` redoes
     the report from the shots taken.
   - **0.69d reference shots are taken once and kept.** Each lands in
@@ -132,7 +135,7 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     each iteration: `--fresh` drops the port's shots alone. Never delete or re-take the
     reference shots.
   - **Rudnya's reference is closed** (owner, 2026-10-31): 0.69d never starts again for
-    it. The check is `private/rudnya-ref069/poses-kept.json`, 112 poses: the 47 of
+    it. The check is `<rig>/../poses-kept.json`, 112 poses: the 47 of
     `poses-rudnya.json` (`shots/`), the 37 fix poses (`shots-fixes/`), the 24 battery-mode
     poses cached from `level_01/day_br`, each with its kept shot as `ref`, and 7 with none
     (the Research units, spawns). Run it port-only:
