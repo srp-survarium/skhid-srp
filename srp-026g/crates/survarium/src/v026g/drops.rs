@@ -680,7 +680,8 @@ mod tests {
     /// stk2-bandit, stk2-novice and stk2-loner): no faction and no seller
     /// (the owner, 2026-10-31: the new equipment only drops), each at the
     /// owner's level and in the generic table's pool of its category at that
-    /// level, by its donor's drop weight. It makes that data the process's:
+    /// level, by its own drop weight (`armour::tests` holds it to its level's
+    /// range). It makes that data the process's:
     /// run it alone.
     #[test]
     #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
@@ -690,7 +691,7 @@ mod tests {
         game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
         let dictionary = Dictionary::shared();
         let generic = &Drops::shared().generic;
-        // (item, the owner's level, the stock piece whose numbers it copies)
+        // (item, the owner's level, the stock piece its config copies)
         let items: [(&str, u8, &str); 14] = [
             ("stk2_bandit_026_torso", 6, "torso/edge_torso_1"),
             ("stk2_bandit_026_legs", 6, "legs/edge_legs_1"),
@@ -715,7 +716,9 @@ mod tests {
             let template = item_params(template.dict_id).unwrap();
             assert_eq!(params.faction, 0, "{name}");
             assert_eq!(params.item_level, level, "{name}");
-            assert_eq!(params.drop_weight, template.drop_weight, "{name}");
+            // Its own drop weight (armour::tests checks it against its
+            // level's), in the same pool as its template's.
+            assert_eq!(params.kind, template.kind, "{name}");
             assert!(params.drop_weight > 0, "{name}");
             assert_eq!(prices::sellers_of(dictionary, item, params), [], "{name}");
             assert!(!generic.level_independent.contains(&item.category), "{name}");

@@ -31,39 +31,81 @@ item's faction (none), level, slots and drop weight from its config in the serve
 
 ## The items
 
-| id | item | slot | level | copies (stats, weight, price, drop weight, bonuses) | model | icon |
+| id | item | slot | level | config copied (card, sounds; numbers its own, see Stats) | model | icon |
 |---|---|---|---|---|---|---|
-| 1864 | Leather bomber jacket | torso | 6 | Hunter's jacket (83, 6) | `bandit_01_torso_s1` + the native forearms | [1, 9] |
+| 1864 | Leather bomber jacket | torso | 6 | Hunter's jacket (83, 6) | `bandit_01_torso_s1` + the native forearms, skin | [1, 9] |
 | 1865 | Track pants | legs | 6 | Hunter's pants (84, 6) | `bandit_01_legs_s1` | [2, 9] |
 | 1866 | Sneakers | boots (`data_full`) | 6 | Hunter's boots (85, 6) | `bandit_01_boot` | [3, 9] |
-| 1867 | Novice's hood | helmet, covers the mask | 4 | Mounting helmet (330, 4) | `neutral_01_helmet`, grown down round the neck | [4, 9] |
+| 1867 | Novice's hood | helmet (masks go under it) | 4 | Mounting helmet (330, 4) | `neutral_01_helmet`, grown down round the neck | [4, 9] |
 | 1822 | Novice's field jacket | torso | 4 | "Marodeur" jacket (347, 4) | `neutral_01_torso_s1` (canteen, knife, pouch) | [19, 6] |
 | 1868 | Novice's field jacket with pouches | torso | 4 | "Marodeur" jacket (347, 4) | `neutral_01_torso_v2_s1` (two belt pouches) | [5, 9] |
-| 1869 | Novice's backpack | back | 4 | "Marodeur" container (355, 3; no back piece is level 4) | `neutral_01_back` | [6, 9] |
+| 1869 | Novice's backpack | back | 4 | "Marodeur" container (355, 3) | `neutral_01_back` | [6, 9] |
 | 1870 | Novice's jeans | legs | 4 | Field pants (47, 4) | `neutral_01_legs_s1` | [7, 9] |
 | 1871 | Novice's boots | boots (`data_full`) | 4 | Military boots (39, 4) | `neutral_01_boot` | [8, 9] |
 | 1872 | Novice's fingerless gloves | gloves (`data_full`) | 4 | "Marodeur" gloves (1105, 4) | `neutral_01_hand` | [9, 9] |
 | 1873 | Loner's jacket with vest | torso | 6 | Paratrooper bulletproof vest (754, 6) | `neutral_03_torso_s1` + four pouches | [10, 9] |
 | 1874 | Loner's camo pants | legs | 6 | Paratrooper pants (755, 6) | `neutral_03_legs_s1` + pouch, holster, nuts bag | [11, 9] |
 | 1875 | Loner's boots | boots (`data_full`) | 6 | Army boots (62, 6) | `neutral_03_boot` (the left boot the right one mirrored) | [12, 9] |
-| 1876 | Loner's fingerless gloves | gloves (`data_full`) | 6 | Rough gloves (327, 5; no gloves are level 6) | `neutral_03_hand` | [13, 9] |
+| 1876 | Loner's fingerless gloves | gloves (`data_full`) | 6 | Rough gloves (327, 5) | `neutral_03_hand` | [13, 9] |
 
 - **No faction, drop only (the owner, 2026-10-31):** every item's `parameters.faction` is 0,
   as the Novice's knit cap's: the Independent traders' (the item tables show them so). No
   one sells them: srp sells gear of no faction only through a named `prices` exception, and
   none names them (nor a bundle or the start kit). They drop after matches: each has its
-  donor's drop weight, its category is in the generic drop table, and the table's level rows
+  level's drop weight (below), its category is in the generic drop table, and the table's level rows
   roll its item level (`prices::tests::the_stk2_outfits_are_sold_by_no_one`; on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_by_no_one`).
   Drops are rolled after a match, so nothing a match computes changes (no
   `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.
-  Each piece copies a stock piece of its slot at that level (any faction, the nearest look:
-  a jacket for the Novice, a vest for the loner); where none is at that level (a back piece
-  at 4, gloves at 6), the nearest one's numbers at the owner's level.
+- Each item's config is a stock piece's of its slot (card, sounds, rollable modifications)
+  with its own numbers (Stats, below), model, icon, texts and faction (none); camouflage
+  and decals off (the donor textures have no masks); no item takes another slot.
 
-- Each item is its donor's config whole (parameters, protection, weight, price, drop
-  weight, built-in bonuses, card, sounds) with only its model, icon, texts, faction (none)
-  and, where set above, level; camouflage and decals off (the donor textures have no masks).
+## Stats (the owner's, 2026-10-31)
+
+Each number inside the range of the other armour of its slot and level in the released
+game data (non-premium, still dropped, every faction), shown as [min/median/max]; where a
+slot has fewer than two pieces at the level (backs at 4, gloves at 4 and 6), the nearest
+levels below and above too. `armour::tests::the_stk2_outfits_are_inside_their_slot_and_levels_stock_range`
+holds them there on the built server data. Armour: against bullets, blades and blasts;
+isolation: fire, shock, toxins and radiation (one number on every stock piece, so the
+jackets' warmth is isolation). Every stock armour piece has reliability 1, wear 0.01 a
+match and 0.004 a use, repair 10 % of the price: so do these. Prices are the stock ones of
+the slot and level (two tiers: Scavengers' and Renaissance's, Black Market's and Edge's;
+gloves cost as boots); drop weight is the level's (120 at 4, 100 at 6).
+
+| id | item | armour | isolation | weight (kg) | bonuses | price | drop | why |
+|---|---|---|---|---|---|---|---|---|
+| 1864 | Leather bomber | 55 [50/55/60] | 5 [5/10/20] | 7 [6/7/10] | pocket +1 | 20900 | 100 | decent armour, low isolation (leather) |
+| 1865 | Track pants | 50 [50/55/60] | 10 [10/10/20] | 1.6 [1.6/1.7/2.1] | stamina use -8 %, movement +4 % | 10450 | 100 | light and mobile: the level's least |
+| 1866 | Sneakers | 50 [50/55/60] | 10 [10/15/20] | 1.0 [1.0/1.1/1.2] | movement +4 % | 5230 | 100 | light and mobile |
+| 1867 | Novice's hood | 20 [20/22.5/25] | 20 [5/17.5/30] | 1.0 [1.0/1.3/1.6] | none (no stock helmet has one) | 8080 | 120 | light head armour, some isolation; the head only |
+| 1822 | Novice's field jacket | 40 [40/40/40] | 30 [10/20/30] | 8 [8/8.5/9] | pocket +1 | 12350 | 120 | the level's top isolation, a pocket |
+| 1868 | ... with pouches | 40 | 20 | 8.5 | pocket +1, ammo bag +1 | 13650 | 120 | the pouches an ammo bag, paid in isolation and weight |
+| 1869 | Novice's backpack | - | - | 4.5 (levels 3, 5: 4.5/5/8) | pocket +1, pocket size +1 | 7920 | 120 | capacity, as the level-3 and level-5 packs; price between the level-3 (6650) and level-6 (10450) packs' |
+| 1870 | Novice's jeans | 40 [40/40/40] | 20 [15/22.5/30] | 1.4 [1.2/1.4/1.6] | pocket size +1 | 6180 | 120 | middling |
+| 1871 | Novice's boots | 35 [30/32.5/35] | 10 [5/7.5/10] | 0.9 [0.8/0.85/0.9] | stamina use -8 % | 3090 | 120 | middling, sturdier than the Military boots |
+| 1872 | Novice's fingerless gloves | 35 (levels 3-5: 20/42.5/50) | 25 [10/25/50] | 0.35 [0.3/0.375/0.8] | artefact search -20 % | 2620 | 120 | light; bare fingertips |
+| 1873 | Loner's jacket with vest | 60 chest and back, 30 forearms [50/55/60] | 5 [5/10/20] | 9.5 [6/7/10] | pocket +1 | 23100 | 100 | the most chest armour of the level-6 torsos; the sleeves the jacket's |
+| 1874 | Loner's camo pants | 55 [50/55/60] | 15 [10/10/20] | 1.9 [1.6/1.7/2.1] | ammo bag +1, pocket size +1 | 11550 | 100 | pouch and holster, nuts bag |
+| 1875 | Loner's boots | 55 [50/55/60] | 15 [10/15/20] | 1.1 [1.0/1.1/1.2] | stamina use -8 % | 5780 | 100 | middling |
+| 1876 | Loner's fingerless gloves | 50 (levels 5, 8: 45/50/50) | 15 [10/20/60] | 0.3 [0.3/0.3/0.35] | reload +12 % | 5230 | 100 | light, a step above the level-5 gloves |
+
+Bonuses, each at its stock value (modification id, and stock pieces carrying it): pocket +1
+1030 (jacket 83 at 6, 824 at 5, pants 349 at 4, packs 355, 1357, 753); ammo bag +1 1050
+(jacket 48 at 4, 58 and 754 and pants 59, 755 at 6); pocket size +1 1170 (pants 46 at 3,
+827 at 5, packs 355, 1357); movement +4 % 1113 (boots 35 at 4, 85 at 6); stamina use
+-8 % 1163 (pants 47 at 4, 84 at 6, boots 39 at 4, 62 at 6); reload +12 % 1143 (gloves
+1105 at 4, 327 and 829 at 5); artefact search -20 % 1133 (gloves 42 and 989 at 3). No
+stock bonus makes steps quieter. Stock pieces at 4-6 carry one bonus (backs two): 1868,
+1865 and 1874 carry two, the owner's call ("we can add some stock bonuses too").
+
+Sets against a typical stock set of their level (the slots' medians): the Novice's at 4
+matches it in armour (hood 20, gloves 35 against 23 and 42) and weighs 16.2 kg against
+17.4; the bandit's at 6 is the least protected (55/50/50 armour, 5/10/10 isolation against
+55/55/55 and 10/10/15), 9.6 kg against 9.8, and pays with mobility (movement +8 %, stamina
+use -8 %, a pocket); the loner's at 6 is the armoured one (60 on the chest), 12.8 kg
+against 10.1.
 - Ids: 1822 is the id resource-porter's Novice port reserved for its field jacket (never
   shipped); the rest follow the ported ids (1823 the Army balaclava, 1824-1862 the 0.69d
   decals, 1863 equipment-046's MK II jacket). Icons: column 9 of the equipment atlas (free
@@ -76,14 +118,8 @@ item's faction (none), level, slots and drop weight from its config in the serve
 
 ## Picks for the owner to change
 
-1. Donors at the owner's levels above (stats, weight, price and drop weight).
-2. The Novice jacket of 2026-10-19 (1822, not shipped then) had the owner's numbers:
-   level 2, 25 armour, 10 isolation, 4.5 kg, drop 140, pocket capacity +1; here it copies
-   the "Marodeur" jacket at level 4.
-3. Two Novice jackets (`torso_s*` and `torso_v2_s*` differ only in the belt kit), or one.
-4. The hood covers the mask slot (a mask comes off when it goes on), as the Marauder,
-   Molot and Zubr helmets; fitting it over masks would mean moving its rim off the face.
-5. Names and texts (new; STK2 has none): "Loner" for STK2's neutral stalker.
+1. Two Novice jackets (`torso_s*` and `torso_v2_s*` differ only in the belt kit), or one.
+2. Names and texts (new; STK2 has none): "Loner" for STK2's neutral stalker.
 
 ## Fits (offline, bind pose)
 
@@ -92,7 +128,7 @@ item's faction (none), level, slots and drop weight from its config in the serve
   over low boots where they end higher (the Novice's and the loner's end at 23-29 cm over
   their own boots), into medium and tall boots and cut inside them; jackets' waist over every trousers, collar over the native neck and every
   mask, sleeves over wrist-length gloves and into gauntlets (cut inside them); the hood
-  over the native skull.
+  over the native skull and over every mask (below).
 - The Novice jeans' waist is black in the STK2 map (hidden by STK2's jacket); it is
   painted over with the denim below it, reflected.
 
@@ -193,10 +229,28 @@ item's faction (none), level, slots and drop weight from its config in the serve
   have it at 0.55, a shade fainter; the cells' top and bottom rows stay clear as on stock,
   nothing else reaches a cell edge. Packs `stk2-bandit@10`, `stk2-novice@11`,
   `stk2-loner@11` (their icons only).
+- The owner's stats (Stats, above), approved as proposed. Packs `stk2-bandit@11`,
+  `stk2-novice@12`, `stk2-loner@12`, with the two fixes below.
+- "The sweater is seen through the leather jacket": the bomber's bare forearms were the
+  native body's (`base_character_torso_s1`/`_s2`/`_s3`) with the native torso's material,
+  whose map is a red Christmas sweater; they now take the native hands' material, mapped to
+  the plain skin of its map. Rendered in the game's clips (aiming, crouching, sprinting):
+  skin below the pushed-up sleeves, nothing through the leather. The bomber's own T-shirt
+  at the open front is STK2's and stays.
+- "The hood shouldn't take the mask slot": masks go under it, and it protects the head
+  only (no face region), as the stock helmets that leave the mask free. Grown, it is pushed
+  out over every mask (stock, the STK2 and 0.69d ones, gas masks) where a mask's point
+  behind the face comes through it or within 3 mm, up to 15 mm: 868 points of 15 masks,
+  239 vertices moved, up to 16.7 mm; nothing of them comes through it after. The bulky
+  helmet masks' neck guards, hoses and filters (Black Market anomaly mask, Edge assault
+  head, Sturm, sniper and combat heads: 30 to 62 mm out) are left: they stand as far out of
+  the stock Scavenger hood (31 to 57 mm, which the 0.69 balaclavas, buff and keffiyeh also
+  stand 23 to 59 mm out of).
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
-- Renders of every piece with stock pieces of each class were checked; nothing was seen
-  in the game or through the animation clips.
+- Renders of every piece with stock pieces of each class were checked; the bomber and the
+  hood with masks also in poses of the game's clips (resource-porter's
+  `examples/pose-stk2-outfits-026.rs`).
 
 ## In-game check left
 
@@ -208,14 +262,14 @@ item's faction (none), level, slots and drop weight from its config in the serve
 - The sneakers, the loner's and the Novice's boots under stock trousers (the Novice's are
   tall for `data_full`: their shafts are pulled in under every hem).
 - The collars with masks (gas masks, balaclavas) while aiming and looking down; the hood
-  over the head.
+  over the head with and without a mask (balaclava, gas mask, a bulky helmet mask).
 - The backpack on slim and bulky jackets; first-person hands of both gloves.
 - The 14 icons in the shop and inventory.
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@10`, `stk2-novice@11`,
-  `stk2-loner@11` (their pack.json sha256s). `release/build-content` composes them; the
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@11`, `stk2-novice@12`,
+  `stk2-loner@12` (their pack.json sha256s). `release/build-content` composes them; the
   release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-7`, `stk2-novice-8`, `stk2-loner-8`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
