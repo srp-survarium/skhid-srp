@@ -354,6 +354,7 @@ fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
         down_m: if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 },
         side: cx.bot.side,
         samples: num("samples") as usize,
+        exposure: cx.tuning.cover.hold_exposure,
         ..SpotQuery::ring(choke, min_m, max_m)
     }
 }
