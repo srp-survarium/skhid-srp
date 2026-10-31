@@ -199,6 +199,7 @@ package survarium.controls
          this.right_corner.btnShowDailyMessage.addEventListener(ButtonEvent.CLICK,this.showDailyMessage);
          trace("StatusPanel2",this.play_container.dropDownButton,this.panel_player.txLevel,this.matchSettings);
          this.dropDownButton = this.play_container.dropDownButton;
+         this.matchSettings.playContainer = this.play_container;
          this.dropDownButton.addEventListener(ButtonEvent.CLICK,this.showMatchSettings);
          this.panel_player.txLevel.text = "";
          this.matchSettings.visible = false;
@@ -206,7 +207,27 @@ package survarium.controls
       
       private function showMatchSettings(e:ButtonEvent) : void
       {
-         this.matchSettings.visible = !this.matchSettings.visible;
+         this.openMatchSettings(!this.matchSettings.visible);
+      }
+
+      // The match settings under Play (the arrow beside the mode) are a transient window
+      // (Transient): on the transient layer while open, over every window (the bar stays where it
+      // is); another window opening, a press outside them or Esc closes them as the arrow does.
+      // Their own dropdowns open from them.
+      private function openMatchSettings(value:Boolean) : void
+      {
+         this.matchSettings.visible = value;
+         if(value)
+         {
+            Transient.open(this.matchSettings,this.dropDownButton,function():void
+            {
+               openMatchSettings(false);
+            });
+         }
+         else
+         {
+            Transient.closed(this.matchSettings);
+         }
          dispatchEvent(new Event(MATCH_SETTINGS));
       }
       
@@ -550,7 +571,6 @@ package survarium.controls
          }
          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
          stage.addEventListener(Event.RESIZE,this.onStageResize);
-         stage.addEventListener(MouseEvent.CLICK,this.onStageClick);
          players = 0;
          games = 0;
       }
@@ -616,17 +636,6 @@ package survarium.controls
          this.left_corner.videoTutorial.visible = false;
          ExternalInterface.call("video_tutorial_hide_clicked");
          this.sortAdminMessages();
-      }
-      
-      private function onStageClick(e:MouseEvent) : void
-      {
-         if((this.matchSettings.visible) && Message.isAnyMessage() == -1)
-         {
-            if(e.target != this.dropDownButton && e.target != this.matchSettings && !this.matchSettings.contains(e.target))
-            {
-               this.showMatchSettings(null);
-            }
-         }
       }
       
       private function updateMatchSettings(e:Event) : void
@@ -931,7 +940,9 @@ package survarium.controls
       // Play in a room or a room's queue (survarium.rooms): "Leave room" or
       // "Leave queue" (`word`), red, on whatever the game's own Play is (a
       // squad's member, a kit the game refuses: Leave needs none of its
-      // conditions), grey from a press until its answer (`asking`).
+      // conditions), grey from a press until its answer (`asking`). A
+      // squad's soldier elsewhere: greyed, "In squad" (its leader plays for
+      // both, squads.md; the owner's of 2026-10-31).
       // Otherwise the game's own label and look. `each`: the frame's call,
       // which leaves the game's own Play enabled as the game sets it.
       public function showRoomsPlay(leaving:Boolean, queued:Boolean, asking:Boolean, each:Boolean, nativePlay:Boolean, word:String) : void
@@ -950,14 +961,15 @@ package survarium.controls
             }
             this.showPlayReasons(blocked);
          }
+         var soldier:Boolean = !leaving && !queued && LocalPlayerProfile.squadSoldier();
          // In the case of the game's own label (its Play is in capitals).
          var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
-         var label:String = word;
+         var label:String = soldier ? LocalizationData.getName("st_srp_play_in_squad") : word;
          if(gameLabel != "" && gameLabel == gameLabel.toUpperCase())
          {
             label = label.toUpperCase();
          }
-         if(leaving || queued)
+         if(leaving || queued || soldier)
          {
             // The game sets its own label again (its language): ours over it
             // each time.
@@ -970,7 +982,7 @@ package survarium.controls
                btn.label = label;
             }
             this._roomsOurLabel = label;
-            this.tintPlay(RoomsLook.RED_TINT);
+            this.tintPlay(soldier ? new ColorTransform() : RoomsLook.RED_TINT);
          }
          else if(this._roomsPlayLabel != null)
          {

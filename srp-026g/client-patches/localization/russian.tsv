@@ -880,7 +880,7 @@ st_decorations_options	Качество декораций
 st_default_profile_name1	Профиль 1
 st_default_profile_name2	Профиль 2
 st_default_profile_name3	Профиль 3
-st_default_scope_name	Стандарт. прицел
+st_default_scope_name	Штатный прицел
 st_defeat	Поражение
 st_defuse_trap	Обезвредить ({USE})
 st_disband_clan_message	Вы уверены, что хотите распустить клан?
@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Принимать личные сообщ�
 st_microphone_sensitivity_option	Чувствительность микрофона
 st_minimap	Миникарта
 st_minimap_bottom	Нижний левый угол
-st_minimap_off	Миникарта выключена
+st_minimap_off	Скрытая миникарта
 st_minimap_position	Позиция миникарты
 st_minimap_rotable_option	Фиксировать миникарту
 st_minimap_top	Верхний левый угол
@@ -2144,6 +2144,9 @@ st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
 st_srp_attachments	Обвес
+st_srp_crosshair_dynamic	Динамический прицел
+st_srp_crosshair_hidden	Скрытый прицел
+st_srp_crosshair_static	Статический прицел
 st_srp_equipment029_bm_back_6_desc	Описание пока недоступно.
 st_srp_equipment029_bm_back_6_name	Рюкзак часового
 st_srp_equipment029_bm_back_8_desc	Описание пока недоступно.
@@ -2385,6 +2388,18 @@ st_srp_exchange_receive	Получаете
 st_srp_exchange_short_gold	Недостаточно золота
 st_srp_exchange_short_silver	Недостаточно серебра
 st_srp_exchange_title	Обмен
+st_srp_hide_hit_markers_option	Скрыть хитмаркеры
+st_srp_hide_quests_option	Скрыть задания
+st_srp_hide_scores_option	Скрыть очки игроков
+st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
+st_srp_hud_friend_sent	Заявка в друзья отправлена
+st_srp_hud_mute_hide	Скрыть чат
+st_srp_hud_mute_mask	Показывать чат как <muted>
+st_srp_hud_mute_not_sent	Не отправлено
+st_srp_hud_muted	Чат заглушён
+st_srp_hud_unmute	Включить чат
+st_srp_hud_unmuted	Чат включён
 st_srp_inventory_search	Поиск
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
@@ -2444,6 +2459,8 @@ st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_optics	Оптика
+st_srp_options_hud	Интерфейс боя:
+st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
 st_srp_pvb_busy	%1$s (занято)
@@ -2501,6 +2518,7 @@ st_srp_rooms_code_12	Ваше снаряжение выше макс. уровн
 st_srp_rooms_code_13	Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.
 st_srp_rooms_code_14	Не удалось выбрать комплект.
 st_srp_rooms_code_16	Нажмите «Играть», чтобы войти в открытую комнату.
+st_srp_rooms_code_17	Комнату выбирает командир отряда.
 st_srp_rooms_code_2	Этой комнаты больше нет.
 st_srp_rooms_code_3	Неверный PIN.
 st_srp_rooms_code_4	Комната заполнена.
@@ -2588,9 +2606,11 @@ st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_slot	Прицел
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
+st_srp_static_minimap_option	Статическая миникарта
 st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%

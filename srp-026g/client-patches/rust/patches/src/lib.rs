@@ -51,3 +51,8 @@ pub mod language;
 
 pub mod lamps;
 pub mod artefact_score;
+
+pub mod hud_options;
+pub mod tab_cursor;
+pub mod map_names;
+pub mod world_check;

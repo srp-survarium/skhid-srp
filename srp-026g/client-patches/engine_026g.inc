@@ -101,7 +101,7 @@ extern engine_mouse_ray
 ; void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)
 ; 0x263950 survarium::lobby_character::accept_decal_edit: character ESI, host ESP+4, decal ESP+8; pops 8
 extern engine_accept_decal_edit
-; void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
+; void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
 extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
@@ -236,3 +236,16 @@ extern engine_release_model
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach
+; void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)
+; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+extern engine_show_cursor
+; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
+; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+extern engine_send_important
+; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
+; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+extern engine_comment_about_user
+; void engine_close_current_match(struct network_client *client, unsigned int reason)
+; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_close_current_match

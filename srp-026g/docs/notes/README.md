@@ -23,6 +23,7 @@ given), LIKELY or GUESS.
 | [lobby.md](lobby.md) | Lobby transport, every server→client message, **crash hazards and the safe push order** (§3) |
 | [lobby_requests.md](lobby_requests.md) | Every client→server lobby request and the reply it expects |
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
+| [squads.md](squads.md) | Squads of two (the owner, 2026-10-31): Play and Join take the mate along into one room and team, or the queue together; invites stop at two; the "ready" the game's Play gating reads; each pair marked in the rooms' lists |
 | [premium.md](premium.md) | Premium time, the shop's offers and bundles, items for gold, the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
@@ -32,6 +33,7 @@ given), LIKELY or GUESS.
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
+| [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
@@ -72,6 +74,7 @@ given), LIKELY or GUESS.
 | [london.md](london.md) | London (level_09): no anomalies, the owner's first-floor map-editor spawns in each team's base building (content-edit `london-1.json`) |
 | [maps_tab.md](maps_tab.md) | The site's maps (`/wiki/maps`, a wiki section): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
+| [hide-hit-markers-scores.md](hide-hit-markers-scores.md) | The Settings' HUD group: crosshair list (Dynamic, Static, Hidden), hide hit markers, hide player scores, hide quests, static minimap (the owner, 2026-10-30): two Settings checkboxes kept in user.cfg, off by default, at once; the crosshair without its hit marker, the Tab list names only by name; with the Interface level, F11 and Blackout (exe patch 83) |
 | [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
 | [baked-textures.md](baked-textures.md) | Freezes in a match from camouflage and decal bakes (2026-10-25): why every game baked again (the stock delete of `streamed_textures`) and each player object baked the same textures again; the rules of exe patch 70 (the folder kept per revision, one bake or load for many queries) |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
@@ -79,8 +82,12 @@ given), LIKELY or GUESS.
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
 | [ragdoll.md](ragdoll.md) | **Being built (patch 76, not run in a game).** Ragdolls on death (the owner, 2026-10-25): 0.26g has no joints in its Bullet; corpses are out of the simulation's physics; option C3, a visual-only XPBD ragdoll (crate `ragdoll`) reading the level by ray_test; phase 2: the bone array, the queries, the death key (+328h), the eye (+44Ch is "Item"), the battery, the cull, the threads; the Bodycam recipe; tests and costs |
 | [death-eyes.md](death-eyes.md) | The view fading on the death screen (the owner, 2026-10-26): over the respawn countdown, at its speed, the view loses brightness and colour under a narrowing vignette, three faint heartbeat dims, never fully dark, clear at once at the respawn; how the hud knows the time (the hud movie) |
+| [tab-map-names.md](tab-map-names.md) | The names on the Tab map (the owner, 2026-10-30): with Alt held, each other player's icon shows its name; which players, the own icon, Blackout (none: no Tab map); exe patch 82 tells the hud movie Alt |
 | [required-patches.md](required-patches.md) | The game requires its release's patches (2026-10-21 crashes; exe patch 49): a release's exe stops at its start without a patch its server offers, built in from the offered-patch list by `release/build-zip`, checked by `release.sh` and `deploy` |
+| [tab-cursor-friends.md](tab-cursor-friends.md) | A cursor on the Tab list (Ctrl, the owner, 2026-10-30) and "Add to friends" from its rows' menu: the keys, the menu, the checks the client and the lobby share (exe patch 86) |
+| [chat-mute.md](chat-mute.md) | Mute chat (the owner, 2026-10-28 and 10-31): hide a player's lines or show them as `<muted>`, one list the server keeps, from the lobby's player menu and the Tab list's (exe patch 86) |
 | [item-search.md](item-search.md) | Item search (the owner, 2026-10-22): Ctrl+F over the shop, the inventory or the craft and upgrade windows' list opens a box above the item panel's buttons; the list follows each key, by the shown name, accents and Cyrillic folded, typos tolerated; Esc, Enter and the exe's window keys |
+| [transient-windows.md](transient-windows.md) | Transient windows (the owner, 2026-10-30: as an OS's or a browser's menus): History, the match settings under Play, the presets list, a dropdown's list; one at a time, closed by a press outside (which still arrives), Esc or any window opening, drawn over the windows on their own layer (`Transient`) |
 | [esc.md](esc.md) | Esc in the lobby (the owner, 2026-10-23): Esc closes the topmost modal only; every modal (windows, popups, the Upgrade and rooms windows, messages, the right-click menu) registers on open and leaves on close (`Modals`); a message's Esc is its own close (Cancel, OK) |
 | [max-bonus.md](max-bonus.md) | The best bonus in gold (the owner, 2026-10-22): a bonus at the strongest of the five values its type rolls shows gold, not green, everywhere bonuses are listed; the premium bonuses (silver, experience, reputation) gold too; the reroll window shows a bonus's range on hover; the movie's table checked against the data |
 | [no-reliability-roll.md](no-reliability-roll.md) | No reliability rolls (the owner, 2026-10-23): upgrades, rerolls and drops never give the "Reliability" modification (wear is off since #35); owned ones stay and reroll into others; the 20 items it left with two types get a third (masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs; `third-mod-1.json`), so every live item rolls three or more |
@@ -172,8 +179,6 @@ Every setting has a default; none is needed on a dev PC.
   point of Research's too):
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
-  `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
-  (`social.md` §9.4).
 - `SRP_EXPERIENCE_RATE` (default 2), `SRP_MONEY_RATE` (percent; unset:
   150 to 220 by the match's level), `SRP_REPUTATION_RATE` (percent,
   default 120): the rewards (`results.md` §10, §13; how long progression

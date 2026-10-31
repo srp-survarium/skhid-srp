@@ -2537,3 +2537,112 @@ the site on made-up objects (Free, Full, no slots, no listener, no handler,
 places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
+
+### Names on the Tab map (patch 82)
+
+`map_names` (Rust, `vostok::GameWorldKeys`) is a lohook at 0x25CD1C in
+`game_world::on_keyboard_action` (0x25CD00), right after it took the input
+world's keyboard (its vtable+24h, 0x79E40: `[input_world+24h]`, the platform
+keyboard `create_devices` 0x3B82F0 made) and before it asks it for Tab
+(`mov edx,[eax] / mov ecx,eax / mov eax,[edx]`, 6 bytes, then `push 0Fh`;
+EAX the keyboard, EDI the game world's input handler, the hud at +4, as
+`lea esi,[edi+4]` at 0x25CD30 gives show_player_list). The game world's
+handler is given every key before the player's (priority 7 to 10, section
+3.53), a held key every tick (the keyboard's process 0x3B9AF0, kind 3), so
+each change of an Alt key comes with a key of its own, and while Tab is held
+the hook runs every tick. It reads the keys' state only when the keyboard's
+vtable is the platform keyboard's (0xA25478; its ctor 0x3B8BDC writes it):
+`[keyboard + 4 + 4 x DIK]`, bit 80h, as `is_key_down` 0x3B8D00 reads it; left
+Alt 38h (the game's names key, `render_name` 0x1F2DCD) or right Alt B8h
+(`alt_is_held` 0x241200 asks both). The hud movie
+(`[[[handler+4]+8]+108h]+4`) is told `root.show_map_names(bool)` when the
+state or the movie changes, again at the next key while the Invoke answers 0.
+
+The names: `update_minimap_players` (0x239420) gives each icon `player_id` =
+the place of its loop (0..13h, 0x2395AC), and `initialize_match` (0x234880)
+gives the Tab list's rows `id` = the same place (0x234FE4) and `name` (the
+profile's name, `[%s] %s` with its clan tag, 0x235090). The movie keeps the
+rows' names by place (`HUD.list_set_players` -> `Minimap.setPlayerNames`, the
+Tab map's alone) and an icon shows its place's while the names are shown,
+none for the local player (`is_local_player`). The Tab map is the Tab list's
+(`SrvPlayerList.minimap`), which Blackout's forced Tab never shows, so no
+name shows in Blackout.
+
+Checked: `check_map_names_026g.py` (Unicorn) runs on_keyboard_action from its
+start to past show_player_list (0x25CD39) in both builds on a made-up input
+world (the game's own getter) and keyboard (the platform vtable, the game's
+own is_key_down asked for Tab): the registers, stack, frame and Tab byte the
+original's; the Invokes at the first key and each change (left, right, both,
+state bits other than 80h), a refusing movie told again until it takes it,
+another movie told at once, none without a movie or with another keyboard's
+vtable. `tools/actionscript/tests/TabMapNamesHarness.as` (Ruffle) the movie's
+part. Not run: a game.
+
+### Tab list cursor and friend requests (patch 86)
+
+Written 2026-10-30; the rules are in `tab-cursor-friends.md`. PROVEN in the code, and both sites run
+with Unicorn from the game's code (`check_tab_cursor_026g.py`). Not run in a game.
+
+- **The keys.** `game_world::on_keyboard_action` (0x25CD00, the game world's input handler in ECX,
+  priority 7, before the player's handler at 10) gets every key. It asks the keyboard for Tab at
+  every key and gives the answer to `show_player_list` (0x2384C0, hud +0BAh). While Tab is down it
+  then returns AL 0 at 0x25CF0D, so the player's handler still gets every key: Ctrl (crouch, hold,
+  DIK 1Dh/9Dh) crouches with Tab held. The patch's lohook (`tab_cursor.key`) is on the first nine
+  bytes, with no branch: `push ebp`, `mov ebp,esp`, `and esp,-8`, `sub esp,0Ch`. The arguments
+  are at the site's ESP+8 (the key) and +0Ch (its kind). Its exit `taken` is the function's own
+  `ret 0Ch` (0x25CF15), with AL set to 1. The list after a key is the key's own up or down for
+  Tab, and hud +0BAh for any other key: on_keyboard_action asks at every key, so +0BAh is the key
+  before this one.
+- **The cursor.** `game_world_ui::show_cursor` (0x23A930: EDI the hud, a byte on the stack,
+  `ret 4`) writes hud +2DCh. The game world's `on_mouse_move` (0x25D0E0, `setnz al` of handler
+  +2E0h = hud +2DCh) then takes every move, so the player's look gets none. `set_pointer`
+  (0x25D160, gw +4D8h) moves the hud movies' pointer. `on_mouse_key_action` (0x25CF60) gives the
+  buttons to the hud's movies (0x2AF610, a GFx mouse event: 151h is button 0, 152h is 1, the
+  right) and takes them. The kits show and hide the same cursor (`show_profiles_selector`
+  0x2383B0, hud +2DFh), so the patch does not hide it while the kits are shown.
+- **The movie's calls.** `game_world_ui::scaleform_callback` (0x233D30: ECX the hud, then the
+  movie, the method's name, the GFx arguments and their count; `ret 10h`) compares the name
+  against the hud's callbacks. The lohook (`hud.callback`) is on its first six bytes: `push ebx`,
+  `push esi`, `mov esi,[esp+10h]`. Its exit `done` is the `ret 10h` at 0x233D73, which leaves ESP
+  as it was at the entry.
+- **The friend request.** The lobby's `add_friend_name` (0x28C150) gets the network client's
+  messaging client (vtable 0x9FFB14 +44h, 0x21BD80: network client +1E58A4h, which is the lobby
+  client +1E0h, then +1E56C4h). It checks the lobby connection (`[lobby client +1E55C8h]`, its
+  connection's state at +0B01F4h is 0 or 4), then calls
+  `messaging_client::send_important_message` (0x26AFB0). That function takes the messaging client,
+  the target and the type byte on the stack, takes the text in EDX, and pops 0Ch. The patch does
+  the same. The game's network client is reached from the hud: +18h the world, then +9Ch the game,
+  then +53ACh the network client.
+- **The places.** The match's options are `[network client +1F1C48h]+0Ch` (0x219990). The places
+  start there, 45FCh bytes each: initialize_match 0x234EEF. A place's name is at +8 (64 bytes)
+  and its clan at +48h. The count is at +577B5h. A row's `id` is its place, and a row's name is
+  `[clan] name`. The friend list is the messaging client's vector at +0Ch (its begin) and +10h
+  (its end), 5Ch bytes per friend with the name at +8. A3 07's reader (0x26C540) fills it, and
+  0x26C4FF reads it.
+
+### World check (patch 87)
+
+Written 2026-10-31; the rules are in `world_frame_check.md`. PROVEN in the code, and both sites run
+with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a game.
+
+- **The loads.** `process_dynamic_match_info` (0x27BFF0: EDI the network client, ESI the packet's
+  reader `{begin, cursor, size}`) stores the generation (0x27C040), reads the flag, and loads the
+  world with `game_world_core::deserialize` (0x2D0B70; the core `[EDI+1F1C40h]+1F8h`, the reader,
+  1, 8; `ret 10h`) at two calls.
+- **Unpacked** (the flag not 0): 0x8000 bytes of the stack (0x27C05E), a mutable buffer at EBP-24h
+  `{allocator 0, begin, capacity 8000h, size}` (0x27C06D..0x27C084), the codec of `[EDI+4Ch]`
+  (vtable +4) into it, `mutable_buffer::resize` (0x7AB30) to its size, the packet's reader read to
+  its end (0x27C0B7), the four arguments pushed, a reader at EBP-14h. The lohook
+  `world_load.unpacked` is on the nine bytes 0x27C0D0..0x27C0D8 (`mov [ebp-14h],esi`,
+  `mov [ebp-10h],esi`, `mov [ebp-0Ch],edx`), before the call at 0x27C0D9; it reads the world from
+  the mutable buffer.
+- **Raw:** the lohook `world_load.raw` is on the six bytes at 0x27C0FF (`mov ecx,[edi+1F1C40h]`,
+  the target of the `je` at 0x27C053), before the pushes and the call at 0x27C111; the world is
+  the packet's reader from its cursor to its end.
+- **The exit `refused`** is the handler's epilogue 0x27C1E0 (`lea esp,[ebp-30h]` restores the
+  stack, the pushed arguments and the 0x8000 bytes with it). It skips the post-load steps
+  (0x27C116..0x27C1DF) and, on the unpacked path, the buffer's destructor (0x27C0DE..0x27C0FB),
+  which frees nothing with a null allocator. The generation stays stored: the match link is
+  closed.
+- **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
+  `engine_close_current_match`) with reason 2, as match.md section 25 has it.

@@ -181,6 +181,7 @@ va	name	source	ret_cleanup	result
 0x00076920	vostok::physics::bullet_physics_world::object_query	manual	24	none; every hit (the callback 0x77320 never lowers the closest fraction) pushed by 0x78730 to the vector as a 28h record in ray_test's layout; a bare convex object's hit dereferences a null LocalShapeInfo (0x77403); inc [0x1F1D380]. Not for the ragdoll
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
@@ -2078,3 +2079,8 @@ va	name	source	ret_cleanup	result
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	manual	4	none; the node on top (its +4Ch the old top, cmpxchg8b with a tag)
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	manual	0	EAX: the top node, 0 when empty. bullet_manager::play_particle and play_sound pop the manager's +20h free list without testing it: 0 there writes [50h]. The list is 6 nodes a bullet slot (+0A0h, 192: 1152), every node back after each tick
 0x00321d10	survarium::bullet_manager::tick	manual	12	none; after the bullets, pops every functor of the manager's +30h stack (particles, sounds, decals, tracers: all, no cap a tick) and runs it, each node back to the +20h free list
+0x0026afb0	survarium::messaging_client::send_important_message	manual	12	
+0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16	
+0x0021bd80	survarium::network_client::messaging_client	manual	0	EAX: the messaging client, network client +1E58A4h (the lobby client +1E0h, its +1E56C4h)
+0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
+0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)

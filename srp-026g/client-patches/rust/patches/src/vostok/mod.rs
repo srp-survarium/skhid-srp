@@ -34,18 +34,22 @@ mod context;
 pub mod draw;
 pub mod headwear;
 mod hook;
+mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
 pub mod language;
+pub mod lobby;
 pub mod log;
 mod options;
 pub mod parse;
 mod rt;
+pub mod settings;
 mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+mod world_load;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -73,8 +77,11 @@ pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
-pub use keyboard::TabTest;
+pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
+pub use hud_input::{Hud, HudCall, HudView};
+pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
+pub use world_load::WorldLoad;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 

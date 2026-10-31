@@ -109,6 +109,13 @@ package survarium.controls
       protected var _exeObjects:Object = [];
       
       public static const RESEARCH_ID:int = 0x7000;
+
+      // The players' names by place (setPlayerNames: the Tab list's rows, id the place, which is an
+      // icon's player_id) and whether they show over the icons (namesShown: the Tab map while Alt is
+      // held, the exe's patch 82). The corner minimap is never told: no names.
+      protected var _names:Object = {};
+
+      protected var _namesShown:Boolean = false;
       
       public function Minimap()
       {
@@ -194,6 +201,63 @@ package survarium.controls
       public function setPlayersData(value:Object) : void
       {
          this.setData(value);
+      }
+
+      // The Tab list's rows ({id, name}, root.list_set_players): a name for each place listed.
+      public function setPlayerNames(rows:Array) : void
+      {
+         this._names = {};
+         for each(var row:Object in rows)
+         {
+            this._names[row.id] = row.name;
+         }
+         this.showNames();
+      }
+
+      public function get namesShown() : Boolean
+      {
+         return this._namesShown;
+      }
+
+      public function set namesShown(value:Boolean) : void
+      {
+         if(this._namesShown == value)
+         {
+            return;
+         }
+         _namesShown = value;
+         this.showNames();
+      }
+
+      // The name a player's icon shows: its place's while the names are shown, never the local
+      // player's own, none for a place the list has no row for.
+      private function shownName(player:Object) : String
+      {
+         if(!this._namesShown || Boolean(player.is_local_player))
+         {
+            return null;
+         }
+         var name:* = this._names[player.player_id];
+         return name is String && name != "" ? name : null;
+      }
+
+      // Each player icon of the last update shows the name it should (an icon keeps its label and
+      // changes it only when the name does).
+      private function showNames() : void
+      {
+         var icon:MinimapObjectPlayer;
+         if(!this._data)
+         {
+            return;
+         }
+         for each(var player:Object in this._data)
+         {
+            icon = this._objects[player.player_id] as MinimapObjectPlayer;
+            if(icon)
+            {
+               icon.showName(this.shownName(player));
+            }
+         }
       }
       
       // Research's units (HUD.research_update): [{cp_id, pos_x, pos_y, owner,
@@ -307,6 +371,7 @@ package survarium.controls
             i++;
          }
          this.clear_objects(this._objects);
+         this.showNames();
          this.update_objects();
       }
 

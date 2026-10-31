@@ -295,7 +295,7 @@ what the server sends, with the state and generation rules of §1.2 and
 
 **The initial world's time** is taken from the first upload (0.21d: 50 ms). GUESS that it is on the 50 ms grid; if not it is rounded up.
 
-**A world the reader cannot split** (`Sections::candidates` empty) is still used to start and resync clients, is saved (`SRP_SNAPSHOT_DIR`, kind `unreadable`) and gives no results: the reader has not seen a real 0.26g world.
+**A world no game could load** (its frame does not walk from the front to its end, a mask bit past the roster, a section or a player state over the game's buffer) goes to nobody since 2026-10-31 (world_frame_check.md); it is saved (`SRP_SNAPSHOT_DIR`, kind `unloadable`). Until then a world the reader could not split (`Sections::candidates` empty) was used to start and resync clients, saved as `unreadable`, and gave no results.
 
 ## 14. Which ticks a client hashes (added 2026-10-12)
 

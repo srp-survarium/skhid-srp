@@ -73,6 +73,9 @@ package
                }
             }
             names.push("A;" + teams);
+            // Squads' marks (`S;<marks>`), a character a member.
+            if(p.squads)
+               names.push("S;" + p.squads);
             names.push("L;0");
             var rows:Array = [];
             for(var r:int = 0; r < names.length; r++)

@@ -76,6 +76,10 @@ global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
 global engine_explosion_reach
+global engine_show_cursor
+global engine_send_important
+global engine_comment_about_user
+global engine_close_current_match
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -94,6 +98,7 @@ engine_visual_insert equ 0x285fa0   ; 0x285fa0 survarium::render_visual::insert:
 engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
 engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
 engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1029,6 +1034,58 @@ engine_explosion_reach:
     movss [esp], xmm0
     fld dword [esp]
     add esp, 4
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_cursor:
+    ; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; ui
+    call 0x23a930
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_send_important:
+    ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; type -> 12
+    push dword [esp + 28]   ; target -> 8
+    push dword [esp + 28]   ; messaging -> 4
+    mov edx, [esp + 44]   ; text
+    call 0x26afb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_comment_about_user:
+    ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; mode -> 16
+    push dword [esp + 32]   ; kind -> 12
+    push dword [esp + 32]   ; nickname -> 8
+    push dword [esp + 32]   ; lobby_client -> 4
+    call 0x274470
     pop edi
     pop esi
     pop ebx

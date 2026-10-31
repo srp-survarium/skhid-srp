@@ -420,6 +420,7 @@ impl Core<'_> {
             } => self.change_nickname(who, &nickname, ticket_item_id),
             // Not kept, and the player is told so.
             M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
+            M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
             M::HideVideoLink => {}
             M::Clan(request) => self.clan_request(who, &request, now),
 

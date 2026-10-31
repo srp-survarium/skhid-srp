@@ -884,7 +884,7 @@ artefact_score_on_transfer_replay:
 
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
-extern hook_blackout_on_static_info
+extern hook_blackout_on_static_info_chain
 blackout_on_static_info:
     lea esp, [esp - 4]
     pushfd
@@ -902,7 +902,7 @@ blackout_on_static_info:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_static_info
+    call hook_blackout_on_static_info_chain
     mov edx, blackout_on_static_info_replay
     cmp eax, 0
     je blackout_on_static_info_go
@@ -923,7 +923,7 @@ blackout_on_static_info_replay:
 
 ; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> blackout_on_replay_options
 global blackout_on_replay_options
-extern hook_blackout_on_replay_options
+extern hook_blackout_on_replay_options_chain
 blackout_on_replay_options:
     lea esp, [esp - 4]
     pushfd
@@ -941,7 +941,7 @@ blackout_on_replay_options:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_replay_options
+    call hook_blackout_on_replay_options_chain
     mov edx, blackout_on_replay_options_replay
     cmp eax, 0
     je blackout_on_replay_options_go
@@ -962,7 +962,7 @@ blackout_on_replay_options_replay:
 
 ; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
 global blackout_on_update_icons
-extern hook_blackout_on_update_icons
+extern hook_blackout_on_update_icons_chain
 blackout_on_update_icons:
     lea esp, [esp - 4]
     pushfd
@@ -980,7 +980,7 @@ blackout_on_update_icons:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_update_icons
+    call hook_blackout_on_update_icons_chain
     mov edx, blackout_on_update_icons_replay
     cmp eax, 0
     je blackout_on_update_icons_go
@@ -1154,6 +1154,87 @@ consumable_activity_on_update_go:
 consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
+
+; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
+global language_on_configs_start
+extern hook_language_on_configs_start_chain
+language_on_configs_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_configs_start_chain
+    mov edx, language_on_configs_start_replay
+    cmp eax, 0
+    je language_on_configs_start_go
+    mov edx, 0x1ea216
+    cmp eax, 1
+    je language_on_configs_start_go
+    ud2
+language_on_configs_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_configs_start_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ea216
+
+; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
+global language_on_options_call
+extern hook_language_on_options_call_chain
+language_on_options_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_options_call_chain
+    mov edx, language_on_options_call_replay
+    cmp eax, 0
+    je language_on_options_call_go
+    mov edx, 0x1ff5d6
+    cmp eax, 1
+    je language_on_options_call_go
+    mov edx, 0x1ff971
+    cmp eax, 2
+    je language_on_options_call_go
+    ud2
+language_on_options_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_options_call_replay:
+    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x1ff5d6
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
@@ -1647,45 +1728,6 @@ lamps_on_explode_replay:
     db 0x81, 0xec, 0xbc, 0x00, 0x00, 0x00
     jmp 0x339636
 
-; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
-global language_on_configs_start
-extern hook_language_on_configs_start
-language_on_configs_start:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_language_on_configs_start
-    mov edx, language_on_configs_start_replay
-    cmp eax, 0
-    je language_on_configs_start_go
-    mov edx, 0x1ea216
-    cmp eax, 1
-    je language_on_configs_start_go
-    ud2
-language_on_configs_start_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-language_on_configs_start_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x1ea216
-
 ; 0x1ea306 on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded: lohook -> language_on_configs_texts
 global language_on_configs_texts
 extern hook_language_on_configs_texts
@@ -1725,10 +1767,10 @@ language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
 
-; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
-global language_on_options_call
-extern hook_language_on_options_call
-language_on_options_call:
+; 0x25cd1c game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick: lohook -> map_names_on_key
+global map_names_on_key
+extern hook_map_names_on_key
+map_names_on_key:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1745,27 +1787,24 @@ language_on_options_call:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_language_on_options_call
-    mov edx, language_on_options_call_replay
+    call hook_map_names_on_key
+    mov edx, map_names_on_key_replay
     cmp eax, 0
-    je language_on_options_call_go
-    mov edx, 0x1ff5d6
+    je map_names_on_key_go
+    mov edx, 0x25cd22
     cmp eax, 1
-    je language_on_options_call_go
-    mov edx, 0x1ff971
-    cmp eax, 2
-    je language_on_options_call_go
+    je map_names_on_key_go
     ud2
-language_on_options_call_go:
+map_names_on_key_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-language_on_options_call_replay:
-    db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
-    jmp 0x1ff5d6
+map_names_on_key_replay:
+    db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
+    jmp 0x25cd22
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
@@ -2051,6 +2090,90 @@ global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
 
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
+global tab_cursor_on_key
+extern hook_tab_cursor_on_key
+tab_cursor_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_key
+    mov edx, tab_cursor_on_key_replay
+    cmp eax, 0
+    je tab_cursor_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je tab_cursor_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je tab_cursor_on_key_go
+    ud2
+tab_cursor_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
+; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
+global tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call
+tab_cursor_on_hud_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_hud_call
+    mov edx, tab_cursor_on_hud_call_replay
+    cmp eax, 0
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d36
+    cmp eax, 1
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d73
+    cmp eax, 2
+    je tab_cursor_on_hud_call_go
+    ud2
+tab_cursor_on_hud_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_hud_call_replay:
+    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x233d36
+
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char
 extern hook_text_input_on_char
@@ -2092,6 +2215,90 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
+global world_check_on_unpacked
+extern hook_world_check_on_unpacked
+world_check_on_unpacked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_world_check_on_unpacked
+    mov edx, world_check_on_unpacked_replay
+    cmp eax, 0
+    je world_check_on_unpacked_go
+    mov edx, 0x27c0d9
+    cmp eax, 1
+    je world_check_on_unpacked_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je world_check_on_unpacked_go
+    ud2
+world_check_on_unpacked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+world_check_on_unpacked_replay:
+    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
+    jmp 0x27c0d9
+
+; 0x27c0ff process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue: lohook -> world_check_on_raw
+global world_check_on_raw
+extern hook_world_check_on_raw
+world_check_on_raw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_world_check_on_raw
+    mov edx, world_check_on_raw_replay
+    cmp eax, 0
+    je world_check_on_raw_go
+    mov edx, 0x27c105
+    cmp eax, 1
+    je world_check_on_raw_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je world_check_on_raw_go
+    ud2
+world_check_on_raw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+world_check_on_raw_replay:
+    db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
+    jmp 0x27c105
 
 section .rodata
 align 4
