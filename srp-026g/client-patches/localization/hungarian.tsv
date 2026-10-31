@@ -2694,6 +2694,34 @@ st_stats_saved	Megmentve:
 st_stats_silent_kills	Csendes ölések:
 st_stats_stolen_victory_items	Ellopott akkumulátorok:
 st_status_str	Állapot:
+st_stk2_bandit_026_boots_desc	Kopott edzőcipő a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_bandit_026_boots_name	Edzőcipő
+st_stk2_bandit_026_legs_desc	Csíkos melegítőnadrág a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_bandit_026_legs_name	Melegítőnadrág
+st_stk2_bandit_026_torso_desc	Fekete bőr bomberdzseki póló fölött a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_bandit_026_torso_name	Bőr bomberdzseki
+st_stk2_loner_026_boots_desc	Magányos farkas fűzős bőrbakancsa a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_loner_026_boots_name	Magányos farkas bakancsa
+st_stk2_loner_026_hand_desc	Magányos farkas ujjatlan kesztyűje a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_loner_026_hand_name	Magányos farkas ujjatlan kesztyűje
+st_stk2_loner_026_legs_desc	Terepmintás nadrág térdvédővel, pisztolytáskával és táskákkal a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_loner_026_legs_name	Magányos farkas terepnadrágja
+st_stk2_loner_026_torso_desc	Kapucnis dzseki táskás hordozómellény alatt a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_loner_026_torso_name	Magányos farkas dzsekije mellénnyel
+st_stk2_novice_026_back_desc	Kezdő sztalker egypántos vászon hátizsákja a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_back_name	Újonc hátizsákja
+st_stk2_novice_026_boots_desc	Kezdő sztalker bőrbakancsa a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_boots_name	Újonc bakancsa
+st_stk2_novice_026_hand_desc	Kezdő sztalker ujjatlan kesztyűje a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_hand_name	Újonc ujjatlan kesztyűje
+st_stk2_novice_026_hood_desc	Kezdő sztalker vászonkapucnija a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_hood_name	Újonc kapucnija
+st_stk2_novice_026_legs_desc	Kezdő sztalker kopott farmernadrágja a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_legs_name	Újonc farmernadrágja
+st_stk2_novice_026_torso_desc	Kezdő sztalker terepdzsekije kulaccsal és késsel az övén a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_torso_name	Újonc terepdzsekije
+st_stk2_novice_026_torso_v2_desc	Kezdő sztalker terepdzsekije két táskával az övén a törölt S.T.A.L.K.E.R. 2-ből.
+st_stk2_novice_026_torso_v2_name	Újonc terepdzsekije táskákkal
 st_storage	Raktár
 st_string_pattern_error	A név érvénytelen karaktert tartalmaz, vagy túl hosszú/rövid
 st_support	Támogatás
