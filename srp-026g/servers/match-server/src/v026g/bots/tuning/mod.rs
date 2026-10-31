@@ -284,6 +284,13 @@ impl Tuning {
         Ok(())
     }
 
+    /// Whether the maps' grids need their table of wall clearances (`mapdata::WalkGrid::wall_clearance`) for this tuning: the one
+    /// place that says it, so a map loader derives it from the tuning in force and nothing can be set to disagree. The table costs
+    /// 0.5-1.7 s of CPU a map, which a tuning without `think.wall_clear_corners` does not spend.
+    pub fn needs_wall_clearance(&self) -> bool {
+        self.think.wall_clear_corners
+    }
+
     /// The hash of the tuning as it runs (its JSON), for the traces.
     pub fn hash(&self) -> u32 {
         crc32fast::hash(serde_json::to_string(self).unwrap_or_default().as_bytes())

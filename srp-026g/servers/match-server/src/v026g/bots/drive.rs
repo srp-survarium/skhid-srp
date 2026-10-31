@@ -161,9 +161,11 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
 }
 
 /// A planned route with the middle of each doorway it crosses as a corner when `ThinkTuning::door_centres` is on
-/// ([`Route::door_centred`]).
+/// ([`Route::door_centred`]), then its corners kept where the capsule fits when `ThinkTuning::wall_clear_corners` is
+/// ([`Route::wall_cleared`]).
 fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid) -> Route {
-    if tuning.think.door_centres { route.door_centred(grid) } else { route }
+    let route = if tuning.think.door_centres { route.door_centred(grid) } else { route };
+    if tuning.think.wall_clear_corners { route.wall_cleared(grid) } else { route }
 }
 
 /// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
