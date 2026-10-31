@@ -229,6 +229,15 @@ pub(super) fn contacts() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stand-in's moves under the client's capsule rule (`standin_capsule::counts`, A191): moves of a body walking, those that met a
+/// wall, the met ones that made under a tenth of the move (stopped) or under nine tenths (slowed), and bodies pushed off a wall.
+pub(super) fn capsule_walls() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::tests::standin_capsule::counts::counts().to_vec(),
+        |d, line| line.ends.push(format!("capsule_moves {} capsule_met_wall {} capsule_stopped {} capsule_slowed {} capsule_pushed {}", d[0], d[1], d[2], d[3], d[4])),
+    )
+}
+
 /// The sprint at planned drops (`motor::drop_walks`): ticks let go of before a drop unsafe at a sprint, ticks skipped as
 /// safe, and hard falls after a drop crossed at a sprint.
 pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
