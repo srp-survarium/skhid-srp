@@ -69,6 +69,29 @@ const STEP_OUT_FLOORS: usize = 12_000;
 /// With no floor outside the blast in reach, the one as far as it gets is
 /// taken only if it is this much farther than where the body stands, metres.
 const STEP_OUT_GAIN_M: f32 = 0.5;
+/// How many floors outside a blast [`Tactics::step_out_routes`] plans a route to, at most.
+const STEP_OUT_CANDIDATES: usize = 6;
+
+/// What [`Tactics::step_out_scan`] found.
+struct StepOutScan {
+    /// The floors outside the radius, in the order found.
+    outside: Vec<NodeId>,
+    /// The floor in reach farthest from the blast, and how far.
+    farthest: Option<(NodeId, f32)>,
+    /// How far the start is from the blast.
+    start_far: f32,
+}
+
+/// Which floor [`Tactics::step_out_routes`] gave.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepOutPick {
+    /// The nearest floor outside the radius by link distance, its route within reach.
+    Nearest,
+    /// A later one: the nearer floors' routes were longer than the reach.
+    Later,
+    /// None outside within reach by its route: the farthest floor in reach.
+    Farthest,
+}
 
 /// [`Tactics::ledge_ahead`]: a ledge to jump up is looked for from this far
 /// ahead of the stuck body …
@@ -1568,6 +1591,64 @@ impl Tactics {
         filter: &RouteFilter,
         never_nearer: bool,
     ) -> Option<Vec3> {
+        let grid = &self.world.grid;
+        let scan = self.step_out_scan(from, rest, radius, reach_m, time, side, objective, filter, 1, never_nearer);
+        match scan.outside.first() {
+            Some(&node) => Some(grid.position(node)),
+            None => scan.farthest.filter(|&(_, far)| far > scan.start_far + STEP_OUT_GAIN_M).map(|(node, _)| grid.position(node)),
+        }
+    }
+
+    /// [`Self::step_out`] checked by the route the body will walk (register #30): the floors outside `radius`, nearest by link
+    /// distance first (at most [`STEP_OUT_CANDIDATES`] of them, so the planner runs on few), the first whose planned route
+    /// ([`Self::route_nodes`], the walker's own) is within `reach_m` of walking; else the farthest floor within `far_m` (the
+    /// most the time could allow, at the sprint), as [`Self::step_out`] gives it: a body that cannot get out of the blast still
+    /// goes as far from it as it gets, the damage falling with the distance. The link distance is a lower bound of a walk, not the walk: a floor a drop below, round a
+    /// wall or by stairs is further than it counts.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_out_routes(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        far_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+    ) -> Option<(Vec3, StepOutPick)> {
+        let grid = &self.world.grid;
+        let scan = self.step_out_scan(from, rest, radius, reach_m.max(far_m), time, side, objective, filter, STEP_OUT_CANDIDATES, false);
+        for (k, &node) in scan.outside.iter().enumerate() {
+            let fits = node == from
+                || self
+                    .route_nodes(from, node, time, side, objective, filter)
+                    .is_some_and(|route| route.length() <= reach_m);
+            if fits {
+                return Some((grid.position(node), if k == 0 { StepOutPick::Nearest } else { StepOutPick::Later }));
+            }
+        }
+        let farthest = scan.farthest.filter(|&(_, far)| far > scan.start_far + STEP_OUT_GAIN_M);
+        farthest.or_else(|| scan.outside.first().map(|&node| (node, scan.start_far))).map(|(node, _)| (grid.position(node), StepOutPick::Farthest))
+    }
+
+    /// The breadth-first search of [`Self::step_out`] over the floors within `reach_m` of walking: the floors outside `radius`
+    /// (chest to `rest`) it finds, in order, up to `want` of them, and the floor in reach farthest from `rest`.
+    #[allow(clippy::too_many_arguments)]
+    fn step_out_scan(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+        want: usize,
+        never_nearer: bool,
+    ) -> StepOutScan {
         use super::view::CHEST;
         let grid = &self.world.grid;
         let up = Vec3::new(0.0, CHEST, 0.0);
@@ -1576,14 +1657,16 @@ impl Tactics {
         let open = |n: NodeId| self.allowed(n, time, side, objective);
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
-        let mut farthest: Option<(NodeId, f32)> = None;
+        let mut scan = StepOutScan { outside: Vec::new(), farthest: None, start_far: far(from) };
         while let Some((a, d)) = queue.pop_front() {
             let (here, ok) = (far(a), open(a));
             if ok && here >= radius {
-                return Some(grid.position(a));
-            }
-            if ok && farthest.is_none_or(|(_, best)| here > best) {
-                farthest = Some((a, here));
+                scan.outside.push(a);
+                if scan.outside.len() >= want {
+                    break;
+                }
+            } else if ok && scan.farthest.is_none_or(|(_, best)| here > best) {
+                scan.farthest = Some((a, here));
             }
             if seen.len() > STEP_OUT_FLOORS {
                 break;
@@ -1600,8 +1683,7 @@ impl Tactics {
                 }
             }
         }
-        let (best, best_far) = farthest?;
-        (best_far > far(from) + STEP_OUT_GAIN_M).then(|| grid.position(best))
+        scan
     }
 
     /// The bench's counts of what a way out passes ([`escapes::counts`]): a
@@ -3234,6 +3316,41 @@ pub(super) mod tests {
             .step_out(outside, rest, 10.5, 20.0, 0, Some(0), false, &open)
             .unwrap();
         assert_eq!(stay, grid.position(outside));
+    }
+
+    /// [`Tactics::step_out_routes`] is [`Tactics::step_out`] checked by the planned route: on the open field the same floor,
+    /// the nearest by link distance; a reach too short for any floor outside gives the farthest in reach (the third pick); a
+    /// reach too short for the nearest floor's route but not the link distance is not a floor it can count on.
+    #[test]
+    fn a_step_out_by_route_is_the_nearest_floor_whose_route_fits_the_reach() {
+        let world = field_with(|_| {});
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let open = RouteFilter::open();
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let plain = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let (routed, pick) = tactics.step_out_routes(from, rest, 10.5, 20.0, 20.0, 0, Some(0), false, &open).unwrap();
+        assert_eq!((routed, pick), (plain, StepOutPick::Nearest));
+        // Too short for any floor outside: the farthest in reach, as step_out gives it.
+        let near = tactics.step_out(from, rest, 10.5, 3.0, 0, Some(0), false, &open).unwrap();
+        let (routed, pick) = tactics.step_out_routes(from, rest, 10.5, 3.0, 3.0, 0, Some(0), false, &open).unwrap();
+        assert_eq!((routed, pick), (near, StepOutPick::Farthest));
+        // A reach of 1 m by route but 3 m at the most: none outside, the farthest floor within the 3 m, as far as it gets.
+        let (far, pick) = tactics.step_out_routes(from, rest, 10.5, 1.0, 3.0, 0, Some(0), false, &open).unwrap();
+        assert_eq!((far, pick), (near, StepOutPick::Farthest));
+        // Standing outside already: its own floor.
+        let outside = grid.locate(Vec3::new(33.0, 0.0, 20.0), 1.0).unwrap();
+        let (stay, pick) = tactics.step_out_routes(outside, rest, 10.5, 20.0, 20.0, 0, Some(0), false, &open).unwrap();
+        assert_eq!((stay, pick), (grid.position(outside), StepOutPick::Nearest));
+        // The planned route of the floor found is within the reach asked.
+        let to = grid.locate(routed_floor(&tactics, from, rest), 1.0).unwrap();
+        assert!(tactics.route_nodes(from, to, 0, Some(0), false, &open).unwrap().length() <= 3.0 + 1.0);
+    }
+
+    /// The floor [`Tactics::step_out_routes`] gives for a reach of 3 m from `from`.
+    fn routed_floor(tactics: &Tactics, from: NodeId, rest: Vec3) -> Vec3 {
+        tactics.step_out_routes(from, rest, 10.5, 3.0, 3.0, 0, Some(0), false, &RouteFilter::open()).unwrap().0
     }
 
     /// From a mild zone the way out costs what it takes: not the nearest

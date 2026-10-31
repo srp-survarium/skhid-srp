@@ -1,6 +1,7 @@
 use super::pitch::Pitch;
 use super::reflex::{Legs, LegsWhy};
 use super::hazards::ZoneSet;
+use super::tactics::StepOutPick;
 use super::*;
 
 /// The own eye is led at most this far past its last decided tick
@@ -134,20 +135,35 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
         me: &PlaceView,
         blast: &grenade_threat::Blast,
         reach_m: f32,
-    ) -> Option<Vec3> {
+        far_m: f32,
+        routed: bool,
+    ) -> Option<(Vec3, StepOutPick)> {
         let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
         let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
-        self.tactics.step_out(
-            from,
-            blast.rest,
-            blast.radius,
-            reach_m,
-            self.time,
-            self.side,
-            self.objective,
-            &hard,
-        )
+        if routed {
+            self.tactics.step_out_routes(
+                from,
+                blast.rest,
+                blast.radius,
+                reach_m,
+                far_m,
+                self.time,
+                self.side,
+                self.objective,
+                &hard,
+            )
+        } else {
+            self.tactics
+                .step_out(from, blast.rest, blast.radius, reach_m, self.time, self.side, self.objective, &hard)
+                .map(|to| (to, StepOutPick::Nearest))
+        }
     }
+}
+
+/// A planned route with the middle of each doorway it crosses as a corner when `ThinkTuning::door_centres` is on
+/// ([`Route::door_centred`]).
+fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid) -> Route {
+    if tuning.think.door_centres { route.door_centred(grid) } else { route }
 }
 
 /// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
@@ -559,7 +575,7 @@ fn drive_tick_inner(
                 within_m: AVOID_ARRIVE_M,
             };
             intent.crouch = false;
-            intent.pace = Pace::Run;
+            intent.pace = if tuning.avoid.escape { Pace::Escape(EscapeWhy::Grenade) } else { Pace::Run };
             intent.objective = false;
             intent.straight = false;
         }
@@ -931,7 +947,7 @@ fn drive_tick_inner(
                 }
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                bot.set_route(route.map(|route| (route, goal)), time);
+                bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
                 if shut_in {
@@ -1326,7 +1342,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((plain, at)), time);
+                        bot.set_route(Some((door_route(plain, tuning, &tactics.world.grid), at)), time);
                         bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
@@ -1355,7 +1371,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((partial, at)), time);
+                        bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
                         #[cfg(test)]
                         {
                             bot.bench_on_partial = true;
@@ -1408,7 +1424,7 @@ fn drive_tick_inner(
                         };
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                    bot.set_route(route.map(|route| (route, at)), time);
+                    bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
