@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Privát üzenetek csak barátoktól
 st_microphone_sensitivity_option	Mikrofon érzékenysége
 st_minimap	Minitérkép
 st_minimap_bottom	Bal alsó sarok
-st_minimap_off	Minitérkép kikapcsolva
+st_minimap_off	Rejtett minitérkép
 st_minimap_position	Minitérkép helye
 st_minimap_rotable_option	Minitérkép rögzítése
 st_minimap_top	Bal felső sarok

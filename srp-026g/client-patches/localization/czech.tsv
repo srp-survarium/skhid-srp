@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Soukromé zprávy jen od přátel
 st_microphone_sensitivity_option	Citlivost mikrofonu
 st_minimap	Minimapa
 st_minimap_bottom	Levý dolní roh
-st_minimap_off	Minimapa vypnutá
+st_minimap_off	Skrytá minimapa
 st_minimap_position	Umístění minimapy
 st_minimap_rotable_option	Zafixovat minimapu
 st_minimap_top	Levý horní roh

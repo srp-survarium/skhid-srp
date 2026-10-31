@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Accept private messages from friends only
 st_microphone_sensitivity_option	Microphone sensitivity
 st_minimap	Minimap
 st_minimap_bottom	Lower left corner
-st_minimap_off	Minimap off
+st_minimap_off	Hidden minimap
 st_minimap_position	Minimap position
 st_minimap_rotable_option	Fix minimap
 st_minimap_top	Upper left corner

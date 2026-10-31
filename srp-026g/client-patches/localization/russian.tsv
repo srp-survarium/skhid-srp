@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Принимать личные сообщ�
 st_microphone_sensitivity_option	Чувствительность микрофона
 st_minimap	Миникарта
 st_minimap_bottom	Нижний левый угол
-st_minimap_off	Миникарта выключена
+st_minimap_off	Скрытая миникарта
 st_minimap_position	Позиция миникарты
 st_minimap_rotable_option	Фиксировать миникарту
 st_minimap_top	Верхний левый угол
