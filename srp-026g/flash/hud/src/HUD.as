@@ -540,7 +540,7 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         // the exoskeletons' backs and srp's oxygen tanks (QuickSlots.SRP_HUD_ICONS) gray when used up
+         // the exoskeletons' backs and srp's quick-slot items (QuickSlots.SRP_HUD_ICONS) gray when used up
          for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;

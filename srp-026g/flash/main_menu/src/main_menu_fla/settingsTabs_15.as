@@ -880,13 +880,11 @@ package main_menu_fla
          this._game_volume.slider.enabled = false;
          this._game_volume.mouseEnabled = false;
          this._game_volume.alpha = 0.5;
-         this._sound_volume.slider.enabled = false;
-         this._sound_volume.mouseEnabled = false;
-         this._sound_volume.alpha = 0.5;
          this._sound_сhat.slider.enabled = false;
          this._sound_сhat.mouseEnabled = false;
          this._sound_сhat.alpha = 0.5;
-         this._sound_сhat.mouseChildren = this._sound_volume.mouseChildren = this._game_volume.mouseChildren = false;
+         // the Music slider (_sound_volume) is enabled: exe patch 88 registers its s_music_volume
+         this._sound_сhat.mouseChildren = this._game_volume.mouseChildren = false;
          this._mic_sens.slider.enabled = false;
          this._mic_sens.mouseEnabled = false;
          this._mic_sens.alpha = 0.5;

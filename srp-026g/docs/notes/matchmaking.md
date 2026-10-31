@@ -363,10 +363,10 @@ With the "settled" line (the winner) it is what a later fit needs.
 
 ### 8.5 Squads
 
-`SRP_SQUADS=off`: no invite is passed on and nobody is added
-(`social.md` §9.4). Squads were in 57 of 106 matches and are what kept the
-sides from being made even; with them on, a squad is still one side and
-the rule above works around it.
+Squads were in 57 of 106 matches and are what kept the sides from being
+made even (they were off from 2026-10-13, `SRP_SQUADS`, removed 2026-10-31);
+a squad, now of two (`squads.md`), is still one side and the rule above
+works around it.
 
 ### 8.6 Not done
 

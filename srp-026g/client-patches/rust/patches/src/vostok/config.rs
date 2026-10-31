@@ -12,6 +12,8 @@ pub enum ConfigValue<'t> {
     Number(f32),
     Table(ConfigTable<'t>),
     Array(ConfigEntries<'t>),
+    /// A text (type 5): its bytes, without the zero.
+    Text(&'t CStr),
     Unsupported,
 }
 
@@ -35,6 +37,10 @@ impl<'t> ConfigValue<'t> {
                     let entries = ConfigEntries(entries);
                     if kind == 3 { Self::Table(ConfigTable { node, entries }) } else { Self::Array(entries) }
                 }
+                // a text's count is its bytes with the zero: the string is
+                // read no further than that.
+                5 => super::ui::c_string(node.text(), usize::from(node.count().read()))
+                    .map_or(Self::Unsupported, Self::Text),
                 _ => Self::Unsupported,
             })
         }
@@ -47,6 +53,9 @@ impl<'t> ConfigValue<'t> {
             Self::Integer(n) => Ok((n as i32) as f32), Self::Number(n) => Ok(n),
             _ => Err(ConfigError::WrongType),
         }
+    }
+    pub fn text(self) -> Result<&'t CStr, ConfigError> {
+        match self { Self::Text(text) => Ok(text), _ => Err(ConfigError::WrongType) }
     }
     pub fn table(self) -> Result<ConfigTable<'t>, ConfigError> {
         match self { Self::Table(table) => Ok(table), _ => Err(ConfigError::WrongType) }

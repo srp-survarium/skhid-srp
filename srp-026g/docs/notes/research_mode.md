@@ -78,6 +78,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
 - 25 maps: levels 1 to 8 in day, evening, rain (Cologne: day, evening, pre-rain), as 0.27d
   shipped them, and London's day (0.31a2's Research layout; skhid's London has only its day).
+  Rudnya (v0.69) (218, pack `rudnya-069d`) takes level_01's day units and props as they are
+  (`rudnya-069d.md`).
 - `gameplay/game_modes/level_0N_<w>_5.options` (w day, evn, rain, prerain): 0.27d's parameters
   (`match_time` 900, `wait_time` 5, `countdown_time` 20, `wait_player_percent` 0.8,
   `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s` (x 1.25:

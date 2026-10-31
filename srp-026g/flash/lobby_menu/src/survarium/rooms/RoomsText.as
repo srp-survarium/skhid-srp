@@ -8,11 +8,12 @@ package survarium.rooms
     // dictionary texts (client-patches/localization).
     public class RoomsText
     {
-        // By level (maps_dict); 10..13 are the ports of revision 23.
+        // By level (maps_dict); 10..13 are the ports of revision 23, 14 the 0.69d Rudnya.
         private static const LEVELS:Array = [null, "st_srp_map_rudnya", "st_srp_map_school", "st_srp_map_vostok",
             "st_srp_map_chemical_plant", "st_srp_map_tarakanovsky_fort", "st_srp_map_mamayev_kurgan",
             "st_srp_map_vector", "st_srp_map_cologne", "st_srp_map_london", "st_srp_map_vostok_v021",
-            "st_srp_map_mamayev_kurgan_v021", "st_srp_map_chemical_plant_v011", "st_srp_map_vostok_v011"];
+            "st_srp_map_mamayev_kurgan_v021", "st_srp_map_chemical_plant_v011", "st_srp_map_vostok_v011",
+            "st_srp_map_rudnya_v069"];
         private static const MODES:Object = {
             "2": "st_srp_mode_protective_device",
             "3": "st_srp_mode_chargers",
@@ -34,7 +35,7 @@ package survarium.rooms
             "5": "st_srp_rooms_code_5", "6": "st_srp_rooms_code_6", "7": "st_srp_rooms_code_7",
             "8": "st_srp_rooms_code_8", "9": "st_srp_rooms_code_9", "10": "st_srp_rooms_code_10",
             "11": "st_srp_rooms_code_11", "12": "st_srp_rooms_code_12", "13": "st_srp_rooms_code_13",
-            "14": "st_srp_rooms_code_14", "16": "st_srp_rooms_code_16"
+            "14": "st_srp_rooms_code_14", "16": "st_srp_rooms_code_16", "17": "st_srp_rooms_code_17"
         };
         // Why a member waiting in its room cannot go into the match now
         // (`J;-1;<why>`, the owner's of 2026-10-20).

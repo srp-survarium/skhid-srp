@@ -29,7 +29,7 @@ bytes):
 - `tables/<package path>/<Class>.tsv` (the lobby's shop filters, `survarium/data/ShopFilters.tsv`):
   data the movie's code reads, which the build makes the class `<Class>` (`tools/actionscript/README.md`,
   "Tables"). Edit the table; other tools (the wiki's icons) read the same file.
-- `bitmaps/<class>.png` (the hud's kill feed icons and srp's oxygen tanks' quick-slot icons): a bitmap the original lacks, which the build
+- `bitmaps/<class>.png` (the hud's kill feed icons and srp's items' quick-slot icons): a bitmap the original lacks, which the build
   adds bound to `<class>`, a `BitmapData` class of `src/`.
 
 ## Cleaned up over the export

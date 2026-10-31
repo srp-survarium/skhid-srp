@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Gratulacje! Jesteś teraz bojownikiem Czarnego Ryn
 st_blackmarket_level_unlock_3	Gratulacje! Jesteś teraz desantowcem Czarnego Rynku!
 st_blackmarket_level_unlock_4	Gratulacje! Jesteś teraz centurionem Czarnego Rynku!
 st_blackmarket_level_unlock_5	Gratulacje! Jesteś teraz elitarnym bojownikiem Czarnego Rynku!
+st_blackmarket_medkit_description	W pełni leczy tułów, głowę i ból. Nie leczy rąk i nóg.
+st_blackmarket_medkit_name	Apteczka Czarnego Rynku
 st_blackmarket_meele_kill_descr	Jeśli nie możesz wykonać zadania czysto, bądź gotów do ubrudzenia sobie rąk. Właśnie tym różnimy się od pozostałych. Udowodnij, że jesteś jednym z nas - zrób uczynek ze swoich dłoni.
 st_blackmarket_meele_kill_name	Brudna robota
 st_blackmarket_meele_kill_obj	Zabij przeciwników w walce wręcz.
@@ -880,7 +882,7 @@ st_decorations_options	Jakość dekoracji
 st_default_profile_name1	Profil 1
 st_default_profile_name2	Profil 2
 st_default_profile_name3	Profil 3
-st_default_scope_name	Fabryczny celownik optyczny
+st_default_scope_name	Celownik seryjny
 st_defeat	Porażka
 st_defuse_trap	Wyłącz ({USE})
 st_disband_clan_message	Czy na pewno chcesz rozwiązać klan?
@@ -1375,6 +1377,7 @@ st_level_10_name	Stacja Radarowa "Vostok" (v0.21)
 st_level_11_name	Kurhan Mamaja (v0.21)
 st_level_12_name	Zakłady chemiczne (v0.11)
 st_level_13_name	Stacja Radarowa "Vostok" (v0.11)
+st_level_14_name	Rudnia (v0.69)
 st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Cofnąć rozdanie umiejętności?
 st_messages_censor_option	Włącz cenzurę wiadomości
 st_messages_only_from_friends_option	Przyjmuj wiadomości prywatne tylko od znajomych
 st_microphone_sensitivity_option	Czułość mikrofonu
+st_military_medkit_description	W pełni leczy ręce i nogi. Przywraca 60% zdrowia tułowia i głowy oraz 50% bólu.
+st_military_medkit_name	Apteczka wojskowa
 st_minimap	Minimapa
 st_minimap_bottom	Dolny lewy róg
 st_minimap_off	Minimapa ukryta
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
 st_scavengers_win_x_games_descr	Świat, w którym żyjemy, jest okrutny. Zwycięzca dostaje wszystko, a pokonany musi się zadowolić resztkami. Pamiętaj, zwycięska drużyna otrzymuje większą nagrodę.
 st_scavengers_win_x_games_name	Smak zwycięstwa
 st_scavengers_win_x_games_obj	Rozgrywki do wygrania:
+st_science_medkit_description	W pełni leczy ręce, nogi, tułów i głowę. Przywraca 50% bólu. Leczy zatrucie i chorobę popromienną.
+st_science_medkit_name	Apteczka naukowa
 st_scientists_faction	Instytut
 st_search_label	Szukaj
 st_search_range	Poziom rozgrywki
@@ -2425,6 +2432,7 @@ st_srp_map_london	Londyn
 st_srp_map_mamayev_kurgan	Kurhan Mamaja
 st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
 st_srp_map_rudnya	Rudnia
+st_srp_map_rudnya_v069	Rudnia (v0.69)
 st_srp_map_school	Szkoła
 st_srp_map_tarakanovsky_fort	Fort Tarakanów
 st_srp_map_vector	Laboratorium "Wektor"
@@ -2460,6 +2468,7 @@ st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	W oddziale
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
 st_srp_pvb_busy	%1$s (zajęte)
@@ -2517,6 +2526,7 @@ st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
 st_srp_rooms_code_13	Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju.
 st_srp_rooms_code_14	Nie udało się wybrać zestawu.
 st_srp_rooms_code_16	Naciśnij Graj, aby wejść do pokoju publicznego.
+st_srp_rooms_code_17	Pokój wybiera dowódca brygady.
 st_srp_rooms_code_2	Ten pokój już nie istnieje.
 st_srp_rooms_code_3	Błędny PIN.
 st_srp_rooms_code_4	Pokój jest pełny.
@@ -2604,6 +2614,7 @@ st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
+st_srp_scope_slot	Optyka
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s
@@ -2691,6 +2702,34 @@ st_stats_saved	Uratowano:
 st_stats_silent_kills	Ciche zabójstwa:
 st_stats_stolen_victory_items	Skradzione baterie:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Znoszone buty sportowe, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Buty sportowe
+st_stk2_bandit_026_legs_desc	Spodnie dresowe w paski, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Spodnie dresowe
+st_stk2_bandit_026_torso_desc	Czarna skórzana kurtka bomberka na koszulce, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Skórzana kurtka bomberka
+st_stk2_loner_026_boots_desc	Sznurowane skórzane buty samotnika, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Buty samotnika
+st_stk2_loner_026_hand_desc	Rękawiczki bez palców samotnika, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Rękawiczki bez palców samotnika
+st_stk2_loner_026_legs_desc	Spodnie moro z nakolannikami, kaburą i ładownicami, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Spodnie moro samotnika
+st_stk2_loner_026_torso_desc	Kurtka z kapturem pod kamizelką taktyczną z ładownicami, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Kurtka samotnika z kamizelką
+st_stk2_novice_026_back_desc	Płócienny plecak stalkera nowicjusza na jednym pasku, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Plecak nowicjusza
+st_stk2_novice_026_boots_desc	Skórzane buty stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Buty nowicjusza
+st_stk2_novice_026_hand_desc	Rękawiczki bez palców stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Rękawiczki bez palców nowicjusza
+st_stk2_novice_026_hood_desc	Płócienny kaptur stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kaptur nowicjusza
+st_stk2_novice_026_legs_desc	Znoszone dżinsy stalkera nowicjusza, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Dżinsy nowicjusza
+st_stk2_novice_026_torso_desc	Kurtka polowa stalkera nowicjusza z manierką i nożem przy pasie, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Kurtka polowa nowicjusza
+st_stk2_novice_026_torso_v2_desc	Kurtka polowa stalkera nowicjusza z dwiema ładownicami przy pasie, z anulowanego S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Kurtka polowa nowicjusza z ładownicami
 st_storage	Magazyn
 st_string_pattern_error	Imię jest za długie lub zawiera niedozwolone znaki
 st_support	Wsparcie:

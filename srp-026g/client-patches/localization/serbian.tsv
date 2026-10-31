@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Čestitamo! Novi čin: Borac (Crno tržište).
 st_blackmarket_level_unlock_3	Čestitamo! Novi čin: Vođa (Crno tržište).
 st_blackmarket_level_unlock_4	Čestitamo! Novi čin: Centurion (Crno tržište).
 st_blackmarket_level_unlock_5	Čestitamo! Novi čin: Elita (Crno tržište).
+st_blackmarket_medkit_description	Potpuno leči trup i glavu i uklanja bol. Ne leči ruke i noge.
+st_blackmarket_medkit_name	Prva pomoć Crnog tržišta
 st_blackmarket_meele_kill_descr	Kad posao ne možeš obaviti čisto, uprljaj ruke. To nas razlikuje od ostalih. Dokaži da si jedan od nas — upotrebi ruke.
 st_blackmarket_meele_kill_name	Prljav posao
 st_blackmarket_meele_kill_obj	Ubijte neprijatelje u bliskoj borbi:
@@ -1375,6 +1377,7 @@ st_level_10_name	Radarska stanica Vostok (v0.21)
 st_level_11_name	Mamajev kurgan (v0.21)
 st_level_12_name	Hemijska fabrika (v0.11)
 st_level_13_name	Radarska stanica Vostok (v0.11)
+st_level_14_name	Rudnja (v0.69)
 st_lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su izlečene! Zdravlje je obnovljeno!
 st_lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
 st_lightning_quality_option	Kvalitet osvetljenja
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Želite li da poništite veštine?
 st_messages_censor_option	Omogući filtriranje poruka
 st_messages_only_from_friends_option	Primaj privatne poruke samo od prijatelja
 st_microphone_sensitivity_option	Osetljivost mikrofona
+st_military_medkit_description	Potpuno leči ruke i noge. Obnavlja 60% zdravlja trupa i glave i ublažava bol za 50%.
+st_military_medkit_name	Vojna prva pomoć
 st_minimap	Mini-mapa
 st_minimap_bottom	Donji levi ugao
 st_minimap_off	Skrivena mini-mapa
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Pobedite u meču sa donetim baterijama:
 st_scavengers_win_x_games_descr	Živimo u surovom svetu. Pobednik uzima sve, a poraženi dobija ostatke. Pobednički tim uvek dobija veću nagradu.
 st_scavengers_win_x_games_name	Ukus pobede
 st_scavengers_win_x_games_obj	Pobedite u mečevima:
+st_science_medkit_description	Potpuno leči ruke, noge, trup i glavu. Ublažava bol za 50%. Leči trovanje i radijacionu bolest.
+st_science_medkit_name	Naučna prva pomoć
 st_scientists_faction	Institut
 st_search_label	Pretraga
 st_search_range	Nivo meča
@@ -2425,6 +2432,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev kurgan
 st_srp_map_mamayev_kurgan_v021	Mamajev kurgan (v0.21)
 st_srp_map_rudnya	Rudnja
+st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Škola
 st_srp_map_tarakanovsky_fort	Tarakanovski fort
 st_srp_map_vector	Laboratorija Vektor
@@ -2460,6 +2468,7 @@ st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
 st_srp_pvb_busy	%1$s (zauzeto)
@@ -2517,6 +2526,7 @@ st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.
 st_srp_rooms_code_13	Komplet nije bio spreman (nema oružja ili dovoljno municije): uklonjen si iz sobe.
 st_srp_rooms_code_14	Nije moguće izabrati komplet.
 st_srp_rooms_code_16	Pritisni Igraj da uđeš u javnu sobu.
+st_srp_rooms_code_17	Sobu bira vođa odreda.
 st_srp_rooms_code_2	Ta soba više ne postoji.
 st_srp_rooms_code_3	Pogrešan PIN.
 st_srp_rooms_code_4	Ta soba je puna.
@@ -2604,6 +2614,7 @@ st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+st_srp_scope_slot	Optika
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
@@ -2691,6 +2702,34 @@ st_stats_saved	Spaseno:
 st_stats_silent_kills	Tiha ubistva:
 st_stats_stolen_victory_items	Ukradene baterije:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Iznošene patike iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Patike
+st_stk2_bandit_026_legs_desc	Prugasta donja trenerka iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Trenerka
+st_stk2_bandit_026_torso_desc	Crna kožna bomber jakna preko majice iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Kožna bomber jakna
+st_stk2_loner_026_boots_desc	Kožne čizme samotnjaka na pertlanje iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Čizme samotnjaka
+st_stk2_loner_026_hand_desc	Rukavice bez prstiju samotnjaka iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Rukavice bez prstiju samotnjaka
+st_stk2_loner_026_legs_desc	Maskirne pantalone sa štitnicima za kolena, futrolom i torbicama iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Maskirne pantalone samotnjaka
+st_stk2_loner_026_torso_desc	Jakna sa kapuljačom ispod taktičkog prsluka sa torbicama iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Jakna samotnjaka sa prslukom
+st_stk2_novice_026_back_desc	Platneni ranac stalkera početnika sa jednim kaišem iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Ranac početnika
+st_stk2_novice_026_boots_desc	Kožne čizme stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Čizme početnika
+st_stk2_novice_026_hand_desc	Rukavice bez prstiju stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Rukavice bez prstiju početnika
+st_stk2_novice_026_hood_desc	Platnena kapuljača stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kapuljača početnika
+st_stk2_novice_026_legs_desc	Iznošene farmerke stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Farmerke početnika
+st_stk2_novice_026_torso_desc	Terenska jakna stalkera početnika sa čuturicom i nožem na opasaču iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Terenska jakna početnika
+st_stk2_novice_026_torso_v2_desc	Terenska jakna stalkera početnika sa dve torbice na opasaču iz otkazanog projekta S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Terenska jakna početnika sa torbicama
 st_storage	Skladište
 st_string_pattern_error	Ime sadrži nedozvoljene znakove ili je predugačko ili prekratko.
 st_support	Podrška

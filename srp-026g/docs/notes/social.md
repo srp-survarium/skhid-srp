@@ -200,6 +200,8 @@ PROVEN, in this order (each failure logs a `PlayBtn disabled reason is: …` lin
 
 So a server that marks the commander ready when the commander presses Play locks the soldiers' Play (they cannot cancel/ready once the squad is queued), and a commander can only press Play once every soldier is ready.
 
+With rooms (since 2026-10-31, `squads.md`) srp's 0.26g lobby sends the commander ready always, so its Play is on and its soldier's is off all the time (only the commander acts for the squad, the owner's of 2026-10-31); the soldier ready while its commander's actions take it along (`rooms::squad_ready`). Before, nothing set ready, and a commander's Play stayed off (0 ≥ 1 fails).
+
 ### 2.3 Squad actions (client → server) — were 0x2A 01..04, now 0x4A
 
 PROVEN (senders 0x274580..0x2746D0; all require order/match id lobby_client+0x1E57A8 == -1, as in 0.21d):
@@ -520,8 +522,7 @@ So: on the general, match and team channels a stock client lets through at most 
 | `4D` type 0 | already a friend, already asked, or the player ignores the sender | nothing | no text for any of them |
 | `4D` type 2 (squad invite) | the name is no account, or the player is not in the lobby | `84 49 00 st_player_not_found` | |
 | `4D` type 2 | the player ignores the sender | nothing | |
-| `4D` type 2 | squads are off (`SRP_SQUADS=off`) | `84 49 00 <SRP_SQUADS_OFF_TEXT>`, by default the sentence "Squads are switched off on this server." | the game has no text for it (9.2); a text that is no key is shown as it is (`lobby_requests.md` §4.2). The invite's button is the client's and stays. Not yet seen in a real game |
-| `4A 02` | squads are off | the squad as it is (`A1`: none), no text | the invite was already refused; this is a client that adds a player all the same |
+| `4D` type 2 | the sender's squad has two (`squads.md`) | nothing: not passed on | no text (9.2); the movie offers no invite then |
 | `4D` type 3 (the client's own "membership accepted") | can not be passed on | nothing | not the player's act |
 | `4E 04` (ignore by a typed name) | the name is no account | `A3 08` (the list as it is), then `84 49 00 st_player_not_found` | |
 | `4A 01..04` | refused (not the commander, squad full, not invited, in no squad) | the squad as it is (`A1`), no text | `84 4A` is dropped by the client and the game has no text (9.2) |

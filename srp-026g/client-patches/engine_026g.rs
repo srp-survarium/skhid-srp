@@ -123,8 +123,26 @@ unsafe extern "C" {
     pub fn engine_show_cursor(ui: *mut c_void, shown: u32);
     /// 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
     pub fn engine_send_important(messaging: *mut c_void, target: *const u8, r#type: u32, text: *const u8);
+    /// 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX
+    pub fn engine_emit_hud_sound(emitter: *mut c_void, scene: *mut *mut c_void, user: *mut c_void, out: *mut *mut c_void) -> *mut *mut c_void;
+    /// 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8
+    pub fn engine_bind_query_callback(boost: *mut c_void, f: *const c_void, value: u32);
+    /// 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX
+    pub fn engine_scene_params_type() -> u32;
+    /// 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0
+    pub fn engine_add_active_scene(world: *mut c_void, scene: *mut c_void);
     /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
     pub fn engine_comment_about_user(lobby_client: *mut c_void, nickname: *const u8, kind: u32, mode: u32);
+    /// 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    pub fn engine_cc_float(object: *mut c_void, name: *const u8, value: *mut f32, saved: u32, kind: u32);
+    /// 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+    pub fn engine_query_one(requests: *const c_void, count: u32, callback: *const c_void, allocator: *mut c_void, user: *mut c_void, parent: *const c_void, flag: u32);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_emitter(pointer: *mut *mut c_void);
+    /// 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+    pub fn engine_set_listener(scene: *mut c_void, position: *const f32, front: *const f32, top: *const f32);
+    /// 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+    pub fn engine_medkit_set_active(medkit: *mut c_void, active: u32, time: u32);
 }
 
 #[allow(dead_code)]
@@ -141,6 +159,8 @@ unsafe extern "cdecl" {
     pub fn engine_setlocale(category: u32, locale: *const u8) -> *mut u8;
     /// 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
     pub fn engine_save_user_config();
+    /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+    pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -159,6 +179,10 @@ unsafe extern "thiscall" {
     pub fn engine_light_insert(light: *mut c_void);
     /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_light_remove(light: *mut c_void);
+    /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
+    pub fn engine_play_voice(proxy: *mut c_void, mode: u32, producer: *const c_void, receiver: *const c_void);
+    /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
+    pub fn engine_free_voice(proxy: *mut c_void);
     /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
     pub fn engine_close_current_match(client: *mut c_void, reason: u32);
 }
