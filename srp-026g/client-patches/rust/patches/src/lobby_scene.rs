@@ -6,8 +6,8 @@
 //! logged, never a state of the game's.
 //!
 //! The pick is kept in user.cfg as the console variable `srp_lobby`
-//! (registered before user.cfg runs, `configs.start`, after patches 79 and 83's
-//! handler), and the start shows it: its project takes the classic's place
+//! (registered before user.cfg runs, `configs.start`, after patches 79's and 83's
+//! handlers), and the start shows it: its project takes the classic's place
 //! in the scene's query (`lobby_menu.scene_request`).
 //!
 //! The lobby window sends a pick to srp itself (the movie's `3B` at
