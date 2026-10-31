@@ -197,6 +197,14 @@ pub(super) fn wall_clear_kept() -> Box<dyn RouteTopic> {
     Box::new(Kept)
 }
 
+/// The legs `feel.past_drop = landed` kept a body off, past a drop it had not gone down (`path::past_drop`).
+pub(super) fn past_drop() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::past_drop::counts()],
+        |d, line| line.ends.push(format!("past_drop_kept_off {}", d[0])),
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

@@ -114,6 +114,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         route_crossings(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
+        past_drop(),
         rests(),
         rest_stops(),
         contacts(),

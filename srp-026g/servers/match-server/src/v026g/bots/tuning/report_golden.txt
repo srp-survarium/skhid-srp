@@ -34,7 +34,7 @@ switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
-switch values feel: drop_truth=links
+switch values feel: drop_truth=links past_drop=window
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: edge=client jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place

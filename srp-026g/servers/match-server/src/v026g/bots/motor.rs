@@ -86,6 +86,8 @@ pub struct Feel {
     /// How far under a walked leg's floor a body is still on the route, m
     /// (`path::OFF_WALK_BELOW_M`); 1.5 (`path::OFF_ROUTE_HEIGHT_M`) is the old rule.
     pub off_walk_below_m: f32,
+    /// Which of the route's floors behind a body count for where it is along it (`path::PastDrop`).
+    pub past_drop: super::path::PastDrop,
     pub look_ahead_per_speed: f32,
     /// Sprint only with this much straight route ahead, metres …
     pub sprint_from_m: f32,
@@ -241,6 +243,7 @@ impl Default for Feel {
             go_turn: 0.7,
             look_ahead_m: 1.6,
             off_walk_below_m: super::path::OFF_WALK_BELOW_M,
+            past_drop: super::path::PastDrop::Window,
             look_ahead_per_speed: 0.35,
             sprint_from_m: 10.0,
             sprint_until_m: 3.5,
@@ -1211,6 +1214,7 @@ impl Motor {
         self.follow_lift(pose.feet);
         self.links.tick(self.clock, pose.feet, pose.speed, self.link_why);
         route.set_below_walk(self.feel.off_walk_below_m);
+        route.set_past_drop(self.feel.past_drop);
         let (s, off) = route.progress(pose.feet);
         if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s, self.feel.drop_truth)) {
             self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Drop });
@@ -1606,6 +1610,7 @@ impl Motor {
         self.follow_lift(pose.feet);
         self.links.tick(self.clock, pose.feet, pose.speed, self.link_why);
         route.set_below_walk(self.feel.off_walk_below_m);
+        route.set_past_drop(self.feel.past_drop);
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
