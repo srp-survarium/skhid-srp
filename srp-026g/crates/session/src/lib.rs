@@ -48,6 +48,26 @@ use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
 
+/// The `on`/`off` setting `name` of the environment ([`switch_value`]).
+pub fn switch(name: &str, default: bool) -> bool {
+    switch_value(name, std::env::var(name).ok().as_deref(), default)
+}
+
+/// An `on`/`off` setting (`1`/`0`, `yes`/`no`, `true`/`false`, any case):
+/// unset or empty is `default`, anything else an error in the log and `default`.
+pub fn switch_value(name: &str, value: Option<&str>, default: bool) -> bool {
+    let value = value.map(|value| value.trim().to_ascii_lowercase());
+    match value.as_deref() {
+        None | Some("") => default,
+        Some("on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            log::error!("{name} is `{other}`; it must be `on` or `off`. Using {default}");
+            default
+        }
+    }
+}
+
 /// Locking that survives a panic. The servers share this state across
 /// threads, and a thread that panics while holding a lock poisons it; with
 /// `lock().unwrap()` every server would then fail on it until srp restarts.
@@ -1839,6 +1859,13 @@ mod tests {
 
     fn ip(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
         IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+    }
+
+    #[test]
+    fn a_switch_takes_on_and_off_and_keeps_its_default_otherwise() {
+        assert!(switch_value("X", None, true) && switch_value("X", Some(" ON "), false));
+        assert!(!switch_value("X", Some("off"), true) && switch_value("X", Some("maybe"), true));
+        assert!(!switch_value("X", Some(""), false));
     }
 
     #[test]
