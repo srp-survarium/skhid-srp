@@ -18,6 +18,7 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::{SpotQuery, Tactics};
+use crate::v026g::bots::fairness::Basis;
 use crate::v026g::bots::threat::{HeldLine, Role};
 
 /// The slot keys of the team job's pinners (K2) start here: one pinner a
@@ -181,6 +182,13 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             && track.at.distance_xz(cx.me.feet) <= far
             && !cx.tactics.in_spawn_area(track.at, None)
         {
+            // [A192] With `commit.crossfire_apart_mates`, a new crossfire only on a place the team's own senses gave
+            // within the owner's 15 s rule (`fairness::Basis::Fresh`); a running one keeps its choke below.
+            if cx.tuning.commit.crossfire_apart_mates && Basis::of(track, cx.now) != Basis::Fresh {
+                #[cfg(test)]
+                bench::refused(cx.me.team);
+                continue;
+            }
             chokes.push(TargetRef::Place(track.who));
         }
     }
@@ -578,6 +586,21 @@ pub mod bench {
 
     thread_local! {
         static ARRIVED: RefCell<Vec<(usize, u32)>> = const { RefCell::new(Vec::new()) };
+        static REFUSED: std::cell::Cell<[u64; 2]> = const { std::cell::Cell::new([0; 2]) };
+    }
+
+    /// A last known place a bot of `team` left out as a new crossfire's choke: not sensed within 15 s.
+    pub fn refused(team: u8) {
+        REFUSED.with(|r| {
+            let mut n = r.get();
+            n[usize::from(team & 1)] += 1;
+            r.set(n);
+        });
+    }
+
+    /// Those so far on this thread, by team.
+    pub fn refused_counts() -> [u64; 2] {
+        REFUSED.with(std::cell::Cell::get)
     }
 
     /// The bot at `place` reached its spot at `now`.
@@ -763,6 +786,26 @@ mod tests {
         let choke = Choke { target: TargetRef::Exit(0), at: choke, job: None };
         assert!(crowded(&s.cx(3), &choke, s.view.places[3].feet));
         assert!(!crowded(&s.cx(0), &choke, s.view.places[0].feet));
+    }
+
+    /// [A192] With `commit.crossfire_apart_mates`, a new crossfire goes on a last known place only while the team sensed
+    /// him within 15 s; a running one keeps its choke.
+    #[test]
+    fn a_new_crossfire_needs_a_place_sensed_within_15_s_when_the_switch_is_on() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(30.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 35.0));
+        s.enemy(5, 1, Vec3::new(60.0, 0.0, 35.0), Some(Source::Heard));
+        s.tuning.commit.crossfire_apart_mates = true;
+        let place = TargetRef::Place(5);
+        assert!(crossfires(&s, 0).iter().any(|c| c.target == place), "heard 0.4 s ago: a choke");
+        s.view.clock += 16_000;
+        if s.cx(0).point_of(place).is_none() {
+            return; // the memory let him go: nothing left to gate
+        }
+        assert!(crossfires(&s, 0).iter().all(|c| c.target != place), "16 s on: no new crossfire there");
+        s.current = Some((PlayKind::Crossfire, place, s.view.clock - 2_000));
+        assert!(crossfires(&s, 0).iter().any(|c| c.target == place), "a running one keeps its choke");
     }
 
     /// [A192] With `commit.crossfire_apart_mates`, a teammate by the choke

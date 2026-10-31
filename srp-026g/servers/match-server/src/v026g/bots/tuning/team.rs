@@ -248,6 +248,11 @@ pub struct CommitTuning {
     /// only within `sneak_m` of its spot. Off: every teammate within
     /// `partner_m` of the choke, where it stands, every `repick_every_s`
     /// (the bench: 92 of 789 takes ended "no spot apart" on a mate passing by).
+    /// And a new Crossfire on a known enemy's last place only when the team's
+    /// own senses gave it within 15 s (`fairness::UNSEEN_MS`, the owner's
+    /// rule): with spots no longer blocked by passers-by, more offers were
+    /// scored on older places (the bench's stale reads +13-15 %, their share
+    /// unchanged); a running one keeps its choke (`crossfire_point`).
     pub crossfire_apart_mates: bool,
     /// [A192] The commander's slots held by the bots kept on them are
     /// rebuilt as each bot of the pass is given up: a slot freed earlier in

@@ -95,6 +95,8 @@ pub(super) struct Metrics {
     start: Option<Baseline>,
     /// [A192 diagnosis] The thread's place and near reads by play when the match began.
     by_play_start: Option<fairness::ByPlay>,
+    /// [A192] The thread's last known places left out as new crossfire chokes when the match began.
+    refused_start: Option<[u64; 2]>,
     /// By place: the bot has a live sight of an enemy now (read before the tick's bodies).
     sighted: Vec<bool>,
     engage: Vec<Engage>,
@@ -157,6 +159,7 @@ impl Topic for Metrics {
         self.grow(game.bodies.len());
         self.start.get_or_insert_with(|| Baseline { reads: fairness::counts(), work: bench_work::totals(), tick: game.tick });
         self.by_play_start.get_or_insert_with(fairness::by_play);
+        self.refused_start.get_or_insert_with(crate::v026g::bots::plays::crossfire::bench::refused_counts);
     }
 
     fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
@@ -259,6 +262,9 @@ impl Metrics {
                 }
             }
             println!("  a192-reads-by-play: {}", rows.join("; "));
+            let refused = crate::v026g::bots::plays::crossfire::bench::refused_counts();
+            let before = self.refused_start.unwrap_or(refused);
+            println!("  a192-fresh-refused: [{}, {}]", refused[0] - before[0], refused[1] - before[1]);
         }
         let now = fairness::counts();
         let before = self.start.map_or(now, |start| start.reads);
