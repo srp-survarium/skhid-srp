@@ -239,11 +239,13 @@ pub struct Feel {
     /// A ledge jump of the route is pressed only when its landing is within the jump's reach of the feet: with the feet
     /// more than [`PRESS_UNDER_M`] under the take-off and the landing higher above them than the jump the press makes
     /// gets up ([`mapdata::grid::SPRINT_JUMP_LOW_M`] at a sprint, else [`mapdata::grid::STANDING_JUMP_M`]: the client's
-    /// jump rises from where it is pressed, PROVEN, the jump study), there is no press. The body walks on to the
-    /// take-off; one that reaches it (along the jump's way) still that low is on another floor, and the jump is given up so the
-    /// route is planned again. The bench pressed 0.40-1.50 m under the take-off at Vostok Radar Station and Mamayev
-    /// Kurgan, a rise of 1.35-2.37 m from the feet, and never got up (A198). Off: pressed as the body walks over the
-    /// take-off's place, at any height.
+    /// jump rises from where it is pressed, PROVEN, the jump study), there is no press, and the walk goes on up to the
+    /// take-off (a slope up to it lifts the feet to its floor). A body at the take-off's place (along the jump's way) still
+    /// out of reach of any jump its approach makes is on another floor, and the jump is given up so the route is planned
+    /// again. The bench pressed walking jumps 0.08-0.56 m under the take-off on the slopes before Vostok Radar Station's
+    /// and Mamayev Kurgan's ledges (a rise of 0.95-0.99 m leaves the walk jump's 0.998 m a few centimetres), and a jump
+    /// 1.36-1.50 m under one at Mamayev Kurgan, a rise of 1.03-2.37 m from the feet; none got up (A198). Off: pressed as
+    /// the body walks over the take-off's place, at any height.
     pub press_in_reach: bool,
 }
 
@@ -484,9 +486,9 @@ pub const LIFT_MAX_RISE_M: f32 = 1.11;
 /// press lead is up to 0.85 m at a walk (`JUMP_LEAD_S` x 3.5 + `PRESS_M`) and the live players press about 1 m before
 /// (fx-cover, A198); 2 m is the lining up's last stretch.
 pub const STRAIGHT_JUMP_M: f32 = 2.0;
-/// The feet this far under a ledge jump's take-off, metres, are not at its level ([`Feel::press_in_reach`]): the grid's
-/// floors under one take-off differ by a step or a cell's slope, well under this (LIKELY); the bench's low-press bar.
-const PRESS_UNDER_M: f32 = 0.30;
+/// Feet within this of a ledge jump's take-off height, metres, are on its floor ([`Feel::press_in_reach`]): the feet and
+/// the grid's floor of one place differ by a centimetre or two (LIKELY), so a press there is never held for that.
+const PRESS_UNDER_M: f32 = 0.05;
 /// The least depth of a top the lift is tried up, metres: a 0.33 m rail head-on lifted 0 of 20 (PROVEN); 0.35 is the owner's
 /// bar (LIKELY).
 pub const LIFT_TOP_M: f32 = 0.35;
@@ -2093,7 +2095,8 @@ impl Motor {
         // At the take-off's place (along the jump's way) under its floor, out of reach of any jump, and not in a jump:
         // another floor, so the jump is given up and the route planned again ([`Feel::press_in_reach`]).
         let landed = jump.pressed.is_none_or(|at| self.since(at) >= CARRY_S);
-        if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(SPRINT_JUMP_LOW_M) {
+        let most = if ahead.approach.sprints() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
+        if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(most) {
             jump.tries = JUMP_TRIES;
             self.jump_try = Some(jump);
             low_presses::gave_up();
@@ -4862,6 +4865,71 @@ mod tests {
                 assert_eq!(decision.keys & (key::LEFT | key::RIGHT), 0, "tick {tick}");
             }
         }
+    }
+
+    /// A ledge whose take-off is 0.6 m over the floor the body walks (the route's take-off on a step the body is not
+    /// on, as at Vostok Radar Station and Mamayev Kurgan, A198): the landing is 1.5 m over the feet, out of any jump's
+    /// reach. With `press_in_reach` it is never pressed and is given up at the take-off's place; off, it is pressed
+    /// (and tried until given up). An ordinary ledge is climbed the same with the switch on and off.
+    #[test]
+    fn a_jump_out_of_reach_of_the_feet_is_not_pressed_with_press_in_reach() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: jump.then_some(ledge_to(y)), low: false };
+        let high = || {
+            let route = Route::new(vec![p(0.0, 0.0, false), p(4.6, 0.6, false), p(5.0, 1.5, true), p(10.0, 1.5, false)]);
+            let ledge = Ledge { take_off: Vec3::new(4.6, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: false, lifts: false };
+            (route, ledge)
+        };
+        for on in [false, true] {
+            let feel = Feel { press_in_reach: on, ..Feel::default() };
+            let (mut route, ledge) = high();
+            let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, false, 0, feel);
+            assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "on {on}: {:?}", climb.poses.last());
+            if on {
+                assert!(climb.presses.is_empty(), "{:?}", climb.presses);
+            } else {
+                assert_eq!(climb.presses.len(), JUMP_TRIES as usize, "{:?}", climb.presses);
+            }
+            let (mut route, ledge) = up_a_ledge(false);
+            let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 300, false, 0, feel);
+            assert!(climb.up, "on {on}: {:?}", climb.poses.last());
+            assert_eq!(climb.presses.len(), 1, "on {on}: {:?}", climb.presses);
+        }
+    }
+
+    /// [`Ahead::out_of_reach`]: the feet under the take-off by more than [`PRESS_UNDER_M`] and the landing above the
+    /// reach: the bench's failed presses (A198) are out of reach of the jump each made, a body on the take-off's floor is not.
+    #[test]
+    fn out_of_reach_asks_both_the_floor_and_the_rise() {
+        let ahead = |take_off_above: f32, rise: f32, leap: Leap| Ahead {
+            aim: Vec3::ZERO,
+            lined: true,
+            way: [1.0, 0.0],
+            before: 0.0,
+            going: true,
+            failed: None,
+            leap,
+            approach: Approach::Walk,
+            rise,
+            take_off_above,
+            lead_m: 0.0,
+        };
+        // Vostok Radar Station (8.41, 2.86, -16.51), up 0.95 m: walking jumps pressed 0.08-0.40 m under the take-off.
+        for under in [0.08, 0.18, 0.30, 0.40] {
+            assert!(ahead(under, 0.95, Leap::Ledge).out_of_reach(STANDING_JUMP_M), "{under}");
+        }
+        // Mamayev Kurgan (17.35, 29.82, 119.88), up 0.99 m, 0.48-0.56 m under; (63.60, 36.39, 121.12), 1.36-1.50 m under.
+        assert!(ahead(0.48, 0.99, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
+        assert!(ahead(1.36, 0.87, Leap::Ledge).out_of_reach(SPRINT_JUMP_LOW_M));
+        // On the take-off's floor (within the feet's noise): pressed, whatever the rise.
+        assert!(!ahead(0.0, 1.25, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
+        assert!(!ahead(0.04, 0.99, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
+        assert!(!ahead(-0.3, 0.9, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
+        // Under the floor but within the jump's reach: pressed.
+        assert!(!ahead(0.35, 0.6, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
+        assert!(!ahead(0.25, 0.9, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
+        assert!(ahead(0.35, 0.7, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
+        // A gap link is pressed at its own point: not asked.
+        assert!(!ahead(1.0, 1.0, Leap::Gap(mapdata::PressLead::from_metres(0.5))).out_of_reach(SPRINT_JUMP_LOW_M));
     }
 
     /// A route's end up a ledge is not arrived at from under it; up it, it
