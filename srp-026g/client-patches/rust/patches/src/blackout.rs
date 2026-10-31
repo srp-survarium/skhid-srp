@@ -175,7 +175,6 @@ fn tell(thread: &Thread, cell: &GameCell<Told>, movie: Option<Movie>, forced: bo
 
 /// update_player_icons' start (0x23AA10), every frame: [esp+4] the ui.
 pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
-    crate::artefact_carry::on_hud(ctx);
     let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let forced = BLACKOUT.get(thread);
@@ -229,7 +228,7 @@ pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
     let (sent, still) = filtered(blackout, tab, held, handler.actions());
     handler.set_actions(sent);
     HELD.set(ctx.thread(), still);
-    crate::artefact_carry::on_input_end(ctx)
+    Flow::Continue
 }
 
 #[cfg(test)]

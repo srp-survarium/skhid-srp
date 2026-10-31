@@ -782,7 +782,6 @@ fn draw_of(state: &State, player: &Player<'_>) -> Option<(DeathKey, SlotId, Bone
 /// mt_draw's cull: a corpse of ours is drawn even when its model was not
 /// seen the last frame (its bones move).
 pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Flow::Skip = crate::artefact_carry::on_cull(ctx) { return Flow::Skip; }
     let ours = match draw::culled_player(ctx) {
         Some(player) => STATE.with(ctx.thread(), |state| draw_of(state, &player).is_some()),
         None => false,
@@ -793,7 +792,6 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// mt_draw's bones: the model-space matrices of the skeleton. The clip is
 /// captured; a ragdoll's bones are written over it.
 pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    crate::artefact_carry::on_bones(ctx);
     if let Some(bones) = DrawnBones::at(ctx) {
         STATE.with(ctx.thread(), |state| apply(state, &bones));
     }

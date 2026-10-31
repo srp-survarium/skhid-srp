@@ -5,7 +5,8 @@
 # Research's markers (update_ui's call of update_player_icons 0x23B207) can
 # land beside it unchanged. player_icons.update_start and the two options
 # reads are patch 83's sites too, the options reads patch 86's too: their
-# chains run this patch's hooks first (order 1 and 0).
+# chains run this patch's hooks first (order 1 and 0), but for patch 78's
+# (order 0 at update_start, 1 at input_builder.end).
 name = "blackout"
 patch = 65
 
@@ -31,6 +32,7 @@ handler = "on_tab"
 [[hook]]
 site = "input_builder.end"
 handler = "on_input_end"
+order = 0
 
 [[hook]]
 site = "player_names.visibility"

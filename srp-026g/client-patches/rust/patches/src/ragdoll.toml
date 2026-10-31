@@ -16,11 +16,13 @@ order = 0
 [[hook]]
 site = "player_draw.cull"
 handler = "on_cull"
+order = 1
 
 # mt_draw, the bones made: the clip captured, a ragdoll's bones written
 [[hook]]
 site = "player_draw.bones"
 handler = "on_bones"
+order = 1
 
 # update_camera: the local player's ragdoll's eye
 [[hook]]
