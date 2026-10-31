@@ -50,7 +50,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@5)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@6)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -90,6 +90,20 @@ crates, beds and lockers, and the vaults beside it.
 - The cart (@5, the owner: "remove this untextured white thing with 4 wheels"): STK2's
   `props/garage/cart`, by the leaning plank, left out (the slice's `exclude`), and the camera box
   around it. Nothing stood on it.
+- Lamps (@6, the owner, 2026-10-31: "in bunker the lightbulbs are missing completely", then "not
+  just bulbs, plafonds too" and "the lighting too is a bit too sharp"): STK2's street lamps
+  (`props/light/lamp_street_01..06`) are one surface each, a shade or a cage on its rod, with no
+  bulb mesh: nothing was dropped in the port. They are left out, and 0.26's own fixtures (the
+  same models 0.69d ships; Rudnya places no lamp) stand at their eight spots, drawn only (no
+  collision for the camera's ray):
+  - where STK2 hung an open shade: a pendant, `props/light/green_lamp_with_wire` (its wire and
+    enamel shade, 0.64 m) with `props/light/lamp_on` (a socket and a glowing bulb, its emissive
+    warm, (0.94, 0.72, 0.56) x 8.4) in its socket;
+  - where it hung a cage: a caged ceiling plafond, `props/light/plafon_lamp` with its glowing
+    glass `props/light/plafon_lamp_on`, on the ceiling.
+- Light (@6): the store room's three lights at their fixtures (3 cm under the pendant's bulb, in
+  the plafonds' glass), softer: intensity 2.4 (3.2), range 8.5 m (6), falloff power 1.5 (2);
+  the room probe's ambient 0.3 (0.2). The warm colour kept.
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).
