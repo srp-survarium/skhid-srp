@@ -28,6 +28,7 @@ struct inventory;
 struct lobby_client;
 struct match_options;
 struct material_pair;
+struct medkit;
 struct messaging_client;
 struct network_client;
 struct object_light;
@@ -315,5 +316,8 @@ void engine_release_emitter(struct sound_emitter **pointer);
 
 /* 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8 */
 void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top);
+
+/* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
+void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
 
 #endif
