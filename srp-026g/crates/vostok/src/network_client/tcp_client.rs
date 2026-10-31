@@ -83,10 +83,6 @@ impl TcpClient {
         self.stream.set_read_timeout(timeout)
     }
 
-    pub fn get_read_buffer(&self) -> &[u8] {
-        &self.read_buffer[self.read_buffer_idx..self.read_buffer_len]
-    }
-
     pub fn read<T: NetworkRequest>(&mut self) -> Result<T, NetworkError> {
         let (msg, read_buffer_idx) = self.peek_impl()?;
         self.read_buffer_idx = read_buffer_idx;
