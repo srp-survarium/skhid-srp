@@ -3058,6 +3058,7 @@ mod tests {
                 passed: Vec::new(),
             }],
             sniper_regions: Vec::new(),
+            conceded: Vec::new(),
         };
         assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
         assert!(picture.job_of(3).is_none());
