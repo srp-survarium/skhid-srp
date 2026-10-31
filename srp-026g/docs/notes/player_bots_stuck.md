@@ -1449,3 +1449,12 @@ logs) is needed to tell the stand-ins apart; there is none in the private folder
 The capsule moves stuck notes from "the spot is inside a wall's reach" (−44: the capsule pushes the body off) to the waypoint being
 inside it (+41), the way blocked (+37) and bodies beside (+10); "nothing in the sweep" also rises (+54), which is the changed
 dynamics, not a wall.
+
+**The notes with nothing in the sweep** (`stuck_causes`; tier 9-10, seeds 1 and 2; lattice / capsule): of 450 / 548 stuck notes, 238 / 292
+have no wall between the spot and the route's next waypoint. By kind: the next waypoint 0.5 m or more lower with the spot at or near a
+lip or fall 77 / 74; lower but away from a lip 32 / 42; at a lip on the level 15 / 17; the next waypoint higher (a lift or jump up, 0.6 m
+and over) 13 / 26; pressed along a wall (within 0.45 m) 9 / 6; open level 92 / 127. About 40 % are at ledges in both arms, so the
+ledge reckoning and the edge hold act on them; the rise of "open level" (+35) and of the lifts and jumps up (+13) is the capsule's. The
+stand-in's lift counters show the capsule arriving at faces slower (slow contacts at links of 0.80 m or less: 122 against 828; lifts made
+at 0.80-0.95 m: 3 against 6), not read further. The share of the grid's floors the capsule does not fit (under 0.38 m of a wall section;
+corrected shape): 0.5-0.7 % on levels 01, 02, 03, 06, 1.1 % on 07, 1.4 % on 04, 1.7 % on 08, 3.4 % on 05.
