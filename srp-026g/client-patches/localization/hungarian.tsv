@@ -2449,6 +2449,7 @@ st_srp_mode_protective_device	Védelmi berendezés
 st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_optics	Távcsövek
+st_srp_options_hud	HUD:
 st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
 st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva
 st_srp_pvb_busy	%1$s (foglalt)

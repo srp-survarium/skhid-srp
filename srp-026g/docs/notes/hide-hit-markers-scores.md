@@ -4,14 +4,26 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 (and kills/deaths); it should only show names in alphabetic order". Exe patch 83
 (`client-patches/rust/patches/src/hud_options.rs`), the hud movie (`flash/hud/src`: `HUD`,
 `Crosshair`, `PlayerList`, `PlayerListRenderer`) and the main menu movie
-(`flash/main_menu/src/SrpCheckOption.as`, `Settings`).
+(`flash/main_menu/src`: `SrpCheckGroup`, `SrpCheckOption`, `SrpLanguage`, `Settings`).
 
 ## The options
 
-- **Where:** Settings, Gameplay, the bottom panel's right side, one under the other: "Hide hit
-  markers", "Hide player scores" (`../images/hide-options-settings.png`). Two plain checkboxes,
-  the game's own style. The labels are dictionary keys (`st_srp_hide_hit_markers_option`,
-  `st_srp_hide_scores_option`), in all ten languages.
+- **Where:** Settings, Gameplay, a group of its own, "HUD:", right under "Friends:" in the left
+  column: "Hide hit markers", "Hide player scores" (`../images/hide-options-settings.png`). The
+  tab's own look: the heading as "Friends:" is, plain checkboxes, the same spacing.
+- **The tab's groups** (the owner, 2026-10-31): left "Friends:", "HUD:"; right "Crosshair:",
+  "Language:", "Quest progress:". Each column's headings share its left edge, its controls the
+  stock controls' edge; the gap before each group is the tab's own (the timeline's, read once).
+  Language (patch 79's list) is a group under "Crosshair:" now, its label a heading; its "Applies
+  after restart." note shows under the list and moves "Quest progress:" down while it shows. The
+  old bottom panel (the hidden seeding and statistics options') is not drawn on this tab: the
+  columns run on over it. One column for all four did not fit the window (about 700 px of groups
+  for 400). The column divider is the timeline's and stops where the panel began.
+- **Texts:** dictionary keys in all ten languages: the heading `st_srp_options_hud` ("HUD:";
+  Russian, Ukrainian, Belarusian "Интерфейс боя:"/"Інтерфейс бою:"/"Інтэрфейс бою:", not
+  "Interface", which the Interface level selector may take), the labels
+  `st_srp_hide_hit_markers_option`, `st_srp_hide_scores_option`. The exe gives them with each
+  checkbox's answer.
 - **Off by default:** off is the game as it was.
 - **Apply saves:** a toggle is a pending change of the tab like any option there; Apply saves it,
   Cancel or leaving without Apply puts the saved state back.
@@ -35,9 +47,11 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 - The Tab list shows the players' names only: no rank, kills or deaths columns, no column
   headers (`../images/hide-scores-tab-list.png`).
-- Each team stays in its own list, as the board groups them; each list is sorted by name,
-  case-insensitive (alice, Bob, carol, Dave). Nothing changes the order but a name: a player's
-  kills or score do not move them.
+- Each team stays in its own list, as the board groups them; each list is sorted (the owner,
+  2026-10-31) by clan tag, then by name, case-insensitive: the clans' players first (by tag),
+  then the players without a clan, then the bots (the server's tag "BOT"). A row's name is
+  "[TAG] name" (initialize_match), so the tag is read from it. Equal names go by the row's id.
+  Nothing changes the order but a name: a player's kills or score do not move them.
 - Kept: the team names, the player's own row highlighted, squad marks, a player gone offline in
   grey, the team scores at the top of the screen, the kill feed.
 - **Results screen** (the lobby's end-of-match screen): left as it is. It comes after the match,
@@ -61,7 +75,7 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
     bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs;
   - `options.callback` (game_options::scaleform_callback's start, after patch 79): a call named
     `srp_hide_hit_markers` or `srp_hide_scores` answers `root.srp_check_option(name, label,
-    "1"|"0")`; with "1" or "0" it saves that first (user.cfg at once);
+    "1"|"0", the group's heading)`; with "1" or "0" it saves that first (user.cfg at once);
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
     65): `root.srp_hud_options(hide hit markers, hide scores)` to the hud movie, once for each new
     hud movie or change.
@@ -72,8 +86,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   shared with patch 79's Language choice.
 - **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden` and the Tab list's
   `PlayerList.namesOnly`.
-- **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two of them in
-  `Settings`.
+- **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two of them in an
+  `SrpCheckGroup` (the heading and its checkboxes), placed with `SrpLanguage` and the stock groups
+  by `Settings.layoutGameplay`.
 - Nothing a match computes changes: no `simulation_changes.tsv` row.
 - **Checks:** `../../client-patches/check_hud_options_026g.py` (Unicorn: the registration and
   user.cfg's lines, the Settings' calls, the hud told at each change), Rust tests,

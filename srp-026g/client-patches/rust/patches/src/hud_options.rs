@@ -8,7 +8,9 @@
 //!   saved in user.cfg, off by default;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
-//!   saved)`, and with "1" or "0" saves that first (user.cfg at once);
+//!   saved, group)` (group: the heading of the Settings' group the two
+//!   checkboxes are in), and with "1" or "0" saves that first (user.cfg at
+//!   once);
 //! - each frame's player icons update (`player_icons.update_start`, after
 //!   patch 65): the hud movie is told both settings
 //!   (`root.srp_hud_options(hide hit markers, hide scores)`), once for each
@@ -96,7 +98,11 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The Settings' checkbox of a setting: its label and the saved state.
+/// The heading of the Settings' group of these checkboxes (a dictionary key).
+pub const GROUP: &CStr = c"st_srp_options_hud";
+
+/// The Settings' checkbox of a setting: its label, the saved state and its
+/// group's heading.
 pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExit> {
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let Some(setting) = setting(call.method()) else { return Flow::Continue };
@@ -105,9 +111,11 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         setting.value.set(thread, on);
         save_user_config(thread);
     }
-    let mut label = [0; 0x200];
+    let (mut label, mut group) = ([0; 0x200], [0; 0x200]);
     let label = call.translate(setting.label, &mut label);
-    call.answer(c"root.srp_check_option", &[setting.name, label, if setting.on(thread) { c"1" } else { c"0" }]);
+    let group = call.translate(GROUP, &mut group);
+    let saved = if setting.on(thread) { c"1" } else { c"0" };
+    call.answer(c"root.srp_check_option", &[setting.name, label, saved, group]);
     Flow::Exit(HudOptionsOnOptionsCallExit::Done)
 }
 

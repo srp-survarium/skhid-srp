@@ -21,7 +21,7 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   return, through patch 79's hook at its start): a setting's name with "1" or
   "0" sets that variable alone and writes user.cfg once, with another value
   or none sets nothing, and each answers root.srp_check_option(name, label,
-  "1" or "0") and returns as the function does (ret 10h); srp_language still
+  "1" or "0", the group's heading) and returns as the function does (ret 10h); srp_language still
   reaches patch 79; the original answers nothing;
 - each frame's player icons update (update_ui's `push edi / call 0x23AA10`
   at 0x23B206 to update_player_icons' prologue's end 0x23AA16, through patch
@@ -48,7 +48,8 @@ import check_language_026g as language
 
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores"}
-language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers",
+GROUP = "HUD:"
+language.ENGLISH.update({"st_srp_options_hud": GROUP.encode(), "st_srp_hide_hit_markers_option": b"Hide hit markers",
                          "st_srp_hide_scores_option": b"Hide player scores"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
@@ -180,10 +181,10 @@ def main():
             before = state()
             invokes, count = ours.callback(name, argument)
             after = state()
-            expect(invokes == [(language.MOVIE, "root.srp_check_option", (name, label, "1" if on else "0"))]
+            expect(invokes == [(language.MOVIE, "root.srp_check_option", (name, label, "1" if on else "0", GROUP))]
                    and count == saves and after[name] == on and after[other] == before[other],
                    f"{name} with {case}: it is {int(on)} ({other} unchanged), user.cfg written {saves} time(s), "
-                   f"the movie answered with its name, label and {int(on)}")
+                   f"the movie answered with its name, label, {int(on)} and the group's heading")
             stock_invokes, stock_saves = stock.callback(name, argument)
             expect(stock_invokes == [] and stock_saves == 0, f"the original ignores {name} ({case})")
         ours.callback(name, "0")
