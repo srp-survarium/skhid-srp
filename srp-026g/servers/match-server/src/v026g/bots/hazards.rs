@@ -54,6 +54,17 @@ pub const PASS_MS: u32 = 4_000;
 /// so a route's floor must stay off for [`Hazards::pass_ms`] from then
 /// ([`Hazards::allowed_arriving`]), not from now.
 pub const ARRIVE_MPS: f32 = 5.0;
+/// The pace a body can count on walking out of a blast, m/s ([`Pace::Escape`](super::plays::Pace)): the sprint where the way
+/// allows (the bench's out-of-blast walks: 2.8 m/s unaimed walking, 5 m/s sprinting; a route with corners and a start-up in
+/// between). GUESS, set from the register #30 data and judged by the bodies caught.
+pub const ESCAPE_MPS: f32 = 4.0;
+/// ... after this long from the decision, s: the turn to the way and the speed built up.
+pub const ESCAPE_START_S: f32 = 0.3;
+
+/// How far a body can walk out of a blast in `left_ms` of fuse: [`ESCAPE_MPS`] after the start-up [`ESCAPE_START_S`].
+pub fn escape_reach_m(left_ms: u32) -> f32 {
+    ESCAPE_MPS * (left_ms as f32 / 1000.0 - ESCAPE_START_S).max(0.0)
+}
 
 /// Whether a damage zone hurts at a match time.
 #[derive(Clone, Debug, Default, PartialEq)]
