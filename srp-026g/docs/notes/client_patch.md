@@ -2367,6 +2367,16 @@ filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
 
+Phase 3 (patch 84, `drug-interrupt.md`): a drug ended with time left
+(set_active(0) leaves +2ACh/+2A8h; a spent one has both 0) that the hook saw
+in use at its previous update. The hook keeps per quick slot only the last
+seen state (idle, the drug in use by its address, or stopped with the local
+player's simulation time +324h when first seen so) and sends 3 for 1000 ms of
+that clock, then 0; never for a drug not seen in use (a previous life's, a
+late join's), and in use again after a rollback that took the hit back.
+QuickSlots keeps the exhausted stack for it and the renderer tints the slot's
+own icon red (ColorTransform 1, 0.3, 0.3) where phase 1 dims it.
+
 ### Lobby weight explanation
 
 `weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
@@ -2592,6 +2602,11 @@ another item, any other or unnamed hit type, no inventory; the replay's EDI
 and ZF, every other register, the stack and the objects unchanged), and the
 game's own set_active(0) in the original exe in the use time, the active time
 and between them.
+
+The hit player's quick slot of the stopped drug shows red for a second of game
+time (display only): patch 77's `consumable_activity` tells a stopped drug
+from a spent one by the timers set_active(0) leaves, and sends phase 3
+(section "Medical consumable activity (patch 77)").
 
 ### Names on the Tab map (patch 82)
 

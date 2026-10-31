@@ -3670,6 +3670,10 @@ and HUD cleanup clear the presentation; artefacts retain their existing display.
 This is presentation only. See `docs/notes/client_patch.md` and
 `check_consumable_activity_026g.py`; the Flash lifecycle check is
 `scripts/consumable-activity/check.sh`.
+A drug a bullet stopped (patch 84) shows its icon red for one second of the
+local player's simulation clock, the last unit's too; a spent drug, a death and
+the clean-up show none. The hook tells it by the timers set_active(0) leaves
+and keeps only each quick slot's last seen state; no ActionScript timer.
 
 ## Weight slowdown indicator (unreleased)
 
@@ -3784,3 +3788,6 @@ medkit::tick gives a spent drug. A match's computation changes: every client
 of a match needs it. `check_drug_interrupt_026g.py` runs the hook from the
 game's site in the patched exe, and the game's own set_active(0) in the use
 time, the active time and between them.
+The stopped drug's quick slot shows red for a second of game time (display
+only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
+`../scripts/consumable-activity/check.sh`).

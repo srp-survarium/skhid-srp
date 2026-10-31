@@ -1,4 +1,4 @@
-# Client 0.26g: what changed from 0.21d, and the verdict
+not other hit types; in the match simulation (`simulation_changes.tsv`); the stopped drug's quick slot red for a second (display only, patch 77's hook) |# Client 0.26g: what changed from 0.21d, and the verdict
 
 **Version scope:** client **0.26g** (build string "0.26g0", build 2777,
 compiled 2015-01-14, `resources.db` 2015-01-17) compared with **0.21d**

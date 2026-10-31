@@ -27,6 +27,10 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   not stopped). The antitoxin heals the infection pool:
   stopped, and its toxic protection ends with it.
 - **Every drug in use** of the hit player is stopped (a medkit and bandages both, if both run).
+- **Red for a second** (the owner, 2026-10-31: "it can show red for a second"): the hit player's
+  quick slot of a stopped drug shows its icon red for one second of game time, then as the game
+  ends a drug (the last unit's icon stays for that second, then goes). A drug whose time runs
+  out, a death and the HUD's clean-up show no red. Display only: nothing the match computes.
 - **Every client the same:** decided in the match simulation (the hit as the game applies it),
   so every game, a late joiner (the drug's state is in the snapshot) and a replay agree. The match
   simulation changes (`simulation_changes.tsv` `next`): a replay recorded before it is refused.
@@ -51,3 +55,23 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   the stops take a lock, since every drug shares the world's tick list.
 - Check: `client-patches/check_drug_interrupt_026g.py` (Unicorn: the hook in the patched exe,
   and the game's own set_active(0) in the use time, the active time and between them).
+
+## The red second (display only)
+
+- set_active(0) leaves the use timers (+2ACh, +2A8h) as they were; a drug whose time ran out has
+  both at 0 (medkit::tick ends it so). So a drug ended with time left, its holder alive, was
+  stopped by a bullet: the other caller with time left is the dead holder's tick. No new state
+  in the game tells it.
+- Patch 77's hook (`consumable_activity`, at each quick-slot update of the local player) reads
+  that and keeps, per quick slot, only what it saw last: idle, a drug in use (its address, an
+  identity never read through), or stopped (and the local player's simulation time, player
+  +324h, when it first saw it so). Seen in use, then stopped: it sends phase 3 to the hud for
+  1000 ms of that clock, then 0. Stopped but never seen in use (a previous life's drug, a late
+  join's, another item in the slot): 0. In use again (a rollback took the hit back): in use.
+  The clock run back by a rollback counts as no time.
+- The hud's QuickSlots takes phase 3 as it takes the others: the exhausted stack kept, the
+  slot's own icon tinted red (green and blue x0.3) where phase 1 dims it. No ActionScript timer.
+- Checks: `check_consumable_activity_026g.py` (the hook's phases over the game's clock: in the use
+  time, the active time, the last unit, a natural end, a death and the respawn after it, a
+  rollback, another drug), `scripts/consumable-activity/check.sh` (the movie in Ruffle: red,
+  not red, the last unit, the clean-up), the patch's unit tests.
