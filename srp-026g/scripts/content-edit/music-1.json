@@ -1,0 +1,178 @@
+{
+ "_about": "The music's map themes (exe patch 88; srp-026g/docs/notes/music.md): every playable mode file names its map's loading theme as retail 0.69d's do (mode.ui.loading_music, read when the loading starts: lobby_menu::switch_to_level_loading's mode/ui). Levels 1 to 9 their own (music/level_0N_loading, pack music@1); the ported maps their original's: Vostok Radar Station v0.21 and v0.11 level_03's, Mamayev Kurgan v0.21 level_06's, Chemical Plant v0.11 level_04's; Research's (mode 5) its level's. Not the test, loopback and gather_server_resources modes. A new map adds its files here; a mode without the key has no theme.",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/game_modes/level_01_day_2.options",
+    "gameplay/game_modes/level_01_day_3.options",
+    "gameplay/game_modes/level_01_day_4.options",
+    "gameplay/game_modes/level_01_day_5.options",
+    "gameplay/game_modes/level_01_evn_2.options",
+    "gameplay/game_modes/level_01_evn_3.options",
+    "gameplay/game_modes/level_01_evn_4.options",
+    "gameplay/game_modes/level_01_evn_5.options",
+    "gameplay/game_modes/level_01_rain_2.options",
+    "gameplay/game_modes/level_01_rain_3.options",
+    "gameplay/game_modes/level_01_rain_4.options",
+    "gameplay/game_modes/level_01_rain_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_01_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_02_day_2.options",
+    "gameplay/game_modes/level_02_day_3.options",
+    "gameplay/game_modes/level_02_day_4.options",
+    "gameplay/game_modes/level_02_day_5.options",
+    "gameplay/game_modes/level_02_evn_2.options",
+    "gameplay/game_modes/level_02_evn_3.options",
+    "gameplay/game_modes/level_02_evn_4.options",
+    "gameplay/game_modes/level_02_evn_5.options",
+    "gameplay/game_modes/level_02_rain_2.options",
+    "gameplay/game_modes/level_02_rain_3.options",
+    "gameplay/game_modes/level_02_rain_4.options",
+    "gameplay/game_modes/level_02_rain_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_02_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_03_day_2.options",
+    "gameplay/game_modes/level_03_day_3.options",
+    "gameplay/game_modes/level_03_day_4.options",
+    "gameplay/game_modes/level_03_day_5.options",
+    "gameplay/game_modes/level_03_evn_2.options",
+    "gameplay/game_modes/level_03_evn_3.options",
+    "gameplay/game_modes/level_03_evn_4.options",
+    "gameplay/game_modes/level_03_evn_5.options",
+    "gameplay/game_modes/level_03_rain_2.options",
+    "gameplay/game_modes/level_03_rain_3.options",
+    "gameplay/game_modes/level_03_rain_4.options",
+    "gameplay/game_modes/level_03_rain_5.options",
+    "gameplay/game_modes/v011e_level_03_day_2.options",
+    "gameplay/game_modes/v011e_level_03_day_4.options",
+    "gameplay/game_modes/v021d_level_03_day_2.options",
+    "gameplay/game_modes/v021d_level_03_day_4.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_03_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_04_day_2.options",
+    "gameplay/game_modes/level_04_day_3.options",
+    "gameplay/game_modes/level_04_day_4.options",
+    "gameplay/game_modes/level_04_day_5.options",
+    "gameplay/game_modes/level_04_evn_2.options",
+    "gameplay/game_modes/level_04_evn_3.options",
+    "gameplay/game_modes/level_04_evn_4.options",
+    "gameplay/game_modes/level_04_evn_5.options",
+    "gameplay/game_modes/level_04_rain_2.options",
+    "gameplay/game_modes/level_04_rain_3.options",
+    "gameplay/game_modes/level_04_rain_4.options",
+    "gameplay/game_modes/level_04_rain_5.options",
+    "gameplay/game_modes/v011e_level_04_day_2.options",
+    "gameplay/game_modes/v011e_level_04_day_4.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_04_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_05_day_2.options",
+    "gameplay/game_modes/level_05_day_3.options",
+    "gameplay/game_modes/level_05_day_4.options",
+    "gameplay/game_modes/level_05_day_5.options",
+    "gameplay/game_modes/level_05_evn_2.options",
+    "gameplay/game_modes/level_05_evn_3.options",
+    "gameplay/game_modes/level_05_evn_4.options",
+    "gameplay/game_modes/level_05_evn_5.options",
+    "gameplay/game_modes/level_05_rain_2.options",
+    "gameplay/game_modes/level_05_rain_3.options",
+    "gameplay/game_modes/level_05_rain_4.options",
+    "gameplay/game_modes/level_05_rain_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_05_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_06_day_2.options",
+    "gameplay/game_modes/level_06_day_3.options",
+    "gameplay/game_modes/level_06_day_4.options",
+    "gameplay/game_modes/level_06_day_5.options",
+    "gameplay/game_modes/level_06_evn_2.options",
+    "gameplay/game_modes/level_06_evn_3.options",
+    "gameplay/game_modes/level_06_evn_4.options",
+    "gameplay/game_modes/level_06_evn_5.options",
+    "gameplay/game_modes/level_06_rain_2.options",
+    "gameplay/game_modes/level_06_rain_3.options",
+    "gameplay/game_modes/level_06_rain_4.options",
+    "gameplay/game_modes/level_06_rain_5.options",
+    "gameplay/game_modes/v021d_level_06_day_2.options",
+    "gameplay/game_modes/v021d_level_06_day_4.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_06_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_07_day_2.options",
+    "gameplay/game_modes/level_07_day_3.options",
+    "gameplay/game_modes/level_07_day_4.options",
+    "gameplay/game_modes/level_07_day_5.options",
+    "gameplay/game_modes/level_07_evn_2.options",
+    "gameplay/game_modes/level_07_evn_3.options",
+    "gameplay/game_modes/level_07_evn_4.options",
+    "gameplay/game_modes/level_07_evn_5.options",
+    "gameplay/game_modes/level_07_rain_2.options",
+    "gameplay/game_modes/level_07_rain_3.options",
+    "gameplay/game_modes/level_07_rain_4.options",
+    "gameplay/game_modes/level_07_rain_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_07_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_08_day_2.options",
+    "gameplay/game_modes/level_08_day_3.options",
+    "gameplay/game_modes/level_08_day_4.options",
+    "gameplay/game_modes/level_08_day_5.options",
+    "gameplay/game_modes/level_08_evn_2.options",
+    "gameplay/game_modes/level_08_evn_3.options",
+    "gameplay/game_modes/level_08_evn_4.options",
+    "gameplay/game_modes/level_08_evn_5.options",
+    "gameplay/game_modes/level_08_night_2.options",
+    "gameplay/game_modes/level_08_night_3.options",
+    "gameplay/game_modes/level_08_prerain_2.options",
+    "gameplay/game_modes/level_08_prerain_3.options",
+    "gameplay/game_modes/level_08_prerain_4.options",
+    "gameplay/game_modes/level_08_prerain_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_08_loading"
+  },
+  {
+   "files": [
+    "gameplay/game_modes/level_09_day_2.options",
+    "gameplay/game_modes/level_09_day_3.options",
+    "gameplay/game_modes/level_09_day_4.options",
+    "gameplay/game_modes/level_09_day_5.options"
+   ],
+   "table": "mode/ui",
+   "key": "loading_music",
+   "value": "music/level_09_loading"
+  }
+ ]
+}

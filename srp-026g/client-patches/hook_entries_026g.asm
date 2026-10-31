@@ -1155,6 +1155,45 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
+global drug_interrupt_on_hit_applied
+extern hook_drug_interrupt_on_hit_applied
+drug_interrupt_on_hit_applied:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_drug_interrupt_on_hit_applied
+    mov edx, drug_interrupt_on_hit_applied_replay
+    cmp eax, 0
+    je drug_interrupt_on_hit_applied_go
+    mov edx, 0x2d9cb7
+    cmp eax, 1
+    je drug_interrupt_on_hit_applied_go
+    ud2
+drug_interrupt_on_hit_applied_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+drug_interrupt_on_hit_applied_replay:
+    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
+    jmp 0x2d9cb7
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain
@@ -1805,6 +1844,282 @@ map_names_on_key_go:
 map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
+
+; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
+global music_on_frame
+extern hook_music_on_frame
+music_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_frame
+    mov edx, music_on_frame_replay
+    cmp eax, 0
+    je music_on_frame_go
+    mov edx, 0x1ec8f2
+    cmp eax, 1
+    je music_on_frame_go
+    ud2
+music_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_frame_replay:
+    db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
+    jmp 0x1ec8f2
+
+; 0x21eac8 login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown: lohook -> music_on_login
+global music_on_login
+extern hook_music_on_login
+music_on_login:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_login
+    mov edx, music_on_login_replay
+    cmp eax, 0
+    je music_on_login_go
+    mov edx, 0x21eace
+    cmp eax, 1
+    je music_on_login_go
+    ud2
+music_on_login_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_login_replay:
+    db 0x8b, 0x8e, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x21eace
+
+; 0x21d31d lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match: lohook -> music_on_lobby
+global music_on_lobby
+extern hook_music_on_lobby
+music_on_lobby:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_lobby
+    mov edx, music_on_lobby_replay
+    cmp eax, 0
+    je music_on_lobby_go
+    mov edx, 0x21d323
+    cmp eax, 1
+    je music_on_lobby_go
+    ud2
+music_on_lobby_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_lobby_replay:
+    db 0x8b, 0x8f, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x21d323
+
+; 0x2204b3 lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui: lohook -> music_on_loading
+global music_on_loading
+extern hook_music_on_loading
+music_on_loading:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_loading
+    mov edx, music_on_loading_replay
+    cmp eax, 0
+    je music_on_loading_go
+    mov edx, 0x2204b9
+    cmp eax, 1
+    je music_on_loading_go
+    ud2
+music_on_loading_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_loading_replay:
+    db 0x8b, 0xc6, 0x89, 0x74, 0x24, 0x0c
+    jmp 0x2204b9
+
+; 0x23b36a update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends: lohook -> music_on_announced
+global music_on_announced
+extern hook_music_on_announced
+music_on_announced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_announced
+    mov edx, music_on_announced_replay
+    cmp eax, 0
+    je music_on_announced_go
+    mov edx, 0x23b371
+    cmp eax, 1
+    je music_on_announced_go
+    ud2
+music_on_announced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_announced_replay:
+    db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
+    jmp 0x23b371
+
+; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world: lohook -> music_on_unload
+global music_on_unload
+extern hook_music_on_unload
+music_on_unload:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_unload
+    mov edx, music_on_unload_replay
+    cmp eax, 0
+    je music_on_unload_go
+    mov edx, 0x1ed03a
+    cmp eax, 1
+    je music_on_unload_go
+    ud2
+music_on_unload_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_unload_replay:
+    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
+    jmp 0x1ed03a
+
+; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
+global music_on_sound_tick
+extern hook_music_on_sound_tick
+music_on_sound_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_sound_tick
+    mov edx, music_on_sound_tick_replay
+    cmp eax, 0
+    je music_on_sound_tick_go
+    mov edx, 0x59ab7
+    cmp eax, 1
+    je music_on_sound_tick_go
+    ud2
+music_on_sound_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_sound_tick_replay:
+    db 0x8b, 0xb7, 0xe4, 0x48, 0x00, 0x00
+    jmp 0x59ab7
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull

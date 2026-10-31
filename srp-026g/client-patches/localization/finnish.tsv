@@ -2462,6 +2462,7 @@ st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Ryhmässä
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
 st_srp_pvb_busy	%1$s (varattu)
@@ -2519,6 +2520,7 @@ st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.
 st_srp_rooms_code_13	Varustesettisi ei kelvannut peliin (ase puuttui tai ammuksia oli liian vähän), joten sinut poistettiin huoneesta.
 st_srp_rooms_code_14	Varustesetin valinta epäonnistui.
 st_srp_rooms_code_16	Liity julkiseen huoneeseen painamalla Pelaa.
+st_srp_rooms_code_17	Ryhmän johtaja valitsee huoneen.
 st_srp_rooms_code_2	Huonetta ei enää ole.
 st_srp_rooms_code_3	Väärä PIN-koodi.
 st_srp_rooms_code_4	Huone on täynnä.
@@ -2694,6 +2696,34 @@ st_stats_saved	Pelastettu:
 st_stats_silent_kills	Hiljaiset tapot:
 st_stats_stolen_victory_items	Varastetut akut:
 st_status_str	Tila:
+st_stk2_bandit_026_boots_desc	Kuluneet lenkkarit perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_boots_name	Lenkkarit
+st_stk2_bandit_026_legs_desc	Raidalliset verryttelyhousut perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_legs_name	Verryttelyhousut
+st_stk2_bandit_026_torso_desc	Musta nahkainen bomber-takki T-paidan päällä perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_bandit_026_torso_name	Nahkainen bomber-takki
+st_stk2_loner_026_boots_desc	Yksinäisen nauhalliset nahkasaappaat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_boots_name	Yksinäisen saappaat
+st_stk2_loner_026_hand_desc	Yksinäisen sormettomat hanskat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_hand_name	Yksinäisen sormettomat käsineet
+st_stk2_loner_026_legs_desc	Maastohousut polvisuojilla, koteloilla ja taskuilla perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_legs_name	Yksinäisen maastohousut
+st_stk2_loner_026_torso_desc	Huputettu takki taskullisen kantoliivin alla perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_loner_026_torso_name	Yksinäisen takki ja liivi
+st_stk2_novice_026_back_desc	Aloittelevan stalkerin yksihihnainen kangasreppu perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_back_name	Tulokkaan reppu
+st_stk2_novice_026_boots_desc	Aloittelevan stalkerin nahkasaappaat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_boots_name	Tulokkaan saappaat
+st_stk2_novice_026_hand_desc	Aloittelevan stalkerin sormettomat hanskat perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_hand_name	Tulokkaan sormettomat käsineet
+st_stk2_novice_026_hood_desc	Aloittelevan stalkerin kangashuppu perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_hood_name	Tulokkaan huppu
+st_stk2_novice_026_legs_desc	Aloittelevan stalkerin kuluneet farkut perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_legs_name	Tulokkaan farkut
+st_stk2_novice_026_torso_desc	Aloittelevan stalkerin kenttätakki, vyöllä juomapullo ja veitsi, perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_torso_name	Tulokkaan kenttätakki
+st_stk2_novice_026_torso_v2_desc	Aloittelevan stalkerin kenttätakki, vyöllä kaksi taskua, perutusta S.T.A.L.K.E.R. 2:sta.
+st_stk2_novice_026_torso_v2_name	Tulokkaan kenttätakki taskuilla
 st_storage	Varasto
 st_string_pattern_error	Nimessä on virheellisiä merkkejä tai se on liian pitkä tai lyhyt
 st_support	Tuki

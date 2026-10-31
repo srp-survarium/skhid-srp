@@ -2462,6 +2462,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
+st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
 st_srp_pvb_busy	%1$s (занято)
@@ -2519,6 +2520,7 @@ st_srp_rooms_code_12	Ваше снаряжение выше макс. уровн
 st_srp_rooms_code_13	Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.
 st_srp_rooms_code_14	Не удалось выбрать комплект.
 st_srp_rooms_code_16	Нажмите «Играть», чтобы войти в открытую комнату.
+st_srp_rooms_code_17	Комнату выбирает командир отряда.
 st_srp_rooms_code_2	Этой комнаты больше нет.
 st_srp_rooms_code_3	Неверный PIN.
 st_srp_rooms_code_4	Комната заполнена.
@@ -2694,6 +2696,34 @@ st_stats_saved	Спасено:
 st_stats_silent_kills	Незаметных убийств:
 st_stats_stolen_victory_items	Украдено батарей:
 st_status_str	Статус:
+st_stk2_bandit_026_boots_desc	Поношенные кроссовки, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Кроссовки
+st_stk2_bandit_026_legs_desc	Спортивные штаны с лампасами, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Спортивные штаны
+st_stk2_bandit_026_torso_desc	Чёрный кожаный бомбер поверх футболки, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Кожаный бомбер
+st_stk2_loner_026_boots_desc	Кожаные ботинки одиночки на шнуровке, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Ботинки одиночки
+st_stk2_loner_026_hand_desc	Беспалые перчатки одиночки, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Беспалые перчатки одиночки
+st_stk2_loner_026_legs_desc	Камуфляжные штаны с наколенниками, кобурой и подсумками, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Камуфляжные штаны одиночки
+st_stk2_loner_026_torso_desc	Куртка с капюшоном под разгрузочным жилетом с подсумками, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Куртка одиночки с разгрузкой
+st_stk2_novice_026_back_desc	Брезентовый рюкзак сталкера-новичка на одной лямке, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Рюкзак новичка
+st_stk2_novice_026_boots_desc	Кожаные ботинки сталкера-новичка, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Ботинки новичка
+st_stk2_novice_026_hand_desc	Беспалые перчатки сталкера-новичка, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Беспалые перчатки новичка
+st_stk2_novice_026_hood_desc	Брезентовый капюшон сталкера-новичка, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Капюшон новичка
+st_stk2_novice_026_legs_desc	Поношенные джинсы сталкера-новичка, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Джинсы новичка
+st_stk2_novice_026_torso_desc	Полевая куртка сталкера-новичка с флягой и ножом на ремне, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Полевая куртка новичка
+st_stk2_novice_026_torso_v2_desc	Полевая куртка сталкера-новичка с двумя подсумками на ремне, из отменённого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Полевая куртка новичка с подсумками
 st_storage	Склад
 st_string_pattern_error	Имя содержит некорректные символы либо длину
 st_support	Поддержка
