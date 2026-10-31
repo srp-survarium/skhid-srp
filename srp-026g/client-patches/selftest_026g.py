@@ -3941,7 +3941,7 @@ def test_blackout(original, image, before):
           "dword and sends every key to its end while bl is set (0x25CD39); update_ui calls update_player_icons "
           "with the ui pushed (0x23B206)")
     import hooks_026g
-    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "blackout"]
+    hooks = [h for h in hooks_026g.hooks() if any(m["patch"] == "blackout" for m in h.get("chain", [h]))]
     linked = P.arena()
     block = linked.blocks["patches.code"]
     state = linked.blocks.get("patches.state")

@@ -279,6 +279,162 @@ artefact_carry_on_load_replay:
     db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
     jmp 0x2dbabc
 
+; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> artefact_carry_on_hud
+global artefact_carry_on_hud
+extern hook_artefact_carry_on_hud_chain
+artefact_carry_on_hud:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_hud_chain
+    mov edx, artefact_carry_on_hud_replay
+    cmp eax, 0
+    je artefact_carry_on_hud_go
+    mov edx, 0x23aa16
+    cmp eax, 1
+    je artefact_carry_on_hud_go
+    ud2
+artefact_carry_on_hud_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_hud_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x23aa16
+
+; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> blackout_on_input_end
+global blackout_on_input_end
+extern hook_blackout_on_input_end_chain
+blackout_on_input_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_input_end_chain
+    mov edx, blackout_on_input_end_replay
+    cmp eax, 0
+    je blackout_on_input_end_go
+    mov edx, 0x2421b5
+    cmp eax, 1
+    je blackout_on_input_end_go
+    ud2
+blackout_on_input_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_input_end_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x2421b5
+
+; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> artefact_carry_on_cull
+global artefact_carry_on_cull
+extern hook_artefact_carry_on_cull_chain
+artefact_carry_on_cull:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_cull_chain
+    mov edx, artefact_carry_on_cull_replay
+    cmp eax, 0
+    je artefact_carry_on_cull_go
+    mov edx, 0x247583
+    cmp eax, 1
+    je artefact_carry_on_cull_go
+    ud2
+artefact_carry_on_cull_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_cull_replay:
+    db 0x80, 0xbb, 0xe2, 0xf4, 0x00, 0x00, 0x00
+    jmp 0x247583
+
+; 0x247716 mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame): lohook -> artefact_carry_on_bones
+global artefact_carry_on_bones
+extern hook_artefact_carry_on_bones_chain
+artefact_carry_on_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_bones_chain
+    mov edx, artefact_carry_on_bones_replay
+    cmp eax, 0
+    je artefact_carry_on_bones_go
+    mov edx, 0x24771c
+    cmp eax, 1
+    je artefact_carry_on_bones_go
+    ud2
+artefact_carry_on_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_bones_replay:
+    db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
+    jmp 0x24771c
+
 ; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones: lohook -> artefact_carry_on_weapon
 global artefact_carry_on_weapon
 extern hook_artefact_carry_on_weapon
@@ -960,45 +1116,6 @@ blackout_on_replay_options_replay:
     db 0x5e, 0x5b, 0x83, 0xc4, 0x34
     jmp 0x1f0976
 
-; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
-global blackout_on_update_icons
-extern hook_blackout_on_update_icons_chain
-blackout_on_update_icons:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_blackout_on_update_icons_chain
-    mov edx, blackout_on_update_icons_replay
-    cmp eax, 0
-    je blackout_on_update_icons_go
-    mov edx, 0x23aa16
-    cmp eax, 1
-    je blackout_on_update_icons_go
-    ud2
-blackout_on_update_icons_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-blackout_on_update_icons_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x23aa16
-
 ; 0x25cd2c game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39): lohook -> blackout_on_tab
 global blackout_on_tab
 extern hook_blackout_on_tab
@@ -1037,45 +1154,6 @@ blackout_on_tab_go:
 blackout_on_tab_replay:
     db 0x8b, 0x4c, 0x24, 0x14, 0x8d, 0x77, 0x04
     jmp 0x25cd33
-
-; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> blackout_on_input_end
-global blackout_on_input_end
-extern hook_blackout_on_input_end
-blackout_on_input_end:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_blackout_on_input_end
-    mov edx, blackout_on_input_end_replay
-    cmp eax, 0
-    je blackout_on_input_end_go
-    mov edx, 0x2421b5
-    cmp eax, 1
-    je blackout_on_input_end_go
-    ud2
-blackout_on_input_end_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-blackout_on_input_end_replay:
-    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
-    jmp 0x2421b5
 
 ; 0x1f2f10 render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only: lohook -> blackout_on_name_visibility
 global blackout_on_name_visibility
@@ -2396,84 +2474,6 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
-
-; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
-global ragdoll_on_cull
-extern hook_ragdoll_on_cull
-ragdoll_on_cull:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_cull
-    mov edx, ragdoll_on_cull_replay
-    cmp eax, 0
-    je ragdoll_on_cull_go
-    mov edx, 0x247583
-    cmp eax, 1
-    je ragdoll_on_cull_go
-    ud2
-ragdoll_on_cull_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_cull_replay:
-    db 0x80, 0xbb, 0xe2, 0xf4, 0x00, 0x00, 0x00
-    jmp 0x247583
-
-; 0x247716 mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame): lohook -> ragdoll_on_bones
-global ragdoll_on_bones
-extern hook_ragdoll_on_bones
-ragdoll_on_bones:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_bones
-    mov edx, ragdoll_on_bones_replay
-    cmp eax, 0
-    je ragdoll_on_bones_go
-    mov edx, 0x24771c
-    cmp eax, 1
-    je ragdoll_on_bones_go
-    ud2
-ragdoll_on_bones_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_bones_replay:
-    db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
-    jmp 0x24771c
 
 ; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
 global ragdoll_on_eye

@@ -29,8 +29,28 @@ handler = "on_save"
 site = "carry.load"
 handler = "on_load"
 
-# Shared sites compose explicitly in blackout::on_input_end and ragdoll's
-# on_bones/on_cull; there is one installed detour at each address.
+# Shared sites (lohook chains): before patch 65's icons and patch 76's cull
+# and bones, after patch 65's input filter.
+
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_hud"
+order = 0
+
+[[hook]]
+site = "input_builder.end"
+handler = "on_input_end"
+order = 1
+
+[[hook]]
+site = "player_draw.cull"
+handler = "on_cull"
+order = 0
+
+[[hook]]
+site = "player_draw.bones"
+handler = "on_bones"
+order = 0
 
 [[hook]]
 site = "carry.weapon"

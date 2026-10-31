@@ -198,7 +198,7 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-pub fn on_hud(ctx: &Context<'_>) {
+pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // Shown only when Use would take: otherwise the native hint stays.
     let text = native::local_player(ctx).filter(|p| target(p, ctx).is_some() || ground_target(p).is_some())
         .map(|_| c"st_artefact_take_teammate");
@@ -208,9 +208,10 @@ pub fn on_hud(ctx: &Context<'_>) {
         let next = Some((movie.id(), visible));
         // Refresh visible prompts while chat/profile visibility changes in
         // the movie, even if the world target itself did not change.
-        if !visible && previous.is_none_or(|(id, shown)| id != movie.id() || !shown) { return; }
+        if !visible && previous.is_none_or(|(id, shown)| id != movie.id() || !shown) { return Flow::Continue; }
         if movie.invoke_text(c"root.show_artefact_offer", text.unwrap_or(c"")) { HINT.set(ctx.thread(), next); }
     }
+    Flow::Continue
 }
 
 fn v([x, y, z]: [f32; 3]) -> Vec3 { Vec3::new(x, y, z) }
