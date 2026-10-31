@@ -165,6 +165,25 @@ mod tests {
         assert!((held.y - 3.0).abs() < 0.1 && held.x > 10.9, "held, it stays on the ledge: {held:?}");
     }
 
+    /// The height of `t` over the point (x, z) and its slope in degrees, when the point is inside the face's footprint and the face is not
+    /// upright.
+    fn face_at(t: &mapdata::Triangle, x: f32, z: f32) -> Option<(f32, f32)> {
+        let [a, b, c] = t.v;
+        let det = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+        if det.abs() < 1e-9 {
+            return None;
+        }
+        let l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / det;
+        let l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / det;
+        let l3 = 1.0 - l1 - l2;
+        if l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4 {
+            return None;
+        }
+        let n = (b - a).cross(c - a);
+        let deg = (n.y.abs() / n.length()).clamp(-1.0, 1.0).acos().to_degrees();
+        Some((l1 * a.y + l2 * b.y + l3 * c.y, deg))
+    }
+
     /// A measurement (A199): the lattice's floors and walk links around a point of a real map, how high a chain of walk links (each at most the
     /// grid body's step) reaches within a radius, and the height a body walking straight west from the point makes on `slide_supported` and
     /// `slide_capped`. `SRP_MAPDATA_DIR=<mapdata folder> SRP_CLIMB_PROJECT=level_04/day_4 SRP_CLIMB_AT=108.62,11.54,73.82 SRP_CLIMB_DIR=-1,0
@@ -228,6 +247,35 @@ mod tests {
         for n in chain.iter().rev() {
             let p = grid.position(*n);
             println!("  chain floor {:.3} {:.3} {:.3}", p.x, p.y, p.z);
+        }
+        // The walker faces along the chain's first metre, every 0.125 m: each face whose footprint holds the point, within 1.5 m of the
+        // floors' heights there, with its height and slope. A real stair shows flat treads (slope under 50 deg, the client's
+        // `impassable_slope`) at the floors' heights; one slanted face steeper than 50 deg is ground the client neither walks nor steps.
+        {
+            let faces = world.map.walker_triangles();
+            let ordered: Vec<Vec3> = chain.iter().rev().map(|&n| grid.position(n)).collect();
+            let mut walked = 0.0;
+            for pair in ordered.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                let d = a.distance_xz(b);
+                let parts = (d / 0.125).ceil().max(1.0) as usize;
+                for k in 0..parts {
+                    let s = k as f32 / parts as f32;
+                    let at = Vec3::new(a.x + (b.x - a.x) * s, a.y + (b.y - a.y) * s, a.z + (b.z - a.z) * s);
+                    let mut under: Vec<(f32, f32)> = faces
+                        .iter()
+                        .filter_map(|t| face_at(t, at.x, at.z))
+                        .filter(|&(y, _)| (y - at.y).abs() <= 1.5)
+                        .collect();
+                    under.sort_by(|p, q| p.0.total_cmp(&q.0));
+                    let list: Vec<String> = under.iter().map(|(y, deg)| format!("{y:.2}@{deg:.0}deg")).collect();
+                    println!("  face at {:.2} {:.2} (along {walked:.2} m, chain {:.2}): {}", at.x, at.z, at.y, list.join(" "));
+                    walked += d / parts as f32;
+                }
+                if walked > 1.0 {
+                    break;
+                }
+            }
         }
         // A body walking along `dir`, 0.2 m a tick, 30 ticks.
         let (len, ) = (dir_xz[0].hypot(dir_xz[1]),);
