@@ -4425,7 +4425,8 @@ mod tests {
         s.current = Some((PlayKind::Collect, target, s.view.clock));
         let mut rng = Rng::new(1);
         let at = s.view.container_of(0).map(|c| c.at).expect("our container");
-        let wait = s.tuning.unstick.home_no_way_ms.expect("on by default");
+        s.tuning.unstick.home_no_way_ms = Some(20_000);
+        let wait = 20_000;
         let mut state = State::Bring { via: None };
         // Every search for the way home failed lately: stranded, with its end.
         s.no_way_to = vec![(at, s.view.clock + 5_000)];
