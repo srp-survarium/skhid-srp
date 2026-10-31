@@ -871,11 +871,37 @@ impl MoveCounts {
         let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
         let mut pre = PreCounts::default();
         let mut blips = 0u32;
+        // By team, and by where and how it ended: at a lip's floors or not, then the body fell (a drop of `UP_DOWN_M` within the next
+        // 3 s), died, or went on (the recovery that ended it is the unstick's, not told here).
+        let mut stuck_team: BTreeMap<String, (u32, f32)> = BTreeMap::new();
+        let mut stuck_end: BTreeMap<String, (u32, f32)> = BTreeMap::new();
+        let grid = &game.world.grid;
         for place in (0..n).filter(|&p| run.is_bot[p]) {
             let (eps, b) = self.stuck_episodes(run, place, &teams, presses);
             blips += b;
             for e in eps {
                 pre.add(run, e.cause, place, e.k0);
+                let recs = &run.recs[place];
+                let k_end = run.index((e.t1 * 1000.0) as u32).min(recs.len() - 1);
+                let k_after = (k_end + 3 * TPS).min(recs.len() - 1);
+                let end = if recs[k_end..=k_after].iter().any(|r| !r.alive) {
+                    "died"
+                } else if recs[k_end..=k_after].iter().any(|r| recs[k_end].feet.y - r.feet.y >= UP_DOWN_M) {
+                    "fell"
+                } else {
+                    "went_on"
+                };
+                let lip = grid.locate(e.at, 1.5).is_some_and(|f| grid.near_lip(f) || grid.is_lip(f));
+                let seconds = e.t1 - e.t0;
+                let place_name = if lip { "lip" } else { "off_lip" };
+                let bump = |map: &mut BTreeMap<String, (u32, f32)>, name: String| {
+                    let c = map.entry(name).or_default();
+                    c.0 += 1;
+                    c.1 += seconds;
+                };
+                bump(&mut stuck_team, format!("team{}", teams[place]));
+                bump(&mut stuck_end, format!("{place_name}_{end}"));
+                bump(&mut stuck_end, format!("team{}_{place_name}_{end}", teams[place]));
                 for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
                     let c = map.entry(name).or_default();
                     c.0 += 1;
@@ -901,6 +927,8 @@ impl MoveCounts {
             "stuck_s": stuck_s.round(),
             "stuck_by": round(stuck),
             "stuck_by_cause": round(stuck_cause),
+            "stuck_by_team": stuck_team.into_iter().map(|(k, (c, s))| (k, (c, s.round()))).collect::<BTreeMap<_, _>>(),
+            "stuck_end": stuck_end.into_iter().map(|(k, (c, s))| (k, (c, s.round()))).collect::<BTreeMap<_, _>>(),
             "stood_by_legs": self.stood,
             "stuck_pre_5s": pre.by_json(),
             "stuck_play": pre.plays,
@@ -1097,6 +1125,10 @@ pub(crate) fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_caus
     assert_eq!(json["stuck_by"]["stand"][0], 1, "{json}");
     assert_eq!(json["stuck_by"]["watch"][0], 1, "{json}");
     assert_eq!(json["stuck"], 3);
+    let by_team: u64 = json["stuck_by_team"].as_object().unwrap().values().map(|v| v[0].as_u64().unwrap()).sum();
+    assert_eq!(by_team, 3, "every episode is of one team: {json}");
+    let ended: u64 = json["stuck_end"].as_object().unwrap().iter().filter(|(k, _)| !k.starts_with("team")).map(|(_, v)| v[0].as_u64().unwrap()).sum();
+    assert_eq!(ended, 3, "every episode ended somewhere, at a lip or not: {json}");
     assert_eq!(json["stuck_by_cause"]["wall_no_line"][0], 1);
     assert_eq!(json["stuck_by_cause"]["stand"][0], 1);
     assert_eq!(json["stuck_by_cause"]["wall"][0], 1);

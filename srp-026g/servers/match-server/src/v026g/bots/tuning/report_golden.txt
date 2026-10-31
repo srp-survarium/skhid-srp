@@ -3,7 +3,7 @@ switches ON avoid: bot_pockets grenade_avoid kit_in_use
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_apart_mates crossfire_point cut_given_crowd held_in_pass hold_to_arrival
 switches ON cover: spot_cost=0.5
-switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps sprint_through unclear_aim zone_lines
+switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim zone_lines
 switches ON grid: client_numbers crouch_floors exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
@@ -22,7 +22,7 @@ switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
-switches OFF feel: fight_lift floor_height_clear lip_guard_full
+switches OFF feel: fight_lift floor_height_clear
 switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
@@ -35,7 +35,7 @@ switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped com
 switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values kin: edge=lattice jump_snap=by_keys pitch_scale=client
+switch values kin: edge=client jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
