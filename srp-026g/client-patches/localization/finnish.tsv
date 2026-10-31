@@ -2392,7 +2392,7 @@ st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
-st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
+st_srp_language_restart	Vaatii uudelleenkäynnistyksen.
 st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle
 st_srp_loadout_block_locked	Tämä profiili on lukittu
 st_srp_loadout_block_maintenance	Palvelinhuolto alkaa %1$s min kuluttua
