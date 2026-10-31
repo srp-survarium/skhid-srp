@@ -45,6 +45,7 @@ use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::bots::Bot;
 use crate::v026g::drive::key;
 
+mod answer;
 mod campers;
 mod damage_zones;
 mod feel;
@@ -57,12 +58,15 @@ mod gun_shots;
 mod heal;
 mod hit_shapes;
 mod jumps;
+mod kick_gap;
 mod live_list;
 mod metrics;
 mod moving;
 mod outcomes;
+mod outranged;
 mod pace;
 mod pierce;
+mod pin_cover;
 mod pitch_bands;
 mod pockets;
 mod pre;
@@ -71,18 +75,22 @@ mod run;
 mod scoreboard;
 mod search_queue;
 mod sense_counts;
+mod shot_bands;
+mod shot_heights;
 mod shot_offsets;
 mod sight;
 mod smoke;
 mod snipers;
 mod spacing;
 mod stamina;
+mod steals;
 mod stock;
 mod team_kills;
 mod threat_answer;
 mod through;
 mod topic;
 mod worth;
+mod zone_deaths;
 
 use campers::*;
 use damage_zones::*;
@@ -95,12 +103,16 @@ use gun_shots::GunShots;
 use heal::*;
 use hit_shapes::*;
 use jumps::*;
+use kick_gap::*;
 use live_list::*;
 use metrics::*;
 use moving::*;
+use answer::*;
 use outcomes::*;
+use outranged::*;
 use pace::*;
 use pierce::*;
+use pin_cover::*;
 use pitch_bands::*;
 use pockets::*;
 use pre::*;
@@ -110,17 +122,21 @@ use scoreboard::*;
 use search_queue::*;
 use sense_counts::*;
 use snipers::SniperCounts;
+use shot_bands::*;
+use shot_heights::*;
 use shot_offsets::*;
 use sight::*;
 use smoke::*;
 use spacing::*;
 use stamina::*;
+use steals::StealCounts;
 use stock::*;
 use team_kills::*;
 use threat_answer::*;
 use through::*;
 use topic::*;
 use worth::*;
+use zone_deaths::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
@@ -133,6 +149,8 @@ struct Rec {
     keys: u32,
     feet: Vec3,
     yaw: f32,
+    /// The elevation the view looks along, radians (the base pitch and the weapon's kick through the pitch unit's scale, as
+    /// the bots and the client reckon it): a grenade leaves along it.
     pitch: f32,
     /// m/s over the tick.
     speed: f32,

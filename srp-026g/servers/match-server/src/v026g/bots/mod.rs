@@ -27,8 +27,10 @@
 //! on bodies and statistics, the map once its grid is built; and the
 //! inputs the bots make.
 
+pub mod aim_settle;
 pub mod aimpoint;
 pub mod anomalies;
+pub mod apart;
 pub mod arc;
 pub mod artefact_know;
 pub mod body;
@@ -42,6 +44,7 @@ pub mod curve;
 pub mod encode;
 pub mod escape;
 pub mod field_source;
+pub mod flight;
 pub mod foliage;
 pub mod friends;
 pub mod grass;
@@ -52,6 +55,7 @@ pub mod hazards;
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod link_time;
 pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
@@ -156,6 +160,7 @@ use objective::Mode;
 use path::Route;
 use plays::BotFacts;
 use plays::Ctx;
+use plays::EscapeWhy;
 use plays::Go;
 use plays::Intent;
 use plays::Look;
@@ -290,6 +295,9 @@ pub struct Bot {
     /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
     #[cfg(test)]
     pub(crate) bench_stepped: u8,
+    /// The step apart from a teammate of the last drive tick (`spacing.apart`): 0 no teammate inside, 1 taken, 2 refused (no clear ground that side), 3 held off (the reflex strafes or fires, a use is held, a side key is down).
+    #[cfg(test)]
+    pub(crate) bench_apart: u8,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -304,6 +312,9 @@ pub struct Bot {
     /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
     #[cfg(test)]
     pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
+    /// The reflex's mirror of the kick at each of its last ticks (`time`, [`Reflex::seen`]): what the stand-in's own kick is read against.
+    #[cfg(test)]
+    pub(crate) bench_mirror: std::collections::VecDeque<(u32, (f32, u8))>,
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
@@ -475,6 +486,8 @@ impl Bot {
             #[cfg(test)]
             bench_stepped: 0,
             #[cfg(test)]
+            bench_apart: 0,
+            #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]
             bench_guard_dbg: 0,
@@ -484,6 +497,8 @@ impl Bot {
             bench_guard_at: ([0.0; 2], Vec3::ZERO),
             #[cfg(test)]
             bench_est: std::collections::VecDeque::new(),
+            #[cfg(test)]
+            bench_mirror: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
             #[cfg(test)]

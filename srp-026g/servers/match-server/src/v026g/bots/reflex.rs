@@ -86,7 +86,9 @@
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
+use survarium::v026g::weapons::Optic;
 
+use super::aim_settle::{self, Settle, SettleGuns};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
@@ -194,6 +196,33 @@ impl WeaponKind {
     }
 }
 
+/// Whether the aim's error angles scale with the zoom of the sights, as a player's hand does (the client turns the view by
+/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): a bench setting to size the effect,
+/// off in the game.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoomError {
+    /// The error angles are the skill's whatever the sights (today).
+    #[default]
+    Off,
+    /// Times the zoom of a scope (`fov_factor`, 0.25) while aimed in, ramped by the aim progress; iron sights unchanged.
+    Scopes,
+    /// As [`Self::Scopes`], and the iron sights' zoom (`1 / aim_zoom_factor`) too.
+    All,
+}
+
+impl ZoomError {
+    /// The factor on the error angles with the sights `optic` at aim progress `progress` (0 not aimed, 1 aimed in): the
+    /// camera's zoom `1 + (target - 1) x progress`.
+    pub fn factor(self, optic: Optic, progress: f32) -> f32 {
+        let target = match (self, optic) {
+            (Self::Off, _) | (Self::Scopes, Optic::Iron { .. }) => 1.0,
+            (Self::Scopes | Self::All, Optic::Scope { zoom }) | (Self::All, Optic::Iron { zoom }) => zoom,
+        };
+        1.0 + (target - 1.0) * progress.clamp(0.0, 1.0)
+    }
+}
+
 /// The reflex's numbers besides the aim (`AimTuning::combat`). None of
 /// them is mixed by skill but the pull against the kick (`recoil_pull_low`
 /// to `recoil_pull`): play 23 changes only aim and reaction.
@@ -249,6 +278,18 @@ pub struct CombatTuning {
     /// (only with `band_legs`).
     pub band_slack_m: f32,
     pub band_step_m: f32,
+    /// The range step is taken across the line to him by this angle, degrees (0: along it, as it was): a step in or back
+    /// out of the band that goes to one side of the line, longer by 1 / cos so that the way in or out is the same, and
+    /// the side the other way at every new step (the bench's bots crossed the shooter's line at 1.07 m/s while a range
+    /// step ran, the live humans' aimed-in 1.95: `gun_shots` by_driver, register #24). The step the side's floor refuses
+    /// goes to the other side, else along the line.
+    pub band_cross_deg: f32,
+    /// Aimed in and firing at a target in range, it stands on its feet and steps to the side only (no forward or back from its
+    /// route or a range step), for `stand_strafe_hold_ms` after the last tick the fight was on; then the play's way goes on
+    /// ([`Gait`]). The live players' side-key shots are 69 % pure side steps, the bench bots' 18 % (`gun_shots` aimed_run:
+    /// 82 % of theirs walk forward or back as well, and a diagonal crosses the line at 0.7 of its ground speed), register #24.
+    pub stand_strafe: bool,
+    pub stand_strafe_hold_ms: u32,
     pub band_legs: bool,
     /// Play 19: the bots' own spacing of spots, ms (the stock game's 3 s
     /// cooldown; client patch 38 has none); the same enemy is spotted
@@ -336,6 +377,16 @@ pub struct CombatTuning {
     /// blast's lethal reach is 2.4 m and its 10 m splash is wide, the
     /// roll's median is 2 m.
     pub grenade_off_m: f32,
+    /// [A187 R31] ... and, when set, the first contact's height more than this from the place's: not thrown, metres (the arc
+    /// came down on another storey or a ledge; `grenade_off_m` is on the ground plane only). A place is a body's feet or a spot's
+    /// floor; a floor is 3 m up. Of 151 smoke blasts 42 (28 %) went off more than 2.5 m above the place they were thrown at
+    /// (p75 +2.9 m, p90 +4.9 m). None: not asked (the throw as it was).
+    ///
+    /// Bench (smoke preset, 10 a side, 16 maps, seeds 1-8, the team with 2.5 m against the team without, sides swapped, 128 pairs, built on
+    /// the fixed tally of #859): the switch holds back the throws that would land on another storey (82 against 35 "lands off the place"
+    /// in 64 pairs, 414 throws against 476) and the team takes 20 % less `damage other` (144.1 against 180.6, z -3.0), but the outcome is
+    /// not moved: score +0.6 % (z +0.4), kills +0.9 %, deaths -1.0 %, and the by-side table disagrees (side A +11.8, side B -10.0). OFF.
+    pub grenade_off_y_m: Option<f32>,
     /// A teammate this near the line the grenade may run on, the first
     /// contact to [`arc::ROLL_WORST_M`] along its heading, and so on it:
     /// not thrown, metres. One in five blasts lay 8 m or more beyond the
@@ -496,6 +547,27 @@ pub struct CombatTuning {
     pub grenade_volley_ms: (u32, u32),
     /// ... a roll this often, ms.
     pub grenade_volley_every_ms: u32,
+    /// [A187 #10] The second grenade by evidence (only with `grenade_volley`): a roll in the window throws only when an enemy has
+    /// been sensed since the first was let go within `grenade_volley_near_m` of its place (a track of his, not in sight now, no
+    /// older than `grenade_volley_age_ms`), and at his place (a lost or heard one), not at the first's; with none the roll is no
+    /// throw and the frag is kept. The window runs to `grenade_volley_ms.1` after the let-go, past the first blast. Root cause of
+    /// the volley adding nothing (A181 #10, 4 seeds, 16 maps): it threw at the first's place 3.4 s later whatever had happened
+    /// there; the humans' second throw (5,101 lives with a throw, 2,054 pairs within 6 s) kills 14.7 per 100 when an enemy is within
+    /// 10 m of the blast and 4.5 when none is, 18.9 against 3.8 at the gaps of 3-4 s. Off: the volley as it was.
+    ///
+    /// Bench (A187 #10, smoke preset, 10 a side, 16 maps; OFF is the verdict, so both switches stay off): the enemy of the bench
+    /// is a bot that dodges (it moves a median 6.1-6.9 m between the two blasts, the humans' enemy 1.9 m) and the second grenade
+    /// lands on empty ground. By side (the team with the switch against the team without, sides swapped, 64 pairs): targets with
+    /// the avoidance on, score z +0.2 (D +0.74, SE 3.23); targets without it, a human stand-in, z +0.4 (D +1.17, SE 2.73): not
+    /// settled either way. Six seeds, avoidance off for both: enemy kills per 100 throws 11.6 without the volley, 9.5 with it
+    /// (the same place), 8.5 with the evidence; the thrower killed 0.2 / 0.0 / 0.4 and mates 1.3 / 0.8 / 0.8 per 100 throws. Against
+    /// a still hidden camper (64 map-runs an arm): 0 camper deaths at blasts in all three arms, second grenades near him 1 / 2 / 0;
+    /// the limit there is the first grenade's place.
+    pub grenade_volley_track: bool,
+    /// ... the evidence is within this of the first grenade's place, metres (the blast's reach).
+    pub grenade_volley_near_m: f32,
+    /// ... and is no older than this, ms.
+    pub grenade_volley_age_ms: u32,
     /// [C20 G3] The thrower's own blast floor (`grenade_land_m`, 12 m) is
     /// lowered to this for a place whose first contact is nearer than the
     /// floor and not nearer than this, when the thrower can walk out of the
@@ -759,9 +831,39 @@ pub struct CombatTuning {
     /// (`player_bots_behaviour.md` §2.12): with the pings, +1.1 points of hit
     /// rate alone.
     pub lead_target: bool,
+    /// The lead also covers the bullet's flight (`flight.rs`): the aim is at the place he reaches by the time the
+    /// ammunition gets there, along his velocity as the bot's picture has it, and the drop on the way is aimed over.
+    /// Before, the aim was where he is: the game's bullet flies (`bullet::tick` 0x32C180) and a target
+    /// strafing at 2.6 m/s is half a torso off at 23-28 m for the slow ammunition and at 65-78 m for the rifles'
+    /// (`player_bots_weapons.md`, "The bullet's flight"). Needs `lead_target`; no reaction, aim error or skill changes.
+    ///
+    /// Off, and why (bench 2026-10-31, TDM 10v10, flown bullets, head to head by side, 12 pairs a tier, `shot_bands`): the lead fires as
+    /// designed (a strafer's shot line at 40-65 m trails him by 0.07 m instead of 0.21) but the far hit rate does not rise: 20-65 m pooled
+    /// over tiers 4-5, 9-10 and 13-15, 10.05 % on against 10.59 % off (2650/26382 against 2768/26136 shots, z -2.1; 40-65 m alone 5.5/6.0,
+    /// 6.9/7.1 and 8.0/8.6 %, none significant). The lines miss by far more than the lead moves them: at 40-65 m only 8-9 % of the shots
+    /// pass within 0.25 m across and 0.45 m high of his chest and 36 % pass over 1 m across (the aim error: the skill dial). The pooled
+    /// dip itself shows no cause in the counters (GUESS: strafers that turn back inside a flight are led the wrong way).
+    pub lead_flight: bool,
+    /// The aim is also raised by the bullet's drop on the way to him (`flight.rs`), whether or not he is led ([`Self::lead_flight`]).
+    ///
+    /// Off, and why: it adds the drop to a line the bots' recoil handling already leaves 0.13-0.35 m above the chest at 20-80 m (the
+    /// kick the pull does not take back, by skill: `recoil_pull`), which the drop used to bring back onto the torso by accident. Where
+    /// the climb is large it costs hits (tier 9-10, 35-50 m: 6.2 % on against 9.1 % off, z -4.2); where it is small it is neutral (tier
+    /// 13-15, lateral lead and drop together, 40-65 m: 8.1 against 8.5 %, 20-40 m 13.9 against 14.3 %, kills +1.6 %, z +0.3).
+    pub lead_drop: bool,
+    /// [recoil, register #28] The bot's mirror of its weapon's kick counts the shots the client's weapon fires, not every tick the fire key
+    /// is down: the client starts a shot only from the idle state (state 6) with a round in the weapon, and the state of the last shot
+    /// (its fire clip, and a bolt's chamber) and a reload keep it from idle (`weapon_core::fire_pred` 0x2E3CB0 reads the fire bit of the
+    /// input, `[weapon+0x5EC] == 6`, a chambered or magazine round, and no transition pending). The mirror fed the raw key counted shots
+    /// the client refused (a shot inside the last one's clip, a press during a reload; 2240 of 17769 ticks with a shot on either side,
+    /// tier 9-10) and ran its cadence on while the client's restarted, so the pull took back a kick that was not there or missed one that
+    /// was: the shot line of a later shot of a run stood +0.10 degrees above where the bot thought (`kick_gap`). Off: the raw key.
+    pub mirror_gated: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
-    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
+    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
+    /// true place of an enemy the bot has not seen (`MatchView::place`), so its view pre-aims at him: a cheat (A147,
+    /// the owner's rule "smarter, never cheaters"). ON by default; `all_off.json` keeps it off (the old behaviour).
     pub aim_last_known: bool,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
@@ -781,6 +883,18 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
+    /// The error angles times the sights' zoom ([`ZoomError`]): the scopes' (A182 #29; `all_off.json` keeps it off).
+    pub zoom_error: ZoomError,
+    /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]), on the guns with a
+    /// scope (`settle_guns`; A182 #29, `all_off.json` keeps it off). The
+    /// policy's number is `settle_k` (the error to expect against this times the body's angular half width at his distance:
+    /// GUESS 1.0) and its cap `settle_max_wait_ms` after the target was taken (GUESS 5 s, the humans' aim-held q75 of a
+    /// bolt action at 40-80 m).
+    pub settle: Settle,
+    /// Which guns it applies to (the scoped ones).
+    pub settle_guns: SettleGuns,
+    pub settle_k: f32,
+    pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -879,7 +993,11 @@ pub struct CombatTuning {
     /// the AK-74U, the pistol) does not step in at him; with
     /// `outranged_cover`, seen facing it (his view within
     /// `outranged_aimed_deg` of it), it breaks sight from him, at most once
-    /// every `outranged_again_ms`.
+    /// every `outranged_again_ms`. OFF-failed twice: #124 (2026-10-26, kills lost) and again on the tip with the weapons
+    /// known, v5 mapdata, the kits (2026-10-30, 96 pairs by side): wins 68 / 95, score -4.1 % (z -2.1), hits dealt -6.3 %
+    /// (z -3.8); with the cone at 25 degrees wins 65 / 87, score -3.1 %, delivered -8.4 %. It does what it says (ticks in
+    /// the open in a sniper's sight -47 to -70 %, deaths to snipers -8 to -12 %) but the bot out of the fight is out of
+    /// its shots: the 40-60 deaths saved cost more than that in hits and in carries.
     pub outranged_hide: bool,
     pub outranged_cover: bool,
     pub outranged_aimed_deg: f32,
@@ -1141,6 +1259,9 @@ impl Default for CombatTuning {
             close_on_sniper_m: 30.0,
             band_slack_m: 3.0,
             band_step_m: 6.0,
+            band_cross_deg: 0.0,
+            stand_strafe: false,
+            stand_strafe_hold_ms: 400,
             band_legs: true,
             spot_cooldown_ms: 3_000,
             spot_again_ms: 15_000,
@@ -1163,6 +1284,7 @@ impl Default for CombatTuning {
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
             grenade_off_m: 8.0,
+            grenade_off_y_m: None,
             grenade_lane_m: 2.0,
             grenade_places: 3,
             grenade_tracks: true,
@@ -1186,6 +1308,9 @@ impl Default for CombatTuning {
             grenade_volley_chance: 0.2,
             grenade_volley_ms: (1_600, 6_000),
             grenade_volley_every_ms: 500,
+            grenade_volley_track: false,
+            grenade_volley_near_m: 10.0,
+            grenade_volley_age_ms: 2_000,
             grenade_near_m: 12.0,
             grenade_close: false,
             grenade_close_m: (4.0, 12.0),
@@ -1245,11 +1370,19 @@ impl Default for CombatTuning {
             switch_facing_margin_m: 10.0,
             switch_between_thinks: true,
             lead_target: true,
-            aim_last_known: false,
+            lead_flight: false,
+            lead_drop: false,
+            mirror_gated: true,
+            aim_last_known: true,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
             turn_feed: true,
+            zoom_error: ZoomError::Scopes,
+            settle: Settle::WanderAndPolicy,
+            settle_guns: SettleGuns::Scoped,
+            settle_k: 1.0,
+            settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -1419,6 +1552,53 @@ pub enum LegsWhy {
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
+    /// Aimed in and firing: standing on its feet with the side step only ([`Gait::StandStrafe`]).
+    Stand,
+}
+
+/// Why the side step is or is not held in an aimed fight, in ticks (the `gun_shots` topic's `strafe`, register #24); nothing
+/// decides by them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StrafeStats {
+    /// Ticks aimed in on a target.
+    pub ticks: u32,
+    /// The side step is on a run (a side key held by it).
+    pub running: u32,
+    /// Between two runs (`strafe_still_chance`) with the step free to go.
+    pub stopped: u32,
+    /// This target was drawn not to be strafed at (`FireTuning::strafe_chance`: a bolt or marksman rifle).
+    pub not_for_target: u32,
+    /// The bolt action stands still for its shot.
+    pub bolt_holds: u32,
+    /// The legs are the reflex's own or run, and `strafe_walking` does not weave there.
+    pub legs_no_weave: u32,
+    /// The step away from a teammate in the line of fire.
+    pub friend_away: u32,
+    /// The gait was [`Gait::StandStrafe`].
+    pub stand: u32,
+}
+
+/// How the legs go while the bot fights (`CombatTuning::stand_strafe`). One state, not a flag: what the legs do in a fight is
+/// either the play's way or the stand-and-strafe, and the transition is total over the tick's one fact.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Gait {
+    /// The play's route, a range step, a weave on a walk.
+    #[default]
+    Route,
+    /// On its feet with the side step only, until this tick of the game's clock unless the fight is still on.
+    StandStrafe { until: u32 },
+}
+
+impl Gait {
+    /// The gait after a tick in which the fight was on (aimed in, a round in, the target in range, the play's word to fire) or
+    /// not: stands and strafes for `hold_ms` after the last tick it was on.
+    fn next(self, fight_on: bool, now: u32, hold_ms: u32) -> Self {
+        match (self, fight_on) {
+            (_, true) => Self::StandStrafe { until: now + hold_ms },
+            (Self::StandStrafe { until }, false) if now < until => self,
+            (_, false) => Self::Route,
+        }
+    }
 }
 
 /// The legs as the reflex wants them this tick, instead of the play's go,
@@ -1665,10 +1845,37 @@ const NEAR_STAY_M: f32 = 1.5;
 struct Volley {
     at: Vec3,
     source: PlaceSource,
+    /// When the first was let go: evidence is a track sensed after it (`grenade_volley_track`).
+    since: u32,
     /// The next roll not before, and the window's end (the first's blast or
     /// `grenade_volley_ms.1`), ms.
     next: u32,
     until: u32,
+}
+
+/// [A187 #10] The place of a second grenade by evidence (`grenade_volley_track`): the freshest track of an enemy the senses gave
+/// since the first grenade was let go, not in sight now, within `grenade_volley_near_m` of the first's place, no older than
+/// `grenade_volley_age_ms` and in the places' range; none if there is no such track or a teammate stands in its blast's reach.
+fn volley_evidence(look: &RollView, volley: &Volley, c: &CombatTuning) -> Option<(Vec3, PlaceSource)> {
+    let RollView { me, sit, memory, now } = *look;
+    memory
+        .tracks()
+        .iter()
+        .filter_map(|track| {
+            let (at, sensed) = track.own?;
+            let fits = sensed >= volley.since
+                && now.saturating_sub(sensed) <= c.grenade_volley_age_ms
+                && track.error_m <= c.grenade_track_error_m
+                && at.distance_xz(volley.at) <= c.grenade_volley_near_m
+                && (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                && friend_in_blast(me, sit.view, at, c).is_none();
+            fits.then(|| {
+                let source = if track.sight_since.is_some() || track.source == Source::Seen { PlaceSource::Lost } else { PlaceSource::Heard };
+                (sensed, (at, source))
+            })
+        })
+        .max_by_key(|(sensed, _)| *sensed)
+        .map(|(_, place)| place)
 }
 
 /// [G3] What the thrower's way out of his own blast is judged by: the
@@ -1857,8 +2064,8 @@ pub struct GrenadeStats {
     pub pushes_skipped: u32,
     /// [C20] The volley (`grenade_volley`): windows opened by a throw let
     /// go, rolls made in them, those the chance said no to, second grenades
-    /// let go.
-    pub volley: [u32; 4],
+    /// let go, rolls with evidence of an enemy by the first's place and rolls with none (`grenade_volley_track`).
+    pub volley: [u32; 6],
     /// [G3] The lowered floor (`grenade_near_m`): places refused by the
     /// floor alone that were weighed again under it, those given a way out
     /// of the blast (the throw decided), and throws let go from them.
@@ -2107,7 +2314,9 @@ fn weigh_view(
     if landing.contact.is_wall() && thrower < c.grenade_wall_m {
         return Err(Refuse::Wall);
     }
-    if landing.contact.point.distance_xz(at) > off_m {
+    if landing.contact.point.distance_xz(at) > off_m
+        || c.grenade_off_y_m.is_some_and(|off_y| (landing.contact.point.y - at.y).abs() > off_y)
+    {
         return Err(Refuse::Off);
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
@@ -2488,9 +2697,11 @@ pub mod gate {
     pub const LOST: u32 = 1 << 25;
     pub const REACTION_AGAIN: u32 = 1 << 26;
     pub const AIMING_AGAIN: u32 = 1 << 27;
+    /// The shot waits for the aim to settle ([`super::Settle::WanderAndPolicy`]).
+    pub const SETTLING: u32 = 1 << 28;
 
     /// The gates' names, in their order.
-    pub const NAMES: [(u32, &str); 28] = [
+    pub const NAMES: [(u32, &str); 29] = [
         (UNSTICK, "unstick"),
         (PLAY, "play"),
         (JUMP_ROUTE, "jump_route"),
@@ -2512,6 +2723,7 @@ pub mod gate {
         (RUNNING, "running"),
         (AIMING_IN, "aiming_in"),
         (AIMING_AGAIN, "aiming_again"),
+        (SETTLING, "settling"),
         (FRIEND, "friend"),
         (HIDDEN, "hidden"),
         (VIEW_RAY, "view_ray"),
@@ -2621,6 +2833,33 @@ impl ThroughStats {
     }
 }
 
+/// [measure] What the outranged rule did in one life of a reflex (the bench's owner counts add the lives up; nothing decides by
+/// them), in reflex ticks: the target seen was a sniper beyond the weapon's band (`sightings`), and he was facing it
+/// (`facing`: the cover rule's case); of them, ticks with the bot in the open (`exposed`); breaks of sight begun (`hides`);
+/// ticks it kept its way instead because it carried or was a thief (`task_kept`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OutrangedStats {
+    pub sightings: u32,
+    pub facing: u32,
+    pub exposed: u32,
+    pub hides: u32,
+    pub task_kept: u32,
+}
+
+impl OutrangedStats {
+    pub fn total(&self) -> u32 {
+        self.sightings + self.facing + self.exposed + self.hides + self.task_kept
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.sightings += other.sightings;
+        self.facing += other.facing;
+        self.exposed += other.exposed;
+        self.hides += other.hides;
+        self.task_kept += other.task_kept;
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -2689,6 +2928,11 @@ pub struct Reflex {
     band: Option<(f32, f32)>,
     /// A step into the band.
     range_step: Option<Vec3>,
+    /// How the legs go in a fight (`stand_strafe`).
+    gait: Gait,
+    strafe_stats: StrafeStats,
+    /// Which side of the line the last range step went to (`band_cross_deg`): the next new step takes the other.
+    range_right: bool,
     spot_pending: Option<Place>,
     last_spot: Option<u32>,
     spotted: Vec<(Place, u32)>,
@@ -2738,6 +2982,8 @@ pub struct Reflex {
     through_at: Option<u32>,
     /// [measure] What fire through cover did this life.
     through_stats: ThroughStats,
+    /// [measure] What the outranged rule saw and did this life.
+    outranged_stats: OutrangedStats,
     /// The enemy who hit it last (the threat's shooter it took) and until when it is kept as the target whatever the
     /// worth of the others (`worth.hurter_keep_ms`).
     hurter: Option<(Place, u32)>,
@@ -2861,6 +3107,14 @@ pub struct Reflex {
     kick_step: f32,
     /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
     kick_before: f32,
+    /// The mirror counts the shots the weapon can fire ([`CombatTuning::mirror_gated`], set each tick by [`Self::gate_mirror`]), and the
+    /// earliest the client's weapon can fire again, ms: the last counted shot's fire clip, and the bolt after it.
+    gated: bool,
+    ready_at: f32,
+    /// [bench] The mirror's kick after the tick's turn and before its shots (pitch units), and the shots it counted in the tick:
+    /// what the stand-in's own kick is read against.
+    #[cfg(test)]
+    seen: (f32, u8),
     /// The pitch unit's scale as the last tick's tuning has it (`kin.pitch_scale`): the kick is in the game's unit, the aim in elevations.
     scale: PitchScale,
 }
@@ -2890,6 +3144,19 @@ fn another_angle(enemy: Vec3, last: Vec3, spot: Vec3, c: &CombatTuning) -> bool 
 }
 
 /// `from` moved `m` metres on the ground toward `to` (away if negative).
+/// [`step_toward`] turned `angle` radians off the line to one side (`right`: the bot's right when facing `to`), `m` still the
+/// way along the line (so the step is `m / cos(angle)` long).
+fn step_across(from: Vec3, to: Vec3, m: f32, angle: f32, right: bool) -> Vec3 {
+    let (dx, dz) = (to.x - from.x, to.z - from.z);
+    let d = dx.hypot(dz).max(1e-3);
+    let (ux, uz) = (dx / d, dz / d);
+    // The left normal of the line is (-uz, ux) in x/z with z forward; the right one is its opposite.
+    let side = if right { -1.0 } else { 1.0 };
+    let (nx, nz) = (-uz * side, ux * side);
+    let (along, across) = (m, m * angle.tan());
+    Vec3::new(from.x + ux * along + nx * across, from.y, from.z + uz * along + nz * across)
+}
+
 fn step_toward(from: Vec3, to: Vec3, m: f32) -> Vec3 {
     let (dx, dz) = (to.x - from.x, to.z - from.z);
     let d = dx.hypot(dz).max(1e-3);
@@ -3288,9 +3555,14 @@ impl Reflex {
             .map(|(_, at)| (at, self.held_gun().bullet_damage.clamp(0.0, 1.0)))
     }
 
-    /// [measure] What the worth, the push and the flank glance did this life.
+    /// [measure] What fire through cover did this life.
     pub fn through_stats(&self) -> ThroughStats {
         self.through_stats
+    }
+
+    /// [measure] What the outranged rule did this life.
+    pub fn outranged_stats(&self) -> OutrangedStats {
+        self.outranged_stats
     }
 
     pub fn worth_stats(&self) -> WorthStats {
@@ -3448,12 +3720,16 @@ impl Reflex {
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
         // keeps its way home.
+        if self.outranged && sit.view.objective().is_actor(me) {
+            self.outranged_stats.task_kept += 1;
+        }
         if self.outranged
             && now >= self.next_outranged
             && !sit.view.objective().is_actor(me)
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
+            self.outranged_stats.hides += 1;
             self.break_sight(me, sit, memory, now, false, false, c.hide_m, c, rng);
         }
         let look = RollView {
@@ -3739,11 +4015,48 @@ impl Reflex {
         let taken = self.recoil.turn(pitch);
         let auto = self.hands().held().gun.auto;
         let interval_ms = self.recoil.kick().interval_s() * 1000.0;
+        let gun = self.hands().held().gun;
+        let cycle_ms = gun.shot_ms() + gun.chamber_ms as f32;
+        // The client starts a shot from the idle state only (`fire_pred` 0x2E3CB0): not in the last shot's clip, not in a reload or a switch.
+        let (gated, ready_at) = (self.gated, &mut self.ready_at);
+        let can_fire = !gated || (now >= self.busy_until && *ready_at <= now as f32 + 1e-3);
         let recoil = &mut self.recoil;
-        let fire = keys & key::FIRE != 0;
-        self.cadence
-            .tick(now, fire, auto, interval_ms, |at| recoil.mean_shot(at));
+        let fire = keys & key::FIRE != 0 && can_fire;
+        #[cfg(test)]
+        let mut shots = 0u8;
+        #[cfg(test)]
+        {
+            self.seen.0 = recoil.y();
+        }
+        self.cadence.tick(now, fire, auto, interval_ms, |at| {
+            if gated {
+                if *ready_at > at + 1e-3 {
+                    return;
+                }
+                *ready_at = at + cycle_ms;
+            }
+            recoil.mean_shot(at);
+            #[cfg(test)]
+            {
+                shots = shots.saturating_add(1);
+            }
+        });
+        #[cfg(test)]
+        {
+            self.seen.1 = shots;
+        }
         taken
+    }
+
+    /// [recoil] Whether the mirror counts the shots the weapon can fire ([`CombatTuning::mirror_gated`]), for the next [`Self::sent`].
+    pub fn gate_mirror(&mut self, on: bool) {
+        self.gated = on;
+    }
+
+    /// [bench] The mirror's kick after the last tick's turn, before its shots, and the shots it counted ([`Self::sent`]).
+    #[cfg(test)]
+    pub(crate) fn seen(&self) -> (f32, u8) {
+        self.seen
     }
 
     /// The kick of the weapon in hand: another weapon taken (the pistol)
@@ -3753,6 +4066,7 @@ impl Reflex {
         if self.recoil.kick().item != item {
             self.recoil = Recoil::new(kick_of(item));
             self.cadence = Cadence::default();
+            self.ready_at = 0.0;
         }
     }
 
@@ -4630,6 +4944,7 @@ impl Reflex {
         c: &CombatTuning,
     ) {
         self.band = None;
+        let stepping = self.range_step.is_some();
         self.range_step = None;
         self.outranged = false;
         self.outranged_by = None;
@@ -4668,6 +4983,9 @@ impl Reflex {
                     <= c.outranged_aimed_deg.to_radians()
             });
             self.outranged = c.outranged_cover && facing;
+            self.outranged_stats.sightings += 1;
+            self.outranged_stats.facing += u32::from(facing);
+            self.outranged_stats.exposed += u32::from(!matches!(self.cover, Cover::Hiding { .. }));
             self.outranged_by = Some((track.who(), track.at(), sit.view.clock));
             return;
         }
@@ -4680,17 +4998,29 @@ impl Reflex {
             } else {
                 sit.team.is_some_and(|team| team.seen_carrying(track.who(), now, c.band_carrier_seen_ms))
             };
-        let step = if d < band.0 - c.band_slack_m {
-            (!carrier).then(|| step_toward(me.feet, track.at(), -c.band_step_m))
+        let along = if d < band.0 - c.band_slack_m {
+            (!carrier).then_some(-c.band_step_m)
         } else if d > band.1 + c.band_slack_m {
-            Some(step_toward(me.feet, track.at(), c.band_step_m))
+            Some(c.band_step_m)
         } else {
             None
         };
-        self.range_step = step.filter(|at| {
-            sit.tactics
-                .is_some_and(|tactics| tactics.fine_goal(*at, now, sit.side))
+        let fine = |at: &Vec3| sit.tactics.is_some_and(|tactics| tactics.fine_goal(*at, now, sit.side));
+        // A step goes across the line when `band_cross_deg` says so, to the side after the last one's, else the other, else along it.
+        let right_first = if stepping { self.range_right } else { !self.range_right };
+        let step = along.and_then(|m| {
+            if c.band_cross_deg > 0.0 {
+                for right in [right_first, !right_first] {
+                    let at = step_across(me.feet, track.at(), m, c.band_cross_deg.to_radians(), right);
+                    if fine(&at) {
+                        self.range_right = right;
+                        return Some(at);
+                    }
+                }
+            }
+            Some(step_toward(me.feet, track.at(), m))
         });
+        self.range_step = step.filter(fine);
     }
 
     /// Play 20: now and then, with nothing seen, a grenade at the nearest
@@ -5038,6 +5368,21 @@ impl Reflex {
             ..volley
         });
         self.grenade_stats.volley[1] += 1;
+        // [A187 #10] By evidence: the place is where an enemy was sensed by the first's place since it was let go.
+        let place = if c.grenade_volley_track {
+            match volley_evidence(look, &volley, c) {
+                Some(place) => {
+                    self.grenade_stats.volley[4] += 1;
+                    place
+                }
+                None => {
+                    self.grenade_stats.volley[5] += 1;
+                    return;
+                }
+            }
+        } else {
+            (volley.at, volley.source)
+        };
         if rng.unit() >= c.grenade_volley_chance {
             self.grenade_stats.volley[2] += 1;
             return;
@@ -5052,7 +5397,7 @@ impl Reflex {
             ..*look.sit
         };
         let look = RollView { sit: &sit, ..*look };
-        self.start_throw(&look, c, &[(volley.at, volley.source)], error, hold_ms, ThrowKind::Volley);
+        self.start_throw(&look, c, &[place], error, hold_ms, ThrowKind::Volley);
     }
 
     /// Play 20: the first of `places` (nearest first) whose throw passes
@@ -5324,8 +5669,10 @@ impl Reflex {
                     self.volley = (c.grenade_volley && self.thrown < c.grenades).then(|| Volley {
                         at: throw.at,
                         source: throw.source,
+                        since: now,
                         next: now + c.grenade_volley_ms.0,
-                        until: (now + c.grenade_volley_ms.1).min(blast),
+                        // By evidence the window runs past the first's blast: the enemy who stays or comes back is the point.
+                        until: if c.grenade_volley_track { now + c.grenade_volley_ms.1 } else { (now + c.grenade_volley_ms.1).min(blast) },
                     });
                     if self.volley.is_some() {
                         self.grenade_stats.volley[0] += 1;
@@ -5568,6 +5915,11 @@ impl Reflex {
             }
         }
         self.strafe
+    }
+
+    /// The side step's reasons so far ([`StrafeStats`]).
+    pub fn strafe_stats(&self) -> StrafeStats {
+        self.strafe_stats
     }
 
     /// The legs the reflex takes this tick, if any.
@@ -6013,19 +6365,46 @@ impl Reflex {
         }
         // Where he will be at the tick decided (`lead_target`): only a body seen.
         let led = body.filter(|_| aimed.sees_body() && c.lead_target);
+        // And where the bullet will find him (`lead_flight`): the held weapon's ammunition, from the eye.
+        let flight = self.hands().held().gun.flight.filter(|_| c.lead_flight || c.lead_drop);
         let point = led.map_or(aimed.point(), |body| {
-            aimed.point() + lead(body, now, c.lead_most_ms)
+            let at = aimed.point() + lead(body, now, c.lead_most_ms);
+            let ahead = flight
+                .and_then(|flight| flight.ahead(me.eye(), at, body.velocity))
+                .unwrap_or_default();
+            // The parts of it the switches ask for: along his velocity, and up by the drop.
+            at + Vec3::new(
+                if c.lead_flight { ahead.x } else { 0.0 },
+                if c.lead_drop { ahead.y } else { 0.0 },
+                if c.lead_flight { ahead.z } else { 0.0 },
+            )
         });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
         let t = now.saturating_sub(self.since) as f32 / 1000.0;
         let fade = (-t / settle_s).exp();
-        self.wander_step(aim, skill, rng);
-        let gun = self.hands().held().gun;
-        let error = (
-            self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5),
-            self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5),
+        let settle = c.settle_guns.settle(c.settle, self.hands().held().gun.optic);
+        let wander_deg = aim_settle::wander_deg(
+            settle,
+            mix(aim.wander_deg, skill),
+            mix(aim.settled_wander_deg, skill),
+            mix(aim.settle_tau_s, skill),
+            t,
         );
+        self.wander_step(aim, wander_deg, rng);
+        let gun = self.hands().held().gun;
+        // The error angles go with the zoom of the sights (`zoom_error`): the aim progress is the time since the aim key went
+        // down over the sights' aim time.
+        let zoom = c.zoom_error.factor(
+            gun.optic,
+            aim_since.map_or(0.0, |since| now.saturating_sub(since) as f32 / gun.aim_ms.max(1) as f32),
+        );
+        let error = (
+            (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
+            (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
+        );
+        // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
+        let expected_deg = aim_settle::error_rms_deg(mix(aim.error_deg, skill), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
@@ -6105,6 +6484,25 @@ impl Reflex {
                 && (aimed_in || hip_fits),
             running,
         });
+        // The shot waits for the aim to settle ([`aim_settle`]): a burst under way is held to its end, the first shot of one, and every shot of
+        // another weapon, waits.
+        let settling = now >= self.burst_until
+            && aim_settle::waits(
+                settle,
+                expected_deg,
+                distance,
+                c.body_half_m,
+                c.settle_k,
+                now.saturating_sub(self.since),
+                c.settle_max_wait_ms,
+            );
+        // [#24] The fight is on: aimed in on a target in range with a round in and the play's word to fire.
+        let fight_on = c.stand_strafe
+            && fire_allowed
+            && aimed_in
+            && distance <= range_m
+            && self.hands().held().rounds > 0;
+        self.gait = self.gait.next(fight_on, now, c.stand_strafe_hold_ms);
         // [measure] Each gate that fails ([`gate`]); the play's word and the
         // jump hold are the bot's ([`Self::outer_gates`]).
         let mut failed = 0;
@@ -6126,6 +6524,7 @@ impl Reflex {
                     gate::AIMING_IN
                 },
             ),
+            (settling, gate::SETTLING),
             (friend.is_some(), gate::FRIEND),
         ] {
             if fails {
@@ -6211,16 +6610,43 @@ impl Reflex {
             keys |= key::CROUCH;
         }
         let mut strafe = 0;
-        let aiming_the_shot = bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press);
+        // [#24] In a fight the legs stand and the side step goes on; a hide, a push or a throw keeps its legs.
+        let stand = matches!(self.gait, Gait::StandStrafe { .. }) && legs.is_none_or(|l| l.why == LegsWhy::Range && !l.run);
+        let legs = if stand {
+            Some(Legs { at: me.feet, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::Stand })
+        } else {
+            legs
+        };
+        // A bolt action stands still for its aimed shot, and any gun with the view on him stands still while the shot waits for the aim to settle.
+        let aiming_the_shot = (bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press)) || (settling && within);
         if !self.strafe_fire || aiming_the_shot {
             self.strafe = 0;
-        } else if legs.is_none() || (c.strafe_walking && !running) {
+        } else if stand || legs.is_none() || (c.strafe_walking && !running) {
             strafe = self.side_step(now, c, rng);
         }
         if let Some(friend) = friend.filter(|_| !running) {
             strafe = friend.away;
         }
         let strafe_away = friend.is_some_and(|friend| !running && friend.away != 0);
+        if aimed_in {
+            let can_step = stand || legs.is_none() || (c.strafe_walking && !running);
+            let st = &mut self.strafe_stats;
+            st.ticks += 1;
+            st.stand += u32::from(stand);
+            if friend.is_some() && !running {
+                st.friend_away += 1;
+            } else if !self.strafe_fire {
+                st.not_for_target += 1;
+            } else if aiming_the_shot {
+                st.bolt_holds += 1;
+            } else if !can_step {
+                st.legs_no_weave += 1;
+            } else if strafe != 0 {
+                st.running += 1;
+            } else {
+                st.stopped += 1;
+            }
+        }
         Override {
             look_at: Some(point),
             error,
@@ -6517,10 +6943,11 @@ impl Reflex {
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
-    /// the skill's `wander_deg` (the pitch's half) and which comes back in
-    /// about `wander_s`.
-    fn wander_step(&mut self, aim: &AimTuning, skill: f32, rng: &mut Rng) {
-        let spread = mix(aim.wander_deg, skill).max(0.0).to_radians();
+    /// `spread_deg` (the skill's `wander_deg`, settled with the time on target
+    /// when [`Settle`] says; the pitch's half) and which comes back in about
+    /// `wander_s`.
+    fn wander_step(&mut self, aim: &AimTuning, spread_deg: f32, rng: &mut Rng) {
+        let spread = spread_deg.max(0.0).to_radians();
         let a = (self.tick_ms as f32 / 1000.0 / aim.wander_s.max(0.01)).min(1.0);
         // Uniform shocks (a spread of 1/sqrt(12)) scaled to keep the walk's
         // spread at `spread`.
@@ -6571,6 +6998,40 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
+    /// The gait stands and strafes while the fight is on and for the hold after it, then the route again.
+    #[test]
+    fn the_gait_stands_for_the_fight_and_its_hold_then_goes_back_to_the_route() {
+        let g = Gait::Route;
+        assert_eq!(g.next(false, 1_000, 400), Gait::Route);
+        let g = g.next(true, 1_000, 400);
+        assert_eq!(g, Gait::StandStrafe { until: 1_400 });
+        // Fight off, hold running: stays, until unchanged.
+        assert_eq!(g.next(false, 1_200, 400), Gait::StandStrafe { until: 1_400 });
+        // Fight on again: the hold starts anew.
+        assert_eq!(g.next(true, 1_300, 400), Gait::StandStrafe { until: 1_700 });
+        // Hold over: back to the route.
+        assert_eq!(g.next(false, 1_400, 400), Gait::Route);
+    }
+
+    /// A range step across the line goes the same way along it as the straight one and sideways by `m tan(angle)`, to the
+    /// side asked, in or back out (`band_cross_deg`).
+    #[test]
+    fn a_range_step_across_the_line_keeps_its_way_along_it() {
+        let (from, to) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 30.0));
+        let angle = 45f32.to_radians();
+        for (m, along) in [(6.0, 6.0), (-6.0, -6.0)] {
+            let straight = step_toward(from, to, m);
+            let left = step_across(from, to, m, angle, false);
+            let right = step_across(from, to, m, angle, true);
+            assert!((left.z - straight.z).abs() < 1e-4 && (right.z - straight.z).abs() < 1e-4, "the way along the line is kept");
+            assert!((left.z - along).abs() < 1e-4);
+            assert!((left.x.abs() - 6.0).abs() < 1e-3 && (right.x.abs() - 6.0).abs() < 1e-3, "tan 45 = 1: sideways m");
+            assert!(left.x * right.x < 0.0, "the two sides are opposite");
+        }
+        // Angle 0 is the straight step.
+        assert_eq!(step_across(from, to, 6.0, 0.0, true), step_toward(from, to, 6.0));
+    }
+
     use crate::v026g::bots::guns;
     use crate::v026g::bots::know::{DangerSpot, Percept};
     use crate::v026g::bots::view::{Mode, Sound};
@@ -6592,6 +7053,21 @@ mod tests {
 
     fn combat_off() -> CombatTuning {
         crate::v026g::bots::tuning::Tuning::all_off().aim.combat
+    }
+
+    /// The error angles go with the zoom as the client's look step does: nothing when off, the scope's 0.25 aimed in (halfway
+    /// up the aim: 0.625), iron sights only with `All`.
+    #[test]
+    fn the_error_angles_follow_the_zoom_of_the_sights() {
+        let scope = Optic::Scope { zoom: 0.25 };
+        let iron = Optic::Iron { zoom: 1.0 / 1.2 };
+        assert_eq!(ZoomError::Off.factor(scope, 1.0), 1.0);
+        assert_eq!(ZoomError::Scopes.factor(scope, 0.0), 1.0);
+        assert!((ZoomError::Scopes.factor(scope, 0.5) - 0.625).abs() < 1e-6);
+        assert!((ZoomError::Scopes.factor(scope, 1.0) - 0.25).abs() < 1e-6);
+        assert_eq!(ZoomError::Scopes.factor(iron, 1.0), 1.0);
+        assert!((ZoomError::All.factor(iron, 1.0) - 1.0 / 1.2).abs() < 1e-6);
+        assert!((ZoomError::All.factor(scope, 2.0) - 0.25).abs() < 1e-6, "progress past 1 stays at the full zoom");
     }
 
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
@@ -6921,6 +7397,56 @@ mod tests {
             out.push((fire, reflex.gates().bits));
         }
         out
+    }
+
+    /// Where the bot `item` in hand looks at an enemy `z` m ahead moving `speed` m/s along x, as the view has him this tick, with the
+    /// flight lead `on` or off: the last of a few ticks' aim point.
+    fn aim_at_strafer(item: &'static str, z: f32, speed: f32, on: bool) -> Vec3 {
+        let arms: &'static Arms = Box::leak(Box::new(Arms {
+            primary: (guns::gun(item).unwrap(), 300),
+            pistol: None,
+            reserve: 600,
+        }));
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let aim = AimTuning {
+            combat: CombatTuning { lead_flight: on, lead_drop: on, ..CombatTuning::default() },
+            range_m: 150.0,
+            ..AimTuning::default()
+        };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::armed(Some(arms));
+        let mut rng = Rng::new(9);
+        let mut at = Vec3::ZERO;
+        for k in 0..12 {
+            let now = 1_000 + k * 50;
+            let mut enemy = body(1, 1, Vec3::new(0.0, 0.0, z), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 1.0, &mut rng);
+            }
+            reflex.outer_gates(now, false, false);
+            at = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).look_at.unwrap_or(at);
+        }
+        at
+    }
+
+    /// `lead_flight`: the aim at a strafer goes along his velocity by the ammunition's flight time and up by its drop; the
+    /// switch off leaves the aim where it was. Fast and slow ammunition differ as the notes' table says.
+    #[test]
+    fn the_aim_leads_a_strafer_for_the_flight_of_the_ammunition() {
+        let (z, speed) = (40.0, 2.6);
+        let off = aim_at_strafer("ump45", z, speed, false);
+        let slow = aim_at_strafer("ump45", z, speed, true) - off;
+        // .45 ACP (260 m/s): 168 ms to 40 m, a bit more to the place he reaches: 2.6 m/s x ~0.17 s, and 0.35 m of drop at 60 m
+        // is 0.14 m here.
+        assert!((slow.x - 0.45).abs() < 0.05, "{slow:?}");
+        assert!((slow.y - 0.14).abs() < 0.03 && slow.z.abs() < 0.01, "{slow:?}");
+        // The rifle's bullet (5.45x39, 800 m/s) is in the air a third of that.
+        let fast = aim_at_strafer("ak_74u", z, speed, true) - aim_at_strafer("ak_74u", z, speed, false);
+        assert!(fast.x > 0.1 && fast.x < slow.x / 2.0 && fast.y < slow.y / 4.0, "{fast:?} against {slow:?}");
     }
 
     /// X1: each class fires out to its range and not past it: a target 3 m
@@ -7408,6 +7934,191 @@ mod tests {
         (first, errors, aimed)
     }
 
+    /// How far the view trails a target crossing the line of fire at a steady `speed` m/s, `distance` m ahead: the mean over the
+    /// ticks from 2 s on of the view after the tick's turn against the line to his chest, metres at him (positive: behind him),
+    /// with the motor following the aim's turn rate (`feed`: `Motor::track`, as `drive.rs` sets it) or not. The aim error and
+    /// the wander are taken out, the picture is exact, so what is left is the pipeline's own: the reflex's aim point, the
+    /// feed, the motor's ease.
+    fn steady_trail_m(speed: f32, distance: f32, feed: bool, skill: f32) -> (f32, f32) {
+        use super::super::motor::{Feel, Motor, Pose};
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let (mut trail, mut n, mut before) = (0.0f32, 0u32, 0.0f32);
+        for k in 0..120u32 {
+            let now = 1_000 + k * 50;
+            let x = speed * (k as f32) * 0.05 - 2.0;
+            let mut enemy = body(1, 1, Vec3::new(x, 0.0, distance), 0.0);
+            enemy.velocity = [speed, 0.0];
+            enemy.known_at = now;
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (yaw_of([dx, dz]) + o.error.0, (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1);
+            motor.turn_time = o.turn_time_s;
+            motor.track = o.track.filter(|_| feed);
+            let pose = Pose { feet: me.feet, yaw: me.yaw, pitch: me.pitch, speed: 0.0, ..Default::default() };
+            let pre = me.yaw;
+            let d = motor.aim_still(&pose, want);
+            me.yaw = wrap(me.yaw + d.turn.0);
+            me.pitch += d.turn.1;
+            if k >= 20 {
+                let chest = enemy.chest();
+                let bearing = yaw_of([chest.x - eye.x, chest.z - eye.z]);
+                let hit = |yaw: f32| wrap(yaw - bearing) * distance * speed.signum();
+                trail += hit(me.yaw);
+                before += hit(pre);
+                n += 1;
+            }
+        }
+        (trail / n.max(1) as f32, before / n.max(1) as f32)
+    }
+
+    /// Prints the steady strafer's trail (`cargo test -p match-server steady_strafer_trail -- --ignored --nocapture`): the view after
+    /// the tick's turn, and the view before it (what a shot released ahead of the turn would go along).
+    #[test]
+    #[ignore]
+    fn steady_strafer_trail() {
+        for skill in [0.0, 1.0] {
+            for distance in [20.0, 50.0] {
+                for feed in [true, false] {
+                    let (after, before) = steady_trail_m(2.1, distance, feed, skill);
+                    println!("skill {skill} {distance} m feed {feed}: view trails by {after:+.3} m after the turn, {before:+.3} m before it");
+                }
+            }
+        }
+    }
+
+    /// The mirror of the kick counts the shots the client's weapon fires: none while the weapon is busy (a reload, a switch) or inside the
+    /// last shot's clip (`mirror_gated`), and every key tick down when it is off.
+    #[test]
+    fn the_mirror_counts_only_the_shots_the_weapon_can_fire() {
+        let shots_at = |gated: bool, busy_until: u32, ready_at: f32, now: u32| {
+            let mut reflex = Reflex::default();
+            reflex.gate_mirror(gated);
+            // The first tick takes the weapon in hand (and clears the clip), so the state is set after it.
+            reflex.sent(now - 50, 0, 0.0);
+            reflex.busy_until = busy_until;
+            reflex.ready_at = ready_at;
+            reflex.sent(now, key::FIRE, 0.0);
+            reflex.seen().1
+        };
+        // Free: a shot, gated or not.
+        assert_eq!(shots_at(true, 0, 0.0, 1_000), 1);
+        assert_eq!(shots_at(false, 0, 0.0, 1_000), 1);
+        // A reload under way (or the switch): the client starts no shot; the raw key counted one.
+        assert_eq!(shots_at(true, 1_200, 0.0, 1_000), 0);
+        assert_eq!(shots_at(false, 1_200, 0.0, 1_000), 1);
+        // Inside the last shot's clip: none until it is over, and then one.
+        assert_eq!(shots_at(true, 0, 1_100.0, 1_050), 0);
+        assert_eq!(shots_at(true, 0, 1_100.0, 1_100), 1);
+        assert_eq!(shots_at(false, 0, 1_100.0, 1_050), 1);
+    }
+
+    /// A counted shot closes the weapon for its fire clip and the bolt after it, as the client's does.
+    #[test]
+    fn a_counted_shot_keeps_the_next_until_its_cycle_is_over() {
+        let mut reflex = Reflex::default();
+        reflex.gate_mirror(true);
+        reflex.sent(950, 0, 0.0);
+        reflex.sent(1_000, key::FIRE, 0.0);
+        let gun = reflex.hands().held().gun;
+        assert_eq!(reflex.seen().1, 1);
+        assert!((reflex.ready_at - (1_000.0 + gun.shot_ms() + gun.chamber_ms as f32)).abs() < 1e-3);
+    }
+
+    /// A standing target `distance` m ahead and a burst on him, the way the bench stand-in runs it (the bot's mirror of the kick in
+    /// the reflex, the game's kick in `truth`: the middle of every range with `random` false, drawn with it), the view as `drive.rs`
+    /// builds it and the turn as it sends it (elevation, converted at the view with `turn_for`, the pull a `rise`). Returns the mean
+    /// height of the view at the tick's shots over the line to his chest, degrees, and over the aim point the reflex gave, and the
+    /// shots counted. Positive: high.
+    fn kicked_height_deg(skill: f32, distance: f32, scale: PitchScale, random: bool) -> (f32, f32, u32) {
+        let aim = AimTuning { error_deg: (0.0, 0.0), wander_deg: (0.0, 0.0), ..AimTuning::default() };
+        let mut rng = Rng::new(7);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, distance), 0.0);
+        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut truth = Recoil::new(kick_of(reflex.hands().held().gun.item));
+        let mut cadence = Cadence::default();
+        let (interval_ms, auto) = (truth.kick().interval_s() * 1000.0, reflex.hands().held().gun.auto);
+        let mut draw = Rng::new(11);
+        let mut base = 0.0f32;
+        let (mut chest_sum, mut aim_sum, mut n) = (0.0f32, 0.0f32, 0u32);
+        for k in 0..160u32 {
+            let now = 1_000 + k * 50;
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, skill, &mut rng);
+            }
+            truth.update(now);
+            let truth_before = truth.y();
+            let mirror = reflex.weapon_tick(&me, now, scale);
+            let before = Pitch::view(base, mirror);
+            me.pitch = before.elevation(scale);
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, skill, &mut rng);
+            let Some(p) = o.look_at else { continue };
+            let eye = me.eye();
+            let (dx, dz) = (p.x - eye.x, p.z - eye.z);
+            let want = (p.y - eye.y).atan2(dx.hypot(dz)) + o.error.1;
+            let mut turn = want - me.pitch;
+            turn += Pitch::of_elevation(me.pitch, scale).rise(o.pull, scale);
+            let units = before.turn_for(scale, turn);
+            // The game: the update came first (above); the turn takes the downward part off the kick; then the shots.
+            let taken = truth.turn(units);
+            base += units + taken;
+            let keys = if o.fire { key::FIRE } else { 0 };
+            if o.fire {
+                let view_el = Pitch::view(base, truth.y()).elevation(scale);
+                let chest = enemy.chest();
+                let to_chest = (chest.y - eye.y).atan2(chest.x.hypot(chest.z - eye.z));
+                let to_aim = (p.y - eye.y).atan2(dx.hypot(dz));
+                chest_sum += view_el - to_chest;
+                aim_sum += view_el - to_aim;
+                n += 1;
+            }
+            reflex.sent(now, keys, units);
+            cadence.tick(now, o.fire, auto, interval_ms, |at| {
+                if random {
+                    let top = truth.kick().top(draw.unit());
+                    let side = truth.kick().side(draw.unit(), draw.unit());
+                    truth.shot(at, top, side);
+                } else {
+                    truth.mean_shot(at);
+                }
+            });
+            let _ = truth_before;
+        }
+        let n_f = n.max(1) as f32;
+        ((chest_sum / n_f).to_degrees(), (aim_sum / n_f).to_degrees(), n)
+    }
+
+    /// Prints the burst's height (`cargo test -p match-server kicked_height -- --ignored --nocapture`): the register's #28 residual.
+    #[test]
+    #[ignore]
+    fn kicked_height() {
+        for scale in [PitchScale::Radian, PitchScale::Client] {
+            for skill in [0.0, 0.75, 1.0] {
+                for distance in [20.0, 30.0, 52.0] {
+                    for random in [false, true] {
+                        let (chest, aimed, n) = kicked_height_deg(skill, distance, scale, random);
+                        println!("{scale:?} skill {skill} {distance} m random {random}: {chest:+.3} deg over the chest, {aimed:+.3} over the aim point ({n} shots)");
+                    }
+                }
+            }
+        }
+    }
+
     fn median(mut v: Vec<f32>) -> f32 {
         v.sort_by(f32::total_cmp);
         v.get(v.len() / 2).copied().unwrap_or(f32::NAN)
@@ -7629,6 +8340,23 @@ mod tests {
                 assert_eq!(o.strafe, 0, "{now}");
             }
         }
+    }
+
+    /// A gun whose shot waits for the aim to settle ([`Settle::WanderAndPolicy`], here on every gun) stands still while it waits, as a player
+    /// steadies for a long shot; the same bot with the settling off fires at once and side-steps between its bursts.
+    #[test]
+    fn a_shot_waiting_for_the_aim_to_settle_is_not_a_side_step() {
+        let aim = |settle| AimTuning {
+            fire_within_deg: 180.0,
+            // `settle_k` small: the error to expect never fits the body, so the shot waits for the cap.
+            combat: CombatTuning { settle, settle_guns: SettleGuns::All, settle_k: 0.1, ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let waiting = facing_fight("support", 30.0, &aim(Settle::WanderAndPolicy), 60);
+        assert!(waiting.iter().all(|(_, o)| !o.fire && o.strafe == 0), "{:?}", waiting.iter().filter(|(_, o)| o.fire || o.strafe != 0).count());
+        let free = facing_fight("support", 30.0, &aim(Settle::Off), 60);
+        assert!(free.iter().any(|(_, o)| o.fire), "the same bot fires within 3 s with the settling off");
+        assert!(free.iter().any(|(_, o)| o.strafe != 0), "and side-steps");
     }
 
     /// Every weapon of the game data that the tiers' kits may carry is
@@ -8462,6 +9190,12 @@ mod tests {
 
     /// [`volley_run`] with the kit's frags now known to the reflex (`set_frags_left`), and the rolls it refused for them.
     fn kit_run(combat: CombatTuning, frags: Option<u16>) -> (Vec<u32>, GrenadeStats, u32) {
+        kit_run_heard(combat, frags, None)
+    }
+
+    /// [`kit_run`] with the camper heard 2 m off his place every 250 ms from `heard_after` (an enemy sensed by the first
+    /// grenade's place once it is let go).
+    fn kit_run_heard(combat: CombatTuning, frags: Option<u16>, heard_after: Option<u32>) -> (Vec<u32>, GrenadeStats, u32) {
         let camper_at = Vec3::new(0.0, 0.0, 18.0);
         let mut camper = body(1, 1, camper_at, 0.0);
         camper.keys = key::CROUCH | key::AIM;
@@ -8482,7 +9216,12 @@ mod tests {
         let mut throws = Vec::new();
         let mut now = 1_800;
         while now < 12_000 {
-            sense(&mut memory, &[], now);
+            let heard = if now % 250 == 0 && heard_after.is_some_and(|t| now >= t) {
+                vec![percept(1, camper_at + Vec3::new(2.0, 0.0, 0.0), now, Source::Heard)]
+            } else {
+                Vec::new()
+            };
+            sense(&mut memory, &heard, now);
             if now % 250 == 0 {
                 reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
             }
@@ -8536,7 +9275,7 @@ mod tests {
         };
         let (throws, stats) = volley_run(combat(false));
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "{stats:?}");
+        assert_eq!(stats.volley, [0; 6], "{stats:?}");
         let (throws, stats) = volley_run(combat(true));
         assert_eq!(throws.len(), 2, "{throws:?}");
         let gap = throws[1] - throws[0];
@@ -8553,6 +9292,35 @@ mod tests {
         assert_eq!((stats.volley[0], stats.volley[3]), (1, 0), "{stats:?}");
         assert_eq!(stats.volley[1], stats.volley[2], "{stats:?}");
         assert!(stats.volley[1] >= 1, "{stats:?}");
+    }
+
+    /// [A187 #10] The second grenade by evidence: with `grenade_volley_track` it is thrown only when an enemy is sensed by the first's
+    /// place once the first is let go, and then at where he is sensed; with no one sensed the rolls are counted as without evidence
+    /// and the frag is kept; with the switch off the volley is as it was.
+    #[test]
+    fn the_second_grenade_follows_an_enemy_sensed_by_the_first_place_when_asked_to() {
+        let combat = |track| CombatTuning {
+            grenade_chance: 1.0,
+            grenade_roll_ms: 60_000,
+            grenade_volley: true,
+            grenade_volley_chance: 1.0,
+            grenade_volley_track: track,
+            ..CombatTuning::default()
+        };
+        // Nobody sensed after the first: no second, rolls without evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, None);
+        assert_eq!(throws.len(), 1, "{throws:?}");
+        assert_eq!(stats.volley[3], 0, "{stats:?}");
+        assert!(stats.volley[5] >= 1 && stats.volley[4] == 0, "{stats:?}");
+        // An enemy heard 2 m from the first's place from 4 s on (the first is let go about 2.5 s in): a second, rolls with evidence.
+        let (throws, stats, _) = kit_run_heard(combat(true), None, Some(4_000));
+        assert_eq!(throws.len(), 2, "{throws:?} {stats:?}");
+        assert_eq!((stats.volley[3], stats.nth), (1, [1, 1, 0]), "{stats:?}");
+        assert!(stats.volley[4] >= 1, "{stats:?}");
+        // The switch off: the volley as it was, heard or not.
+        let (throws, stats, _) = kit_run_heard(combat(false), None, None);
+        assert_eq!(throws.len(), 2, "{throws:?}");
+        assert_eq!(stats.volley[4] + stats.volley[5], 0, "{stats:?}");
     }
 
     /// [C20] The window ends with the kit's grenades (`grenades`), and with
@@ -8578,7 +9346,7 @@ mod tests {
             ..combat
         });
         assert_eq!(throws.len(), 1, "{throws:?}");
-        assert_eq!(stats.volley, [0; 4], "the kit had no second grenade: {stats:?}");
+        assert_eq!(stats.volley, [0; 6], "the kit had no second grenade: {stats:?}");
     }
 
     /// [G3] A place whose arc comes down inside the thrower's blast floor is
@@ -9122,6 +9890,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             team
         };
@@ -9184,6 +9953,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, distance)], Some(1_500))],
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             let aim = AimTuning {
                 combat: CombatTuning {
@@ -9226,6 +9996,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: if held { vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, 22.0)], Some(1_500))] } else { Vec::new() },
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             team
         };
@@ -10046,6 +10817,13 @@ mod tests {
             weigh_throw(&me, &view, far, (0.0, 0.0), &c, true, &arc::Floor { y: 0.0 }),
             Err(Refuse::Reach)
         );
+        // A place 2 m up (the arc comes down on the floor under it): thrown as it was; off the place with a height asked.
+        let up = Vec3::new(0.0, 2.0, 20.0);
+        let floor = arc::Floor { y: 0.0 };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &c, true, &floor), Ok(()));
+        let asked = CombatTuning { grenade_off_y_m: Some(1.5), ..c.clone() };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &asked, true, &floor), Err(Refuse::Off));
+        assert_eq!(weigh_throw(&me, &view, at, (0.0, 0.0), &asked, true, &floor), Ok(()));
         // A first contact on a wall 19 m out (clear of the thrower) for a
         // place at 27 m: off the place.
         let wall = |from: Vec3, dir: Vec3, max_t: f32| {

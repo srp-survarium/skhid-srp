@@ -42,6 +42,25 @@ fn sprint_block(bot: &Bot, me: &PlaceView, time: u32, stamina_on: bool) -> Optio
     }
 }
 
+/// An enemy the bot's or its team's own senses gave (a cheat's place does not count) this near the body, metres, within
+/// [`FIGHT_KNOWN_MS`]: it is in a fight ([`Feel::fight_lift`]). A GUESS to tune on the bench.
+const FIGHT_M: f32 = 30.0;
+/// ... and this long since, ms.
+const FIGHT_KNOWN_MS: u32 = 8_000;
+
+/// Whether the body is in a fight or a rush, for the motor's sprint lift ([`Feel::fight_lift`]): it runs (the play's pace)
+/// and an enemy is known near it (fair: the bot's own senses and its team's calls, [`Track::own`]) or it is bound for the
+/// enemy base (`Intent::objective`). The intent has no other sign of a rush.
+fn urgent(bot: &Bot, intent: &Intent, me: &PlaceView, time: u32) -> bool {
+    intent.pace == Pace::Run
+        && (intent.objective
+            || bot.memory.tracks().iter().any(|track| {
+                track
+                    .own
+                    .is_some_and(|(at, when)| time.wrapping_sub(when) <= FIGHT_KNOWN_MS && at.distance_xz(me.feet) <= FIGHT_M)
+            }))
+}
+
 /// A jump pressed while the weapon fired lately is held this long, ms,
 /// with the trigger let go: the weapon takes a jump only idle, reloading or
 /// chambering a round (`weapon_core::can_jump` 0x2E3A70: states 3, 4 and
@@ -58,6 +77,37 @@ pub(super) const JUMP_WATCH_MS: u32 = 3_000;
 /// (`base_player::detect_usable_object`, PROVEN), and the half metre more
 /// turns the view while the bot walks in.
 pub(super) const USE_LOOK_M: f32 = 2.5;
+
+/// What the reflex's wish loses while the legs escape ([`Pace::Escape`]): the sights (the client takes no sprint aimed), the crouch and
+/// the side steps always; the key of a grenade, a reload or a weapon switch is its own and stays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Strip {
+    /// The trigger too, the shot the reflex counted this tick given back, and the view is the way, not the target.
+    Everything,
+    /// The trigger and the view stay: a fight in the cloud keeps shooting while the legs run.
+    KeepFiring,
+}
+
+/// The strip of an escape by its reason: out of a blast the legs are all there is; off a zone's floor a fight goes on.
+fn escape_legs(why: EscapeWhy) -> Strip {
+    match why {
+        EscapeWhy::Grenade => Strip::Everything,
+        EscapeWhy::Zone => Strip::KeepFiring,
+    }
+}
+
+impl Strip {
+    /// The reflex's wish for the tick with what slows the legs left out.
+    fn of(self, over: reflex::Override) -> reflex::Override {
+        reflex::Override {
+            keys: over.keys & !(key::AIM | key::CROUCH),
+            strafe: 0,
+            strafe_away: false,
+            fire: over.fire && self == Self::KeepFiring,
+            ..over
+        }
+    }
+}
 
 /// A bot stepping out of a grenade's blast has arrived this near its floor, metres.
 const AVOID_ARRIVE_M: f32 = 0.8;
@@ -257,6 +307,7 @@ fn drive_tick_inner(
     // base pitch and the kick the last tick left (the reflex takes back
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time, tuning.kin.pitch_scale);
+    bot.reflex.gate_mirror(tuning.aim.combat.mirror_gated);
     // Only this tick's walk to the play's own exact spot sets it (below).
     bot.motor.exact_end = None;
     // The view's pitch is the game's unit; the geometry below reckons in elevations (`pitch.rs`).
@@ -273,7 +324,7 @@ fn drive_tick_inner(
         }
         bot.bench_est.push_back((me.known_at, me.feet));
     }
-    let pose = Pose {
+    let mut pose = Pose {
         feet: me.feet,
         yaw: me.yaw,
         pitch: me.pitch,
@@ -281,6 +332,8 @@ fn drive_tick_inner(
         velocity: me.velocity,
         no_jump: !bot.hurt.may_jump(time) || (tuning.think.stamina && !bot.stamina.may_jump()),
         sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
+        urgent: false,
+        gait: motor::Gait::Walk,
     };
     if bot
         .jump_watch
@@ -363,7 +416,7 @@ fn drive_tick_inner(
     // (What the reflex wished for the legs is recorded as it wished it, for a client test to read.)
     #[cfg(any(test, feature = "client-test"))]
     let wished_legs = over.legs;
-    let over = bot.control.filter(over);
+    let mut over = bot.control.filter(over);
     if let Some(lapse) = bot.reflex.take_lapse() {
         bot.sight_counts.add(lapse);
     }
@@ -511,6 +564,34 @@ fn drive_tick_inner(
             intent.straight = false;
         }
     }
+    // [zones] On a floor a zone hurts on now, the legs escape (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): the walk out is at the legs' top speed, the
+    // sprint on any route, and the fight goes on (`escape_legs`). The zones kill by a pool that runs out in 4-5 s; a player runs out of a toxic cloud.
+    if reacts && tuning.hazard.run_out {
+        let hurt = tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.on_at(node, time));
+        if Gates::runs_out(intent.pace, intent.crouch, hurt, over.legs.is_none()) {
+            intent.pace = Pace::Escape(EscapeWhy::Zone);
+            intent.crouch = false;
+            #[cfg(test)]
+            super::hazards::damage_zone_fixes::asked_by(bot.team, || super::hazards::damage_zone_fixes::count(super::hazards::damage_zone_fixes::Ev::RunOut));
+        }
+    }
+    // [Pace::Escape] Out of somewhere first: what of the reflex's wish slows the legs is let go, by the reason (`escape_legs`).
+    let aim = match intent.pace {
+        Pace::Escape(why) => {
+            let strip = escape_legs(why);
+            if over.fire && strip == Strip::Everything {
+                bot.reflex.hold_fire(time);
+            }
+            over = strip.of(over);
+            if strip == Strip::Everything {
+                bot.motor.track = None;
+                None
+            } else {
+                aim
+            }
+        }
+        _ => aim,
+    };
     // [traps] The crouch of the press is held to the release: the trap lands where the pose at the press said.
     if let Some(crouch) = trap.and_then(|trap| trap.crouch) {
         intent.crouch = crouch;
@@ -1345,6 +1426,13 @@ fn drive_tick_inner(
                     why::NONE
                 };
             }
+            // The legs are final: a fight or a rush for the sprint lift (`Feel::fight_lift`).
+            pose.urgent = urgent(bot, &intent, me, time);
+            pose.gait = match intent.pace {
+                Pace::Run => motor::Gait::Run,
+                Pace::Escape(_) => motor::Gait::Escape,
+                _ => motor::Gait::Walk,
+            };
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where
@@ -1470,6 +1558,10 @@ fn drive_tick_inner(
             }
         }
     };
+    // A lift at its face asks sprint and forward held: where those keys go (`lifts::keys`).
+    let lift_face = bot.motor.lift_at_face();
+    let lift_wants = key::SPRINT | key::FORWARD;
+    let lift_asked = decision.keys & lift_wants == lift_wants;
     // The side step, where the ground that side is clear for a stride:
     // standing, or weaving a walk to or from the target.
     #[cfg(test)]
@@ -1525,11 +1617,41 @@ fn drive_tick_inner(
             decision.keys = keys;
         }
     }
+    // [spacing.apart] A teammate inside the body (no collision between teammates): a step away from him, over the ground the fight's own test finds clear. Not while the reflex
+    // strafes or fires, nor while a use is held, nor with a side key already down.
+    #[cfg(test)]
+    {
+        bot.bench_apart = 0;
+    }
+    if tuning.spacing.apart {
+        let away = apart::key_away(me, view, tuning.spacing.apart_m.get());
+        if away != 0 {
+            let follows = !tuning.spacing.apart_follow
+                && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
+            let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
+            let keys = decision.keys | away;
+            let to = me.feet + side_step(keys, away, me.yaw, tactics.clear_step_sees_lip);
+            let clear = !held_off && tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+            if clear {
+                decision.keys = keys;
+            }
+            let eased = !held_off && !clear && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
+            if eased {
+                decision.keys &= !(key::FORWARD | key::SPRINT);
+            }
+            #[cfg(test)]
+            {
+                bot.bench_apart = if held_off { 3 } else if clear { 1 } else if eased { 4 } else { 2 };
+            }
+        }
+    }
     // [lip guard] On a lip's floors the keys of this tick are played forward to a stop: a key that carries the
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
+    let lift_stepped = decision.keys & lift_wants == lift_wants;
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
+    let lift_guarded = decision.keys & lift_wants == lift_wants;
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
         decision.keys |= key::CROUCH;
@@ -1537,7 +1659,7 @@ fn drive_tick_inner(
     }
     bot.pace.saw(intent.pace);
     match intent.pace {
-        Pace::Run => bot.pace.unasked(),
+        Pace::Run | Pace::Escape(_) => bot.pace.unasked(),
         Pace::Cruise | Pace::Arrive if tuning.pace.calm_sprint => {
             let gate = pace_gate(bot, me.feet, &intent, tuning, time);
             let stripped = matches!(gate, pace::Gate::Walk(_)) && decision.keys & key::SPRINT != 0;
@@ -1553,7 +1675,9 @@ fn drive_tick_inner(
             bot.pace.unasked();
         }
     }
-    decision.turn.1 += over.pull;
+    let lift_paced = decision.keys & lift_wants == lift_wants;
+    // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
+    decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);
     if over.fire && !using {
         decision.keys |= key::FIRE;
         decision.keys &= !key::SPRINT;
@@ -1562,11 +1686,13 @@ fn drive_tick_inner(
         bot.reflex.hold_fire(time);
         bot.reflex.gate_using(time);
     }
+    let lift_fired = decision.keys & lift_wants == lift_wants;
     decision.keys |= over.keys;
     if over.keys & (key::GRENADE | key::RELOAD | key::AIM | key::CROUCH) != 0 {
         decision.keys &= !key::SPRINT;
     }
     decision.keys |= intent.hold | std::mem::take(&mut bot.press);
+    let lift_overridden = decision.keys & lift_wants == lift_wants;
     // Lining up for a jump of its route, and in it: standing (a crouched
     // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
     // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
@@ -1592,6 +1718,28 @@ fn drive_tick_inner(
     });
     // [trap_react] A noticed trap on the route, a little ahead: the same jump.
     let by = by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"));
+    if lift_face {
+        let stage = if walking_aimed {
+            motor::lifts::Keys::AimedWalk
+        } else if !lift_asked {
+            motor::lifts::Keys::MotorOff
+        } else if !lift_stepped {
+            motor::lifts::Keys::SideStep
+        } else if !lift_guarded {
+            motor::lifts::Keys::LipGuard
+        } else if !lift_paced {
+            motor::lifts::Keys::PaceOrStance
+        } else if !lift_fired {
+            motor::lifts::Keys::Fire
+        } else if !lift_overridden {
+            motor::lifts::Keys::OverrideKeys
+        } else if decision.keys & lift_wants != lift_wants {
+            motor::lifts::Keys::Lining
+        } else {
+            motor::lifts::Keys::Held
+        };
+        motor::lifts::keys(stage);
+    }
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }
@@ -1902,6 +2050,12 @@ impl Gates {
         goal.is_none() && !intent.zone_ok
     }
 
+    /// Whether a body on a floor a zone hurts on now (`hurt`) escapes (`HazardTuning::run_out`, `Pace::Escape(EscapeWhy::Zone)`): it was to walk or run (a run is no
+    /// sprint on a short route), is not crouched, not sneaking and not escaping already, and the reflex's legs (a fight) are not on it.
+    pub(super) fn runs_out(pace: Pace, crouch: bool, hurt: bool, legs_free: bool) -> bool {
+        hurt && legs_free && !crouch && matches!(pace, Pace::Walk | Pace::Cruise | Pace::Arrive | Pace::Run)
+    }
+
     /// Whether the walk is by keys with no route (`Intent::straight`): not when a zone's way out is the goal.
     pub(super) fn straight(straight: bool, zone_out: bool) -> bool {
         straight && !zone_out
@@ -1933,6 +2087,25 @@ impl Gates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`Pace::Escape`]: the sights, crouch and side steps of the reflex's wish are let go by every reason, the trigger by a blast's only; a
+    /// grenade key stays.
+    #[test]
+    fn an_escape_lets_go_of_the_sights_the_crouch_and_the_side_steps_and_by_its_reason_the_trigger() {
+        let wish = reflex::Override {
+            keys: key::AIM | key::CROUCH | key::GRENADE,
+            strafe: key::LEFT,
+            strafe_away: true,
+            fire: true,
+            ..reflex::Override::default()
+        };
+        let blast = escape_legs(EscapeWhy::Grenade).of(wish);
+        assert_eq!(blast.keys, key::GRENADE);
+        assert_eq!((blast.strafe, blast.strafe_away, blast.fire), (0, false, false));
+        let zone = escape_legs(EscapeWhy::Zone).of(wish);
+        assert_eq!(zone.keys, key::GRENADE);
+        assert_eq!((zone.strafe, zone.strafe_away, zone.fire), (0, false, true));
+    }
 
     fn intent(fire: bool, let_go: bool, zone_ok: bool) -> Intent {
         Intent { fire, let_go, zone_ok, ..Intent::stay() }
@@ -2217,6 +2390,19 @@ mod tests {
         assert!(!Gates::wants_zone_way_out(&intent(true, false, false), goal));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), None));
         assert!(!Gates::wants_zone_way_out(&intent(true, false, true), goal));
+    }
+
+    #[test]
+    fn a_body_in_a_hurting_zone_runs_unless_it_is_crouched_runs_already_or_the_reflex_has_its_legs() {
+        assert!(Gates::runs_out(Pace::Walk, false, true, true));
+        assert!(Gates::runs_out(Pace::Cruise, false, true, true));
+        assert!(Gates::runs_out(Pace::Arrive, false, true, true));
+        assert!(Gates::runs_out(Pace::Run, false, true, true));
+        assert!(!Gates::runs_out(Pace::Escape(EscapeWhy::Grenade), false, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, false, true));
+        assert!(!Gates::runs_out(Pace::Walk, true, true, true));
+        assert!(!Gates::runs_out(Pace::Walk, false, true, false));
+        assert!(!Gates::runs_out(Pace::Sneak, false, true, true));
     }
 
     #[test]

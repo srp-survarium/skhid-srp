@@ -1,0 +1,75 @@
+owner-test outranged: a sniper seen beyond the weapon's band 0 ticks in 0 episodes (ticks facing it 0, in the open 0), breaks of sight begun 0, a carrier kept its way 0 ticks; kills by snipers 0 (team 0 0 / team 1 0), deaths to a sniper 0 of which within 10 s of a sighting 0; sniper spots made by [seen, heard, told] [0, 0, 0], held ticks [within 15 s of a sense, past it] [0, 0], objective ways weighed 0 of which scored down 0 (0 m in his lanes); deaths to the stand-in camper 0 of which within 25 m of an objective 0; FAIR (0) moved by a sense older than 15 s 0
+{
+  "outranged": {
+    "by_team": {
+      "0": {
+        "deaths": 7,
+        "deaths_after_sighting": 0,
+        "deaths_to_camper": 0,
+        "deaths_to_camper_at_objective": 0,
+        "deaths_to_sniper": 0,
+        "deaths_to_sniper_after_sighting": 0,
+        "episodes": 0,
+        "exposed": 0,
+        "facing": 0,
+        "hides": 0,
+        "lane_casts": 0,
+        "lane_held_ticks": 0,
+        "lane_held_ticks_within_past_15s": [
+          0,
+          0
+        ],
+        "lane_made_by_seen_heard_told": [
+          0,
+          0,
+          0
+        ],
+        "lane_moved": 0,
+        "lane_regions": 0,
+        "lane_spots": 0,
+        "lane_unfair": 0,
+        "sightings": 0,
+        "sniper_kills": 0,
+        "task_kept": 0,
+        "ways_m": 0,
+        "ways_scored_down": 0,
+        "ways_weighed": 0
+      },
+      "1": {
+        "deaths": 16,
+        "deaths_after_sighting": 0,
+        "deaths_to_camper": 0,
+        "deaths_to_camper_at_objective": 0,
+        "deaths_to_sniper": 0,
+        "deaths_to_sniper_after_sighting": 0,
+        "episodes": 0,
+        "exposed": 0,
+        "facing": 0,
+        "hides": 0,
+        "lane_casts": 0,
+        "lane_held_ticks": 0,
+        "lane_held_ticks_within_past_15s": [
+          0,
+          0
+        ],
+        "lane_made_by_seen_heard_told": [
+          0,
+          0,
+          0
+        ],
+        "lane_moved": 0,
+        "lane_regions": 0,
+        "lane_spots": 0,
+        "lane_unfair": 0,
+        "sightings": 0,
+        "sniper_kills": 0,
+        "task_kept": 0,
+        "ways_m": 0,
+        "ways_scored_down": 0,
+        "ways_weighed": 0
+      }
+    }
+  },
+  "outranged_hides": 0,
+  "outranged_sightings": 0
+}

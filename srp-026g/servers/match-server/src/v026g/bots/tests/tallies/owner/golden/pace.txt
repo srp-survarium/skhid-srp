@@ -3,6 +3,7 @@ owner-test pace: team 0: calm sprint over 30 m 0 % of 0 walking ticks (by band 0
   "pace": {
     "by_team": {
       "0": {
+        "after_sprint_deaths": [],
         "audible_sprint_ticks": 1378,
         "bar_at_contact_median": 0.0,
         "bar_at_contact_p10": 0.0,
@@ -86,6 +87,7 @@ owner-test pace: team 0: calm sprint over 30 m 0 % of 0 walking ticks (by band 0
         "sprint_presses_a_minute": 20.83
       },
       "1": {
+        "after_sprint_deaths": [],
         "audible_sprint_ticks": 1723,
         "bar_at_contact_median": 0.0,
         "bar_at_contact_p10": 0.0,

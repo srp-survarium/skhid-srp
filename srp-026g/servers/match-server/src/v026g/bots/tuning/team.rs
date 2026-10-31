@@ -46,6 +46,43 @@ impl Default for ModTuning {
     }
 }
 
+/// #25b, the owner's remembered sniper (2026-10-30 quiz: "Yes, 2 minutes"): a sniper the team senses (seen, heard or told)
+/// is a threat spot with lanes all round him (`threat::ThreatSpots::sniper_sensed`), held `memory_s` after the last sense
+/// by the spots' decay, at the place he was last sensed (never his live one; `threat::area_m` says how far he may be from
+/// it by then), let go at his death or a teammate's clear look. The routes keep out of his lanes like any held spot's, and
+/// the objective plays (Collect, Escort, Intercept, not a carrier going home) weigh a way through them: a cost, never a
+/// block.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SniperMemory {
+    /// How long a sensed sniper's spot is held after the last sense, s: the human snipers' area stays as dangerous for
+    /// 120 s and more after a kill (kill share per crossing within 20 m of an earlier kill spot 7-10 % in every bin up to
+    /// 120 s, `human25/reveal_decay.txt`, 145 live recordings of 12+ players). LIKELY.
+    pub memory_s: f32,
+    /// An objective play's score falls by this share for each 10 m of the straight way to its target that lies in the
+    /// sniper spots' lanes. GUESS.
+    pub way_cut_per_10m: Share,
+    /// ... but to no less than this share of it (a cost, never a block: humans do not avoid a revealed sniper's lane,
+    /// `human25`). GUESS.
+    pub way_floor: Share,
+    /// The routes keep out of the sensed snipers' lanes, as of a held spot of kills (`threat::Covered`). Off: only the
+    /// plays read the spots (the objectives' ways, the smoke's `bot.lanes`), the routes keep out of kill spots alone.
+    pub keep_out: bool,
+}
+
+impl Default for SniperMemory {
+    fn default() -> Self {
+        Self { memory_s: 120.0, way_cut_per_10m: Share::of(0.1), way_floor: Share::of(0.5), keep_out: true }
+    }
+}
+
+impl SniperMemory {
+    /// An objective play's share of its score for `exposed_m` of its way in the lanes.
+    pub fn way_weight(&self, exposed_m: f32) -> f32 {
+        (1.0 - self.way_cut_per_10m.get() * exposed_m.max(0.0) / 10.0).max(self.way_floor.get())
+    }
+}
+
 /// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
 /// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
 /// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
@@ -72,6 +109,70 @@ pub struct GangRule {
     pub free: u32,
     pub step: f32,
     pub floor: f32,
+}
+
+/// A job's pin from cover inside the held spot's own lanes (Breach part 1, `plays/crossfire.rs`): with no pin spot out
+/// of the lanes, a peek spot in his own lanes (hidden from his eye crouched, seeing him standing), held crouched with a
+/// few short peeks at his spot.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PinFromCover {
+    /// The peek spots' ring is sampled this many times as densely as the play's own: a peek spot is a narrow lip, and
+    /// the play's samples found one in 13 % of the polls, 4x in 36 % (`breach-plan.md`). PROVEN by the read.
+    pub samples_x: u32,
+    /// A peek stands this long, s: humans holding a spot stand up from a crouch for a median 1.15 s, p75 3.2 s
+    /// (`human-peeks.md`: 10 live matches of 6-10 players, 592 holds, PROVEN).
+    pub peek_s: f32,
+    /// Hidden between peeks from this to `hide_max_s`, s (the cycle then matches the humans' rate below).
+    pub hide_min_s: f32,
+    pub hide_max_s: f32,
+    /// At most this many peeks a play, then it ends (no peek pattern to read). GUESS.
+    pub peeks: u32,
+    /// At most this many peeks a minute: a cycle (peek and hide) is at least 60 / this long. Humans holding a spot
+    /// stand up 2.4 times a hold minute, 3.2 in holds they fired from (a hold's median 1.8, p75 5.7, p90 7.8; PROVEN,
+    /// `human-peeks.md`): 5 is about their p75, never their top.
+    pub per_minute: u32,
+    /// A peek spot is offered only if its walk fits the job it serves: its way (`Ctx::path_dist`) at `walk_mps` takes
+    /// at most this long, s. The jobs last a median 6.9 s (p75 13.3 s); with no cap 82 % of the walks needed longer
+    /// (median 27.6 s for 55.5 m) and only 11 of 104 arrived (`breach-plan.md`, gate 2); capped, 8 of 24 (gate 3).
+    /// PROVEN by the reads; 8 s GUESS.
+    pub peek_reach_s: f32,
+    /// The pinners' pace to a peek spot along their way, m/s: gate 3's capped walks went 1.1 m/s (14.1 m in a median
+    /// 12.6 s; they sneak near the spot). PROVEN by the read.
+    pub walk_mps: f32,
+}
+
+impl Default for PinFromCover {
+    fn default() -> Self {
+        Self { samples_x: 4, peek_s: 1.5, hide_min_s: 10.0, hide_max_s: 14.0, peeks: 4, per_minute: 5, peek_reach_s: 8.0, walk_mps: 1.1 }
+    }
+}
+
+/// [`PinFromCover`] parsed once for the play: the times in ms, the hide stretched so that no cycle beats the cap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PinRule {
+    pub samples_x: u32,
+    pub peek_ms: u32,
+    pub hide_ms: (u32, u32),
+    pub peeks: u32,
+    /// The longest way to a peek spot, m (`peek_reach_s` at `walk_mps`).
+    pub reach_m: f32,
+}
+
+impl PinFromCover {
+    pub fn rule(&self) -> PinRule {
+        let ms = |s: f32| (s.max(0.0) * 1000.0) as u32;
+        let peek_ms = ms(self.peek_s).max(1);
+        let cycle_ms = 60_000 / self.per_minute.max(1);
+        let lo = ms(self.hide_min_s).max(cycle_ms.saturating_sub(peek_ms));
+        PinRule {
+            samples_x: self.samples_x.max(1),
+            peek_ms,
+            hide_ms: (lo, ms(self.hide_max_s).max(lo)),
+            peeks: self.peeks.max(1),
+            reach_m: self.peek_reach_s.max(0.0) * self.walk_mps.max(0.0),
+        }
+    }
 }
 
 /// The team's threat spots (K1, `threat.rs`).
@@ -201,6 +302,36 @@ pub struct ThreatTuning {
     /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
     /// plays are handed out as before. On by default.
     pub gang_up: Option<GangUp>,
+    /// Breach part 1 (`breach-plan.md`): a job's pinner with no pin spot out of the lanes pins from cover inside his
+    /// own lanes ([`PinFromCover`]): 36 % of the pinners' unplayed roles had every pin spot in a held line, 91 % of
+    /// those in his own lanes. `None` (off): that role goes unplayed as before.
+    ///
+    /// OFF by default: the play needs a job that outlives the walk to its spot, and in the bench the jobs end in the
+    /// fight itself, a median 6.9-9.0 s (gates 2 and 3, 96 matches each: its shooter died 32 %, its Flanker went down
+    /// 24-27 %, its Pinner 13-16 %, the spot cleared 13 %, ran its time 0.3-0.6 %). The walks went 1.1 m/s: with no cap
+    /// 11 of 104 arrived; capped to a walk that fits the job, 8 of 24 (0.08 a match), and 0 kills or deaths at a peek
+    /// in 96 matches. A longer job would not help (they end in the fight, not on a timer); nearer spots cannot be
+    /// reached in time. Kept for a mode or an enemy whose spots outlive a walk (a sniper held for minutes).
+    pub pin_from_cover: Option<PinFromCover>,
+    /// Play 28 (the owner's X3 part 2, 2026-10-26): a free teammate whose weapon reaches a sensed enemy sniper (a rifle, a
+    /// sniper rifle) takes a spot that sees his last sensed place within its own reach, from a way hidden from him and out of
+    /// his lanes, and answers him from there. Off: no bot is offered the play. OFF by default, not settled (96 pairs by side,
+    /// 2026-10-30): score +1.5 % (z +0.9) on seeds 1-4, -1.5 % (z -1.0) on seeds 5-8; it fires (4.6 starts a match, 0.2 sniper
+    /// kills by answerers) but the snipers killed and the deaths to them do not move, and it scores plays +6 %.
+    pub answer_sniper: bool,
+    /// X3 (the owner, 2026-10-26: "keep to the task by a route out of the sniper's sight"): a sniper the team senses is a
+    /// threat spot at once, with lanes all round him (the ground he sees within his weapon's reach), so the routes of the team
+    /// keep out of his sight as they keep out of a shooter who has killed (`ThreatTuning::sprint` crosses where they cannot).
+    /// Off: a sniper is kept out of only after he has killed. OFF by default, not settled (96 pairs by side, 2026-10-30):
+    /// score +1.7 % (z +1.1) on seeds 1-4, -3.0 % (z -1.8) on seeds 5-8, deaths to snipers within 10 s of a sighting -16 % then
+    /// +10 %; it costs +9 % of the rays cast a second.
+    pub sniper_lanes: bool,
+    /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
+    /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
+    /// objective play weighs them. OFF by default (176 pairs by side, 2026-10-31): with `keep_out` the stand-in sniper's kills
+    /// a crossing 6.1 % -> 4.8 % (z -1.4) but score -1.6 % (z -1.3), the ON team dying +14.5 % more to snipers in TDM;
+    /// without `keep_out` score +0.4 % (z +0.4) and no protection (5.8 % -> 6.8 %). The cost is not named yet.
+    pub sniper_memory: Option<SniperMemory>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -229,6 +360,37 @@ pub struct CommitTuning {
     /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
     /// `push-record/scripts/human_cover_lastseen.py`).
     pub crossfire_point_s: f32,
+    /// [A192] A Crossfire's other half is a teammate running Crossfire on
+    /// the same choke (the commander's, `TeamKnowledge::crossfiring`), at
+    /// the point it means to be at; and a running one checks it is apart
+    /// only within `sneak_m` of its spot. Off: every teammate within
+    /// `partner_m` of the choke, where it stands, every `repick_every_s`
+    /// (the bench: 92 of 789 takes ended "no spot apart" on a mate passing by).
+    /// And a new Crossfire on a known enemy's last place only when the team's
+    /// own senses gave it within 15 s (`fairness::UNSEEN_MS`, the owner's
+    /// rule): with spots no longer blocked by passers-by, more offers were
+    /// scored on older places (the bench's stale reads +13-15 %, their share
+    /// unchanged); a running one keeps its choke (`crossfire_point`).
+    /// On with `held_in_pass` (`fresh-a192-20261031T0312`, by side, 96 pairs):
+    /// Crossfire arrivals 385 vs 206, kills while holding 67 vs 33, "no spot
+    /// apart" ends 9 vs 341, stale enemy reads -62 %, score +3.0 %, delivered
+    /// +4.3 %; the drop-one arms put the gain on this switch.
+    pub crossfire_apart_mates: bool,
+    /// [A192] The commander's slots held by the bots kept on them are
+    /// rebuilt as each bot of the pass is given up: a slot freed earlier in
+    /// the same pass is free for the rest of it. Off: the held slots are
+    /// found once before the pass (a bot that lost its Collect slot took a
+    /// filler for one pass, then the Collect back: 35 flips within 3 s).
+    /// On with `crossfire_apart_mates` (its bench): those flips 21 vs 38.
+    pub held_in_pass: bool,
+    /// [A192] A Crossfire offer's score is taken times the chance it is
+    /// still wanted at arrival, `exp(-walk_s / tau)`, the walk at a run's
+    /// pace to the choke (the bench: of the takes that ended before the
+    /// spot, the walk's median time to the end was about 13 s). None: off,
+    /// the default: with 13 s the drop-one arm without it held more (arrivals
+    /// 409 vs 388, kills while holding 78 vs 56, takes a match 14.4 vs 12.7)
+    /// for deaths before arrival a take 0.268 vs 0.285 (`drop-a192-20261031T0043`).
+    pub crossfire_arrival_tau_s: Option<f32>,
 }
 
 impl ThreatTuning {
@@ -245,6 +407,9 @@ impl Default for CommitTuning {
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
+            crossfire_apart_mates: true,
+            held_in_pass: true,
+            crossfire_arrival_tau_s: None,
         }
     }
 }
@@ -277,6 +442,10 @@ impl Default for ThreatTuning {
             job_line_by_id: true,
             job_spot_levels: false,
             gang_up: Some(GangUp::default()),
+            pin_from_cover: None,
+            answer_sniper: false,
+            sniper_lanes: false,
+            sniper_memory: None,
         }
     }
 }

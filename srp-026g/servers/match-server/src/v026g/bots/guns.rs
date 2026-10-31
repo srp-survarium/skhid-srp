@@ -72,6 +72,7 @@
 //! the weapon's [`Gun::cycle_ms`], so each press is one shot whatever that
 //! answer is.
 
+use super::flight::Flight;
 use survarium::v026g::bot_skills::{bot_modifiers, item_added, wire_mods};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
@@ -79,7 +80,7 @@ use survarium::v026g::loadouts::{
     upgrades_on,
 };
 use survarium::v026g::skills::{MODIFIERS, modifier_index};
-use survarium::v026g::weapons::Dispersion;
+use survarium::v026g::weapons::{Dispersion, Optic};
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
 /// from).
@@ -130,6 +131,8 @@ pub struct Gun {
     /// `aim_time`: the sights up, ms. Until then a shot spreads as from
     /// the hip (`dispersion`).
     pub aim_ms: u32,
+    /// Its sights and their zoom at full aim ([`Optic`]).
+    pub optic: Optic,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
     /// `stopping_power`: what each bullet (pellet) that hits adds to the victim's stagger (the weapon's number;
@@ -146,6 +149,9 @@ pub struct Gun {
     /// the class the bots went by before the data's, and still go by with
     /// the switch off.
     pub by_category: WeaponClass,
+    /// How the bullet of the ammunition the bots' kits give it flies ([`kit_flight`]); `None` for a weapon no kit has
+    /// or an ammunition with no muzzle speed.
+    pub flight: Option<Flight>,
 }
 
 impl Gun {
@@ -429,13 +435,32 @@ impl Gun {
             handling,
             category: w.category,
             aim_ms: ms(w.aim_time),
+            optic: w.optic,
             dispersion: w.dispersion,
             stopping_power: w.stopping_power,
             bullet_damage: w.bullet_damage,
             class: WeaponClass::of(w),
             by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),
+            flight: kit_flight(w.name),
         }
     }
+}
+
+/// The flight of the ammunition the bots' kits give `weapon` (the tier tables' `RoleGear::ammo`, any tier's: a weapon
+/// has one ammunition in them; the starter pistol's is the lobby's), `None` if none does.
+fn kit_flight(weapon: &str) -> Option<Flight> {
+    use survarium::v026g::loadouts::STARTER;
+    let mut tiers = BotTier::ALL.into_iter().flat_map(|tier| {
+        let gear = tier.gear();
+        [gear.flanker, gear.support, gear.rusher, gear.camper]
+            .into_iter()
+            .chain(gear.rusher_options.iter().map(|&(_, kit)| kit))
+    });
+    let ammo = tiers
+        .find(|gear| gear.weapon == weapon)
+        .map(|gear| gear.ammo)
+        .or_else(|| (STARTER[0].1 == weapon).then_some(STARTER[1].1))?;
+    Flight::of(survarium::v026g::damage::ammo_named(ammo)?)
 }
 
 /// What the character gives a weapon's times besides its own mods: the sums of

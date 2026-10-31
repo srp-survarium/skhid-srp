@@ -4673,3 +4673,7 @@ va	name	location	role	basis
 0x00309dc0	survarium::grenade_set_core::want_throw	stack+8	second forwarded item-action argument, unused	observed
 0x0031a410	survarium::damage_zone_core::damage_of_body	ESI	the damage zone core (curves at +168h and +188h, sensor at +108h)	observed
 0x0031a410	survarium::damage_zone_core::damage_of_body	entry ESP+4	the body (position through its vtable +28h at +118h; the second curve reads [body+334h])	observed
+0x002da4b0	survarium::base_player::update_head_matrix	EAX	the base_player (transform +40Ch, animation player +750h, skeleton +408h)	observed
+0x002daa60	survarium::base_player::tick	entry ESP+4	the time, ms	observed
+0x002daa60	survarium::base_player::tick	ECX	the base_player	observed
+0x002e3cb0	survarium::weapon_core::fire_pred	ECX	the weapon_core (player +8h, state +5ECh, rounds +5E5h, chambered +5F1h)	observed

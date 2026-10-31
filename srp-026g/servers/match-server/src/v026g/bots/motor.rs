@@ -40,6 +40,7 @@ use mapdata::Vec3;
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
+use super::link_time;
 use super::path::{DropTruth, Leap, Route, RouteHeight};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
@@ -207,6 +208,21 @@ pub struct Feel {
     /// under the one before it, so a stair or a ramp counts and a Drop link of 0.8-1.0 m does not;
     /// [`DropTruth::Links`] (the default) is the planner's Drop links.
     pub drop_truth: DropTruth,
+    /// A body in a fight or a rush (an enemy known near, or bound for the enemy base, at a run: [`Pose::urgent`]) climbs
+    /// a low top of its route by the sprint lift, not a jump (the owner's rule, 2026-10-26: "jump only out of fights"):
+    /// it runs into the face at a sprint with no press, and the client carries it up (a rise up to [`LIFT_MAX_RISE_M`],
+    /// a top [`LIFT_TOP_M`] deep, a run of [`LIFT_RUN_UP_M`]); the lift that has not got it up [`LIFT_WAIT_S`] after the
+    /// face is given up for the jump. A calm body jumps as before. Off (the default): it jumps in a fight too. Off because
+    /// a body in a fight is the one the client takes no sprint of (it aims, fires, is hit): in the bench 114 of 136 faces
+    /// were refused for that, and of the 21 lifts that reached the face 2 got up, the whole face (0.8-1.2 m) taking as
+    /// long and giving up as often with the lift as without it. On to measure it again (`SRP_BENCH_TUNING`).
+    pub fight_lift: bool,
+    /// A body that runs keeps its sprint into the walking jump up a ledge whose top is deep enough for the sprint jump
+    /// ([`mapdata::grid::SPRINT_TOP_M`] past the face, `Route::ledge_top`) and presses it on the move, instead of letting go
+    /// of the sprint to line up at a walk (humans keep it: the sprint is held at 58 % of their jump presses and kept after
+    /// 88 % of those). The sprint jump carries the body about 3 m past the face (the 8f rows, PROVEN), which that top holds.
+    /// Off: a walking jump is lined up at a walk, as before.
+    pub sprint_through: bool,
 }
 
 impl Default for Feel {
@@ -251,6 +267,8 @@ impl Default for Feel {
             landing_cancel_deg: 60.0,
             landing_cancel_drops: true,
             drop_truth: DropTruth::Links,
+            fight_lift: false,
+            sprint_through: true,
         }
     }
 }
@@ -271,6 +289,31 @@ pub struct Pose {
     /// Why the client takes no sprint jump now, if it does not (`base_player::can_sprint`, the sprint-jump RE §1.4):
     /// the cases the bot knows of. None: nothing known against it.
     pub sprint_block: Option<SprintBlock>,
+    /// In a fight or a rush ([`Feel::fight_lift`]): the body runs and an enemy is known near it or it is bound for the enemy
+    /// base. Set by the driver; a calm body's low tops are jumped.
+    pub urgent: bool,
+    /// What the legs are asked to do, from the play's pace (`Pace`), for the sprint rules.
+    pub gait: Gait,
+}
+
+/// The gait the driver asks of the motor, one state for the legs' pace (not a pair of flags).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Gait {
+    /// Walking: the sprint only on a long straight stretch ([`Feel::sprint_from_m`]) the walk is not aimed at.
+    #[default]
+    Walk,
+    /// The legs run (`Pace::Run`): the sprint is the body's pace where the way allows ([`Feel::sprint_through`]).
+    Run,
+    /// Out of a blast (`Pace::Escape`): [`Gait::Run`], and the sprint on any route: no long straight stretch to wait for, no
+    /// facing time, and not let go at a corner.
+    Escape,
+}
+
+impl Gait {
+    /// The legs run or escape: the sprint is the pace where the way allows.
+    pub fn runs(self) -> bool {
+        matches!(self, Self::Run | Self::Escape)
+    }
 }
 
 /// Why the client takes no sprint (so no sprint jump) now: the conditions of `base_player::can_sprint` and the
@@ -409,6 +452,24 @@ const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// settle (LIKELY): the walk jump's top is the clip's apex, [`mapdata::grid::STANDING_JUMP_M`] 0.998. With the switch on
 /// the motor reads the grid's label instead of this number.
 pub const WALK_JUMP_TOP_M: f32 = 1.09;
+/// The highest rise the sprint lift carries a body up, metres: the owner's sprint-step limit (2026-10-26), a margin under
+/// the client's ceiling (the J0 box +1.00 lifted 19 of 20, a +1.12 face failed about 1 in 4 at any run-in, PROVEN).
+pub const LIFT_MAX_RISE_M: f32 = 1.11;
+/// The least depth of a top the lift is tried up, metres: a 0.33 m rail head-on lifted 0 of 20 (PROVEN); 0.35 is the owner's
+/// bar (LIKELY).
+pub const LIFT_TOP_M: f32 = 0.35;
+/// The least clear run before the face for a lift, metres: the box +1.00 lifted 19 of 20 from 1, 2, 3 and 4 m (PROVEN).
+/// The run is walked into from [`SPRINT_RUN_UP_M`] behind the take-off where that is clear, else from this.
+pub const LIFT_RUN_UP_M: f32 = 1.0;
+/// A lift is at its face from this near the take-off along the jump, metres (the client holds 0.15-0.3 s there before it
+/// lifts, PROVEN).
+const LIFT_FACE_M: f32 = 0.5;
+/// A lift that has stood at the face this long, seconds, and is not up is given up for the jump (the lift is up 1.2-1.5 s
+/// after the start of the run and the hold at the face is 0.3 s, LIKELY: a second is a margin); so is one whose sprint the
+/// client no longer takes (a shot, an aim).
+const LIFT_WAIT_S: f32 = 1.0;
+/// A lift at its face that the walk has not asked for in this long is left: it is counted left, and the jump is the way up.
+const LIFT_RESUME_S: f32 = 0.5;
 /// A sprint-band press needs the body's velocity within this of the jump's way, degrees, and its speed along that way
 /// at the press speed ([`SPRINT_PRESS_SPEED_MS`]): a body moving at 45 degrees to the way carries 3.5 m/s of 5 into the
 /// face. Quetoo's bot jumps only when its velocity points within 30 degrees of the target node
@@ -626,6 +687,11 @@ pub struct Motor {
     hopped: Option<u32>,
     /// The jump this tick's decision pressed, if any.
     jump: Option<JumpBy>,
+    /// This tick's walk aims at a point (`walk_aiming`): the sprint is let go of and the view is the aim's off the jump's line.
+    aimed_walk: bool,
+    /// The link being timed ([`link_time`]), and what the last tick's walk was doing with the body in its approach.
+    links: super::link_time::Watch,
+    link_why: link_time::Why,
     /// The walk key set held ([`Motor::pick_keys`]).
     key_hold: Option<KeyHold>,
 }
@@ -657,6 +723,27 @@ struct JumpTry {
     sprint_counted: bool,
     /// A sprint-band jump's own state ([`BandTry`]).
     band: BandTry,
+    /// The sprint lift up this face ([`Feel::fight_lift`]).
+    lift: LiftTry,
+    /// What kept the lift from a face of its band is in the counts ([`lifts::refused`]).
+    lift_noted: bool,
+    /// The motor's tick the lift was last at this face: a lift not at it for [`TRY_KEPT_S`] is a new one.
+    lift_seen: Option<u32>,
+    /// What refused the lift at the face after it had reached it (the walk aims, the bar is spent...): the jump is the way
+    /// up from then, and a lift not taken up again within [`LIFT_RESUME_S`] is counted left for this ([`lifts::left`]).
+    lift_refused_at_face: Option<lifts::Refused>,
+}
+
+/// The sprint lift up a face ([`Feel::fight_lift`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum LiftTry {
+    /// Not lifting: a jump is pressed as it always was.
+    #[default]
+    Open,
+    /// Run into the face at a sprint with no press; `at_face` is the motor's tick it first stood at the face.
+    Lifting { at_face: Option<u32> },
+    /// The lift did not get up in [`LIFT_WAIT_S`]: the jump is pressed.
+    GaveUp,
 }
 
 /// What a lining up is for ([`Motor::lining`]).
@@ -756,15 +843,40 @@ struct Ahead {
     failed: Option<Vec3>,
     /// How it is pressed.
     leap: Leap,
-    /// A sprint jump: walked into with sprint held, pressed at speed.
-    sprint: bool,
+    /// How the face is approached.
+    approach: Approach,
     /// The jump's rise, metres; over [`WALK_JUMP_TOP_M`] only the sprint jump gets up ([`Feel::band_jump_gate`]).
     rise: f32,
-    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
-    /// line up, and `before` is the route's distance to the take-off.
-    run_through: bool,
     /// A walking jump up a short top is pressed this far before the take-off ([`Route::ledge_lead`]); 0 is the usual lead.
     lead_m: f32,
+}
+
+/// How the body approaches the face of a jump link: one of these, never a mixture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Approach {
+    /// A walking jump: lined up at a walk and pressed near the take-off.
+    Walk,
+    /// A sprint jump of a ledge (the grid's label): walked into with sprint held, pressed at speed.
+    Sprint,
+    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
+    /// line up, and `before` is the route's distance to the take-off.
+    SprintGap,
+    /// The sprint lift: run into the face at a sprint, no press ([`Feel::fight_lift`]).
+    Lift,
+    /// A walking jump kept at a sprint ([`Feel::sprint_through`]).
+    Through,
+}
+
+impl Approach {
+    /// The sprint is held into the face.
+    fn sprints(self) -> bool {
+        self != Approach::Walk
+    }
+
+    /// The sprint gap link's run through the turn.
+    fn runs_through(self) -> bool {
+        self == Approach::SprintGap
+    }
 }
 
 /// Why the motor pressed jump.
@@ -817,6 +929,9 @@ impl Motor {
             way: [0.0, 0.0],
             hopped: None,
             jump: None,
+            aimed_walk: false,
+            links: super::link_time::Watch::default(),
+            link_why: link_time::Why::Unknown,
             key_hold: None,
         }
     }
@@ -860,6 +975,18 @@ impl Motor {
         keys_toward(sector as f32 * FRAC_PI_4)
     }
 
+    /// Whether the lift has reached its face and is held there ([`Feel::fight_lift`]).
+    pub fn lift_at_face(&self) -> bool {
+        self.jump_try.is_some_and(|t| {
+            matches!(t.lift, LiftTry::Lifting { at_face: Some(_) }) && t.lift_seen == Some(self.clock)
+        })
+    }
+
+    /// The route walked ended for this reason ([`link_time::Watch::route_ended`]).
+    pub fn link_route_ended(&mut self, why: usize) {
+        self.links.route_ended(why);
+    }
+
     /// The jump this tick's decision pressed, and why.
     pub fn jumped(&self) -> Option<JumpBy> {
         self.jump
@@ -889,6 +1016,7 @@ impl Motor {
         self.jump = None;
         self.pressed = None;
         self.lining = Lining::No;
+        self.aimed_walk = false;
     }
 
     /// Whether this tick's lining up for a jump keeps the sprint (a sprint ledge under [`Feel::band_jump_gate`]): the
@@ -1073,6 +1201,8 @@ impl Motor {
         self.look = None;
         self.under_jump(route, pose.feet);
         self.follow_band_press(pose.feet);
+        self.follow_lift(pose.feet);
+        self.links.tick(self.clock, pose.feet, pose.speed, self.link_why);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s, self.feel.drop_truth)) {
@@ -1141,7 +1271,7 @@ impl Motor {
         // only for a way behind it (it turns on the spot), and on a jump's
         // line for a turn off its way: it stands and turns to it first.
         let lined = jump.is_some_and(|jump| jump.lined);
-        let run_through = jump.is_some_and(|jump| jump.run_through);
+        let run_through = jump.is_some_and(|jump| jump.approach.runs_through());
         if lined && run_through {
             // A sprint gap link: the run goes on while the view turns onto the jump's way.
             self.walking = true;
@@ -1152,6 +1282,17 @@ impl Motor {
         } else if !self.walking && still < self.feel.go_turn {
             self.walking = true;
         }
+        self.link_why = if jump.is_none() {
+            link_time::Why::Unknown
+        } else if matches!(pose.sprint_block, Some(SprintBlock::Aiming | SprintBlock::Busy | SprintBlock::Reloading | SprintBlock::Staggered)) {
+            link_time::Why::Fight
+        } else if !lined {
+            link_time::Why::Approach
+        } else if !self.walking {
+            link_time::Why::Turning
+        } else {
+            link_time::Why::Lined
+        };
         // Sprint on a long straight stretch, facing the way.
         let (straight, _) = route.straight_ahead(s, self.feel.corner);
         if self.walking && still < self.feel.sprint_facing {
@@ -1159,12 +1300,19 @@ impl Motor {
         } else {
             self.facing_ticks = 0;
         }
-        let settled = self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s;
-        if !self.sprinting && settled && straight >= self.feel.sprint_from_m {
+        // Out of a blast the sprint needs neither the facing time nor a long straight (the walks are 2-10 m), only the way
+        // faced as for any sprint.
+        let escaping = pose.gait == Gait::Escape;
+        let settled = if escaping {
+            self.walking && still < self.feel.sprint_facing
+        } else {
+            self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
+        };
+        if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
             self.sprinting = true;
         } else if self.sprinting
             && (!self.walking
-                || straight < self.feel.sprint_until_m
+                || (straight < self.feel.sprint_until_m && !escaping)
                 || still > 2.0 * self.feel.sprint_facing)
         {
             self.sprinting = false;
@@ -1178,6 +1326,13 @@ impl Motor {
         }
         // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
         self.sprint_by_the_bar(route, s);
+        // A planned drop is a link too: timed from the lining up to it.
+        if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
+            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
+            if self.links.idle() {
+                self.links.begin(self.clock, link, pose.feet, pose.speed);
+            }
+        }
         // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
         // within the harmless fall as well.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).is_empty() {
@@ -1220,8 +1375,8 @@ impl Motor {
         // A sprint jump is walked into at a sprint, on its line and facing its way, unless the bar is spent: a tired body
         // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
-            && j.sprint
-            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.run_through && self.walking))
+            && j.approach.sprints()
+            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.approach.runs_through() && self.walking))
             && !pose.no_jump
         {
             if self.tired {
@@ -1256,8 +1411,26 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, false);
         }
         // A landing run against the way is braked, not walked out.
+        let mut braked = false;
         if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
+            braked = true;
+        }
+        // A lift at its face that the motor itself asks no sprint or forward of: the bench's cause (`lifts::motor_off`).
+        if self.lift_at_face() && keys & (key::SPRINT | key::FORWARD) != (key::SPRINT | key::FORWARD) {
+            lifts::motor_off(if braked {
+                lifts::MotorOff::Brake
+            } else if !self.walking {
+                lifts::MotorOff::Standing
+            } else if pose.no_jump {
+                lifts::MotorOff::NoJump
+            } else if self.tired {
+                lifts::MotorOff::Tired
+            } else if keys & key::SPRINT == 0 {
+                lifts::MotorOff::NotSprinting
+            } else {
+                lifts::MotorOff::NoForward
+            });
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
@@ -1413,11 +1586,14 @@ impl Motor {
         aim: (f32, f32),
     ) -> (Decision, Walked) {
         self.next_tick();
+        self.aimed_walk = true;
         self.look = None;
         self.sprinting = false;
         self.facing_ticks = 0;
         self.under_jump(route, pose.feet);
         self.follow_band_press(pose.feet);
+        self.follow_lift(pose.feet);
+        self.links.tick(self.clock, pose.feet, pose.speed, self.link_why);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
@@ -1509,7 +1685,10 @@ impl Motor {
         s: f32,
         clear: &impl Fn(Vec3) -> bool,
     ) -> Option<Ahead> {
-        let (k, before_route) = route.next_jump(s)?;
+        let Some((k, before_route)) = route.next_jump(s) else {
+            self.links.lost(link_time::Lost::NoJump);
+            return None;
+        };
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let leap = points[k].jump.unwrap_or(Leap::Ledge);
@@ -1517,7 +1696,15 @@ impl Motor {
         let sprint_gap = self.feel.sprint_gaps && matches!(leap, Leap::SprintGap(_));
         let sprint = sprint_ledge || sprint_gap;
         let band = self.feel.band_jump_gate && sprint_ledge && self.over_walk_top(landing.y - take_off.y);
-        if before_route > if sprint { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
+        // A body in a fight or a rush climbs a low top by the sprint lift ([`Feel::fight_lift`]); the face, the run and
+        // the bar are asked below.
+        let lift_open = self.feel.fight_lift
+            && pose.urgent
+            && !pose.no_jump
+            && matches!(leap, Leap::Ledge | Leap::SprintLedge)
+            && landing.y - take_off.y <= LIFT_MAX_RISE_M;
+        if before_route > if sprint || lift_open { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
+            self.links.lost(link_time::Lost::Far);
             return None;
         }
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
@@ -1562,6 +1749,7 @@ impl Motor {
                 && (t.landing - landing).length() < 0.3
                 && t.pressed.is_none_or(|at| self.since(at) < TRY_KEPT_S)
                 && t.band.last().is_none_or(|at| self.since(at) < TRY_KEPT_S)
+                && t.lift_seen.is_none_or(|at| self.since(at) < TRY_KEPT_S)
         };
         let mut jump = match self.jump_try {
             Some(t) if same(&t) => t,
@@ -1575,6 +1763,10 @@ impl Motor {
                 counted: false,
                 sprint_counted: false,
                 band: BandTry::Approaching,
+                lift: LiftTry::Open,
+                lift_noted: false,
+                lift_seen: None,
+                lift_refused_at_face: None,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
@@ -1614,18 +1806,64 @@ impl Motor {
                 going: false,
                 failed: Some(take_off),
                 leap,
-                sprint,
+                approach: if sprint { Approach::Sprint } else { Approach::Walk },
                 rise: landing.y - take_off.y,
-                run_through: false,
                 lead_m: 0.0,
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
+        // The sprint lift: up this face, with the top deep enough, a clear run before it and a body the client lets sprint.
+        let mut lifting = lift_open && jump.lift != LiftTry::GaveUp;
+        if lifting {
+            let why = if !route.ledge_top(k).is_some_and(|depth| depth >= LIFT_TOP_M) {
+                Some(lifts::Refused::TopShort)
+            } else if pose.sprint_block.is_some() || self.aimed_walk || self.tired {
+                // The client takes no sprint now (aiming, firing, a reload, a hit, the bar, a battery), or the walk aims (it
+                // lets go of the sprint) or the bar is spent for the motor: the lift needs the sprint held against the face
+                // for the client's hold (the bench: 6 % of the ticks a lift stood at its face held it), so the jump is the
+                // way up. A fight's reflex fires most ticks.
+                Some(lifts::Refused::Blocked)
+            } else if !matches!(jump.lift, LiftTry::Lifting { at_face: Some(_) }) && !clear(at(LIFT_RUN_UP_M)) {
+                // Asked before the face only: `clear` is the body's line to the point, and from the face the run is run (the
+                // bench: half the lifts left at their face were left for this).
+                Some(lifts::Refused::NoRunUp)
+            } else {
+                None
+            };
+            if let Some(why) = why {
+                lifting = false;
+                if matches!(jump.lift, LiftTry::Lifting { at_face: Some(_) }) {
+                    jump.lift_refused_at_face = Some(why);
+                } else if !jump.lift_noted {
+                    jump.lift_noted = true;
+                    lifts::refused(why);
+                }
+            } else {
+                jump.lift_refused_at_face = None;
+            }
+        }
+        // A running body keeps its sprint into a walking jump up a deep top: the sprint jump carries it up and on.
+        let through = self.feel.sprint_through
+            && !lifting
+            && pose.gait.runs()
+            && !pose.no_jump
+            && pose.sprint_block.is_none()
+            && leap == Leap::Ledge
+            && route.ledge_top(k).is_some_and(|depth| depth >= mapdata::grid::SPRINT_TOP_M)
+            && clear(at(SPRINT_RUN_UP_M));
+        let sprint = sprint || lifting || through;
+        if lifting || through {
+            self.lining = Lining::Sprint;
+        }
         // A gap link is pressed at its own point: the run-up starts
         // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
         // walked into from wherever the line is clear (it presses there).
         let run_up = match leap {
+            // A lift is run up to from the sprint jump's run where it is clear, else from the least the lift needs.
+            Leap::Ledge | Leap::SprintLedge if lifting || through => {
+                [SPRINT_RUN_UP_M, LIFT_RUN_UP_M].into_iter().find(|&m| clear(at(m))).unwrap_or(LIFT_RUN_UP_M)
+            }
             // A band jump runs up over the grid's run (the floor it proved straight behind the take-off), not less. The
             // point of the run may be out of sight from where the body is (it arrives along the route, round a corner):
             // then the grid's run is taken and the route is followed to the take-off; only a body that has backed off
@@ -1663,18 +1901,43 @@ impl Motor {
         let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
+        if lifting {
+            // The lift stands at the face while the client holds it, then goes up; one that is not up in time is a jump.
+            let mut at_face = match jump.lift {
+                LiftTry::Lifting { at_face } => at_face,
+                _ => None,
+            };
+            if at_face.is_none() && -along <= LIFT_FACE_M {
+                at_face = Some(self.clock);
+                lifts::tried(landing.y - take_off.y);
+            }
+            jump.lift_seen = Some(self.clock);
+            if at_face.is_some_and(|at| self.since(at) > LIFT_WAIT_S || pose.sprint_block.is_some()) {
+                jump.lift = LiftTry::GaveUp;
+                lifts::failed(landing.y - take_off.y, pose.sprint_block.is_some());
+                lifting = false;
+            } else {
+                jump.lift = LiftTry::Lifting { at_face };
+            }
+        }
         let on_line =
             side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
+        if jump.back && !in_the_air {
+            self.links.backing();
+        }
         if jump.back && (at(run_up).distance_xz(feet) <= AT_RUN_UP_M || (run_up == 0.0 && on_line))
         {
             jump.back = false;
         }
         // A sprint gap link is lined up only over its last metres: the run before it follows the route and may turn onto
         // the jump's way (the run along a rail, the jump across it).
+        // A lift that has reached its face is on the jump's line until it is up: the climb carries the body past the
+        // take-off, which is no reason to turn it back to the run-up.
+        let climbing = lifting && matches!(jump.lift, LiftTry::Lifting { at_face: Some(_) });
         let lined = if sprint_gap {
             in_the_air || (before_route <= SPRINT_GAP_TURN_M && !jump.back)
         } else {
-            in_the_air || (on_line && !jump.back)
+            in_the_air || climbing || (on_line && !jump.back)
         };
         let aim = if lined {
             // Along the jump's way, past the landing (a gap link's lands
@@ -1707,6 +1970,16 @@ impl Motor {
                 moved < STANDING_M || mx * way[0] + mz * way[1] >= GOING_TURN.cos() * moved
             });
         self.jump_try = Some(jump);
+        let kind = match leap {
+            Leap::Ledge | Leap::SprintLedge if lifting => link_time::Kind::Lift,
+            Leap::Ledge if through => link_time::Kind::Through,
+            Leap::Ledge => link_time::Kind::Walking,
+            Leap::SprintLedge => link_time::Kind::SprintBand,
+            Leap::SprintGap(_) if self.feel.sprint_gaps => link_time::Kind::SprintGap,
+            Leap::Gap(_) | Leap::SprintGap(_) => link_time::Kind::Gap,
+        };
+        let top = route.ledge_top(k);
+        self.links.begin(self.clock, link_time::Link { kind, take_off, landing, top }, feet, pose.speed);
         Some(Ahead {
             aim,
             lined,
@@ -1715,9 +1988,18 @@ impl Motor {
             going,
             failed: None,
             leap,
-            sprint,
+            approach: if lifting {
+                Approach::Lift
+            } else if through {
+                Approach::Through
+            } else if sprint_gap {
+                Approach::SprintGap
+            } else if sprint {
+                Approach::Sprint
+            } else {
+                Approach::Walk
+            },
             rise: landing.y - take_off.y,
-            run_through: sprint_gap,
             lead_m,
         })
     }
@@ -1738,12 +2020,16 @@ impl Motor {
         if pose.no_jump {
             return 0;
         }
+        // The sprint lift is no press: the sprint into the face carries the body up.
+        if ahead.approach == Approach::Lift {
+            return 0;
+        }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
-        let band = self.feel.band_jump_gate && ahead.sprint && !ahead.run_through && self.over_walk_top(ahead.rise);
+        let band = self.feel.band_jump_gate && ahead.approach.sprints() && !ahead.approach.runs_through() && self.over_walk_top(ahead.rise);
         let block = pose.sprint_block.or(aimed.then_some(SprintBlock::Aiming));
         let aligned = !band || press_aligned(pose.velocity, ahead.way);
         let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned));
-        if ahead.sprint && !sprinted && (ahead.before > 0.0 || band) {
+        if ahead.approach.sprints() && !sprinted && (ahead.before > 0.0 || band) {
             if band && ahead.before.abs() <= BAND_FACE_M && pose.speed < STILL_MS {
                 band_jumps::face_tick();
             }
@@ -1796,6 +2082,7 @@ impl Motor {
             }
             jump.back = true;
             self.jump_try = Some(jump);
+            self.links.backed_off();
             band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
@@ -1808,6 +2095,7 @@ impl Motor {
         jump.pressed = Some(self.clock);
         jump.back = true;
         self.jump_try = Some(jump);
+        self.links.pressed(self.clock, pose.feet, pose.speed);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
@@ -1817,7 +2105,10 @@ impl Motor {
         });
         self.jump = Some(JumpBy::Route);
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
-        if ahead.sprint && !ahead.run_through {
+        if matches!(ahead.leap, Leap::Ledge | Leap::SprintLedge) && ahead.rise <= LIFT_MAX_RISE_M {
+            lifts::jumped(ahead.rise, pose.urgent);
+        }
+        if ahead.approach == Approach::Sprint {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
             if self.over_walk_top(ahead.rise) {
                 band_jumps::pressed(speed, self.sprinting);
@@ -1842,7 +2133,7 @@ impl Motor {
                 }
             }
         }
-        if ahead.run_through {
+        if ahead.approach.runs_through() {
             sprint_gaps::pressed(speed);
             sprint_gaps::sprint_held(self.sprinting);
         }
@@ -1856,6 +2147,26 @@ impl Motor {
     /// instead of walked on from under it.
     /// The strict got-up count of the sprint-band press followed ([`BandWatch`]): on the landing's floor, near it, within
     /// [`BAND_UP_S`] of the press; else not up.
+    /// A lift that has reached its face and finds the body up the ledge is a lift got up ([`lifts::up`]), whatever the
+    /// route's progress is by then.
+    fn follow_lift(&mut self, feet: Vec3) {
+        let clock = self.clock;
+        let since = |at: u32| clock.wrapping_sub(at) as f32 * TICK_S;
+        if let Some(t) = self.jump_try.as_mut()
+            && let LiftTry::Lifting { at_face: Some(_) } = t.lift
+        {
+            if is_up(feet, t.take_off, t.landing) {
+                t.lift = LiftTry::Open;
+                lifts::up(t.landing.y - t.take_off.y);
+            } else if t.lift_seen.is_some_and(|at| since(at) > LIFT_RESUME_S) {
+                // The walk has not asked for the lift at this face for a while (a refusal that stayed, or the route went
+                // on to another leg): its outcome is counted and the jump is the way up.
+                t.lift = LiftTry::GaveUp;
+                lifts::left(t.landing.y - t.take_off.y, t.lift_refused_at_face);
+            }
+        }
+    }
+
     fn follow_band_press(&mut self, feet: Vec3) {
         let Some(watch) = self.band_watch else {
             return;
@@ -2492,6 +2803,155 @@ pub mod band_jumps {
     }
 }
 
+/// The sprint lift ([`Feel::fight_lift`]) and the jumps pressed up the same tops (a rise of [`LIFT_MAX_RISE_M`] or less),
+/// by band of rise: up to 0.80 m (the client's step), 0.80-0.95, 0.95-1.05, 1.05-1.11. Lifts tried (the body stood at the
+/// face), got up, given up for the jump after [`LIFT_WAIT_S`]; jumps pressed with the body calm and in a fight or a rush;
+/// and the faces a body in a fight or a rush did not lift, by reason.
+pub mod lifts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const BANDS: usize = 4;
+    static COUNTS: [[AtomicU64; BANDS]; 6] = [const { [const { AtomicU64::new(0) }; BANDS] }; 6];
+    static REFUSED: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    /// Why a body in a fight or a rush did not lift a face of its route.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Refused {
+        /// The top is shallower than [`super::LIFT_TOP_M`], or was not measured.
+        TopShort,
+        /// The client lets the body take no sprint (tired, a battery, staggered).
+        Blocked,
+        /// Less than [`super::LIFT_RUN_UP_M`] of clear run before the face.
+        NoRunUp,
+    }
+
+    fn band(rise: f32) -> usize {
+        if rise <= 0.8 {
+            0
+        } else if rise <= 0.95 {
+            1
+        } else if rise <= 1.05 {
+            2
+        } else {
+            3
+        }
+    }
+
+    fn add(kind: usize, rise: f32) {
+        COUNTS[kind][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn tried(rise: f32) {
+        add(0, rise);
+    }
+
+    pub fn up(rise: f32) {
+        add(1, rise);
+    }
+
+    /// What became of the sprint and forward keys of a lift at its face (the ticks), by the first thing that took them.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Keys {
+        /// The walk aims (a fight's target): the body faces the target, not the jump.
+        AimedWalk,
+        /// The motor itself asked for no sprint or no forward.
+        MotorOff,
+        /// The reflex's side step.
+        SideStep,
+        /// The lip guard.
+        LipGuard,
+        /// The play's pace is not a run, or it is crouched or sneaking.
+        PaceOrStance,
+        /// The reflex fires this tick.
+        Fire,
+        /// The reflex's aim, grenade, reload or crouch key.
+        OverrideKeys,
+        /// The lining up of a walking jump.
+        Lining,
+        /// Held to the client.
+        Held,
+    }
+
+    /// Why the motor itself asked a lift at its face for no sprint or no forward (the ticks).
+    #[derive(Clone, Copy, Debug)]
+    pub enum MotorOff {
+        /// The landing brake of an earlier jump.
+        Brake,
+        /// The walk stands (the view is not within the line-up turn of the jump's way, or no walk).
+        Standing,
+        /// The body may not jump now (hurt, or the bar under the jump's cost): no sprint is taken up.
+        NoJump,
+        /// The reckoned bar is spent (the motor's own tired state).
+        Tired,
+        /// Walking but no sprint: the lining up did not take it up.
+        NotSprinting,
+        /// Sprint held, no forward.
+        NoForward,
+    }
+
+    static MOTOR_OFF: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    pub fn motor_off(why: MotorOff) {
+        MOTOR_OFF[why as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks of a lift at its face the motor asked no sprint or forward of, by [`MotorOff`].
+    pub fn motor_off_counts() -> [u64; 6] {
+        std::array::from_fn(|k| MOTOR_OFF[k].load(Ordering::Relaxed))
+    }
+
+    static KEYS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+
+    pub fn keys(stage: Keys) {
+        KEYS[stage as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks of a lift at its face by [`Keys`].
+    pub fn key_counts() -> [u64; 9] {
+        std::array::from_fn(|k| KEYS[k].load(Ordering::Relaxed))
+    }
+
+    /// A lift given up for the jump; `blocked`: the client took no sprint at the face (a shot, an aim), not the time.
+    pub fn failed(rise: f32, blocked: bool) {
+        add(2, rise);
+        if blocked {
+            add(5, rise);
+        }
+    }
+
+    /// A jump pressed up a face a lift could climb, `urgent`: the body in a fight or a rush.
+    pub fn jumped(rise: f32, urgent: bool) {
+        add(if urgent { 4 } else { 3 }, rise);
+    }
+
+    pub fn refused(why: Refused) {
+        REFUSED[why as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    static LEFT: [[AtomicU64; BANDS]; 4] = [const { [const { AtomicU64::new(0) }; BANDS] }; 4];
+
+    /// A lift that reached its face and was left for the jump with no outcome of its own: by what refused it there (top
+    /// short, sprint blocked or the walk aims or the bar is spent, no run), or none (the route went on to another leg).
+    pub fn left(rise: f32, why: Option<Refused>) {
+        LEFT[why.map_or(3, |w| w as usize)][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Lifts left, by [`left`]'s cause and band.
+    pub fn left_counts() -> [[u64; BANDS]; 4] {
+        std::array::from_fn(|k| std::array::from_fn(|b| LEFT[k][b].load(Ordering::Relaxed)))
+    }
+
+    /// Tried, up, failed, jumps calm, jumps in a fight or a rush: by band.
+    pub fn counts() -> [[u64; BANDS]; 6] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
+    }
+
+    /// Faces not lifted: top short, sprint blocked, no run.
+    pub fn refusals() -> [u64; 3] {
+        std::array::from_fn(|k| REFUSED[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_BAND_FROM_M`]: pressed, got up, given up, for the
 /// bench's failed-jump counter.
 pub mod sprint_jumps {
@@ -2829,6 +3289,9 @@ mod tests {
         face: f32,
         reach: f32,
         gets_up: bool,
+        /// The client lifts a body that runs into the face at a sprint (not from a stand) and is held there with the
+        /// sprint and forward keys for 0.3 s: up with no jump.
+        lifts: bool,
     }
 
     /// What a body walked by the motor at a [`Ledge`] did.
@@ -2883,6 +3346,22 @@ mod tests {
         hurt_ticks: usize,
         feel: Feel,
     ) -> Climb {
+        climb_ledge_urgent(route, ledge, start, yaw, ticks, aiming, hurt_ticks, feel, false)
+    }
+
+    /// [`climb_ledge_feel`] with the pose's `urgent` flag (a fight or a rush).
+    #[allow(clippy::too_many_arguments)]
+    fn climb_ledge_urgent(
+        route: &mut Route,
+        ledge: &Ledge,
+        start: Vec3,
+        yaw: f32,
+        ticks: usize,
+        aiming: bool,
+        hurt_ticks: usize,
+        feel: Feel,
+        urgent: bool,
+    ) -> Climb {
         let kin = Kinematics::default();
         let mut rng = Rng::new(17);
         let mut motor = Motor::new(feel, &mut rng);
@@ -2908,8 +3387,12 @@ mod tests {
             up_at: None,
         };
         let mut air: Option<usize> = None;
+        // The ticks held against the face with the sprint and forward keys, and whether the body came to it at a sprint.
+        let (mut held, mut came_fast) = (0usize, false);
         for tick in 0..ticks {
             pose.no_jump = tick < hurt_ticks;
+            pose.urgent = urgent;
+            pose.gait = Gait::Run;
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
             } else {
@@ -2951,6 +3434,18 @@ mod tests {
                     let back = along(to) - ledge.face;
                     to.x -= ledge.way[0] * back;
                     to.z -= ledge.way[1] * back;
+                    if held == 0 {
+                        came_fast = pose.speed >= 3.5;
+                    }
+                    let pushing = decision.keys & key::SPRINT != 0 && decision.keys & key::FORWARD != 0;
+                    held = if pushing { held + 1 } else { 0 };
+                    if ledge.lifts && came_fast && held as f32 * TICK_S >= 0.3 {
+                        climb.up = true;
+                        climb.up_at = Some(tick);
+                        to.y = landing_y;
+                        to.x += ledge.way[0] * 0.3;
+                        to.z += ledge.way[1] * 0.3;
+                    }
                 }
             }
             pose.speed = (to - pose.feet).length() / TICK_S;
@@ -2998,6 +3493,7 @@ mod tests {
             face: 0.2,
             reach: 1.2,
             gets_up: true,
+            lifts: false,
         };
         (Route::new(points), ledge)
     }
@@ -3020,6 +3516,7 @@ mod tests {
             face: 0.25,
             reach: 1.2,
             gets_up: true,
+            lifts: false,
         };
         let mut route = Route::new(vec![p(0.0, 0.0, false), p(0.5, 0.3, true)]);
         let climb = climb_ledge(
@@ -3468,6 +3965,7 @@ mod tests {
             face: 0.2,
             reach: 1.2,
             gets_up: true,
+            lifts: false,
         };
         let before = sprint_jumps::counts();
         let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false);
@@ -3488,6 +3986,210 @@ mod tests {
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
     }
 
+    /// The lift tests' route: a ledge 1.0 m high (the client's step is 0.8, the lift's ceiling 1.11), 0.6 m deep.
+    fn lift_route() -> (Route, Ledge) {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(ledge_to(y)),
+            low: false,
+        };
+        let route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.0, true), p(14.0, 1.0, false)])
+            .with_ledge_top(Vec3::new(8.4, 1.0, 0.0), 0.6);
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true, lifts: true };
+        (route, ledge)
+    }
+
+    /// A body in a fight runs at the face of a low top with the sprint held and presses no jump: the client lifts it
+    /// (`Feel::fight_lift`). The lift is counted tried and up, by its band.
+    #[test]
+    fn a_body_in_a_fight_lifts_a_low_top_with_no_jump() {
+        let (mut route, ledge) = lift_route();
+        let before = lifts::counts();
+        let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false, 0, Feel { fight_lift: true, ..Feel::default() }, true);
+        assert!(climb.presses.is_empty(), "no press: {:?}", climb.presses);
+        assert!(climb.up, "{:?}", climb.poses.last());
+        let after = lifts::counts();
+        let band = 2; // 0.95-1.05
+        assert!(after[0][band] > before[0][band], "tried");
+        assert!(after[1][band] > before[1][band], "up");
+    }
+
+    /// A trace (not a check): a running body on a long straight to a 1.0 m ledge, speed and keys by tick, `--nocapture`.
+    #[test]
+    #[ignore = "a trace for reading, not a check"]
+    fn trace_a_walking_jump_from_a_sprint() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: jump.then_some(ledge_to(y)), low: false };
+        let mut route = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 1.0, true), p(40.0, 1.0, false)])
+            .with_ledge_top(Vec3::new(20.4, 1.0, 0.0), 1.0);
+        let ledge = Ledge { take_off: Vec3::new(20.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.6, gets_up: true, lifts: false };
+        let feel = Feel { sprint_through: false, fight_lift: false, ..Feel::default() };
+        let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 700, false, 0, feel, false);
+        for (t, (pose, d)) in climb.poses.iter().zip(&climb.decisions).enumerate() {
+            if pose.feet.x > 12.0 {
+                eprintln!("t {t:3} x {:6.2} y {:4.2} speed {:4.2} sprint {} jump {} fwd {}", pose.feet.x, pose.feet.y, pose.speed,
+                    u8::from(d.keys & key::SPRINT != 0), u8::from(d.keys & key::JUMP != 0), u8::from(d.keys & key::FORWARD != 0));
+            }
+        }
+    }
+
+    /// A running body keeps its sprint into a walking jump up a deep top and presses it on the move, at speed, 0.6 m or more
+    /// before the face; a shallow top, or the switch off, is lined up at a walk as before.
+    #[test]
+    fn a_running_body_jumps_a_deep_top_at_a_sprint() {
+        let (route, ledge) = lift_route();
+        let pressed_at = |top: f32, through: bool| {
+            let mut route = Route::new(route.points().to_vec()).with_ledge_top(Vec3::new(8.4, 1.0, 0.0), top);
+            let feel = Feel { sprint_through: through, fight_lift: false, ..Feel::default() };
+            let mut ledge = Ledge { lifts: false, ..ledge_copy(&ledge) };
+            ledge.reach = 1.6;
+            let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 500, false, 0, feel, false);
+            assert!(climb.up, "top {top} through {through}: {:?}", climb.poses.last());
+            climb.presses.first().map(|&(_, at)| (at.speed, ledge.take_off.x - at.feet.x))
+        };
+        let (speed, before) = pressed_at(3.5, true).expect("pressed");
+        assert!(speed >= SPRINT_PRESS_SPEED_MS && before >= 0.6, "speed {speed} before {before}");
+        let (slow, _) = pressed_at(3.5, false).expect("pressed");
+        assert!(slow < SPRINT_PRESS_SPEED_MS, "walked into: {slow}");
+        let (shallow, _) = pressed_at(1.0, true).expect("pressed");
+        assert!(shallow < SPRINT_PRESS_SPEED_MS, "a shallow top is walked into: {shallow}");
+    }
+
+    fn ledge_copy(l: &Ledge) -> Ledge {
+        Ledge { take_off: l.take_off, way: l.way, face: l.face, reach: l.reach, gets_up: l.gets_up, lifts: l.lifts }
+    }
+
+    /// A calm body jumps the same top as it always has, pressed before the face, and tries no lift.
+    #[test]
+    fn a_calm_body_jumps_a_low_top() {
+        let (mut route, ledge) = lift_route();
+        let before = lifts::counts();
+        let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false, 0, Feel::default(), false);
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        let (_, at) = climb.presses[0];
+        assert!(ledge.take_off.x - at.feet.x >= 0.6, "pressed at least 0.6 m before the face: {at:?}");
+        assert!(climb.up);
+        let after = lifts::counts();
+        assert!(after[3][2] > before[3][2], "a calm jump");
+    }
+
+    /// With the switch off a body in a fight jumps too.
+    #[test]
+    fn a_fight_lift_switched_off_is_a_jump() {
+        let (mut route, ledge) = lift_route();
+        let feel = Feel { fight_lift: false, ..Feel::default() };
+        let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false, 0, feel, true);
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        assert!(climb.up);
+    }
+
+    /// A top the planner did not find deep enough or did not measure, a body the client lets take no sprint: jumped, not
+    /// lifted, and the refusal counted.
+    #[test]
+    fn a_fight_does_not_lift_what_the_client_does_not() {
+        let jumped = |route: &mut Route, ledge: &Ledge, block: Option<SprintBlock>| {
+            let mut rng = Rng::new(17);
+            let mut motor = Motor::new(Feel { sway: 0.0, fight_lift: true, ..Feel::default() }, &mut rng);
+            let mut pose = Pose { feet: Vec3::ZERO, yaw: yaw_of([1.0, 0.0]), urgent: true, sprint_block: block, ..Default::default() };
+            let mut blend = crate::v026g::bots::kin::Blend::default();
+            let kin = Kinematics::default();
+            let mut pressed = false;
+            for _ in 0..300 {
+                let (decision, _) = motor.walk(route, &pose, 5.0, |_| true);
+                pressed |= decision.keys & key::JUMP != 0;
+                pose.yaw = wrap(pose.yaw + decision.turn.0);
+                let local = blend.tick(kin.target_local(decision.keys, 1.0), kin.blend_ticks);
+                let velocity = crate::v026g::bots::kin::to_world(local, pose.yaw);
+                let x = (pose.feet.x + velocity[0] * TICK_S).min(ledge.take_off.x + ledge.face);
+                pose.speed = (x - pose.feet.x).abs() / TICK_S;
+                pose.velocity = velocity;
+                pose.feet.x = x;
+                if pressed {
+                    break;
+                }
+            }
+            pressed
+        };
+        let (route, ledge) = lift_route();
+        let before = lifts::refusals();
+        let mut shallow = Route::new(route.points().to_vec()).with_ledge_top(Vec3::new(8.4, 1.0, 0.0), 0.2);
+        assert!(jumped(&mut shallow, &ledge, None), "a shallow top is jumped");
+        let mut unknown = Route::new(route.points().to_vec());
+        assert!(jumped(&mut unknown, &ledge, None), "an unmeasured top is jumped");
+        let mut carried = route.clone();
+        assert!(jumped(&mut carried, &ledge, Some(SprintBlock::Carrying)), "a carrier jumps");
+        let after = lifts::refusals();
+        assert!(after[0] >= before[0] + 2, "top short counted: {before:?} {after:?}");
+        assert!(after[1] > before[1], "blocked counted: {before:?} {after:?}");
+    }
+
+    /// A body with no clear run before the face does not lift: the jump is pressed from where it stands.
+    #[test]
+    fn a_fight_with_no_run_before_the_face_jumps() {
+        let (mut route, ledge) = lift_route();
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel { sway: 0.0, fight_lift: true, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let pose = Pose { feet: ledge.take_off, yaw: yaw_of([1.0, 0.0]), speed: 1.0, urgent: true, ..Default::default() };
+        let before = lifts::refusals();
+        let mut pressed = false;
+        for _ in 0..60 {
+            let (decision, _) = motor.walk(&mut route, &pose, 5.0, |p| p.x >= ledge.take_off.x - 0.5);
+            pressed |= decision.keys & key::JUMP != 0;
+        }
+        assert!(pressed, "a body with no run jumps");
+        assert!(lifts::refusals()[2] > before[2], "no run counted");
+    }
+
+    /// A lift that has stood at the face for [`LIFT_WAIT_S`] and is not up is given up for the jump, counted failed.
+    #[test]
+    fn a_lift_that_does_not_get_up_is_a_jump_after_a_second() {
+        let (mut route, mut ledge) = lift_route();
+        ledge.lifts = false; // the client does not lift here
+        let before = lifts::counts();
+        let climb = climb_ledge_urgent(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 600, false, 0, Feel { fight_lift: true, ..Feel::default() }, true);
+        assert_eq!(climb.presses.len(), 1, "the jump is pressed after the lift: {:?}", climb.presses);
+        assert!(climb.up, "and gets up: {:?}", climb.poses.last());
+        let after = lifts::counts();
+        assert!(after[2][2] > before[2][2], "failed");
+        assert!(after[4][2] > before[4][2], "the jump pressed in a fight");
+    }
+
+    /// A lift that reached its face and is not asked for again (the walk aims, the route goes on) is left after
+    /// [`LIFT_RESUME_S`]: counted left with its cause, the jump is the way up, and it is no longer a lift at its face.
+    #[test]
+    fn a_lift_not_asked_for_again_is_left_with_its_cause() {
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let (take_off, landing) = (Vec3::new(8.0, 0.0, 0.0), Vec3::new(8.4, 1.0, 0.0));
+        motor.jump_try = Some(JumpTry {
+            take_off,
+            landing,
+            tries: 0,
+            pressed: None,
+            back: false,
+            counted: false,
+            sprint_counted: false,
+            band: BandTry::Approaching,
+            lift: LiftTry::Lifting { at_face: Some(0) },
+            lift_noted: false,
+            lift_seen: Some(0),
+            lift_refused_at_face: Some(lifts::Refused::Blocked),
+        });
+        let before = lifts::left_counts();
+        let band = 2; // 0.95-1.05
+        motor.follow_lift(take_off);
+        assert_eq!(lifts::left_counts(), before, "just seen: not left yet");
+        motor.clock = (LIFT_RESUME_S / TICK_S) as u32 + 2;
+        assert!(!motor.lift_at_face(), "not seen this tick: no lift at its face");
+        motor.follow_lift(take_off);
+        let after = lifts::left_counts();
+        assert_eq!(after[1][band], before[1][band] + 1, "left for a blocked sprint");
+        assert_eq!(motor.jump_try.map(|t| t.lift), Some(LiftTry::GaveUp));
+        motor.follow_lift(take_off);
+        assert_eq!(lifts::left_counts(), after, "counted once");
+    }
+
     /// A walking jump up a ledge with a short top is pressed farther before its take-off, when the route knows
     /// ([`Route::ledge_lead`]): the clip's root then ends nearer the face and the body stays on the top.
     #[test]
@@ -3498,7 +4200,7 @@ mod tests {
             jump: jump.then_some(ledge_to(y)),
             low: false,
         };
-        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true };
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true, lifts: false };
         let press_at = |lead: Option<f32>| {
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 0.9, true), p(14.0, 0.9, false)]);
             if let Some(lead) = lead {
@@ -3529,6 +4231,7 @@ mod tests {
             face: 0.2,
             reach: 1.2,
             gets_up: true,
+            lifts: false,
         };
         let presses = |gate: bool| {
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
@@ -3558,7 +4261,7 @@ mod tests {
             jump: jump.then_some(ledge_to(y)),
             low: false,
         };
-        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true };
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true, lifts: false };
         let presses = |from_grid: bool| {
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.07, true), p(14.0, 1.07, false)]);
             assert_eq!(route.points()[2].jump, Some(Leap::SprintLedge));
@@ -4083,9 +4786,34 @@ mod tests {
         assert_ne!(decision.keys & key::CROUCH, 0, "aiming too");
     }
 
+    /// Out of a blast (register #30) the sprint is taken on a 6 m route, facing the way, with no 10 m straight stretch and no
+    /// facing time to wait for; the same route at a walk, or a run (`Gait::Run`), is not sprinted before its end.
+    #[test]
+    fn an_escape_sprints_on_a_short_route_and_a_walk_does_not() {
+        let sprinted = |gait: Gait| {
+            let mut route = route(&[(0.0, 0.0), (6.0, 0.0)]);
+            let (decisions, _) = walk_as(&mut route, Vec3::new(0.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 80, gait);
+            decisions.iter().filter(|d| d.keys & key::SPRINT != 0).count()
+        };
+        assert!(sprinted(Gait::Escape) >= 5, "an escape sprints: {}", sprinted(Gait::Escape));
+        assert_eq!(sprinted(Gait::Walk), 0);
+        assert_eq!(sprinted(Gait::Run), 0, "a run needs the long straight too");
+    }
+
+    /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
+    #[test]
+    fn an_escape_and_a_run_both_run() {
+        assert!(Gait::Escape.runs() && Gait::Run.runs() && !Gait::Walk.runs());
+    }
+
     /// Walks a body that does what the keys and turns say, with the
     /// movement model, until it arrives; returns the decisions.
     fn walk(route: &mut Route, start: Vec3, yaw: f32, ticks: usize) -> (Vec<Decision>, Pose) {
+        walk_as(route, start, yaw, ticks, Gait::Walk)
+    }
+
+    /// [`walk`] with the legs asked to `gait`.
+    fn walk_as(route: &mut Route, start: Vec3, yaw: f32, ticks: usize, gait: Gait) -> (Vec<Decision>, Pose) {
         let kin = Kinematics::default();
         let mut rng = Rng::new(7);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -4094,6 +4822,7 @@ mod tests {
             yaw,
             pitch: 0.0,
             speed: 0.0,
+            gait,
             ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();

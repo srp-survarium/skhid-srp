@@ -30,10 +30,13 @@ fn threat_tick(
     objective: objective::ObjectiveMap,
     camper: Option<Place>,
     notes: &mut Vec<Note>,
+    weapons: &[Option<reflex::WeaponKind>],
 ) {
     let rules = threat::SpotRules::of(&tuning.threat);
     let threat = &mut state.features.threat;
-    if threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() {
+    // A sensed sniper is a spot (#836's `sniper_lanes`, or #25b's area memory).
+    let sniper_spots = tuning.threat.sniper_lanes || tuning.threat.sniper_memory.is_some();
+    if !sniper_spots && threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() {
         if !state.knowledge.threat.held.is_empty() || !state.knowledge.threat.jobs.is_empty() {
             state.knowledge.threat = Arc::default();
         }
@@ -49,6 +52,14 @@ fn threat_tick(
             {
                 enemies.push(at);
                 threat.spots.shooter_sensed(track.who, at, time, rules);
+                if sniper_spots && weapons.get(track.who).copied().flatten() == Some(reflex::WeaponKind::Sniper) {
+                    let combat = &tuning.aim.combat;
+                    let reach = combat.band(reflex::WeaponKind::Sniper).1 + combat.band_slack_m;
+                    // How: the track's source when its last report is the own sense (else a cheat's or the HUD's came
+                    // since, and the spot keeps how it knew him).
+                    let how = (track.time == time).then(|| threat::Sense::of(track.source)).flatten();
+                    threat.spots.sniper_sensed(track.who, at, time, how, reach, now, rules);
+                }
             }
         }
     }
@@ -154,17 +165,23 @@ fn threat_tick(
             });
         }
     }
-    let picture = threat::Picture { held, jobs: threat.jobs.clone() };
+    let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }
     // [smoke.spot_rules] A region a cloud hides from the spot's shooter is not his while it stands: routes cross under it
     // (the detour weighs the lanes) and no lane smoke is planned for it.
     let planning = view.smoke.planning(now, team);
+    // [threat.sniper_memory] The sensed snipers' spots kept out of the routes too, unless `keep_out` is off.
+    let kept = match tuning.threat.sniper_memory {
+        Some(m) if !m.keep_out => threat::KeptOut::KillsOnly,
+        _ => threat::KeptOut::All,
+    };
     let mut regions = if tuning.smoke.spot_rules && !planning.is_empty() {
         let (grid, map) = (&tactics.world.grid, tactics.regions());
         let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
-        let (covered, opened) = threat.spots.covered_regions_smoked(now, |at, r| {
+        let (covered, opened) = threat.spots.covered_regions_smoked(now, kept, |at, r| {
             planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
         });
         // The regions opened are counted by the bench only (crossings under a cloud).
@@ -182,14 +199,14 @@ fn threat_tick(
         if !planning.is_empty() {
             let (grid, map) = (&tactics.world.grid, tactics.regions());
             let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
-            let (_, opened) = threat.spots.covered_regions_smoked(now, |at, r| {
+            let (_, opened) = threat.spots.covered_regions_smoked(now, kept, |at, r| {
                 planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
             });
             if !opened.is_empty() {
                 under_cloud(bots, team, grid, map, &opened, tuning, now);
             }
         }
-        threat.spots.covered_regions(now)
+        threat.spots.covered_regions_kept(now, kept)
     };
     regions.sort_unstable();
     regions.dedup();
@@ -382,6 +399,15 @@ impl Bots {
             })
             .collect();
         self.teams[usize::from(team)].knowledge.searching = searching;
+        // [A192] The bots running Crossfire now, and on which choke.
+        let crossfiring = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
+            .collect();
+        self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots
@@ -400,7 +426,7 @@ impl Bots {
             let camper = self.bench_camper.as_ref().map(|c| c.place());
             #[cfg(not(test))]
             let camper = None;
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes);
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes, &self.features.weapons);
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
@@ -427,6 +453,7 @@ impl Bots {
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
                     weapon: bot.weapon(&self.features.weapons, &tuning),
+                    weapons: &self.features.weapons,
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
@@ -518,7 +545,14 @@ impl Bots {
             .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
             .collect();
         let gang = tuning.threat.gang_rule().map(|rule| team::GangUp { rule, partners: &partners, tally: &tactics.gang_tally });
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky, gang.as_ref()) {
+        for (place, assignment, changed) in team::assign_trapped(
+            asking,
+            now,
+            gap,
+            &given_up,
+            &shaky,
+            team::Pass { gang: gang.as_ref(), held_in_pass: tuning.commit.held_in_pass },
+        ) {
             let Some(me) = view.place(place) else {
                 continue;
             };
@@ -534,6 +568,15 @@ impl Bots {
                 && bot.assignment.as_ref().is_some_and(|a| a.slot.is_some())
             {
                 escape::counts::handed();
+            }
+            #[cfg(test)]
+            if let Some(old) = bot.assignment.as_ref()
+                && old.kind == plays::PlayKind::Answer
+            {
+                let offered = asked
+                    .iter()
+                    .any(|(p, c, _)| *p == place && c.iter().any(|c| c.kind == old.kind && c.target == old.target));
+                plays::answer::replaced(offered, assignment.kind);
             }
             #[cfg(test)]
             if let Some(old) = bot.assignment.as_ref() {
@@ -576,6 +619,7 @@ impl Bots {
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
                     weapon: bot.weapon(&self.features.weapons, &tuning),
+                    weapons: &self.features.weapons,
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,

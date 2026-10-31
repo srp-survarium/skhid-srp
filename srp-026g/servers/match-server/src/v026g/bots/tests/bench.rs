@@ -900,7 +900,7 @@ pub(crate) fn real_bot_cost() {
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             game.volume = HitVolume::bench();
             // The client's bullet flies (standin.rs `nearest_shape_flown`) in every hit model that tests shapes, unless `SRP_BENCH_HIT_FLIGHT=0`.
-            game.flight = bench_settings().var("SRP_BENCH_HIT_FLIGHT").ok().as_deref() != Some("0");
+            game.flight = standin_hitbox::BulletPath::bench();
             // Bullets go through cover by the client's rule when either side's cover tests go by it (the stand-in's physics
             // is shared by both sides of a head-to-head); with `cover.pierce` off on both, the first surface stops them.
             game.pierce = [0u8, 1].iter().any(|&team| bots.tuning_of(team).cover.pierce.is_some());
@@ -977,6 +977,7 @@ pub(crate) fn real_bot_cost() {
             // `Bot::no_way` afresh) and its ticks stood at a goal one of them
             // was for, while it is not searched again (`NO_WAY_RETRY_MS`).
             let mut no_way_by: std::collections::BTreeMap<String, [u64; 2]> = Default::default();
+            let mut no_way_lines = vec![0u8; teams.len()];
             let mut no_way_seen: Vec<Option<u32>> = vec![None; teams.len()];
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
@@ -1062,12 +1063,13 @@ pub(crate) fn real_bot_cost() {
             game.set_grenade_kits(&roster.grenades);
             game.set_heal_kits(&roster.profiles);
             game.set_radio_kits(&roster.profiles);
-            // The stand-in camper plays by the build's defaults whatever his team's tuning is, so that the two runs of a head-to-head
-            // bench face the same opponent.
+            // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
+            // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
+            // opponent, and a change of the bots' aim does not move him.
             let camper_options = camper::CamperOptions::from_env();
             bots.bench_camper = bench_settings()
                 .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
-                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(Tuning::default())));
+                .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(human_tuning())));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
@@ -1094,6 +1096,9 @@ pub(crate) fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
                         game.bodies[bot.place].why_now = bot.bench_why;
+                        // [counts only] The mirror of the kick the bot made for the tick about to be played (`kick_gap`).
+                        let next = game.tick + TICK_MS;
+                        game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
                     }
                     game.step();
                     // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
@@ -1382,11 +1387,30 @@ pub(crate) fn real_bot_cost() {
                                 .as_ref()
                                 .map_or("none".to_owned(), |a| format!("{:?}", a.kind))
                         };
-                        if let Some((_, until)) = bot.no_way
+                        if let Some((goal, until)) = bot.no_way
                             && no_way_seen[bot.place] != Some(until)
                         {
                             no_way_seen[bot.place] = Some(until);
                             no_way_by.entry(play_now()).or_default()[0] += 1;
+                            // The first three failed searches of each bot: who, doing what, to where (the give-up of a goal with no way).
+                            if no_way_lines[bot.place] < 3 {
+                                no_way_lines[bot.place] += 1;
+                                eprintln!(
+                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                    game.tick,
+                                    bot.place,
+                                    body.team,
+                                    play_now(),
+                                    bot.assignment.as_ref().map(|a| &a.target),
+                                    body.carrying.is_some(),
+                                    body.feet.x,
+                                    body.feet.y,
+                                    body.feet.z,
+                                    goal.x,
+                                    goal.y,
+                                    goal.z
+                                );
+                            }
                         }
                         if let Some(Go::To { at, within_m }) = bot.bench_go
                             && body.alive
@@ -1891,6 +1915,9 @@ pub(crate) fn real_bot_cost() {
                     eprintln!("{line}");
                 }
             }
+            for line in &game.carry_kill_lines {
+                eprintln!("{line}");
+            }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
@@ -1975,59 +2002,65 @@ pub(crate) fn real_bot_cost() {
                 "  zone_pools: {}",
                 serde_json::json!({"zone_pool_lost": game.zone_pool_lost, "zone_pool_deaths": game.zone_pool_deaths})
             );
-            eprintln!(
-                "  sums: {}",
-                serde_json::json!({
-                    "map": format!("{project}-{per_team}v{per_team}"),
-                    "seed": seed,
-                    "kills": [kd[0][0], kd[1][0]],
-                    "deaths": [kd[0][1], kd[1][1]],
-                    "kd_by_role": kd_by_role,
-                    "delivered": game.delivered,
-                    "points": game.points,
-                    "taken": game.taken,
-                    "take_ends": take_ends,
-                    "stands_given_up": stands_given_up,
-                    "stands_stale": stands_stale,
-                    "carriers_killed": carriers_killed,
-                    "collect_crowd_deaths": collect_crowd_deaths,
-                    "collect_held_deaths": collect_held_deaths,
-                    "collect_held_crowd_deaths": collect_held_crowd_deaths,
-                    "collect_held_dist": collect_held_dist,
-                    "collect_held_seen": collect_held_seen,
-                    "collect_crowd_spots": collect_crowd_spots,
-                    "holder_s": holder_ticks.map(secs),
-                    "holder_post_s": holder_post_ticks.map(secs),
-                    "holder_deaths": holder_deaths,
-                    "holder_thefts": holder_thefts,
-                    "unheld_s": unheld_ticks.map(secs),
-                    "play_s": play_s,
-                    "by_play": play_rows,
-                    "deaths_by": deaths_by,
-                    "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
-                    "camp_ended": game.camp_ended,
-                    "nudged": game.nudged,
-                    "raids": raid_sums,
-                    "stolen": game.stolen,
-                    "drops": game.drops,
-                    "zone_deaths": game.zone_deaths,
-                    "zone_hp": game.zone_hp,
-                    "zone_spells": zone_spells,
-                    // Crossings' searches (`crossing.rs`): searched, taken,
-                    // ring walks, refused, floors expanded, wanted for a long
-                    // route, stopped on the way.
-                    "crossings": crossings,
-                    "zone_takes": zone_takes,
-                    "zone_spots": zone_spots.len(),
-                    "carry_mps": if game.carry_ticks > 0 {
-                        game.carry_m / (game.carry_ticks as f32 * TICK_S)
-                    } else {
-                        0.0
-                    },
-                    "stand_in": if game.honest { "honest" } else { "old" },
-                    "owner": owner_sums,
-                })
-            );
+            let sums = serde_json::json!({
+                "map": format!("{project}-{per_team}v{per_team}"),
+                "seed": seed,
+                "kills": [kd[0][0], kd[1][0]],
+                "deaths": [kd[0][1], kd[1][1]],
+                "kd_by_role": kd_by_role,
+                "delivered": game.delivered,
+                "points": game.points,
+                "taken": game.taken,
+                "take_ends": take_ends,
+                "stands_given_up": stands_given_up,
+                "stands_stale": stands_stale,
+                "carriers_killed": carriers_killed,
+                "collect_crowd_deaths": collect_crowd_deaths,
+                "collect_held_deaths": collect_held_deaths,
+                "collect_held_crowd_deaths": collect_held_crowd_deaths,
+                "collect_held_dist": collect_held_dist,
+                "collect_held_seen": collect_held_seen,
+                "collect_crowd_spots": collect_crowd_spots,
+                "holder_s": holder_ticks.map(secs),
+                "holder_post_s": holder_post_ticks.map(secs),
+                "holder_deaths": holder_deaths,
+                "holder_thefts": holder_thefts,
+                "unheld_s": unheld_ticks.map(secs),
+                "play_s": play_s,
+                "by_play": play_rows,
+                "deaths_by": deaths_by,
+                "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
+                "camp_ended": game.camp_ended,
+                "nudged": game.nudged,
+                "raids": raid_sums,
+                "stolen": game.stolen,
+                "drops": game.drops,
+                "zone_deaths": game.zone_deaths,
+                "zone_hp": game.zone_hp,
+                "zone_spells": zone_spells,
+                // Crossings' searches (`crossing.rs`): searched, taken,
+                // ring walks, refused, floors expanded, wanted for a long
+                // route, stopped on the way.
+                "crossings": crossings,
+                "zone_takes": zone_takes,
+                "zone_spots": zone_spots.len(),
+                "carry_mps": if game.carry_ticks > 0 {
+                    game.carry_m / (game.carry_ticks as f32 * TICK_S)
+                } else {
+                    0.0
+                },
+                "stand_in": if game.honest { "honest" } else { "old" },
+                "owner": owner_sums,
+            });
+            eprintln!("  sums: {sums}");
+            // The same JSON in a file of its own: the line above is cut by anything else printed at the same moment (libtest's
+            // "has been running for over 60 seconds" when a cell is slow).
+            if let Some(dir) = bench_settings().var_os("SRP_BENCH_SUMS_DIR") {
+                // `project` is `level_01/day_2`: the slash is a path separator.
+                let file = std::path::Path::new(&dir).join(format!("{project}-{per_team}v{per_team}-s{seed}.json").replace('/', "-"));
+                std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&file, sums.to_string()))
+                    .unwrap_or_else(|e| panic!("SRP_BENCH_SUMS_DIR: {}: {e}", file.display()));
+            }
             eprintln!(
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0

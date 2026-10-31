@@ -25,6 +25,7 @@
 //! through the considerations and the commander.
 
 pub mod ambush;
+pub mod answer;
 pub mod buddy;
 pub mod collect;
 pub mod cover_human;
@@ -129,10 +130,12 @@ pub enum PlayKind {
     Cut,
     /// Play 27: hold USE on the team's resupply box when short of rounds.
     Resupply,
+    /// Play 28: a teammate whose weapon reaches him answers a sniper the team sensed.
+    Answer,
 }
 
 impl PlayKind {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Roam,
         Self::Collect,
         Self::Ambush,
@@ -155,13 +158,14 @@ impl PlayKind {
         Self::Buddy,
         Self::Cut,
         Self::Resupply,
+        Self::Answer,
     ];
 
     /// The personality family whose weight the play's `Personality`
     /// consideration reads.
     pub fn family(self) -> Family {
         match self {
-            Self::Ambush | Self::HoldExit | Self::GuardLead | Self::Crossfire | Self::Cut => {
+            Self::Ambush | Self::HoldExit | Self::GuardLead | Self::Crossfire | Self::Cut | Self::Answer => {
                 Family::Hold
             }
             Self::Intercept | Self::Trade | Self::LateDenial | Self::Hunt => Family::Push,
@@ -196,6 +200,7 @@ impl PlayKind {
                 | Self::Trade
                 | Self::Hunt
                 | Self::Cut
+                | Self::Answer
         )
     }
 }
@@ -261,6 +266,19 @@ pub enum Pace {
     Arrive,
     /// Crouched.
     Sneak,
+    /// Out of somewhere first (a grenade's blast, a damage zone's floor): the sprint wherever the way allows, on a short route and with
+    /// no wait to face it (`motor::Gait::Escape`), and what of the reflex's wish slows the legs is let go by the reason
+    /// ([`super::drive`], `escape_legs`).
+    Escape(EscapeWhy),
+}
+
+/// Why a body is escaping ([`Pace::Escape`]): the reason decides what the reflex keeps while the legs run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EscapeWhy {
+    /// Out of a grenade's blast.
+    Grenade,
+    /// Off a floor a damage zone hurts.
+    Zone,
 }
 
 /// Where a body looks.
@@ -448,6 +466,9 @@ pub struct BotFacts<'a> {
     pub personality: &'a Personality,
     /// The kind of its weapon 1 (`Bot::weapon`), where known.
     pub weapon: Option<WeaponKind>,
+    /// The kind of every place's weapon 1 as the match knows it (`Bots::set_weapons`): the sniper the team sensed is
+    /// known for one by his weapon (play 28).
+    pub weapons: &'a [Option<WeaponKind>],
     /// Its map side (spawn team), if known.
     pub side: Option<i32>,
     /// Its present play, target and when it started.
@@ -983,6 +1004,48 @@ impl Ctx<'_> {
         self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
     }
 
+    /// [threat.sniper_memory, #25b] An objective play's share of its score for its way through a remembered sniper's
+    /// lanes (`SniperMemory::way_weight`): Collect, Escort and Intercept, the bot not carrying (its way home is its own,
+    /// `collect::way_home`); 1 with no sniper spot held, the switch off, or no place for the target.
+    fn sniper_way_weight(&self, kind: PlayKind, target: TargetRef) -> f32 {
+        let Some(memory) = self.tuning.threat.sniper_memory else {
+            return 1.0;
+        };
+        if !matches!(kind, PlayKind::Collect | PlayKind::Escort | PlayKind::Intercept)
+            || self.me.carrying.is_some()
+            || self.team.threat.sniper_regions.is_empty()
+        {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        let exposed_m = self.sniper_way_m(to);
+        super::threat::sniper_way_tally::weighed(self.me.team, exposed_m);
+        memory.way_weight(exposed_m)
+    }
+
+    /// [threat.sniper_memory] The metres of the straight way from the bot to `to` that lie in the held sensed snipers'
+    /// lanes (`Picture::sniper_regions`, the regions their casts see), sampled every `threat::STEP_M` (as `way_home`
+    /// weighs its ways: straight, the floors under them).
+    pub fn sniper_way_m(&self, to: Vec3) -> f32 {
+        let regions = &self.team.threat.sniper_regions;
+        if regions.is_empty() {
+            return 0.0;
+        }
+        let (grid, map) = (&self.tactics.world.grid, self.tactics.regions());
+        let from = self.me.feet;
+        let step = super::threat::STEP_M;
+        let steps = (from.distance_xz(to) / step).ceil().max(1.0) as usize;
+        let inside = (1..=steps)
+            .filter(|&k| {
+                let p = from + (to - from) * (k as f32 / steps as f32);
+                grid.locate(p, 1.5).is_some_and(|n| regions.binary_search(&map.of(n)).is_ok())
+            })
+            .count();
+        inside as f32 * from.distance_xz(to) / steps as f32
+    }
+
     /// A team job's candidate (K2, `threat::Job`): scored by the role, `ThreatTuning::job_score` times the
     /// health gate `health` (a play's own gate), in the objective band with `job_objective`.
     pub fn job_candidate(&self, kind: PlayKind, target: TargetRef, slot: u32, health: f32) -> Option<Candidate> {
@@ -1039,12 +1102,19 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
-        let (score, why) = curve::score(considerations, |input| {
+        #[cfg(test)]
+        fairness::scoring(Some(kind));
+        let (mut score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
+        if !score.is_zero() {
+            score = Score::new(score.get() * self.sniper_way_weight(kind, target));
+        }
+        #[cfg(test)]
+        fairness::scoring(None);
         (!score.is_zero()).then(|| Candidate {
             kind,
             target,
@@ -1138,6 +1208,7 @@ pub enum Running {
     Buddy(buddy::State),
     Cut(cut::State),
     Resupply(resupply::State),
+    Answer(answer::State),
 }
 
 impl Running {
@@ -1146,7 +1217,7 @@ impl Running {
     pub fn travelling(&self) -> bool {
         matches!(
             self,
-            Self::Crossfire(crossfire::State::Going { .. })
+            Self::Crossfire(crossfire::State::Going { .. } | crossfire::State::PeekGoing { .. })
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
         )
@@ -1184,6 +1255,7 @@ impl Running {
             Self::Buddy(_) => PlayKind::Buddy,
             Self::Cut(_) => PlayKind::Cut,
             Self::Resupply(_) => PlayKind::Resupply,
+            Self::Answer(_) => PlayKind::Answer,
         }
     }
 
@@ -1224,6 +1296,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     buddy::candidates(cx, out);
     cut::candidates(cx, out);
     resupply::candidates(cx, out);
+    answer::candidates(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
@@ -1261,6 +1334,7 @@ pub fn start(
         PlayKind::Buddy => Running::Buddy(buddy::start(target, cx, rng)),
         PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
         PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
+        PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
     }
 }
 
@@ -1289,6 +1363,7 @@ pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -
         Running::Buddy(s) => buddy::step(s, target, cx, rng),
         Running::Cut(s) => cut::step(s, target, cx, rng),
         Running::Resupply(s) => resupply::step(s, target, cx, rng),
+        Running::Answer(s) => answer::step(s, target, cx, rng),
     }
 }
 
@@ -1328,6 +1403,7 @@ pub fn default_tuning(kind: PlayKind) -> PlayTuning {
         PlayKind::Buddy => buddy::tuning(),
         PlayKind::Cut => cut::tuning(),
         PlayKind::Resupply => resupply::tuning(),
+        PlayKind::Answer => answer::tuning(),
     }
 }
 
@@ -1356,6 +1432,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
         PlayKind::Buddy => buddy::NUMBERS,
         PlayKind::Cut => cut::NUMBERS,
         PlayKind::Resupply => resupply::NUMBERS,
+        PlayKind::Answer => answer::NUMBERS,
     }
 }
 

@@ -1,4 +1,4 @@
-owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]
+owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m 6 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [nearest mate mean 4.7 m, under 6 m 76 %, beyond 40 m 0 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]
 {
   "spacing": {
     "by_play": {
@@ -35,6 +35,10 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
     },
     "by_team": {
       "0": {
+        "advance_back_seconds": 0,
+        "advance_forward_seconds": 0,
+        "advance_moved_sum": 0.0,
+        "advance_seconds": 0,
         "by_life": [
           {
             "mates_alive": 160,
@@ -62,10 +66,102 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "crowded_deaths": 8,
         "deaths": 8,
         "enemies_near": 1017,
+        "killed_by_bullet_or_other": [
+          [
+            0,
+            0
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        "killed_by_killer_m_10_30_up": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ],
+        "killed_by_killer_still_no_yes": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "killed_by_shooters_1_2_3": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ]
+        ],
         "mates_near": 640,
+        "nearest_mate_bins_lt1_3_6_12_22_40_up": [
+          10,
+          20,
+          0,
+          242,
+          58,
+          10,
+          20
+        ],
+        "nearest_mate_m_sum": 4725.246674537659,
+        "nearest_mate_samples": 360,
+        "overlap_05m_pair_s": 5,
+        "overlap_1m_apart_none_taken_refused_heldoff": [
+          5,
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_body_s": 10,
+        "overlap_1m_cause_target_goal_follow_still_file_other": [
+          0,
+          0,
+          0,
+          5,
+          0,
+          0
+        ],
+        "overlap_1m_moving_pair_goal_under5_5_20_20up_none": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_pair_s": 5,
+        "pairs": 360,
+        "progress_level_sum": 0.0,
+        "progress_levels_fifths": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "samples": 360
       },
       "1": {
+        "advance_back_seconds": 0,
+        "advance_forward_seconds": 0,
+        "advance_moved_sum": 0.0,
+        "advance_seconds": 0,
         "by_life": [
           {
             "mates_alive": 80,
@@ -93,9 +189,103 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "crowded_deaths": 4,
         "deaths": 4,
         "enemies_near": 1017,
+        "killed_by_bullet_or_other": [
+          [
+            0,
+            0
+          ],
+          [
+            2,
+            2
+          ]
+        ],
+        "killed_by_killer_m_10_30_up": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ]
+        ],
+        "killed_by_killer_still_no_yes": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "killed_by_shooters_1_2_3": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0
+          ]
+        ],
         "mates_near": 720,
+        "nearest_mate_bins_lt1_3_6_12_22_40_up": [
+          0,
+          36,
+          236,
+          88,
+          0,
+          0,
+          0
+        ],
+        "nearest_mate_m_sum": 1703.6586437225342,
+        "nearest_mate_samples": 360,
+        "overlap_05m_pair_s": 0,
+        "overlap_1m_apart_none_taken_refused_heldoff": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_body_s": 0,
+        "overlap_1m_cause_target_goal_follow_still_file_other": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_moving_pair_goal_under5_5_20_20up_none": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "overlap_1m_pair_s": 0,
+        "pairs": 360,
+        "progress_level_sum": 0.0,
+        "progress_levels_fifths": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "samples": 360
       }
-    }
+    },
+    "overlap_plays": [
+      {
+        "Roam + Trade": 5
+      },
+      {}
+    ]
   }
 }

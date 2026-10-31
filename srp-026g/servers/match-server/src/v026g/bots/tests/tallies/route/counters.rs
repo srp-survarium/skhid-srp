@@ -244,6 +244,215 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint lift (`motor::lifts`), by band of rise (up to 0.80 m, 0.80-0.95, 0.95-1.05, 1.05-1.11): lifts tried (the body
+/// stood at the face), got up, given up for the jump; the jumps pressed up those faces with the body calm and in a fight
+/// or a rush; and the faces a body in a fight or a rush did not lift (top short, sprint blocked, no run).
+pub(super) fn lifts() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || {
+            let mut all: Vec<u64> = super::super::motor::lifts::counts().iter().flatten().copied().collect();
+            all.extend(super::super::motor::lifts::refusals());
+            all.extend(crate::v026g::bots::tests::standin_jump::lift_stats());
+            all.extend(super::super::motor::lifts::key_counts());
+            all.extend(super::super::motor::lifts::motor_off_counts());
+            all.extend(super::super::motor::lifts::left_counts().iter().flatten().copied());
+            all
+        },
+        |d, line| {
+            let band = |k: usize| d[k * 4..k * 4 + 4].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!(
+                "lifts_tried {} lifts_up {} lifts_failed {} lift_face_jumps_calm {} lift_face_jumps_urgent {} lifts_failed_blocked {} lift_refused top_short/blocked/no_run {}/{}/{}",
+                band(0), band(1), band(2), band(3), band(4), band(5), d[24], d[25], d[26]
+            ));
+            // The stand-in game's side of the lift by band of the link's rise (up to 0.80, 0.80-0.95, 0.95-1.05, 1.05-1.11, over
+            // 1.11, none): made / released the keys / too high / top short / no link / came slow.
+            let stand = (0..6)
+                .map(|b| d[27 + b * 6..33 + b * 6].iter().map(u64::to_string).collect::<Vec<_>>().join("/"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            line.ends.push(format!("stand_in_lift made/released/too_high/top_short/no_link/slow by band {stand}"));
+            let k = &d[27 + 36..27 + 36 + 9];
+            line.ends.push(format!(
+                "lift_face_ticks aimed_walk/motor_off/side_step/lip_guard/pace_stance/fire/override_keys/lining/held {}/{}/{}/{}/{}/{}/{}/{}/{}",
+                k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7], k[8]
+            ));
+            let left = (0..4)
+                .map(|k| d[27 + 36 + 9 + 6 + k * 4..27 + 36 + 9 + 6 + k * 4 + 4].iter().map(u64::to_string).collect::<Vec<_>>().join("/"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            line.ends.push(format!("lifts_left top_short/blocked/no_run/route by band {left}"));
+            let m = &d[27 + 36 + 9..27 + 36 + 9 + 6];
+            line.ends.push(format!(
+                "lift_face_motor_off brake/standing/no_jump/tired/not_sprinting/no_forward {}/{}/{}/{}/{}/{}",
+                m[0], m[1], m[2], m[3], m[4], m[5]
+            ));
+        },
+    )
+}
+
+/// What each kind of link costs in time (`link_time`, A55): per kind, the links timed (up, and back at 90 % of the speed it
+/// began at), the mean time, the mean time lost against the same path at the starting speed, the path over the straight
+/// line, the presses and back-offs per link, the seconds walking back, the links got up by the first press (or with none),
+/// and the links up but not at speed after 6 s / ended by the next link / given up on; then the time lost by 0.1 m band of
+/// rise (a drop: by metre of height) as `band:links/mean_lost_s`.
+pub(super) fn link_times() -> Box<dyn RouteTopic> {
+    use super::super::link_time::{BANDS, FIELD_COUNT, Field, Kind, Why, at};
+    Delta::of(
+        super::super::link_time::counts,
+        |d, line| {
+            let sum = |kind: Kind, field: Field| (0..BANDS).map(|b| d[at(kind, b, field)]).sum::<u64>() as f32;
+            let per = |x: f32, n: f32| if n > 0.0 { x / n } else { 0.0 };
+            for kind in Kind::ALL {
+                let n = sum(kind, Field::Links);
+                let (slow, cut, gone) = (sum(kind, Field::Slow), sum(kind, Field::Cut), sum(kind, Field::Abandoned));
+                if n + slow + cut + gone == 0.0 {
+                    continue;
+                }
+                let name = Kind::NAMES[kind as usize];
+                line.ends.push(format!(
+                    "links_{name} n {n} mean_s {:.2} lost_s {:.2} path_over_straight {:.2} presses {:.2} backoffs {:.2} backoff_s {:.2} first_up_pct {:.0} lifted {} slow {slow} cut {cut} given_up {gone} pre_s {:.2} air_s {:.2} post_s {:.2} pre_stopped_s {:.2} pre_slowed_s {:.2} sprint_starts_pct {:.0} gone_silent {} gone_no_jump {} gone_far {} gone_s {:.2}",
+                    per(sum(kind, Field::Ms), n) / 1000.0,
+                    per(sum(kind, Field::ExcessMs), n) / 1000.0,
+                    per(sum(kind, Field::PathMm), sum(kind, Field::StraightMm)),
+                    per(sum(kind, Field::Presses), n),
+                    per(sum(kind, Field::Backoffs), n),
+                    per(sum(kind, Field::BackoffMs), n) / 1000.0,
+                    100.0 * per(sum(kind, Field::FirstUp), n),
+                    sum(kind, Field::LiftedUp),
+                    per(sum(kind, Field::PreMs), n) / 1000.0,
+                    per(sum(kind, Field::AirMs), n) / 1000.0,
+                    per(sum(kind, Field::PostMs), n) / 1000.0,
+                    per(sum(kind, Field::StoppedMs), n) / 1000.0,
+                    per(sum(kind, Field::SlowedMs), n) / 1000.0,
+                    100.0 * per(sum(kind, Field::SprintStarts), n),
+                    sum(kind, Field::GoneSilent),
+                    sum(kind, Field::GoneNoJump),
+                    sum(kind, Field::GoneFar),
+                    per(sum(kind, Field::GoneMs), gone) / 1000.0,
+                ));
+                let base = Kind::ALL.len() * BANDS * FIELD_COUNT;
+                let by_why = Why::ALL
+                    .iter()
+                    .map(|&w| {
+                        let at = base + (kind as usize * 5 + w as usize) * 2;
+                        format!("{}:{:.2}/{:.2}", Why::NAMES[w as usize], per(d[at] as f32, n) / 1000.0, per(d[at + 1] as f32, n) / 1000.0)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                line.ends.push(format!("links_{name}_pre_by_why stopped/slowed_s {by_why}"));
+                let ended_base = base + Kind::ALL.len() * Why::ALL.len() * 2 + kind as usize * (super::super::link_time::ENDED_NONE + 1);
+                let ended = (0..=super::super::link_time::ENDED_NONE)
+                    .filter(|&e| d[ended_base + e] > 0)
+                    .map(|e| {
+                        let name = super::super::route_end::RouteEnd::ALL.get(e).map_or("route_kept", |end| end.name());
+                        format!("{name}:{}", d[ended_base + e])
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                line.ends.push(format!("links_{name}_given_up_by_route_end {ended}"));
+                let bands = (0..BANDS)
+                    .filter(|&b| d[at(kind, b, Field::Links)] > 0)
+                    .map(|b| {
+                        let links = d[at(kind, b, Field::Links)] as f32;
+                        format!("{b}:{links}/{:.2}", d[at(kind, b, Field::ExcessMs)] as f32 / links / 1000.0)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                line.ends.push(format!("links_{name}_by_band {bands}"));
+            }
+            // The climbs of a face the lift reaches (0.8-1.2 m of rise, by 0.1 m band), whatever way they are taken: walking jumps,
+            // sprint jumps, sprint-throughs and lifts together, in sums (links, ms, ms lost against the cruise, given up, cut
+            // by the next link, up but slow, ms stopped before the press), so the lift's switch is judged on the whole face.
+            for b in 3..=6 {
+                let pooled = |field: Field| {
+                    [Kind::Walking, Kind::SprintBand, Kind::Through, Kind::Lift].iter().map(|&k| d[at(k, b, field)]).sum::<u64>()
+                };
+                line.ends.push(format!(
+                    "links_face_rise_{:.1}_to_{:.1} n {} ms {} lost_ms {} given_up {} cut {} slow {} pre_ms {} stopped_ms {}",
+                    0.5 + 0.1 * b as f32,
+                    0.6 + 0.1 * b as f32,
+                    pooled(Field::Links),
+                    pooled(Field::Ms),
+                    pooled(Field::ExcessMs),
+                    pooled(Field::Abandoned),
+                    pooled(Field::Cut),
+                    pooled(Field::Slow),
+                    pooled(Field::PreMs),
+                    pooled(Field::StoppedMs),
+                ));
+            }
+            // The faces of 0.8-1.2 m given up, by method (kind), what had become of them (a jump pressed, the body left at the
+            // face) and the route end that followed.
+            let face_ended_base = Kind::ALL.len() * (BANDS * FIELD_COUNT + Why::ALL.len() * 2 + super::super::link_time::ENDED_NONE + 1);
+            for kind in [Kind::Walking, Kind::SprintBand, Kind::Through, Kind::Lift] {
+                let pooled = |field: Field| (3..=6).map(|b| d[at(kind, b, field)]).sum::<u64>();
+                let given = pooled(Field::Abandoned);
+                if given == 0 {
+                    continue;
+                }
+                let ended_at = face_ended_base + kind as usize * (super::super::link_time::ENDED_NONE + 1);
+                let ended = (0..=super::super::link_time::ENDED_NONE)
+                    .filter(|&e| d[ended_at + e] > 0)
+                    .map(|e| {
+                        let name = super::super::route_end::RouteEnd::ALL.get(e).map_or("route_kept", |end| end.name());
+                        format!("{name}:{}", d[ended_at + e])
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                line.ends.push(format!(
+                    "links_face_given_up_{} n {given} pressed {} near_take_off {} silent {} no_jump {} far {} ended_by {ended}",
+                    Kind::NAMES[kind as usize],
+                    pooled(Field::GonePressed),
+                    pooled(Field::GoneNear),
+                    pooled(Field::GoneSilent),
+                    pooled(Field::GoneNoJump),
+                    pooled(Field::GoneFar),
+                ));
+            }
+            // What became of the links of a 0.8-1.2 m face given up on, followed for 10 s: by method and route end, climbed
+            // anyway / went elsewhere / still within 6 m of the take-off, and the seconds within 3 m of it in those 10 s.
+            let ended_n = super::super::link_time::ENDED_NONE + 1;
+            let ghost_base = face_ended_base + Kind::ALL.len() * ended_n;
+            for kind in [Kind::Walking, Kind::SprintBand, Kind::Through, Kind::Lift] {
+                let parts = (0..ended_n)
+                    .filter(|&e| (0..3).any(|s| d[ghost_base + (kind as usize * ended_n + e) * 4 + s] > 0))
+                    .map(|e| {
+                        let at = ghost_base + (kind as usize * ended_n + e) * 4;
+                        let name = super::super::route_end::RouteEnd::ALL.get(e).map_or("route_kept", |end| end.name());
+                        format!("{name}:{}/{}/{}/{:.1}s", d[at], d[at + 1], d[at + 2], d[at + 3] as f32 / 1000.0)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if !parts.is_empty() {
+                    line.ends.push(format!("links_face_given_up_then_{} climbed/elsewhere/near/near_s_by_route_end {parts}", Kind::NAMES[kind as usize]));
+                }
+            }
+            // The first press of the walking and sprint jumps at a 0.8-1.2 m face, by outcome (got up / pressed and not up).
+            let press_base = ghost_base + Kind::ALL.len() * ended_n * 4;
+            let bins = super::super::link_time::PRESS_BINS;
+            let metrics = super::super::link_time::PRESS_METRICS;
+            for (k, name) in ["walking", "sprint_band"].iter().enumerate() {
+                for (o, outcome) in ["up", "not_up"].iter().enumerate() {
+                    let at = press_base + (k * 2 + o) * metrics * bins;
+                    let m = |i: usize| d[at + i * bins..at + (i + 1) * bins].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+                    line.ends.push(format!(
+                        "press_{name}_{outcome} before_m(0.25) {} side_m(0.1) {} speed(0.5) {} top_m(0.5) {} rise_from_0.8(0.05) {}",
+                        m(0),
+                        m(1),
+                        m(2),
+                        m(3),
+                        m(4)
+                    ));
+                }
+            }
+            debug_assert_eq!(
+                d.len(),
+                Kind::ALL.len() * (BANDS * FIELD_COUNT + Why::ALL.len() * 2 + 2 * ended_n) + Kind::ALL.len() * ended_n * 4 + 2 * 2 * metrics * bins
+            );
+        },
+    )
+}
+
 /// The sprint-band ledge jumps (`motor::band_jumps`): presses by ground speed (under 3.5, 3.5-4, 4-4.5, 4.5 and over m/s)
 /// and with no sprint held (the activity), the arrivals backed off by reason (too slow, no sprint key, or what the client's
 /// `can_sprint` says no to), the links given up for want of a run, and the ticks the body stood at a face with no press
