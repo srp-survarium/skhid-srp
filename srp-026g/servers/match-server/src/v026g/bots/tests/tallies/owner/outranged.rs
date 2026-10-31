@@ -35,6 +35,47 @@ struct Deaths {
     /// Deaths to the stand-in camper (`SRP_BENCH_CAMPER`), and of them within [`AT_OBJECTIVE_M`] of an objective.
     to_camper: u32,
     to_camper_at_objective: u32,
+    /// Where the deaths happened (#25b's cost): by killer, [`Killer`], the deaths, those with a detour round the covered
+    /// regions taken within [`DETOUR_MS`] before, and those standing in the covered regions (`Bot::threat`, what the routes
+    /// keep out of), as of the victim's last living tick.
+    context: [DeathContext; 3],
+}
+
+/// A detour this soon before a death counts as on one, ms.
+const DETOUR_MS: u32 = 10_000;
+
+/// Who killed: the stand-in camper, another sniper (marksman or bolt rifle), anyone else.
+#[derive(Clone, Copy)]
+enum Killer {
+    Camper,
+    Sniper,
+    Other,
+}
+
+impl Killer {
+    const ALL: [Killer; 3] = [Killer::Camper, Killer::Sniper, Killer::Other];
+
+    fn name(self) -> &'static str {
+        match self {
+            Killer::Camper => "camper",
+            Killer::Sniper => "sniper",
+            Killer::Other => "other",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct DeathContext {
+    deaths: u32,
+    detoured: u32,
+    covered: u32,
+}
+
+/// A living bot's place in the threat picture, read each tick (the last one before a death is the death's).
+#[derive(Clone, Copy, Default)]
+struct Living {
+    detoured: bool,
+    covered: bool,
 }
 
 #[derive(Default)]
@@ -54,6 +95,8 @@ pub(super) struct OutrangedCounts {
     /// the match's since, by team [weighed, scored down, metres].
     ways_from: Option<[[u64; 3]; 2]>,
     ways: [[u64; 3]; 2],
+    /// By place: [`Living`] as of the last tick the body was alive.
+    living: Vec<Living>,
 }
 
 impl Topic for OutrangedCounts {
@@ -87,7 +130,23 @@ impl Topic for OutrangedCounts {
         self.now[place] = Some((team, stats));
     }
 
-    fn bots(&mut self, bots: &Bots, _game: &Game) {
+    fn bots(&mut self, bots: &Bots, game: &Game) {
+        if self.living.len() < game.bodies.len() {
+            self.living.resize(game.bodies.len(), Living::default());
+        }
+        let grid = &game.world.grid;
+        for (place, body) in game.bodies.iter().enumerate() {
+            let Some(bot) = bots.bots.get(place).and_then(Option::as_ref) else {
+                continue;
+            };
+            if body.health <= 0.0 {
+                continue;
+            }
+            self.living[place] = Living {
+                detoured: crate::v026g::bots::threat::rounded_within(place, game.tick, DETOUR_MS),
+                covered: bot.threat.exposed_at(grid, body.feet),
+            };
+        }
         for (team, lanes) in self.lanes.iter_mut().enumerate() {
             if let Some(state) = bots.teams.get(team) {
                 *lanes = state.features.threat.spots.sniper_stats();
@@ -137,6 +196,18 @@ impl Topic for OutrangedCounts {
                 self.deaths[vt].to_camper += 1;
                 self.deaths[vt].to_camper_at_objective += u32::from(objective);
             }
+            let by = if run.camper == Some(killer) {
+                Killer::Camper
+            } else if sniper {
+                Killer::Sniper
+            } else {
+                Killer::Other
+            };
+            let living = self.living.get(victim).copied().unwrap_or_default();
+            let c = &mut self.deaths[vt].context[by as usize];
+            c.deaths += 1;
+            c.detoured += u32::from(living.detoured);
+            c.covered += u32::from(living.covered);
             self.deaths[vt].after_sighting += u32::from(after);
             if sniper {
                 self.deaths[kt].sniper_kills += 1;
@@ -164,7 +235,7 @@ impl OutrangedCounts {
         let all = self.totals();
         let d = &self.deaths;
         let one = |s: &OutrangedStats, d: &Deaths, l: &crate::v026g::bots::threat::SniperLaneStats, w: &[u64; 3]| {
-            serde_json::json!({
+            let mut v = serde_json::json!({
                 "lane_spots": l.made,
                 "lane_made_by_seen_heard_told": l.made_by,
                 "lane_held_ticks_within_past_15s": l.held_by_age,
@@ -189,7 +260,16 @@ impl OutrangedCounts {
                 "sniper_kills": d.sniper_kills,
                 "deaths_to_camper": d.to_camper,
                 "deaths_to_camper_at_objective": d.to_camper_at_objective,
-            })
+            });
+            if let Some(map) = v.as_object_mut() {
+                for by in Killer::ALL {
+                    let c = d.context[by as usize];
+                    map.insert(format!("deaths_by_{}", by.name()), c.deaths.into());
+                    map.insert(format!("deaths_by_{}_detoured_10s", by.name()), c.detoured.into());
+                    map.insert(format!("deaths_by_{}_in_covered", by.name()), c.covered.into());
+                }
+            }
+            v
         };
         let json = serde_json::json!({
             "outranged_sightings": all[0].sightings + all[1].sightings,
