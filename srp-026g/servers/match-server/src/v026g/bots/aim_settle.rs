@@ -3,7 +3,8 @@
 //! A player who keeps the crosshair on a target gets steadier, and waits for it before a shot that must count: the humans'
 //! recordings hold a bolt action's first shot a median 0.95 / 1.6 / 2.5 / 3.35 s after the aim went down at 0-20 / 20-40 /
 //! 40-80 / 80+ m (the VSK-94 0.4 / 1.05 / 2.75 / 3.75 s), the longer the farther. The bots' wander is stationary (`wander_deg`
-//! at a tick and at ten seconds), so waiting gains them nothing. Two parts, both off in the game ([`Settle`]):
+//! at a tick and at ten seconds), so waiting gains them nothing. Two parts, both on in the game for the guns with a scope ([`Settle`], [`SettleGuns`]; the
+//! switch `combat.settle`, `all_off.json` keeps it off):
 //!
 //! - **the wander settles**: its spread goes from the skill's `wander_deg` at the moment the target is taken to the skill's
 //!   `settled_wander_deg` with the time constant `settle_tau_s` (a pair each, skill 0 to 1: the dial; skill 1 settles to about
@@ -17,16 +18,16 @@
 use serde::{Deserialize, Serialize};
 use survarium::v026g::weapons::Optic;
 
-/// Whether the aim settles and the shots wait for it (a bench setting to size the effect; off in the game).
+/// Whether the aim settles and the shots wait for it (on in the game; the bench's arms and `all_off.json` turn it off).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Settle {
-    /// The wander is the skill's whatever the time on target, shots do not wait (today).
-    #[default]
+    /// The wander is the skill's whatever the time on target, shots do not wait (before A182 #29).
     Off,
     /// The wander settles with time on target.
     Wander,
     /// The wander settles, and a shot waits for the error to be small enough for the target's size at his distance.
+    #[default]
     WanderAndPolicy,
 }
 

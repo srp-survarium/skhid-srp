@@ -848,9 +848,10 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
-    /// The error angles times the sights' zoom ([`ZoomError`]); off.
+    /// The error angles times the sights' zoom ([`ZoomError`]): the scopes' (A182 #29; `all_off.json` keeps it off).
     pub zoom_error: ZoomError,
-    /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]); off. The
+    /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]), on the guns with a
+    /// scope (`settle_guns`; A182 #29, `all_off.json` keeps it off). The
     /// policy's number is `settle_k` (the error to expect against this times the body's angular half width at his distance:
     /// GUESS 1.0) and its cap `settle_max_wait_ms` after the target was taken (GUESS 5 s, the humans' aim-held q75 of a
     /// bolt action at 40-80 m).
@@ -1334,8 +1335,8 @@ impl Default for CombatTuning {
             lead_own: true,
             live_eye: true,
             turn_feed: true,
-            zoom_error: ZoomError::Off,
-            settle: Settle::Off,
+            zoom_error: ZoomError::Scopes,
+            settle: Settle::WanderAndPolicy,
             settle_guns: SettleGuns::Scoped,
             settle_k: 1.0,
             settle_max_wait_ms: 5_000,
@@ -6095,6 +6096,18 @@ impl Reflex {
                 && (aimed_in || hip_fits),
             running,
         });
+        // The shot waits for the aim to settle ([`aim_settle`]): a burst under way is held to its end, the first shot of one, and every shot of
+        // another weapon, waits.
+        let settling = now >= self.burst_until
+            && aim_settle::waits(
+                settle,
+                expected_deg,
+                distance,
+                c.body_half_m,
+                c.settle_k,
+                now.saturating_sub(self.since),
+                c.settle_max_wait_ms,
+            );
         // [measure] Each gate that fails ([`gate`]); the play's word and the
         // jump hold are the bot's ([`Self::outer_gates`]).
         let mut failed = 0;
@@ -6116,20 +6129,7 @@ impl Reflex {
                     gate::AIMING_IN
                 },
             ),
-            // A burst under way is held to its end; the first shot of one, and every shot of another weapon, waits.
-            (
-                now >= self.burst_until
-                    && aim_settle::waits(
-                        settle,
-                        expected_deg,
-                        distance,
-                        c.body_half_m,
-                        c.settle_k,
-                        now.saturating_sub(self.since),
-                        c.settle_max_wait_ms,
-                    ),
-                gate::SETTLING,
-            ),
+            (settling, gate::SETTLING),
             (friend.is_some(), gate::FRIEND),
         ] {
             if fails {
@@ -6215,7 +6215,8 @@ impl Reflex {
             keys |= key::CROUCH;
         }
         let mut strafe = 0;
-        let aiming_the_shot = bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press);
+        // A bolt action stands still for its aimed shot, and any gun with the view on him stands still while the shot waits for the aim to settle.
+        let aiming_the_shot = (bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press)) || (settling && within);
         if !self.strafe_fire || aiming_the_shot {
             self.strafe = 0;
         } else if legs.is_none() || (c.strafe_walking && !running) {
@@ -7846,6 +7847,23 @@ mod tests {
                 assert_eq!(o.strafe, 0, "{now}");
             }
         }
+    }
+
+    /// A gun whose shot waits for the aim to settle ([`Settle::WanderAndPolicy`], here on every gun) stands still while it waits, as a player
+    /// steadies for a long shot; the same bot with the settling off fires at once and side-steps between its bursts.
+    #[test]
+    fn a_shot_waiting_for_the_aim_to_settle_is_not_a_side_step() {
+        let aim = |settle| AimTuning {
+            fire_within_deg: 180.0,
+            // `settle_k` small: the error to expect never fits the body, so the shot waits for the cap.
+            combat: CombatTuning { settle, settle_guns: SettleGuns::All, settle_k: 0.1, ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let waiting = facing_fight("support", 30.0, &aim(Settle::WanderAndPolicy), 60);
+        assert!(waiting.iter().all(|(_, o)| !o.fire && o.strafe == 0), "{:?}", waiting.iter().filter(|(_, o)| o.fire || o.strafe != 0).count());
+        let free = facing_fight("support", 30.0, &aim(Settle::Off), 60);
+        assert!(free.iter().any(|(_, o)| o.fire), "the same bot fires within 3 s with the settling off");
+        assert!(free.iter().any(|(_, o)| o.strafe != 0), "and side-steps");
     }
 
     /// Every weapon of the game data that the tiers' kits may carry is
