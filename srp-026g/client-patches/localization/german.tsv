@@ -2694,6 +2694,34 @@ st_stats_saved	Es ist gerettet:
 st_stats_silent_kills	unmerklichen Totschläge:
 st_stats_stolen_victory_items	Batterien gestohlen:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Abgetragene Turnschuhe, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Turnschuhe
+st_stk2_bandit_026_legs_desc	Trainingshose mit Streifen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Trainingshose
+st_stk2_bandit_026_torso_desc	Eine schwarze Lederbomberjacke über einem T-Shirt, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Lederbomberjacke
+st_stk2_loner_026_boots_desc	Geschnürte Lederstiefel eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Stiefel des Einzelgängers
+st_stk2_loner_026_hand_desc	Fingerlose Handschuhe eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Fingerlose Handschuhe des Einzelgängers
+st_stk2_loner_026_legs_desc	Tarnhose mit Knieschonern, Holster und Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Tarnhose des Einzelgängers
+st_stk2_loner_026_torso_desc	Kapuzenjacke unter einer Tragweste mit Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Jacke des Einzelgängers mit Weste
+st_stk2_novice_026_back_desc	Einriemiger Segeltuchrucksack eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Rucksack des Neulings
+st_stk2_novice_026_boots_desc	Lederstiefel eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Stiefel des Neulings
+st_stk2_novice_026_hand_desc	Fingerlose Handschuhe eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Fingerlose Handschuhe des Neulings
+st_stk2_novice_026_hood_desc	Segeltuchkapuze eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kapuze des Neulings
+st_stk2_novice_026_legs_desc	Abgetragene Jeans eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Jeans des Neulings
+st_stk2_novice_026_torso_desc	Feldjacke eines Neulings-Stalkers mit Feldflasche und Messer am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Feldjacke des Neulings
+st_stk2_novice_026_torso_v2_desc	Feldjacke eines Neulings-Stalkers mit zwei Taschen am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Feldjacke des Neulings mit Taschen
 st_storage	Lager
 st_string_pattern_error	Der Name enthält unkorrekte Symbole oder ist zu lang
 st_support	Support:

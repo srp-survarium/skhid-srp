@@ -2694,6 +2694,34 @@ st_stats_saved	Saved:
 st_stats_silent_kills	Silent kills:
 st_stats_stolen_victory_items	Batteries stolen:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Worn-out sneakers, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Sneakers
+st_stk2_bandit_026_legs_desc	Striped track pants, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Track pants
+st_stk2_bandit_026_torso_desc	A black leather bomber jacket over a T-shirt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Leather bomber jacket
+st_stk2_loner_026_boots_desc	A loner's laced leather boots, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Loner's boots
+st_stk2_loner_026_hand_desc	A loner's fingerless gloves, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Loner's fingerless gloves
+st_stk2_loner_026_legs_desc	Camouflage pants with knee pads, a holster and pouches, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Loner's camo pants
+st_stk2_loner_026_torso_desc	A hooded jacket under a load-bearing vest with pouches, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Loner's jacket with vest
+st_stk2_novice_026_back_desc	A novice stalker's one-strap canvas backpack, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Novice's backpack
+st_stk2_novice_026_boots_desc	A novice stalker's leather boots, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Novice's boots
+st_stk2_novice_026_hand_desc	A novice stalker's fingerless gloves, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Novice's fingerless gloves
+st_stk2_novice_026_hood_desc	A novice stalker's canvas hood, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Novice's hood
+st_stk2_novice_026_legs_desc	A novice stalker's worn jeans, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Novice's jeans
+st_stk2_novice_026_torso_desc	A novice stalker's field jacket with a canteen and a knife on the belt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Novice's field jacket
+st_stk2_novice_026_torso_v2_desc	A novice stalker's field jacket with two pouches on the belt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Novice's field jacket with pouches
 st_storage	Storage
 st_string_pattern_error	The name contains invalid characters or it's too long/short
 st_support	Support
