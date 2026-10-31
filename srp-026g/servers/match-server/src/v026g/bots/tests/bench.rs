@@ -1024,6 +1024,12 @@ pub(crate) fn real_bot_cost() {
             game.set_grenade_kits(&roster.grenades);
             game.set_heal_kits(&roster.profiles);
             game.set_radio_kits(&roster.profiles);
+            // `SRP_BENCH_STAND_IN_LEVEL=on`: the bodies go at their kit's level and the bots' tracker starts there too, as the server hands it.
+            if standin_level::enabled() {
+                let levels = standin_level::levels(&roster.upgrades, bots.bench_human);
+                game.set_speed_levels(&levels);
+                bots.set_speed_levels(&levels);
+            }
             // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
             // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
             // opponent, and a change of the bots' aim does not move him.
@@ -2210,8 +2216,9 @@ pub(crate) struct BenchRoster {
 /// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
 /// that wear a modification, and the speed level its first kit gives (`bot_skills::profile_movement_level`, the level the
 /// match server hands its bots' tracker in `game/driven.rs`). This is what the profiles hold: the bench's stand-in does not
-/// use it (it never calls `Bots::set_speed_levels`, and its bodies move at the nominal speed), so a bot's moves do not
-/// change with it here. It says that an arm which turns the upgrades on has them on, and how fast the profiles say they run.
+/// use it unless `SRP_BENCH_STAND_IN_LEVEL=on` (`standin_level.rs`; off: the bodies move at the nominal speed, and `Bots::set_speed_levels`
+/// is not called), so a bot's moves do not change with it here. It says that an arm which turns the upgrades on has them on, and how
+/// fast the profiles say they run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Upgrades {
     pub(crate) items: u32,
