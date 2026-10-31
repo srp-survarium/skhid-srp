@@ -274,6 +274,52 @@ pub(crate) struct Episode {
     pub(crate) at: Vec3,
 }
 
+/// Run-length text of a tick sequence: each run as its symbol and length (`3x12 0x5`), cut at 60 runs.
+fn runs(symbols: impl Iterator<Item = char>) -> String {
+    let mut out: Vec<(char, u32)> = Vec::new();
+    for c in symbols {
+        match out.last_mut() {
+            Some((open, n)) if *open == c => *n += 1,
+            _ => out.push((c, 1)),
+        }
+    }
+    let cut = out.len() > 60;
+    let mut text = out.iter().take(60).map(|(c, n)| format!("{c}x{n}")).collect::<Vec<_>>().join(" ");
+    if cut {
+        text.push_str(" ...");
+    }
+    text
+}
+
+/// The `STUCKEP` line of a stuck episode (`SRP_BENCH_STUCK_EPISODES`): `recs` from 3 s before its start (`before` of them) to
+/// its end. The lip guard's verdict (`Bot::bench_guard`), its watch (w watching, o off, g given up) and the walk (`Bot::bench_walk`)
+/// as runs, before and in the episode; the share of ticks with a move key and with a route; the median speed.
+fn episode_line(place: Place, team: u8, e: &Episode, recs: &[Rec], before: usize, lip: bool, end: &str) -> String {
+    let (pre, during) = recs.split_at(before.min(recs.len()));
+    let digit = |n: u8| char::from_digit(u32::from(n.min(9)), 10).unwrap_or('?');
+    let share = |f: &dyn Fn(&Rec) -> bool| during.iter().filter(|r| f(r)).count() as f32 / during.len().max(1) as f32;
+    let mut speeds: Vec<f32> = during.iter().map(|r| r.speed).collect();
+    speeds.sort_by(f32::total_cmp);
+    let median = speeds.get(speeds.len() / 2).copied().unwrap_or(0.0);
+    format!(
+        "STUCKEP place={place} team={team} t0={:.1} t1={:.1} at={:.2},{:.2},{:.2} lip={} end={end} kind={} cause={} move={:.2} route={:.2} mps={median:.2} pre_guard=[{}] guard=[{}] watch=[{}] walk=[{}]",
+        e.t0,
+        e.t1,
+        e.at.x,
+        e.at.y,
+        e.at.z,
+        u8::from(lip),
+        e.kinds[0],
+        e.cause,
+        share(&|r| r.keys & WALK_KEYS != 0),
+        share(&|r| r.has_route),
+        runs(pre.iter().map(|r| digit(r.guard))),
+        runs(during.iter().map(|r| digit(r.guard))),
+        runs(during.iter().map(|r| r.watch.letter())),
+        runs(during.iter().map(|r| digit(r.walk))),
+    )
+}
+
 /// A bot's state by its play and step (§2d): in a designed hold; in a step
 /// with a goal to walk to (a Follow-type one with its goal `goal_m` over
 /// [`LEADER_FAR_M`] away).
@@ -876,6 +922,7 @@ impl MoveCounts {
         let mut stuck_team: BTreeMap<String, (u32, f32)> = BTreeMap::new();
         let mut stuck_end: BTreeMap<String, (u32, f32)> = BTreeMap::new();
         let grid = &game.world.grid;
+        let episode_lines = super::super::bench_settings().flag("SRP_BENCH_STUCK_EPISODES");
         for place in (0..n).filter(|&p| run.is_bot[p]) {
             let (eps, b) = self.stuck_episodes(run, place, &teams, presses);
             blips += b;
@@ -899,6 +946,10 @@ impl MoveCounts {
                     c.0 += 1;
                     c.1 += seconds;
                 };
+                if episode_lines {
+                    let k_from = e.k0.saturating_sub(3 * TPS).min(k_end);
+                    eprintln!("{}", episode_line(place, teams[place], &e, &recs[k_from..=k_end], e.k0.saturating_sub(k_from), lip, end));
+                }
                 bump(&mut stuck_team, format!("team{}", teams[place]));
                 bump(&mut stuck_end, format!("{place_name}_{end}"));
                 bump(&mut stuck_end, format!("team{}_{place_name}_{end}", teams[place]));

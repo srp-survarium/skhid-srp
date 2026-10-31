@@ -175,6 +175,8 @@ impl BotNow {
             walk: 0,
             why: 0,
             has_route: false,
+            guard: 0,
+            watch: LipWatchKind::Watching,
         }
     }
 }

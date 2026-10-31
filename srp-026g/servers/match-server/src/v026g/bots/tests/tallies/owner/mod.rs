@@ -174,6 +174,37 @@ struct Rec {
     walk: u8,
     why: u16,
     has_route: bool,
+    /// The lip guard of the bot's last motor tick (`Bot::bench_guard`) and its watch ([`LipWatchKind`]): the stuck episodes' print.
+    guard: u8,
+    watch: LipWatchKind,
+}
+
+/// [`crate::v026g::bots::drive::LipWatch`] without its data, for the record.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum LipWatchKind {
+    #[default]
+    Watching,
+    Off,
+    GaveUp,
+}
+
+impl LipWatchKind {
+    fn of(watch: &crate::v026g::bots::drive::LipWatch) -> Self {
+        use crate::v026g::bots::drive::LipWatch;
+        match watch {
+            LipWatch::Watching(_) => Self::Watching,
+            LipWatch::Off(_) => Self::Off,
+            LipWatch::GaveUp { .. } => Self::GaveUp,
+        }
+    }
+
+    fn letter(self) -> char {
+        match self {
+            Self::Watching => 'w',
+            Self::Off => 'o',
+            Self::GaveUp => 'g',
+        }
+    }
 }
 
 /// The owner counts: the run's record ([`Run`]) and the topics that count from it ([`Topic`], [`topics`]).
