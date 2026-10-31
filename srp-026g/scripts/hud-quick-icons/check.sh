@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# check.sh <hud.swf> [work dir]: the quick slots' item icons (stock and srp oxygen tanks) in isolated CPU Ruffle.
+# check.sh <hud.swf> [work dir]: the quick slots' item icons (stock and srp oxygen tanks and medicines, a used-up
+# medicine's gray) in isolated CPU Ruffle.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 hud=$(readlink -f "$1")

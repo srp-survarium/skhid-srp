@@ -34,7 +34,7 @@ base	resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a49
 base	resources.db.patch_24	c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4	revision 24: the exoskeleton bodies as armour without oxygen (pack below), the lobby movie with the rooms (the graphics srp-026g/flash/lobby_menu builds on)
 movie	cursor	-	the mouse cursor
 movie	debug_animations	-	the animation debug screen
-movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67; the Double cylinder's quick-slot icon)
+movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67; the quick-slot icons of the Double cylinder and the coloured medkits)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
 movie	login_menu	-	the login screen with the login hint
 movie	main_menu	-	the main menu with the FOV slider and the Language choice (exe patch 79)
@@ -68,6 +68,7 @@ pack	music@1	faabfc3d60f1aa4ff56e6eb4e7913f1c6e02626fc6d3397bcc277dc019e3ac6c	th
 pack	stk2-bandit@13	76145e460cb0a04e411e67038b5e32550339dbb4ef0b49344e5c635f27777ad1	the STK2 bandit's outfit (bandit_01), level 6, no faction, sold at rank 0 and dropped, the owner's stats: the leather bomber (1864), track pants (1865) and sneakers (1866), built and fitted by resource-porter build-stk2-outfits-026 (stk2-outfits.md)
 pack	stk2-novice@12	67e97a2e2057182b00d02f9d7f14ccf2f7daec549f6e860eee10b68ec7a18332	the STK2 Novice's outfit (neutral_01) beside his knit cap, level 4, no faction, sold at rank 0 and dropped: the hood (1867), the two field jackets (1822, 1868), the backpack (1869), jeans (1870), boots (1871) and fingerless gloves (1872) (stk2-outfits.md)
 pack	stk2-loner@12	abd44482dd271393a1bf1094ecc58dce873d28adcf86c40c94eed844f691e750	the STK2 loner's outfit (neutral_03), level 6, no faction, sold at rank 0 and dropped: the jacket with vest (1873), camo pants (1874), boots (1875) and fingerless gloves (1876) (stk2-outfits.md)
+pack	medicines@2	aeeb8d6c5b890afe03cbd81431d58dfe41c6f593f7b16977a9a9720f3ab1df47	the medicines made whole from one table, each standing on its own (the owner, 2026-10-31; scripts/medicines/medicines.tsv, docs/notes/medicines.md): the bandages, the Medikit (now 40 % of pain) and the new Military (blue, 390, Renaissance), Black Market (green, 1196) and Science (yellow, 391, Fringe: cures intoxication and radiation sickness) medkits, at gameplay/items/medicines/; the new ones' dictionary rows and LobbyMenu_AmmoIcons cells [16, 3], [17, 3], [18, 3]
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
@@ -108,4 +109,5 @@ edit	artefact-carry-flower-1.json	-	held-only Larkspur flower head; original gro
 edit	breakable-lamps-1.json	-	Shootable lamps including v0.11/v0.21 maps: bounds, intact/broken models, linked lights/cones and glass effect material; serialized by the client lamp patch (docs/notes/breakable_lamps.md)
 edit	exo-boots-1.json	-	the Duty and Freedom exoskeleton boots worn under full-length trousers: data/model_type data_long -> data_full, so the trousers are no longer narrowed to a stick above the low exo boots (the owner, 2026-10-30; docs/notes/exo-gear.md)
 edit	music-1.json	-	each playable mode's map theme, mode.ui.loading_music as retail's (levels 1-9 their own; the v0.21 and v0.11 maps their original's; Research's its level's), for exe patch 88 (docs/notes/music.md)
+edit	medicines-1.json	-	the bandages' (66) and the Medikit's (67) dictionary rows name their configs of pack medicines, gameplay/items/medicines/ (docs/notes/medicines.md)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
