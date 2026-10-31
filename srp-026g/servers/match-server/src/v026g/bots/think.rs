@@ -1041,7 +1041,7 @@ pub(super) fn decide(
     let step_name = running.step_name();
     #[cfg(test)]
     if crossfire_going && step_name == "Hold" {
-        bot.note(notes, now, "arrives Crossfire".to_owned());
+        plays::crossfire::bench::arrived(bot.place, now);
     }
     bot.running = Some(running);
     if let Some(at) = claim {

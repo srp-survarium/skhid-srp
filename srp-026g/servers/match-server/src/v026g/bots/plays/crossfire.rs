@@ -570,6 +570,27 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     }
 }
 
+/// [A192] The bench's Crossfire arrivals (test builds): a bot's walk to its spot ended there, kept apart from the bots'
+/// notes (which the decisions' digest hashes) and written by the bench's notes dump (`tests/tallies/carry.rs`).
+#[cfg(test)]
+pub mod bench {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static ARRIVED: RefCell<Vec<(usize, u32)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// The bot at `place` reached its spot at `now`.
+    pub fn arrived(place: usize, now: u32) {
+        ARRIVED.with(|a| a.borrow_mut().push((place, now)));
+    }
+
+    /// The arrivals since the last take.
+    pub fn take() -> Vec<(usize, u32)> {
+        ARRIVED.with(|a| std::mem::take(&mut *a.borrow_mut()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::Scenario;
